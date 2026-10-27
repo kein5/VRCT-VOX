@@ -138,8 +138,10 @@ def system(monkeypatch):
 
 def test_default_and_configuration_never_open_audio(system):
     m, b, bridge = system
-    assert bridge.health() == {'requested': False, 'active': False, 'pending': False,
-                               'error': None, 'generation': 0, 'conversion_verified': False}
+    initial = bridge.health()
+    assert int(initial.pop('observation_id')) > 0
+    assert initial == {'requested': False, 'active': False, 'pending': False, 'source': None,
+                       'error': None, 'generation': 0, 'conversion_verified': False}
     bridge.configure(m.select_source(b.data, 'external.source'))
     assert not b.children and not b.unmutes
     bridge.start()

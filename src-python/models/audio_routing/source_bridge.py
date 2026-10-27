@@ -29,6 +29,55 @@ class Endpoint:
     media_class: str
 
 
+def _source_id(source):
+    return dict(cookie=str(source.cookie), serial=str(source.serial),
+                name=source.name, media_class=source.media_class)
+
+
+def parse_source(value):
+    """Validate the IPC identity without rounding 64-bit serials through JS numbers."""
+    invalid = ValueError('source_bridge_source_invalid')
+    if not isinstance(value, dict) or set(value) != {'cookie', 'serial', 'name', 'media_class'}:
+        raise invalid
+    numbers = []
+    for key, bits in [('cookie', 32), ('serial', 64)]:
+        text = value[key]
+        if (not isinstance(text, str) or not 1 <= len(text) <= 20
+                or not text.isascii() or not text.isdecimal()
+                or (len(text) > 1 and text.startswith('0')) or int(text) >= 2**bits):
+            raise invalid
+        numbers.append(int(text))
+    name = value['name']
+    if (not isinstance(name, str) or not name or '\x00' in name
+            or name.startswith(('vrct.managed.', 'vrct.source-bridge.'))
+            or value['media_class'] != 'Audio/Source'):
+        raise invalid
+    return Endpoint(*numbers, name, 'Audio/Source')
+
+
+def enumerate_sources():
+    if not sys.platform.startswith('linux'):
+        raise RuntimeError('source_bridge_linux_only')
+    graph = _read_graph()
+    result = []
+    for item in graph:
+        if item.get('type') != 'PipeWire:Interface:Node':
+            continue
+        props = item.get('info', {}).get('props', {})
+        name = props.get('node.name')
+        if not isinstance(name, str) or props.get('media.class') != 'Audio/Source':
+            continue
+        try:
+            source = select_source(graph, name)
+            identity = _source_id(source)
+            parse_source(identity)
+        except (RuntimeError, ValueError, KeyError, TypeError):
+            continue
+        label = props.get('node.description')
+        result.append({'id': identity, 'label': label if isinstance(label, str) and label else name})
+    return result
+
+
 def _node(graph, name):
     matches = [n for n in graph if n.get('type') == 'PipeWire:Interface:Node'
                and n.get('info', {}).get('props', {}).get('node.name') == name]
@@ -215,12 +264,15 @@ class SourceBridge:
         self._lock = Lock()
         self._source = None
         self._run = None
+        self._observation_id = 0
         self._state = dict(requested=False, active=False, pending=False, error=None,
                            generation=0, conversion_verified=False)
 
     def health(self):
         with self._lock:
-            return dict(self._state)
+            self._observation_id = max(time.monotonic_ns(), self._observation_id + 1)
+            return dict(self._state, source=_source_id(self._source) if self._source else None,
+                        observation_id=str(self._observation_id))
 
     def _stop_locked(self):
         self._state.update(requested=False, active=False, pending=False,
@@ -239,14 +291,24 @@ class SourceBridge:
             self._state['error'] = None
         _signal(child)
 
-    def start(self):
+    def start(self, *, source=None, expected_generation=None):
         if not sys.platform.startswith('linux'):
             raise RuntimeError('source_bridge_linux_only')
+        if source is not None:
+            if not isinstance(source, Endpoint):
+                raise ValueError('source_bridge_source_invalid')
+            parse_source(_source_id(source))
         with self._lock:
+            if expected_generation is not None and expected_generation != self._state['generation']:
+                raise RuntimeError('source_bridge_stale_start')
             if self._state['requested']:
+                if source is not None and source != self._source:
+                    raise RuntimeError('source_bridge_already_running')
                 return
             if self._run and self._run.thread.is_alive():
                 raise RuntimeError('source_bridge_stopping')
+            if source is not None:
+                self._source = source
             if self._source is None:
                 raise RuntimeError('source_bridge_source_required')
             self._state.update(requested=True, active=False, pending=True, error=None,
