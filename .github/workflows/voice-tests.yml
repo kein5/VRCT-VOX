@@ -28,5 +28,5 @@ jobs:
           node-version: '22.15.0'
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: node --test src-ui/logics/main/languageMutationCoordinator.test.js src-ui/logics/main/languageMutations.test.js src-ui/logics/common/vrPanelWire.test.js src-ui/logics/common/vrPanelTooltip.test.js
+      - run: node --test src-ui/logics/main/languageMutationCoordinator.test.js src-ui/logics/main/languageMutations.test.js src-ui/logics/common/vrPanelWire.test.js src-ui/logics/common/vrPanelTooltip.test.js src-ui/logics/voice/routeState.test.js
       - run: npm run vite-build

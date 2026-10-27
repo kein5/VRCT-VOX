@@ -42,7 +42,7 @@ flowchart LR
 
 | 指標・境界 | n | p50 | p95 | p99 / 最大 |
 |---|---:|---:|---:|---:|
-| `VoiceRoute.mute()`開始→最初の無音read frame（以後2秒の連続観測で確認） | 30 | 82.970ms | 84.541ms | 84.943ms |
+| `VoiceRoute.mute()`開始→最初の無音read frame（以後2秒の連続観測で確認） | 30 | 81.695ms | 84.871ms | 84.929ms |
 
 目標p95≤100ms・最大≤250msを今回の境界では満たした。UIのクリック、OSのADC/DAC時刻、
 VRChatの録音/再生、実VC推論は含まない。モデル単体ベンチマークでも、マイクから相手へのE2E測定でもない。
@@ -54,14 +54,16 @@ VRChatの録音/再生、実VC推論は含まない。モデル単体ベンチ�
 - 実際の制御子processを解除中にkillするとgateは開いたまま。新しい制御を起動するとmuteへ戻った。
 - 新しいdaemon instanceは、状態ファイルが直前の解除を保存していても初期muteで起動し、無音を確認。
   既存VRChat consumerを接続したままのdaemon再起動試験ではない。
-- 60.000秒の連続混合: 3,000/3,000 frameで両方の信号を検出、100ms超のcapture間隔0。
-  全観測9,864 frameでも100ms超の間隔0。既定出力の監視9,971 frameで非無音0。
+  WirePlumberの保存状態を引き継ぐ再起動も未検証（各private graphのXDG_STATE_HOMEは新規）。
+- 60.000秒の連続混合: 2,999/2,999 frameで両方の信号を検出、100ms超のcapture間隔0。
+  全観測9,858 frameでも100ms超の間隔0。既定出力の監視9,962 frameで非無音0。
   物理clock drift、CPU/GPU/VRAM、FPS、xrunを測定したものではない。
 
-結果: [JSON](measurements/2026-10-27-managed-routing.json)、
-[全30回のCSV](measurements/2026-10-27-managed-routing.csv)、
-[実行コマンドとsource/helperのhash](measurements/2026-10-27-managed-routing-provenance.json)。
-最初の1回smokeを通してから30回を実施した。前回の30分soakは別source/経路なので、今回の60秒と混合しない。
+結果: [JSON](measurements/2026-10-27-managed-reviewed-routing.json)、
+[全30回のCSV](measurements/2026-10-27-managed-reviewed-routing.csv)、
+[実行コマンドとsource/helperのhash](measurements/2026-10-27-managed-reviewed-routing-provenance.json)。
+最初の1回smoke、レビュー前の30回に続き、修正後のコードで30回と60秒soakを再実行した。
+上の表は修正後の実測のみ。レビュー前の結果も `2026-10-27-managed-routing.*` とcommit04a221e7に残している。前回の30分soakは別source/経路なので、今回の60秒と混合しない。
 
 再現:
 
@@ -72,10 +74,10 @@ uv run --no-project python tools/voice_route_acceptance.py --output /tmp/managed
 
 ## 自動テスト
 
-音声suite139 PASS。新たにlatch/状態file/identity制御/Controller/CLI/優先受付/失敗報告を検証。
+音声suite143 PASS。新たにlatch/状態file/identity制御/Controller/CLI/優先受付/失敗報告を検証。
 mute・resumeの両方で世代を進め、翻訳待ちとmute中に受け付けたchatの復活を防ぐ。
 既存upstream Controller70ケースとdispatch4ケースもモデルサービスを差し替えて実行している。
-Node契約4 PASS、Vite build PASS、音声関連Ruff PASS、native buildの`-Wall -Wextra -Werror` PASS。
+Node契約5ファイル PASS、Vite build PASS、音声関連Ruff PASS、native buildの`-Wall -Wextra -Werror` PASS。
 CIにはLinux helperのコンパイルを追加したが、リモートCI/Windows runner実行結果は未確認。
 
 一般Python suiteは164件収集・80 collection errors。psutil/numpyなど既知の依存不足で、
@@ -108,3 +110,17 @@ CIにはLinux helperのコンパイルを追加したが、リモートCI/Window
 
 ライセンスは [追加台帳](licensing.md#managed-route追加分2026-10-27) に記録。
 モジュール構成は [PipeWire公式loopback仕様](https://docs.pipewire.org/page_module_loopback.html) に基づく。
+
+## Fresh review後の修正
+
+独立レビューで2件の重要指摘を修正した。どちらも再現試験を失敗させてから修正している。
+
+- 古いpoll応答が新しいresume応答を追い越して「ミュート確認済み」を表示していた。
+  同一世代・backend再作成も含め、OS monotonic clockの観測IDを全statusへ付け、UIが古い観測を拒否する。
+- 遅れて完了したresumeがclose待機後にgateを開き、workerがそのまま終了していた。
+  closeは新要求を拒否しつつ最後のmuteを処理する。解除後の確認失敗も含めて再muteを試み、
+  worker終了だけを成功とせず観測・保存完了を確認する。通常shutdownの待機は最大10秒とし、
+  未確認ならログを残す。OS制御不能やprocess強制終了まで保証するものではない。
+
+軽微な保留事項はWirePlumber保存状態の復元を含む再起動試験。`state.restore-props=false` の指定は
+存在するが、今回のfresh private graph試験をその実証として扱わない。

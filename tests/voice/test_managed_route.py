@@ -180,3 +180,67 @@ def test_saved_latch_survives_control_recreation():
     finally:
         control.close()
         bus.close()
+
+
+@pytest.mark.parametrize("lost_confirmation", [False, True])
+def test_close_drains_late_resume_before_reporting_confirmed_shutdown(route, lost_confirmation):
+    from threading import Thread
+    control, bus, gate, store = route
+    control.configure(True)
+    ready(control)
+    if lost_confirmation:
+        original = gate.set_muted
+        def apply_without_confirmation(value, identity):
+            state = original(value, identity)
+            if not value:
+                raise RuntimeError('confirmation_lost_after_unmute')
+            return state
+        gate.set_muted = apply_without_confirmation
+    gate.release.clear()
+    control.resume()
+    assert gate.resuming.wait(1)
+    results = []
+    closing = Thread(target=lambda: results.append(control.close(timeout=0.05)))
+    closing.start()
+    # Release after the initial shutdown wait, while its old implementation joins.
+    import time
+    time.sleep(0.075)
+    gate.release.set()
+    closing.join(1)
+    until(lambda: not control._thread.is_alive())
+    assert gate.muted, 'a delayed resume must not outlive the final mute obligation'
+    assert store.value and bus.status()['muted']
+    assert control.close() is True
+    assert control.status()['observed_muted'] is True
+    assert not control.status()['pending']
+
+
+def test_shutdown_os_failure_is_not_reported_as_confirmed_shutdown(route):
+    control, bus, gate, store = route
+    control.configure(True)
+    ready(control)
+    control.resume()
+    ready(control)
+    gate.fail = True
+    assert control.close(timeout=.05) is False
+    until(lambda: not control._thread.is_alive())
+    assert not control.status()['ready'] and control.status()['pending']
+    assert control.status()['error']
+
+
+def test_status_orders_every_snapshot_including_same_generation_and_recreation():
+    from models.audio_routing.managed_route import VoiceRoute
+    bus = VoiceEventBus()
+    control = VoiceRoute(bus, gate=Gate(), store=Store())
+    replacement = None
+    try:
+        first, second = control.status(), control.status()
+        assert first['generation'] == second['generation']
+        assert int(first['observation_id']) < int(second['observation_id'])
+        replacement = VoiceRoute(bus, gate=Gate(), store=Store())
+        assert int(replacement.status()['observation_id']) > int(second['observation_id'])
+    finally:
+        if replacement:
+            replacement.close()
+        control.close()
+        bus.close()

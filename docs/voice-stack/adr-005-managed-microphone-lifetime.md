@@ -34,6 +34,8 @@ daemon自体の終了ではendpointが消える。SIGKILLされたVRCTはmute処
 gate状態が残る。外部VCの自動停止を保証しない。次の起動時にmuteへ戻る。
 外部アプリが直接gateを変更する場合の検出は即時ではなく、OS制御不能時は無音を保証できない。
 このためstatus200は要求受付であり、pending=false/ready=trueと観測値の確認が必要。
+UIはmonotonicな観測IDで古いstatus応答を拒否する。通常shutdownは遅れたresume完了後も最終muteを
+処理し、最大10秒で未確認ならその旨を記録する。worker終了だけをmute確認とはしない。
 
 CLIはVRCT停止中の一回の診断操作専用で、常駐監視は提供しない。
 追加SDKはLinuxのsystem PipeWire headers/compilerのみ。モデルとpip依存は追加しない。

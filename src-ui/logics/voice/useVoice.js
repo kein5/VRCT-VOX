@@ -1,6 +1,7 @@
 import { atom, useAtom } from "jotai";
 import { useCallback } from "react";
 import { useStdoutToPython } from "@useStdoutToPython";
+import { newerRoute } from "./routeState";
 
 const settingsAtom = atom(null);
 const statusAtom = atom({});
@@ -11,7 +12,8 @@ const errorAtom = atom(null);
 export const useVoice = () => {
     const [settings, updateSettings] = useAtom(settingsAtom);
     const [status, updateStatus] = useAtom(statusAtom);
-    const [route, updateRoute] = useAtom(routeAtom);
+    const [route, setRoute] = useAtom(routeAtom);
+    const updateRoute = useCallback(value => setRoute(previous => newerRoute(previous, value)), [setRoute]);
     const [devices, updateDevices] = useAtom(devicesAtom);
     const [error, updateError] = useAtom(errorAtom);
     const { asyncStdoutToPython } = useStdoutToPython();

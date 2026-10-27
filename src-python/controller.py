@@ -446,7 +446,10 @@ class Controller:
             dict with status 200 and result True on success.
         """
         if getattr(self, "voice_route", None) is not None:
-            self._stopServiceForShutdown(self.voice_route.close, "voice gate")
+            # One in-flight gate operation (<=4.5s) plus the final mute (<=4.5s).
+            # close bounds its own wait; do not truncate it with the generic 5s wrapper.
+            if not self.voice_route.close(timeout=10):
+                printLog("[voice] shutdown mute unconfirmed; check the virtual microphone")
         if getattr(self, "voice_events", None) is not None:
             self._stopServiceForShutdown(self.voice_events.close, "TTS")
         # デバイス監視・録音系スレッドを明示的に停止する。これを怠ると

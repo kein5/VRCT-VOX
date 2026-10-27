@@ -14,6 +14,7 @@ class VoiceRoute:
         self._managed = False
         self._identity = None
         self._revision = 0
+        self._observation_id = 0
         self._pending = False
         self._error = None
         self._ready = True
@@ -27,10 +28,14 @@ class VoiceRoute:
 
     def status(self):
         with self._condition:
+            # Strings preserve nanosecond ordering across JS's integer precision limit.
+            # The OS monotonic clock also orders a replacement controller's snapshots.
+            self._observation_id = max(time.monotonic_ns(), self._observation_id + 1)
             return {'managed': self._managed, 'requested_muted': self._desired,
                     'observed_muted': self._observed, 'ready': self._ready,
                     'pending': self._pending, 'error': self._error,
-                    'generation': self._revision, 'closed': self._closed}
+                    'generation': self._revision, 'closed': self._closed,
+                    'observation_id': str(self._observation_id)}
 
     def _request_locked(self, muted):
         if self._closed:
@@ -84,17 +89,18 @@ class VoiceRoute:
             self._wake.wait(self.poll_interval)
             self._wake.clear()
             with self._condition:
-                if self._closed:
+                if self._closed and not self._pending:
                     return
                 managed, desired, revision = self._managed, self._desired, self._revision
                 identity = self._identity
-                if not managed and not self._pending:
+                pending = self._pending
+                if not managed and not pending:
                     continue
             observed = None
             try:
                 if managed:
                     state = self.gate.inspect()
-                    if identity != state['identity'] or (not self._pending and state['muted'] != desired):
+                    if identity != state['identity'] or (not pending and state['muted'] != desired):
                         # First attach, reconnect or external gate changes revoke resume.
                         with self._condition:
                             if revision != self._revision:
@@ -126,10 +132,17 @@ class VoiceRoute:
                         continue
                     self._observed = observed
                     self._ready, self._pending, self._error = True, False, None
-                    self.bus.set_muted(desired)
+                    self.bus.set_muted(desired if not self._closed else True)
                     self._condition.notify_all()
+                    if self._closed:
+                        return
             except Exception as exc:
                 with self._condition:
+                    if self._closed and revision != self._revision:
+                        # A stale resume may have applied before its confirmation failed.
+                        # The subsequent final mute still has to run.
+                        self._wake.set()
+                        continue
                     # A failed resume can never remain authorized for auto-retry.
                     self._desired = True
                     self.bus.set_muted(True)
@@ -139,20 +152,21 @@ class VoiceRoute:
                     self._error = (str(exc) if isinstance(exc, RuntimeError)
                                    else 'mute_state_unavailable')
                     self._condition.notify_all()
+                    if self._closed:
+                        return  # Preserve pending/error: a stopped worker is not confirmed silence.
 
     def close(self, timeout=3):
         with self._condition:
-            managed = self._managed
-        if managed:
-            try:
-                self.configure(False, timeout=timeout)
-            except RuntimeError:
-                pass  # status retains the unconfirmed close; endpoint is never removed.
-        with self._condition:
-            self._closed = True
-            self._revision += 1
-            self.bus.set_muted(True)
-            self._wake.set()
+            if not self._closed:
+                if self._managed:
+                    self._request_locked(True)
+                self._closed = True  # Reject new requests, but drain the final pending mute.
+                self._revision += 1
+                self.bus.set_muted(True)
+                self._wake.set()
         if self._thread:
             self._thread.join(timeout)
-        return self._thread is None or not self._thread.is_alive()
+        with self._condition:
+            stopped = self._thread is None or not self._thread.is_alive()
+            return (stopped and not self._pending and self._error is None
+                    and (not self._managed or self._observed is True))
