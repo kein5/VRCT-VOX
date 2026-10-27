@@ -103,6 +103,8 @@ class ToneObservation:
 class ToneCapture(ToneObservation):
     def __init__(self, stack, target, *, strict=True):
         super().__init__()
+        self.reader_eof = False
+        self.reader_error = None
         command = ['pw-cat', '--record', '--raw', '--format', 's16', '--rate', str(RATE),
                    '--channels', '1', '--latency', '10ms', '--target', target]
         if strict:
@@ -114,8 +116,16 @@ class ToneCapture(ToneObservation):
         wait_for(lambda: self.snapshot()['frames'], code='capture_not_ready')
 
     def read(self):
-        while pcm := self.process.stdout.read1(FRAME * 2):
-            self.feed(pcm, time.monotonic_ns())
+        try:
+            while pcm := self.process.stdout.read1(FRAME * 2):
+                self.feed(pcm, time.monotonic_ns())
+            self.reader_eof = True
+        except Exception as exc:
+            self.reader_error = type(exc).__name__
+
+    def snapshot(self):
+        return {**super().snapshot(), 'reader_eof': self.reader_eof,
+                'reader_error': self.reader_error}
 
     def close(self):
         stop_process(self.process)
@@ -221,6 +231,30 @@ def confirm_mute_hold(capture, since_ns, before_nonzero):
         raise RuntimeError('mute_hold_leaked_audio')
 
 
+def consumer_observation(before, after, exit_code, fault_ns, now_ns):
+    """A known disconnection differs from a live reader; stalls are missing data."""
+    if (after.get('reader_error') or
+            after['capture_gaps_over_100ms'] != before['capture_gaps_over_100ms']):
+        return 'missing'
+    if exit_code is not None and after.get('reader_eof'):
+        return 'disconnected'
+    last = after['last_read_ns'] or 0
+    if (exit_code is None and not after.get('reader_eof') and
+            after['frames'] > before['frames'] and last >= fault_ns + 2_000_000_000 and
+            now_ns - last <= 200_000_000):
+        return 'live'
+    return 'missing'
+
+
+def validate_output_guard(state):
+    if state['capture_gaps_over_100ms']:
+        raise RuntimeError('output_guard_capture_gap')
+    if state.get('reader_error') or state.get('reader_eof'):
+        raise RuntimeError('output_guard_reader_stopped')
+    if state['nonzero_frames']:
+        raise RuntimeError('forbidden_default_output')
+
+
 def consumer_fault(stack, report, runs):
     # The alternate input is synthetic too. No physical device is in this graph.
     loopback(stack, 'vrct.b.decoy_input')
@@ -238,6 +272,8 @@ def consumer_fault(stack, report, runs):
             permissive = ToneCapture(trial, name + '.source', strict=False)
             ready(strict, 440)
             ready(permissive, 440)
+            strict_before, permissive_before = strict.snapshot(), permissive.snapshot()
+            fault_ns = time.monotonic_ns()
             producer.close()
             stop_process(target)
             wait_for(lambda: name + '.source' not in nodes())
@@ -246,16 +282,27 @@ def consumer_fault(stack, report, runs):
             strict_after = strict.snapshot()
             permissive_after = permissive.snapshot()
             leaked = strict_after['detected_frames']['1760']
+            now_ns = time.monotonic_ns()
+            strict_observed = consumer_observation(strict_before, strict_after,
+                                                  strict.process.poll(), fault_ns, now_ns)
+            permissive_observed = consumer_observation(permissive_before, permissive_after,
+                                                      permissive.process.poll(), fault_ns, now_ns)
             report['consumer_faults'].append({
                 'index': index, 'strict_forbidden_frames': leaked,
                 'strict_process_exit': strict.process.poll(),
-                'strict_live_capture': strict.settled(0, duration_ms=100) is not None,
+                'strict_observation': strict_observed,
+                'strict_before': strict_before, 'strict_after': strict_after,
+                'permissive_observation': permissive_observed,
+                'permissive_before': permissive_before, 'permissive_after': permissive_after,
+                'fault_ns': fault_ns, 'observed_ns': now_ns,
                 'permissive_forbidden_frames': permissive_after['detected_frames']['1760'],
                 'permissive_process_exit': permissive.process.poll(),
                 'alternate_source_verified': True, 'vrchat_consumer_tested': False,
             })
             if leaked:
                 raise RuntimeError('strict_consumer_fell_back')
+            if 'missing' in (strict_observed, permissive_observed):
+                raise RuntimeError('consumer_observation_missing')
         print(json.dumps({'consumer_fault': index + 1, 'of': runs}), flush=True)
 
 
@@ -343,8 +390,7 @@ def exercise(stack, report, runs, soak_seconds):
     consumer_fault(stack, report, runs)
     settled(guard, time.monotonic_ns(), 'output_guard_not_live_silent', silent=True)
     report['output_guard'] = guard.snapshot()
-    if report['output_guard']['nonzero_frames']:
-        raise RuntimeError('forbidden_default_output')
+    validate_output_guard(report['output_guard'])
 
 
 def main(argv=None):

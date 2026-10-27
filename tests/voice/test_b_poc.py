@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import json
 import math
 import struct
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -91,3 +92,55 @@ def test_evidence_directory_cannot_be_overwritten(tmp_path):
 def test_invalid_limits_exit_before_opening_graph(tmp_path, args):
     with pytest.raises(SystemExit):
         poc.main(['--output', str(tmp_path / 'out'), *args])
+
+
+def test_consumer_fault_rejects_stalled_live_processes(monkeypatch):
+    """Exercise the fault harness itself, not only a helper's implementation."""
+    def capture(*args, **kwargs):
+        observer = poc.ToneObservation()
+        observer.feed(signal(), 20_000_000)
+        observer.process = MagicMock()
+        observer.process.poll.return_value = None
+        return observer
+
+    for name in ('loopback', 'Producer', 'set_default', 'ready', 'stop_process'):
+        monkeypatch.setattr(poc, name, MagicMock())
+    monkeypatch.setattr(poc, 'nodes', lambda: {})
+    monkeypatch.setattr(poc, 'ToneCapture', capture)
+    monkeypatch.setattr(poc.time, 'sleep', lambda _: None)
+    with pytest.raises(RuntimeError, match='consumer_observation_missing'):
+        poc.consumer_fault(MagicMock(), {}, 1)
+
+
+def test_guard_rejects_a_gap_even_after_silent_recovery():
+    observer = poc.ToneObservation()
+    observer.feed(signal(), 20_000_000)
+    observer.feed(signal(), 820_000_000)
+    for ms in range(840, 3020, 20):
+        observer.feed(signal(), ms * 1_000_000)
+    assert observer.settled(0, silent=True, now_ns=3_000_000_000) is not None
+    assert observer.snapshot()['nonzero_frames'] == 0
+    with pytest.raises(RuntimeError, match='output_guard_capture_gap'):
+        poc.validate_output_guard(observer.snapshot())
+
+
+@pytest.mark.parametrize('exit_code,eof,error,expected', [
+    (1, True, None, 'disconnected'), (1, False, None, 'missing'),
+    (None, False, None, 'missing'), (1, True, 'OSError', 'missing'),
+])
+def test_disconnection_requires_observed_eof(exit_code, eof, error, expected):
+    before = poc.ToneObservation().snapshot()
+    after = {**before, 'reader_eof': eof, 'reader_error': error}
+    assert poc.consumer_observation(before, after, exit_code, 1, 3_000_000_000) == expected
+
+
+def test_live_consumer_requires_progress_and_no_missing_interval():
+    observer = poc.ToneObservation()
+    observer.feed(signal(), 20_000_000)
+    before = observer.snapshot()
+    for ms in range(40, 2520, 20):
+        observer.feed(signal(1760), ms * 1_000_000)
+    after = observer.snapshot()
+    assert poc.consumer_observation(before, after, None, 30_000_000, 2_510_000_000) == 'live'
+    after['capture_gaps_over_100ms'] += 1
+    assert poc.consumer_observation(before, after, None, 30_000_000, 2_510_000_000) == 'missing'
