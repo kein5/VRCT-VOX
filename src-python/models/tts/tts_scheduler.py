@@ -6,6 +6,7 @@ from time import monotonic, monotonic_ns
 from models.audio_routing.audio_router import AudioRouter
 from .settings import VoiceSettings
 from .speechcpp_tts import CancelToken, SpeechCppTTS, SpeechError
+from .voice_trace import write_voice_trace
 
 
 class VoiceEventBus:
@@ -117,17 +118,22 @@ class VoiceEventBus:
             timer.daemon = True
             timer.start()
             frames = None
+            first_write = None
+            outcome = "error"
             try:
                 url, voice, language, text = settings.request_for(event)
                 frames = self.provider_factory(url).synthesize_stream(text, voice, language, token)
 
                 def first_audio(timestamp, rate):
+                    nonlocal first_write
+                    first_write = (timestamp, rate)
                     with self._condition:
                         self._stats["last_first_write_ms"] = round((timestamp - event.timestamp_ns) / 1e6, 3)
                         self._stats["sample_rate"] = rate
 
                 self.router.play(frames, settings.playback_device, token, first_audio)
                 token.check()
+                outcome = "completed"
                 with self._condition:
                     self._stats["completed"] += 1
                     if epoch == self._epoch:
@@ -135,6 +141,7 @@ class VoiceEventBus:
             except Exception as exc:
                 with self._condition:
                     if token.is_set() and token.reason == "cancelled":
+                        outcome = "cancelled"
                         self._stats["cancelled"] += 1
                     else:
                         self._stats["errors"] += 1
@@ -152,6 +159,7 @@ class VoiceEventBus:
                         frames.close()
                     except Exception:
                         pass
+                write_voice_trace(event.event_id, event.timestamp_ns, first_write, outcome)
                 with self._condition:
                     self._active = None
                     self._condition.notify_all()
