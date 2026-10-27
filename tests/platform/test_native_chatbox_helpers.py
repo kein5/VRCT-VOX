@@ -78,3 +78,43 @@ def test_rejects_whole_disallowed_or_invalid_packet(kind):
 def test_marker_requires_one_exact_token(text, expected):
     from native_chatbox import marker_visible
     assert marker_visible(text, "VRCTCHECKA") is expected
+
+
+def pcm(values):
+    import numpy as np
+    return np.asarray(values, dtype="<i2").tobytes()
+
+
+@pytest.mark.parametrize("kind", ["one", "overlap_50ms", "overlap_100ms", "sequential", "doubled_gain", "other_audio", "silence", "truncated", "partial_sample"])
+def test_deterministic_source_rejects_duplicates_and_unexplained_audio(kind):
+    import numpy as np
+    from native_chatbox import compare_source_pcm
+    rate = 8000
+    ref = np.random.default_rng(42).integers(-10000, 10001, rate, dtype=np.int16).astype(np.float64)
+    observed = np.pad(ref, (401, 8000))
+    if kind.startswith("overlap"):
+        delay = 400 if kind == "overlap_50ms" else 800
+        mixed = np.zeros(len(ref) + delay)
+        mixed[:len(ref)] += ref * .5
+        mixed[delay:] += ref * .5
+        observed = np.pad(mixed, (401, 8000))
+    elif kind == "sequential":
+        observed = np.concatenate((ref, np.zeros(400), ref))
+    elif kind == "doubled_gain":
+        observed *= 2
+    elif kind == "other_audio":
+        observed[-50:] = 100
+    elif kind == "silence":
+        observed *= 0
+    elif kind == "truncated":
+        observed = ref[:-1]
+    data = pcm(observed) + (b"\x01" if kind == "partial_sample" else b"")
+    result = compare_source_pcm(pcm(ref), data, rate)
+    assert (result["verdict"] == "pass") is (kind == "one"), result
+    if kind == "one":
+        assert result["offset_samples"] == 401 and result["nonzero_outside"] is False
+
+
+def test_deterministic_source_rejects_uninformative_reference():
+    from native_chatbox import compare_source_pcm
+    assert compare_source_pcm(bytes(16000), bytes(32000), 8000)["verdict"] != "pass"

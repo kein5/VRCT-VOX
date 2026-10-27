@@ -10,6 +10,30 @@ def marker_visible(text, marker):
     return len(re.findall(r"(?<![A-Za-z0-9_])" + re.escape(marker) + r"(?![A-Za-z0-9_])", text)) == 1
 
 
+def compare_source_pcm(reference, observed, rate):
+    """Strict deterministic s16 source check, NOT for lossy VRChat replay.
+
+    Require one byte-identical reference at a sample boundary, with zero PCM
+    outside it. Gain changes, resampling and any unexplained signal fail this
+    acceptance gate rather than weakening it to envelope similarity.
+    """
+    if rate <= 0:
+        raise ValueError("invalid_rate")
+    if len(reference) % 2 or len(observed) % 2:
+        return {"verdict": "inconclusive", "reason": "partial_sample"}
+    if len(reference) < rate or len(observed) < len(reference):
+        return {"verdict": "inconclusive", "reason": "insufficient_audio"}
+    if not any(reference):
+        return {"verdict": "inconclusive", "reason": "silent_reference"}
+    offset = observed.find(reference)
+    if offset < 0 or offset % 2:
+        return {"verdict": "fail", "reason": "reference_not_sample_exact"}
+    outside = any(observed[:offset]) or any(observed[offset + len(reference):])
+    return {"verdict": "fail" if outside else "pass", "offset_samples": offset // 2,
+            "matched_samples": len(reference) // 2, "nonzero_outside": outside,
+            "boundary": "deterministic_s16_source_exact_waveform", "perceptual_quality_measured": False}
+
+
 class OscForwarder:
     def __init__(self, target):
         self.target = target

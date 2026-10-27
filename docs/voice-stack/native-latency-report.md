@@ -96,3 +96,5 @@ Minorとして「非無音write後の取消でfirst_writeあり・cancelledと�
 本番UI→VRChatの実Chatbox表示と音声の同時確認、VRChat併用時のGPU負荷、Windows実機、
 HMD/別プレイヤー/物理出力、実翻訳・VC・speech.cpp ASR・30分混在は未検証。
 同一文30回のp95はこの標本の記述統計であり、他環境のp95や統計的信頼区間を保証しない。
+
+2026-10-28補足: 後続Chatbox試験のreviewで包絡だけの重複検出に限界が見つかったため、warmup1+warm30の保存source PCMを再解析した。31/31で参照全体とのサンプル単位完全一致と前後ゼロ波形を確認。raw `tmp/voice-resume/native-measurement-irodori/test_native_osc_once_with_voic0/post-review-source-check.json`。遅延の再測定ではなく値は変更しない。[修正の根拠と限界](native-chatbox-report.md)。

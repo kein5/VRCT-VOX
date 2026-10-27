@@ -97,5 +97,61 @@
     "audio_services_unchanged": true,
     "wivrn_unchanged": true,
     "p1_mute_restored": true
+  },
+  "post_review_source_check": {
+    "actual": {
+      "verdict": "pass",
+      "offset_samples": 22016,
+      "matched_samples": 457287,
+      "nonzero_outside": false,
+      "boundary": "deterministic_s16_source_exact_waveform",
+      "perceptual_quality_measured": false
+    },
+    "negative_controls": [
+      {
+        "delay_ms": 50,
+        "old_envelope": {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9277784170434363,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 0.52,
+              "score": 0.9277784170434363
+            }
+          ],
+          "observed_seconds": 10.5768125,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        "strict": {
+          "verdict": "fail",
+          "reason": "reference_not_sample_exact"
+        }
+      },
+      {
+        "delay_ms": 100,
+        "old_envelope": {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.812594910795686,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 0.5,
+              "score": 0.812594910795686
+            }
+          ],
+          "observed_seconds": 10.6268125,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        "strict": {
+          "verdict": "fail",
+          "reason": "reference_not_sample_exact"
+        }
+      }
+    ]
   }
 }

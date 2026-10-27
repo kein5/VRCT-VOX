@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from native_chatbox import OscForwarder, marker_visible
+from native_chatbox import OscForwarder, compare_source_pcm, marker_visible
 from native_webdriver import NativeWebDriver
 from test_native_ui import initial_state
 
@@ -171,6 +171,8 @@ def test_native_same_send_chatbox_and_voice_then_off(tmp_path):
                         assert len(row["traces"]) == 1 and row["traces"][0]["outcome"] == "completed"
                         row["audio"] = compare_pcm(pcm, observed_pcm, 48000)
                         assert row["audio"]["occurrences"] == 1
+                        row["source_exact"] = compare_source_pcm(pcm, observed_pcm, 48000)
+                        assert row["source_exact"]["verdict"] == "pass", row["source_exact"]
                     assert row["audio"]["verdict"] == "pass", row["audio"]
                     assert gate.inspect()["identity"] == identity
                     assert verify_route(SOURCE, settings["REPLAY_SINK"]) == report["route_before"]

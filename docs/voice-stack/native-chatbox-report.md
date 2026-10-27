@@ -35,6 +35,17 @@ OSCは元から有効、Show Own ChatboxはON。位置を一時的にForwardへ�
 連続captureの最大read間隔44.015ms、100ms超の空白0件。読取り停止を無音成功にはしない。
 終了後のmanaged source muteも確認した。
 
+最終reviewで、包絡照合だけでは50ms/100ms遅れの同一音声を半音量ずつ重ねた波形も1回と判定することが分かった。
+判定を追加し、この決定的なmanaged source試験では**参照PCM全体とのサンプル単位の完全一致と、その前後のゼロ波形**を要求する。
+新しい10件の試験をRED→GREENで確認（遅延重複、連続重複、音量倍増、別音声、無音、欠損等）。既存12件と合わせ22 PASS。
+保存した実録音は457,287サンプルの参照と完全一致、前後の非ゼロ音声なし。50ms/100ms重複対照は両方FAILとなった。
+実VRChatを再起動せず、同じ保存PCMを再解析した結果である。これは認識可能な重複信号の排除であり、
+完全同時・同相でゲインも補償されて最終波形が同一になる内部二重処理の回数までは識別できない。
+再標本化・音量変更・圧縮がある経路は厳格判定を通らないため、VRChat再生側へこの判定を一般化しない。
+[相互相関の公式定義](https://numpy.org/doc/stable/reference/generated/numpy.correlate.html)に沿ったオフライン診断で
+整数サンプルの位置合わせ・gain1・残差0を確認した後、同じ性質を追加依存なしのバイト比較で検証した。
+raw補足は`post-review-source-check.json`、[共有JSON](measurements/2026-10-28-native-chatbox-validation.json)にも収録。
+
 観測relayは元のUDP datagramを改変せず1回転送する。bundleもdatagram単位で1回。
 許可するaddressは`/chatbox/input`と`/chatbox/typing`のみ。`/input/Voice`を含むpacket全体や不正packetは転送しない。
 補助試験12件は未実装で12 FAIL、その後実localhost UDPを含め12 PASS。
@@ -94,5 +105,16 @@ test_overlay_grab_move.py::PanelStreamTest::test_failed_start_is_retried_after_t
 - Windows実機、長文・多言語・連投負荷、実VC/ASR/翻訳発声、30分混在試験は別のゲート。
 - Ruling: 導入済みeng OCRで固定ASCII識別子を検証し、日本語は目視補完 — 追加OCRモデル取得を避ける — 任意の日本語文の自動正確性は保証しない。
 - Ruling: GUI準備は実画面を確認する小さな試行で進め、受入れ本体をopt-in試験へ固定 — 想像の座標で自動操作を増やさない — 準備と復元には引き続き画面確認が必要。
+- Ruling: 継続実装の指示とP1仕様に基づきテスト専用helperを追加 — 製品API変更や新規重みなし — 任意文・任意環境へ成功を一般化しない。
+- Ruling: 本plan全変更と周辺helperを独立review対象とした — 前のnative/計測planは既に別review済み — 全機能releaseの承認とはしない。
+
+最終reviewはCritical0 / Important1 / Minor0。Importantは上記重複検出を修正し、追加reviewを重ねず再現テストと回帰で検証した。
+reviewが範囲外とした項目への判断: 同一実行のVRChat再生/遠隔到達、物理聴取/主観品質/HMD、任意日本語OCR、
+Windows/多言語/長文/持続負荷/VC/ASR/訳文発声/遅延percentileは別ゲートとして維持する。誤って代用すると未検証の動作を完成扱いするため。
+VRChat内部通知数はOSC1件＋実描画という観測限界を維持し、記録終了後の無期限挙動も保証しない。
+reviewerは全体suiteやhost試験を再実行せず保存証拠に依拠したため、作者の実行結果とreviewerの独立helper/PCM検証を区別する。
+
+修正後回帰は**322 PASS / 7 SKIP / 5 warnings、20.45秒**。
+既定Python全体は**1173 PASS / 16既知FAIL / 6 SKIP、14.51秒**。失敗名は上記と同じ。
 
 関連platform/voice/既存Controller・UI契約・transcriber回帰: **312 PASS / 7 SKIP / 5 warnings、20.81秒**。7 SKIPは明示opt-in未指定のnative GUI/stdio/音声等の試験で、今回のhost試験は別途上記のとおり実行済み。変更ファイルのRuff/diff check PASS。
