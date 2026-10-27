@@ -50,3 +50,16 @@ def test_pcm_tap_keeps_partial_audio_and_does_not_swallow_transport_failure(pcm_
     assert record['complete'] is False
     assert record['error'] == 'transport_error'
     assert record['samples'] == 1
+
+
+@pytest.mark.parametrize('values,accepted,p95', [
+    ([80] * 29 + [120], True, 80),  # nearest-rank p95 is the 29th of 30
+    ([80] * 28 + [120] * 2, False, 120),
+    ([80] * 29 + [260], False, 80),  # worst budget still applies
+    ([125], True, None),  # one trial does not assert a distribution target
+])
+def test_crash_budget_cannot_hide_slow_tail_in_passing_individual_cases(values, accepted, p95):
+    cases = [{'name': f'server-crash-{i}', 'command_to_silence_ms': v} for i, v in enumerate(values)]
+    result = probe.crash_budget(cases)
+    assert result['met'] is accepted
+    assert result['p95_ms'] == p95

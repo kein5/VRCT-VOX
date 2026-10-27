@@ -2,7 +2,7 @@
 import http.client
 import json
 import socket
-from threading import Event, Lock
+from threading import Event, Lock, Thread
 from time import monotonic
 from urllib.parse import urlsplit
 
@@ -52,6 +52,26 @@ class CancelToken:
                 pass
 
 
+def _watch_listener(address, token, stopped):
+    """Detect a refused localhost listener independently of playback-paced reads.
+
+    This is not a health check: a timeout or other inconclusive connect failure
+    does not prove the server died. Existing HTTP/request deadlines still apply.
+    No PCM is read or queued here, and only this request's token is cancelled.
+    """
+    while not stopped.wait(.02) and not token.is_set():
+        try:
+            with socket.create_connection(address, timeout=.1):
+                pass
+        except ConnectionRefusedError:
+            if not stopped.is_set():
+                token.cancel("server_unavailable")
+            return
+        except OSError:
+            # A busy listener, local resource pressure, etc. is inconclusive.
+            pass
+
+
 class SpeechCppTTS:
     def __init__(self, base_url, timeout=2.0, first_audio_timeout=10.0):
         self.base_url = local_url(base_url)
@@ -65,6 +85,7 @@ class SpeechCppTTS:
         conn = http.client.HTTPConnection(url.hostname, url.port, timeout=self.timeout)
         response = None
         waiting_for_audio = False
+        watch_stopped, watcher = Event(), None
         try:
             cancel_token.check()
             conn.connect()
@@ -117,6 +138,13 @@ class SpeechCppTTS:
                     if waiting_for_audio:
                         waiting_for_audio = False
                         sock.settimeout(self.timeout)
+                        # The generator may next be suspended inside a slow
+                        # output.write; do not wait for its next HTTP read to
+                        # notice that the external server is no longer there.
+                        watcher = Thread(target=_watch_listener,
+                                         args=((url.hostname, url.port or 80), cancel_token, watch_stopped),
+                                         name="vrct-tts-listener", daemon=True)
+                        watcher.start()
                     samples += complete // 2
                     if samples > rate * 60:
                         raise SpeechError("audio_duration_limit")
@@ -135,6 +163,9 @@ class SpeechCppTTS:
             cancel_token.check()
             raise SpeechError("transport_error") from exc
         finally:
+            watch_stopped.set()
+            if watcher is not None:
+                watcher.join()
             if response is not None:
                 response.close()
             conn.close()

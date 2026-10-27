@@ -30,6 +30,12 @@ HTTP/TCPの待機データにより通信エラーと無音化が遅れること
 別の独立経路では約15.8秒。明示cancel/muteの約80msとは異なる境界であり、故障時無音の契約は未達課題として残す。
 受信と再生の責務・buffer上限・生存監視を最小PoCで再評価する。専用音声processへの全面移行はまだ決定しない。
 
+同日追記: [接続受付監視の修正・検証](tts-listener-failure-report.md)では、発声要求に属する
+小さなTCP監視で明示的な接続拒否を検出し、そのTTSだけを取消す。PCM queueは増やさず、
+外部serverの起動所有権も追加しない。有界受信queueのみでは切断検出を保証できないため今回は採用しない。
+listenerが残る停止・即時再起動の識別やWindows出力停止は対象外であり、必要ならheartbeat/identity/
+process所有契約を再検討する。この局所修正をB全体の製品採用決定にはしない。
+
 ## Alternatives and rejection reasons
 
 | 案 | 現時点の判断 | 再検討条件 |

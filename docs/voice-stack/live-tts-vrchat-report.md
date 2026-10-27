@@ -3,6 +3,9 @@
 2026-10-27。**実TTS→managed仮想マイク→VRChatの通常発声、明示停止、保持mute、再起動後の回復を確認した。
 一方、推論サーバーを強制終了しても数秒以上の音声が残る課題を再現した。P1全体の完了・製品採用とはしない。**
 
+後続の[接続受付監視による修正・再試験](tts-listener-failure-report.md)で、この故障への対処を検証する。
+本書の失敗記録は修正前の証拠として保持する。修正後の独立経路の結果を、VRChat再試験済みとは扱わない。
+
 前回の[WAV fixtureによる試験](managed-vrchat-report.md)から、推論部分を既存speech.cpp 0.9.0へ置き換えた。
 Irodori-TTS-866M-MF-v4.1-F16、Vulkan0、voice=`none`、48kHz mono s16le。
 モデルSHA-256は `e237dc3eefe469b8bba87872beacf12fb7fe00dbdf85767edca8ec04ab910d13`。

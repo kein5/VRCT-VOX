@@ -8,6 +8,7 @@ import argparse
 from contextlib import ExitStack, contextmanager, nullcontext
 import http.client
 import json
+import math
 from pathlib import Path
 import re
 import subprocess
@@ -34,6 +35,16 @@ from tools.vrchat_audio_probe import compare_pcm, silence_pcm  # noqa: E402
 
 SHORT = 'こんにちは。音声の接続テストです。'
 LONG = ('これは音声を途中で止めるための接続試験です。マイクの出力と停止後の無音を確認しています。' * 5)
+
+
+def crash_budget(cases):
+    values = sorted(c['command_to_silence_ms'] for c in cases if c['name'].startswith('server-crash'))
+    # Assert the distribution target only for the planned 30-repeat run.
+    p95 = values[math.ceil(.95 * len(values)) - 1] if len(values) >= 30 else None
+    worst = max(values) if values else None
+    return {'count': len(values), 'p95_ms': p95, 'max_ms': worst,
+            'p95_target_ms': 100, 'max_target_ms': 250,
+            'met': bool(values) and worst <= 250 and (p95 is None or p95 <= 100)}
 
 
 def first_signal(history, since_ns):
@@ -341,8 +352,8 @@ class Session:
         case['silent_hold_frames'] = current['frames'] - held['frames']
         self.finish(case)
 
-    def crash_server(self):
-        case = self.new_case('server-crash')
+    def crash_server(self, name='server-crash', recovery_name='recovery'):
+        case = self.new_case(name)
         self.route.resume()
         confirmed(self.route)
         before, event = self.begin_long(case['name'])
@@ -365,23 +376,26 @@ class Session:
             after = wait_for(lambda: idle(self.bus), timeout=23, code='crashed_inference_still_not_idle')
         case['idle_observed_ns'] = time.monotonic_ns()
         require_outcome(before, after, 'errors')
-        if after['last_error'] not in ('transport_error', 'truncated_http', 'request_timeout'):
+        if after['last_error'] not in ('transport_error', 'truncated_http', 'request_timeout', 'server_unavailable'):
             raise RuntimeError('unexpected_crash_error')
         first = settled(self.capture, started, 'server_crash_not_silent', silent=True)
         case.update(event_ns=event.timestamp_ns, killed_pid=self.server.process.pid, command_ns=started,
                     first_silent_read_ns=first, command_to_silence_ms=(first - started) / 1e6, bus_after=after)
+        # The 12 s diagnostic wait is not the audio-stop acceptance budget.
+        case['silence_budget_ms'] = 250
+        case['within_silence_budget'] = case['command_to_silence_ms'] <= case['silence_budget_ms']
         held = self.capture.snapshot()['nonzero_frames']
         before = self.bus.status()
-        self.publish('server-unavailable', SHORT)
+        self.publish(f'{name}-unavailable', SHORT)
         after = wait_for(lambda: idle(self.bus), timeout=5, code='unavailable_request_not_idle')
         require_outcome(before, after, 'errors')
         settled(self.capture, time.monotonic_ns(), 'unavailable_server_not_silent', silent=True)
         if self.capture.snapshot()['nonzero_frames'] != held:
             raise RuntimeError('unavailable_server_produced_audio')
         case['unavailable_error'] = after['last_error']
-        self.finish(case, 'passed' if case['within_initial_idle_window'] else 'failed')
+        self.finish(case, 'passed' if case['within_initial_idle_window'] and case['within_silence_budget'] else 'failed')
         self.server.start()
-        self.positive('recovery')
+        self.positive(recovery_name)
 
 
 def run(args, report):
@@ -392,7 +406,9 @@ def run(args, report):
             session.positive(f'positive-{index + 1}')
         session.stop_or_mute()
         session.stop_or_mute(mute=True)
-        session.crash_server()
+        for index in range(args.crash_repeats):
+            suffix = f'-{index + 1}' if args.crash_repeats > 1 else ''
+            session.crash_server('server-crash' + suffix, 'recovery' + suffix)
         session.route.mute()
         confirmed(session.route)
         settled(session.capture, time.monotonic_ns(), 'final_mute_missing', silent=True)
@@ -401,7 +417,9 @@ def run(args, report):
         require_continuous_capture(report['final_capture'])
         if session.gui:
             report['gui_observations'] = session.gui.observations
-    report['status'] = 'passed' if all(c['status'] == 'passed' for c in report['cases']) else 'failed'
+    report['crash_budget'] = crash_budget(report['cases'])
+    report['status'] = ('passed' if all(c['status'] == 'passed' for c in report['cases'])
+                        and report['crash_budget']['met'] else 'failed')
 
 
 def main():
@@ -410,6 +428,7 @@ def main():
     parser.add_argument('--speech-binary', default='speech')
     parser.add_argument('--device', default='Vulkan0')
     parser.add_argument('--samples', type=int, default=3)
+    parser.add_argument('--crash-repeats', type=int, default=1)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--private', action='store_true')
     for key in ('window', 'socket', 'replay-sink'):
@@ -417,8 +436,8 @@ def main():
     for key in ('ready-image', 'recording-image'):
         parser.add_argument('--' + key, type=Path)
     args = parser.parse_args()
-    if not args.model.is_file() or not 1 <= args.samples <= 30:
-        parser.error('existing local model and 1..30 samples required')
+    if not args.model.is_file() or not 1 <= args.samples <= 30 or not 1 <= args.crash_repeats <= 30:
+        parser.error('existing local model, 1..30 samples and 1..30 crash repeats required')
     if not args.private and not all((args.window, args.socket, args.replay_sink, args.ready_image, args.recording_image)):
         parser.error('prepared GUI arguments required unless --private')
     args.output.mkdir(parents=True, exist_ok=False)
@@ -427,7 +446,7 @@ def main():
               'environment': 'private_pipewire' if args.private else 'host_pipewire_vrchat_desktop',
               'noise_suppression': None if args.private else 'off',
               'measurement_boundary': 'event creation to source 20ms read frame with peak >64/32768',
-              'server_warmup_enabled': True}
+              'server_warmup_enabled': True, 'requested_crash_repeats': args.crash_repeats}
     try:
         run(args, report)
     except (Exception, KeyboardInterrupt) as exc:
