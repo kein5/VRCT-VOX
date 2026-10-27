@@ -8,6 +8,15 @@ VRCT全GUIのLinux互換化はP5。以下のCLI→仮想マイク→VRChat deskt
 取得済みIrodori MF / speech.cpp 0.8.11の単発PoCと、0.9.0の専用PipeWireグラフでの
 [30回測定](benchmarks.md)は確認済み。新規モデル取得は行っていない。
 
+## ネイティブ起動の作業状況
+
+開発用Rust sidecarはLinuxで`.venv/bin/python`を使い、UnixのexecでPythonへ置き換わる。
+Tauriが所有するPIDとPythonのPIDが同じなので、wrapper終了後にPythonだけが残る状態を防ぐ。
+Windowsの`Scripts/python.exe`選択とJob Objectは維持する。
+実ラッパー＋小さなPythonプログラムによる10件の試験で、stdio、日本語、引数、空白path、終了コード、
+終了時のprocess消失、不正venv拒否、interpreter不在・実行失敗を確認した。
+これは本番Modelの初期化・Linux GUI起動の合格ではない。[継続記録](completion-ledger.md)を参照。
+
 ## 一時的な仮想マイク
 
 最初にイヤホンまたはWiVRnの音声デバイスを接続し、`wpctl status`で

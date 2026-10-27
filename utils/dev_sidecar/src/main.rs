@@ -22,6 +22,8 @@
 // KILL_ON_JOB_CLOSE. When Tauri terminates the sidecar process, the Job
 // closes and the child Python process is killed with it, preventing
 // orphaned interpreters after a dev restart.
+// On Unix exec replaces this wrapper with Python, preserving its PID and the
+// inherited pipes. Terminating the sidecar therefore terminates Python too.
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -68,7 +70,10 @@ fn main() {
         }
     };
 
+    #[cfg(windows)]
     let python = root.join(venv).join("Scripts").join("python.exe");
+    #[cfg(not(windows))]
+    let python = root.join(venv).join("bin").join("python");
     let cwd: PathBuf = root.join("src-python");
     let script = cwd.join("mainloop.py");
 
@@ -96,20 +101,37 @@ fn main() {
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
-    let status = match cmd.status() {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!(
-                "dev-sidecar: failed to launch {} {}: {}",
-                python.display(),
-                script.display(),
-                e
-            );
-            std::process::exit(127);
-        }
-    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        let error = cmd.exec();
+        // exec only returns on failure; never fall back to another Python.
+        eprintln!(
+            "dev-sidecar: failed to launch {} {}: {}",
+            python.display(),
+            script.display(),
+            error
+        );
+        std::process::exit(127);
+    }
 
-    std::process::exit(status.code().unwrap_or(1));
+    #[cfg(not(unix))]
+    {
+        let status = match cmd.status() {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!(
+                    "dev-sidecar: failed to launch {} {}: {}",
+                    python.display(),
+                    script.display(),
+                    e
+                );
+                std::process::exit(127);
+            }
+        };
+
+        std::process::exit(status.code().unwrap_or(1));
+    }
 }
 
 fn find_project_root(start: &Path) -> Option<PathBuf> {
