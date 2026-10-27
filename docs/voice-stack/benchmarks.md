@@ -4,6 +4,11 @@
 UI→VRChatの性能ゲートは未判定。
 fakeサーバーのテスト所要時間はTTS推論速度・VRChat遅延とは異なる。
 
+後続の[UI部品・stdio統合試験](ui-entry-report.md)は、本番入力欄・設定UIから実Main/Controllerを通す
+独立した16ケース。実TTSのstdio書込直前→仮想マイク初音は条件別に294〜627ms、
+取消・ミュートは57ms・72ms。Tauri接続と周辺サービスを試験用に差し替えており、
+単発・異条件の値からp95や仕様§8の達成を主張しない。下記のbackend起点30反復とは集約しない。
+
 ## Linux反復測定（speech.cpp 0.9.0、n=30）
 
 後続の[managed経路＋VRChat実TTS試験](live-tts-vrchat-report.md)では、通常3回の

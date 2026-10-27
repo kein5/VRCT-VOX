@@ -1,0 +1,2882 @@
+{
+  "date": "2026-10-27",
+  "base_commit": "1baef00f1fae8c6fd84b2821d14a69e056a84300",
+  "scope": "Production UI components -> substituted desktop transport -> production stdio Main/Controller -> real HTTP/managed PipeWire, with injected inactive model services. Not a native Tauri/full application acceptance.",
+  "production_code_changed": false,
+  "full_product_acceptance": false,
+  "final_model_free_cases_passed": 16,
+  "final_live_cases_passed": 16,
+  "model_and_binary": {
+    "model_name": "Irodori-TTS-866M-MF-v4.1-F16.gguf",
+    "model_bytes": 1920321792,
+    "model_sha256": "e237dc3eefe469b8bba87872beacf12fb7fe00dbdf85767edca8ec04ab910d13",
+    "binary_version": "speech.cpp 0.9.0, C API 3.4",
+    "binary_sha256": "800e9bae0057a7ce2b63dde01a71bf83653ffbd70eb83f8bea3e8fd944f678e7",
+    "voice": "none",
+    "new_models_downloaded": false,
+    "hashes_rechecked_after_run": true
+  },
+  "chromium": {
+    "version": "153.0.8010.12",
+    "existing_binary_sha256": "8c599d43aec53f2460a31ae2f4af6bd863f8258b34ff519564bc5d4726bfaa1e",
+    "downloaded": false
+  },
+  "test_dependencies": {
+    "playwright": "1.64.1 (Apache-2.0 installed metadata)",
+    "python-osc": "1.9.0 (Unlicense installed metadata)",
+    "pytest": "8.4.2",
+    "requests": "2.34.2",
+    "profile": "requirements-voice-ui-test.txt",
+    "product_dependencies_changed": false
+  },
+  "measurement_boundary": {
+    "start_click": "Python monotonic immediately before Playwright click; includes actionability, browser dispatch and substituted process bridge",
+    "start_stdio": "Python monotonic immediately before writing the actual encoded line to child stdin",
+    "audio_end": "First20ms source frame read with peak>64/32768; not an audio-device timestamp or PCM write time",
+    "silence_end": "First read of >=2s continuous silence; continuous capture and node identity checked per case",
+    "budgets": "stdio stop<=250ms; browser click stop<=500ms diagnostic only; server listener failure<=250ms per observed case",
+    "samples": "Five completed utterances across distinct normal/resume/translated/recovery conditions per final run; single cancel/mute/crash each; no quantiles or upper-bound guarantees",
+    "performance_gate": "Spec8 UI-event->first non-silent write p50<350ms/p95<800ms NOT evaluated; fixture transport and read boundary differ",
+    "not_measured": [
+      "Native Tauri IPC",
+      "full initialization",
+      "model-only TTFA",
+      "perceptual quality",
+      "physical ADC/DAC",
+      "VRChat replay/network",
+      "xrun",
+      "continuous CPU/GPU/VRAM/FPS",
+      "30min coexistence"
+    ]
+  },
+  "injected_services": [
+    "Tauri backend_subprocess handle bridged via Playwright; responses polled20ms",
+    "config test object; no application config persistence",
+    "Model services; no Controller.init",
+    "translation fixed controlled Japanese/English fixtures",
+    "history and websocket call recording; no persistence/websocket transport",
+    "inactive overlay/transcription imports"
+  ],
+  "real_legacy_boundary": "Production OSCHandler sends localhost UDP to isolated test receiver; no VRChat destination",
+  "native_preflight": {
+    "python": {
+      "status": "blocked",
+      "error": "ModuleNotFoundError",
+      "message": "No module named 'psutil'",
+      "traceback": "Traceback (most recent call last):\n  File \"<stdin>\", line 4, in <module>\n  File \"/home/kei/.local/share/uv/python/cpython-3.13.17-linux-x86_64-gnu/lib/python3.13/importlib/__init__.py\", line 88, in import_module\n    return _bootstrap._gcd_import(name[level:], package, level)\n           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<frozen importlib._bootstrap>\", line 1404, in _gcd_import\n  File \"<frozen importlib._bootstrap>\", line 1369, in _find_and_load\n  File \"<frozen importlib._bootstrap>\", line 1340, in _find_and_load_unlocked\n  File \"<frozen importlib._bootstrap>\", line 935, in _load_unlocked\n  File \"<frozen importlib._bootstrap_external>\", line 1027, in exec_module\n  File \"<frozen importlib._bootstrap>\", line 488, in _call_with_frames_removed\n  File \"/home/kei/.ait-server-desktop/worktrees/1gz3nbj0/frail-walrus/src-python/mainloop.py\", line 32, in <module>\n    from controller import Controller  # noqa: E402\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/kei/.ait-server-desktop/worktrees/1gz3nbj0/frail-walrus/src-python/controller.py\", line 14, in <module>\n    from model import model, SETUP_LAUNCHED, SETUP_DOWNLOAD_FAILED, SETUP_VERIFY_FAILED\n  File \"/home/kei/.ait-server-desktop/worktrees/1gz3nbj0/frail-walrus/src-python/model.py\", line 14, in <module>\n    from psutil import Process as psutil_Process\nModuleNotFoundError: No module named 'psutil'\n"
+    },
+    "cargo_offline": "error: no matching package named `font-kit` found\nlocation searched: crates.io index\nrequired by package `VRCT v0.0.0 (/home/kei/.ait-server-desktop/worktrees/1gz3nbj0/frail-walrus/src-tauri)`\nnote: offline mode (via `--offline`) can sometimes cause surprising resolution failures\nhelp: if this error is too confusing you may wish to retry without `--offline`\n",
+    "assessment": "Insufficient environment for native startup; not proof native Linux is impossible. Full Linux startup/packaging remains separate work."
+  },
+  "trials": [
+    {
+      "name": "fixture-1",
+      "status": "failed",
+      "real_tts": false,
+      "negative_control": null,
+      "raw_report": "tmp/vrct-entry-validation/fixture-1/report.json",
+      "raw_report_sha256": "93784dc4a98f9c22a59b16e5e4ee9ef10f7dc55d1bacb907512f713b458112e6",
+      "cases": [],
+      "failure": "Locator.select_option: Timeout 8000ms exceeded.\nCall log:\n  - waiting for get_by_label(\"Read aloud\", exact=True)\n",
+      "cleanup": null
+    },
+    {
+      "name": "fixture-2",
+      "status": "failed",
+      "real_tts": false,
+      "negative_control": null,
+      "raw_report": "tmp/vrct-entry-validation/fixture-2/report.json",
+      "raw_report_sha256": "34d5340ae6a525f4f4b3051070f081ebdf35a357c547881d9e311fe22e13a36f",
+      "cases": [],
+      "failure": "speech_not_completed",
+      "cleanup": null
+    },
+    {
+      "name": "fixture-3",
+      "status": "passed",
+      "real_tts": false,
+      "negative_control": null,
+      "raw_report": "tmp/vrct-entry-validation/fixture-3/report.json",
+      "raw_report_sha256": "54530da9a8bc414c826c81cda6860c143c57e58d8641c3accec300b0331693fd",
+      "cases": [
+        {
+          "name": "normal",
+          "id": "c6bb3d6f-fed2-47e5-9a1f-e0ae67a87e77",
+          "click_begin_ns": 45121244593629,
+          "source_first_read_ns": 45121483079682,
+          "click_to_source_ms": 238.486053,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9844421540093735,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.4,
+                "score": 0.9844421540093735
+              }
+            ],
+            "observed_seconds": 5.541333333333333,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 265984,
+            "elapsed_seconds": 5.545456750005542,
+            "last_read_seconds": 5.546104281005682,
+            "max_read_gap_seconds": 0.04293980800139252,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "cancel",
+          "command_ns": 45127162390509,
+          "first_silent_read_ns": 45127243088897,
+          "click_to_silence_ms": 80.698388,
+          "status": "passed"
+        },
+        {
+          "name": "mute",
+          "command_ns": 45129978539884,
+          "first_silent_read_ns": 45130059069563,
+          "click_to_silence_ms": 80.529679,
+          "status": "passed"
+        },
+        {
+          "name": "held-mute-rejects-new",
+          "status": "passed"
+        },
+        {
+          "name": "off-keeps-text-silent",
+          "status": "passed"
+        },
+        {
+          "name": "after-off",
+          "id": "5df4bd3b-785d-4bd3-a37b-42df9a45377f",
+          "click_begin_ns": 45139719753498,
+          "source_first_read_ns": 45140000189127,
+          "click_to_source_ms": 280.435629,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9763723500117868,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.9763723500117868
+              }
+            ],
+            "observed_seconds": 5.573333333333333,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 267520,
+            "elapsed_seconds": 5.58079213599558,
+            "last_read_seconds": 5.581512042997929,
+            "max_read_gap_seconds": 0.0485712239969871,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "busy-workers-stop-and-expire-queued",
+          "id": "85ff30dc-4cb3-4612-87d3-6c66b468a73f",
+          "begin_ns": 45145012253963,
+          "stop_response_observed_ns": 45145111381191,
+          "wire_endpoints": [
+            "/run/stop_typing_message_box",
+            "/run/send_message_box",
+            "/run/stop_voice",
+            "/get/data/voice_status",
+            "/get/data/voice_route",
+            "/get/data/voice_status",
+            "/get/data/voice_route"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "fresh-after-busy-stop",
+          "id": "a138cdab-71a7-4fdd-ba99-d5acfdd55b1e",
+          "click_begin_ns": 45149734642933,
+          "source_first_read_ns": 45149984193546,
+          "click_to_source_ms": 249.550613,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9763723500117868,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.9763723500117868
+              }
+            ],
+            "observed_seconds": 5.584,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 268032,
+            "elapsed_seconds": 5.5895573510060785,
+            "last_read_seconds": 5.59023833500396,
+            "max_read_gap_seconds": 0.0498012509997352,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        }
+      ],
+      "failure": null,
+      "cleanup": null
+    },
+    {
+      "name": "fixture-4",
+      "status": "passed",
+      "real_tts": false,
+      "negative_control": null,
+      "raw_report": "tmp/vrct-entry-validation/fixture-4/report.json",
+      "raw_report_sha256": "6db652ac6ad846064c37a7833042fbc0afefe7117374d06c809ee87b4d4f31cb",
+      "cases": [
+        {
+          "name": "normal",
+          "id": "24533cf8-afaa-4119-8c07-fa3c82abb418",
+          "click_begin_ns": 45208872659858,
+          "source_first_read_ns": 45209145905891,
+          "click_to_source_ms": 273.246033,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9590459677744276,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.9590459677744276
+              }
+            ],
+            "observed_seconds": 5.445333333333333,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 261376,
+            "elapsed_seconds": 5.453512351006793,
+            "last_read_seconds": 5.454313381000247,
+            "max_read_gap_seconds": 0.04272899100033101,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "cancel",
+          "command_ns": 45214695649103,
+          "first_silent_read_ns": 45214778147355,
+          "click_to_silence_ms": 82.498252,
+          "status": "passed"
+        },
+        {
+          "name": "mute",
+          "command_ns": 45217512318776,
+          "first_silent_read_ns": 45217594159698,
+          "click_to_silence_ms": 81.840922,
+          "status": "passed"
+        },
+        {
+          "name": "held-mute-rejects-new",
+          "status": "passed"
+        },
+        {
+          "name": "off-keeps-text-silent",
+          "status": "passed"
+        },
+        {
+          "name": "after-off",
+          "id": "3a9bb61b-d443-4a12-aac1-0bd14da6dc1d",
+          "click_begin_ns": 45227363889536,
+          "source_first_read_ns": 45227620726934,
+          "click_to_source_ms": 256.837398,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.999234145973033,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.999234145973033
+              }
+            ],
+            "observed_seconds": 5.466666666666667,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 262400,
+            "elapsed_seconds": 5.470763771001657,
+            "last_read_seconds": 5.471443702997931,
+            "max_read_gap_seconds": 0.04726811600266956,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "busy-workers-stop-and-expire-queued",
+          "id": "ed7205e0-fe77-4ddd-8bc4-8df262f0ce5a",
+          "begin_ns": 45232550652401,
+          "stop_response_observed_ns": 45232641189763,
+          "wire_endpoints": [
+            "/run/stop_typing_message_box",
+            "/run/send_message_box",
+            "/run/stop_voice",
+            "/get/data/voice_status",
+            "/get/data/voice_route",
+            "/get/data/voice_status",
+            "/get/data/voice_route"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "fresh-after-busy-stop",
+          "id": "9b19a5ca-3e38-4e5f-b821-3bb13c81d054",
+          "click_begin_ns": 45237252438004,
+          "source_first_read_ns": 45237519246573,
+          "click_to_source_ms": 266.808569,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.999234145973033,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.999234145973033
+              }
+            ],
+            "observed_seconds": 5.525333333333333,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 265216,
+            "elapsed_seconds": 5.529054232996714,
+            "last_read_seconds": 5.529577228997368,
+            "max_read_gap_seconds": 0.044094290999055374,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "invalid-settings-preserve-working-config",
+          "status": "passed"
+        },
+        {
+          "name": "original-translation-wait-and-cancel",
+          "id": "7f8a06fb-3b60-4f87-9a0d-135dcf3fa85b",
+          "status": "passed"
+        },
+        {
+          "name": "translated-translation-wait-and-cancel",
+          "id": "e88a52e9-9a4a-4db4-b7dc-697c0db5aaef",
+          "status": "passed"
+        },
+        {
+          "name": "translated-selected-slot",
+          "id": "804a0cd1-5001-41e6-b9f5-6a0340b4b31b",
+          "click_begin_ns": 45254984632157,
+          "source_first_read_ns": 45255226115034,
+          "click_to_source_ms": 241.482877,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9906598906366496,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.9906598906366496
+              }
+            ],
+            "observed_seconds": 5.541333333333333,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 265984,
+            "elapsed_seconds": 5.544629732998146,
+            "last_read_seconds": 5.545250914001372,
+            "max_read_gap_seconds": 0.047619915996619966,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。 (Hello, translated fixture. / こんにちは。翻訳の接続テストです。)",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [
+                "Hello, translated fixture.",
+                "こんにちは。翻訳の接続テストです。"
+              ],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "server-failure-visible-and-silent",
+          "command_ns": 45261032383148,
+          "first_silent_read_ns": 45261114186300,
+          "command_to_silence_ms": 81.803152,
+          "status": "passed"
+        },
+        {
+          "name": "server-unavailable-keeps-text-silent",
+          "status": "passed"
+        },
+        {
+          "name": "fresh-after-server-restart",
+          "id": "fa8a573b-a74d-4440-8070-04e1cd7f19fa",
+          "click_begin_ns": 45270065052318,
+          "source_first_read_ns": 45270329910571,
+          "click_to_source_ms": 264.858253,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9763723500117868,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.9763723500117868
+              }
+            ],
+            "observed_seconds": 5.472,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 262656,
+            "elapsed_seconds": 5.478798320000351,
+            "last_read_seconds": 5.479406356003892,
+            "max_read_gap_seconds": 0.04653665200021351,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        }
+      ],
+      "failure": null,
+      "cleanup": null
+    },
+    {
+      "name": "negative-duplicate",
+      "status": "failed",
+      "real_tts": false,
+      "negative_control": "duplicate-chat",
+      "raw_report": "tmp/vrct-entry-validation/negative-duplicate/report.json",
+      "raw_report_sha256": "9340cd81de0ee5b4ea5b364cd42ae38f418da4e16ddd929c512a9a7e5018fb4a",
+      "cases": [],
+      "failure": "[{'address': '/chatbox/input', 'params': ['こんにちは。音声の接続テストです。', True, False]}, {'address': '/chatbox/input', 'params': ['こんにちは。音声の接続テストです。', True, False]}]",
+      "cleanup": null
+    },
+    {
+      "name": "negative-stop",
+      "status": "failed",
+      "real_tts": false,
+      "negative_control": "drop-stop",
+      "raw_report": "tmp/vrct-entry-validation/negative-stop/report.json",
+      "raw_report_sha256": "7997baeab3f0228591fa2f38bf5418235eb004b7bad6778735e2f0b9125d4cd2",
+      "cases": [
+        {
+          "name": "normal",
+          "id": "e15ec86e-16fb-4fb5-bfcc-e2e38a2b2134",
+          "click_begin_ns": 45357816720710,
+          "source_first_read_ns": 45358070275589,
+          "stdio_write_begin_ns": 45357854917384,
+          "stdio_to_source_ms": 215.358205,
+          "click_to_source_ms": 253.554879,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9844421540093735,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.4,
+                "score": 0.9844421540093735
+              }
+            ],
+            "observed_seconds": 5.472,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 262656,
+            "elapsed_seconds": 5.473482820001664,
+            "last_read_seconds": 5.474009953999484,
+            "max_read_gap_seconds": 0.0435620470016147,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        }
+      ],
+      "failure": "stop_not_silent",
+      "cleanup": null
+    },
+    {
+      "name": "fixture-final",
+      "status": "passed",
+      "real_tts": false,
+      "negative_control": null,
+      "raw_report": "tmp/vrct-entry-validation/fixture-final/report.json",
+      "raw_report_sha256": "6e876bb4b00459aad69dc763b38523fa8c20e8097a03912ca3b09e12f9fa4330",
+      "cases": [
+        {
+          "name": "normal",
+          "id": "11423204-8ab1-4cc6-b24f-84aaaea366eb",
+          "click_begin_ns": 45468998315619,
+          "source_first_read_ns": 45469248661182,
+          "stdio_write_begin_ns": 45469034314574,
+          "stdio_to_source_ms": 214.346608,
+          "click_to_source_ms": 250.345563,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9590459677744276,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.9590459677744276
+              }
+            ],
+            "observed_seconds": 5.552,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 266496,
+            "elapsed_seconds": 5.560696672997437,
+            "last_read_seconds": 5.561328944997513,
+            "max_read_gap_seconds": 0.04334227499930421,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "cancel",
+          "command_ns": 45474927509814,
+          "first_silent_read_ns": 45475008674921,
+          "click_to_silence_ms": 81.165107,
+          "stdio_write_begin_ns": 45474950354508,
+          "stdio_to_silence_ms": 58.320413,
+          "status": "passed"
+        },
+        {
+          "name": "mute",
+          "command_ns": 45477700945958,
+          "first_silent_read_ns": 45477782009032,
+          "click_to_silence_ms": 81.063074,
+          "stdio_write_begin_ns": 45477717663324,
+          "stdio_to_silence_ms": 64.345708,
+          "status": "passed"
+        },
+        {
+          "name": "held-mute-rejects-new",
+          "status": "passed"
+        },
+        {
+          "name": "off-keeps-text-silent",
+          "status": "passed"
+        },
+        {
+          "name": "after-off",
+          "id": "3a57c7f0-956b-4bcb-8840-cb61035bddf8",
+          "click_begin_ns": 45487505046816,
+          "source_first_read_ns": 45487765789786,
+          "stdio_write_begin_ns": 45487533412664,
+          "stdio_to_source_ms": 232.377122,
+          "click_to_source_ms": 260.74297,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9763723500117868,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.9763723500117868
+              }
+            ],
+            "observed_seconds": 5.466666666666667,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 262400,
+            "elapsed_seconds": 5.474022121998132,
+            "last_read_seconds": 5.474670634001086,
+            "max_read_gap_seconds": 0.04706283499399433,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "busy-workers-stop-and-expire-queued",
+          "id": "401ae033-76cb-4118-ae80-dae3d82577db",
+          "begin_ns": 45492703191052,
+          "stop_response_observed_ns": 45492797639551,
+          "wire_endpoints": [
+            "/run/stop_typing_message_box",
+            "/run/send_message_box",
+            "/run/stop_voice",
+            "/get/data/voice_status",
+            "/get/data/voice_route",
+            "/get/data/voice_status",
+            "/get/data/voice_route"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "fresh-after-busy-stop",
+          "id": "32fb54f0-5e04-4c65-879b-60f063a14173",
+          "click_begin_ns": 45497420639339,
+          "source_first_read_ns": 45497664656244,
+          "stdio_write_begin_ns": 45497453181117,
+          "stdio_to_source_ms": 211.475127,
+          "click_to_source_ms": 244.016905,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9906598906366496,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.9906598906366496
+              }
+            ],
+            "observed_seconds": 5.584,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 268032,
+            "elapsed_seconds": 5.584648668998852,
+            "last_read_seconds": 5.585275400000683,
+            "max_read_gap_seconds": 0.05078701300226385,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "invalid-settings-preserve-working-config",
+          "status": "passed"
+        },
+        {
+          "name": "original-translation-wait-and-cancel",
+          "id": "4e81b705-4dcb-45a6-91b1-645558d2529e",
+          "status": "passed"
+        },
+        {
+          "name": "translated-translation-wait-and-cancel",
+          "id": "222726f6-932d-41cb-992d-bb357d499b5c",
+          "status": "passed"
+        },
+        {
+          "name": "translated-selected-slot",
+          "id": "1190015f-6238-4013-a91a-58b3b0317720",
+          "click_begin_ns": 45515154880821,
+          "source_first_read_ns": 45515413778253,
+          "stdio_write_begin_ns": 45515184601432,
+          "stdio_to_source_ms": 229.176821,
+          "click_to_source_ms": 258.897432,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9906598906366496,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.9906598906366496
+              }
+            ],
+            "observed_seconds": 5.557333333333333,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 266752,
+            "elapsed_seconds": 5.560722748996341,
+            "last_read_seconds": 5.561212121996505,
+            "max_read_gap_seconds": 0.04356441099662334,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。 (Hello, translated fixture. / こんにちは。翻訳の接続テストです。)",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [
+                "Hello, translated fixture.",
+                "こんにちは。翻訳の接続テストです。"
+              ],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "server-failure-visible-and-silent",
+          "command_ns": 45521221119578,
+          "first_silent_read_ns": 45521301998841,
+          "command_to_silence_ms": 80.879263,
+          "status": "passed"
+        },
+        {
+          "name": "server-unavailable-keeps-text-silent",
+          "status": "passed"
+        },
+        {
+          "name": "fresh-after-server-restart",
+          "id": "b010dd11-760a-4b12-905f-a14cc183f1f9",
+          "click_begin_ns": 45530286787719,
+          "source_first_read_ns": 45530560451594,
+          "stdio_write_begin_ns": 45530317202808,
+          "stdio_to_source_ms": 243.248786,
+          "click_to_source_ms": 273.663875,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.999234145973033,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.38,
+                "score": 0.999234145973033
+              }
+            ],
+            "observed_seconds": 5.568,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 267264,
+            "elapsed_seconds": 5.575628545004292,
+            "last_read_seconds": 5.576169995998498,
+            "max_read_gap_seconds": 0.04771499200433027,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "all-text-delivery-compatible",
+          "messages": 14,
+          "osc_packets": 14,
+          "history_calls": 14,
+          "websocket_calls": 14,
+          "status": "passed"
+        }
+      ],
+      "failure": null,
+      "cleanup": {
+        "owned_processes_exited": true,
+        "private_runtime_removed": true,
+        "route_and_bus_closed": true
+      },
+      "final_capture": {
+        "frames": 3603,
+        "sample_count": 3458880,
+        "last_read_ns": 45535765963712,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 57.053002,
+        "nonzero_frames": 723,
+        "detected_frames": {
+          "440": 711,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "initial_gate": {
+        "identity": [
+          1451547002,
+          23
+        ],
+        "muted": true
+      },
+      "source_sha256": {
+        "tests/voice/ui_entry_acceptance.py": "496c54ad7f085aff6199c8bf32232a107142443e87216432ada755c1bd38a867",
+        "tests/voice/entry_fixture.py": "b31860b55a2d92e1b0614022fe4e33c5b303bbb3712767184da908e3a8e3b8c0",
+        "tests/voice/test_controller_integration.py": "e3c8c0dd9211b678b2eb8e761f42382c1506026da4f4e4b934ffc494e99974b0",
+        "tests/voice/ui-entry/entry.jsx": "249d4f9a061bea74f6fcd28e8f5c799ff4baaabc949ca1df1d37b93d9c687eb4",
+        "src-python/mainloop.py": "099e8a6a0057cfcf74f7f51292224c047b97db6d5cbdba8a2a3f407ee1bf8775",
+        "src-python/controller.py": "756434c9b603fd2565ec0457994f93bd79e6bc0b5ae718abc64fa312f89be31a",
+        "src-python/models/tts/speechcpp_tts.py": "6a93faae0107af747593ac05257786c4da802b0247374adf84aa90c32e061fcf",
+        "src-python/models/tts/tts_scheduler.py": "8dc06a2a5d1d846a403b9267d4b84968a77816c3e8b2d66e678a721bd0de2f6b",
+        "src-python/models/audio_routing/managed_route.py": "a88c3f15591a19fcef233863921d151f89fc7f8a3df899b4b43e161ca6a6bf73",
+        "src-python/models/audio_routing/audio_router.py": "e53e2fb3da5e9fc84b5f9c86d7cca183fb53ddba05976613259b881823357dfb",
+        "src-ui/logics/common/useStdoutToPython.js": "61640f8d457620d1a61b4c6ee3e0bb671be402249fe8fa00eb848a316224e4d5",
+        "src-ui/logics/common/useMessage.js": "412757e24fcceeb487b5bb7d9441fe6222008042eebd9f6b4eb7e7cd69795c87",
+        "src-ui/logics/useReceiveRoutes.js": "6e6ed30d672e591429d0770a8cd7e75a6ee4d00058019feaf608fc2ab86c67da",
+        "src-ui/logics/voice/useVoice.js": "f7489e1c676bdc52f925f5f446bdaab746a627f12eabe035b3bb46deb2b97c70",
+        "src-ui/views/app/main_page/main_section/message_container/message_input_box/MessageInputBox.jsx": "b52a0021f54121344736b43ee937190136186c32f1e47c0e170e15c54afa010b",
+        "src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/VoiceSettings.jsx": "dabc392509a6b07062760d49182d4f132779b1d6eb449703fbc2a363819fabe7"
+      },
+      "browser_version": "153.0.8010.12",
+      "server_runs": [],
+      "backend_final": {
+        "route_closed": true,
+        "bus_closed": true,
+        "pcm": [
+          {
+            "started_ns": 45469035130021,
+            "first_pcm_ns": 45469059110746,
+            "received_bytes": 288000,
+            "complete": true,
+            "error": null,
+            "wav": "generated-000.wav",
+            "finished_ns": 45472059236614,
+            "samples": 144000,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45474317876937,
+            "first_pcm_ns": 45474423861950,
+            "received_bytes": 53248,
+            "complete": false,
+            "error": null,
+            "wav": "generated-001.wav",
+            "finished_ns": 45474956397436,
+            "samples": 26624,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45477100887929,
+            "first_pcm_ns": 45477202471016,
+            "received_bytes": 53248,
+            "complete": false,
+            "error": null,
+            "wav": "generated-002.wav",
+            "finished_ns": 45477724986085,
+            "samples": 26624,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45487534061708,
+            "first_pcm_ns": 45487557992788,
+            "received_bytes": 288000,
+            "complete": true,
+            "error": null,
+            "wav": "generated-003.wav",
+            "finished_ns": 45490560581795,
+            "samples": 144000,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45497453988138,
+            "first_pcm_ns": 45497479170046,
+            "received_bytes": 288000,
+            "complete": true,
+            "error": null,
+            "wav": "generated-004.wav",
+            "finished_ns": 45500480529733,
+            "samples": 144000,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45503000152828,
+            "first_pcm_ns": 45503101678493,
+            "received_bytes": 24576,
+            "complete": false,
+            "error": null,
+            "wav": "generated-005.wav",
+            "finished_ns": 45503324260089,
+            "samples": 12288,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45515185499514,
+            "first_pcm_ns": 45515210312757,
+            "received_bytes": 288000,
+            "complete": true,
+            "error": null,
+            "wav": "generated-006.wav",
+            "finished_ns": 45518213853078,
+            "samples": 144000,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45520598785977,
+            "first_pcm_ns": 45520695208432,
+            "received_bytes": 53248,
+            "complete": false,
+            "error": "server_unavailable",
+            "wav": "generated-007.wav",
+            "finished_ns": 45521248673716,
+            "samples": 26624,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45523414874159,
+            "first_pcm_ns": null,
+            "received_bytes": 0,
+            "complete": false,
+            "error": "transport_error",
+            "wav": "generated-008.wav",
+            "finished_ns": 45523414989166,
+            "samples": 0,
+            "sample_rate": null
+          },
+          {
+            "started_ns": 45530317817847,
+            "first_pcm_ns": 45530342165972,
+            "received_bytes": 288000,
+            "complete": true,
+            "error": null,
+            "wav": "generated-009.wav",
+            "finished_ns": 45533344568276,
+            "samples": 144000,
+            "sample_rate": 48000
+          }
+        ],
+        "voice": {
+          "accepted": 10,
+          "completed": 5,
+          "dropped": 0,
+          "duplicates": 0,
+          "cancelled": 3,
+          "errors": 2,
+          "last_error": null,
+          "last_first_write_ms": 168.496,
+          "sample_rate": 48000,
+          "queued": 0,
+          "active": false,
+          "mode": "original",
+          "closed": true,
+          "muted": true
+        },
+        "route": {
+          "managed": true,
+          "requested_muted": true,
+          "observed_muted": true,
+          "ready": true,
+          "pending": false,
+          "error": null,
+          "generation": 7,
+          "closed": true,
+          "observation_id": "45536089501495"
+        }
+      }
+    },
+    {
+      "name": "live-1",
+      "status": "passed",
+      "real_tts": true,
+      "negative_control": null,
+      "raw_report": "tmp/vrct-entry-validation/live-1/report.json",
+      "raw_report_sha256": "316a6f4e72b34bc4068ac2d0f2eb8a95986249c4d56c6eb49753dfb392e86c7c",
+      "cases": [
+        {
+          "name": "normal",
+          "id": "ff96fe58-57ba-4e1b-80dc-fbe17f05f4a1",
+          "click_begin_ns": 45573180224582,
+          "source_first_read_ns": 45573552093389,
+          "stdio_write_begin_ns": 45573213629944,
+          "stdio_to_source_ms": 338.463445,
+          "click_to_source_ms": 371.868807,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9999999999999998,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.64,
+                "score": 0.9999999999999998
+              }
+            ],
+            "observed_seconds": 7.642666666666667,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 366848,
+            "elapsed_seconds": 7.646943387000647,
+            "last_read_seconds": 7.647603090001212,
+            "max_read_gap_seconds": 0.043272386996250134,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "cancel",
+          "command_ns": 45581324863408,
+          "first_silent_read_ns": 45581402972294,
+          "click_to_silence_ms": 78.108886,
+          "stdio_write_begin_ns": 45581345953432,
+          "stdio_to_silence_ms": 57.018862,
+          "status": "passed"
+        },
+        {
+          "name": "mute",
+          "command_ns": 45584050899176,
+          "first_silent_read_ns": 45584133453068,
+          "click_to_silence_ms": 82.553892,
+          "stdio_write_begin_ns": 45584061561339,
+          "stdio_to_silence_ms": 71.891729,
+          "status": "passed"
+        },
+        {
+          "name": "held-mute-rejects-new",
+          "status": "passed"
+        },
+        {
+          "name": "off-keeps-text-silent",
+          "status": "passed"
+        },
+        {
+          "name": "after-off",
+          "id": "274a41de-79a6-46c9-954f-29b7f6ee4d9b",
+          "click_begin_ns": 45593717063745,
+          "source_first_read_ns": 45594373626553,
+          "stdio_write_begin_ns": 45593746220961,
+          "stdio_to_source_ms": 627.405592,
+          "click_to_source_ms": 656.562808,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9883735922125529,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.72,
+                "score": 0.9883735922125529
+              }
+            ],
+            "observed_seconds": 7.824,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 375552,
+            "elapsed_seconds": 7.831702067996957,
+            "last_read_seconds": 7.832281650000368,
+            "max_read_gap_seconds": 0.0427232299989555,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "busy-workers-stop-and-expire-queued",
+          "id": "bb37a7cf-15b8-4758-93f3-2d465b2988a6",
+          "begin_ns": 45601275792050,
+          "stop_response_observed_ns": 45601393149456,
+          "wire_endpoints": [
+            "/run/stop_typing_message_box",
+            "/run/send_message_box",
+            "/run/stop_voice",
+            "/get/data/voice_status",
+            "/get/data/voice_route",
+            "/get/data/voice_status",
+            "/get/data/voice_route"
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "fresh-after-busy-stop",
+          "id": "5b5c8383-2850-46fd-9877-64d090866a4a",
+          "click_begin_ns": 45606001606251,
+          "source_first_read_ns": 45606405453667,
+          "stdio_write_begin_ns": 45606028122951,
+          "stdio_to_source_ms": 377.330716,
+          "click_to_source_ms": 403.847416,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 1.0000000000000002,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.64,
+                "score": 1.0000000000000002
+              }
+            ],
+            "observed_seconds": 8.384,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 402432,
+            "elapsed_seconds": 8.393685727001866,
+            "last_read_seconds": 8.394361540995305,
+            "max_read_gap_seconds": 0.04276996800035704,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "invalid-settings-preserve-working-config",
+          "status": "passed"
+        },
+        {
+          "name": "original-translation-wait-and-cancel",
+          "id": "80d32ef8-584e-4429-ba23-df37738e1e4e",
+          "status": "passed"
+        },
+        {
+          "name": "translated-translation-wait-and-cancel",
+          "id": "f218cb36-a445-42a1-92ee-d03a4098f9b5",
+          "status": "passed"
+        },
+        {
+          "name": "translated-selected-slot",
+          "id": "32d7e869-2898-4a88-91c0-bafc6a92038e",
+          "click_begin_ns": 45626651336935,
+          "source_first_read_ns": 45626970976947,
+          "stdio_write_begin_ns": 45626677037687,
+          "stdio_to_source_ms": 293.93926,
+          "click_to_source_ms": 319.640012,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9794079417385643,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.6,
+                "score": 0.9794079417385643
+              }
+            ],
+            "observed_seconds": 8.005333333333333,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 384256,
+            "elapsed_seconds": 8.009005225998408,
+            "last_read_seconds": 8.01015678600379,
+            "max_read_gap_seconds": 0.04284445800294634,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。 (Hello, translated fixture. / こんにちは。翻訳の接続テストです。)",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [
+                "Hello, translated fixture.",
+                "こんにちは。翻訳の接続テストです。"
+              ],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "server-failure-visible-and-silent",
+          "command_ns": 45635296016001,
+          "first_silent_read_ns": 45635418776655,
+          "command_to_silence_ms": 122.760654,
+          "status": "passed"
+        },
+        {
+          "name": "server-unavailable-keeps-text-silent",
+          "status": "passed"
+        },
+        {
+          "name": "fresh-after-server-restart",
+          "id": "547d23f7-7e4a-4f27-b08a-bbb351c7f40c",
+          "click_begin_ns": 45645015121834,
+          "source_first_read_ns": 45645530918571,
+          "stdio_write_begin_ns": 45645042661300,
+          "stdio_to_source_ms": 488.257271,
+          "click_to_source_ms": 515.796737,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9933395737563476,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.58,
+                "score": 0.9933395737563476
+              }
+            ],
+            "observed_seconds": 7.557333333333333,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 362752,
+            "elapsed_seconds": 7.566699579998385,
+            "last_read_seconds": 7.567485179999494,
+            "max_read_gap_seconds": 0.04342347800411517,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        },
+        {
+          "name": "all-text-delivery-compatible",
+          "messages": 14,
+          "osc_packets": 14,
+          "history_calls": 14,
+          "websocket_calls": 14,
+          "status": "passed"
+        }
+      ],
+      "failure": null,
+      "cleanup": {
+        "owned_processes_exited": true,
+        "private_runtime_removed": true,
+        "route_and_bus_closed": true
+      },
+      "final_capture": {
+        "frames": 4258,
+        "sample_count": 4087680,
+        "last_read_ns": 45652485633675,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.42457,
+        "nonzero_frames": 844,
+        "detected_frames": {
+          "440": 350,
+          "880": 157,
+          "1760": 79
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "initial_gate": {
+        "identity": [
+          1807070490,
+          23
+        ],
+        "muted": true
+      },
+      "source_sha256": {
+        "tests/voice/ui_entry_acceptance.py": "496c54ad7f085aff6199c8bf32232a107142443e87216432ada755c1bd38a867",
+        "tests/voice/entry_fixture.py": "b31860b55a2d92e1b0614022fe4e33c5b303bbb3712767184da908e3a8e3b8c0",
+        "tests/voice/test_controller_integration.py": "e3c8c0dd9211b678b2eb8e761f42382c1506026da4f4e4b934ffc494e99974b0",
+        "tests/voice/ui-entry/entry.jsx": "249d4f9a061bea74f6fcd28e8f5c799ff4baaabc949ca1df1d37b93d9c687eb4",
+        "src-python/mainloop.py": "099e8a6a0057cfcf74f7f51292224c047b97db6d5cbdba8a2a3f407ee1bf8775",
+        "src-python/controller.py": "756434c9b603fd2565ec0457994f93bd79e6bc0b5ae718abc64fa312f89be31a",
+        "src-python/models/tts/speechcpp_tts.py": "6a93faae0107af747593ac05257786c4da802b0247374adf84aa90c32e061fcf",
+        "src-python/models/tts/tts_scheduler.py": "8dc06a2a5d1d846a403b9267d4b84968a77816c3e8b2d66e678a721bd0de2f6b",
+        "src-python/models/audio_routing/managed_route.py": "a88c3f15591a19fcef233863921d151f89fc7f8a3df899b4b43e161ca6a6bf73",
+        "src-python/models/audio_routing/audio_router.py": "e53e2fb3da5e9fc84b5f9c86d7cca183fb53ddba05976613259b881823357dfb",
+        "src-ui/logics/common/useStdoutToPython.js": "61640f8d457620d1a61b4c6ee3e0bb671be402249fe8fa00eb848a316224e4d5",
+        "src-ui/logics/common/useMessage.js": "412757e24fcceeb487b5bb7d9441fe6222008042eebd9f6b4eb7e7cd69795c87",
+        "src-ui/logics/useReceiveRoutes.js": "6e6ed30d672e591429d0770a8cd7e75a6ee4d00058019feaf608fc2ab86c67da",
+        "src-ui/logics/voice/useVoice.js": "f7489e1c676bdc52f925f5f446bdaab746a627f12eabe035b3bb46deb2b97c70",
+        "src-ui/views/app/main_page/main_section/message_container/message_input_box/MessageInputBox.jsx": "b52a0021f54121344736b43ee937190136186c32f1e47c0e170e15c54afa010b",
+        "src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/VoiceSettings.jsx": "dabc392509a6b07062760d49182d4f132779b1d6eb449703fbc2a363819fabe7"
+      },
+      "browser_version": "153.0.8010.12",
+      "server_runs": [
+        {
+          "pid": 2058278,
+          "log": "server-00.log",
+          "warmup_enabled": true,
+          "port": 45557,
+          "ready": true,
+          "exit_code": -9
+        },
+        {
+          "pid": 2062049,
+          "log": "server-01.log",
+          "warmup_enabled": true,
+          "port": 45557,
+          "ready": true,
+          "exit_code": -15
+        }
+      ],
+      "backend_final": {
+        "route_closed": true,
+        "bus_closed": true,
+        "pcm": [
+          {
+            "started_ns": 45573214704619,
+            "first_pcm_ns": 45573486292647,
+            "received_bytes": 468480,
+            "complete": true,
+            "error": null,
+            "wav": "generated-000.wav",
+            "finished_ns": 45578357535037,
+            "samples": 234240,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45580596958787,
+            "first_pcm_ns": 45580934828601,
+            "received_bytes": 40954,
+            "complete": false,
+            "error": null,
+            "wav": "generated-001.wav",
+            "finished_ns": 45581350694607,
+            "samples": 20477,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45583530868163,
+            "first_pcm_ns": 45583672919928,
+            "received_bytes": 40954,
+            "complete": false,
+            "error": null,
+            "wav": "generated-002.wav",
+            "finished_ns": 45584065341131,
+            "samples": 20477,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45593746936119,
+            "first_pcm_ns": 45594126707479,
+            "received_bytes": 468480,
+            "complete": true,
+            "error": null,
+            "wav": "generated-003.wav",
+            "finished_ns": 45598997534784,
+            "samples": 234240,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45606028711320,
+            "first_pcm_ns": 45606320824546,
+            "received_bytes": 537986,
+            "complete": true,
+            "error": null,
+            "wav": "generated-004.wav",
+            "finished_ns": 45611920235836,
+            "samples": 268993,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45614378221827,
+            "first_pcm_ns": 45614725185103,
+            "received_bytes": 8186,
+            "complete": false,
+            "error": null,
+            "wav": "generated-005.wav",
+            "finished_ns": 45614801295089,
+            "samples": 4093,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45626677883210,
+            "first_pcm_ns": 45626918783361,
+            "received_bytes": 504088,
+            "complete": true,
+            "error": null,
+            "wav": "generated-006.wav",
+            "finished_ns": 45632170847998,
+            "samples": 252044,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45634594666397,
+            "first_pcm_ns": 45634920373379,
+            "received_bytes": 40954,
+            "complete": false,
+            "error": null,
+            "wav": "generated-007.wav",
+            "finished_ns": 45635334646377,
+            "samples": 20477,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45637560647505,
+            "first_pcm_ns": null,
+            "received_bytes": 0,
+            "complete": false,
+            "error": "transport_error",
+            "wav": "generated-008.wav",
+            "finished_ns": 45637560779925,
+            "samples": 0,
+            "sample_rate": null
+          },
+          {
+            "started_ns": 45645043330131,
+            "first_pcm_ns": 45645269110816,
+            "received_bytes": 468480,
+            "complete": true,
+            "error": null,
+            "wav": "generated-009.wav",
+            "finished_ns": 45650144222883,
+            "samples": 234240,
+            "sample_rate": 48000
+          }
+        ],
+        "voice": {
+          "accepted": 10,
+          "completed": 5,
+          "dropped": 0,
+          "duplicates": 0,
+          "cancelled": 3,
+          "errors": 2,
+          "last_error": null,
+          "last_first_write_ms": 234.132,
+          "sample_rate": 48000,
+          "queued": 0,
+          "active": false,
+          "mode": "original",
+          "closed": true,
+          "muted": true
+        },
+        "route": {
+          "managed": true,
+          "requested_muted": true,
+          "observed_muted": true,
+          "ready": true,
+          "pending": false,
+          "error": null,
+          "generation": 7,
+          "closed": true,
+          "observation_id": "45653293733937"
+        }
+      }
+    },
+    {
+      "name": "negative-final-duplicate-chat",
+      "status": "failed",
+      "real_tts": false,
+      "negative_control": "duplicate-chat",
+      "raw_report": "tmp/vrct-entry-validation/negative-final-duplicate-chat/report.json",
+      "raw_report_sha256": "6dc342df692af8104f75f65ede712c6e5d2ce0a0bebef40bdec9d8d5068ba562",
+      "cases": [],
+      "failure": "[{'address': '/chatbox/input', 'params': ['こんにちは。音声の接続テストです。', True, False]}, {'address': '/chatbox/input', 'params': ['こんにちは。音声の接続テストです。', True, False]}]",
+      "cleanup": {
+        "owned_processes_exited": true,
+        "private_runtime_removed": true,
+        "route_and_bus_closed": true
+      },
+      "final_capture": null,
+      "initial_gate": {
+        "identity": [
+          894235951,
+          23
+        ],
+        "muted": true
+      },
+      "source_sha256": {
+        "tests/voice/ui_entry_acceptance.py": "496c54ad7f085aff6199c8bf32232a107142443e87216432ada755c1bd38a867",
+        "tests/voice/entry_fixture.py": "b31860b55a2d92e1b0614022fe4e33c5b303bbb3712767184da908e3a8e3b8c0",
+        "tests/voice/test_controller_integration.py": "e3c8c0dd9211b678b2eb8e761f42382c1506026da4f4e4b934ffc494e99974b0",
+        "tests/voice/ui-entry/entry.jsx": "249d4f9a061bea74f6fcd28e8f5c799ff4baaabc949ca1df1d37b93d9c687eb4",
+        "src-python/mainloop.py": "099e8a6a0057cfcf74f7f51292224c047b97db6d5cbdba8a2a3f407ee1bf8775",
+        "src-python/controller.py": "756434c9b603fd2565ec0457994f93bd79e6bc0b5ae718abc64fa312f89be31a",
+        "src-python/models/tts/speechcpp_tts.py": "6a93faae0107af747593ac05257786c4da802b0247374adf84aa90c32e061fcf",
+        "src-python/models/tts/tts_scheduler.py": "8dc06a2a5d1d846a403b9267d4b84968a77816c3e8b2d66e678a721bd0de2f6b",
+        "src-python/models/audio_routing/managed_route.py": "a88c3f15591a19fcef233863921d151f89fc7f8a3df899b4b43e161ca6a6bf73",
+        "src-python/models/audio_routing/audio_router.py": "e53e2fb3da5e9fc84b5f9c86d7cca183fb53ddba05976613259b881823357dfb",
+        "src-ui/logics/common/useStdoutToPython.js": "61640f8d457620d1a61b4c6ee3e0bb671be402249fe8fa00eb848a316224e4d5",
+        "src-ui/logics/common/useMessage.js": "412757e24fcceeb487b5bb7d9441fe6222008042eebd9f6b4eb7e7cd69795c87",
+        "src-ui/logics/useReceiveRoutes.js": "6e6ed30d672e591429d0770a8cd7e75a6ee4d00058019feaf608fc2ab86c67da",
+        "src-ui/logics/voice/useVoice.js": "f7489e1c676bdc52f925f5f446bdaab746a627f12eabe035b3bb46deb2b97c70",
+        "src-ui/views/app/main_page/main_section/message_container/message_input_box/MessageInputBox.jsx": "b52a0021f54121344736b43ee937190136186c32f1e47c0e170e15c54afa010b",
+        "src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/VoiceSettings.jsx": "dabc392509a6b07062760d49182d4f132779b1d6eb449703fbc2a363819fabe7"
+      },
+      "browser_version": "153.0.8010.12",
+      "server_runs": [],
+      "backend_final": {
+        "route_closed": true,
+        "bus_closed": true,
+        "pcm": [
+          {
+            "started_ns": 45732675850414,
+            "first_pcm_ns": 45732700992550,
+            "received_bytes": 288000,
+            "complete": true,
+            "error": null,
+            "wav": "generated-000.wav",
+            "finished_ns": 45735700190719,
+            "samples": 144000,
+            "sample_rate": 48000
+          }
+        ],
+        "voice": {
+          "accepted": 1,
+          "completed": 1,
+          "dropped": 0,
+          "duplicates": 1,
+          "cancelled": 0,
+          "errors": 0,
+          "last_error": null,
+          "last_first_write_ms": 166.205,
+          "sample_rate": 48000,
+          "queued": 0,
+          "active": false,
+          "mode": "original",
+          "closed": true,
+          "muted": true
+        },
+        "route": {
+          "managed": true,
+          "requested_muted": true,
+          "observed_muted": true,
+          "ready": true,
+          "pending": false,
+          "error": null,
+          "generation": 5,
+          "closed": true,
+          "observation_id": "45738414611957"
+        }
+      }
+    },
+    {
+      "name": "negative-final-drop-stop",
+      "status": "failed",
+      "real_tts": false,
+      "negative_control": "drop-stop",
+      "raw_report": "tmp/vrct-entry-validation/negative-final-drop-stop/report.json",
+      "raw_report_sha256": "05bb571b11ef08b4f0be274f7e9288d8a2b1913517ddc4c8d03630cf16b308a2",
+      "cases": [
+        {
+          "name": "normal",
+          "id": "22de83ca-763d-4797-899e-cb873dc9d20a",
+          "click_begin_ns": 45743839922607,
+          "source_first_read_ns": 45744092690193,
+          "stdio_write_begin_ns": 45743874366851,
+          "stdio_to_source_ms": 218.323342,
+          "click_to_source_ms": 252.767586,
+          "audio": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9844421540093735,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.4,
+                "score": 0.9844421540093735
+              }
+            ],
+            "observed_seconds": 5.557333333333333,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 266752,
+            "elapsed_seconds": 5.5608286050046445,
+            "last_read_seconds": 5.561418656005117,
+            "max_read_gap_seconds": 0.04274229000293417,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "osc": [
+            {
+              "address": "/chatbox/input",
+              "params": [
+                "こんにちは。音声の接続テストです。",
+                true,
+                false
+              ]
+            }
+          ],
+          "websocket_contract": [
+            {
+              "type": "CHAT",
+              "src_languages": {
+                "1": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "dst_languages": {
+                "1": {
+                  "language": "English",
+                  "enable": true
+                },
+                "2": {
+                  "language": "Japanese",
+                  "enable": true
+                }
+              },
+              "message": "こんにちは。音声の接続テストです。",
+              "translation": [],
+              "transliteration": [
+                [],
+                []
+              ]
+            }
+          ],
+          "status": "passed"
+        }
+      ],
+      "failure": "stop_not_silent",
+      "cleanup": {
+        "owned_processes_exited": true,
+        "private_runtime_removed": true,
+        "route_and_bus_closed": true
+      },
+      "final_capture": null,
+      "initial_gate": {
+        "identity": [
+          3970324006,
+          23
+        ],
+        "muted": true
+      },
+      "source_sha256": {
+        "tests/voice/ui_entry_acceptance.py": "496c54ad7f085aff6199c8bf32232a107142443e87216432ada755c1bd38a867",
+        "tests/voice/entry_fixture.py": "b31860b55a2d92e1b0614022fe4e33c5b303bbb3712767184da908e3a8e3b8c0",
+        "tests/voice/test_controller_integration.py": "e3c8c0dd9211b678b2eb8e761f42382c1506026da4f4e4b934ffc494e99974b0",
+        "tests/voice/ui-entry/entry.jsx": "249d4f9a061bea74f6fcd28e8f5c799ff4baaabc949ca1df1d37b93d9c687eb4",
+        "src-python/mainloop.py": "099e8a6a0057cfcf74f7f51292224c047b97db6d5cbdba8a2a3f407ee1bf8775",
+        "src-python/controller.py": "756434c9b603fd2565ec0457994f93bd79e6bc0b5ae718abc64fa312f89be31a",
+        "src-python/models/tts/speechcpp_tts.py": "6a93faae0107af747593ac05257786c4da802b0247374adf84aa90c32e061fcf",
+        "src-python/models/tts/tts_scheduler.py": "8dc06a2a5d1d846a403b9267d4b84968a77816c3e8b2d66e678a721bd0de2f6b",
+        "src-python/models/audio_routing/managed_route.py": "a88c3f15591a19fcef233863921d151f89fc7f8a3df899b4b43e161ca6a6bf73",
+        "src-python/models/audio_routing/audio_router.py": "e53e2fb3da5e9fc84b5f9c86d7cca183fb53ddba05976613259b881823357dfb",
+        "src-ui/logics/common/useStdoutToPython.js": "61640f8d457620d1a61b4c6ee3e0bb671be402249fe8fa00eb848a316224e4d5",
+        "src-ui/logics/common/useMessage.js": "412757e24fcceeb487b5bb7d9441fe6222008042eebd9f6b4eb7e7cd69795c87",
+        "src-ui/logics/useReceiveRoutes.js": "6e6ed30d672e591429d0770a8cd7e75a6ee4d00058019feaf608fc2ab86c67da",
+        "src-ui/logics/voice/useVoice.js": "f7489e1c676bdc52f925f5f446bdaab746a627f12eabe035b3bb46deb2b97c70",
+        "src-ui/views/app/main_page/main_section/message_container/message_input_box/MessageInputBox.jsx": "b52a0021f54121344736b43ee937190136186c32f1e47c0e170e15c54afa010b",
+        "src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/VoiceSettings.jsx": "dabc392509a6b07062760d49182d4f132779b1d6eb449703fbc2a363819fabe7"
+      },
+      "browser_version": "153.0.8010.12",
+      "server_runs": [],
+      "backend_final": {
+        "route_closed": true,
+        "bus_closed": true,
+        "pcm": [
+          {
+            "started_ns": 45743875224658,
+            "first_pcm_ns": 45743899711649,
+            "received_bytes": 288000,
+            "complete": true,
+            "error": null,
+            "wav": "generated-000.wav",
+            "finished_ns": 45746903138225,
+            "samples": 144000,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 45749191242229,
+            "first_pcm_ns": 45749288573572,
+            "received_bytes": 643072,
+            "complete": false,
+            "error": null,
+            "wav": "generated-001.wav",
+            "finished_ns": 45755965963036,
+            "samples": 321536,
+            "sample_rate": 48000
+          }
+        ],
+        "voice": {
+          "accepted": 2,
+          "completed": 1,
+          "dropped": 0,
+          "duplicates": 0,
+          "cancelled": 1,
+          "errors": 0,
+          "last_error": null,
+          "last_first_write_ms": 240.555,
+          "sample_rate": 48000,
+          "queued": 0,
+          "active": false,
+          "mode": "original",
+          "closed": true,
+          "muted": true
+        },
+        "route": {
+          "managed": true,
+          "requested_muted": true,
+          "observed_muted": true,
+          "ready": true,
+          "pending": false,
+          "error": null,
+          "generation": 5,
+          "closed": true,
+          "observation_id": "45756299344651"
+        }
+      }
+    }
+  ],
+  "negative_controls": [
+    {
+      "control": "duplicate-chat",
+      "exit_code": 1,
+      "expected_failure_observed": true,
+      "failure": "[{'address': '/chatbox/input', 'params': ['こんにちは。音声の接続テストです。', True, False]}, {'address': '/chatbox/input', 'params': ['こんにちは。音声の接続テストです。', True, False]}]"
+    },
+    {
+      "control": "drop-stop",
+      "exit_code": 1,
+      "expected_failure_observed": true,
+      "failure": "stop_not_silent"
+    }
+  ],
+  "checks": {
+    "voice": {
+      "passed": 180,
+      "seconds": 6.365,
+      "exit_code": 0
+    },
+    "javascript": {
+      "files": 5,
+      "passed": 5,
+      "exit_code": 0
+    },
+    "ui_build": {
+      "command": "npm run vite-build",
+      "exit_code": 0
+    },
+    "ruff": {
+      "exit_code": 0
+    },
+    "general_pytest": {
+      "exit_code": 2,
+      "collection_error_files": [
+        "test_audio_pipeline_failure.py",
+        "test_audio_vad.py",
+        "test_chatbox_sample_player.py",
+        "test_clipboard_focus_and_paste.py",
+        "test_controller_audio.py",
+        "test_controller_change_to_ctranslate2.py",
+        "test_controller_config_validation_decorator.py",
+        "test_controller_di_constructor.py",
+        "test_controller_init_config_settings.py",
+        "test_controller_init_watchdog_and_join_timeout.py",
+        "test_controller_message_pipeline.py",
+        "test_controller_ocr_enable.py",
+        "test_controller_ocr_settings.py",
+        "test_controller_overlay_running.py",
+        "test_controller_shutdown_lock.py",
+        "test_controller_simple_config_getters.py",
+        "test_controller_transcription_api_endpoints.py",
+        "test_controller_transcription_engine_status.py",
+        "test_controller_transcription_language_fallback.py",
+        "test_controller_translation_connection_endpoints.py",
+        "test_controller_translation_engine_language_fallback.py",
+        "test_controller_translation_gemini_endpoint.py",
+        "test_controller_translation_registry_endpoints.py",
+        "test_controller_update_software_failure.py",
+        "test_controller_update_transcription_engine.py",
+        "test_controller_vr_panel_opacity.py",
+        "test_controller_vr_panel_toolbar.py",
+        "test_controller_vrc_mic_mute_sync_init.py",
+        "test_dead_code_removed.py",
+        "test_gemini_bbox_labeler.py",
+        "test_mainloop_retry_limit.py",
+        "test_mainloop_watchdog_escalation.py",
+        "test_model_api_transcription_wiring.py",
+        "test_model_audio_lifecycle_worker.py",
+        "test_model_audio_queue_bounded.py",
+        "test_model_get_translate_unsupported_language.py",
+        "test_model_http_timeouts.py",
+        "test_model_init_failure_no_retry.py",
+        "test_model_input_translate_parallel.py",
+        "test_model_language_engine_compatibility.py",
+        "test_model_osc_mute_sync.py",
+        "test_model_session_reconfigure.py",
+        "test_model_session_resume_drain.py",
+        "test_model_session_start_failure_rollback.py",
+        "test_model_stop_receive_osc.py",
+        "test_model_stop_watchdog.py",
+        "test_model_transcript_stop.py",
+        "test_model_transcript_wiring.py",
+        "test_model_transcription_language_support.py",
+        "test_model_translate_fallback_no_wait.py",
+        "test_model_update.py",
+        "test_model_vad_recorder_selection.py",
+        "test_model_watchdog_available_during_init.py",
+        "test_ocr_bubble_detector.py",
+        "test_ocr_capture.py",
+        "test_ocr_dataset_collector.py",
+        "test_ocr_languages.py",
+        "test_ocr_onnx_threads.py",
+        "test_ocr_pipeline.py",
+        "test_openvr_session.py",
+        "test_osc_receive_single_thread.py",
+        "test_osc_server_shutdown_responsiveness.py",
+        "test_overlay_grab_move.py",
+        "test_overlay_shutdown_timeout.py",
+        "test_overlay_tooltip.py",
+        "test_phase4_low_risk_cleanup.py",
+        "test_transcription_openai_compatible.py",
+        "test_transcription_providers.py",
+        "test_transcription_recorder.py",
+        "test_transcription_transcriber.py",
+        "test_translation_ctranslate2_lock.py",
+        "test_translation_providers.py",
+        "test_translation_translator_ctranslate2.py",
+        "test_translation_translator_registry.py",
+        "test_translation_unsupported_language.py",
+        "test_ui_endpoint_contract.py",
+        "test_vr_panel_capture_recovery.py",
+        "test_vrct_transcription_integration.py",
+        "test_websocket_auth_and_bind_guard.py",
+        "test_whisper_eval.py"
+      ],
+      "same_as_previous": true,
+      "missing_modules": [
+        "PIL",
+        "deepl",
+        "google",
+        "httpx",
+        "numpy",
+        "openai",
+        "openvr",
+        "psutil",
+        "pythonosc",
+        "speech_recognition",
+        "translation_gemini"
+      ]
+    },
+    "host_state_unchanged": true
+  },
+  "host_before": [
+    {
+      "argv": [
+        "pactl",
+        "get-default-sink"
+      ],
+      "exit_code": 0,
+      "stdout": "vrct.p1.sink"
+    },
+    {
+      "argv": [
+        "pactl",
+        "get-default-source"
+      ],
+      "exit_code": 0,
+      "stdout": "vrct.p1.source"
+    },
+    {
+      "argv": [
+        "systemctl",
+        "--user",
+        "show",
+        "pipewire",
+        "pipewire-pulse",
+        "wireplumber",
+        "-p",
+        "MainPID",
+        "-p",
+        "ActiveState"
+      ],
+      "exit_code": 0,
+      "stdout": "ActiveState=active\nMainPID=1976749\n\nActiveState=active\nMainPID=1976751\n\nActiveState=active\nMainPID=1976750"
+    },
+    {
+      "argv": [
+        "pgrep",
+        "-a",
+        "-x",
+        "wivrn-server"
+      ],
+      "exit_code": 0,
+      "stdout": "437376 /usr/bin/wivrn-server"
+    },
+    {
+      "argv": [
+        "pgrep",
+        "-a",
+        "-x",
+        "VRChat.exe"
+      ],
+      "exit_code": 1,
+      "stdout": ""
+    }
+  ],
+  "host_after": [
+    {
+      "argv": [
+        "pactl",
+        "get-default-sink"
+      ],
+      "exit_code": 0,
+      "stdout": "vrct.p1.sink"
+    },
+    {
+      "argv": [
+        "pactl",
+        "get-default-source"
+      ],
+      "exit_code": 0,
+      "stdout": "vrct.p1.source"
+    },
+    {
+      "argv": [
+        "systemctl",
+        "--user",
+        "show",
+        "pipewire",
+        "pipewire-pulse",
+        "wireplumber",
+        "-p",
+        "MainPID",
+        "-p",
+        "ActiveState"
+      ],
+      "exit_code": 0,
+      "stdout": "ActiveState=active\nMainPID=1976749\n\nActiveState=active\nMainPID=1976751\n\nActiveState=active\nMainPID=1976750"
+    },
+    {
+      "argv": [
+        "pgrep",
+        "-a",
+        "-x",
+        "wivrn-server"
+      ],
+      "exit_code": 0,
+      "stdout": "437376 /usr/bin/wivrn-server"
+    },
+    {
+      "argv": [
+        "pgrep",
+        "-a",
+        "-x",
+        "VRChat.exe"
+      ],
+      "exit_code": 1,
+      "stdout": ""
+    }
+  ],
+  "raw_evidence_sha256": {
+    "tmp/vrct-entry-validation/error.log": "035109da238e4660bdc226fbd982a5aa806d47d5f3d28f62c0a0aae07911a80c",
+    "tmp/vrct-entry-validation/native-python-preflight.json": "3c2858f8ebc9d162fa0bb8e4df646b349e1425f5f2a5635dd78b8dd892b7693c",
+    "tmp/vrct-entry-validation/native-cargo-preflight.log": "0f857f14fe59d01307e4a33ddc4613675986c7a5dd31886ef7fa3802d0666470",
+    "tmp/vrct-entry-validation/fixture-1.log": "2bc3cb9e8b2de90394da256beab88e45c2c38dac290f6b7d36cd16faf7e50011",
+    "tmp/vrct-entry-validation/fixture-2.log": "ea4eedbf92365aa3f227ab4a09b9e35b6706007481bc984868e5e819fbcccdb7",
+    "tmp/vrct-entry-validation/fixture-3.log": "3d11aa55db7585e5c39679b0628435b6bb5a921e47f735a267ae55ed375ee7bd",
+    "tmp/vrct-entry-validation/fixture-4.log": "edbc521b679ca2e86a41c166a6993c6b79502226c120c1c3095c605b31fcc743",
+    "tmp/vrct-entry-validation/negative-duplicate.log": "3043cba29ef0eb04850ed01f6cf11fd84b8c24d587187d6ae5d1917d5c76e4ae",
+    "tmp/vrct-entry-validation/negative-stop.log": "fcaa29181b0f8315ccb0af570f27fe79683c4ebdbbb6156cd51e8f159f802039",
+    "tmp/vrct-entry-validation/fixture-final.log": "f7fabef3aa75178ebd45f0adec08b39f40b11788c7805ca8c16e4e76329b5358",
+    "tmp/vrct-entry-validation/test-dependencies.json": "495f2fd2757371131aeaccfcb8921393b784b30962c4bc84b0b79f7b6ced27f9",
+    "tmp/vrct-entry-validation/host-before-final.json": "f98feb24f8d79be3cb5787fc84d2a213bb15515d64c3eb442ae2960d8d59d06f",
+    "tmp/vrct-entry-validation/live-1.log": "f7fabef3aa75178ebd45f0adec08b39f40b11788c7805ca8c16e4e76329b5358",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat.log": "3043cba29ef0eb04850ed01f6cf11fd84b8c24d587187d6ae5d1917d5c76e4ae",
+    "tmp/vrct-entry-validation/vite-build.log": "33fbf098afac87c2f8ca68d4c5b2fef4d8dfb22fad10459ed3abbb7ec74c2c1e",
+    "tmp/vrct-entry-validation/js-tests.log": "a56622c58cb5e40128984aa7042ee71eda27bf97711932355a6ed5fbbb50f56f",
+    "tmp/vrct-entry-validation/ruff.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "tmp/vrct-entry-validation/voice-tests.log": "02f3e343fb84d0ead5c1d9fd3cd71dfbcb734d3dc866f7b50be1e0de031b5b4a",
+    "tmp/vrct-entry-validation/voice-tests.xml": "3b979ea54b3694b0e8c7b372c0ea3b620e5516617127e2fb4837ed3525bb23e7",
+    "tmp/vrct-entry-validation/negative-final-drop-stop.log": "fcaa29181b0f8315ccb0af570f27fe79683c4ebdbbb6156cd51e8f159f802039",
+    "tmp/vrct-entry-validation/general-pytest.log": "1798b5919f3334b6a3015e108b6438bc88b0591cc2e51addeda37fc2b6bfa6a3",
+    "tmp/vrct-entry-validation/negative-controls.json": "452727747ddd115303a9b37b25cff0bde3825b1b32c3787bb3668ff5fed85cc7",
+    "tmp/vrct-entry-validation/host-after-final.json": "f98feb24f8d79be3cb5787fc84d2a213bb15515d64c3eb442ae2960d8d59d06f",
+    "tmp/vrct-entry-validation/checks.json": "331bd2a8b1693243eedb7339a631c44351977a544e9c4104917e2cbb56325454",
+    "tmp/vrct-entry-validation/model-provenance.json": "01b87ea621ee3159f2eb139a52e56b7439bdddd4b0351e8f7848fe0a09dde4f2",
+    "tmp/vrct-entry-validation/fixture-1/vite.log": "af4612330fa7c23f5524a707b292e51f10988f26e0e80d8609cb97bb7a065bba",
+    "tmp/vrct-entry-validation/fixture-1/ui-failed.png": "d82ef6be14778b40d8443b2745aafd78274531115a2bf624aa46e769d81d8312",
+    "tmp/vrct-entry-validation/fixture-1/report.json": "93784dc4a98f9c22a59b16e5e4ee9ef10f7dc55d1bacb907512f713b458112e6",
+    "tmp/vrct-entry-validation/fixture-2/vite.log": "1a7ba1e7ef63ff0d4c9c547094fd3449daa0c419602f0b3e2630eeffebe7fcf9",
+    "tmp/vrct-entry-validation/fixture-2/normal.pcm": "aee8f999794b7e4d3fb49a9d98b18f5296ff8dae212b3a83773498de2de5e503",
+    "tmp/vrct-entry-validation/fixture-2/normal.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-2/ui-failed.png": "8964977a1e04901737615a75fc73afb420a57b9db70bf2ecbf40ffc99cfb3c1e",
+    "tmp/vrct-entry-validation/fixture-2/report.json": "34d5340ae6a525f4f4b3051070f081ebdf35a357c547881d9e311fe22e13a36f",
+    "tmp/vrct-entry-validation/fixture-3/vite.log": "cd5e3fb871eefc71f52f079a75be79b2c90712d7b14809fc60730b7057ce97d8",
+    "tmp/vrct-entry-validation/fixture-3/normal.pcm": "7908638ec251044dffdba7434d55147d3334b2b8151a6d572231578e2ab985e6",
+    "tmp/vrct-entry-validation/fixture-3/normal.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-3/after-off.pcm": "4bdb603044edc5ee70da9379f63ecc2d5b1b4088579f0a77bc1e34112839f4f8",
+    "tmp/vrct-entry-validation/fixture-3/after-off.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-3/fresh-after-busy-stop.pcm": "08670e1c5d144d9d160768fd63aa767843132a02885ac210d8059b343b5c6dcb",
+    "tmp/vrct-entry-validation/fixture-3/fresh-after-busy-stop.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-3/ui-final.png": "d9c4a307d27ea5d02f27bc1854a46050ec41831570b1260033e3b7da616b4949",
+    "tmp/vrct-entry-validation/fixture-3/report.json": "54530da9a8bc414c826c81cda6860c143c57e58d8641c3accec300b0331693fd",
+    "tmp/vrct-entry-validation/fixture-4/vite.log": "25f28087ce8a78a5cbf2f9996b3645abfe2e22f6cc63f9725af3d1ba592d63f1",
+    "tmp/vrct-entry-validation/fixture-4/normal.pcm": "37946bfa2b809543c58503c51c86e15672c027aa8c764971d6c94416eea8accb",
+    "tmp/vrct-entry-validation/fixture-4/normal.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-4/after-off.pcm": "0e738810a35e60e6da342d5609bd12689fea4541ffc69f85f31a2c63f511735e",
+    "tmp/vrct-entry-validation/fixture-4/after-off.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-4/fresh-after-busy-stop.pcm": "b5d10f5e08b953f5b0ca6f1c16521500026559d53507379bcb0349840ea90590",
+    "tmp/vrct-entry-validation/fixture-4/fresh-after-busy-stop.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-4/translated-selected-slot.pcm": "0bd1932bda966713f709406a15da297d5b0bc99b58a2891ab1a2ce871f06a969",
+    "tmp/vrct-entry-validation/fixture-4/translated-selected-slot.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-4/fresh-after-server-restart.pcm": "a1bf9054e9bcb02e744d96bfc684eaf5b1ff3bd04f190778b8447eeb0e25daaf",
+    "tmp/vrct-entry-validation/fixture-4/fresh-after-server-restart.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-4/ui-final.png": "d45630258eac9340e142ff1b3184df55f72839e895303c16f6f3a7677bab2d7d",
+    "tmp/vrct-entry-validation/fixture-4/report.json": "6db652ac6ad846064c37a7833042fbc0afefe7117374d06c809ee87b4d4f31cb",
+    "tmp/vrct-entry-validation/negative-duplicate/vite.log": "7c0cd416aeefa673edca43a6677797aef8bcba183f24f8bbf6e86b307813905b",
+    "tmp/vrct-entry-validation/negative-duplicate/normal.pcm": "ddac8d04a92d61e71152597d414317382c65c7e9cdbf518d7a99e5824070e4e1",
+    "tmp/vrct-entry-validation/negative-duplicate/normal.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-duplicate/ui-failed.png": "d192b7e1311cd315381226959f1826c4aab79d45fc8cb2374e29644a1439127a",
+    "tmp/vrct-entry-validation/negative-duplicate/report.json": "9340cd81de0ee5b4ea5b364cd42ae38f418da4e16ddd929c512a9a7e5018fb4a",
+    "tmp/vrct-entry-validation/negative-stop/vite.log": "35d456c863c519cfb80e5f69dc59390d31fac5958443b8d12663178f5d218a09",
+    "tmp/vrct-entry-validation/negative-stop/normal.pcm": "14679797bfe614d42e02862a391b9aff142b2cab2720ba5d28f691aeb06635d0",
+    "tmp/vrct-entry-validation/negative-stop/normal.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-stop/ui-failed.png": "aec5983418621ce0c227d1b5b046be9b81ffe14ec99a7baf143ab9a1579eb722",
+    "tmp/vrct-entry-validation/negative-stop/report.json": "7997baeab3f0228591fa2f38bf5418235eb004b7bad6778735e2f0b9125d4cd2",
+    "tmp/vrct-entry-validation/fixture-final/vite.log": "46941e56d824c5e1aa8b5a4abf28a66142f6a034c73284a75fddb72f48d5e194",
+    "tmp/vrct-entry-validation/fixture-final/normal.pcm": "a02cdb32abd665378ee4fc2d410f80c7b08ef05289e898dbb26fddcb804a8693",
+    "tmp/vrct-entry-validation/fixture-final/normal.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-final/after-off.pcm": "de033da8d61b7cb9e3f70f60d7c6f5ab79f35459d7b1628428612d8c600be4b1",
+    "tmp/vrct-entry-validation/fixture-final/after-off.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-final/fresh-after-busy-stop.pcm": "6c4dab3492cad33647aebeb850cbb4c96cbc5e0382b2dbaf263e735b67611455",
+    "tmp/vrct-entry-validation/fixture-final/fresh-after-busy-stop.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-final/translated-selected-slot.pcm": "080bb0bf22772ed930e603e038aab9f035e2f5b326542ad1fae9537d4dc6e385",
+    "tmp/vrct-entry-validation/fixture-final/translated-selected-slot.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-final/fresh-after-server-restart.pcm": "9a915314c67f9209841a00ea8cb7ecea70c0875c22a4137c7aa8e2a934ba91c4",
+    "tmp/vrct-entry-validation/fixture-final/fresh-after-server-restart.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-final/ui-final.png": "40541fe4deb04187e3b996c7d27c691a2cfe44e962d77e804e6e1e62060032e2",
+    "tmp/vrct-entry-validation/fixture-final/report.json": "6e876bb4b00459aad69dc763b38523fa8c20e8097a03912ca3b09e12f9fa4330",
+    "tmp/vrct-entry-validation/live-1/server-00.log": "41ca2aa40fb114f6f91cdb537de0faac6483f060299e803237c2d66dcd658ed5",
+    "tmp/vrct-entry-validation/live-1/vite.log": "e006520c55b149ee977b5fccdcb23e7cc0cbf8bf42e59c4f9e8f234ea38fe3ca",
+    "tmp/vrct-entry-validation/live-1/normal.pcm": "ff898f2aab21637f4a729750cca7d1ca7ca98d0ecf12330734f3ecf3bb35baea",
+    "tmp/vrct-entry-validation/live-1/normal.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/live-1/after-off.pcm": "4054fe68419cd77e3dea6630f3151eebf8c4abdc4c3be461b6f60b7728efc9b5",
+    "tmp/vrct-entry-validation/live-1/after-off.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/live-1/fresh-after-busy-stop.pcm": "4ad402b84a6351c62bbdc30919df7778fc1f0b064b8ae434045a69829641e610",
+    "tmp/vrct-entry-validation/live-1/fresh-after-busy-stop.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/live-1/translated-selected-slot.pcm": "fd6e52ee4d08f3d4304bbcec30e5d6cb0660b2c0e56730b0c3c0e2e584795cc0",
+    "tmp/vrct-entry-validation/live-1/translated-selected-slot.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/live-1/server-01.log": "ff5146981404aafdb93f35d752a8166b78f6de4116bf63d2b22ab96866f5d3af",
+    "tmp/vrct-entry-validation/live-1/fresh-after-server-restart.pcm": "1e3844621e138c6225f155389c76a0f52f8f14ca74653f3a408224cc7ab556c9",
+    "tmp/vrct-entry-validation/live-1/fresh-after-server-restart.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/live-1/ui-final.png": "f335458922de9c75b7eb84f85bf52268dc34131d95b399558500377d39d56fcb",
+    "tmp/vrct-entry-validation/live-1/report.json": "316a6f4e72b34bc4068ac2d0f2eb8a95986249c4d56c6eb49753dfb392e86c7c",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/vite.log": "7f5717950156252614c93e7186b6562166d2966fd27dc2e17688179704e5818b",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/normal.pcm": "d9c9399e08c386b7cdb30a534b3c457d8bd0f7ded974f1693a301177c37ca7f7",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/normal.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/ui-failed.png": "b6d6780c5d2af251bb2cc4da8499308bdaa31869e8761939d57b75c030dd4d1e",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/report.json": "6dc342df692af8104f75f65ede712c6e5d2ce0a0bebef40bdec9d8d5068ba562",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/vite.log": "9a4ca6d4bea487c9854e126aac27d952b3c53d2a80dde51159b761a6ab1857d5",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/normal.pcm": "3b25cc350f20adac5945f5223a21f8461ce5da4d8a9d2b3ab574293ce72b98d6",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/normal.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/ui-failed.png": "6bff2a951d97eee8831078fd311881f98afb4b070623dbcf9734ed054361af2c",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/report.json": "05bb571b11ef08b4f0be274f7e9288d8a2b1913517ddc4c8d03630cf16b308a2",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/backend/sidecar-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/backend/sidecar-stdout.jsonl": "313583d7096d078cbe0b32144f210c9a7472b9d79556a8e2bd8a9a5e7b6ccac0",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/backend/error.log": "b3871caef787ddc006bd75064115376dd6db1e51e89b7655f8b81ad1a418f4e9",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/backend/services.jsonl": "1add2fc5912c351bf8c638422ace0d109ec18f4cbff47eb4f97156839bc6f400",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/backend/process.log": "91513a8ee758eb27e74e98573badc031ee7dcc4589989b2c78dc4090a5779807",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/backend/generated-000.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/backend/release": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/backend/generated-001.wav": "80725b0456f8495ebdb95a1dc60f893ee799d73343c9f404182bd914cc0fb933",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/backend/voice_mute_state.json": "749172f3d7333cf7e8876cebf4b5aebaf48dd1a4fb6a87526b4535109ecd80be",
+    "tmp/vrct-entry-validation/negative-final-drop-stop/backend/backend-final.json": "a298c975d5ea4752796e7f0dff753eba76c9758b41fc9694c97fbc17c5ffe89d",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/backend/sidecar-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/backend/sidecar-stdout.jsonl": "9ef62e2ef85ec5dc352efb0ae659c1d5916ef1085ad76d5f3e4a9d268a862765",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/backend/error.log": "ddc1e70a26e4a7150d11ab623e5d650db3ddf198c97c7d6fe0a24dc20089fd9d",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/backend/services.jsonl": "8dc21a12cf606484eb0b44d6db3491b6650d2284073b8a77f083560f5920dea1",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/backend/process.log": "e6374250c2363a845a647b9040e1fce34a63ac359231f6dddb0667c429ef3796",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/backend/generated-000.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/backend/release": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/backend/voice_mute_state.json": "749172f3d7333cf7e8876cebf4b5aebaf48dd1a4fb6a87526b4535109ecd80be",
+    "tmp/vrct-entry-validation/negative-final-duplicate-chat/backend/backend-final.json": "6c86b189c55c73d27630ee1750ba566703f875b8205f809490e074768c9b1f47",
+    "tmp/vrct-entry-validation/live-1/backend/sidecar-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/live-1/backend/sidecar-stdout.jsonl": "9ac4733e17e3a151a96be51cc98bfa28ff7868543de71981a22bee1b1a01d798",
+    "tmp/vrct-entry-validation/live-1/backend/error.log": "7c6bdb3615f6e92b633c723c576225bc4cf083305a60d126c0cee56ffc167692",
+    "tmp/vrct-entry-validation/live-1/backend/services.jsonl": "fea5091b967a179ce820dd66ae298e80f0778bdb0f1d240d81399ea9cb13f2f0",
+    "tmp/vrct-entry-validation/live-1/backend/process.log": "74ae52c614a3068b5eedbb196602d3215649c590946c029a67e98d1f60bc41a0",
+    "tmp/vrct-entry-validation/live-1/backend/generated-000.wav": "f1d49d0d6ef09bf3c0ee064596f5f788b2305a19a13a692ef816ad95b628e79f",
+    "tmp/vrct-entry-validation/live-1/backend/generated-001.wav": "b3b8c7269885ce133cd76fe6f92ed67cc92ad12be0a24258f32a0e539ea77a10",
+    "tmp/vrct-entry-validation/live-1/backend/generated-002.wav": "73651c804bc985fc97b7065b30e32bda5990418dc38face7d694d3bcadc2102c",
+    "tmp/vrct-entry-validation/live-1/backend/generated-003.wav": "b2af8de6419d84075573c4d8594fc9edb2d863629cad9ad6d46b6220369c1507",
+    "tmp/vrct-entry-validation/live-1/backend/generated-004.wav": "f0578c238c3143278d87006f7473f54d15b2af280433484eb994f9a1b97f3fcb",
+    "tmp/vrct-entry-validation/live-1/backend/generated-005.wav": "c01b90fd3202e4fb73a88e8a93f20635bbc7c7f8d0c18f37c32a726144c6dcf0",
+    "tmp/vrct-entry-validation/live-1/backend/release": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/live-1/backend/generated-006.wav": "d2d2401042e593b00d97fbc30ebeaf994e2b187aaaa52399281552bd9c412457",
+    "tmp/vrct-entry-validation/live-1/backend/generated-007.wav": "dc26e5cdcd9be9dc214b90b4047c951e725bcc04b2ef21015f453f31c25cc703",
+    "tmp/vrct-entry-validation/live-1/backend/generated-009.wav": "6de05a38920d355cc67f797b6bd46de0247af44384cf40d6e45276018a3bb591",
+    "tmp/vrct-entry-validation/live-1/backend/voice_mute_state.json": "749172f3d7333cf7e8876cebf4b5aebaf48dd1a4fb6a87526b4535109ecd80be",
+    "tmp/vrct-entry-validation/live-1/backend/backend-final.json": "87b1eb43d0fe8a4bb4e4a4b08c1bb7c0c03c7d3550adf7be059da94be5193187",
+    "tmp/vrct-entry-validation/fixture-final/backend/sidecar-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-final/backend/sidecar-stdout.jsonl": "9cacf0cd7fb123cae0b67a1c8a2fe68cf0c3cb7c761a04ca54364d8b32c0202f",
+    "tmp/vrct-entry-validation/fixture-final/backend/error.log": "d2cd01afef04365fbfbb526bde82ec729fe5ea5be39d1e64773c676fa4407388",
+    "tmp/vrct-entry-validation/fixture-final/backend/services.jsonl": "b244254422a18cd9cb064323fdd555ba9e39cb961a3e407d79dd4e3f8927877f",
+    "tmp/vrct-entry-validation/fixture-final/backend/process.log": "f395c65914520974c7f5290ba53392bd34e6bdd86c110f2a7b4d55bcce90b874",
+    "tmp/vrct-entry-validation/fixture-final/backend/generated-000.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-final/backend/generated-001.wav": "030dbfd4ae4ad06739d14f6a07038b1c8cffddd7f1ecb5f01a5966533c6aed1f",
+    "tmp/vrct-entry-validation/fixture-final/backend/generated-002.wav": "030dbfd4ae4ad06739d14f6a07038b1c8cffddd7f1ecb5f01a5966533c6aed1f",
+    "tmp/vrct-entry-validation/fixture-final/backend/generated-003.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-final/backend/generated-004.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-final/backend/generated-005.wav": "6a53e664da89f43ced82c30b69f503e6ea8ca5e3ec6063c50a26bb8d2e247b7c",
+    "tmp/vrct-entry-validation/fixture-final/backend/release": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-final/backend/generated-006.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-final/backend/generated-007.wav": "030dbfd4ae4ad06739d14f6a07038b1c8cffddd7f1ecb5f01a5966533c6aed1f",
+    "tmp/vrct-entry-validation/fixture-final/backend/generated-009.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-final/backend/voice_mute_state.json": "749172f3d7333cf7e8876cebf4b5aebaf48dd1a4fb6a87526b4535109ecd80be",
+    "tmp/vrct-entry-validation/fixture-final/backend/backend-final.json": "5efbe7e8d1cd5d3ba47044705fbd155a822d800ba1d90a4b0757d0e4e5a38ab4",
+    "tmp/vrct-entry-validation/negative-stop/backend/sidecar-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-stop/backend/sidecar-stdout.jsonl": "e56874615827493a6542a9fbdc1c7c63243d3c10627b874b5091a78af51ef88a",
+    "tmp/vrct-entry-validation/negative-stop/backend/error.log": "756a2675a8946425091353d7e3b4ae517527a527ec9a8180dc052406c53b6541",
+    "tmp/vrct-entry-validation/negative-stop/backend/services.jsonl": "110e05da23225285af40324d83c21362fe14b84cba85bc14c89a68fae692ce8c",
+    "tmp/vrct-entry-validation/negative-stop/backend/process.log": "c0843cd60a46f75b2ac4b620fe372f91508f1c54fbe8610ebecf460a6bf855ae",
+    "tmp/vrct-entry-validation/negative-stop/backend/generated-000.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/negative-stop/backend/release": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-stop/backend/generated-001.wav": "80725b0456f8495ebdb95a1dc60f893ee799d73343c9f404182bd914cc0fb933",
+    "tmp/vrct-entry-validation/negative-stop/backend/voice_mute_state.json": "749172f3d7333cf7e8876cebf4b5aebaf48dd1a4fb6a87526b4535109ecd80be",
+    "tmp/vrct-entry-validation/negative-stop/backend/backend-final.json": "eedc3ec4b903fe5679d1a4ec6e8a05272f58fb588343d019889933cdeb38c304",
+    "tmp/vrct-entry-validation/negative-duplicate/backend/sidecar-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-duplicate/backend/sidecar-stdout.jsonl": "82246d8ff9ca39eea5bfd1de0ae153a0a06d4154410c67e09f81bee84dc341f3",
+    "tmp/vrct-entry-validation/negative-duplicate/backend/error.log": "d2daf235d44cc39fa2a066a4e686515e521c75299920ba4ea62bfb1da68da202",
+    "tmp/vrct-entry-validation/negative-duplicate/backend/services.jsonl": "dd4e20bbee099a2ae510282fe6406fc9d6c47eb1ca1a0d9602f31df62c6183df",
+    "tmp/vrct-entry-validation/negative-duplicate/backend/process.log": "e3cc0dda49de4437d00d620501b10bec8f1c23122429818f5867cf4b2e1a6975",
+    "tmp/vrct-entry-validation/negative-duplicate/backend/generated-000.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/negative-duplicate/backend/release": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/negative-duplicate/backend/voice_mute_state.json": "749172f3d7333cf7e8876cebf4b5aebaf48dd1a4fb6a87526b4535109ecd80be",
+    "tmp/vrct-entry-validation/negative-duplicate/backend/backend-final.json": "74dd60b29eff14e0fc9afac06c0fc036f7160f2dd940a84b95fe9160b4934d4f",
+    "tmp/vrct-entry-validation/fixture-4/backend/sidecar-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-4/backend/sidecar-stdout.jsonl": "2b9dee08dd0c2e3446a51906b1ea87f8baa999151229bacd17dc66e419180388",
+    "tmp/vrct-entry-validation/fixture-4/backend/error.log": "94de466042b500f4cb206bbaf27e6344d8b88f31619dde34b8ee4aac43ddedc0",
+    "tmp/vrct-entry-validation/fixture-4/backend/services.jsonl": "a707263545a9bff38aa3e9730bb91e4a60562b06ced32800c83894b37a0ff03e",
+    "tmp/vrct-entry-validation/fixture-4/backend/process.log": "f16de6c4f64da1cfc6e0ccc80b9e28cedd848ed434504af7568fc09c80d4adb3",
+    "tmp/vrct-entry-validation/fixture-4/backend/generated-000.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-4/backend/generated-001.wav": "030dbfd4ae4ad06739d14f6a07038b1c8cffddd7f1ecb5f01a5966533c6aed1f",
+    "tmp/vrct-entry-validation/fixture-4/backend/generated-002.wav": "030dbfd4ae4ad06739d14f6a07038b1c8cffddd7f1ecb5f01a5966533c6aed1f",
+    "tmp/vrct-entry-validation/fixture-4/backend/generated-003.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-4/backend/generated-004.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-4/backend/generated-005.wav": "3390b89c78d05d9f8b82e0d21d4560beda2d2271e627ba77a70cb06ba5754b71",
+    "tmp/vrct-entry-validation/fixture-4/backend/release": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-4/backend/generated-006.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-4/backend/generated-007.wav": "030bdfbe7fb9bd1c17b8b56cf1f1d7aba86d99c507d7a1dba939e0cc548259b6",
+    "tmp/vrct-entry-validation/fixture-4/backend/generated-009.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-4/backend/voice_mute_state.json": "749172f3d7333cf7e8876cebf4b5aebaf48dd1a4fb6a87526b4535109ecd80be",
+    "tmp/vrct-entry-validation/fixture-4/backend/backend-final.json": "9b782df3094bb861e7d46e833f2fa8b68cb87d1923ec440a30ebdc882b0c9792",
+    "tmp/vrct-entry-validation/fixture-3/backend/sidecar-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-3/backend/sidecar-stdout.jsonl": "4231ec52bbfd1c6e97e99846b7dabe3dc3a76733d515d68ac0486cffad5a8cd2",
+    "tmp/vrct-entry-validation/fixture-3/backend/error.log": "b237f52591487a1a719020a7dc03013f21d3a2b0e74e80255f593ca1959fd6ef",
+    "tmp/vrct-entry-validation/fixture-3/backend/services.jsonl": "2b8e547d70c391ed43b18bf23f64bb2064cf7290d4596ba7abe35b2306fb1a06",
+    "tmp/vrct-entry-validation/fixture-3/backend/process.log": "ef965e1a336ca3d13fd1018d76946bebeb5432751391dd362e602b53edb79618",
+    "tmp/vrct-entry-validation/fixture-3/backend/generated-000.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-3/backend/generated-001.wav": "030bdfbe7fb9bd1c17b8b56cf1f1d7aba86d99c507d7a1dba939e0cc548259b6",
+    "tmp/vrct-entry-validation/fixture-3/backend/generated-002.wav": "030dbfd4ae4ad06739d14f6a07038b1c8cffddd7f1ecb5f01a5966533c6aed1f",
+    "tmp/vrct-entry-validation/fixture-3/backend/generated-003.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-3/backend/release": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-3/backend/generated-004.wav": "5cd4ea0d070e38590b7435ac8faacbb726a0bac247e54c5156c0564c1a47ca20",
+    "tmp/vrct-entry-validation/fixture-3/backend/voice_mute_state.json": "749172f3d7333cf7e8876cebf4b5aebaf48dd1a4fb6a87526b4535109ecd80be",
+    "tmp/vrct-entry-validation/fixture-3/backend/backend-final.json": "cd96ac136005cb75a6495ef67b9f1b1b819fb15641490255bbea5ff1e8c2660f",
+    "tmp/vrct-entry-validation/fixture-2/backend/sidecar-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-2/backend/sidecar-stdout.jsonl": "cde96efa9e8a8afba8f949a30298b881403af8db991130357dcb390bd1572a98",
+    "tmp/vrct-entry-validation/fixture-2/backend/error.log": "cfcb26e4d088993ff3cf238edb51b79b4462becfc902507ce8c3b5e1533a65a9",
+    "tmp/vrct-entry-validation/fixture-2/backend/services.jsonl": "1c661c219fca8831045a420121e0bd746e48d435b294cf1a91661dfeca1c7d91",
+    "tmp/vrct-entry-validation/fixture-2/backend/process.log": "606c55833edc2d30ea9a366aead6d8352ccf27b616734d4939b5d443155cd046",
+    "tmp/vrct-entry-validation/fixture-2/backend/release": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-2/backend/voice_mute_state.json": "749172f3d7333cf7e8876cebf4b5aebaf48dd1a4fb6a87526b4535109ecd80be",
+    "tmp/vrct-entry-validation/fixture-2/backend/backend-final.json": "451e69ca89fe545edd1c7e20abee3bf427578e50620778c8ea18f918827d6462",
+    "tmp/vrct-entry-validation/fixture-1/backend/sidecar-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-1/backend/sidecar-stdout.jsonl": "9f14ee11f05fced9e989a89d1372f6987ecccfac7d5ba15a883c0425c367c23e",
+    "tmp/vrct-entry-validation/fixture-1/backend/error.log": "3a267234b9771b3a89c623a6858fae7299a90f3ebe7b1e118501fdc2f58779cd",
+    "tmp/vrct-entry-validation/fixture-1/backend/services.jsonl": "ba0a99dea7b9b52ad0690fa6f768128c92871b772ec324309f03b8c14faebfda",
+    "tmp/vrct-entry-validation/fixture-1/backend/process.log": "4fb30b7751b81a2638f61d12ede78c42485cc303e9686c0253c99180022e7fbd",
+    "tmp/vrct-entry-validation/fixture-1/backend/release": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/vrct-entry-validation/fixture-1/backend/backend-final.json": "dae98c4a809aea7cac76d6fd688d8f0cf8d59d57c6e6fb3ad7f8c4f37410ce36"
+  },
+  "artifact_policy": "Only synthetic test text and generated audio; raw WAV/PCM, screenshots and logs remain ignored under tmp/vrct-entry-validation. No new model/browser binaries or product runtime dependencies. No redistribution.",
+  "remaining": [
+    "Native Tauri/full VRCT startup and Model services",
+    "real config persistence/restart",
+    "live translation provider and actual WebSocket/history persistence",
+    "VRChat endpoint replay from this UI-origin run",
+    "Windows/VC/ASR/HMD/concurrent GPU load and latency quantiles"
+  ]
+}

@@ -4,7 +4,7 @@
 Pythonは標準ライブラリだけで発声でき、`pw-cat` / `pw-dump` が必要。
 VRCT全GUIのLinux互換化はP5。以下のCLI→仮想マイク→VRChat desktopの経路は、
 ユーザーが内蔵マイクテストの再生で声を確認済み。途中停止後のメーター停止も確認。
-VRCT UI→OSCの同時動作、他ユーザーでの受信、HMDは未検証。
+実VRCTアプリからVRChatの音声・OSCへ同時配信する一連の動作、他ユーザーでの受信、HMDは未検証。
 取得済みIrodori MF / speech.cpp 0.8.11の単発PoCと、0.9.0の専用PipeWireグラフでの
 [30回測定](benchmarks.md)は確認済み。新規モデル取得は行っていない。
 
@@ -71,7 +71,9 @@ CLIは`X-Sample-Rate`の実rateを[pw-cat](https://docs.pipewire.org/page_man_pw
 実装・独立グラフの結果は [managed-route-report.md](managed-route-report.md) を参照。
 後続の[ホスト・VRChat自動受入](managed-vrchat-report.md)で一時配置と再起動を実施し、
 試験後に元の設定へ戻した。初期画面の準備と復元はエージェントが確認し、受入シーケンスを自動実行した。
-VRCT全GUIのLinux対応完了を意味しない。UI/APIはサービスを差し替えたController試験とUIビルドで検証している。
+VRCT全GUIのLinux対応完了を意味しない。後続の[UI部品・stdio統合試験](ui-entry-report.md)では本番入力欄・
+音声設定UIと本番Main/Controllerを実TTS・独立PipeWireへ接続した。Tauri接続と周辺サービスは差し替えており、
+アプリ全体の起動・設定永続化・実Model初期化は未検証。
 
 1. systemのC compiler、pkg-config、PipeWire開発headersを用意し、repo rootでビルドする。
    CachyOSの今回の環境には既に揃っていた。Pythonパッケージや音声モデルは追加しない。

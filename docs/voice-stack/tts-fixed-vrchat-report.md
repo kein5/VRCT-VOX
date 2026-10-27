@@ -101,6 +101,10 @@ raw PCM/WAV、画面画像、serverログはgitignore対象の`tmp/tts-fixed-vrc
 次は実VRCT UI/APIから原文を送信し、既存dispatchを通る経路を検証する。
 OSC・履歴・翻訳との互換性、音声OFF、UIからの取消・全体mute、復旧時に古い発話を再送しないことを確認する。
 
+同日追記: [UI部品・stdio統合試験](ui-entry-report.md)で、本番入力欄・設定UIから本番Main/Controllerを通し、
+実TTS・モデル不要の各16ケースを検証した。Tauri接続と周辺サービスは試験用に差し替えているため、
+実アプリ全体の起動・設定永続化・UIからVRChat再生までの一連の受入れは引き続き未確認。
+
 listenerが開いたままのモデル停止・HTTP接続単独故障・port即時再利用は今回の早期検出範囲外。
 Windows、実VC、ASR/翻訳とのGPU混在、ノイズ抑制ON、WiVRn/HMD、物理イヤホン、別プレイヤー受信も未検証。
 これらを満たす前にBの製品採用やP1全体の完了へ変更しない。
