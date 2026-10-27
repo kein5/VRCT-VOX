@@ -10,15 +10,18 @@
 未測定の性能や実機試験を成功として扱わず、仕様の各ゲートを維持する。モデルの新規取得・配布には仕様の同意条件を適用する。
 upstream PR、共有branchへのpush、merge、releaseは実行しない。
 
-**現在: 中断（2026-10-27）。** 実Tauriの黒画面・描画フレーム停止をimozuruで調査し、公式回避候補を試しても解消できず、
-ユーザー指定条件を適用。[中断報告・再現手順](native-ui-report.md)。P1/Native Task 3は未完了。全機能完了として扱わない。
+**現在: 再開（2026-10-28）。** ユーザー提供のDPMS再現調査と消灯防止ガードを照合し、
+通常configの実Tauriで描画・設定保存復元・終了と再起動後のミュートを確認した。
+10/27の原因はDPMS未記録のため推定と区別する。[追記報告・試験手順](native-ui-report.md)。
+本番UI→実speech.cpp→独立仮想マイクの9ケースも通過した。[本番音声試験](native-voice-report.md)。
+P1/Native Task 3はUI→VRChat一連の受入れと性能ゲートが残る。全機能完了として扱わない。
 
 ## 要件と現在地
 
 | 段階 | 実装・証拠 | 未完了の受入条件／次の成果物 |
 |---|---|---|
 | P0 | baseline・ADR・測定器・ライセンス台帳 | 新しい構成ごとの差分検証を継続 |
-| P1 | TTS provider、scheduler、UI、OSC契約、Linux/Windows出力adapter。限定UI部品→実stdio→実TTS試験16件、VRChat試験は別群 | 実Tauri/全Model/設定永続化を含む起動、UI→VRChat一連の試験、Windows実機、仕様のUI起点性能 |
+| P1 | TTS provider、scheduler、UI、OSC契約、Linux/Windows出力adapter。部品UI試験16件、実Tauri/全Modelの描画・保存復元・安全な再起動、本番UI→実TTS→独立仮想マイク9件 | UI→VRChat一連の試験、Windows実機、仕様のUI起点性能 |
 | P2 | OS音声経路BのPoCとmanaged endpoint | 外部VC契約・health・明示passthrough/converted/mute、source選択、切断fail-closed、UI、fake process試験、実VC比較 |
 | P3 | 既存legacy ASRを維持 | speech.cpp専用REST→Realtime、mic/speaker別session、VAD、partial/final置換、capture/resample、有界queue、UI字幕・既存翻訳へのfinal接続 |
 | P4 | テキストの原文/訳文TTSのみ | mic final訳文発声、VCとの排他/ducking、優先度・期限、remote受信の再送防止、多言語振分け |

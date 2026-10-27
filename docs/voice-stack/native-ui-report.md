@@ -1,4 +1,38 @@
-# Linux本番起動と描画受入れ（2026-10-27）
+# Linux本番起動と描画受入れ（2026-10-27、10-28追記）
+
+## 10/28: 描画ゲートを通過して再開
+
+ユーザー提供のDPMS調査と`unkempt-bird`の消灯防止ガードを取り込み、実機で照合した。
+提供された同端末の消灯→点灯実験では描画が復帰し、こちらでもガード下で前回のrAF試験が1 PASS。
+通常configのdebug binaryを再ビルドし、3フレームのrAF、WebDriver画像（870×654、alpha 255、色分散あり）を確認した。
+画面描画の依存版・GPU環境変数は変更していない。10/27時点のDPMSは未記録なので、当時の原因は推定として扱う。
+[調査とガードの実行手順](../linux_native_ui_black_screen_2026-10-28.md)。
+
+次に本番UIを実クリックして音声設定を保存し、実アプリの終了ボタンから閉じて再起動した。
+日本語voice名・原文モード・managed経路・訳文slotの復元、終了前に再開した仮想マイクが終了後と再起動後に
+ミュートとなることを独立PipeWireで確認した。描画試験と合わせて **2 PASS / 15.35秒**。
+ガード単体は消灯・復帰・状態不明・抑止不可・子コマンド失敗を含む **6 PASS**。
+
+raw: `tmp/voice-resume/original-guard.log`、`native-build.log`、`native-settings-complete.log`、
+同`native-settings-complete/`の画像・描画判定・設定・driverログ。
+これはVRChat、実VC、ASR、Windowsの受入れではなく、P1/Native Task 3全体はまだ未完了。
+後続の[本番UI→仮想マイク試験](native-voice-report.md)では、fixture・実Irodoriともに9ケースが通過した。
+
+WebDriver終了時と通常操作中に接続切断を観測した。imozuruでW3Cのsession終了契約と、導入版tauri-driver 2.1.0の
+転送実装、CPython 3.11.17、RFC 9110 §7.6.1を照合した。urllibが強制する`Connection: close`を
+tauri-driverが除去せず、poolを使うnative driverへの要求へ転送することを確認。
+初回の短い比較では両クライアントが成功したが、反復を増やすとurllibは最初の画像取得後のDOM参照で切断した。
+このヘッダーを付けないhttp.clientでは **1,000回のDOM参照・10画像・正常終了が成功**。
+試験クライアントを後者へ変更した。native側のRST発生順序までは追跡しておらず、libsoup内部の根本原因は未確定。
+接続切断を成功として握りつぶす処理や、送信済みか不明な要求の再試行は追加していない。
+受入れでは実UIの終了ボタンを押し、所有するアプリPIDの消滅を確認してからdriver群を回収する。
+失敗時のcleanupエラーが本来の試験エラーを隠さないよう別記録する。
+調査原文・比較ログは`tmp/voice-resume/research/`と`transport-{urllib,httpclient}-1000.log`。
+
+自動操作で見つかった通知・開閉アニメーション・コンパクト表示のクリック条件は試験側へ反映した。
+WebDriverが操作未配送と返した場合だけ待機し、設定保存や送信の通信エラーを無条件に再試行しない。
+
+## 10/27時点の報告（履歴）
 
 **実装ループを中断。** 本番バックエンドの起動・設定復元は確認できたが、実Tauriの描画が停止した。
 imozuruで原典と関連事例を調べ、試験プロセス内で回避候補を比較しても解消しなかったため、ユーザー指定の停止条件を適用した。
@@ -67,7 +101,9 @@ cargo install tauri-driver --version 2.1.0 --locked --root tmp/voice-completion/
 npm run vite-build
 # CARGO_TARGET_DIRを設定する場合、CLIがcwdを変えるので絶対pathを使う。
 npm run tauri -- build --debug --no-bundle -- --locked
-VRCT_TEST_NATIVE_GUI=1 VRCT_TEST_APP="$PWD/src-tauri/target/debug/VRCT" uv run --no-project --python .venv_linux/bin/python -m pytest -q tests/platform/test_native_ui.py
+VRCT_TEST_NATIVE_GUI=1 VRCT_TEST_APP="$PWD/src-tauri/target/debug/VRCT" \
+  uv run --no-project --python /usr/bin/python3 python tools/display_power_guard.py -- \
+  uv run --no-project --python .venv_linux/bin/python python -m pytest -q tests/platform/test_native_ui.py
 ```
 
 こちらの試験binaryは`src-tauri/build/native-cargo/debug/VRCT`、最後のbuildはDevTools無効のテストconfigを使用。

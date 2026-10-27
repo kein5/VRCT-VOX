@@ -110,7 +110,9 @@ class SpeechServer:
         self.log = path.open('wb')
         self.process = subprocess.Popen([
             self.args.speech_binary, 'serve', str(self.args.model), '--host', '127.0.0.1',
-            '--port', str(self.port), '--device', self.args.device], stdout=self.log, stderr=self.log)
+            '--port', str(self.port), '--device', self.args.device,
+            *(['--seed', str(self.args.seed)] if getattr(self.args, 'seed', None) is not None else [])],
+            stdout=self.log, stderr=self.log)
         self.runs.append({'pid': self.process.pid, 'log': path.name, 'warmup_enabled': True})
 
         def ready():
