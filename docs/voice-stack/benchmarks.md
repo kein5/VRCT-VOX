@@ -1,7 +1,24 @@
 # 計測手順とP0設備
 
-性能目標は仕様書 §8。現時点で実機の達成値はない。
+性能目標は仕様書 §8。現時点で性能ゲートの達成を判定できる反復測定はない。
 fakeサーバーのテスト所要時間はTTS推論速度・VRChat遅延とは異なる。
+
+## Linux実APIスモーク（n=1）
+
+[測定JSON](measurements/2026-10-27-linux-irodori-smoke.json): CachyOS、RTX 4080 SUPER、
+speech.cpp 0.8.11、取得済みIrodori MF F16、Vulkan0、声`none`、48 kHz mono。
+load/warmup 15.67秒の終了後、CLIのテスト文を一時PipeWire sink/sourceへ送った。
+
+| 境界 | 1回の観測値 |
+|---|---|
+| CLI内event→最初の非無音PCM write完了 | 191.372 ms |
+| CLIプロセス起動→仮想sourceで非無音PCMをread | 304.746 ms |
+| speech.cpp自身のログTTFA | 182 ms |
+
+仮想sourceで非無音データを確認しCLIは終了コード0。生音声・参照音声・PCMファイルの
+保存なし。試験用プロセス/ノードは停止・削除済み。
+この1回からp50/p95/p99やVRChat E2E性能は判断しない。Windows、VRChat、HMD、
+GPU競合、品質、長時間稼働は未検証。サーバーbinary/モデルhashをJSONに記録した。
 
 `tools/voice_latency.py` は以下のCSVを集計する（音声・本文を含めない）。
 

@@ -11,6 +11,11 @@
 - `pw-cat --help`: 利用可。`pw-cli info 0`: sandboxから接続不可。
 - `nvidia-smi`: NVIDIA driverとの通信失敗。モデル、VRChat、HMDのE2Eは未検証。
 
+上記2つは最初のsandbox内での結果。後続の許可された読み取りでは、RTX 4080 SUPER
+（driver 615.78.08、16376 MiB）、PipeWire 1.6.10、既存speech.cpp 0.8.11と
+取得済みIrodori MFを確認できた。既定8080サーバーは未起動。
+一時18080サーバーを用いた実API/仮想sourceのPoCは[phase-report](phase-report.md)を参照。
+
 新しいheadlessテストは既存Windows conftestを読み込まない独立suiteとする。
 既存suiteは置き換えず、収集不能をPASSと報告しない。
 再現コマンド・実測結果は [phase-report.md](phase-report.md) に追記する。

@@ -3,6 +3,8 @@
 ヘッドレスCLIはWindowsのPyAudioWPatch/pycaw/windows-captureをimportしない。
 Pythonは標準ライブラリだけで発声でき、`pw-cat` / `pw-dump` が必要。
 VRCT全GUIのLinux互換化はP5。以下は実機確認用手順で、実VRChatで未検証。
+取得済みIrodori MF / speech.cpp 0.8.11によるCLI→PipeWire仮想sourceの到達は
+[単発PoC](benchmarks.md)で確認済み。新規モデル取得は行っていない。
 
 ## 一時的な仮想マイク
 
@@ -14,6 +16,9 @@ pw-loopback --capture-props='media.class=Audio/Sink node.name=vrct.voice.sink no
 ```
 
 `pw-dump` / `pw-link -l` / `wpctl status` でsink/sourceが作られたことを確認。
+物理音声デバイスが切断中だと、WirePlumberがこの仮想ノードを有効な既定出力/入力に
+選ぶ場合がある（今回も観測）。他アプリの出力とASR入力は明示指定し、作成前後の
+`wpctl status`を確認する。VRCT自身は既定デバイスへのfallbackを行わない。
 VRChatのマイクを **VRCT Virtual Microphone** に指定する。
 物理マイク、ゲーム出力、WiVRn音声をこのsinkへ直接リンクしない。
 終了時はloopback端末でCtrl-C。一時ノードだけが消える。
