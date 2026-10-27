@@ -14,14 +14,16 @@ upstream PR、共有branchへのpush、merge、releaseは実行しない。
 通常configの実Tauriで描画・設定保存復元・終了と再起動後のミュートを確認した。
 10/27の原因はDPMS未記録のため推定と区別する。[追記報告・試験手順](native-ui-report.md)。
 本番UI→実speech.cpp→独立仮想マイクの9ケースも通過した。[本番音声試験](native-voice-report.md)。
-P1/Native Task 3はUI→VRChat一連の受入れと性能ゲートが残る。全機能完了として扱わない。
+さらに本番UI→実speech.cpp→ホスト仮想マイク→VRChatローカル再生を別実行し、9ケース通過。
+[ホスト受入れ報告](native-vrchat-report.md)。Native Task 3は最終review待ち。
+P1のOSC同時表示、仕様起点性能、Windows等の残条件を全機能完了として扱わない。
 
 ## 要件と現在地
 
 | 段階 | 実装・証拠 | 未完了の受入条件／次の成果物 |
 |---|---|---|
 | P0 | baseline・ADR・測定器・ライセンス台帳 | 新しい構成ごとの差分検証を継続 |
-| P1 | TTS provider、scheduler、UI、OSC契約、Linux/Windows出力adapter。部品UI試験16件、実Tauri/全Modelの描画・保存復元・安全な再起動、本番UI→実TTS→独立仮想マイク9件 | UI→VRChat一連の試験、Windows実機、仕様のUI起点性能 |
+| P1 | TTS provider、scheduler、UI、OSC契約、Linux/Windows出力adapter。部品UI試験16件、実Tauri/全Modelの描画・保存復元・安全な再起動、本番UI→実TTS→独立仮想マイク9件とホスト/VRChat9件 | 本番UIでOSC同時表示の1回検証、Windows実機、仕様のUI起点性能 |
 | P2 | OS音声経路BのPoCとmanaged endpoint | 外部VC契約・health・明示passthrough/converted/mute、source選択、切断fail-closed、UI、fake process試験、実VC比較 |
 | P3 | 既存legacy ASRを維持 | speech.cpp専用REST→Realtime、mic/speaker別session、VAD、partial/final置換、capture/resample、有界queue、UI字幕・既存翻訳へのfinal接続 |
 | P4 | テキストの原文/訳文TTSのみ | mic final訳文発声、VCとの排他/ducking、優先度・期限、remote受信の再送防止、多言語振分け |

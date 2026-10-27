@@ -1,0 +1,420 @@
+{
+  "status": "passed",
+  "native_tauri": true,
+  "full_model_runtime": true,
+  "real_inference": true,
+  "vrchat_local_replay": true,
+  "physical_input": false,
+  "physical_hearing": false,
+  "remote_player": false,
+  "seed": 42,
+  "cases": [
+    {
+      "name": "normal_exactly_once",
+      "status": "passed",
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1151488,
+          "elapsed_seconds": 24.001851118999184,
+          "last_read_seconds": 24.004038252998726,
+          "max_read_gap_seconds": 0.04725132200110238,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1151744,
+          "elapsed_seconds": 24.004406566993566,
+          "last_read_seconds": 24.005715815990698,
+          "max_read_gap_seconds": 0.046431284994469024,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "audio": {
+        "mic": {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9950698400157324,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 3.48,
+              "score": 0.9950698400157324
+            }
+          ],
+          "observed_seconds": 23.989333333333335,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        "replay": {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9983929849120877,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 13.32,
+              "score": 0.9983929849120877
+            }
+          ],
+          "observed_seconds": 23.994666666666667,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        }
+      },
+      "click_to_source_ms": 211.903023
+    },
+    {
+      "name": "stop",
+      "status": "passed",
+      "click_to_silence_ms": 176.988754,
+      "observation": "host_source_only"
+    },
+    {
+      "name": "mute",
+      "status": "passed",
+      "click_to_silence_ms": 265.811502,
+      "observation": "host_source_only"
+    },
+    {
+      "name": "held_mute_stays_silent",
+      "status": "passed",
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1151488,
+          "elapsed_seconds": 24.001343858995824,
+          "last_read_seconds": 24.00304521700309,
+          "max_read_gap_seconds": 0.04712299499078654,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1151488,
+          "elapsed_seconds": 24.00392498599831,
+          "last_read_seconds": 24.00548020900169,
+          "max_read_gap_seconds": 0.04543372000625823,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "audio": {
+        "mic": {
+          "verdict": "fail",
+          "occurrences": 0,
+          "best_envelope_correlation": 0.0,
+          "threshold": 0.8,
+          "matches": [],
+          "observed_seconds": 23.989333333333335,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        "replay": {
+          "verdict": "fail",
+          "occurrences": 0,
+          "best_envelope_correlation": 0.2679704026436501,
+          "threshold": 0.8,
+          "matches": [],
+          "observed_seconds": 23.989333333333335,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        }
+      },
+      "click_to_source_ms": null
+    },
+    {
+      "name": "off_keeps_text_silent",
+      "status": "passed",
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1151488,
+          "elapsed_seconds": 24.00142702399171,
+          "last_read_seconds": 24.00207150899223,
+          "max_read_gap_seconds": 0.046040720990276895,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1151488,
+          "elapsed_seconds": 24.001727090013446,
+          "last_read_seconds": 24.00220782600809,
+          "max_read_gap_seconds": 0.046123546999297105,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "audio": {
+        "mic": {
+          "verdict": "fail",
+          "occurrences": 0,
+          "best_envelope_correlation": 0.0,
+          "threshold": 0.8,
+          "matches": [],
+          "observed_seconds": 23.989333333333335,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        "replay": {
+          "verdict": "fail",
+          "occurrences": 0,
+          "best_envelope_correlation": 0.35125861423935256,
+          "threshold": 0.8,
+          "matches": [],
+          "observed_seconds": 23.989333333333335,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        }
+      },
+      "click_to_source_ms": null
+    },
+    {
+      "name": "off_to_original_exactly_once",
+      "status": "passed",
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1151232,
+          "elapsed_seconds": 24.001078478002455,
+          "last_read_seconds": 24.001849521999247,
+          "max_read_gap_seconds": 0.04705631399701815,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1151488,
+          "elapsed_seconds": 24.001717563995044,
+          "last_read_seconds": 24.002738569004578,
+          "max_read_gap_seconds": 0.04275863200018648,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "audio": {
+        "mic": {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9657806357527808,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 3.66,
+              "score": 0.9657806357527808
+            }
+          ],
+          "observed_seconds": 23.984,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        "replay": {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9949510602663973,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 13.5,
+              "score": 0.9949510602663973
+            }
+          ],
+          "observed_seconds": 23.989333333333335,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        }
+      },
+      "click_to_source_ms": 184.368056
+    },
+    {
+      "name": "server_failure_visible_and_silent",
+      "status": "passed",
+      "crash_to_silence_ms": 123.186121,
+      "observation": "host_source_only"
+    },
+    {
+      "name": "fresh_after_server_restart",
+      "status": "passed",
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1151488,
+          "elapsed_seconds": 24.001095464001992,
+          "last_read_seconds": 24.0018620799965,
+          "max_read_gap_seconds": 0.04626809399633203,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1151488,
+          "elapsed_seconds": 24.0016939539928,
+          "last_read_seconds": 24.002327126989258,
+          "max_read_gap_seconds": 0.04628963400318753,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "audio": {
+        "mic": {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9963069251812974,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 3.48,
+              "score": 0.9963069251812974
+            }
+          ],
+          "observed_seconds": 23.989333333333335,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        "replay": {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9928872545256383,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 13.32,
+              "score": 0.9928872545256383
+            }
+          ],
+          "observed_seconds": 23.989333333333335,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        }
+      },
+      "click_to_source_ms": 194.034256
+    },
+    {
+      "name": "app_exit_mutes_source",
+      "status": "passed",
+      "observation": "host_source_only"
+    }
+  ],
+  "timing_boundary": "WebDriver send/stop call to host source read",
+  "latency_percentiles": null,
+  "route_before": {
+    "core": [
+      293266504
+    ],
+    "nodes": {
+      "vrct.managed.source": 170,
+      "vrct.native.replay": 192
+    },
+    "edges": [
+      [
+        "VRChat.exe",
+        "vrct.native.replay"
+      ],
+      [
+        "vrct.managed.source",
+        "VRChat.exe"
+      ]
+    ]
+  },
+  "server_runs": [
+    {
+      "pid": 3278762,
+      "log": "server-00.log",
+      "warmup_enabled": true,
+      "port": 50349,
+      "ready": true,
+      "exit_code": -9
+    },
+    {
+      "pid": 3291528,
+      "log": "server-01.log",
+      "warmup_enabled": true,
+      "port": 50349,
+      "ready": true,
+      "exit_code": -15
+    }
+  ],
+  "speech_model_sha256": "e237dc3eefe469b8bba87872beacf12fb7fe00dbdf85767edca8ec04ab910d13",
+  "speech_binary_sha256": "800e9bae0057a7ce2b63dde01a71bf83653ffbd70eb83f8bea3e8fd944f678e7",
+  "reference_samples": 276257,
+  "capture": {
+    "frames": 8379,
+    "sample_count": 8043840,
+    "last_read_ns": 75187211957384,
+    "capture_gaps_over_100ms": 0,
+    "max_read_gap_ms": 91.626607,
+    "nonzero_frames": 734,
+    "detected_frames": {
+      "440": 198,
+      "880": 157,
+      "1760": 18
+    },
+    "reader_eof": false,
+    "reader_error": null
+  },
+  "date": "2026-10-28",
+  "raw_report_sha256": "9b6173e4915e2a6f55ac6bb60d930556682a6b273ca990162351c60037f1780c",
+  "reference_pcm_sha256": "52d911358d9da55dece30a2689bc8c086d10ef1165dd8b4aad614a77471c8440",
+  "pytest": {
+    "passed": 1,
+    "seconds": 167.94,
+    "scenarios": 9
+  },
+  "cleanup": {
+    "default_sink": "vrct.p1.sink",
+    "default_source": "vrct.p1.source",
+    "services": "Id=pipewire.service\nMainPID=1976749\n\nId=pipewire-pulse.service\nMainPID=1976751\n\nId=wireplumber.service\nMainPID=1976750",
+    "p1_muted": false,
+    "ready": true,
+    "cleanup": true,
+    "processes": [
+      {
+        "pid": 3249852,
+        "name": "final"
+      },
+      {
+        "pid": 3249853,
+        "name": "tts"
+      },
+      {
+        "pid": 3249854,
+        "name": "vc"
+      },
+      {
+        "pid": 3249864,
+        "name": "input"
+      }
+    ],
+    "gate": {
+      "identity": [
+        293266504,
+        170
+      ],
+      "muted": true
+    },
+    "replay_module": "536870916",
+    "services_after": "Id=pipewire.service\nMainPID=1976749\n\nId=pipewire-pulse.service\nMainPID=1976751\n\nId=wireplumber.service\nMainPID=1976750",
+    "default_sink_after": "vrct.p1.sink",
+    "default_source_after": "vrct.p1.source",
+    "p1_muted_after": false,
+    "owned_processes_exited": true,
+    "wivrn_preserved": true
+  },
+  "vrchat_settings_cleanup": {
+    "owned_vrchat_exited": true,
+    "input_restored": "VRCT P1 Virtual Microphone",
+    "noise_suppression_restored": true,
+    "playback_restored": "vrct.p1.sink"
+  },
+  "limits": [
+    "Not UI-event to PCM-write latency",
+    "Different scenarios n=1 each; no percentile",
+    "No physical hearing or remote-player test",
+    "OSC disabled for isolated native config",
+    "Transient route owner; not daemon crash recovery",
+    "Windows, HMD, VC, ASR and 30-minute mixed load not tested"
+  ]
+}

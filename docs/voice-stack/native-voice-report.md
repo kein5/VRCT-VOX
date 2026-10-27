@@ -89,6 +89,7 @@ endpoint tracker 4、sample player 3、clipboard 7、VR panel capture 2。全体
 最初の実TTS試行は5.76秒の音声に対して完了待機6秒（無音確認2秒も含む）が不足し失敗。
 参照音声の長さから待機上限を決めるよう変更した。これらの失敗ログも`tmp/voice-resume/`に保持する。
 
-今回VRChat、WiVRn/HMD、Windows、実翻訳、VC、リアルタイムASR、混在30分負荷は対象外。
-過去のVRChat試験と今回の経路を合わせ、一つのE2Eとして合格扱いしない。P1/Native Task 3全体は未完了。
+この独立graph試験ではVRChat、WiVRn/HMD、Windows、実翻訳、VC、リアルタイムASR、混在30分負荷は対象外。
+後続の[本番UI→VRChat試験](native-vrchat-report.md)は同日、別実行で9ケースを通過した。
+両者の測定値は混ぜない。P1のOSC同時表示・仕様起点性能・Windows等の残条件は継続記録に残す。
 物理マイクは録音せず、生成した固定文と合成波形だけを観測した。raw音声・画像・設定・ログはgitignore対象で配布しない。
