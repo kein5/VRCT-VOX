@@ -1,3 +1,13 @@
+# VRCT-TTS
+
+[VRCT-TTS](https://github.com/kein5/VRCT-TTS)は[VRCT](https://github.com/misyaguziya/VRCT)の開発forkです。
+旧リポジトリ名は`kein5/VRCT.cpp`です。speech.cppによる低遅延TTSに加え、外部ボイスチェンジャー、
+リアルタイム音声認識、翻訳発声、Windows/Linuxの音声経路を段階的に実装しています。
+
+全機能はまだ完成していません。[実装・検証状況](../voice-stack/completion-ledger.md)と
+[公開・上流への提案方針](../voice-stack/publication-and-upstream.md)に、動作確認済みの範囲と未検証事項を記録しています。
+以下の元プロジェクトの説明・ダウンロード先・支援先は、上流VRCTのものです。
+
 <div align="center">
 
 <picture>
