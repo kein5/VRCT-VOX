@@ -6,6 +6,10 @@ fakeサーバーのテスト所要時間はTTS推論速度・VRChat遅延とは�
 
 ## Linux反復測定（speech.cpp 0.9.0、n=30）
 
+後続の[managed経路＋VRChat実TTS試験](live-tts-vrchat-report.md)では、通常3回の
+event→仮想マイク初音と実cancel/muteを測定した。以下の独立グラフ30回とは統合しない。
+同試験でserver強制終了時の検出遅れも再現しており、停止操作の値を故障時停止へ外挿しない。
+
 [実測JSON](measurements/2026-10-27-linux-irodori-090-repeat.json) /
 [timestamp CSV](measurements/2026-10-27-linux-irodori-090-repeat.csv)。
 同じ既存Irodori MF F16、RTX 4080 SUPER / Vulkan0、voice `none`。

@@ -25,6 +25,11 @@ speech.cppはモデルごとに要求を直列化する。VC候補はOS/edition/
 
 この決定はBの製品採用を確定しない。Bで全モードを実証するか、必要な範囲をCに移して再試験した後に、採用範囲を記録する。
 
+2026-10-27追記: [実TTSの受入](live-tts-vrchat-report.md)で、speech.cppをSIGKILLしても
+HTTP/TCPの待機データにより通信エラーと無音化が遅れることを再現した。ホストでは約5.1秒、
+別の独立経路では約15.8秒。明示cancel/muteの約80msとは異なる境界であり、故障時無音の契約は未達課題として残す。
+受信と再生の責務・buffer上限・生存監視を最小PoCで再評価する。専用音声processへの全面移行はまだ決定しない。
+
 ## Alternatives and rejection reasons
 
 | 案 | 現時点の判断 | 再検討条件 |

@@ -3,6 +3,9 @@
 2026-10-27。ホストのPipeWireへmanaged設定を一時配置し、VRChat desktopのマイクテストと
 VRCTの実音声制御コードを接続した。画面テンプレートを採り直した後の1シーケンスはPASS。
 VRCT全GUI、実VCモデル、物理イヤホン、別プレイヤーへの到達を確認した結果ではない。
+後続の[実speech.cpp試験](live-tts-vrchat-report.md)では通常発声と停止を確認した一方、
+server強制終了後にHTTP/TCPの待機音声が残り、無音化が遅れる課題を再現した。
+本書のproducer終了試験を、実推論server終了時の速やかな無音化へ一般化しない。
 
 ## 結果と測定境界
 
