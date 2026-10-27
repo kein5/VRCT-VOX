@@ -97,7 +97,7 @@ class Backend:
         self.data = self.data[:3]
         for ident, suffix, media, serial in [(20, 'capture', 'Stream/Input/Audio', 120),
                                            (21, 'playback', 'Stream/Output/Audio', 121)]:
-            props = {'vrct.source.bridge': 'v1', 'application.process.id': child.pid}
+            props = {'vrct.source.bridge': 'v1', 'client.id': 30}
             self.data.append(node(ident, f'vrct.source-bridge.{tag}.{suffix}', media, serial, **props))
         self.data.extend([{'type': 'PipeWire:Interface:Link', 'info': {
             'output-node-id': a, 'input-node-id': b, 'state': 'active'}} for a, b in [(10, 20), (21, 11)]])
@@ -109,7 +109,9 @@ class Backend:
             self.data.append({'type': 'PipeWire:Interface:Link', 'info': {
                 'output-node-id': 99, 'input-node-id': 20, 'state': 'active'}})
         elif self.fault == 'owner':
-            self.data[4]['info']['props']['application.process.id'] = 999
+            self.data[4]['info']['props']['client.id'] = 999
+        self.data.append({'id': 30, 'type': 'PipeWire:Interface:Client',
+                          'info': {'props': {'pipewire.sec.pid': child.pid}}})
         return child
 
     def unmute(self, endpoint, tag):
@@ -174,7 +176,7 @@ def test_active_route_closes_on_loss_and_never_auto_resumes(system, fault):
     elif fault == 'missing_source':
         b.data.pop(1)
     elif fault == 'link':
-        b.data.pop()
+        del b.data[-2]
     elif fault == 'query':
         b.query_error = True
     elif fault == 'process':
@@ -250,3 +252,32 @@ def test_launch_arguments_pin_serials_and_start_muted(monkeypatch):
         assert all(x in value for x in ['node.dont-fallback=true', 'node.dont-reconnect=true',
                                        'node.dont-move=true', 'node.linger=false'])
     assert not kwargs.get('shell', False)
+
+
+@pytest.mark.parametrize('fault', [None, 'missing', 'duplicate', 'wrong_pid', 'spoof_app_pid'])
+def test_stream_owner_is_the_server_authenticated_client(fault):
+    m, b = module(), Backend()
+    source = m.select_source(b.data, 'external.source')
+    sink = m.Endpoint(42, 111, 'vrct.managed.vc', 'Audio/Sink')
+    tag = 'b' * 32
+    child = b.launch(source, sink, tag)
+    b.data.pop()  # Replace the client's credentials with each fault case.
+    for item in b.data[3:5]:
+        props = item['info']['props']
+        props['client.id'] = 30
+    client = {'id': 30, 'type': 'PipeWire:Interface:Client', 'info': {'props': {
+        'pipewire.sec.pid': child.pid, 'application.process.id': child.pid}}}
+    if fault in ('wrong_pid', 'spoof_app_pid'):
+        client['info']['props']['pipewire.sec.pid'] = 999
+    if fault == 'spoof_app_pid':
+        for item in b.data[3:5]:
+            item['info']['props']['application.process.id'] = child.pid
+    if fault != 'missing':
+        b.data.append(client)
+    if fault == 'duplicate':
+        b.data.append(copy.deepcopy(client))
+    if fault is None:
+        assert m._links(b.data, source, sink, tag, child.pid, True).serial == 121
+    else:
+        with pytest.raises(RuntimeError, match='owner'):
+            m._links(b.data, source, sink, tag, child.pid, True)

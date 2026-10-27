@@ -33,10 +33,10 @@
 
 **Interfaces:** 既存`vrct-voice-gate COOKIE SERIAL MUTE`は維持。optional第4引数32桁lowerhex IDがある場合のみ`vrct.source-bridge.<id>.playback`、class`Stream/Output/Audio`、marker`vrct.source.bridge=v1`を対象にする。既存sourceは従来marker/classのまま。新launcher`build/vrct-source-bridge PARENT_PID [pw-loopback args...]`は固定`pw-loopback`をexecする。親PIDを前後照合し、PR_SET_PDEATHSIG=SIGKILL、失敗時はexecしない。
 
-- [ ] RED: 不正/不足引数・正しいbridge IDのCLI検証、managed旧契約維持、別marker/class/name/serial拒否を試験。launcherは既に死亡した親・親通常終了・SIGKILL・親thread終了でchild残存なしを実processで検査。Expected未実装FAIL。
-- [ ] 最小拡張とlauncherを実装し、build scriptで両binaryをcc -Wall -Wextra -Werror構築。
-- [ ] GREEN: nativeテストと既存gate関連をuv pytestで実行。実graph試験はprivate_graphだけ、marker不一致時mute値が変わらないことも確認。
-- [ ] 関連回帰・Ruff/diffチェック。`feat(audio): bind source bridge gate and lifetime`としてローカルcommit。
+- [x] RED: 不正/不足引数・正しいbridge IDのCLI検証、managed旧契約維持、別marker/class/name/serial拒否を試験。launcherは既に死亡した親・親通常終了・SIGKILL・親thread終了でchild残存なしを実processで検査。Expected未実装FAIL。
+- [x] 最小拡張とlauncherを実装し、build scriptで両binaryをcc -Wall -Wextra -Werror構築。
+- [x] GREEN: nativeテストと既存gate関連をuv pytestで実行。実graph試験はprivate_graphだけ、marker不一致時mute値が変わらないことも確認。
+- [x] 関連回帰・Ruff/diffチェック。`feat(audio): bind source bridge gate and lifetime`としてローカルcommit。
 
 ### Task 2: 非同期source bridge制御
 
@@ -46,9 +46,9 @@
 
 Consumes: Task1 binaries。destinationは既存`vrct.managed.vc`、Audio/Sink・vrct.managed.route=v1。sourceとsinkのcookie/serialを固定する。owned両stream名は`vrct.source-bridge.<id>.capture/playback`、dont-fallback/reconnect/move=true、linger=false、playback初期mute=true。graphの実linkを確認するまでunmuteしない。
 
-- [ ] RED: source absent/duplicate/class不正/managed feedback、epoch変更、同名serial変更、linkなし/別target、process終了、query失敗、stop中start、unmute待ち中stop、stale worker、新start明示まで復帰しない、非Linux拒否をfake process/graphで再現。modeやengine readyは捏造しない。Expected未実装FAIL。
-- [ ] 制御threadでbounded graph query、起動deadline3s、monitor周期0.1s、gate timeout2.5s、child terminate0.5s→kill0.5s。APIは長い処理をlock内で行わずstopの世代失効を妨げない。stop/故障は最終sourceとTTSへ触れない。
-- [ ] GREENと関連voice回帰。`feat(audio): control explicit source forwarding without fallback`としてcommit。
+- [x] RED: source absent/duplicate/class不正/managed feedback、epoch変更、同名serial変更、linkなし/別target、process終了、query失敗、stop中start、unmute待ち中stop、stale worker、新start明示まで復帰しない、非Linux拒否をfake process/graphで再現。modeやengine readyは捏造しない。Expected未実装FAIL。
+- [x] 制御threadでbounded graph query、起動deadline3s、monitor周期0.1s、gate timeout2.5s、child terminate0.5s→kill0.5s。APIは長い処理をlock内で行わずstopの世代失効を妨げない。stop/故障は最終sourceとTTSへ触れない。
+- [x] GREENと関連voice回帰。`feat(audio): control explicit source forwarding without fallback`としてcommit。
 
 ### Task 3: モデル不要の実OS受入れ
 
@@ -56,10 +56,10 @@ Consumes: Task1 binaries。destinationは既存`vrct.managed.vc`、Audio/Sink・
 
 **Interfaces:** CLI `--output NEW_DIRECTORY --runs N` default3,1..30。private_graphと合成音のみ。reportにはsource/出力のidentity、操作→source read無音確認の境界、全試行、capture進行/欠測、`real_vc_verified=False`、`host_audio_changed=False`を含む。rawPCM既定保存なし。
 
-- [ ] RED: partial failureでもreport保存/cleanup、既存出力dir拒否、invalid runs拒否、reader死亡/欠測を無音成功にしないテスト。
-- [ ] 実装し、通常選択→停止、source削除→禁止fallback音が流れない→同名再作成でも停止保持→明示再選択、sink削除、親/制御thread停止を実OSで試験。source440Hz/禁止1760Hz/TTS880Hz、停止中TTSが継続することも観測。
-- [ ] uv CLI実行Expected全ケースPASSか原因を記録。未解決ならimozuru調査後にユーザー指定通り中断。性能p95を少数試行から主張しない。
-- [ ] 関連suiteと既定全体suite（既知16失敗は別記）、共有するmetadata/報告、残るP2 UI/engine/Windowsのゲートを更新してcommit。
+- [x] RED: partial failureでもreport保存/cleanup、既存出力dir拒否、invalid runs拒否、reader死亡/欠測を無音成功にしないテスト。
+- [x] 実装し、通常選択→停止、source削除→禁止fallback音が流れない→同名再作成でも停止保持→明示再選択、sink削除、親/制御thread停止を実OSで試験。source440Hz/禁止1760Hz/TTS880Hz、停止中TTSが継続することも観測。
+- [x] uv CLI実行Expected全ケースPASSか原因を記録。未解決ならimozuru調査後にユーザー指定通り中断。性能p95を少数試行から主張しない。
+- [x] 関連suiteと既定全体suite（既知16失敗は別記）、共有するmetadata/報告、残るP2 UI/engine/Windowsのゲートを更新してcommit。
 - [ ] 一回の独立final review。Critical/Importantのみ一回のRED→GREEN修正、Minorは記録。継続作業のためworktree/ledger保持、push/mergeなし。
 
 ## Pre-flight

@@ -104,7 +104,12 @@ def _links(graph, source, sink, tag, pid, muted):
         endpoint = _endpoint(graph, name, media)
         item = _node(graph, name)
         props = item['info']['props']
-        if props.get('vrct.source.bridge') != 'v1' or str(props.get('application.process.id')) != str(pid):
+        # Native streams identify their Client object; the server records its
+        # authenticated PID there. application.process.id is client-controlled.
+        clients = [n for n in graph if n.get('type') == 'PipeWire:Interface:Client'
+                   and n.get('id') == props.get('client.id')]
+        if (props.get('vrct.source.bridge') != 'v1' or len(clients) != 1
+                or clients[0]['info']['props'].get('pipewire.sec.pid') != pid):
             raise RuntimeError('source_bridge_stream_owner_invalid')
         streams.append((item, endpoint))
     capture, playback = (item['id'] for item, _ in streams)

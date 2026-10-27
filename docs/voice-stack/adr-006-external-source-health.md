@@ -33,6 +33,7 @@ Seed-VC Realtimeでは入力モニターモードが素通し、推論例外は�
 - 開始時にPipeWire cookie＋source/sinkのobject.serialを固定する。名前だけの再接続やOS既定へのfallbackをしない。
 - `pw-loopback`のPCM経路を使い、PythonへPCMを持ち込まない。開始時はplayback nodeをmuteにする。
 - 同じgraph上の両endpoint・実link・所有streamを検査後、cookie/serialへbindする既存native gateを拡張してそのstreamだけunmuteする。
+- 所有確認はNodeのclient.idからClientを引き、native protocolが記録するpipewire.sec.pidと生存中の所有childを照合する。自己申告application.process.idには格下げしない。同一PID namespaceを対象とする。
 - source消失、同名置換、daemon epoch変更、process終了、検査失敗は閉じ、明示startなしで復帰しない。TTSと最終仮想sourceの寿命を変更しない。
 - 小さなLinux launcherで親終了シグナルを設定し、接続processを親より長く残さない。作成threadの終了にも反応するため、専用の制御threadがprocessを所有する。
 - 非Linuxでこのbackendを呼ぶと明示的に未対応を返す。import段階でWindows機能を壊さない。Windows capture/forwardingとUIは後続の独立タスク。
@@ -59,3 +60,5 @@ sink消失、親終了、連続切替を検査する。captureの連続性を確
 この結果は音声変換・実マイク・VRChat・Windowsの完成証拠ではない。
 OSを直接操作する別アプリや誤設定された外部VCの原音出力を、接続部品だけで判別できるとは主張しない。
 必要なモデル状態がunknownなら後続VC機能の受入れは未確認のまま。実機ゲートをfakeで置き換えない。
+
+実装・私有OSで3試行42観測の結果と所有確認の修正経緯は[受入れ報告](source-bridge-report.md)を参照。

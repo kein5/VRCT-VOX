@@ -1,0 +1,549 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "trials": [
+    {
+      "index": 0,
+      "status": "passed",
+      "cases": [
+        {
+          "case": "configured_closed",
+          "operation_ns": 81948607446224,
+          "first_qualifying_read_ns": 81948626865939,
+          "confirmed_ns": 81950632357564,
+          "operation_to_read_ms": 19.419715,
+          "continuous_confirmation_ms": 2005.491625
+        },
+        {
+          "case": "start",
+          "operation_ns": 81950634934650,
+          "first_qualifying_read_ns": 81950808001065,
+          "confirmed_ns": 81952814302897,
+          "operation_to_read_ms": 173.066415,
+          "continuous_confirmation_ms": 2006.301832
+        },
+        {
+          "case": "stop",
+          "operation_ns": 81952815422917,
+          "first_qualifying_read_ns": 81952856132463,
+          "confirmed_ns": 81954861499939,
+          "operation_to_read_ms": 40.709546,
+          "continuous_confirmation_ms": 2005.367476
+        },
+        {
+          "case": "restart",
+          "operation_ns": 81954865857054,
+          "first_qualifying_read_ns": 81955037324999,
+          "confirmed_ns": 81957043677364,
+          "operation_to_read_ms": 171.467945,
+          "continuous_confirmation_ms": 2006.352365
+        },
+        {
+          "case": "source_loss",
+          "operation_ns": 81957048621552,
+          "first_qualifying_read_ns": 81957127975201,
+          "confirmed_ns": 81959133465569,
+          "operation_to_read_ms": 79.353649,
+          "continuous_confirmation_ms": 2005.490368
+        },
+        {
+          "case": "same_name_stays_closed",
+          "operation_ns": 81959151003115,
+          "first_qualifying_read_ns": 81959175960699,
+          "confirmed_ns": 81961181533423,
+          "operation_to_read_ms": 24.957584,
+          "continuous_confirmation_ms": 2005.572724
+        },
+        {
+          "case": "explicit_reselect",
+          "operation_ns": 81961203238587,
+          "first_qualifying_read_ns": 81961352142926,
+          "confirmed_ns": 81963357544492,
+          "operation_to_read_ms": 148.904339,
+          "continuous_confirmation_ms": 2005.401566
+        },
+        {
+          "case": "closed_before_lifetime",
+          "operation_ns": 81963359133216,
+          "first_qualifying_read_ns": 81963400203171,
+          "confirmed_ns": 81965405533614,
+          "operation_to_read_ms": 41.069955,
+          "continuous_confirmation_ms": 2005.330443
+        },
+        {
+          "case": "parent_ready",
+          "operation_ns": 81965562811070,
+          "first_qualifying_read_ns": 81965576248774,
+          "confirmed_ns": 81967581560446,
+          "operation_to_read_ms": 13.437704,
+          "continuous_confirmation_ms": 2005.311672
+        },
+        {
+          "case": "parent_death",
+          "operation_ns": 81967586349623,
+          "first_qualifying_read_ns": 81967666653987,
+          "confirmed_ns": 81969672194960,
+          "operation_to_read_ms": 80.304364,
+          "continuous_confirmation_ms": 2005.540973
+        },
+        {
+          "case": "thread_ready",
+          "operation_ns": 81969847124655,
+          "first_qualifying_read_ns": 81969885345189,
+          "confirmed_ns": 81971890980834,
+          "operation_to_read_ms": 38.220534,
+          "continuous_confirmation_ms": 2005.635645
+        },
+        {
+          "case": "thread_death",
+          "operation_ns": 81971891202430,
+          "first_qualifying_read_ns": 81972061302255,
+          "confirmed_ns": 81974066873772,
+          "operation_to_read_ms": 170.099825,
+          "continuous_confirmation_ms": 2005.571517
+        },
+        {
+          "case": "before_sink_loss",
+          "operation_ns": 81974081981555,
+          "first_qualifying_read_ns": 81974242859488,
+          "confirmed_ns": 81976248202028,
+          "operation_to_read_ms": 160.877933,
+          "continuous_confirmation_ms": 2005.34254
+        },
+        {
+          "case": "sink_loss",
+          "operation_ns": 81976252728782,
+          "first_qualifying_read_ns": 81976333312106,
+          "confirmed_ns": 81978338960231,
+          "operation_to_read_ms": 80.583324,
+          "continuous_confirmation_ms": 2005.648125
+        }
+      ],
+      "source": {
+        "cookie": 3877611499,
+        "serial": 74,
+        "name": "vrct.bridge.input.source",
+        "media_class": "Audio/Source"
+      },
+      "sink_serial": 28,
+      "source_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_process_exited",
+        "generation": 5,
+        "conversion_verified": false
+      },
+      "stale_selection_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_source_changed",
+        "generation": 7,
+        "conversion_verified": false
+      },
+      "lifetime": [
+        {
+          "mode": "parent",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        },
+        {
+          "mode": "thread",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        }
+      ],
+      "sink_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_process_exited",
+        "generation": 12,
+        "conversion_verified": false
+      },
+      "capture": {
+        "frames": 1491,
+        "sample_count": 1431360,
+        "last_read_ns": 81978338960231,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.835269,
+        "nonzero_frames": 1486,
+        "detected_frames": {
+          "440": 624,
+          "880": 1486,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      }
+    },
+    {
+      "index": 1,
+      "status": "passed",
+      "cases": [
+        {
+          "case": "configured_closed",
+          "operation_ns": 81978519223121,
+          "first_qualifying_read_ns": 81978578583244,
+          "confirmed_ns": 81980584372067,
+          "operation_to_read_ms": 59.360123,
+          "continuous_confirmation_ms": 2005.788823
+        },
+        {
+          "case": "start",
+          "operation_ns": 81980588701140,
+          "first_qualifying_read_ns": 81980759949477,
+          "confirmed_ns": 81982765472322,
+          "operation_to_read_ms": 171.248337,
+          "continuous_confirmation_ms": 2005.522845
+        },
+        {
+          "case": "stop",
+          "operation_ns": 81982769238077,
+          "first_qualifying_read_ns": 81982808125248,
+          "confirmed_ns": 81984813646650,
+          "operation_to_read_ms": 38.887171,
+          "continuous_confirmation_ms": 2005.521402
+        },
+        {
+          "case": "restart",
+          "operation_ns": 81984815286711,
+          "first_qualifying_read_ns": 81984983942264,
+          "confirmed_ns": 81986989536915,
+          "operation_to_read_ms": 168.655553,
+          "continuous_confirmation_ms": 2005.594651
+        },
+        {
+          "case": "source_loss",
+          "operation_ns": 81986994356540,
+          "first_qualifying_read_ns": 81987032084024,
+          "confirmed_ns": 81989037408637,
+          "operation_to_read_ms": 37.727484,
+          "continuous_confirmation_ms": 2005.324613
+        },
+        {
+          "case": "same_name_stays_closed",
+          "operation_ns": 81989055901772,
+          "first_qualifying_read_ns": 81989079908958,
+          "confirmed_ns": 81991085442082,
+          "operation_to_read_ms": 24.007186,
+          "continuous_confirmation_ms": 2005.533124
+        },
+        {
+          "case": "explicit_reselect",
+          "operation_ns": 81991105521759,
+          "first_qualifying_read_ns": 81991256158266,
+          "confirmed_ns": 81993261478059,
+          "operation_to_read_ms": 150.636507,
+          "continuous_confirmation_ms": 2005.319793
+        },
+        {
+          "case": "closed_before_lifetime",
+          "operation_ns": 81993264012040,
+          "first_qualifying_read_ns": 81993304086376,
+          "confirmed_ns": 81995309467954,
+          "operation_to_read_ms": 40.074336,
+          "continuous_confirmation_ms": 2005.381578
+        },
+        {
+          "case": "parent_ready",
+          "operation_ns": 81995466251266,
+          "first_qualifying_read_ns": 81995480190146,
+          "confirmed_ns": 81997485478781,
+          "operation_to_read_ms": 13.93888,
+          "continuous_confirmation_ms": 2005.288635
+        },
+        {
+          "case": "parent_death",
+          "operation_ns": 81997488029023,
+          "first_qualifying_read_ns": 81997528157912,
+          "confirmed_ns": 81999533648525,
+          "operation_to_read_ms": 40.128889,
+          "continuous_confirmation_ms": 2005.490613
+        },
+        {
+          "case": "thread_ready",
+          "operation_ns": 81999696852929,
+          "first_qualifying_read_ns": 81999746595463,
+          "confirmed_ns": 82001752236659,
+          "operation_to_read_ms": 49.742534,
+          "continuous_confirmation_ms": 2005.641196
+        },
+        {
+          "case": "thread_death",
+          "operation_ns": 82001755643000,
+          "first_qualifying_read_ns": 82001922580020,
+          "confirmed_ns": 82003928122902,
+          "operation_to_read_ms": 166.93702,
+          "continuous_confirmation_ms": 2005.542882
+        },
+        {
+          "case": "before_sink_loss",
+          "operation_ns": 82003943739956,
+          "first_qualifying_read_ns": 82004098761741,
+          "confirmed_ns": 82006104323309,
+          "operation_to_read_ms": 155.021785,
+          "continuous_confirmation_ms": 2005.561568
+        },
+        {
+          "case": "sink_loss",
+          "operation_ns": 82006107212587,
+          "first_qualifying_read_ns": 82006189259545,
+          "confirmed_ns": 82008195150590,
+          "operation_to_read_ms": 82.046958,
+          "continuous_confirmation_ms": 2005.891045
+        }
+      ],
+      "source": {
+        "cookie": 848439021,
+        "serial": 74,
+        "name": "vrct.bridge.input.source",
+        "media_class": "Audio/Source"
+      },
+      "sink_serial": 28,
+      "source_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_process_exited",
+        "generation": 5,
+        "conversion_verified": false
+      },
+      "stale_selection_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_source_changed",
+        "generation": 7,
+        "conversion_verified": false
+      },
+      "lifetime": [
+        {
+          "mode": "parent",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        },
+        {
+          "mode": "thread",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        }
+      ],
+      "sink_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_process_exited",
+        "generation": 12,
+        "conversion_verified": false
+      },
+      "capture": {
+        "frames": 1489,
+        "sample_count": 1429440,
+        "last_read_ns": 82008195150590,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.573269,
+        "nonzero_frames": 1484,
+        "detected_frames": {
+          "440": 622,
+          "880": 1483,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      }
+    },
+    {
+      "index": 2,
+      "status": "passed",
+      "cases": [
+        {
+          "case": "configured_closed",
+          "operation_ns": 82008378756510,
+          "first_qualifying_read_ns": 82008400960442,
+          "confirmed_ns": 82010406312786,
+          "operation_to_read_ms": 22.203932,
+          "continuous_confirmation_ms": 2005.352344
+        },
+        {
+          "case": "start",
+          "operation_ns": 82010408284681,
+          "first_qualifying_read_ns": 82010576784111,
+          "confirmed_ns": 82012582420348,
+          "operation_to_read_ms": 168.49943,
+          "continuous_confirmation_ms": 2005.636237
+        },
+        {
+          "case": "stop",
+          "operation_ns": 82012587035330,
+          "first_qualifying_read_ns": 82012625010999,
+          "confirmed_ns": 82014630317072,
+          "operation_to_read_ms": 37.975669,
+          "continuous_confirmation_ms": 2005.306073
+        },
+        {
+          "case": "restart",
+          "operation_ns": 82014633961881,
+          "first_qualifying_read_ns": 82014801023565,
+          "confirmed_ns": 82016806325450,
+          "operation_to_read_ms": 167.061684,
+          "continuous_confirmation_ms": 2005.301885
+        },
+        {
+          "case": "source_loss",
+          "operation_ns": 82016806690225,
+          "first_qualifying_read_ns": 82016848997385,
+          "confirmed_ns": 82018854434771,
+          "operation_to_read_ms": 42.30716,
+          "continuous_confirmation_ms": 2005.437386
+        },
+        {
+          "case": "same_name_stays_closed",
+          "operation_ns": 82018873583834,
+          "first_qualifying_read_ns": 82018896757290,
+          "confirmed_ns": 82020902452397,
+          "operation_to_read_ms": 23.173456,
+          "continuous_confirmation_ms": 2005.695107
+        },
+        {
+          "case": "explicit_reselect",
+          "operation_ns": 82020919300918,
+          "first_qualifying_read_ns": 82021073102153,
+          "confirmed_ns": 82023078318039,
+          "operation_to_read_ms": 153.801235,
+          "continuous_confirmation_ms": 2005.215886
+        },
+        {
+          "case": "closed_before_lifetime",
+          "operation_ns": 82023088662357,
+          "first_qualifying_read_ns": 82023120921868,
+          "confirmed_ns": 82025126517263,
+          "operation_to_read_ms": 32.259511,
+          "continuous_confirmation_ms": 2005.595395
+        },
+        {
+          "case": "parent_ready",
+          "operation_ns": 82025283767455,
+          "first_qualifying_read_ns": 82025297023375,
+          "confirmed_ns": 82027302280182,
+          "operation_to_read_ms": 13.25592,
+          "continuous_confirmation_ms": 2005.256807
+        },
+        {
+          "case": "parent_death",
+          "operation_ns": 82027306826375,
+          "first_qualifying_read_ns": 82027344942783,
+          "confirmed_ns": 82029350316557,
+          "operation_to_read_ms": 38.116408,
+          "continuous_confirmation_ms": 2005.373774
+        },
+        {
+          "case": "thread_ready",
+          "operation_ns": 82029514820737,
+          "first_qualifying_read_ns": 82029568807230,
+          "confirmed_ns": 82031574365568,
+          "operation_to_read_ms": 53.986493,
+          "continuous_confirmation_ms": 2005.558338
+        },
+        {
+          "case": "thread_death",
+          "operation_ns": 82031578092923,
+          "first_qualifying_read_ns": 82031702268078,
+          "confirmed_ns": 82033707663077,
+          "operation_to_read_ms": 124.175155,
+          "continuous_confirmation_ms": 2005.394999
+        },
+        {
+          "case": "before_sink_loss",
+          "operation_ns": 82033726931288,
+          "first_qualifying_read_ns": 82033878435253,
+          "confirmed_ns": 82035883656975,
+          "operation_to_read_ms": 151.503965,
+          "continuous_confirmation_ms": 2005.221722
+        },
+        {
+          "case": "sink_loss",
+          "operation_ns": 82035885120385,
+          "first_qualifying_read_ns": 82035968766980,
+          "confirmed_ns": 82037974319149,
+          "operation_to_read_ms": 83.646595,
+          "continuous_confirmation_ms": 2005.552169
+        }
+      ],
+      "source": {
+        "cookie": 4206462807,
+        "serial": 74,
+        "name": "vrct.bridge.input.source",
+        "media_class": "Audio/Source"
+      },
+      "sink_serial": 28,
+      "source_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_endpoint_missing_or_ambiguous",
+        "generation": 5,
+        "conversion_verified": false
+      },
+      "stale_selection_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_source_changed",
+        "generation": 7,
+        "conversion_verified": false
+      },
+      "lifetime": [
+        {
+          "mode": "parent",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        },
+        {
+          "mode": "thread",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        }
+      ],
+      "sink_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_endpoint_missing_or_ambiguous",
+        "generation": 12,
+        "conversion_verified": false
+      },
+      "capture": {
+        "frames": 1484,
+        "sample_count": 1424640,
+        "last_read_ns": 82037974319149,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.486428,
+        "nonzero_frames": 1479,
+        "detected_frames": {
+          "440": 620,
+          "880": 1479,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      }
+    }
+  ],
+  "os": "Linux-6.18.55-2-cachyos-lts-x86_64-with-glibc2.44",
+  "real_vc_verified": false,
+  "host_audio_changed": false,
+  "raw_pcm_saved": false,
+  "physical_microphone_captured": false,
+  "vrchat_verified": false,
+  "boundary": "operation_to_private_source_read_20ms_frames_2s_continuity",
+  "scope": "Linux source-forwarding foundation only; no real conversion, Windows or UI acceptance",
+  "tests": {
+    "selected_passed": 316,
+    "selected_skipped": 7,
+    "default_passed": 1173,
+    "default_failed_known": 16,
+    "default_skipped": 6
+  }
+}
