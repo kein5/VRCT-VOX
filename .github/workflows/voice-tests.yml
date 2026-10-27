@@ -15,9 +15,14 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv venv --python 3.11
       - run: uv pip install -r requirements-voice-test.txt
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libpipewire-0.3-dev pkg-config gcc
+      - if: runner.os == 'Linux'
+        run: uv run --no-project python tools/build_voice_gate.py
       - run: uv run --no-project python -m pytest -c tests/voice/pytest.ini tests/voice -q
-      - run: uv run --no-project ruff check src-python/models/tts src-python/models/audio_routing src-python/models/voice_events.py tests/voice tools/voice_cli.py tools/voice_latency.py tools/voice_acceptance.py tools/voice_b_poc.py tools/check_voice_distribution.py
+      - run: uv run --no-project ruff check src-python/models/tts src-python/models/audio_routing src-python/models/voice_events.py tests/voice tools/voice_cli.py tools/voice_latency.py tools/voice_acceptance.py tools/voice_b_poc.py tools/voice_route.py tools/voice_route_acceptance.py tools/build_voice_gate.py tools/check_voice_distribution.py
       - run: uv run --no-project python tools/voice_cli.py --help
+      - run: uv run --no-project python tools/voice_route.py --help
       - uses: actions/setup-node@v4
         with:
           node-version: '22.15.0'

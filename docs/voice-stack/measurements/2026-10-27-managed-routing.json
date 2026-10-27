@@ -1,0 +1,660 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "os": "Linux-6.18.55-2-cachyos-lts-x86_64-with-glibc2.44",
+  "python": "3.13.17",
+  "boundary": "VoiceRoute.mute call to first silent read frame; 2s confirmation",
+  "graph": "private_pipewire_policy_only",
+  "sample_rate": 48000,
+  "channels": 1,
+  "observation_frame_ms": 20,
+  "tone_threshold_s16": 400,
+  "silence_peak_threshold_s16": 64,
+  "requested_trials": 30,
+  "rows": [
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23271621220908,
+      "end_ns": 23271703116986
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23275972189681,
+      "end_ns": 23276054756793
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23280322959975,
+      "end_ns": 23280406769068
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23284675270928,
+      "end_ns": 23284716306887
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23288984280848,
+      "end_ns": 23289068544899
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23293335946075,
+      "end_ns": 23293378196233
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23297645892873,
+      "end_ns": 23297729896271
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23301997659993,
+      "end_ns": 23302081765284
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23306353674334,
+      "end_ns": 23306433448742
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23310704215385,
+      "end_ns": 23310785897278
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23315056673064,
+      "end_ns": 23315137813436
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23319404885698,
+      "end_ns": 23319489426950
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23323761025498,
+      "end_ns": 23323841435774
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23328108949971,
+      "end_ns": 23328193428825
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23332462948446,
+      "end_ns": 23332545790285
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23336816337780,
+      "end_ns": 23336855676571
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23341122255492,
+      "end_ns": 23341207198010
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23345478864827,
+      "end_ns": 23345558801340
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23349826874099,
+      "end_ns": 23349911385314
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23354178899746,
+      "end_ns": 23354262771436
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23358531436433,
+      "end_ns": 23358614772073
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23362885095712,
+      "end_ns": 23362967130539
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23367238523430,
+      "end_ns": 23367318776340
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23371588138279,
+      "end_ns": 23371671108279
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23375940067556,
+      "end_ns": 23376023142072
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23380290393928,
+      "end_ns": 23380374783072
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23384643561501,
+      "end_ns": 23384727204068
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23388996210513,
+      "end_ns": 23389079273557
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23393346254120,
+      "end_ns": 23393430778580
+    },
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 23397701289763,
+      "end_ns": 23397782762030
+    }
+  ],
+  "trials": [
+    {
+      "index": 0,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23271621220908,
+        "first_qualifying_frame_ns": 23271703116986,
+        "confirmation_ns": 23273708254964
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 1,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23275972189681,
+        "first_qualifying_frame_ns": 23276054756793,
+        "confirmation_ns": 23278060596903
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 2,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23280322959975,
+        "first_qualifying_frame_ns": 23280406769068,
+        "confirmation_ns": 23282412305563
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 3,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23284675270928,
+        "first_qualifying_frame_ns": 23284716306887,
+        "confirmation_ns": 23286721972484
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 4,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23288984280848,
+        "first_qualifying_frame_ns": 23289068544899,
+        "confirmation_ns": 23291074051684
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 5,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23293335946075,
+        "first_qualifying_frame_ns": 23293378196233,
+        "confirmation_ns": 23295382933526
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 6,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23297645892873,
+        "first_qualifying_frame_ns": 23297729896271,
+        "confirmation_ns": 23299735163020
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 7,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23301997659993,
+        "first_qualifying_frame_ns": 23302081765284,
+        "confirmation_ns": 23304086993448
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 8,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23306353674334,
+        "first_qualifying_frame_ns": 23306433448742,
+        "confirmation_ns": 23308438952694
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 9,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23310704215385,
+        "first_qualifying_frame_ns": 23310785897278,
+        "confirmation_ns": 23312791238682
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 10,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23315056673064,
+        "first_qualifying_frame_ns": 23315137813436,
+        "confirmation_ns": 23317143222756
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 11,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23319404885698,
+        "first_qualifying_frame_ns": 23319489426950,
+        "confirmation_ns": 23321495388579
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 12,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23323761025498,
+        "first_qualifying_frame_ns": 23323841435774,
+        "confirmation_ns": 23325847315286
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 13,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23328108949971,
+        "first_qualifying_frame_ns": 23328193428825,
+        "confirmation_ns": 23330198933058
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 14,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23332462948446,
+        "first_qualifying_frame_ns": 23332545790285,
+        "confirmation_ns": 23334551230616
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 15,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23336816337780,
+        "first_qualifying_frame_ns": 23336855676571,
+        "confirmation_ns": 23338860680186
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 16,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23341122255492,
+        "first_qualifying_frame_ns": 23341207198010,
+        "confirmation_ns": 23343212803679
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 17,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23345478864827,
+        "first_qualifying_frame_ns": 23345558801340,
+        "confirmation_ns": 23347564301077
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 18,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23349826874099,
+        "first_qualifying_frame_ns": 23349911385314,
+        "confirmation_ns": 23351916593469
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 19,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23354178899746,
+        "first_qualifying_frame_ns": 23354262771436,
+        "confirmation_ns": 23356268268304
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 20,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23358531436433,
+        "first_qualifying_frame_ns": 23358614772073,
+        "confirmation_ns": 23360620617005
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 21,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23362885095712,
+        "first_qualifying_frame_ns": 23362967130539,
+        "confirmation_ns": 23364972558223
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 22,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23367238523430,
+        "first_qualifying_frame_ns": 23367318776340,
+        "confirmation_ns": 23369324266529
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 23,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23371588138279,
+        "first_qualifying_frame_ns": 23371671108279,
+        "confirmation_ns": 23373676292641
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 24,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23375940067556,
+        "first_qualifying_frame_ns": 23376023142072,
+        "confirmation_ns": 23378028833769
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 25,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23380290393928,
+        "first_qualifying_frame_ns": 23380374783072,
+        "confirmation_ns": 23382380334472
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 26,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23384643561501,
+        "first_qualifying_frame_ns": 23384727204068,
+        "confirmation_ns": 23386732669945
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 27,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23388996210513,
+        "first_qualifying_frame_ns": 23389079273557,
+        "confirmation_ns": 23391084693486
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 28,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23393346254120,
+        "first_qualifying_frame_ns": 23393430778580,
+        "confirmation_ns": 23395436250615
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    },
+    {
+      "index": 29,
+      "status": "passed",
+      "stop": {
+        "command_ns": 23397701289763,
+        "first_qualifying_frame_ns": 23397782762030,
+        "confirmation_ns": 23399788866746
+      },
+      "endpoint_identity_preserved": true,
+      "mute_held_after_producer_and_control_recreation": true
+    }
+  ],
+  "versions": {
+    "pipewire": "pipewire\nCompiled with libpipewire 1.6.10\nLinked with libpipewire 1.6.10",
+    "wireplumber": "wireplumber\nCompiled with libwireplumber 0.5.18\nLinked with libwireplumber 0.5.18"
+  },
+  "vrchat_verified": false,
+  "real_vc_verified": false,
+  "windows_verified": false,
+  "ui_verified": false,
+  "gpu_contention_measured": false,
+  "raw_audio_saved": false,
+  "physical_microphone_captured": false,
+  "config_sha256": "4e6cb51b147529d31be25bc535e2792fb3c2c2a38ab649365b4897b20ff4784b",
+  "initially_muted": true,
+  "identity": [
+    1475415070,
+    23
+  ],
+  "wrong_cookie_and_serial_rejected": true,
+  "soak": {
+    "requested_seconds": 60.0,
+    "elapsed_seconds": 60.000438416998804,
+    "before": {
+      "frames": 6636,
+      "sample_count": 6370560,
+      "last_read_ns": 23402049652967,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 43.754422,
+      "nonzero_frames": 359,
+      "detected_frames": {
+        "440": 339,
+        "880": 289,
+        "1760": 0
+      },
+      "reader_eof": false,
+      "reader_error": null
+    },
+    "after": {
+      "frames": 9636,
+      "sample_count": 9250560,
+      "last_read_ns": 23462039351242,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 44.809911,
+      "nonzero_frames": 3359,
+      "detected_frames": {
+        "440": 3339,
+        "880": 3289,
+        "1760": 0
+      },
+      "reader_eof": false,
+      "reader_error": null
+    }
+  },
+  "controller_sigkill_gate_stays_open_until_restart": true,
+  "controller_process_restart_mutes": true,
+  "main_capture": {
+    "frames": 9864,
+    "sample_count": 9469440,
+    "last_read_ns": 23466604336961,
+    "capture_gaps_over_100ms": 0,
+    "max_read_gap_ms": 44.809911,
+    "nonzero_frames": 3379,
+    "detected_frames": {
+      "440": 3359,
+      "880": 3291,
+      "1760": 0
+    },
+    "reader_eof": false,
+    "reader_error": null
+  },
+  "output_guard": {
+    "frames": 9971,
+    "sample_count": 9572160,
+    "last_read_ns": 23468652615204,
+    "capture_gaps_over_100ms": 0,
+    "max_read_gap_ms": 44.110582,
+    "nonzero_frames": 0,
+    "detected_frames": {
+      "440": 0,
+      "880": 0,
+      "1760": 0
+    },
+    "reader_eof": false,
+    "reader_error": null
+  },
+  "fresh_daemon_boots_muted_despite_saved_resume": true,
+  "fresh_daemon_cookie_changed": true,
+  "summary": [
+    {
+      "metric": "managed_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "count": 30,
+      "p50_ms": 82.97,
+      "p95_ms": 84.541252,
+      "p99_ms": 84.942518
+    }
+  ],
+  "stop_budget": {
+    "p95_target_ms": 100,
+    "worst_target_ms": 250,
+    "met": true
+  }
+}

@@ -64,3 +64,61 @@ CLIは`X-Sample-Rate`の実rateを[pw-cat](https://docs.pipewire.org/page_man_pw
   生マイクの自動fallbackがない設定を確認するまでVRChatへつながない。
   VC停止時の無音、モデル/OS/版、遅延、VRAM、利用条件を記録して採用判断する。
   P1のTTS sinkへ直接混ぜる操作はP2 routerの検証後に行う。
+
+## 常駐する管理対象の仮想マイク（B検証後の追加）
+
+これはソースcheckout向けの任意機能。上の一時マイクとは名前が異なる。
+実装・独立グラフの結果は [managed-route-report.md](managed-route-report.md) を参照。
+稼働中デスクトップへの配置・再起動は自動試験では実施していない。
+VRCT全GUIのLinux対応完了を意味しない。UI/APIはサービスを差し替えたController試験とUIビルドで検証している。
+
+1. systemのC compiler、pkg-config、PipeWire開発headersを用意し、repo rootでビルドする。
+   CachyOSの今回の環境には既に揃っていた。Pythonパッケージや音声モデルは追加しない。
+
+   ```sh
+   uv run --no-project python tools/build_voice_gate.py
+   ```
+
+2. 実音声が中断してよいタイミングで、設定をユーザーのPipeWire設定へ配置する。
+   この再起動はVRChat/WiVRnを含む音声接続を中断する。
+   他の設定は置換しない。既に同名ファイルがある場合は内容を確認してから置換する。
+
+   ```sh
+   mkdir -p ~/.config/pipewire/pipewire.conf.d
+   cp config/pipewire/90-vrct-managed.conf ~/.config/pipewire/pipewire.conf.d/90-vrct-managed.conf
+   systemctl --user restart pipewire pipewire-pulse wireplumber
+   ```
+
+3. イヤホンなどの実出力を接続した状態で `wpctl status` / `pw-link -l` を確認する。
+   ゲーム音声はイヤホンへ、TTS出力は `vrct.managed.tts`、VC出力は `vrct.managed.vc` へ、
+   VRChatの入力は **VRCT Managed Virtual Microphone** (`vrct.managed.source`) へ明示指定する。
+   `priority.session=-100` はOS全体のdefault選択を禁止する設定ではない。実出力が消えた場合などの
+   自動選択は別途確認が必要で、既定出力にこのsinkを選ばない。
+4. VRCTの読み上げ設定で「管理対象の仮想マイク（Linux）」を保存する。
+   初期状態はミュート。「音声を再開」で確認済みになるまで出力しない。
+   「再開するまでミュート」はこの経路に入ったTTS/VCを止める。
+   既存の「停止」はTTSだけを取り消す。外部ケーブルモードの保持ミュートもTTSだけに適用する。
+   外部ケーブルの選択値はmanagedへ切り替えても保存される。
+5. `voice_mute_state.json` はアプリの `config.json` と同じディレクトリに作られる。
+   破損や書込み失敗はエラーとミュート要求として扱い、成功表示しない。
+   書込み可能な状態へ修復後にミュートを要求し、確認されてから再開する。
+
+VRCT停止中の診断だけなら、同じstate fileを明示してCLIを使える。
+CLIは一回の操作だけで、切断監視を継続しない。起動中のVRCTは外部からの状態変更を検出すると
+ミュートへ戻すため、通常操作にはUIを使う。
+
+```sh
+uv run --no-project python tools/voice_route.py status --state-file /path/to/voice_mute_state.json
+uv run --no-project python tools/voice_route.py mute --state-file /path/to/voice_mute_state.json
+uv run --no-project python tools/voice_route.py resume --state-file /path/to/voice_mute_state.json
+```
+
+戻すには、まずミュート確認後にVRCTを外部ケーブル設定へ戻し、VRChatで安全な入力を選び直す。
+配置した `~/.config/pipewire/pipewire.conf.d/90-vrct-managed.conf` **だけ**を削除し、
+音声を中断してよいタイミングで上記userサービスを再起動する。アプリ側の保持ミュートは
+残るため、必要なら明示再開する。任意のPipeWire設定ディレクトリ全体は削除しない。
+
+通常のVRCT終了ではgateをミュートしてendpointを残す。SIGKILLや電源断で終了処理が走らない
+場合はgateの直前の状態が残る。解除中のVRCT強制終了だけでは外部VCの音は止まらない。
+VRCT再起動時は再度ミュートする。PipeWire daemon停止では仮想マイクも消えるため、
+その際のVRChat入力fallbackは引き続き実機確認が必要。

@@ -22,3 +22,13 @@ Tauri buildとZIP作成前にも古い成果物の混入を拒否する。CIでZ
 Forkの製品名/publisher/更新配布先はP5の未完了ゲート。現行公式リリース用workflowを
 forkの公開に使える状態とは主張しない。この作業ではタグ・push・公開を行わない。
 ライセンス台帳は同梱許可を与えるものではない。追加モデルは個別に確認する。
+
+## Managed route追加分（2026-10-27）
+
+制御helper `native/voice-gate/main.c` はMITの新規コード。system `libpipewire-0.3` に動的リンクし、
+音声推論コード・モデル・独自音声daemonを同梱しない。
+PipeWireの [COPYING](https://github.com/PipeWire/pipewire/blob/master/COPYING) と
+[公開header](https://github.com/PipeWire/pipewire/blob/master/src/pipewire/pipewire.h) のMIT表示を確認。
+今回はソースcheckoutとsystemライブラリでの検証で、helperのバイナリ配布は未整備。
+バイナリ配布時はPipeWire/SPA header由来のコードを含め、利用版の著作権・許諾表示を同梱する。
+VCモデルの採用条件はこの追加によって変わらない。

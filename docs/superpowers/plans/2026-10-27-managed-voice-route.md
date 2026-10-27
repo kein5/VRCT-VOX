@@ -47,8 +47,8 @@
 **Files:** tools/voice_route_acceptance.py、docs/voice-stack/managed-route-report.md、measurements/2026-10-27-managed-*、local-setup-linux.md。
 **Interfaces:** 配布configでprivate daemonを起動し、実VoiceRoute＋VoiceEventBusを使う。JSON/CSVへ測定境界・全試行を保存。
 
-- [ ] 合成音でengine終了後identity維持、mute保持、制御再起動、daemon再起動初期mute、30回停止＋2秒確認を実行。失敗・欠測はそのまま記録。
-- [ ] 導入/戻し手順、未検証事項、computer-use不足を記録。host再起動・モデル取得は不要。
+- [x] 合成音でengine終了後identity維持、mute保持、制御再起動、daemon再起動初期mute、30回停止＋2秒確認を実行。失敗・欠測はそのまま記録。
+- [x] 導入/戻し手順、未検証事項、computer-use不足を記録。host再起動・モデル取得は不要。
 - [ ] 全体fresh reviewの重要指摘を失敗試験から修正。voice suite/Node/build/lint/diff確認、一般suiteの環境失敗も記録。成果物をcommit。
 
 依頼者は前回提示した手順1の実行を明示したため、既存承認の範囲でinline実行する。GUI操作スキルの不足は手順1の実装を止める理由にしない。
