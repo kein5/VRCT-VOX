@@ -431,10 +431,10 @@ config_page:
             desc: "「{{convert_message_to_hiragana}}」と同時に有効にした場合は、マウスホバーで表示されます。"
         convert_message_to_hiragana:
             label: "ひらがなを表示"
-    auto_download_models:
-      label: "起動時に翻訳・文字起こしモデルをダウンロード"
-      desc: "有効にすると、次回起動時に未取得の内蔵モデルをダウンロードします。無効でも取得済みモデルは使えます。外部音声エンジンのモデルは別途管理します。"
-    telemetry:
+        auto_download_models:
+            label: "起動時に翻訳・文字起こしモデルをダウンロード"
+            desc: "有効にすると、次回起動時に未取得の内蔵モデルをダウンロードします。無効でも取得済みモデルは使えます。外部音声エンジンのモデルは別途管理します。"
+        telemetry:
             label: "製品の改善に協力する"
             desc: "開発者が「みんな使ってくれてるんだな～」ってにやにやしながら機能改善するための使用状況データを送信します。\n※会話内容など個人情報は一切送信しません。"
             aptabase_privacy_policy_label: "Aptabase プライバシーポリシー"

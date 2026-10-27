@@ -15,7 +15,9 @@ upstream PR、共有branchへのpush、merge、releaseは実行しない。
 10/27の原因はDPMS未記録のため推定と区別する。[追記報告・試験手順](native-ui-report.md)。
 本番UI→実speech.cpp→独立仮想マイクの9ケースも通過した。[本番音声試験](native-voice-report.md)。
 さらに本番UI→実speech.cpp→ホスト仮想マイク→VRChatローカル再生を別実行し、9ケース通過。
-[ホスト受入れ報告](native-vrchat-report.md)。Native Task 3は最終review待ち。
+[ホスト受入れ報告](native-vrchat-report.md)。Native Task 3の最終reviewは完了し、
+Important 2件を再現テストで修正。選択回帰280 PASS / 1 SKIP。
+[指摘・修正と判断](native-plan-review.md)。
 P1のOSC同時表示、仕様起点性能、Windows等の残条件を全機能完了として扱わない。
 
 ## 要件と現在地

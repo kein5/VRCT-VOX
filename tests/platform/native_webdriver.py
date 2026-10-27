@@ -97,7 +97,14 @@ class NativeWebDriver:
         self.element_command(option, "click")
 
     def open_voice_settings(self):
+        # The text input can mount while the native window is still the 450x220
+        # splash. These isolated tests expect the normal main-window geometry
+        # (also asserted by assert_rendered); wait for it and actual frames before
+        # the first coordinate-based navigation. Do not retry successful clicks.
+        self.wait("return innerWidth >= 500 && innerHeight >= 300")
+        self.assert_rendered()
         self.click('[class*="open_config_page_button"]')
+        self.wait("return [...document.querySelectorAll('p')].some(e => e.textContent === 'Go Back' && getComputedStyle(e).visibility === 'visible')")
         if not self.evaluate("return document.querySelector('section[aria-label=\"Text to voice (speech.cpp)\"] select') !== null"):
             # Compact sidebars hide the label until hovered; the tab's icon and
             # hit area remain visible and are the real navigation control.
@@ -190,6 +197,57 @@ class NativeWebDriver:
             self.__exit__(None, None, None)
             raise
 
+    def terminate_owned_processes(self):
+        """Bound teardown by the owned tree, including children outliving driver."""
+        import psutil
+
+        try:
+            leader = psutil.Process(self.process.pid)
+            owned = [*leader.children(recursive=True), leader]
+        except psutil.NoSuchProcess:
+            owned = []
+
+        def signal_group(value):
+            try:
+                os.killpg(self.process.pid, value)
+            except ProcessLookupError:
+                pass
+
+        def living():
+            # poll reaps our Popen child. Reparented zombies cannot execute or
+            # hold audio endpoints and are reaped by their new parent.
+            self.process.poll()
+            active = []
+            for process in owned:
+                try:
+                    if process.is_running() and process.status() != psutil.STATUS_ZOMBIE:
+                        active.append(process)
+                except psutil.NoSuchProcess:
+                    pass
+            return active
+
+        signal_group(signal.SIGTERM)
+        for process in owned:
+            try:
+                process.terminate()  # Also reaches descendants in another group.
+            except psutil.NoSuchProcess:
+                pass
+        deadline = time.monotonic() + 5
+        while living() and time.monotonic() < deadline:
+            time.sleep(.05)
+        # The leader may already be gone; that is not evidence its children are.
+        signal_group(signal.SIGKILL)
+        for process in living():
+            try:
+                process.kill()  # psutil checks PID reuse before signalling.
+            except psutil.NoSuchProcess:
+                pass
+        self.process.wait(timeout=3)
+        deadline = time.monotonic() + 3
+        while living() and time.monotonic() < deadline:
+            time.sleep(.05)
+        assert not living(), "owned native process survived teardown"
+
     def __exit__(self, *args):
         try:
             if args and args[0] is not None and self.session and not self.failed:
@@ -206,14 +264,7 @@ class NativeWebDriver:
                     if not args or args[0] is None:
                         raise
         finally:
-            # The owned process group includes WebKit, the app and its sidecar.
             try:
-                os.killpg(self.process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-            try:
-                self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                os.killpg(self.process.pid, signal.SIGKILL)
-                self.process.wait(timeout=5)
-            self.log.close()
+                self.terminate_owned_processes()
+            finally:
+                self.log.close()
