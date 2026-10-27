@@ -18,14 +18,16 @@ upstream PR、共有branchへのpush、merge、releaseは実行しない。
 [ホスト受入れ報告](native-vrchat-report.md)。Native Task 3の最終reviewは完了し、
 Important 2件を再現テストで修正。選択回帰280 PASS / 1 SKIP。
 [指摘・修正と判断](native-plan-review.md)。
-P1のOSC同時表示、仕様起点性能、Windows等の残条件を全機能完了として扱わない。
+さらに本番UIでOSC実UDP送信と音声の各1回・OFF互換を確認し、導入済みIrodoriのUI起点30回測定は
+誤差を含む上限p50 208.296ms / p95 367.064ms。[計測条件と境界](native-latency-report.md)。
+VRChat未起動・独立PipeWireでの値であり、P1のOSC実表示やWindows等の残条件を全機能完了として扱わない。
 
 ## 要件と現在地
 
 | 段階 | 実装・証拠 | 未完了の受入条件／次の成果物 |
 |---|---|---|
 | P0 | baseline・ADR・測定器・ライセンス台帳 | 新しい構成ごとの差分検証を継続 |
-| P1 | TTS provider、scheduler、UI、OSC契約、Linux/Windows出力adapter。部品UI試験16件、実Tauri/全Modelの描画・保存復元・安全な再起動、本番UI→実TTS→独立仮想マイク9件とホスト/VRChat9件 | 本番UIでOSC同時表示の1回検証、Windows実機、仕様のUI起点性能 |
+| P1 | TTS provider、scheduler、UI、OSC契約、Linux/Windows出力adapter。部品UI試験16件、実Tauri/全Modelの描画・保存復元・安全な再起動、本番UI→実TTS→独立仮想マイク9件とホスト/VRChat9件。実TauriのOSC UDP併走、UI→PCM write30回で目標内 | 本番UIでOSC実表示の同時1回検証、Windows実機、VRChat併用の性能・混在負荷 |
 | P2 | OS音声経路BのPoCとmanaged endpoint | 外部VC契約・health・明示passthrough/converted/mute、source選択、切断fail-closed、UI、fake process試験、実VC比較 |
 | P3 | 既存legacy ASRを維持 | speech.cpp専用REST→Realtime、mic/speaker別session、VAD、partial/final置換、capture/resample、有界queue、UI字幕・既存翻訳へのfinal接続 |
 | P4 | テキストの原文/訳文TTSのみ | mic final訳文発声、VCとの排他/ducking、優先度・期限、remote受信の再送防止、多言語振分け |
