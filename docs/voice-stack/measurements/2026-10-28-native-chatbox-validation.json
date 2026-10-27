@@ -1,0 +1,101 @@
+{
+  "status": "passed",
+  "native_tauri": true,
+  "real_inference": true,
+  "vrchat_display": true,
+  "vrchat_local_replay": false,
+  "physical_hearing": false,
+  "remote_player": false,
+  "physical_input": false,
+  "ocr_scope": "ASCII marker only",
+  "latency_percentiles": null,
+  "seed": 42,
+  "speech_model_sha256": "e237dc3eefe469b8bba87872beacf12fb7fe00dbdf85767edca8ec04ab910d13",
+  "speech_binary_sha256": "800e9bae0057a7ce2b63dde01a71bf83653ffbd70eb83f8bea3e8fd944f678e7",
+  "date": "2026-10-28",
+  "pytest": {
+    "passed": 1,
+    "cases_passed": 2,
+    "seconds": 40.42
+  },
+  "cases": [
+    {
+      "mode": "original",
+      "status": "passed",
+      "osc_input_messages": 1,
+      "marker_absent_before": true,
+      "marker_visible_after": true,
+      "japanese_text_visually_inspected": true,
+      "audio": {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.9990570337269892,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 0.46,
+            "score": 0.9990570337269892
+          }
+        ],
+        "observed_seconds": 12.453333333333333,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "capture": {
+        "valid": true,
+        "samples": 597760,
+        "elapsed_seconds": 12.461850733001484,
+        "last_read_seconds": 12.462720851006452,
+        "max_read_gap_seconds": 0.04276618799485732,
+        "early_exit": false,
+        "reader_error": null
+      },
+      "completed_tts_traces": 1
+    },
+    {
+      "mode": "off",
+      "status": "passed",
+      "osc_input_messages": 1,
+      "marker_absent_before": true,
+      "marker_visible_after": true,
+      "japanese_text_visually_inspected": true,
+      "audio": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 6.0906666666666665,
+        "peak_limit_s16": 8
+      },
+      "capture": {
+        "valid": true,
+        "samples": 292352,
+        "elapsed_seconds": 6.09838727999886,
+        "last_read_seconds": 6.099284429001273,
+        "max_read_gap_seconds": 0.04269908199785277,
+        "early_exit": false,
+        "reader_error": null
+      },
+      "completed_tts_traces": 0
+    }
+  ],
+  "capture": {
+    "frames": 2013,
+    "sample_count": 1932480,
+    "capture_gaps_over_100ms": 0,
+    "max_read_gap_ms": 44.01484,
+    "reader_eof": false,
+    "reader_error": null
+  },
+  "restoration": {
+    "chatbox_position": "Above",
+    "noise_suppression": true,
+    "mic": "VRCT P1 Virtual Microphone",
+    "playback_restored": true,
+    "game_mute_unchanged": true,
+    "owned_processes_gone": true,
+    "temporary_routes_gone": true,
+    "defaults_unchanged": true,
+    "audio_services_unchanged": true,
+    "wivrn_unchanged": true,
+    "p1_mute_restored": true
+  }
+}
