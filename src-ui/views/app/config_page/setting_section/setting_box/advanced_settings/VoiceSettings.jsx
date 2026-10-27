@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useVoice } from "../../../../../../logics/voice/useVoice";
 import styles from "./VoiceSettings.module.scss";
+import { DirectVoiceSettings } from "./DirectVoiceSettings";
 
 export const VoiceSettings = () => {
     const { t } = useI18n();
@@ -75,6 +76,7 @@ export const VoiceSettings = () => {
             <button type="submit" disabled={saving}>{t(saving ? "voice.saving" : "voice.save")}</button>
             <button type="button" onClick={() => send("/run/stop_voice")}>{t("voice.stop")}</button>
         </form>
+        <DirectVoiceSettings />
         <p>{t(route.managed ? "voice.mute_scope_managed" : "voice.mute_scope_external")}</p>
         <button type="button" onClick={() => send("/run/mute_voice")}>{t("voice.mute")}</button>
         <button type="button" disabled={!route.ready || route.pending || !route.requested_muted}

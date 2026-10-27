@@ -50,8 +50,8 @@ healthに`source`（上述のid形式かNone）と単調`observation_id`文字�
 receiverがstartにbackend-owned `_direct_generation`を付け、stopを通常queueから分離。Controllerはmanaged確認とTTS routing変更を既存_voice_settings_lockで整合。SourceBridge新APIでgeneration+sourceを原子的に採用。閉じる際は直接入力を停止し、既存全体gate閉鎖とworker回収を行う。
 新UI状態は既存routeと独立、observation_idで古いresponseを破棄。dropdownは全identityでkey化、保存/自動開始なし。入力start/stopと全体muteの区別、接続状態/未対応/errorを表示。未実装VCモードを有効な選択肢にしない。
 
-- [ ] RED: queuedstart→stop→latehandler、start途中のmanaged解除、TTS設定のみの継続、入力stopとTTSstopの独立、再起動OFF、マッピング/エラー応答、Windows拒否。Reactで古い状態、再列挙の同名置換、明示操作のみを確認。
-- [ ] 実装、GREEN、Node/UIテスト・Vite build、関連回帰。`feat(ui): control selected input forwarding explicitly`としてcommit。
+- [x] RED: queuedstart→stop→latehandler、start途中のmanaged解除、TTS設定のみの継続、入力stopとTTSstopの独立、再起動OFF、マッピング/エラー応答、Windows拒否。Reactで古い状態、再列挙の同名置換、明示操作のみを確認。
+- [x] 実装、GREEN、Node/UIテスト・Vite build、関連回帰。`feat(ui): control selected input forwarding explicitly`としてcommit。
 
 ### Task 3: 本番UIから私有音声経路まで
 

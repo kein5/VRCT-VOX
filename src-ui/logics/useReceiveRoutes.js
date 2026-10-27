@@ -16,6 +16,10 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/voice_route", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
     { endpoint: "/run/mute_voice", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
     { endpoint: "/run/resume_voice", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
+    { endpoint: "/get/data/direct_voice_sources", ns: voice, hook_name: "useVoice", method_name: "updateDirectSources" },
+    { endpoint: "/get/data/direct_voice_state", ns: voice, hook_name: "useVoice", method_name: "updateDirectState" },
+    { endpoint: "/run/start_direct_voice", ns: voice, hook_name: "useVoice", method_name: "updateDirectState" },
+    { endpoint: "/run/stop_direct_voice", ns: voice, hook_name: "useVoice", method_name: "updateDirectState" },
     // Common
     { endpoint: "/run/feed_watchdog", ns: null, hook_name: null, method_name: null },
     { endpoint: "/run/initialization_progress", ns: common, hook_name: "useInitProgress", method_name: "updateInitProgress" },
@@ -142,7 +146,7 @@ export const STATIC_ROUTE_META_LIST = [
 export const useReceiveRoutes = () => {
     const { showNotification_Error } = common.useNotificationStatus();
     const { errorHandling_Backend } = _useBackendErrorHandling();
-    const { updateError: updateVoiceError } = voice.useVoice();
+    const { updateError: updateVoiceError, updateDirectError } = voice.useVoice();
     const { updateIsBackendReady } = common.useIsBackendReady();
     const { asyncStdoutToPython } = useStdoutToPython();
 
@@ -181,6 +185,10 @@ export const useReceiveRoutes = () => {
 
     const receiveRoutes = (parsed_data) => {
         const { endpoint, status, result } = parsed_data;
+        if (status !== 200 && endpoint.includes("direct_voice")) {
+            updateDirectError(result?.error_code || "source_bridge_request_failed");
+            return;
+        }
         if (status !== 200 && (endpoint.includes("/voice_") || ["/run/stop_voice", "/run/mute_voice", "/run/resume_voice"].includes(endpoint))) {
             updateVoiceError(result?.error_code || "voice_request_failed");
             return;

@@ -587,6 +587,10 @@ mapping = {
     "/get/data/voice_route": {"status": True, "variable":controller.getVoiceRoute},
     "/run/mute_voice": {"status": True, "variable":controller.muteVoice},
     "/run/resume_voice": {"status": True, "variable":controller.resumeVoice},
+    "/get/data/direct_voice_sources": {"status": True, "variable":controller.getDirectVoiceSources},
+    "/get/data/direct_voice_state": {"status": True, "variable":controller.getDirectVoiceState},
+    "/run/start_direct_voice": {"status": True, "variable":controller.startDirectVoice},
+    "/run/stop_direct_voice": {"status": True, "variable":controller.stopDirectVoice},
 
     "/get/data/websocket_host": {"status": True, "variable":controller.getWebSocketHost},
     "/set/data/websocket_host": {"status": True, "variable":controller.setWebSocketHost},
@@ -750,7 +754,7 @@ class Main:
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
                     printLog(endpoint, {"receive_data": data})
-                    if endpoint in {"/run/stop_voice", "/run/mute_voice", "/run/resume_voice"}:
+                    if endpoint in {"/run/stop_voice", "/run/mute_voice", "/run/resume_voice", "/run/stop_direct_voice"}:
                         # These requests only signal workers; they do not
                         # join, infer, or close a driver here. Busy ordinary
                         # handlers must not delay this request.
@@ -762,6 +766,8 @@ class Main:
                         # Queued text still reaches OSC/history after a stop,
                         # but its old speech intent must not start later.
                         data["_voice_generation"] = self.controller.voice_events.generation()
+                    if endpoint == "/run/start_direct_voice" and isinstance(data, dict):
+                        data['_direct_generation'] = self.controller.direct_voice.health()['generation']
                     self.queue.put((endpoint, data, 0))
             except json.JSONDecodeError:
                 # malformed input; log and continue

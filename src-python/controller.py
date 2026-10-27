@@ -24,6 +24,7 @@ from models.audio_routing.audio_router import enumerate_outputs
 from models.audio_routing.managed_route import VoiceRoute
 from models.audio_routing.mute_state import MuteState
 from models.audio_routing.pipewire_gate import PipeWireGate
+from models.audio_routing.source_bridge import SourceBridge, enumerate_sources, parse_source
 from models.overlay.overlay_tooltip import validate_tooltip
 from models.overlay.overlay import PANEL_ANCHORS, computeVrLayout, clampPanelSize, mirrorHandPosition
 
@@ -342,6 +343,8 @@ class Controller:
                                      store=MuteState(Path(config_path).with_name('voice_mute_state.json')))
         self.voice_route.configure(self.voice_events.settings.routing == 'managed')
         self._voice_settings_lock = Lock()
+        self.direct_voice = SourceBridge()
+        self._direct_voice_closed = False
         # typed attributes to satisfy static type checkers
         self.init_mapping: dict = {}
         self.run_mapping: dict = {}
@@ -446,11 +449,18 @@ class Controller:
         Returns:
             dict with status 200 and result True on success.
         """
+        if getattr(self, "direct_voice", None) is not None:
+            with self._voice_settings_lock:
+                self._direct_voice_closed = True
+                self.direct_voice.stop()
         if getattr(self, "voice_route", None) is not None:
             # One in-flight gate operation (<=4.5s) plus the final mute (<=4.5s).
             # close bounds its own wait; do not truncate it with the generic 5s wrapper.
             if not self.voice_route.close(timeout=10):
                 printLog("[voice] shutdown mute unconfirmed; check the virtual microphone")
+        if getattr(self, "direct_voice", None) is not None:
+            if not self.direct_voice.close(timeout=3):
+                printLog("[voice] input forwarding shutdown unconfirmed")
         if getattr(self, "voice_events", None) is not None:
             self._stopServiceForShutdown(self.voice_events.close, "TTS")
         # デバイス監視・録音系スレッドを明示的に停止する。これを怠ると
@@ -1449,6 +1459,8 @@ class Controller:
                     "message": "Invalid voice settings; select an output and local server.", "data": None}}
         with self._voice_settings_lock:
             try:
+                if settings.routing != 'managed':
+                    self.direct_voice.stop()
                 self.voice_route.configure(settings.routing == 'managed')
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
@@ -1458,6 +1470,43 @@ class Controller:
 
     def getVoiceStatus(self, *args, **kwargs) -> dict:
         return {"status": 200, "result": self.voice_events.status()}
+
+    def getDirectVoiceSources(self, *args, **kwargs) -> dict:
+        try:
+            sources, error = enumerate_sources(), None
+        except Exception:
+            sources = []
+            error = ('source_bridge_linux_only' if not sys.platform.startswith('linux')
+                     else 'source_bridge_graph_unavailable')
+        return {'status': 200, 'result': {'sources': sources, 'error': error}}
+
+    def getDirectVoiceState(self, *args, **kwargs) -> dict:
+        return {'status': 200, 'result': self.direct_voice.health()}
+
+    def startDirectVoice(self, data, *args, **kwargs) -> dict:
+        try:
+            if not isinstance(data, dict) or type(data.get('_direct_generation')) is not int:
+                raise ValueError('source_bridge_source_invalid')
+            source = parse_source(data.get('source'))
+        except ValueError:
+            return {'status': 400, 'result': {'error_code': 'source_bridge_source_invalid'}}
+        with self._voice_settings_lock:
+            try:
+                if not sys.platform.startswith('linux'):
+                    raise RuntimeError('source_bridge_linux_only')
+                if self._direct_voice_closed:
+                    raise RuntimeError('source_bridge_closed')
+                if self.voice_events.settings.routing != 'managed':
+                    raise RuntimeError('source_bridge_managed_required')
+                self.direct_voice.start(source=source, expected_generation=data['_direct_generation'])
+            except RuntimeError as exc:
+                return {'status': 409, 'result': {'error_code': str(exc)}}
+        return self.getDirectVoiceState()
+
+    def stopDirectVoice(self, *args, **kwargs) -> dict:
+        # Receiver fast path: no settings lock, graph query, or worker join.
+        self.direct_voice.stop()
+        return self.getDirectVoiceState()
 
     def getVoiceRoute(self, *args, **kwargs) -> dict:
         return {'status': 200, 'result': self.voice_route.status()}
