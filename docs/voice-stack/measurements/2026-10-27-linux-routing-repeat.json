@@ -525,5 +525,12 @@
       "p95_ms": 8.418397,
       "p99_ms": 11.387834
     }
+  },
+  "post_observation_guard_recheck": {
+    "status": "passed",
+    "trials": 30,
+    "decoy_nonzero_chunks": 0,
+    "all_decoy_confirmed_default": true,
+    "note": "Additional 30 trials after moving fallback assertion after the full silence observation window; preceding percentile table belongs to the original 30 trials."
   }
 }

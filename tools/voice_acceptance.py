@@ -289,10 +289,10 @@ def exercise_routes(stack, capture, target_process, decoy, server=None):
     wait_for(lambda: recovered_capture.snapshot()["nonzero_chunks"] > 5)
     bus.cancel()
     wait_for(lambda: idle(bus))
-    if decoy.snapshot()["nonzero_chunks"]:
-        raise RuntimeError("unexpected_default_fallback")
     since = time.monotonic_ns()
     wait_for(lambda: decoy.quiet(since), code="decoy_capture_stopped")
+    if decoy.snapshot()["nonzero_chunks"]:
+        raise RuntimeError("unexpected_default_fallback")
     if default_output() != "vrct.decoy.sink":
         raise RuntimeError("decoy_not_default")
     if not bus.close():
