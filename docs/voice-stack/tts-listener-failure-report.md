@@ -4,6 +4,9 @@
 対象は、発声中にlocalhostの推論サーバーが終了して接続受付がなくなる場合。
 すべての通信切断やモデル停止を同じ時間で検出できるという変更ではない。
 
+後続の[修正後VRChat再試験](tts-fixed-vrchat-report.md)で、ホストの通常発声・取消・mute・故障復旧11ケースを確認した。
+故障3回の無音化は79〜84ms。本書の独立グラフ30反復とは別群であり、P1全体の完了とはしない。
+
 ## 原因と選択
 
 HTTP generatorはAudioRouterのwriteが終わるまで次のreadへ進まない。
@@ -118,4 +121,4 @@ runnerは各faultの無音化が250ms以内かを個別判定し、30反復時�
 - TCP connect成功はモデルの健全性を意味しない。OS schedulingがあるため20msを検出上限とは呼ばない。
 - 音声queueの総量を制限した変更ではない。通信停止・メモリ圧迫・長文の別試験は引き続き必要。
 - WindowsのAPIは共通だが、実機・blocking audio writeの停止時間は未検証。
-- 今回の修正後はVRChat、実VC、HMD、全VRCT UI/APIの受入れを完了扱いにしない。
+- 本書は独立経路の検証であり、VRChatの限定再試験は後続レポートに分ける。実VC、HMD、全VRCT UI/APIは未検証。

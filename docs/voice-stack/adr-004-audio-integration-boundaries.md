@@ -36,6 +36,10 @@ HTTP/TCPの待機データにより通信エラーと無音化が遅れること
 listenerが残る停止・即時再起動の識別やWindows出力停止は対象外であり、必要ならheartbeat/identity/
 process所有契約を再検討する。この局所修正をB全体の製品採用決定にはしない。
 
+同日追記: [修正後ホスト・VRChat再試験](tts-fixed-vrchat-report.md)は11ケースPASS。
+通常3回・復旧3回はVRChatマイクテスト再生で各1回、故障3回は仮想マイクで79〜84ms後に無音になった。
+故障n=3からp95を主張せず、UI/API起点・Windows・実VC等は未確認のまま。Bの採用状態は変更しない。
+
 ## Alternatives and rejection reasons
 
 | 案 | 現時点の判断 | 再検討条件 |

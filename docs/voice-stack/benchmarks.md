@@ -11,6 +11,8 @@ event→仮想マイク初音と実cancel/muteを測定した。以下の独立�
 同試験でserver強制終了時の検出遅れも再現しており、停止操作の値を故障時停止へ外挿しない。
 [接続受付監視の修正レポート](tts-listener-failure-report.md)には、監視間隔ごとの実server故障・復旧の
 独立グラフ試験を記録する。これは下記の通常発声30回やVRChatの受入れとは別群である。
+[修正後ホスト・VRChat再試験](tts-fixed-vrchat-report.md)では、通常3回・復旧3回の各1回再生と、
+故障3回の79〜84msでの仮想マイク無音化を確認した。UI起点の性能ゲートやp95の判定には使わない。
 
 [実測JSON](measurements/2026-10-27-linux-irodori-090-repeat.json) /
 [timestamp CSV](measurements/2026-10-27-linux-irodori-090-repeat.csv)。

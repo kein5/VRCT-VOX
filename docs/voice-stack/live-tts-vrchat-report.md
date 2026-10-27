@@ -5,6 +5,8 @@
 
 後続の[接続受付監視による修正・再試験](tts-listener-failure-report.md)で、この故障への対処を検証する。
 本書の失敗記録は修正前の証拠として保持する。修正後の独立経路の結果を、VRChat再試験済みとは扱わない。
+さらに[修正後のホスト・VRChat再試験](tts-fixed-vrchat-report.md)を別群として記録した。
+通常・復旧発声の各1回再生と、故障3回の79〜84msでの仮想マイク無音化を確認している。
 
 前回の[WAV fixtureによる試験](managed-vrchat-report.md)から、推論部分を既存speech.cpp 0.9.0へ置き換えた。
 Irodori-TTS-866M-MF-v4.1-F16、Vulkan0、voice=`none`、48kHz mono s16le。
