@@ -89,3 +89,17 @@ def test_receiver_cancel_bypasses_busy_workers_and_stamps_queued_chat(mainloop_m
         pending.put("")
         for thread in main._threads:
             thread.join(2)
+
+
+def test_existing_dispatch_retry_contracts(mainloop_module, monkeypatch):
+    import sys
+    import unittest
+    monkeypatch.setitem(sys.modules, 'mainloop', mainloop_module)
+    path = Path(__file__).parents[2] / 'src-python/test/test_mainloop_retry_limit.py'
+    spec = importlib.util.spec_from_file_location('legacy_dispatch_tests', path)
+    legacy = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(legacy)
+    result = unittest.TestResult()
+    unittest.defaultTestLoader.loadTestsFromModule(legacy).run(result)
+    assert result.testsRun == 4
+    assert not result.failures and not result.errors, result.failures + result.errors

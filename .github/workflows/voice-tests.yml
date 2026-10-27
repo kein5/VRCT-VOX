@@ -16,7 +16,7 @@ jobs:
       - run: uv venv --python 3.11
       - run: uv pip install -r requirements-voice-test.txt
       - run: uv run --no-project python -m pytest -c tests/voice/pytest.ini tests/voice -q
-      - run: uv run --no-project ruff check src-python/models/tts src-python/models/audio_routing src-python/models/voice_events.py tests/voice tools/voice_cli.py tools/voice_latency.py tools/voice_acceptance.py tools/check_voice_distribution.py
+      - run: uv run --no-project ruff check src-python/models/tts src-python/models/audio_routing src-python/models/voice_events.py tests/voice tools/voice_cli.py tools/voice_latency.py tools/voice_acceptance.py tools/voice_b_poc.py tools/check_voice_distribution.py
       - run: uv run --no-project python tools/voice_cli.py --help
       - uses: actions/setup-node@v4
         with:

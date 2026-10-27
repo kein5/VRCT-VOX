@@ -190,6 +190,53 @@ def test_chat_accepted_before_cancel_cannot_speak_later(controller_module):
         controller.voice_events.close()
 
 
+@pytest.mark.parametrize('action', ['cancel', 'same-settings'])
+def test_blocked_translation_never_revives_old_speech_and_new_chat_still_works(controller_module, action):
+    module = controller_module
+    module.config.ENABLE_TRANSLATION = True
+    entered, release = Event(), Event()
+    sink = Sink()
+
+    class Provider:
+        def __init__(self, url):
+            pass
+
+        def synthesize_stream(self, text, voice, language, token):
+            yield AudioFrame(b'\x01\x00' * 48, 48000)
+
+    def translate(*args, **kwargs):
+        entered.set()
+        assert release.wait(2)
+        return ['hello', 'こんにちは'], [True, True]
+
+    module.model.getInputTranslate.side_effect = translate
+    controller = module.Controller()
+    controller.messageFormatter = MagicMock(return_value='text')
+    settings = VoiceSettings(mode='translated', output_device='cable', target_slot='2')
+    controller.voice_events = VoiceEventBus(settings, provider_factory=Provider,
+                                          router=AudioRouter(lambda *args: sink))
+    worker = Thread(target=lambda: controller.chatMessage({'id': 'old', 'message': 'original'}))
+    worker.start()
+    try:
+        assert entered.wait(1)
+        if action == 'cancel':
+            controller.stopVoice()
+        else:
+            assert controller.setVoiceSettings(settings.to_dict())['status'] == 200
+        release.set()
+        worker.join(1)
+        assert not worker.is_alive()
+        assert controller.voice_events.status()['accepted'] == 0
+        assert controller.chatMessage({'id': 'new', 'message': 'new'})['status'] == 200
+        until(lambda: controller.voice_events.status()['completed'] == 1)
+        assert len(sink.data) == 1
+        assert module.model.addTranslationHistory.call_count == 2
+    finally:
+        release.set()
+        worker.join(2)
+        controller.voice_events.close()
+
+
 def test_existing_message_pipeline_suite_with_injected_services(controller_module, monkeypatch, tmp_path):
     """Reuse upstream assertions unchanged; OS/model services remain injected."""
     import unittest
