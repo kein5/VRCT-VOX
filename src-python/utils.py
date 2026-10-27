@@ -555,10 +555,20 @@ def encodeBase64(data: str) -> Dict[str, Any]:
         errorLogging()
         return {}
 
+def diagnosticLogPath(filename: str) -> str:
+    """Honor explicit state isolation without changing legacy default paths."""
+    directory = os.environ.get("VRCT_CONFIG_DIR")
+    if not directory or os.path.dirname(filename):
+        return filename
+    logs = os.path.join(os.path.abspath(os.path.expanduser(directory)), "logs")
+    os.makedirs(logs, exist_ok=True)
+    return os.path.join(logs, filename)
+
+
 def removeLog() -> None:
     """Truncate the process log file (process.log) if present."""
     try:
-        with open('process.log', 'w', encoding="utf-8") as f:
+        with open(diagnosticLogPath('process.log'), 'w', encoding="utf-8") as f:
             f.write("")
     except Exception:
         errorLogging()
@@ -592,7 +602,7 @@ def setupLogger(name: str, log_file: str, level: int = logging.INFO) -> logging.
 
     # ハンドラーを作成
     file_handler = TruncatingFileHandler(
-        log_file,
+        diagnosticLogPath(log_file),
         maxBytes=max_log_size,
         backupCount=0,
         encoding="utf-8",

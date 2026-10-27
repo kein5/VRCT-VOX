@@ -3,6 +3,9 @@
 # Please read 'readme_first.txt' before making any changes.
 # =================================
 
+runtime:
+    local_models_unavailable: "内蔵の翻訳・文字起こしモデルを利用できません。テキストチャットと外部音声エンジンは使えます。内蔵モデルを取得する場合は、設定→その他でモデルのダウンロードを有効にして再起動してください。"
+
 voice:
     routing: "音声経路"
     routing_external: "既存の外部ケーブル"

@@ -57,7 +57,7 @@ from models.clipboard.clipboard import Clipboard
 from models.ocr import OcrPipeline
 from models.ocr.ocr_languages import isSupported as isSupportedOcrLanguage
 from models.telemetry import Telemetry
-from utils import errorLogging, setupLogger, printLog
+from utils import errorLogging, setupLogger, printLog, diagnosticLogPath
 from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, OcrStartError
 
 TRANSCRIPT_STOP_JOIN_TIMEOUT = 15
@@ -83,7 +83,7 @@ _HTTP_TIMEOUT = (10, 60)
 # faulthandler は enable/dump_traceback_later 時点で fd を掴むため
 # 遅延 open できず、フリーズ無しの通常終了でも 0 バイトのファイルが
 # 残る。運用上のゴミ化を避けるため atexit で「書き込みが無ければ削除」する。
-_freeze_trace_path = "freeze_trace.log"
+_freeze_trace_path = diagnosticLogPath("freeze_trace.log")
 _freeze_trace_file = open(_freeze_trace_path, "a", encoding="utf-8")
 _FREEZE_DUMP_MARGIN_SEC = 15
 # watchdog スレッドの join 上限。Watchdog.start() 末尾の

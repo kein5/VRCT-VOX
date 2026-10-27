@@ -57,3 +57,25 @@ assert config.AUTO_DOWNLOAD_MODELS is False
 assert config.UI_LANGUAGE == "ja"
 ''')
     assert result.returncode == 0, result.stderr
+
+
+def test_diagnostics_follow_config_override_without_touching_working_directory(tmp_path):
+    directory = tmp_path / "isolated logs"
+    result = run_config(directory, '''
+import os
+from pathlib import Path
+from utils import setupLogger, removeLog, errorLogging
+state = Path(os.environ["VRCT_CONFIG_DIR"])
+setupLogger("isolated-process", "process.log").info("isolated marker")
+assert "isolated marker" in (state / "logs/process.log").read_text()
+removeLog()
+assert (state / "logs/process.log").read_text() == ""
+try:
+    raise ValueError("isolated failure")
+except ValueError:
+    errorLogging()
+assert "isolated failure" in (state / "logs/error.log").read_text()
+assert not Path("process.log").exists()
+assert not Path("error.log").exists()
+''')
+    assert result.returncode == 0, result.stderr

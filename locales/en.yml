@@ -3,6 +3,9 @@
 # Please read 'readme_first.txt' before making any changes.
 # =================================
 
+runtime:
+    local_models_unavailable: "Built-in translation or transcription models are unavailable. Text chat and external voice engines remain available. To download built-in models, enable model downloads under Settings → Others and restart."
+
 voice:
     routing: "Audio route"
     routing_external: "Existing external cable"

@@ -27,10 +27,9 @@ import {
     AppErrorBoundary,
 } from "./others";
 
-import { useIsBackendReady, useIsSoftwareUpdating, useIsVrctAvailable, useWindow } from "@logics_common";
+import { useIsBackendReady, useIsSoftwareUpdating, useWindow } from "@logics_common";
 
 export const App = () => {
-    const { currentIsVrctAvailable } = useIsVrctAvailable();
     const { currentIsBackendReady } = useIsBackendReady();
     const { i18n } = useI18n();
 
@@ -48,7 +47,7 @@ export const App = () => {
                 <CornerRadiusController />
                 <VrPanelSyncController />
 
-                {(currentIsBackendReady.data === false || currentIsVrctAvailable.data === false)
+                {currentIsBackendReady.data === false
                     ? <SplashComponent />
                     : <Contents key={i18n.language} />
                 }

@@ -10,6 +10,9 @@
 未測定の性能や実機試験を成功として扱わず、仕様の各ゲートを維持する。モデルの新規取得・配布には仕様の同意条件を適用する。
 upstream PR、共有branchへのpush、merge、releaseは実行しない。
 
+**現在: 中断（2026-10-27）。** 実Tauriの黒画面・描画フレーム停止をimozuruで調査し、公式回避候補を試しても解消できず、
+ユーザー指定条件を適用。[中断報告・再現手順](native-ui-report.md)。P1/Native Task 3は未完了。全機能完了として扱わない。
+
 ## 要件と現在地
 
 | 段階 | 実装・証拠 | 未完了の受入条件／次の成果物 |
@@ -72,3 +75,13 @@ Python検索役の追加queryは未回収と記録し、回収できた7 query�
 
 - Ruling: Linux環境では任意OCRだけをuv excludeで導入対象から外す — Windowsのrequirements選択を変えず、未対応captureとcv2競合を起動経路から外す — Linux OCR対応時は依存契約を再評価する。
 - Ruling: 言語復元テストの入力を`Japanese`から既存の保存形式`ja`へ修正 — config原典の許容値に合わせるテスト修正であり、製品の言語形式は変更しない。
+
+### Native Task 3途中: DOM接続と描画を分離して中断
+
+内蔵モデル不足でUI全体がSplashに留まる条件と、Python warningの続きがfatalになる処理を修正。
+実Tauri DOM試験はRED→GREEN。診断ログも`VRCT_CONFIG_DIR`へ分離した。
+完成部分の選択回帰280 PASS / 1 SKIP / 5 warnings、Node 2 PASS、Vite/Tauri build PASS。
+ただし描画を確認するrAF試験は1 FAIL、PID照合した実ウィンドウ画像は黒。
+imozuruで調べた回避候補は試験プロセス内でのみ比較し、いずれも有効な解決策にならなかった。
+実Tauri→音声経路への受入れは開始せず、ユーザー指示に従いここで実装ループを中断。
+詳細・再開条件・証拠の限界は[native-ui-report.md](native-ui-report.md)を参照。

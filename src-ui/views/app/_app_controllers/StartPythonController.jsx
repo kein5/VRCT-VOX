@@ -6,6 +6,7 @@ import { useStdoutToPython } from "@useStdoutToPython";
 import { useReceiveRoutes } from "@useReceiveRoutes";
 import { store, useStore_SelectableFontFamilyList } from "@store";
 import { arrayToObject } from "@utils";
+import { isSidecarWarning } from "../../../logics/common/sidecarDiagnostics";
 
 import {
     useNotificationStatus,
@@ -85,7 +86,7 @@ const useStartPython = () => {
             // (FutureWarning 等: 依存ライブラリの将来非互換の予告など) まで致命的な
             // エラー通知に昇格させると、実際にはクラッシュしていないのに
             // 「An error occurred」ダイアログが出てしまう。警告行はログに残すだけにする。
-            if (typeof line === "string" && /\b[A-Za-z]*Warning: /.test(line)) {
+            if (isSidecarWarning(line)) {
                 console.warn("stderr (warning, ignored)", line);
                 return;
             }
