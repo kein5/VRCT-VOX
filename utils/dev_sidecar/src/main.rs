@@ -7,7 +7,7 @@
 // is dropped into that slot and launches the venv Python interpreter
 // against src-python/mainloop.py directly, so a Python edit only costs a
 // process restart.
-// VRCT_DEV_VENV selects .venv (default) or .venv_cuda at runtime.
+// VRCT_DEV_VENV selects .venv (default), .venv_cuda or .venv_linux at runtime.
 //
 // Behaviour parity with the frozen backend:
 //   - stdin/stdout/stderr are inherited so the Tauri <-> sidecar JSON
@@ -33,8 +33,10 @@ fn main() {
     let venv = match env::var("VRCT_DEV_VENV").as_deref() {
         Ok(".venv") | Err(env::VarError::NotPresent) => ".venv",
         Ok(".venv_cuda") => ".venv_cuda",
+        #[cfg(target_os = "linux")]
+        Ok(".venv_linux") => ".venv_linux",
         _ => {
-            eprintln!("dev-sidecar: VRCT_DEV_VENV must be .venv or .venv_cuda");
+            eprintln!("dev-sidecar: VRCT_DEV_VENV must be .venv, .venv_cuda or (on Linux) .venv_linux");
             std::process::exit(127);
         }
     };

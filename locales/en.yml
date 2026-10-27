@@ -428,7 +428,10 @@ config_page:
             desc:  "When enabled along with '{{convert_message_to_hiragana}}', romaji will be shown on mouse hover."
         convert_message_to_hiragana:
             label: "Show Hiragana"
-        telemetry:
+    auto_download_models:
+      label: "Download translation and transcription models at startup"
+      desc: "When enabled, missing built-in models are downloaded on the next start. Existing models remain usable when disabled. External speech models are managed separately."
+    telemetry:
             label: "Support Our Development"
             desc: "Sends usage data so our developers can grin and say 'Thanks for using it!' while improving the app.\n* No personal info or conversation content is ever sent."
             aptabase_privacy_policy_label: "Aptabase Privacy Policy"

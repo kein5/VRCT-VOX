@@ -11,6 +11,7 @@ memo.txt
 logs/
 .venv/
 .venv_cuda/
+.venv_linux
 .venv-collector/
 weights/
 # Local evaluation dataset archives (never commit downloaded speech data)

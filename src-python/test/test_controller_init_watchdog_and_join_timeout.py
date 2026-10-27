@@ -98,6 +98,7 @@ class WeightDownloadJoinTimeoutTests(unittest.TestCase):
             return False
 
         with patch("controller.isConnectedNetwork", return_value=True), \
+             patch("controller.config", AUTO_DOWNLOAD_MODELS=True), \
              patch("controller.removeLog"), \
              patch("controller.Thread", _TrackingThread), \
              patch("controller.model") as mock_model:

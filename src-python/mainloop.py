@@ -253,6 +253,9 @@ mapping = {
     "/run/send_text_overlay": {"status": True, "variable":controller.sendTextOverlay},
 
     "/get/data/telemetry" : {"status": True, "variable":controller.getTelemetry},
+    "/get/data/auto_download_models" : {"status": True, "variable":controller.getAutoDownloadModels},
+    "/set/enable/auto_download_models" : {"status": True, "variable":controller.setEnableAutoDownloadModels},
+    "/set/disable/auto_download_models" : {"status": True, "variable":controller.setDisableAutoDownloadModels},
     "/set/enable/telemetry" : {"status": True, "variable":controller.setEnableTelemetry},
     "/set/disable/telemetry" : {"status": True, "variable":controller.setDisableTelemetry},
     "/run/shutdown": {"status": True, "variable":controller.shutdown},

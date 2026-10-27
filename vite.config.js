@@ -39,6 +39,7 @@ export default defineConfig(() => {
                     "**/tmp/**",
                     "**/.venv/**",
                     "**/.venv_cuda/**",
+                    "**/.venv_linux/**",
                     // OCR検出モデルの学習まわり (dataset_annotatedは数百MB規模)
                     "**/.venv-yolo/**",
                     "**/dataset_annotated/**",

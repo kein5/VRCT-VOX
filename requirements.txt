@@ -7,7 +7,7 @@ faster-whisper==1.1.1
 ctranslate2==4.6.0
 transformers==4.40.2
 pillow == 10.0.0
-PyAudioWPatch == 0.2.12.6
+PyAudioWPatch == 0.2.12.6 ; sys_platform == "win32"
 python-osc == 1.9.0
 PyYAML==6.0.2
 deepl == 1.22.0
@@ -24,10 +24,10 @@ PyOpenGL==3.1.7
 # opencv-python, so it is installed with --no-deps (see bat/install.bat);
 # numpy and cv2 (opencv-python-headless) are listed elsewhere in this file.
 # Optional at runtime: without it the overlay falls back to PrintWindow.
-windows-capture==2.0.1
+windows-capture==2.0.1 ; sys_platform == "win32"
 pydub==0.25.1
 psutil==5.9.8
-pycaw==20240210
+pycaw==20240210 ; sys_platform == "win32"
 websockets==15.0.1
 huggingface_hub==0.32.2
 hf-xet==1.1.2

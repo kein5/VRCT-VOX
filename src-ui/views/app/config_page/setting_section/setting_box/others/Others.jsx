@@ -55,6 +55,7 @@ export const Others = () => {
                 <ConvertMessageToHiraganaContainer />
             </div>
             <div>
+                <AutoDownloadModelsContainer />
                 <TelemetryContainer />
             </div>
         </div>
@@ -260,6 +261,20 @@ const ConvertMessageToHiraganaContainer = () => {
             desc={desc}
             variable={currentConvertMessageToHiragana}
             toggleFunction={toggleConvertMessageToHiragana}
+        />
+    );
+};
+
+const AutoDownloadModelsContainer = () => {
+    const { t } = useI18n();
+    const { currentAutoDownloadModels, toggleAutoDownloadModels } = useOthers();
+    return (
+        <CheckboxContainer
+            setting_id="auto_download_models"
+            label={t("config_page.others.auto_download_models.label")}
+            desc={t("config_page.others.auto_download_models.desc")}
+            variable={currentAutoDownloadModels}
+            toggleFunction={toggleAutoDownloadModels}
         />
     );
 };

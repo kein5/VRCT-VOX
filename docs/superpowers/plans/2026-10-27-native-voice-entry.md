@@ -46,6 +46,15 @@
 
 **Interfaces:** 消費するのは固定依存・既存Config/Controller.init。モデルなしでもテキスト/外部TTSを使える本番初期化、モデル取得は明示選択、既存モデルは再利用。
 
+実測による詳細化: `transcription_transcriber.py`はs16 WAV幅の取得だけにPyAudioWPatchをimportしている。
+`window_capture.py`はWindows専用callback型を無条件定義している。`tests/platform/test_transcriber_runtime.py`で
+実PCM処理・画像helperのimportを別processから実行し、RED→GREENでこの2点を修正する。
+Windows capture自体をLinuxで動作したと偽装しない。Task 2をimport互換、設定/取得ポリシー、環境手順の小commitへ分割する。
+
+受入コマンド（Task 2詳細化）:
+`VRCT_TEST_NATIVE=1 uv run --no-project --python .venv_linux/bin/python -m pytest -q tests/platform tests/voice src-python/test/test_controller_init_watchdog_and_join_timeout.py src-python/test/test_ui_endpoint_contract.py src-python/test/test_transcription_transcriber.py`
+Expected: 選択範囲PASS。本番stdioの2回起動を含む。全体suiteのWindows専用16失敗は別記し、P5で対応する。
+
 - [ ] 固定requirementsからLinux環境をuvで解決する。Windows限定3依存を外した場合とWindows選択の差分を記録。外部コード・packageの未確認APIは原典で確認する。
 - [ ] import/初期化の実失敗を再現するテストと、設定の既定値・永続化・明示download・再起動のテストを先に書く。Expected: 修正前に該当契約でFAIL。
 - [ ] 確認できた最小のOS分岐・モデル取得ポリシーを実装。ネットワーク全体を無効化してTTSを動かなくする回避はしない。

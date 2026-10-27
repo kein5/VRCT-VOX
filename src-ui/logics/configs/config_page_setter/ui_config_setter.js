@@ -908,6 +908,14 @@ export const SETTINGS_ARRAY = [
     },
     {
         Category: "Others",
+        Base_Name: "AutoDownloadModels",
+        default_value: false,
+        ui_template_id: "toggle",
+        logics_template_id: "toggle_enable_disable",
+        base_endpoint_name: "auto_download_models",
+    },
+    {
+        Category: "Others",
         Base_Name: "Telemetry",
         default_value: false,
         ui_template_id: "toggle",

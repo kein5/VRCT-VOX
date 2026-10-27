@@ -39,3 +39,36 @@ Windowsのinterpreter pathを固定参照する問題を再現（6 FAIL / 4 PASS
 音声180件と併せて190 PASS。Ruff/diff check PASS。元の軽量環境で全体pytestは引き続き80 collection error。
 実Tauri・全Model・Windows実機はこの試験の範囲外。根拠: [Tauri sidecar契約](https://v2.tauri.app/develop/sidecar/)、[Rust CommandExt::exec](https://doc.rust-lang.org/std/os/unix/process/trait.CommandExt.html#tymethod.exec)。
 テストは`tests/platform/test_dev_sidecar.py`、rawは`tmp/voice-completion/sidecar-{red,green}.log`と`task1-tests.xml`。
+
+### Native Task 2進行中: Python import互換
+
+実依存で再現した2点を原典と照合して修正: s16 WAV処理がPyAudioWPatchを必要としていた箇所を固定16bit幅に変更、
+Windows専用WINFUNCTYPEの宣言を既存OS判定へ合わせた。実PCM・画像helper試験は各RED→GREEN、既存transcriberと合わせて60 PASS（依存警告7件）。
+本番Modelのimportが成功。TauriのLinux cargo check/buildも成功したが、GUI起動・Controller.initはまだ未検証。
+Rust依存取得と正しいtarget tripleのsidecar配置で、従来font-kit未キャッシュ/sidecar不在によるbuild停止は解消。
+Windows captureはLinux未対応のまま。これをGUI全体・ASR入力の完成とは扱わない。
+
+### Native Task 2: 本番初期化・設定の保存復元
+
+`AUTO_DOWNLOAD_MODELS`を既定OFFで永続化し、起動時の初回取得と再試行の両方へ適用。
+その他設定にON/OFF操作を追加。旧configにキーがない場合もOFF。既存モデルの利用と明示取得APIは維持する。
+`VRCT_CONFIG_DIR`で設定・logsだけを分離し、既存利用者の設定を変更せず実起動を試験できるようにした。
+Linuxの`.venv_linux`選択、Windows専用3依存のmarker、任意OCR除外profileを追加。
+既存venvは未変更。Windowsで評価したmarkerは既存3依存を選択するが、Windows実機試験の代替ではない。
+
+検証: 関連suite **201 PASS**、実Main/Controller/Modelを2回起動するstdio試験 **1 PASS**、Vite build PASS。
+最終選択回帰（実stdio、UI endpoint契約、既存transcriberを含む）は **266 PASS / 5 warnings**。
+保存した日本語voice名が再起動後も復元され、音声OFF・モデル自動取得OFFを確認。Tauriや音声経路はこのstdio試験に含めない。
+全体suiteは **1173 PASS / 16 FAIL / 6 SKIP**。修正前の実依存環境と同じ16失敗で、
+内訳はWindows endpoint tracker 4、Windows専用sample-player 3、Windows clipboard 7、VR panel capture 2。
+軽量環境の80 collection errorと区別する。これらをLinux対応済みとしてskipで隠さず、P5の未対応項目として残す。
+変更範囲のRuffで新規違反は解消。既存config unused import 1とtranscriber import-order 5は未変更。
+
+raw: `tmp/voice-completion/{settings-red,settings-green,task2-selected,task2-general,native-startup,task2-ui-build}.log`。
+実起動stdout/stderr・保存設定は同`native-startup-run/`内（テスト用生成tokenを含むため公開対象外）。
+imozuru原典10本、ローカル実装snapshot、hash一覧と引用照合済みreport/digestは同`research/linux-native/`。
+Python検索役の追加queryは未回収と記録し、回収できた7 queryのhitsを保存。原文の再配布はしない。
+起動障害の解決策は得られたためユーザー指定の中断条件には該当せず、実Tauri受入れへ進む。
+
+- Ruling: Linux環境では任意OCRだけをuv excludeで導入対象から外す — Windowsのrequirements選択を変えず、未対応captureとcv2競合を起動経路から外す — Linux OCR対応時は依存契約を再評価する。
+- Ruling: 言語復元テストの入力を`Japanese`から既存の保存形式`ja`へ修正 — config原典の許容値に合わせるテスト修正であり、製品の言語形式は変更しない。

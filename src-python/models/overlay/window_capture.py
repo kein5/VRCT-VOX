@@ -199,7 +199,9 @@ def _lparam(x: int, y: int) -> int:
     return ((y & 0xFFFF) << 16) | (x & 0xFFFF)
 
 
-_ENUM_PROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+# Defining the Windows callback ABI must not prevent importing the rest of
+# VRCT on Linux. Native window capture/input remains Windows-only here.
+_ENUM_PROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM) if _user32 is not None else None
 
 
 _target_cache: dict = {}

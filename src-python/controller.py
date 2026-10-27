@@ -270,6 +270,7 @@ _SIMPLE_CONFIG_GETTERS = {
     "getLoggerFeature": "LOGGER_FEATURE",
     "getVrcMicMuteSync": "VRC_MIC_MUTE_SYNC",
     "getTelemetry": "ENABLE_TELEMETRY",
+    "getAutoDownloadModels": "AUTO_DOWNLOAD_MODELS",
     "getWebSocketHost": "WEBSOCKET_HOST",
     "getWebSocketPort": "WEBSOCKET_PORT",
     "getWebSocketServer": "WEBSOCKET_SERVER",
@@ -3651,6 +3652,16 @@ class Controller:
             model.telemetryShutdown()
         return {"status":200, "result":config.ENABLE_TELEMETRY}
 
+    @staticmethod
+    def setEnableAutoDownloadModels(*args, **kwargs) -> dict:
+        config.AUTO_DOWNLOAD_MODELS = True
+        return {"status": 200, "result": config.AUTO_DOWNLOAD_MODELS}
+
+    @staticmethod
+    def setDisableAutoDownloadModels(*args, **kwargs) -> dict:
+        config.AUTO_DOWNLOAD_MODELS = False
+        return {"status": 200, "result": config.AUTO_DOWNLOAD_MODELS}
+
     def swapYourLanguageAndTargetLanguage(self, *args, **kwargs) -> dict:
         your_languages = config.SELECTED_YOUR_LANGUAGES
         your_language_temp = your_languages[config.SELECTED_TAB_NO]["1"]
@@ -4872,10 +4883,12 @@ class Controller:
         # availabilityチェックで同じ重みを二重にロードして検証するのを避ける。
         ctranslate2_pre_available: Optional[bool] = None
         whisper_pre_available: Optional[bool] = None
+        # Preserve legacy on-disk migration when downloads are disabled,
+        # retaining its existing connected-startup condition.
         if connected_network is True:
-            printLog("Download CTranslate2 Model Weight")
-            # 後方互換用
             model.backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir()
+        if connected_network is True and config.AUTO_DOWNLOAD_MODELS is True:
+            printLog("Download CTranslate2 Model Weight")
 
             weight_type = config.CTRANSLATE2_WEIGHT_TYPE
             th_download_ctranslate2 = None
@@ -4954,7 +4967,8 @@ class Controller:
         # 促す前に、アプリ自身が最大1回だけ同期的に再ダウンロードを試みる。
         # (list_repo_files の一時失敗などで初回ダウンロードスレッドが丸ごと
         #  取りこぼしたケースを吸収する)
-        if connected_network is True and (not ctranslate2_available or not whisper_available):
+        if (connected_network is True and config.AUTO_DOWNLOAD_MODELS is True
+                and (not ctranslate2_available or not whisper_available)):
             if not ctranslate2_available:
                 printLog("CTranslate2 weight unavailable after first download; retrying once")
                 self.downloadCtranslate2Weight(config.CTRANSLATE2_WEIGHT_TYPE, False)

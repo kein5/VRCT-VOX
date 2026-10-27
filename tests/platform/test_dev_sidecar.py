@@ -63,7 +63,7 @@ def launch_env(venv=None):
     return env
 
 
-@pytest.mark.parametrize("venv", [None, ".venv", ".venv_cuda"])
+@pytest.mark.parametrize("venv", [None, ".venv", ".venv_cuda", ".venv_linux"])
 def test_linux_interpreter_preserves_protocol_arguments_and_exit(project, venv):
     root, binary = project
     install_python(root, venv or ".venv")

@@ -10,12 +10,47 @@ VRCT全GUIのLinux互換化はP5。以下のCLI→仮想マイク→VRChat deskt
 
 ## ネイティブ起動の作業状況
 
-開発用Rust sidecarはLinuxで`.venv/bin/python`を使い、UnixのexecでPythonへ置き換わる。
+開発用Rust sidecarはLinuxで選択したvenvの`bin/python`を使い、UnixのexecでPythonへ置き換わる。
 Tauriが所有するPIDとPythonのPIDが同じなので、wrapper終了後にPythonだけが残る状態を防ぐ。
 Windowsの`Scripts/python.exe`選択とJob Objectは維持する。
-実ラッパー＋小さなPythonプログラムによる10件の試験で、stdio、日本語、引数、空白path、終了コード、
+実ラッパー＋小さなPythonプログラムによる11件の試験で、stdio、日本語、引数、空白path、終了コード、
 終了時のprocess消失、不正venv拒否、interpreter不在・実行失敗を確認した。
-これは本番Modelの初期化・Linux GUI起動の合格ではない。[継続記録](completion-ledger.md)を参照。
+別の実stdio試験で本番Main/Controller/Modelの初期化と設定保存・再起動を確認した。
+Tauri画面・音声入出力はこの試験の範囲外。[継続記録](completion-ledger.md)を参照。
+
+### 本番バックエンド用の開発環境
+
+固定SpeechRecognition forkが使う`aifc`/`audioop`、既存NumPy/Pillowの版に合わせてPython 3.11を使う。
+既存の`.venv`と`.venv_cuda`を変更せず、Linux用環境を明示選択する。確認したuvは0.13.5。
+
+```sh
+uv venv --python 3.11 .venv_linux
+uv pip install --python .venv_linux/bin/python -r requirements.txt -r requirements-dev.txt --excludes requirements-linux-exclude.txt
+mkdir -p src-tauri/bin/_internal
+rustc --edition=2021 utils/dev_sidecar/src/main.rs -o src-tauri/bin/VRCT-sidecar-x86_64-unknown-linux-gnu
+```
+
+Windows専用の3依存はrequirementsのOS markerで選択する。Linuxでは任意OCRのRapidOCRをexcludeし、
+同じ`cv2`を提供する2種類のOpenCVの同時導入を避ける。Linuxの従来ASR録音・画面OCR・VRパネルcaptureは未対応。
+この手順はPython依存のみを取得し、ASR/TTS/VC重みの取得スクリプトは実行しない。
+Pythonの取得・package通信にはネットワークが必要。システムのGTK/WebKitGTK依存は
+[Tauri公式の準備手順](https://v2.tauri.app/start/prerequisites/)を参照。
+
+起動時の`VRCT_DEV_VENV=.venv_linux`でこの環境を選択できる。
+`VRCT_CONFIG_DIR=/absolute/path/to/state`はconfigとlogsだけの保存先を変える。指定しなければ従来の保存先を使う。
+モデル・UI資源の場所は変えない。既存設定を試験用ディレクトリへコピーする必要はない。
+「その他」のモデル自動取得は既定OFF。ONにすると次回起動時に内蔵翻訳・Whisperモデルの取得を許可する。
+既存モデルはOFFでも検査・再利用され、ユーザーが明示的に使うモデル取得操作も維持する。
+
+本番バックエンドの自動試験:
+
+```sh
+VRCT_TEST_NATIVE=1 uv run --no-project --python .venv_linux/bin/python -m pytest -q tests/platform/test_native_backend.py
+```
+
+試験は新規設定でテレメトリ、録音、自動デバイス選択、OSC送信をOFFにする。実サービスを差し替えず初期化し、
+日本語の音声設定を保存、shutdown後に再起動して復元と音声OFFを確認する。
+HTTPモデル取得の条件自体はネットワーク状態を注入した別の単体試験で検証する。
 
 ## 一時的な仮想マイク
 

@@ -5,6 +5,7 @@ from json import load as json_load
 from json import dump as json_dump
 from secrets import token_urlsafe as secrets_token_urlsafe
 import threading
+from os import environ
 from models.tts.settings import VoiceSettings, normalize_settings
 from typing import Optional, Dict, Any
 
@@ -1027,6 +1028,7 @@ class Config:
 
     # --- Telemetry Settings ---
     ENABLE_TELEMETRY = ManagedProperty('ENABLE_TELEMETRY', type_=bool)
+    AUTO_DOWNLOAD_MODELS = ManagedProperty('AUTO_DOWNLOAD_MODELS', type_=bool)
 
     # --- Selection properties with validation (ManagedProperty) ---
     SELECTED_TAB_NO = ManagedProperty('SELECTED_TAB_NO', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TAB_NO_LIST)
@@ -1082,8 +1084,11 @@ class Config:
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
             self._PATH_LOCAL = os_path.dirname(os_path.abspath(__file__))
-        self._PATH_CONFIG = os_path.join(self._PATH_LOCAL, "config.json")
-        self._PATH_LOGS = os_path.join(self._PATH_LOCAL, "logs")
+        # Override mutable state only; resources and existing weights keep their
+        # original location. This also permits isolated native acceptance tests.
+        state_dir = os_path.abspath(os_path.expanduser(environ.get("VRCT_CONFIG_DIR") or self._PATH_LOCAL))
+        self._PATH_CONFIG = os_path.join(state_dir, "config.json")
+        self._PATH_LOGS = os_path.join(state_dir, "logs")
         os_makedirs(self._PATH_LOGS, exist_ok=True)
         self._GITHUB_URL = "https://api.github.com/repos/misyaguziya/VRCT/releases/latest"
         self._GITHUB_RELEASES_LIST_URL = "https://api.github.com/repos/misyaguziya/VRCT/releases"
@@ -1394,6 +1399,8 @@ class Config:
         self._OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR = "#000000"
         self._ENABLE_CLIPBOARD = False
         self._ENABLE_TELEMETRY = True
+        # Existing weights remain usable; network downloads require opt-in.
+        self._AUTO_DOWNLOAD_MODELS = False
 
         # OCR defaults (VRChat chat-bubble text capture)
         # PP-OCRv6 small が日英中＋ラテン文字系を1モデルで読むので "auto" が既定。
