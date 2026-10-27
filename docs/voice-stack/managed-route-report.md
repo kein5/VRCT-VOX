@@ -94,9 +94,10 @@ CIにはLinux helperのコンパイルを追加したが、リモートCI/Window
    unknown/errorを表示する。status200だけを無音確認と解釈してはいけない。
 4. hostへの導入、VRCT Linux全GUI起動、VRChat内の1回再生・停止・再接続、WiVRn/HMD、
    実VC/ASR/翻訳音声モデル同時動作、Windows OS gate、helperのバイナリ配布は未検証。
-5. このセッションではcomputer-useのSKILL.mdとデスクトップ操作ツールを確認できなかった。
-   手順2のVRChat GUIを自律操作したとは主張しない。音声送信・経路診断は自動化できるが、
-   現時点のVRChat操作と聞こえの確認は別途必要。
+5. 当初は専用computer-useツールがないためGUI操作を手動必須と説明したが、
+   [後続のimozuru調査](vrchat-gui-automation-research.md)でydotool/kdotool/Spectacleの導入と
+   uinput権限を確認した。CLIを組み合わせる自動化案を採れる見込みがあり、前の断定を訂正する。
+   VRChatでの入力・画像・録音再生の結合試験と、物理的な聞こえの確認はまだ行っていない。
 
 ## 実装時の判断
 
