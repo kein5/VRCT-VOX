@@ -1,0 +1,124 @@
+{
+  "status": "candidate_not_authorized_or_downloaded",
+  "note": "HF VAD is a different explicit candidate, not proven equivalent to the engine default ModelScope v2.0.4",
+  "metadata_only": true,
+  "files": [
+    {
+      "repo": "Plachta/Seed-VC",
+      "revision": "257283f9f41585055e8f858fba4fd044e5caed6e",
+      "rfilename": "DiT_uvit_tat_xlsr_ema.pth",
+      "blobId": "473858d915b4124368c37a6b568080827c7b1854",
+      "size": 142112203,
+      "lfs": {
+        "sha256": "c853ea578b409f625f961bcb15d5cff1f8ef9a75f3209ec21d9b7c73ab422e88",
+        "size": 142112203,
+        "pointerSize": 134
+      }
+    },
+    {
+      "repo": "Plachta/Seed-VC",
+      "revision": "257283f9f41585055e8f858fba4fd044e5caed6e",
+      "rfilename": "config_dit_mel_seed_uvit_xlsr_tiny.yml",
+      "blobId": "3c4b816bc98ecc8eebaeca3d44dfffb0571285a7",
+      "size": 2100
+    },
+    {
+      "repo": "funasr/campplus",
+      "revision": "e4b6ede7ce16997aff4ae69fbca1f0175e2afede",
+      "rfilename": "campplus_cn_common.bin",
+      "blobId": "ccc729ec7f373f8d2351be91c9efdc7b21c00384",
+      "size": 28036335,
+      "lfs": {
+        "sha256": "3388cf5fd3493c9ac9c69851d8e7a8badcfb4f3dc631020c4961371646d5ada8",
+        "size": 28036335,
+        "pointerSize": 133
+      }
+    },
+    {
+      "repo": "FunAudioLLM/CosyVoice-300M",
+      "revision": "24c40509c3c5ea6fe06b5f8790ff99e3714a6bee",
+      "rfilename": "hift.pt",
+      "blobId": "422ac4fe5753f0a5fa0e0f6c7281a53893ca0d98",
+      "size": 81896716,
+      "lfs": {
+        "sha256": "91e679b6ca1eff71187ffb4f3ab0444935594cdcc20a9bd12afad111ef8d6012",
+        "size": 81896716,
+        "pointerSize": 133
+      }
+    },
+    {
+      "repo": "facebook/wav2vec2-xls-r-300m",
+      "revision": "1a640f32ac3e39899438a2931f9924c02f080a54",
+      "rfilename": "config.json",
+      "blobId": "2e7517d6705d22aef2fa4fd0bcc83b47f4757bd3",
+      "size": 1568
+    },
+    {
+      "repo": "facebook/wav2vec2-xls-r-300m",
+      "revision": "1a640f32ac3e39899438a2931f9924c02f080a54",
+      "rfilename": "preprocessor_config.json",
+      "blobId": "36ebe8b7c1cc967b3059f0494ae8a1069dd67655",
+      "size": 212
+    },
+    {
+      "repo": "facebook/wav2vec2-xls-r-300m",
+      "revision": "1a640f32ac3e39899438a2931f9924c02f080a54",
+      "rfilename": "pytorch_model.bin",
+      "blobId": "94cb9654212ac4ec99e38004541d2274e12adacb",
+      "size": 1269737156,
+      "lfs": {
+        "sha256": "d5e490574712ad0a6736923b9ed11d4cd51c78609c36205f704fc4e87b11d2e0",
+        "size": 1269737156,
+        "pointerSize": 135
+      }
+    },
+    {
+      "repo": "funasr/fsmn-vad",
+      "revision": "df20e6b30c653645fa4ff125cacfcabd1020a669",
+      "rfilename": "README.md",
+      "blobId": "b18b15693e76b445d735b4daec39bba97571e7b9",
+      "size": 2289
+    },
+    {
+      "repo": "funasr/fsmn-vad",
+      "revision": "df20e6b30c653645fa4ff125cacfcabd1020a669",
+      "rfilename": "am.mvn",
+      "blobId": "77070ed5b1c53322ccbcd1e866e715a8b08a5d4c",
+      "size": 8033
+    },
+    {
+      "repo": "funasr/fsmn-vad",
+      "revision": "df20e6b30c653645fa4ff125cacfcabd1020a669",
+      "rfilename": "config.yaml",
+      "blobId": "4664aef9579e7aeea8a6081045a84dcbd354ce3e",
+      "size": 1215
+    },
+    {
+      "repo": "funasr/fsmn-vad",
+      "revision": "df20e6b30c653645fa4ff125cacfcabd1020a669",
+      "rfilename": "configuration.json",
+      "blobId": "c5f8b9e15c29b9e71e6a8991e7444c8376270de7",
+      "size": 365
+    },
+    {
+      "repo": "funasr/fsmn-vad",
+      "revision": "df20e6b30c653645fa4ff125cacfcabd1020a669",
+      "rfilename": "model.pt",
+      "blobId": "71f70b83cd129c16d401fef5aaf7a070753ee5db",
+      "size": 1721366,
+      "lfs": {
+        "sha256": "b3be75be477f0780277f3bae0fe489f48718f585f3a6e45d7dd1fbb1a4255fc5",
+        "size": 1721366,
+        "pointerSize": 132
+      }
+    }
+  ],
+  "total_bytes": 1523519558,
+  "licensing": {
+    "Plachta/Seed-VC": "GPL-3.0 model card",
+    "funasr/campplus": "Apache-2.0 model card",
+    "FunAudioLLM/CosyVoice-300M": "Apache-2.0 model card",
+    "facebook/wav2vec2-xls-r-300m": "Apache-2.0 model card",
+    "funasr/fsmn-vad": "Apache-2.0 model card"
+  }
+}

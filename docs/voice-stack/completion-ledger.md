@@ -100,3 +100,12 @@ Python検索役の追加queryは未回収と記録し、回収できた7 query�
 imozuruで調べた回避候補は試験プロセス内でのみ比較し、いずれも有効な解決策にならなかった。
 実Tauri→音声経路への受入れは開始せず、ユーザー指示に従いここで実装ループを中断。
 詳細・再開条件・証拠の限界は[native-ui-report.md](native-ui-report.md)を参照。
+
+### P2 入力転送UIまで完了、実VC PoCの取得同意待ち
+
+明示identityの開始・停止、TTS独立、全体mute、同名再作成、再起動OFFを本番UIで確認。
+実Tauri/Controller/private PipeWireは16ケースを2回PASS。独立レビューCritical0/Important0、UIのMinor2は保留。
+[入力制御報告](source-controls-report.md)。
+次の[実VC PoC候補](vc-engine-poc-proposal.md)と[固定artifact一覧](seed-vc-poc-artifacts.json)を用意。
+Seed候補約1.524GBは未取得。VADはHF固定モデルを明示的な別候補として扱い、既定ModelScope版との同一性を主張しない。
+仕様§8のモデル取得同意と許可ある参照音声が必要。上流への連絡・PRは引き続き禁止。
