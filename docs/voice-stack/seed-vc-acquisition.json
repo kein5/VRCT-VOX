@@ -1,0 +1,105 @@
+{
+  "status": "verified",
+  "verified_bytes": 1523519558,
+  "files": [
+    {
+      "size": 142112203,
+      "sha256": "c853ea578b409f625f961bcb15d5cff1f8ef9a75f3209ec21d9b7c73ab422e88",
+      "repo": "Plachta/Seed-VC",
+      "revision": "257283f9f41585055e8f858fba4fd044e5caed6e",
+      "rfilename": "DiT_uvit_tat_xlsr_ema.pth",
+      "url": "https://huggingface.co/Plachta/Seed-VC/resolve/257283f9f41585055e8f858fba4fd044e5caed6e/DiT_uvit_tat_xlsr_ema.pth?download=true"
+    },
+    {
+      "size": 2100,
+      "sha256": "e4f152f9c7b8924f82c9661cd28737204dd93368871a6feaec36437cb7138e74",
+      "repo": "Plachta/Seed-VC",
+      "revision": "257283f9f41585055e8f858fba4fd044e5caed6e",
+      "rfilename": "config_dit_mel_seed_uvit_xlsr_tiny.yml",
+      "url": "https://huggingface.co/Plachta/Seed-VC/resolve/257283f9f41585055e8f858fba4fd044e5caed6e/config_dit_mel_seed_uvit_xlsr_tiny.yml?download=true"
+    },
+    {
+      "size": 28036335,
+      "sha256": "3388cf5fd3493c9ac9c69851d8e7a8badcfb4f3dc631020c4961371646d5ada8",
+      "repo": "funasr/campplus",
+      "revision": "e4b6ede7ce16997aff4ae69fbca1f0175e2afede",
+      "rfilename": "campplus_cn_common.bin",
+      "url": "https://huggingface.co/funasr/campplus/resolve/e4b6ede7ce16997aff4ae69fbca1f0175e2afede/campplus_cn_common.bin?download=true"
+    },
+    {
+      "size": 81896716,
+      "sha256": "91e679b6ca1eff71187ffb4f3ab0444935594cdcc20a9bd12afad111ef8d6012",
+      "repo": "FunAudioLLM/CosyVoice-300M",
+      "revision": "24c40509c3c5ea6fe06b5f8790ff99e3714a6bee",
+      "rfilename": "hift.pt",
+      "url": "https://huggingface.co/FunAudioLLM/CosyVoice-300M/resolve/24c40509c3c5ea6fe06b5f8790ff99e3714a6bee/hift.pt?download=true"
+    },
+    {
+      "size": 1568,
+      "sha256": "0bffa0d0e98153e883b828d86491f3c6062cb563dc9d7a9cfd1790da30c286ac",
+      "repo": "facebook/wav2vec2-xls-r-300m",
+      "revision": "1a640f32ac3e39899438a2931f9924c02f080a54",
+      "rfilename": "config.json",
+      "url": "https://huggingface.co/facebook/wav2vec2-xls-r-300m/resolve/1a640f32ac3e39899438a2931f9924c02f080a54/config.json?download=true"
+    },
+    {
+      "size": 212,
+      "sha256": "a2254a5b58f72cd4de3632f8eee64f3f098b7c1402128d2f419e7d00ae13e335",
+      "repo": "facebook/wav2vec2-xls-r-300m",
+      "revision": "1a640f32ac3e39899438a2931f9924c02f080a54",
+      "rfilename": "preprocessor_config.json",
+      "url": "https://huggingface.co/facebook/wav2vec2-xls-r-300m/resolve/1a640f32ac3e39899438a2931f9924c02f080a54/preprocessor_config.json?download=true"
+    },
+    {
+      "size": 1269737156,
+      "sha256": "d5e490574712ad0a6736923b9ed11d4cd51c78609c36205f704fc4e87b11d2e0",
+      "repo": "facebook/wav2vec2-xls-r-300m",
+      "revision": "1a640f32ac3e39899438a2931f9924c02f080a54",
+      "rfilename": "pytorch_model.bin",
+      "url": "https://huggingface.co/facebook/wav2vec2-xls-r-300m/resolve/1a640f32ac3e39899438a2931f9924c02f080a54/pytorch_model.bin?download=true"
+    },
+    {
+      "size": 2289,
+      "sha256": "bc7ed04222f932ea519e5969140a7fa14944becbbb3c0728a267c5bf9dc9c200",
+      "repo": "funasr/fsmn-vad",
+      "revision": "df20e6b30c653645fa4ff125cacfcabd1020a669",
+      "rfilename": "README.md",
+      "url": "https://huggingface.co/funasr/fsmn-vad/resolve/df20e6b30c653645fa4ff125cacfcabd1020a669/README.md?download=true"
+    },
+    {
+      "size": 8033,
+      "sha256": "df189fd5f4352df84a0fd464eeab4e450a5e645665d6b38f13c832492261a739",
+      "repo": "funasr/fsmn-vad",
+      "revision": "df20e6b30c653645fa4ff125cacfcabd1020a669",
+      "rfilename": "am.mvn",
+      "url": "https://huggingface.co/funasr/fsmn-vad/resolve/df20e6b30c653645fa4ff125cacfcabd1020a669/am.mvn?download=true"
+    },
+    {
+      "size": 1215,
+      "sha256": "486861ca26ddb79081663b6179cb204c6bfae71c52f04aafc48a9e9d8dde1e93",
+      "repo": "funasr/fsmn-vad",
+      "revision": "df20e6b30c653645fa4ff125cacfcabd1020a669",
+      "rfilename": "config.yaml",
+      "url": "https://huggingface.co/funasr/fsmn-vad/resolve/df20e6b30c653645fa4ff125cacfcabd1020a669/config.yaml?download=true"
+    },
+    {
+      "size": 365,
+      "sha256": "7bce8867e37d55c3dd8f672695ced18077a2be199ea529a5d432d5350fc0acba",
+      "repo": "funasr/fsmn-vad",
+      "revision": "df20e6b30c653645fa4ff125cacfcabd1020a669",
+      "rfilename": "configuration.json",
+      "url": "https://huggingface.co/funasr/fsmn-vad/resolve/df20e6b30c653645fa4ff125cacfcabd1020a669/configuration.json?download=true"
+    },
+    {
+      "size": 1721366,
+      "sha256": "b3be75be477f0780277f3bae0fe489f48718f585f3a6e45d7dd1fbb1a4255fc5",
+      "repo": "funasr/fsmn-vad",
+      "revision": "df20e6b30c653645fa4ff125cacfcabd1020a669",
+      "rfilename": "model.pt",
+      "url": "https://huggingface.co/funasr/fsmn-vad/resolve/df20e6b30c653645fa4ff125cacfcabd1020a669/model.pt?download=true"
+    }
+  ],
+  "consent": "User explicitly approved fixed five-model acquisition and PoC, 2026-10-28",
+  "storage": "gitignored local PoC assets",
+  "manifest_sha256": "711554cd273b487b59454a85097795646179dcf315087d21d29cfe617c5ee2fa"
+}

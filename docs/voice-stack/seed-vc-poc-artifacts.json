@@ -1,5 +1,5 @@
 {
-  "status": "candidate_not_authorized_or_downloaded",
+  "status": "approved_for_local_poc",
   "note": "HF VAD is a different explicit candidate, not proven equivalent to the engine default ModelScope v2.0.4",
   "metadata_only": true,
   "files": [
@@ -120,5 +120,6 @@
     "FunAudioLLM/CosyVoice-300M": "Apache-2.0 model card",
     "facebook/wav2vec2-xls-r-300m": "Apache-2.0 model card",
     "funasr/fsmn-vad": "Apache-2.0 model card"
-  }
+  },
+  "authorization": "2026-10-28 user explicitly approved acquisition and PoC for these fixed five models"
 }
