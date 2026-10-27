@@ -1,0 +1,5 @@
+# Model-free headless tests and Controller contracts with OS/model services injected.
+pytest==8.4.2
+requests==2.34.2
+PyYAML==6.0.2
+ruff==0.14.4
