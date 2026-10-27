@@ -1,0 +1,165 @@
+{
+  "status": "passed",
+  "cases": [
+    {
+      "case": "selection_stays_silent",
+      "operation_to_read_ms": 39.842635,
+      "confirmation_ms": 2005.549263,
+      "present_hz": [],
+      "silent": true
+    },
+    {
+      "case": "start_preserves_global_mute",
+      "operation_to_read_ms": 39.337624,
+      "confirmation_ms": 2005.493195,
+      "present_hz": [],
+      "silent": true
+    },
+    {
+      "case": "resume_selected_input",
+      "operation_to_read_ms": 81.159153,
+      "confirmation_ms": 2005.541935,
+      "present_hz": [
+        440
+      ],
+      "silent": false
+    },
+    {
+      "case": "tts_coexists",
+      "operation_to_read_ms": 168.134853,
+      "confirmation_ms": 2005.650336,
+      "present_hz": [
+        440,
+        880
+      ],
+      "silent": false
+    },
+    {
+      "case": "input_stop_keeps_tts",
+      "operation_to_read_ms": 155.380152,
+      "confirmation_ms": 2005.549916,
+      "present_hz": [
+        880
+      ],
+      "silent": false
+    },
+    {
+      "case": "explicit_restart_with_tts",
+      "operation_to_read_ms": 156.529145,
+      "confirmation_ms": 2005.345078,
+      "present_hz": [
+        440,
+        880
+      ],
+      "silent": false
+    },
+    {
+      "case": "tts_stop_keeps_input",
+      "operation_to_read_ms": 80.777626,
+      "confirmation_ms": 2005.542898,
+      "present_hz": [
+        440
+      ],
+      "silent": false
+    },
+    {
+      "case": "whole_mute",
+      "operation_to_read_ms": 41.589092,
+      "confirmation_ms": 2005.130419,
+      "present_hz": [],
+      "silent": true
+    },
+    {
+      "case": "whole_resume",
+      "operation_to_read_ms": 83.698404,
+      "confirmation_ms": 2005.522243,
+      "present_hz": [
+        440
+      ],
+      "silent": false
+    },
+    {
+      "case": "source_loss",
+      "operation_to_read_ms": 41.683761,
+      "confirmation_ms": 2005.148788,
+      "present_hz": [],
+      "silent": true
+    },
+    {
+      "case": "same_name_no_reconnect",
+      "operation_to_read_ms": 25.578605,
+      "confirmation_ms": 2005.556512,
+      "present_hz": [],
+      "silent": true
+    },
+    {
+      "case": "explicit_reselect_after_loss",
+      "operation_to_read_ms": 180.035122,
+      "confirmation_ms": 2005.538957,
+      "present_hz": [
+        440
+      ],
+      "silent": false
+    },
+    {
+      "case": "external_routing_stops_input",
+      "operation_to_read_ms": 39.59997,
+      "confirmation_ms": 2005.118733,
+      "present_hz": [],
+      "silent": true
+    },
+    {
+      "case": "input_before_exit",
+      "operation_to_read_ms": 152.146832,
+      "confirmation_ms": 2005.110723,
+      "present_hz": [
+        440
+      ],
+      "silent": false
+    },
+    {
+      "case": "app_exit_closes_input",
+      "operation_to_read_ms": 90.713316,
+      "confirmation_ms": 2005.497298,
+      "present_hz": [],
+      "silent": true
+    },
+    {
+      "case": "app_restart_off",
+      "operation_to_read_ms": 31.139649,
+      "confirmation_ms": 2005.514556,
+      "present_hz": [],
+      "silent": true
+    }
+  ],
+  "native_tauri": true,
+  "full_model_runtime": true,
+  "real_vc_verified": false,
+  "real_inference": false,
+  "physical_input": false,
+  "host_audio_changed": false,
+  "raw_pcm_saved": false,
+  "timing_boundary": "WebDriver operation call to first qualifying private-source read; 2s confirmation",
+  "latency_percentiles": null,
+  "capture": {
+    "frames": 2257,
+    "sample_count": 2166720,
+    "last_read_ns": 85150083985903,
+    "capture_gaps_over_100ms": 0,
+    "max_read_gap_ms": 42.594032,
+    "nonzero_frames": 866,
+    "detected_frames": {
+      "440": 754,
+      "880": 335,
+      "1760": 0
+    },
+    "reader_eof": false,
+    "reader_error": null
+  },
+  "private_graph_removed": true,
+  "raw_report": "tmp/voice-resume/native-direct-green/test_native_input_controls_and0/native-direct-report.json",
+  "source_commits": [
+    "efa04a4b",
+    "41013f1f"
+  ]
+}

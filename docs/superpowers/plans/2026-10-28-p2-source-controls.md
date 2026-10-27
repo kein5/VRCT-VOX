@@ -58,8 +58,8 @@ receiverがstartにbackend-owned `_direct_generation`を付け、stopを通常qu
 **Files:** Create platform native input-control test/report、必要な既存native fixture拡張。
 **Interfaces:** opt-in実Tauri＋実Controller、DPMSガード、私有PipeWire合成440/880/禁止1760のみ。入力選択→start→stop、TTSとの併用/独立停止、全体mute/解除、設定経路変更、アプリ終了/再起動OFFを確認。
 
-- [ ] REDで必要な観測/不良capture拒否を確認後、native実行。端末の物理mic・VRChat・実VCは含めない。
-- [ ] 自動試験/測定全件、未測定、許諾差分を報告。関連と全体suite（既知16失敗を区別）を実行しcommit。
+- [x] REDで必要な観測/不良capture拒否を確認後、native実行。端末の物理mic・VRChat・実VCは含めない。
+- [x] 自動試験/測定全件、未測定、許諾差分を報告。関連と全体suite（既知16失敗を区別）を実行しcommit。
 - [ ] 一回の独立review、重要指摘だけRED→GREENの一修正pass。minor保留、継続ledger保持。push/上流連絡/PRなし。
 
 ## Pre-flight
