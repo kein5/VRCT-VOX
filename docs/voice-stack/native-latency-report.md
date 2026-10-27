@@ -77,6 +77,20 @@ rawは`tmp/voice-resume/native-measurement-{fixture,irodori}/`、各試験dirの
 既存Python全体は1173 PASS / 16 FAIL / 6 SKIP（15.07s）で従来のWindows依存16失敗と同じ。
 全機能・全OSの合格ではない。正確な既存失敗名は`tmp/voice-resume/trace-full-regression.log`に保持。
 
+最終選択回帰は実Tauriの保存復元を含む **303 PASS / 3 SKIP / 5 warnings (40.26s)**。
+skipは別実行のnative voice / VRChat / measurement。UI・native binaryは本計画で変更していない。
+独立した最終reviewはCritical0 / Important0 / Minor1。raw30件の再集計も上記値と一致した。
+Minorとして「非無音write後の取消でfirst_writeあり・cancelledとなる組合せの直接回帰テスト」を保留した。
+現状は取消前writeの有無にかかわらずcompleted以外を成功集計から除外する。
+
+レビューで判定外とした範囲への判断:
+
+- 実Chatbox・相手・HMD/物理出力は別の受入れに残す。Linux sourceの成功で代替すると到達障害を見逃す。
+- Windows実機と既存16失敗はP5に残す。既存機能全体のLinux/Windows対応を保証しない。
+- 長文・多言語・連続投入・VRChat併用GPU負荷は後続測定へ。今回のpercentileを流用できない。
+- 永久的なOS/storage I/O停止は対処範囲外。診断OFFが既定だが、明示した通常fileが停止するとworkerが待つ可能性は残る。
+- 包絡照合は経路・回数の証拠として採用する。知覚音質や完全な波形同一性を保証できない。
+
 ## 残るゲート
 
 本番UI→VRChatの実Chatbox表示と音声の同時確認、VRChat併用時のGPU負荷、Windows実機、
