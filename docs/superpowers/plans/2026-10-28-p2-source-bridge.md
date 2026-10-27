@@ -33,6 +33,12 @@
 
 **Interfaces:** 既存`vrct-voice-gate COOKIE SERIAL MUTE`は維持。optional第4引数32桁lowerhex IDがある場合のみ`vrct.source-bridge.<id>.playback`、class`Stream/Output/Audio`、marker`vrct.source.bridge=v1`を対象にする。既存sourceは従来marker/classのまま。新launcher`build/vrct-source-bridge PARENT_PID [pw-loopback args...]`は固定`pw-loopback`をexecする。親PIDを前後照合し、PR_SET_PDEATHSIG=SIGKILL、失敗時はexecしない。
 
+**最終レビュー後の変更:** launcher単独の前後PID確認では生成threadの早期死亡を取り逃したため、
+最終CLIは`PARENT_PID OWNER_THREAD_PIDFD [pw-loopback args...]`。
+Pythonの非leader制御threadが起動前に開いたPIDFD_THREADを継承し、native supervisorが継続pollする。
+stdoutは音声child PIDの1行応答。supervisorはPCMを扱わず、停止/owner終了でchildを終了・回収する。
+supervisor死亡にはchildのpdeath guardが追従する。Linux6.9以降のcapabilityを必須とし、なければ開始拒否。
+
 - [x] RED: 不正/不足引数・正しいbridge IDのCLI検証、managed旧契約維持、別marker/class/name/serial拒否を試験。launcherは既に死亡した親・親通常終了・SIGKILL・親thread終了でchild残存なしを実processで検査。Expected未実装FAIL。
 - [x] 最小拡張とlauncherを実装し、build scriptで両binaryをcc -Wall -Wextra -Werror構築。
 - [x] GREEN: nativeテストと既存gate関連をuv pytestで実行。実graph試験はprivate_graphだけ、marker不一致時mute値が変わらないことも確認。
@@ -60,7 +66,7 @@ Consumes: Task1 binaries。destinationは既存`vrct.managed.vc`、Audio/Sink・
 - [x] 実装し、通常選択→停止、source削除→禁止fallback音が流れない→同名再作成でも停止保持→明示再選択、sink削除、親/制御thread停止を実OSで試験。source440Hz/禁止1760Hz/TTS880Hz、停止中TTSが継続することも観測。
 - [x] uv CLI実行Expected全ケースPASSか原因を記録。未解決ならimozuru調査後にユーザー指定通り中断。性能p95を少数試行から主張しない。
 - [x] 関連suiteと既定全体suite（既知16失敗は別記）、共有するmetadata/報告、残るP2 UI/engine/Windowsのゲートを更新してcommit。
-- [ ] 一回の独立final review。Critical/Importantのみ一回のRED→GREEN修正、Minorは記録。継続作業のためworktree/ledger保持、push/mergeなし。
+- [x] 一回の独立final review。Critical/Importantのみ一回のRED→GREEN修正、Minorは記録。継続作業のためworktree/ledger保持、push/mergeなし。
 
 ## Pre-flight
 

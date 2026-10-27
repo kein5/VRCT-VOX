@@ -35,7 +35,10 @@ Seed-VC Realtimeでは入力モニターモードが素通し、推論例外は�
 - 同じgraph上の両endpoint・実link・所有streamを検査後、cookie/serialへbindする既存native gateを拡張してそのstreamだけunmuteする。
 - 所有確認はNodeのclient.idからClientを引き、native protocolが記録するpipewire.sec.pidと生存中の所有childを照合する。自己申告application.process.idには格下げしない。同一PID namespaceを対象とする。
 - source消失、同名置換、daemon epoch変更、process終了、検査失敗は閉じ、明示startなしで復帰しない。TTSと最終仮想sourceの寿命を変更しない。
-- 小さなLinux launcherで親終了シグナルを設定し、接続processを親より長く残さない。作成threadの終了にも反応するため、専用の制御threadがprocessを所有する。
+- 専用の非leader制御threadが起動前に自分のthread pidfdを開き、native supervisorが全寿命を監視する。
+  接続processはsupervisorの子とし、supervisor死亡にも親終了シグナルで追従する。
+  単純exec＋getppid前後確認だけでは、prctl前のcreator-thread終了を取り逃すことがレビューで再現されたため変更した。
+  PIDFD_THREAD（Linux 6.9以降）が利用できない環境では開始を拒否する。数値TIDの再検査には格下げしない。
 - 非Linuxでこのbackendを呼ぶと明示的に未対応を返す。import段階でWindows機能を壊さない。Windows capture/forwardingとUIは後続の独立タスク。
 
 WirePlumber公式は`target.object`とdont-fallback/dont-reconnect/dont-moveの挙動を定義する。

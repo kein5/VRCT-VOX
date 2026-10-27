@@ -7,9 +7,10 @@ from dataclasses import dataclass, field
 import json
 import os
 from pathlib import Path
+import select
 import subprocess
 import sys
-from threading import Event, Lock, Thread
+from threading import Event, Lock, Thread, get_native_id
 import time
 from uuid import uuid4
 
@@ -71,18 +72,66 @@ def _read_graph():
         raise RuntimeError('source_bridge_graph_unavailable') from exc
 
 
+class _BridgeProcess:
+    """Control the supervisor; authenticate streams against its reported child."""
+    def __init__(self, supervisor, audio_pid):
+        self.supervisor, self.pid = supervisor, audio_pid
+
+    def poll(self):
+        return self.supervisor.poll()
+
+    def terminate(self):
+        self.supervisor.terminate()
+
+    def kill(self):
+        self.supervisor.kill()
+
+    def wait(self, timeout):
+        return self.supervisor.wait(timeout=timeout)
+
+
+def _audio_pid(process):
+    if not select.select([process.stdout], [], [], 2)[0]:
+        raise RuntimeError('source_bridge_launch_timeout')
+    reply = os.read(process.stdout.fileno(), 64)
+    if not reply.endswith(b'\n') or not reply[:-1].isdigit():
+        raise RuntimeError('source_bridge_launch_failed')
+    pid = int(reply[:-1])
+    if pid <= 1 or pid == process.pid:
+        raise RuntimeError('source_bridge_launch_failed')
+    return pid
+
+
 def _launch(source, sink, tag):
     common = ('vrct.source.bridge=v1 node.dont-fallback=true node.dont-reconnect=true '
               'node.dont-move=true node.linger=false state.restore-props=false')
-    return subprocess.Popen([
+    # Linux >=6.9 PIDFD_THREAD is O_EXCL in the public UAPI. Opening our own
+    # nonleader control thread here prevents TID reuse and pre-main death races.
+    try:
+        owner_fd = os.pidfd_open(get_native_id(), os.O_EXCL)
+    except (AttributeError, OSError) as exc:
+        raise RuntimeError('source_bridge_thread_watch_unavailable') from exc
+    try:
+        supervisor = subprocess.Popen([
         str(BUILD / 'vrct-source-bridge'), str(os.getpid()),
+        str(owner_fd),
         '--channels', '1', '--channel-map', 'MONO', '--latency', '10ms',
         '--capture-props', f'{common} node.name=vrct.source-bridge.{tag}.capture '
                            f'media.class=Stream/Input/Audio target.object={source.serial}',
         '--playback-props', f'{common} node.name=vrct.source-bridge.{tag}.playback '
                             f'media.class=Stream/Output/Audio target.object={sink.serial} '
                             'node.param.Props={mute=true}',
-    ], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+           pass_fds=(owner_fd,))
+    finally:
+        os.close(owner_fd)
+    try:
+        return _BridgeProcess(supervisor, _audio_pid(supervisor))
+    except BaseException:
+        _reap(supervisor)
+        raise
+    finally:
+        supervisor.stdout.close()
 
 
 def _unmute(endpoint, tag):

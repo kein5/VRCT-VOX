@@ -77,7 +77,7 @@ def test_launcher_rejects_missing_or_wrong_parent(tmp_path, args):
     assert subprocess.run([str(launcher), *args], timeout=2).returncode != 0
 
 
-@pytest.mark.parametrize("mode", ["normal", "kill", "thread"])
+@pytest.mark.parametrize("mode", ["normal", "kill", "thread", "supervisor"])
 def test_launcher_child_cannot_outlive_creating_parent_or_thread(tmp_path, mode):
     from tools.voice_acceptance import wait_for
     launcher = compile_helper(tmp_path, "native/source-bridge/main.c")
@@ -89,9 +89,19 @@ import os, subprocess, sys, threading, time
 mode, launcher = sys.argv[1:]
 leave = threading.Event()
 def launch():
-    child = subprocess.Popen([launcher, str(os.getpid())])
-    print(child.pid, flush=True)
+    fd = os.pidfd_open(threading.get_native_id(), os.O_EXCL)
+    try:
+        child = subprocess.Popen([launcher, str(os.getpid()), str(fd)], pass_fds=(fd,), stdout=subprocess.PIPE, text=True)
+    finally:
+        os.close(fd)
+    print(child.stdout.readline().strip(), flush=True)
     if mode == 'thread': leave.wait()
+    if mode == 'supervisor':
+        input()
+        child.kill()
+        child.wait(timeout=2)
+        print('supervisor-ended', flush=True)
+        time.sleep(30)
 if mode == 'thread':
     thread = threading.Thread(target=launch)
     thread.start()
@@ -117,8 +127,8 @@ else:
         else:
             parent.stdin.write("go\n")
             parent.stdin.flush()
-        if mode == "thread":
-            assert parent.stdout.readline().strip() == "thread-ended"
+        if mode in ('thread', 'supervisor'):
+            assert parent.stdout.readline().strip() == mode + '-ended'
             assert parent.poll() is None
         else:
             parent.wait(timeout=3)
@@ -129,3 +139,49 @@ else:
         parent.communicate(timeout=3)
         if child and child.is_running() and child.status() != psutil.STATUS_ZOMBIE:
             child.kill()
+
+
+def test_creator_death_before_launcher_main_cannot_leave_audio_child(tmp_path):
+    """Deterministically pause before prctl; the creating thread then exits."""
+    launcher = compile_helper(tmp_path, 'native/source-bridge/main.c')
+    preload = tmp_path / 'pause.c'
+    preload.write_text('#include <signal.h>\n#include <stdlib.h>\n'
+                       '__attribute__((constructor)) static void pause_main(void) {'
+                       'unsetenv("LD_PRELOAD"); raise(SIGSTOP); }\n')
+    library = tmp_path / 'pause.so'
+    subprocess.run(['cc', '-shared', '-fPIC', str(preload), '-o', str(library)], check=True)
+    fake = tmp_path / 'pw-loopback'
+    fake.write_text('#!/bin/sh\nexec ' + shutil.which('sleep') + ' 30\n')
+    fake.chmod(0o700)
+    script = '''
+import os, signal, subprocess, sys, threading
+launcher, library = sys.argv[1:]
+owned = []
+def create():
+    fd = os.pidfd_open(threading.get_native_id(), os.O_EXCL)
+    try:
+        child = subprocess.Popen([launcher, str(os.getpid()), str(fd)], pass_fds=(fd,),
+                                  env={**os.environ, 'LD_PRELOAD': library})
+        owned.append(child)
+        pid, status = os.waitpid(child.pid, os.WUNTRACED)
+        assert os.WIFSTOPPED(status)
+    finally:
+        os.close(fd)
+thread = threading.Thread(target=create)
+thread.start(); thread.join()
+child = owned[0]
+try:
+    child.send_signal(signal.SIGCONT)
+    try:
+        code = child.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        sys.exit(4)
+    assert code != 0
+finally:
+    if child.poll() is None: child.kill()
+    child.wait(timeout=2)
+'''
+    result = subprocess.run([sys.executable, '-c', script, str(launcher), str(library)],
+                            env={**os.environ, 'PATH': str(tmp_path) + os.pathsep + os.environ['PATH']},
+                            capture_output=True, text=True, timeout=8)
+    assert result.returncode == 0, result.stderr or 'child survived creator before guard installation'

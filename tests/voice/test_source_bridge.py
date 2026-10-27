@@ -1,6 +1,7 @@
 """Source route control: identity loss, fail-closed health, and stop races."""
 import copy
 import importlib
+import os
 import threading
 import time
 
@@ -123,6 +124,7 @@ class Backend:
 @pytest.fixture
 def system(monkeypatch):
     m, backend = module(), Backend()
+    monkeypatch.setattr(m.sys, 'platform', 'linux')  # fake backend, including on Windows CI
     monkeypatch.setattr(m, '_read_graph', backend.read)
     monkeypatch.setattr(m, '_launch', backend.launch)
     monkeypatch.setattr(m, '_unmute', backend.unmute)
@@ -240,7 +242,14 @@ def test_reselected_source_and_non_linux_are_rejected_before_launch(system, monk
 def test_launch_arguments_pin_serials_and_start_muted(monkeypatch):
     m = module()
     captured = []
-    monkeypatch.setattr(m.subprocess, 'Popen', lambda args, **kw: captured.append((args, kw)))
+    class Supervisor(Child):
+        stdout = open(os.devnull, 'rb')
+    def launch(args, **kw):
+        captured.append((args, kw))
+        return Supervisor(1234)
+    monkeypatch.setattr(m.subprocess, 'Popen', launch)
+    monkeypatch.setattr(m, '_audio_pid', lambda process: 1235)
+    monkeypatch.setattr(m.os, 'pidfd_open', lambda *args: os.open(os.devnull, os.O_RDONLY), raising=False)
     m._launch(m.Endpoint(42, 110, 'external.source', 'Audio/Source'),
               m.Endpoint(42, 111, 'vrct.managed.vc', 'Audio/Sink'), 'a' * 32)
     args, kwargs = captured[0]
@@ -252,6 +261,7 @@ def test_launch_arguments_pin_serials_and_start_muted(monkeypatch):
         assert all(x in value for x in ['node.dont-fallback=true', 'node.dont-reconnect=true',
                                        'node.dont-move=true', 'node.linger=false'])
     assert not kwargs.get('shell', False)
+    assert kwargs['pass_fds'] == (int(args[2]),)
 
 
 @pytest.mark.parametrize('fault', [None, 'missing', 'duplicate', 'wrong_pid', 'spoof_app_pid'])
@@ -281,3 +291,14 @@ def test_stream_owner_is_the_server_authenticated_client(fault):
     else:
         with pytest.raises(RuntimeError, match='owner'):
             m._links(b.data, source, sink, tag, child.pid, True)
+
+
+def test_kernel_without_thread_pidfd_rejects_start_without_spawning(monkeypatch):
+    m = module()
+    def unavailable(*args):
+        raise OSError('unsupported')
+    monkeypatch.setattr(m.os, 'pidfd_open', unavailable, raising=False)
+    monkeypatch.setattr(m.subprocess, 'Popen', lambda *a, **kw: pytest.fail('must not spawn'))
+    with pytest.raises(RuntimeError, match='thread_watch_unavailable'):
+        m._launch(m.Endpoint(42, 110, 'external.source', 'Audio/Source'),
+                  m.Endpoint(42, 111, 'vrct.managed.vc', 'Audio/Sink'), 'a' * 32)
