@@ -26,11 +26,13 @@ for name in ('pyaudiowpatch', 'pycaw', 'windows_capture', 'model', 'config', 'to
 def test_voice_endpoints_exist_on_both_sides():
     tree = ast.parse((ROOT / "src-python/mainloop.py").read_text(encoding="utf-8"))
     backend = {n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)
-               and ("/voice_" in n.value or n.value == "/run/stop_voice")}
+               and ("/voice_" in n.value or n.value in {"/run/stop_voice", "/run/mute_voice", "/run/resume_voice"})}
     routes = (ROOT / "src-ui/logics/useReceiveRoutes.js").read_text(encoding="utf-8")
-    frontend = set(re.findall(r'endpoint: "([^"]*(?:/voice_[^"/]+|/stop_voice))"', routes))
+    frontend = set(re.findall(r'endpoint: "([^"]*(?:/voice_[^"/]+|/(?:stop|mute|resume)_voice))"', routes))
     assert backend == frontend
-    assert len(backend) == 5
+    assert backend == {'/get/data/voice_settings', '/set/data/voice_settings', '/get/data/voice_status',
+                       '/get/data/voice_output_devices', '/get/data/voice_route',
+                       '/run/stop_voice', '/run/mute_voice', '/run/resume_voice'}
 
 
 def test_ui_labels_have_japanese_and_english_translations():

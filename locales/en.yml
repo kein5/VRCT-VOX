@@ -4,6 +4,19 @@
 # =================================
 
 voice:
+    routing: "Audio route"
+    routing_external: "Existing external cable"
+    routing_managed: "Managed virtual microphone (Linux)"
+    managed_hint: "Install the managed PipeWire route first. Select VRCT Managed Virtual Microphone in VRChat, and explicitly resume after saving."
+    mute_scope_managed: "Mute applies to TTS and VC sent through this managed microphone."
+    mute_scope_external: "Mute applies to VRCT text-to-speech only."
+    mute: "Mute until resumed"
+    resume: "Resume voice"
+    gate_pending: "Waiting for mute state confirmation…"
+    gate_unknown: "Mute state not confirmed"
+    gate_error: "Mute control failed — silence is not confirmed"
+    gate_muted: "Muted (confirmed)"
+    gate_open: "Voice enabled (confirmed)"
     title: "Text to voice (speech.cpp)"
     description: "Read sent text through a virtual microphone. Start your local speech.cpp server first."
     loading: "Loading voice settings…"

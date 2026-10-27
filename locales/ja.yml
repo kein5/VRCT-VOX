@@ -4,6 +4,19 @@
 # =================================
 
 voice:
+    routing: "音声経路"
+    routing_external: "既存の外部ケーブル"
+    routing_managed: "管理対象の仮想マイク（Linux）"
+    managed_hint: "先にPipeWireの常駐経路を導入してください。VRChatでVRCT Managed Virtual Microphoneを選び、設定保存後に「音声を再開」を押してください。"
+    mute_scope_managed: "この仮想マイクを通るTTSとVCをまとめてミュートします。"
+    mute_scope_external: "VRCTのテキスト読み上げだけをミュートします。"
+    mute: "再開するまでミュート"
+    resume: "音声を再開"
+    gate_pending: "ミュート状態を確認しています…"
+    gate_unknown: "ミュート状態は未確認です"
+    gate_error: "ミュート制御に失敗しました。無音は確認できていません"
+    gate_muted: "ミュート中（確認済み）"
+    gate_open: "音声出力有効（確認済み）"
     title: "テキスト発声（speech.cpp）"
     description: "送信テキストを仮想マイクへ読み上げます。先にローカルのspeech.cppサーバーを起動してください。"
     loading: "音声設定を読み込み中…"

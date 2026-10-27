@@ -30,16 +30,16 @@
 - [x] latchがconfigure/cancelで解除されずpublishを拒否し、明示resume後の新規要求のみ通る試験をRED→GREEN。
 - [x] workerの初期mute、設定変更、identity欠落・再生成、command失敗、stale resumeをRED→GREEN。
 - [x] daemon configの初期muteと名前指定のadapterを実装。単体suiteと独立graph smokeで検証。Expected: tests pass、native初期mute。
-- [ ] 検証済み差分をcommit。
+- [x] 検証済み差分をcommit。
 
 ### Task 2: Controller/API/UI/CLI統合
 
 **Files:** controller.py、config.py、mainloop.py、src-ui/logics/voice/useVoice.js、useReceiveRoutes.js、VoiceSettings.jsx、locales/en.yml/ja.yml、tools/voice_route.py、tests/voice/test_managed_controller.py。
 **Interfaces:** atomic voice_mute_state.json、routing設定、voice_route status/priority mute/resume endpoints。CLI status/mute/resumeは同じbackendを使う。
 
-- [ ] 旧payload互換、mute中のchatと翻訳遅着、設定保存で解除されないこと、起動時再mute、優先受付をRED→GREEN。
-- [ ] backend/APIとUIのrouting選択・mute/resume・pending/失敗表示を接続する。native stateへ触れるのは明示managed選択時だけ。
-- [ ] uv voice suite、Node契約、Vite、Ruff。Expected: green、既存テキスト契約を保持。
+- [x] 旧payload互換、mute中のchatと翻訳遅着、設定保存で解除されないこと、起動時再mute、優先受付をRED→GREEN。
+- [x] backend/APIとUIのrouting選択・mute/resume・pending/失敗表示を接続する。native stateへ触れるのは明示managed選択時だけ。
+- [x] uv voice suite、Node契約、Vite、Ruff。Expected: green、既存テキスト契約を保持。
 - [ ] 検証済み差分をcommit。
 
 ### Task 3: 実経路確認と記録

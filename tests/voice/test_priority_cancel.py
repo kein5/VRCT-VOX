@@ -27,6 +27,7 @@ def mainloop_module(controller_module, monkeypatch, tmp_path):  # noqa: F811 (py
     monkeypatch.setattr(module, "printLog", lambda *args: None)
     monkeypatch.setattr(module, "printResponse", lambda *args: None)
     yield module
+    module.controller.voice_route.close()
     module.controller.voice_events.close()
     module._cleanupCrashTraceIfEmpty()
 
@@ -36,11 +37,16 @@ def wire_message(endpoint, data=None):
     return json.dumps({"endpoint": endpoint, "data": encoded}) + "\n"
 
 
-def test_receiver_cancel_bypasses_busy_workers_and_stamps_queued_chat(mainloop_module, monkeypatch):
+@pytest.mark.parametrize("command", ["stop_voice", "mute_voice", "resume_voice"])
+def test_receiver_cancel_bypasses_busy_workers_and_stamps_queued_chat(mainloop_module, monkeypatch, command):
     module = mainloop_module
     controller = module.controller
     controller.messageFormatter = MagicMock(return_value="text")
     controller.voice_events.configure(VoiceSettings(mode="original", output_device="cable"))
+    from test_managed_route import ready
+    if command == "resume_voice":
+        controller.muteVoice()
+        ready(controller.voice_route)
     old_generation = controller.voice_events.generation()
     entered = [Event() for _ in range(3)]
     release, stopped, chat_done = Event(), Event(), Event()
@@ -54,7 +60,9 @@ def test_receiver_cancel_bypasses_busy_workers_and_stamps_queued_chat(mainloop_m
         return call
 
     def cancel(data):
-        result = controller.stopVoice(data)
+        method = {"stop_voice": controller.stopVoice, "mute_voice": controller.muteVoice,
+                  "resume_voice": controller.resumeVoice}[command]
+        result = method(data)
         stopped.set()
         return result
 
@@ -64,7 +72,7 @@ def test_receiver_cancel_bypasses_busy_workers_and_stamps_queued_chat(mainloop_m
         return result
 
     mapping = {f"/busy/{i}": {"status": True, "variable": busy(i)} for i in range(3)}
-    mapping.update({"/run/stop_voice": {"status": True, "variable": cancel},
+    mapping.update({f"/run/{command}": {"status": True, "variable": cancel},
                     "/run/send_message_box": {"status": True, "variable": chat}})
     main = module.Main(controller, mapping)
     monkeypatch.setattr(module.sys, "stdin", type("Input", (), {"readline": lambda self: pending.get()})())
@@ -76,8 +84,9 @@ def test_receiver_cancel_bypasses_busy_workers_and_stamps_queued_chat(mainloop_m
         assert all(e.wait(1) for e in entered)
         pending.put(wire_message("/run/send_message_box", {"id": "queued", "message": "test",
                                                          "_voice_generation": old_generation + 100}))
-        pending.put(wire_message("/run/stop_voice"))
+        pending.put(wire_message(f"/run/{command}"))
         assert stopped.wait(0.25), "stop waited behind occupied ordinary workers"
+        ready(controller.voice_route)
         assert controller.voice_events.generation() == old_generation + 1
         release.set()
         assert chat_done.wait(1)

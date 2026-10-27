@@ -7,6 +7,8 @@ import copy
 import functools
 import re
 import time
+import sys
+from pathlib import Path
 from device_manager import device_manager
 from config import config, ConfigValidationError, DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 from model import model, SETUP_LAUNCHED, SETUP_DOWNLOAD_FAILED, SETUP_VERIFY_FAILED
@@ -19,6 +21,9 @@ from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
 from models.tts.message_hook import chat_event
 from models.audio_routing.audio_router import enumerate_outputs
+from models.audio_routing.managed_route import VoiceRoute
+from models.audio_routing.mute_state import MuteState
+from models.audio_routing.pipewire_gate import PipeWireGate
 from models.overlay.overlay_tooltip import validate_tooltip
 from models.overlay.overlay import PANEL_ANCHORS, computeVrLayout, clampPanelSize, mirrorHandPosition
 
@@ -329,6 +334,12 @@ class Controller:
         self._model = model_override if model_override is not None else model
         voice_settings = getattr(self._config, "VOICE_SETTINGS", {})
         self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings if isinstance(voice_settings, dict) else {}))
+        config_path = getattr(self._config, '_PATH_CONFIG', 'config.json')
+        if not isinstance(config_path, (str, Path)):
+            config_path = 'config.json'
+        self.voice_route = VoiceRoute(self.voice_events, gate=PipeWireGate(),
+                                     store=MuteState(Path(config_path).with_name('voice_mute_state.json')))
+        self.voice_route.configure(self.voice_events.settings.routing == 'managed')
         self._voice_settings_lock = Lock()
         # typed attributes to satisfy static type checkers
         self.init_mapping: dict = {}
@@ -434,6 +445,8 @@ class Controller:
         Returns:
             dict with status 200 and result True on success.
         """
+        if getattr(self, "voice_route", None) is not None:
+            self._stopServiceForShutdown(self.voice_route.close, "voice gate")
         if getattr(self, "voice_events", None) is not None:
             self._stopServiceForShutdown(self.voice_events.close, "TTS")
         # デバイス監視・録音系スレッドを明示的に停止する。これを怠ると
@@ -1425,16 +1438,36 @@ class Controller:
     def setVoiceSettings(self, data, *args, **kwargs) -> dict:
         try:
             settings = VoiceSettings.from_dict(data)
+            if settings.routing == 'managed' and not sys.platform.startswith('linux'):
+                raise ValueError('managed_route_linux_only')
         except (ValueError, TypeError):
             return {"status": 400, "result": {"error_code": "VOICE_SETTINGS_INVALID",
                     "message": "Invalid voice settings; select an output and local server.", "data": None}}
         with self._voice_settings_lock:
+            try:
+                self.voice_route.configure(settings.routing == 'managed')
+            except RuntimeError as exc:
+                return {'status': 409, 'result': {'error_code': str(exc)}}
             config.VOICE_SETTINGS = settings.to_dict()
             self.voice_events.configure(settings)
         return self.getVoiceSettings()
 
     def getVoiceStatus(self, *args, **kwargs) -> dict:
         return {"status": 200, "result": self.voice_events.status()}
+
+    def getVoiceRoute(self, *args, **kwargs) -> dict:
+        return {'status': 200, 'result': self.voice_route.status()}
+
+    def muteVoice(self, *args, **kwargs) -> dict:
+        self.voice_route.mute()
+        return self.getVoiceRoute()
+
+    def resumeVoice(self, *args, **kwargs) -> dict:
+        try:
+            self.voice_route.resume()
+        except RuntimeError as exc:
+            return {'status': 409, 'result': {'error_code': str(exc)}}
+        return self.getVoiceRoute()
 
     def getVoiceOutputDevices(self, *args, **kwargs) -> dict:
         try:

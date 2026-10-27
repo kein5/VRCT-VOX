@@ -5,14 +5,18 @@ import styles from "./VoiceSettings.module.scss";
 
 export const VoiceSettings = () => {
     const { t } = useI18n();
-    const { settings, status, devices, error, send, updateError } = useVoice();
+    const { settings, status, route, devices, error, send, updateError } = useVoice();
     const [draft, setDraft] = useState(null);
     const [saving, setSaving] = useState(false);
     useEffect(() => {
         send("/get/data/voice_settings");
         send("/get/data/voice_output_devices");
         send("/get/data/voice_status");
-        const timer = setInterval(() => send("/get/data/voice_status"), 1000);
+        send("/get/data/voice_route");
+        const timer = setInterval(() => {
+            send("/get/data/voice_status");
+            send("/get/data/voice_route");
+        }, 1000);
         return () => clearInterval(timer);
     }, [send]);
     useEffect(() => { setDraft(settings); setSaving(false); }, [settings]);
@@ -50,13 +54,20 @@ export const VoiceSettings = () => {
                 </select>
             </label>
             <label>{t("voice.output_device")}
-                <select value={draft.output_device} onChange={e => field("output_device", e.target.value)}>
+                <select disabled={draft.routing === "managed"} value={draft.output_device} onChange={e => field("output_device", e.target.value)}>
                     <option value="">{t("voice.select_output")}</option>
                     {draft.output_device && !deviceList.some(d => d.id === draft.output_device) &&
                         <option value={draft.output_device}>{t("voice.disconnected")}: {draft.output_device}</option>}
                     {deviceList.map(device => <option key={device.id} value={device.id}>{device.label}</option>)}
                 </select>
             </label>
+            <label>{t("voice.routing")}
+                <select value={draft.routing || "external"} onChange={e => field("routing", e.target.value)}>
+                    <option value="external">{t("voice.routing_external")}</option>
+                    <option value="managed">{t("voice.routing_managed")}</option>
+                </select>
+            </label>
+            {draft.routing === "managed" && <p>{t("voice.managed_hint")}</p>}
             <button type="button" onClick={() => send("/get/data/voice_output_devices")}>{t("voice.refresh")}</button>
             {input("japanese_url")}{input("japanese_voice")}
             {input("multilingual_url")}{input("multilingual_voice")}
@@ -64,9 +75,16 @@ export const VoiceSettings = () => {
             <button type="submit" disabled={saving}>{t(saving ? "voice.saving" : "voice.save")}</button>
             <button type="button" onClick={() => send("/run/stop_voice")}>{t("voice.stop")}</button>
         </form>
+        <p>{t(route.managed ? "voice.mute_scope_managed" : "voice.mute_scope_external")}</p>
+        <button type="button" onClick={() => send("/run/mute_voice")}>{t("voice.mute")}</button>
+        <button type="button" disabled={!route.ready || route.pending || !route.requested_muted}
+            onClick={() => send("/run/resume_voice")}>{t("voice.resume")}</button>
+        <p role="status">{t(route.error ? "voice.gate_error" : route.pending ? "voice.gate_pending" :
+            !route.ready || route.observed_muted == null ? "voice.gate_unknown" :
+                route.observed_muted ? "voice.gate_muted" : "voice.gate_open")}</p>
         <p role="status">{t(status.active ? "voice.playing" : "voice.idle")} · {t("voice.queued")}: {status.queued ?? 0}</p>
         {status.dropped > 0 && <p>{t("voice.dropped", { count: status.dropped })}</p>}
-        {(error || status.last_error || devices.error) &&
-            <p role="alert">{t("voice.error")}: {error || status.last_error || devices.error}</p>}
+        {(error || route.error || status.last_error || devices.error) &&
+            <p role="alert">{t("voice.error")}: {error || route.error || status.last_error || devices.error}</p>}
     </section>;
 };

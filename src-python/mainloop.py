@@ -576,6 +576,9 @@ mapping = {
     "/get/data/voice_status": {"status": True, "variable":controller.getVoiceStatus},
     "/get/data/voice_output_devices": {"status": True, "variable":controller.getVoiceOutputDevices},
     "/run/stop_voice": {"status": True, "variable":controller.stopVoice},
+    "/get/data/voice_route": {"status": True, "variable":controller.getVoiceRoute},
+    "/run/mute_voice": {"status": True, "variable":controller.muteVoice},
+    "/run/resume_voice": {"status": True, "variable":controller.resumeVoice},
 
     "/get/data/websocket_host": {"status": True, "variable":controller.getWebSocketHost},
     "/set/data/websocket_host": {"status": True, "variable":controller.setWebSocketHost},
@@ -739,8 +742,8 @@ class Main:
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
                     printLog(endpoint, {"receive_data": data})
-                    if endpoint == "/run/stop_voice":
-                        # Cancellation only signals the TTS worker; it does not
+                    if endpoint in {"/run/stop_voice", "/run/mute_voice", "/run/resume_voice"}:
+                        # These requests only signal workers; they do not
                         # join, infer, or close a driver here. Busy ordinary
                         # handlers must not delay this request.
                         result, status = self._call_handler(endpoint, data)

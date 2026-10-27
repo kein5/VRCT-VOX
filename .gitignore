@@ -57,6 +57,7 @@ dist-ssr
 error.txt
 config.json
 config.json.tmp
+voice_mute_state.json
 
 
 # Personal Claude Code settings (not shared with the team)

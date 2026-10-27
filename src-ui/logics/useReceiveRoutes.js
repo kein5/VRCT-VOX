@@ -13,6 +13,9 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/voice_status", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
     { endpoint: "/get/data/voice_output_devices", ns: voice, hook_name: "useVoice", method_name: "updateDevices" },
     { endpoint: "/run/stop_voice", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
+    { endpoint: "/get/data/voice_route", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
+    { endpoint: "/run/mute_voice", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
+    { endpoint: "/run/resume_voice", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
     // Common
     { endpoint: "/run/feed_watchdog", ns: null, hook_name: null, method_name: null },
     { endpoint: "/run/initialization_progress", ns: common, hook_name: "useInitProgress", method_name: "updateInitProgress" },
@@ -178,7 +181,7 @@ export const useReceiveRoutes = () => {
 
     const receiveRoutes = (parsed_data) => {
         const { endpoint, status, result } = parsed_data;
-        if (status !== 200 && (endpoint.includes("/voice_") || endpoint === "/run/stop_voice")) {
+        if (status !== 200 && (endpoint.includes("/voice_") || ["/run/stop_voice", "/run/mute_voice", "/run/resume_voice"].includes(endpoint))) {
             updateVoiceError(result?.error_code || "voice_request_failed");
             return;
         }

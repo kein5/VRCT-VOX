@@ -19,7 +19,7 @@ from test_scheduler import Sink, until
 
 
 @pytest.fixture
-def controller_module(monkeypatch):
+def controller_module(monkeypatch, tmp_path):
     # Stub only unrelated services at the import boundary. Controller and
     # MessageDirectionSpec are the production sources, with no AST rewrites.
     stubs = {
@@ -37,6 +37,7 @@ def controller_module(monkeypatch):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module.config = SimpleNamespace(
+        _PATH_CONFIG=str(tmp_path / 'config.json'),
         VOICE_SETTINGS=VoiceSettings().to_dict(), ENABLE_TRANSLATION=False,
         SELECTED_YOUR_LANGUAGES={"1": {"1": {"language": "Japanese", "enable": True}}},
         SELECTED_TARGET_LANGUAGES={"1": {"1": {"language": "English", "enable": True},
