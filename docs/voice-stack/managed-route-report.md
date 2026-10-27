@@ -97,7 +97,8 @@ CIにはLinux helperのコンパイルを追加したが、リモートCI/Window
 5. 当初は専用computer-useツールがないためGUI操作を手動必須と説明したが、
    [後続のimozuru調査](vrchat-gui-automation-research.md)でydotool/kdotool/Spectacleの導入と
    uinput権限を確認した。CLIを組み合わせる自動化案を採れる見込みがあり、前の断定を訂正する。
-   VRChatでの入力・画像・録音再生の結合試験と、物理的な聞こえの確認はまだ行っていない。
+   後続の[GUI PoC](vrchat-gui-poc-report.md)では既存P1経路で操作・録音再生を試験した。
+   managed経路のVRChat実機受入と、今回の物理的な聞こえの確認は未実施。
 
 ## 実装時の判断
 

@@ -1,0 +1,1573 @@
+{
+  "date": "2026-10-27",
+  "scope": "prepared Japanese desktop VRChat microphone test, existing P1 route",
+  "platform": "KDE Wayland / PipeWire / Wine-Proton VRChat desktop",
+  "reference": {
+    "text": "こんにちは。音声の接続テストです。",
+    "duration_seconds": 5.745979166666666,
+    "rate": 48000,
+    "channels": 1,
+    "format": "s16le",
+    "sha256": "da502624c4d78c546c4dc41353cc4412a4c81d0a1241d203b67448430e3916aa",
+    "committed": false
+  },
+  "final_source_sha256": {
+    "tools/vrchat_gui_probe.py": "24e3e6cb5f9f6a5974420eecbe901273da6395acad0317dfa1f2ee27bd022802",
+    "tools/vrchat_audio_probe.py": "a32f54cc7d06735fdd4c3b757ae2f623380689af4d044219a1024edbbec5ac05",
+    "tests/voice/test_vrchat_gui_probe.py": "fcb0317b2497def7bc7eb06298f32812806be87d85eda78148871f24f4273b0a",
+    "tests/voice/test_vrchat_audio_probe.py": "e597c5c32daff20c1c4d1ef5483e68a0b1530d6105606eb1e563eec7e87e7cca"
+  },
+  "final_matrix_prefix": "final-noise-off-",
+  "trials": [
+    {
+      "case": "positive",
+      "verdict": "fail",
+      "boundary": "local_VRChat_test_digital_replay",
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "producer_started_seconds": 1.0813212119974196,
+      "producer_exit_seconds": 6.853615392999927,
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1152000,
+          "elapsed_seconds": 24.020269692999136,
+          "last_read_seconds": 24.021863054000278,
+          "max_read_gap_seconds": 0.04506734200185747,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1152256,
+          "elapsed_seconds": 24.018301887001144,
+          "last_read_seconds": 24.019922760002373,
+          "max_read_gap_seconds": 0.045453519000147935,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.6832923141528835,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 24.005333333333333,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.9753173951486475,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 1.08,
+            "score": 0.9753173951486475
+          }
+        ],
+        "observed_seconds": 24.0,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "artifact_directory": "checked-positive",
+      "noise_suppression": "on",
+      "gui_observation_count": 22
+    },
+    {
+      "case": "double",
+      "verdict": "pass",
+      "boundary": "local_VRChat_test_digital_replay",
+      "lead_in_seconds": 1.5,
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "producer_started_seconds": 3.1978011009996408,
+      "producer_exit_seconds": 8.96974250600033,
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1537536,
+          "elapsed_seconds": 32.044415807002224,
+          "last_read_seconds": 32.04617764600334,
+          "max_read_gap_seconds": 0.04760149600042496,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1537792,
+          "elapsed_seconds": 32.04685817799691,
+          "last_read_seconds": 32.04824823599847,
+          "max_read_gap_seconds": 0.0472594820021186,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "fail",
+        "occurrences": 2,
+        "best_envelope_correlation": 0.9974801509649704,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 13.04,
+            "score": 0.9966444584354609
+          },
+          {
+            "offset_seconds": 23.88,
+            "score": 0.9974801509649704
+          }
+        ],
+        "observed_seconds": 32.037333333333336,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.9675184750574622,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 3.22,
+            "score": 0.9675184750574622
+          }
+        ],
+        "observed_seconds": 32.032,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "post_stop": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 22.562270833333333,
+        "peak_limit_s16": 8,
+        "window_start_seconds": 9.46974250600033
+      },
+      "artifact_directory": "final-noise-off-double",
+      "noise_suppression": "off",
+      "gui_observation_count": 33
+    },
+    {
+      "case": "positive",
+      "verdict": "pass",
+      "boundary": "local_VRChat_test_digital_replay",
+      "lead_in_seconds": 1.5,
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "producer_started_seconds": 3.1119254820005153,
+      "producer_exit_seconds": 8.88459549700201,
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1152000,
+          "elapsed_seconds": 24.012526705999335,
+          "last_read_seconds": 24.01399528299953,
+          "max_read_gap_seconds": 0.045736452000710415,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1152000,
+          "elapsed_seconds": 24.01551657899836,
+          "last_read_seconds": 24.016647709999233,
+          "max_read_gap_seconds": 0.046210335996875074,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.9960279199540409,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 12.96,
+            "score": 0.9960279199540409
+          }
+        ],
+        "observed_seconds": 24.0,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.9999999999785238,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 3.12,
+            "score": 0.9999999999785238
+          }
+        ],
+        "observed_seconds": 24.0,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "post_stop": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 14.615416666666667,
+        "peak_limit_s16": 8,
+        "window_start_seconds": 9.38459549700201
+      },
+      "artifact_directory": "final-noise-off-positive",
+      "noise_suppression": "off",
+      "gui_observation_count": 19
+    },
+    {
+      "case": "silence",
+      "verdict": "pass",
+      "boundary": "local_VRChat_test_digital_replay",
+      "lead_in_seconds": 1.5,
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1152256,
+          "elapsed_seconds": 24.01924321000115,
+          "last_read_seconds": 24.020952099999704,
+          "max_read_gap_seconds": 0.04611246100103017,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1152256,
+          "elapsed_seconds": 24.022046611000405,
+          "last_read_seconds": 24.023403267001413,
+          "max_read_gap_seconds": 0.04655046599873458,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.3223928768470241,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 24.005333333333333,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.0,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 24.005333333333333,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "post_stop": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 23.505333333333333,
+        "peak_limit_s16": 8,
+        "window_start_seconds": 0.5
+      },
+      "silence_control": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 24.005333333333333,
+        "peak_limit_s16": 8
+      },
+      "artifact_directory": "final-noise-off-silence",
+      "noise_suppression": "off",
+      "gui_observation_count": 29
+    },
+    {
+      "case": "stop",
+      "verdict": "pass",
+      "boundary": "local_VRChat_test_digital_replay",
+      "lead_in_seconds": 1.5,
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "producer_started_seconds": 3.199060107999685,
+      "producer_exit_seconds": 5.200305423000827,
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1152256,
+          "elapsed_seconds": 24.017556435999722,
+          "last_read_seconds": 24.01904842699878,
+          "max_read_gap_seconds": 0.04503895900052157,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1152512,
+          "elapsed_seconds": 24.020206357999996,
+          "last_read_seconds": 24.021760626001196,
+          "max_read_gap_seconds": 0.04551668899875949,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.5342192010254887,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 24.010666666666665,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.5319983263227658,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 24.005333333333333,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "post_stop": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 18.305041666666668,
+        "peak_limit_s16": 8,
+        "window_start_seconds": 5.700305423000827
+      },
+      "mic_before_stop": {
+        "verdict": "fail",
+        "peak_s16": 19420,
+        "observed_seconds": 1.80125,
+        "peak_limit_s16": 8
+      },
+      "artifact_directory": "final-noise-off-stop",
+      "noise_suppression": "off",
+      "gui_observation_count": 24
+    },
+    {
+      "case": "double",
+      "verdict": "inconclusive",
+      "boundary": "local_VRChat_test_digital_replay",
+      "lead_in_seconds": 1.5,
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "error": "Command '['ydotool', 'mousemove', '-x', '402', '-y', '254']' returned non-zero exit status 2.",
+      "captures": {
+        "mic": {
+          "valid": false,
+          "samples": 24064,
+          "elapsed_seconds": 0.515924523002468,
+          "last_read_seconds": 0.5165137230032997,
+          "max_read_gap_seconds": 0.04268327899990254,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": false,
+          "samples": 24064,
+          "elapsed_seconds": 0.516248572999757,
+          "last_read_seconds": 0.5168695629981812,
+          "max_read_gap_seconds": 0.04267008500028169,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "artifact_directory": "noise-off-double",
+      "noise_suppression": "off",
+      "gui_observation_count": 1
+    },
+    {
+      "case": "positive",
+      "verdict": "pass",
+      "boundary": "local_VRChat_test_digital_replay",
+      "lead_in_seconds": 1.5,
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "producer_started_seconds": 3.2006900580017827,
+      "producer_exit_seconds": 8.972593976999633,
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1151488,
+          "elapsed_seconds": 24.014121861000604,
+          "last_read_seconds": 24.016120246000355,
+          "max_read_gap_seconds": 0.04771836500003701,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1152000,
+          "elapsed_seconds": 24.01677849599946,
+          "last_read_seconds": 24.018041014001938,
+          "max_read_gap_seconds": 0.042717113999970024,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.9914430362840458,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 13.06,
+            "score": 0.9914430362840458
+          }
+        ],
+        "observed_seconds": 24.0,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.9999999999785238,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 3.2,
+            "score": 0.9999999999785238
+          }
+        ],
+        "observed_seconds": 23.989333333333335,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "artifact_directory": "noise-off-positive",
+      "noise_suppression": "off",
+      "gui_observation_count": 19
+    },
+    {
+      "case": "double",
+      "verdict": "inconclusive",
+      "boundary": "local_VRChat_test_digital_replay",
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "producer_started_seconds": 1.0762425229986547,
+      "producer_exit_seconds": 6.848324662001687,
+      "error": "gui_ready_timeout",
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1810688,
+          "elapsed_seconds": 37.73966007299896,
+          "last_read_seconds": 37.74162421199799,
+          "max_read_gap_seconds": 0.046587084001657786,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1810688,
+          "elapsed_seconds": 37.74206894099916,
+          "last_read_seconds": 37.743762690999574,
+          "max_read_gap_seconds": 0.04704291300004115,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "artifact_directory": "repeat-double",
+      "noise_suppression": "on",
+      "gui_observation_count": 44
+    },
+    {
+      "case": "positive",
+      "verdict": "fail",
+      "boundary": "local_VRChat_test_digital_replay",
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "producer_started_seconds": 1.0752646889995958,
+      "producer_exit_seconds": 6.847850422000192,
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1152000,
+          "elapsed_seconds": 24.019319019997056,
+          "last_read_seconds": 24.02093619599691,
+          "max_read_gap_seconds": 0.04702470699703554,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1152512,
+          "elapsed_seconds": 24.021939195001323,
+          "last_read_seconds": 24.02317303900054,
+          "max_read_gap_seconds": 0.04435490700052469,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.7230769870204817,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 24.010666666666665,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.9969168632521623,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 1.08,
+            "score": 0.9969168632521623
+          }
+        ],
+        "observed_seconds": 24.0,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "artifact_directory": "repeat-positive",
+      "noise_suppression": "on",
+      "gui_observation_count": 22
+    },
+    {
+      "case": "silence",
+      "verdict": "pass",
+      "boundary": "local_VRChat_test_digital_replay",
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1152256,
+          "elapsed_seconds": 24.018026695997833,
+          "last_read_seconds": 24.019429959000263,
+          "max_read_gap_seconds": 0.04739125799824251,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1152512,
+          "elapsed_seconds": 24.020426216000487,
+          "last_read_seconds": 24.021890765001444,
+          "max_read_gap_seconds": 0.043811062998429406,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.3066372362697439,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 24.010666666666665,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.0,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 24.005333333333333,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "silence_control": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 24.005333333333333,
+        "peak_limit_s16": 8
+      },
+      "artifact_directory": "repeat-silence",
+      "noise_suppression": "on",
+      "gui_observation_count": 29
+    },
+    {
+      "case": "stop",
+      "verdict": "inconclusive",
+      "boundary": "local_VRChat_test_digital_replay",
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "error": "gui_ready_timeout",
+      "captures": {},
+      "artifact_directory": "repeat-stop",
+      "noise_suppression": "on",
+      "gui_observation_count": 7
+    },
+    {
+      "case": "positive",
+      "verdict": "inconclusive",
+      "boundary": "local_VRChat_test_digital_replay",
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "error": "gui_ready_timeout",
+      "captures": {},
+      "artifact_directory": "runner-positive",
+      "noise_suppression": "on",
+      "gui_observation_count": 7
+    },
+    {
+      "case": "double",
+      "verdict": "fail",
+      "boundary": "local_VRChat_test_digital_replay",
+      "lead_in_seconds": 1.5,
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "producer_started_seconds": 3.1481190199992852,
+      "producer_exit_seconds": 8.920370279000053,
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1536256,
+          "elapsed_seconds": 32.01518659899739,
+          "last_read_seconds": 32.01723732299797,
+          "max_read_gap_seconds": 0.04604176299835672,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1536256,
+          "elapsed_seconds": 32.01828312199723,
+          "last_read_seconds": 32.01959549499952,
+          "max_read_gap_seconds": 0.046512569999322295,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.7064310002940697,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 32.00533333333333,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.9969168632521623,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 3.16,
+            "score": 0.9969168632521623
+          }
+        ],
+        "observed_seconds": 32.00533333333333,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "artifact_directory": "stable-double",
+      "noise_suppression": "on",
+      "gui_observation_count": 33
+    },
+    {
+      "case": "positive",
+      "verdict": "pass",
+      "boundary": "local_VRChat_test_digital_replay",
+      "lead_in_seconds": 1.5,
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "producer_started_seconds": 3.1444195920012135,
+      "producer_exit_seconds": 8.916795741999522,
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1152000,
+          "elapsed_seconds": 24.012542320000648,
+          "last_read_seconds": 24.013376732000324,
+          "max_read_gap_seconds": 0.0464889540016884,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1151744,
+          "elapsed_seconds": 24.011847261001094,
+          "last_read_seconds": 24.012484511000366,
+          "max_read_gap_seconds": 0.04636828699949547,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.8225288935139912,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 12.98,
+            "score": 0.8225288935139912
+          }
+        ],
+        "observed_seconds": 23.994666666666667,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.977674678829372,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 3.16,
+            "score": 0.977674678829372
+          }
+        ],
+        "observed_seconds": 24.0,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "artifact_directory": "stable-positive",
+      "noise_suppression": "on",
+      "gui_observation_count": 27
+    },
+    {
+      "case": "silence",
+      "verdict": "pass",
+      "boundary": "local_VRChat_test_digital_replay",
+      "lead_in_seconds": 1.5,
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1151744,
+          "elapsed_seconds": 24.010108858998137,
+          "last_read_seconds": 24.010801484000694,
+          "max_read_gap_seconds": 0.04648493599961512,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1151744,
+          "elapsed_seconds": 24.010666129001038,
+          "last_read_seconds": 24.011360207001417,
+          "max_read_gap_seconds": 0.046904317001462914,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.0,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 23.994666666666667,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.0,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 23.994666666666667,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "silence_control": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 23.994666666666667,
+        "peak_limit_s16": 8
+      },
+      "artifact_directory": "stable-silence",
+      "noise_suppression": "on",
+      "gui_observation_count": 31
+    },
+    {
+      "case": "stop",
+      "verdict": "pass",
+      "boundary": "local_VRChat_test_digital_replay",
+      "lead_in_seconds": 1.5,
+      "managed_route_tested": false,
+      "physical_headphone_tested": false,
+      "route_before": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "producer_started_seconds": 3.0522049669998523,
+      "producer_exit_seconds": 5.053417975999764,
+      "route_after": {
+        "core": [
+          679512415
+        ],
+        "nodes": {
+          "vrct.p1.source": 653,
+          "vrct.gui.replay": 1761
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.gui.replay"
+          ],
+          [
+            "vrct.p1.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "captures": {
+        "mic": {
+          "valid": true,
+          "samples": 1152256,
+          "elapsed_seconds": 24.01624564100348,
+          "last_read_seconds": 24.017659324003034,
+          "max_read_gap_seconds": 0.04686231900268467,
+          "early_exit": false,
+          "reader_error": null
+        },
+        "replay": {
+          "valid": true,
+          "samples": 1152256,
+          "elapsed_seconds": 24.018903649001004,
+          "last_read_seconds": 24.02065403600136,
+          "max_read_gap_seconds": 0.046361826000065776,
+          "early_exit": false,
+          "reader_error": null
+        }
+      },
+      "replay": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.539543062342022,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 24.005333333333333,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "mic": {
+        "verdict": "fail",
+        "occurrences": 0,
+        "best_envelope_correlation": 0.5446186616248404,
+        "threshold": 0.8,
+        "matches": [],
+        "observed_seconds": 24.005333333333333,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      "post_stop_last_5s": {
+        "verdict": "pass",
+        "peak_s16": 0,
+        "observed_seconds": 5.0,
+        "peak_limit_s16": 8
+      },
+      "mic_before_stop": {
+        "verdict": "fail",
+        "peak_s16": 19420,
+        "observed_seconds": 4.0,
+        "peak_limit_s16": 8
+      },
+      "artifact_directory": "stable-stop",
+      "noise_suppression": "on",
+      "gui_observation_count": 24
+    }
+  ],
+  "initial_operator_assisted_observation": {
+    "replay_envelope_correlation": 0.8677324720852282,
+    "mic_envelope_correlation": 0.9832510866704698,
+    "post_stop_last_5s_peak_s16": 0,
+    "capture_liveness_instrumented": false
+  },
+  "validation": {
+    "voice_suite_passed": 158,
+    "new_tests": 15,
+    "ruff": "pass",
+    "diff_check": "pass",
+    "general_suite_collection_errors": [
+      "src-python/test/test_audio_pipeline_failure.py",
+      "src-python/test/test_audio_vad.py",
+      "src-python/test/test_chatbox_sample_player.py",
+      "src-python/test/test_clipboard_focus_and_paste.py",
+      "src-python/test/test_controller_audio.py",
+      "src-python/test/test_controller_change_to_ctranslate2.py",
+      "src-python/test/test_controller_config_validation_decorator.py",
+      "src-python/test/test_controller_di_constructor.py",
+      "src-python/test/test_controller_init_config_settings.py",
+      "src-python/test/test_controller_init_watchdog_and_join_timeout.py",
+      "src-python/test/test_controller_message_pipeline.py",
+      "src-python/test/test_controller_ocr_enable.py",
+      "src-python/test/test_controller_ocr_settings.py",
+      "src-python/test/test_controller_overlay_running.py",
+      "src-python/test/test_controller_shutdown_lock.py",
+      "src-python/test/test_controller_simple_config_getters.py",
+      "src-python/test/test_controller_transcription_api_endpoints.py",
+      "src-python/test/test_controller_transcription_engine_status.py",
+      "src-python/test/test_controller_transcription_language_fallback.py",
+      "src-python/test/test_controller_translation_connection_endpoints.py",
+      "src-python/test/test_controller_translation_engine_language_fallback.py",
+      "src-python/test/test_controller_translation_gemini_endpoint.py",
+      "src-python/test/test_controller_translation_registry_endpoints.py",
+      "src-python/test/test_controller_update_software_failure.py",
+      "src-python/test/test_controller_update_transcription_engine.py",
+      "src-python/test/test_controller_vr_panel_opacity.py",
+      "src-python/test/test_controller_vr_panel_toolbar.py",
+      "src-python/test/test_controller_vrc_mic_mute_sync_init.py",
+      "src-python/test/test_dead_code_removed.py",
+      "src-python/test/test_gemini_bbox_labeler.py",
+      "src-python/test/test_mainloop_retry_limit.py",
+      "src-python/test/test_mainloop_watchdog_escalation.py",
+      "src-python/test/test_model_api_transcription_wiring.py",
+      "src-python/test/test_model_audio_lifecycle_worker.py",
+      "src-python/test/test_model_audio_queue_bounded.py",
+      "src-python/test/test_model_get_translate_unsupported_language.py",
+      "src-python/test/test_model_http_timeouts.py",
+      "src-python/test/test_model_init_failure_no_retry.py",
+      "src-python/test/test_model_input_translate_parallel.py",
+      "src-python/test/test_model_language_engine_compatibility.py",
+      "src-python/test/test_model_osc_mute_sync.py",
+      "src-python/test/test_model_session_reconfigure.py",
+      "src-python/test/test_model_session_resume_drain.py",
+      "src-python/test/test_model_session_start_failure_rollback.py",
+      "src-python/test/test_model_stop_receive_osc.py",
+      "src-python/test/test_model_stop_watchdog.py",
+      "src-python/test/test_model_transcript_stop.py",
+      "src-python/test/test_model_transcript_wiring.py",
+      "src-python/test/test_model_transcription_language_support.py",
+      "src-python/test/test_model_translate_fallback_no_wait.py",
+      "src-python/test/test_model_update.py",
+      "src-python/test/test_model_vad_recorder_selection.py",
+      "src-python/test/test_model_watchdog_available_during_init.py",
+      "src-python/test/test_ocr_bubble_detector.py",
+      "src-python/test/test_ocr_capture.py",
+      "src-python/test/test_ocr_dataset_collector.py",
+      "src-python/test/test_ocr_languages.py",
+      "src-python/test/test_ocr_onnx_threads.py",
+      "src-python/test/test_ocr_pipeline.py",
+      "src-python/test/test_openvr_session.py",
+      "src-python/test/test_osc_receive_single_thread.py",
+      "src-python/test/test_osc_server_shutdown_responsiveness.py",
+      "src-python/test/test_overlay_grab_move.py",
+      "src-python/test/test_overlay_shutdown_timeout.py",
+      "src-python/test/test_overlay_tooltip.py",
+      "src-python/test/test_phase4_low_risk_cleanup.py",
+      "src-python/test/test_transcription_openai_compatible.py",
+      "src-python/test/test_transcription_providers.py",
+      "src-python/test/test_transcription_recorder.py",
+      "src-python/test/test_transcription_transcriber.py",
+      "src-python/test/test_translation_ctranslate2_lock.py",
+      "src-python/test/test_translation_providers.py",
+      "src-python/test/test_translation_translator_ctranslate2.py",
+      "src-python/test/test_translation_translator_registry.py",
+      "src-python/test/test_translation_unsupported_language.py",
+      "src-python/test/test_ui_endpoint_contract.py",
+      "src-python/test/test_vr_panel_capture_recovery.py",
+      "src-python/test/test_vrct_transcription_integration.py",
+      "src-python/test/test_websocket_auth_and_bind_guard.py",
+      "src-python/test/test_whisper_eval.py"
+    ],
+    "same_error_files_as_previous": true
+  },
+  "cleanup": {
+    "vrchat_launched_for_test_closed": true,
+    "test_sink_removed": true,
+    "default_sink": "vrct.p1.sink",
+    "default_source": "vrct.p1.source",
+    "noise_suppression_restored_on_visual_confirmation": true,
+    "ydotoold_running": false,
+    "remaining_sinks": "654\tvrct.p1.sink\tPipeWire\tfloat32le 1ch 48000Hz\tSUSPENDED",
+    "remaining_sources": "653\tvrct.p1.source\tPipeWire\tfloat32le 1ch 48000Hz\tSUSPENDED\n654\tvrct.p1.sink.monitor\tPipeWire\tfloat32le 1ch 48000Hz\tSUSPENDED"
+  },
+  "limits": [
+    "not a perceptual or physical headphone test",
+    "not end-to-end latency",
+    "not a managed route or daemon restart test",
+    "noise suppression ON envelope matching remains unreliable",
+    "one final trial per case, not a reliability distribution",
+    "menu setup/templates operator-assisted; prepared cases automated"
+  ]
+}
