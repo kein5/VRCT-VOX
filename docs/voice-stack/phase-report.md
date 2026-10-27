@@ -18,6 +18,28 @@
 実装コミット: `55196e14` — `feat(tts): add streaming text speech and explicit virtual mic outputs`。
 後続のdocsコミットに以下の実機PoC結果を追加。
 
+### P1追試（2026-10-27）
+
+- `tools/voice_acceptance.py`を追加。通常の音声経路から分離した実PipeWire上で
+  合成信号の停止/キュー/切断/復旧と、既存speech.cppの反復測定を実行可能。
+  終了時に所有プロセス・ノードを解放し、音声を保存せずJSON/CSVを出す。
+- CLIの空文字/空白入力で無限待機する問題を修正。PipeWireのwrite中に切断された場合は
+  `output_disconnected`を返すよう修正。
+- 自動テスト **77 PASS**（既存Controller 70 unittestケースも同suite内で再実行）。
+  新規7件の測定CLIテストと1件の切断回帰テストを追加。ruff/diff check PASS。
+  修正前の2ファイルを一時ディレクトリに復元し、空文字/空白のtimeoutと
+  write時の未分類BrokenPipeErrorの**3 FAIL**を再現後、修正後のPASSを確認。
+- 実Irodori MF / speech.cpp **0.9.0**、先行2要求＋本測定30回PASS。
+  backend event→専用仮想source read: **p50 85.094 / p95 125.998 / p99 127.239 ms**。
+- 合成信号による実PipeWire停止・切断・復旧 **30/30 PASS**。
+  停止後最後の非無音read: **p50 39.943 / p95 41.885 / p99 42.184 ms**。
+  別の既定出力への非無音漏出0件。明示再選択で復旧。
+- 実speech.cpp TTSを使った停止・切断・再選択復旧の追加smokeも1回PASS。
+- 測定条件・コマンド・JSON/CSVは[benchmarks](benchmarks.md)。
+  UI起点の測定、Windows、VRChatの受信/聞こえ、HMD、30分混在負荷は未検証。
+  実機VRChat確認はデスクトップのイヤホン＋専用仮想マイクで準備中。
+- ライセンス差分なし。重み・エンジン・生音声の追加同梱なし。
+
 - `models/tts`: localhost専用PCM adapter、有界worker、重複抑止、取消、期限切れ破棄。
 - `models/voice_events.py` とController末尾のchat専用フック。従来OSC/WebSocket/履歴の形式は維持。
 - `models/audio_routing`: Windows PyAudioWPatch / Linux pw-catの明示出力。
@@ -63,7 +85,8 @@ node --test src-ui/logics/main/languageMutationCoordinator.test.js src-ui/logics
 
 - 単発Linux PoC: event→PCM write **191.372 ms**、CLI起動→仮想sourceの非無音read **304.746 ms**。
   server自身のTTFAログは182 ms。環境・hash・境界は[測定JSON](measurements/2026-10-27-linux-irodori-smoke.json)。
-- TTFA/仮想マイク到達/VRChat聞こえのp50/p95/p99: **未測定**。
+- backend TTFA/専用仮想source到達のp50/p95/p99: 上記P1追試で記録。
+  UI→通常仮想マイク/VRChat聞こえのp50/p95/p99: **未測定**。
   `last_first_write_ms` はbackend開始からPCM writeまで。仕様のE2E達成値に代用しない。
 - Windows WASAPIの実音、停止残留時間、hotplug、WiVRn/HMD、
   GPU競合、30分安定性は未検証。OS/driverが停止しない場合の確実な解放はプロセス終了に依存する。

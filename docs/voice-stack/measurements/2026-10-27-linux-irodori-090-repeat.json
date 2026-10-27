@@ -1,0 +1,745 @@
+{
+  "schema": 1,
+  "os": "Linux-6.18.55-2-cachyos-lts-x86_64-with-glibc2.44",
+  "python": "3.13.17",
+  "raw_audio_saved": false,
+  "physical_microphone_captured": false,
+  "graph": "private_pipewire_policy_only",
+  "vrchat_verified": false,
+  "ui_verified": false,
+  "rows": [
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "warmup",
+      "start_ns": 10582527270837,
+      "end_ns": 10582588522613
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "warmup",
+      "start_ns": 10582527270837,
+      "end_ns": 10582653950360
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "warmup",
+      "start_ns": 10587693353945,
+      "end_ns": 10587754203523
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "warmup",
+      "start_ns": 10587693353945,
+      "end_ns": 10587816619173
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10592980628033,
+      "end_ns": 10593041558904
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10592980628033,
+      "end_ns": 10593064661157
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10598999140476,
+      "end_ns": 10599059433065
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10598999140476,
+      "end_ns": 10599123300872
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10604161912286,
+      "end_ns": 10604223398834
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10604161912286,
+      "end_ns": 10604285948227
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10610175963382,
+      "end_ns": 10610237461974
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10610175963382,
+      "end_ns": 10610301961000
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10615595977219,
+      "end_ns": 10615654809395
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10615595977219,
+      "end_ns": 10615677968244
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10621570085524,
+      "end_ns": 10621630504040
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10621570085524,
+      "end_ns": 10621693949901
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10626731748657,
+      "end_ns": 10626791226159
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10626731748657,
+      "end_ns": 10626814035250
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10631892475747,
+      "end_ns": 10631951544709
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10631892475747,
+      "end_ns": 10631976628226
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10637908301914,
+      "end_ns": 10637966311559
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10637908301914,
+      "end_ns": 10637992663807
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10643880926546,
+      "end_ns": 10643940097841
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10643880926546,
+      "end_ns": 10643966020910
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10649515171596,
+      "end_ns": 10649577120367
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10649515171596,
+      "end_ns": 10649640648263
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10655405223990,
+      "end_ns": 10655466308240
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10655405223990,
+      "end_ns": 10655528636065
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10661421662674,
+      "end_ns": 10661482759529
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10661421662674,
+      "end_ns": 10661544614542
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10667394075731,
+      "end_ns": 10667454694084
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10667394075731,
+      "end_ns": 10667517968983
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10673238446086,
+      "end_ns": 10673301971618
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10673238446086,
+      "end_ns": 10673363285772
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10679252044410,
+      "end_ns": 10679314537066
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10679252044410,
+      "end_ns": 10679379283378
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10684884874680,
+      "end_ns": 10684943146920
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10684884874680,
+      "end_ns": 10684968643396
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10690517776615,
+      "end_ns": 10690576621404
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10690517776615,
+      "end_ns": 10690600667667
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10695682056339,
+      "end_ns": 10695744496505
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10695682056339,
+      "end_ns": 10695805966272
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10701652219440,
+      "end_ns": 10701711183965
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10701652219440,
+      "end_ns": 10701736667977
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10707584719676,
+      "end_ns": 10707646415920
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10707584719676,
+      "end_ns": 10707709967741
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10712749508782,
+      "end_ns": 10712811140424
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10712749508782,
+      "end_ns": 10712872615802
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10717909462555,
+      "end_ns": 10717967820226
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10717909462555,
+      "end_ns": 10717992675493
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10723925555086,
+      "end_ns": 10723985192209
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10723925555086,
+      "end_ns": 10724008682674
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10729684641767,
+      "end_ns": 10729742146381
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10729684641767,
+      "end_ns": 10729768640597
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10735105182253,
+      "end_ns": 10735167250818
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10735105182253,
+      "end_ns": 10735229944413
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10740350758037,
+      "end_ns": 10740412124761
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10740350758037,
+      "end_ns": 10740435301444
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10746409951478,
+      "end_ns": 10746470226593
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10746409951478,
+      "end_ns": 10746493978731
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10752384692374,
+      "end_ns": 10752443707324
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10752384692374,
+      "end_ns": 10752467311593
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10758402761505,
+      "end_ns": 10758463297783
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 10758402761505,
+      "end_ns": 10758525953836
+    }
+  ],
+  "samples": [
+    {
+      "index": 0,
+      "warm": "warmup",
+      "sample_rate": 48000,
+      "nonzero_chunks": 573
+    },
+    {
+      "index": 1,
+      "warm": "warmup",
+      "sample_rate": 48000,
+      "nonzero_chunks": 572
+    },
+    {
+      "index": 2,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 575
+    },
+    {
+      "index": 3,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 572
+    },
+    {
+      "index": 4,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 573
+    },
+    {
+      "index": 5,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 572
+    },
+    {
+      "index": 6,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 574
+    },
+    {
+      "index": 7,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 572
+    },
+    {
+      "index": 8,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 574
+    },
+    {
+      "index": 9,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 574
+    },
+    {
+      "index": 10,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 574
+    },
+    {
+      "index": 11,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 575
+    },
+    {
+      "index": 12,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 572
+    },
+    {
+      "index": 13,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 573
+    },
+    {
+      "index": 14,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 572
+    },
+    {
+      "index": 15,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 573
+    },
+    {
+      "index": 16,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 573
+    },
+    {
+      "index": 17,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 573
+    },
+    {
+      "index": 18,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 574
+    },
+    {
+      "index": 19,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 574
+    },
+    {
+      "index": 20,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 572
+    },
+    {
+      "index": 21,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 574
+    },
+    {
+      "index": 22,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 572
+    },
+    {
+      "index": 23,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 572
+    },
+    {
+      "index": 24,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 575
+    },
+    {
+      "index": 25,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 574
+    },
+    {
+      "index": 26,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 574
+    },
+    {
+      "index": 27,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 572
+    },
+    {
+      "index": 28,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 575
+    },
+    {
+      "index": 29,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 574
+    },
+    {
+      "index": 30,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 575
+    },
+    {
+      "index": 31,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 573
+    }
+  ],
+  "status": "passed",
+  "routing": {
+    "cancel": {
+      "queue_before": 4,
+      "overflow_dropped": 16,
+      "queue_after": 0,
+      "cancel_to_idle_ms": 10.15498,
+      "last_nonzero_after_cancel_ms": 39.258553,
+      "continued_silence_observed_ms": 170.674194
+    },
+    "disconnect_to_idle_ms": 6.256231,
+    "disconnect_error": "audio_output_error",
+    "missing_error": "output_missing",
+    "recovered_after_explicit_reselect": true,
+    "decoy_nonzero_chunks": 0
+  },
+  "summary": [
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "warmup",
+      "count": 2,
+      "p50_ms": 60.849578,
+      "p95_ms": 61.251776,
+      "p99_ms": 61.251776
+    },
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "count": 30,
+      "p50_ms": 60.418516,
+      "p95_ms": 62.492656,
+      "p99_ms": 63.525532
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "warmup",
+      "count": 2,
+      "p50_ms": 123.265228,
+      "p95_ms": 126.679523,
+      "p99_ms": 126.679523
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "count": 30,
+      "p50_ms": 85.094364,
+      "p95_ms": 125.997618,
+      "p99_ms": 127.238968
+    }
+  ],
+  "metadata": {
+    "date": "2026-10-27",
+    "speech_version": "0.9.0",
+    "speech_binary_sha256": "800e9bae0057a7ce2b63dde01a71bf83653ffbd70eb83f8bea3e8fd944f678e7",
+    "model": "Irodori-TTS-866M-MF-v4.1-F16.gguf",
+    "model_sha256": "e237dc3eefe469b8bba87872beacf12fb7fe00dbdf85767edca8ec04ab910d13",
+    "model_downloaded": false,
+    "reference_voice": "none",
+    "server_device": "Vulkan0",
+    "model_load_and_warmup_seconds": 20.6,
+    "server_port": 18080,
+    "pipewire": "1.6.10",
+    "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+    "gpu_driver": "615.78.08",
+    "gpu_memory_total_mib": 16376,
+    "gpu_memory_used_mib_observed_before_after": [
+      6606,
+      9961
+    ],
+    "background": "VRChat desktop (--no-vr) and WiVRn server running; no connected HMD audio.",
+    "vrchat_fps": null,
+    "gpu_contention_controlled": false,
+    "samples": 30,
+    "warmup_requests_excluded": 2,
+    "corpus": "Same synthetic Japanese fixture repeated; random server seeds.",
+    "capture_format": "s16le mono 48000 Hz",
+    "capture_requested_latency_ms": 10,
+    "playback_requested_latency_ms": 20,
+    "private_graph_default_quantum_frames": 256,
+    "limitations": [
+      "Private PipeWire graph, not the desktop or VRChat input.",
+      "Starts at backend event construction, not UI submit.",
+      "Capture read buffering and scheduling included; no acoustic/perceptual measurement.",
+      "30 samples: p99 is the maximum by nearest-rank, not a stable tail estimate.",
+      "No Windows, HMD, controlled GPU contention, intelligibility, or 30-minute acceptance."
+    ]
+  }
+}

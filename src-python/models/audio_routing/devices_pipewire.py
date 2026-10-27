@@ -56,6 +56,8 @@ class PipeWireOutput:
                     pending = pending[count:]
                 except BlockingIOError:
                     continue
+                except BrokenPipeError as exc:
+                    raise SpeechError("output_disconnected") from exc
 
     def close(self, *, drain, token):
         try:

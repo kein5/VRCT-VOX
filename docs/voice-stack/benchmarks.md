@@ -1,7 +1,73 @@
 # 計測手順とP0設備
 
-性能目標は仕様書 §8。現時点で性能ゲートの達成を判定できる反復測定はない。
+性能目標は仕様書 §8。Linuxの専用PipeWireグラフでは反復測定済み。
+UI→VRChatの性能ゲートは未判定。
 fakeサーバーのテスト所要時間はTTS推論速度・VRChat遅延とは異なる。
+
+## Linux反復測定（speech.cpp 0.9.0、n=30）
+
+[実測JSON](measurements/2026-10-27-linux-irodori-090-repeat.json) /
+[timestamp CSV](measurements/2026-10-27-linux-irodori-090-repeat.csv)。
+同じ既存Irodori MF F16、RTX 4080 SUPER / Vulkan0、voice `none`。
+起動時warmup 20.60秒と先行2要求を除外し、同じ日本語のテスト文を30回発声した。
+speech.cppはこの測定前にホスト側で0.9.0へ更新済みだった。0.8.11の単発値とは集約しない。
+
+| 計測境界 | p50 | p95 | p99 |
+|---|---:|---:|---:|
+| backend event生成→最初の非無音PCM write | 60.419 ms | 62.493 ms | 63.526 ms |
+| backend event生成→専用仮想sourceの最初の非無音read | 85.094 ms | 125.998 ms | 127.239 ms |
+
+48 kHz mono s16le、playback指定20ms、capture指定10ms。
+PipeWire 1.6.10、専用daemon＋WirePlumber `policy` profile（物理デバイスmonitorなし）。
+通常デスクトップの音声設定を変えず、測定後に専用プロセスとノードを削除。
+VRChatはdesktop `--no-vr`、WiVRn serverも起動中だったが、HMD音声は未接続。
+GPU競合条件は制御しておらずFPSは未測定。観測したGPU使用メモリは開始後6606 MiB、終了後9961 MiB。
+UI IPC、通常デスクトップ音声経路、VRChat内部・ネットワーク・聞こえは含まない。
+仕様§8のUI開始条件と異なるため、この数値でP1性能ゲートを達成扱いにしない。
+n=30のnearest-rank p99は最大値であり、安定したtail推定ではない。
+
+## 停止・切断・復旧の反復（合成PCM、n=30）
+
+[実測JSON](measurements/2026-10-27-linux-routing-repeat.json)。
+推論時間から切り離した持続信号を実PipeWireへ出力。
+各回、待機キュー4件/overflow破棄16件、停止後キュー0件、デバイス削除時のエラー、
+削除中の新規要求拒否、再作成・明示再選択後の再発声を確認。
+別の仮想sinkを専用環境の既定に指定し、そのsourceを常時監視したところ非無音チャンク0件。
+
+| 計測境界 | p50 | p95 | p99 |
+|---|---:|---:|---:|
+| cancel呼出→worker idle | 10.100 ms | 15.230 ms | 15.258 ms |
+| cancel呼出→最後の非無音read | 39.943 ms | 41.885 ms | 42.184 ms |
+| 仮想デバイス削除→worker idle | 6.208 ms | 8.418 ms | 11.388 ms |
+
+停止後はreaderが稼働したまま150ms以上の無音も確認。read時刻はcapture bufferを含む上界で、
+Windows、物理USB/Bluetooth抜き差し、VRChatの停止残留時間の代わりではない。
+
+別途、合成PCMを実speech.cpp TTSへ置き換えた[障害smoke](measurements/2026-10-27-linux-tts-fault-smoke.json)
+も1回PASS。HTTPを含む取消、発声中のデバイス削除、デバイス不在の要求拒否、
+再作成・明示再選択後の発声を確認し、その後の通常発声も成功。
+CLIに`--server`を渡すとこの実API障害smokeも反復測定の前に実行する。
+
+## 反復CLI
+
+`pipewire`、`wireplumber`（policy profile対応）、`pw-loopback`、`pw-cat`、`pw-dump`、
+`pw-metadata`が必要。GUI、外部モデル、録音保存は不要。出力先は新しいディレクトリを指定する。
+
+```sh
+# 合成信号による停止・切断・復旧。モデル不要。
+uv run --no-project python tools/voice_acceptance.py --route-runs 30 --output /tmp/vrct-routing-run
+# ユーザーが用意した既存ローカルTTSも測定。サーバー起動・モデル取得はしない。
+uv run --no-project python tools/voice_acceptance.py --server http://127.0.0.1:18080 --samples 30 --warmup 2 --output /tmp/vrct-tts-run
+uv run --no-project python tools/voice_latency.py /tmp/vrct-tts-run/latency.csv
+```
+
+専用ソケット・一時stateを使用し、通常の既定デバイスや物理マイクには接続しない。
+失敗時も部分的なJSON/CSVと失敗コードを残し、所有プロセスを終了する。
+PCMはカウンターと時刻に変換して破棄。本文・生音声はレポートに保存しない。
+初回開発試験ではWirePlumberの表示名一致で起動判定がタイムアウトしたため、
+実際のPIDで判定するよう修正して再試験した。
+分離方法は[PipeWire公式のruntime/socket変数](https://docs.pipewire.org/page_man_pipewire_1.html)と
+インストール済みWirePlumber設定の`policy` profileに基づく。
 
 ## Linux実APIスモーク（n=1）
 

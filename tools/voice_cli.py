@@ -64,7 +64,9 @@ def main(argv=None):
         "multilingual_url": args.multilingual_url, "multilingual_voice": args.multilingual_voice})
     bus = VoiceEventBus(settings)
     try:
-        bus.publish(SpeechMessageEvent("cli-1", "chat", args.text, source_language=args.language))
+        if not bus.publish(SpeechMessageEvent("cli-1", "chat", args.text, source_language=args.language)):
+            print('{"error":"invalid_text"}')
+            return 1
         while True:
             status = bus.status()
             if status["completed"] or status["errors"] or status["dropped"]:

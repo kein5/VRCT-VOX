@@ -3,12 +3,18 @@
 ヘッドレスCLIはWindowsのPyAudioWPatch/pycaw/windows-captureをimportしない。
 Pythonは標準ライブラリだけで発声でき、`pw-cat` / `pw-dump` が必要。
 VRCT全GUIのLinux互換化はP5。以下は実機確認用手順で、実VRChatで未検証。
-取得済みIrodori MF / speech.cpp 0.8.11によるCLI→PipeWire仮想sourceの到達は
-[単発PoC](benchmarks.md)で確認済み。新規モデル取得は行っていない。
+取得済みIrodori MF / speech.cpp 0.8.11の単発PoCと、0.9.0の専用PipeWireグラフでの
+[30回測定](benchmarks.md)は確認済み。新規モデル取得は行っていない。
 
 ## 一時的な仮想マイク
 
-既存の音声設定を置換せず、端末で一時loopbackを起動する。
+最初にイヤホンまたはWiVRnの音声デバイスを接続し、`wpctl status`で
+VRChat出力がそのデバイスへ流れていることを確認する。
+`Dummy Output`しかない場合は、通常セッションにloopbackを作る前に音声出力を接続する。
+今回、出力未接続で作った仮想sinkへゲーム出力が移動したため、発声せず削除した。
+`priority.session=-100`やsmart filterの指定だけでは、他の出力がない状態の混線を防げなかった。
+
+準備後、既存の音声設定を置換せず、端末で一時loopbackを起動する。
 [PipeWire loopback原典](https://docs.pipewire.org/page_module_loopback.html)のsink/source構成を使う。
 
 ```sh
@@ -16,12 +22,15 @@ pw-loopback --capture-props='media.class=Audio/Sink node.name=vrct.voice.sink no
 ```
 
 `pw-dump` / `pw-link -l` / `wpctl status` でsink/sourceが作られたことを確認。
+**VRChat出力→イヤホン、VRCT出力→専用sink、専用source→VRChat入力**に分離する。
+ゲーム出力が専用sinkにつながった場合は発声せずloopbackを終了し、出力先を修正する。
 物理音声デバイスが切断中だと、WirePlumberがこの仮想ノードを有効な既定出力/入力に
 選ぶ場合がある（今回も観測）。他アプリの出力とASR入力は明示指定し、作成前後の
 `wpctl status`を確認する。VRCT自身は既定デバイスへのfallbackを行わない。
 VRChatのマイクを **VRCT Virtual Microphone** に指定する。
 物理マイク、ゲーム出力、WiVRn音声をこのsinkへ直接リンクしない。
 終了時はloopback端末でCtrl-C。一時ノードだけが消える。
+自動試験だけなら[専用PipeWire環境のCLI](benchmarks.md#反復cli)を使用する。
 
 ## speech.cpp→仮想マイク
 

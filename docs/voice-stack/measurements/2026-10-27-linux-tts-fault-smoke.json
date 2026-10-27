@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "os": "Linux-6.18.55-2-cachyos-lts-x86_64-with-glibc2.44",
+  "python": "3.13.17",
+  "raw_audio_saved": false,
+  "physical_microphone_captured": false,
+  "graph": "private_pipewire_policy_only",
+  "vrchat_verified": false,
+  "ui_verified": false,
+  "rows": [
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 11182629885858,
+      "end_ns": 11182687635454
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "start_ns": 11182629885858,
+      "end_ns": 11182711564145
+    }
+  ],
+  "samples": [
+    {
+      "index": 0,
+      "warm": "yes",
+      "sample_rate": 48000,
+      "nonzero_chunks": 575
+    }
+  ],
+  "routing_trials": [
+    {
+      "cancel": {
+        "queue_before": 4,
+        "overflow_dropped": 16,
+        "queue_after": 0,
+        "cancel_to_idle_ms": 15.215608,
+        "last_nonzero_after_cancel_ms": 41.194894,
+        "continued_silence_observed_ms": 170.679335
+      },
+      "disconnect_to_idle_ms": 6.187381,
+      "disconnect_error": "output_disconnected",
+      "missing_error": "output_missing",
+      "recovered_after_explicit_reselect": true,
+      "decoy_nonzero_chunks": 0,
+      "decoy_confirmed_default": true
+    }
+  ],
+  "status": "passed",
+  "tts_fault_smoke": {
+    "cancel": {
+      "queue_before": 4,
+      "overflow_dropped": 16,
+      "queue_after": 0,
+      "cancel_to_idle_ms": 15.274129,
+      "last_nonzero_after_cancel_ms": 41.234309,
+      "continued_silence_observed_ms": 170.679585
+    },
+    "disconnect_to_idle_ms": 6.178796,
+    "disconnect_error": "output_disconnected",
+    "missing_error": "output_missing",
+    "recovered_after_explicit_reselect": true,
+    "decoy_nonzero_chunks": 0,
+    "decoy_confirmed_default": true
+  },
+  "summary": [
+    {
+      "metric": "event_to_first_pcm_write",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "count": 1,
+      "p50_ms": 57.749596,
+      "p95_ms": 57.749596,
+      "p99_ms": 57.749596
+    },
+    {
+      "metric": "event_to_private_source_read",
+      "environment": "linux_private_pipewire",
+      "warm": "yes",
+      "count": 1,
+      "p50_ms": 81.678287,
+      "p95_ms": 81.678287,
+      "p99_ms": 81.678287
+    }
+  ],
+  "metadata": {
+    "date": "2026-10-27",
+    "speech_version": "0.9.0",
+    "model": "Irodori-TTS-866M-MF-v4.1-F16.gguf",
+    "reference_voice": "none",
+    "server_device": "Vulkan0",
+    "model_downloaded": false,
+    "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+    "pipewire": "1.6.10",
+    "sample_count": 1,
+    "environment_reference": "2026-10-27-linux-irodori-090-repeat.json",
+    "limitations": [
+      "One real HTTP/TTS fault smoke on a private graph, not VRChat or Windows.",
+      "Single-sample percentile fields must not be used for a performance gate."
+    ]
+  }
+}

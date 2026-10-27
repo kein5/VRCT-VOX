@@ -115,3 +115,24 @@ def test_pipewire_process_contract_and_release(monkeypatch):
     finally:
         os.close(read_fd)
         pipe.close()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="PipeWire adapter is Linux-only")
+def test_pipewire_disappearing_consumer_reports_disconnect(monkeypatch):
+    import os
+    from models.audio_routing import devices_pipewire as pw
+    read_fd, write_fd = os.pipe()
+    os.close(read_fd)  # Consumer disappeared between poll and write.
+    pipe = os.fdopen(write_fd, "wb", buffering=0)
+    process = MagicMock(stdin=pipe)
+    process.poll.return_value = None
+    monkeypatch.setattr(pw, "enumerate_outputs", lambda: [{"id": "virtual"}])
+    monkeypatch.setattr(pw.subprocess, "Popen", lambda *a, **kw: process)
+    output = pw.PipeWireOutput("virtual", 48000, 1)
+    try:
+        with pytest.raises(SpeechError, match="output_disconnected"):
+            output.write(b"\x01\x00", CancelToken())
+    finally:
+        output.close(drain=False, token=CancelToken())
+    assert pipe.closed
+    process.terminate.assert_called_once()
