@@ -1,6 +1,6 @@
 # 音声アーキテクチャの検証用PoC設計
 
-状態: **未実装・未実行の試験計画**。2026-10-27の[設計評価](architecture-evaluation-2026-10-27.md)と[ADR 004案](adr-004-audio-integration-boundaries.md)を反証するためのもの。今回の作業でモデル取得、driver設定変更、録音、負荷試験は行っていない。
+状態: **PoC-1/2/5のモデル不要部分を実装・実行済み（全体の受入れは未完了）**。2026-10-27の[設計評価](architecture-evaluation-2026-10-27.md)と[ADR 004案](adr-004-audio-integration-boundaries.md)を反証するための計画。依頼者がBの検証とモデル不要の先行を承認した。[B検証レポート](b-validation-report.md)に今回の結果と未検証範囲を記録する。実マイク・モデルを使わず、private PipeWire上の合成PCMだけをcaptureして破棄する。通常のdesktop設定は変更しない。
 
 ## 共通の測定契約
 
@@ -37,7 +37,7 @@ Windowsのprocess loopbackは受信音声をprocess treeで分離する候補で
 
 ## Fitness functionと責任
 
-今回のdecision owner候補はリポジトリ保守者／依頼者、試験作成・実行担当は次の音声統合担当者。これは役割の提案であり、担当者の引受けや採否は未確定。コード変更の前に担当を記録する。
+decision ownerはリポジトリ保守者／依頼者。承認されたモデル不要部分の試験作成・実行担当はCodex。[実行計画](2026-10-27-b-validation-plan.md)に範囲を記録した。実VC・Windows実機の担当・採用構成は未確定。
 
 | 確認対象 | 実施時期 | 必須証拠 | 欠測・失敗時の扱い | 判断を変える人 |
 |---|---|---|---|---|
@@ -48,4 +48,4 @@ Windowsのprocess loopbackは受信音声をprocess treeで分離する候補で
 
 偽陽性の例は試験reader自身のbuffer遅延、clock校正不良。無変換の既知経路で校正し、原因が確定するまで未判定とする。偽陰性の例は専用graphだけの成功、同じ短文だけの反復、worker idleを無音とみなすこと。実VRChat・実device・異なる言語と長さ・混在負荷で補う。測定の除外・閾値の変更・例外には理由と期限を残し、ADRを更新する。
 
-現段階の結果欄は全PoC **未実行**。過去のP1試験は[既存計測記録](benchmarks.md)として参照し、今回の試験結果として再利用しない。
+PoC-1のモデル不要経路・停止・consumer fallback、PoC-2のbackend取消／翻訳待ち、PoC-5の独立graphでの混合・合成継続を検証対象とした。全体の受入れ完了ではなく、実VC・実device・UI/VRChat・Windows・GPU混在は未実行。PoC-6は既存配布検査のみ。PoC-3/4/7は未実行。過去のP1試験は[既存計測記録](benchmarks.md)として区別する。

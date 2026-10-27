@@ -1,8 +1,8 @@
 # ADR 004: 外部推論と音声経路の境界を条件付きで選ぶ
 
-Status: **proposed**, 2026-10-27。承認・実装・実機確認は未完了。
+Status: **proposed for product adoption / B validation authorized**, 2026-10-27。依頼者がBの検証とモデル不要の先行試験を承認。限定PoCを実行済みで、製品採用は未確定。
 
-Decision authority: リポジトリ保守者／依頼者。確認担当: 次の音声統合担当者（未割当）。
+Decision authority: リポジトリ保守者／依頼者。モデル不要PoCの作成・実行担当: Codex。実VC・Windowsの確認担当は未割当。
 
 Scope: P1見直しとP2〜P5の音声統合。既存テキスト機能の全面再設計、独自virtual driver開発、クラウドサービス化は含めない。
 
@@ -10,7 +10,7 @@ Related: [評価書](architecture-evaluation-2026-10-27.md)、[確認用PoC・fi
 
 ## Context
 
-VRCTはReact/Tauri/Python構成で、P1は外部speech.cppと専用TTS threadを追加した。Linuxの部分経路とVRChat内蔵マイクテストは記録があるが、UI起点・Windows・VC/ASR混在・HMDの性能は未確定。原文TTSが翻訳後に投入されること、停止が一般dispatchを通ること、Windowsのblocking write、仮想endpoint消失時のconsumer側fallbackが課題として残る。
+VRCTはReact/Tauri/Python構成で、P1は外部speech.cppと専用TTS threadを追加した。Linuxの部分経路とVRChat内蔵マイクテストは記録があるが、UI起点・Windows・VC/ASR混在・HMDの性能は未確定。評価時には原文TTSの翻訳待ちと一般dispatchでの停止待ちを確認した。Bの検証でこの2点と受付済みchatの世代失効を修正し、回帰試験を追加した。Windowsのblocking writeと仮想endpoint消失時のconsumer側fallbackは課題として残る。
 
 speech.cppはモデルごとに要求を直列化する。VC候補はOS/edition/API/モデル条件が異なる。外部processにしてもGPU競合と配布条件は自動解決しない。このため、現計画を前提にするのではなく責務・失敗時動作・実測で選定する。
 
@@ -57,4 +57,8 @@ engineと重みは初期にはユーザー管理を前提とし、追加取得�
 
 ## Current evidence and open items
 
-確認済みなのはP1の限定経路とコード構造。[既存benchmarks](benchmarks.md)と[評価書の遅延監査](architecture-evaluation-2026-10-27.md#7-遅延の監査)を参照。新しいPoCは未実施であり、Windowsの停止・混合、VRChatのendpoint消失時動作、VC採用、GPU混在負荷、Linux GUI、配布物全件は未確定。
+P1の限定経路は[既存benchmarks](benchmarks.md)、今回の独立PipeWireと合成音による検証は[B検証レポート](b-validation-report.md)に分ける。修正版の30反復で経路別取消・全体muteが成立し、producer終了後もendpointを維持できた。合成音の30分継続は別群で確認した。一方、endpoint自体を削除すると通常設定のpw-cat consumerが30/30回で別の合成入力へ切り替わった。入力固定consumerは終了し、これは無音captureの継続ではない。
+
+したがって、Bを続ける条件は「engineから独立したendpoint寿命」と「endpoint故障時にもconsumerが未変換入力へ切り替わらないこと」。writer側の固定だけで合格にはしない。Cもconsumerのfallbackを自動的には解決しないため、同じ故障試験を要する。
+
+反復・継続試験の全件数と測定境界はレポートに記録した。製品の全体mute制御、Windowsの停止・混合、VRChatのendpoint消失時動作、実VC採用、GPU混在負荷、物理clock、Linux GUI、配布物全件は未確定。

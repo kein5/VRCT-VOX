@@ -1,0 +1,2051 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "os": "Linux-6.18.55-2-cachyos-lts-x86_64-with-glibc2.44",
+  "python": "3.13.17",
+  "graph": "private_pipewire_policy_only",
+  "sample_rate": 48000,
+  "channels": 1,
+  "observation_frame_ms": 20,
+  "tone_threshold_s16": 400,
+  "silence_peak_threshold_s16": 64,
+  "raw_audio_saved": false,
+  "real_vc_verified": false,
+  "vrchat_verified": false,
+  "ui_verified": false,
+  "windows_verified": false,
+  "physical_microphone_captured": false,
+  "requested_trials": 30,
+  "rows": [
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18640984521095,
+      "end_ns": 18641066557058
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18643289211310,
+      "end_ns": 18643328117443
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18645507206381,
+      "end_ns": 18645546925654
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18649814325228,
+      "end_ns": 18649856184750
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18652249332348,
+      "end_ns": 18652288085305
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18654510035158,
+      "end_ns": 18654549416167
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18656725768520,
+      "end_ns": 18656810552069
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18661037898359,
+      "end_ns": 18661077419292
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18663470587253,
+      "end_ns": 18663509448646
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18665729014689,
+      "end_ns": 18665770798631
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18667947752436,
+      "end_ns": 18668031880036
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18672257070923,
+      "end_ns": 18672298767994
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18674688371209,
+      "end_ns": 18674730774889
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18676949684097,
+      "end_ns": 18676992156006
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18679214767113,
+      "end_ns": 18679295897788
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18683523207942,
+      "end_ns": 18683562774807
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18685995023769,
+      "end_ns": 18686079894925
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18688259944337,
+      "end_ns": 18688341228173
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18690519208175,
+      "end_ns": 18690602559593
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18694830845499,
+      "end_ns": 18694869414768
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18697305633198,
+      "end_ns": 18697386568201
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18699605929015,
+      "end_ns": 18699648141060
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18701870352572,
+      "end_ns": 18701951885392
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18706176370085,
+      "end_ns": 18706218795703
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18708609925159,
+      "end_ns": 18708650860433
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18710870681637,
+      "end_ns": 18710912132993
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18713134687644,
+      "end_ns": 18713215883524
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18717442400736,
+      "end_ns": 18717482767702
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18719916417619,
+      "end_ns": 18719957434148
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18722137519083,
+      "end_ns": 18722218542171
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18724396617707,
+      "end_ns": 18724479886322
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18728706157682,
+      "end_ns": 18728747054568
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18731180104715,
+      "end_ns": 18731263881438
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18733482975094,
+      "end_ns": 18733525642393
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18735701915453,
+      "end_ns": 18735786560082
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18740056398040,
+      "end_ns": 18740096254359
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18742485844242,
+      "end_ns": 18742528201688
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18744751024009,
+      "end_ns": 18744831916389
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18747053859245,
+      "end_ns": 18747135891922
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18751361150653,
+      "end_ns": 18751402789449
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18753836462813,
+      "end_ns": 18753919874829
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18756096313948,
+      "end_ns": 18756181218343
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18758361274270,
+      "end_ns": 18758442547581
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18762668454992,
+      "end_ns": 18762709423768
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18765141636826,
+      "end_ns": 18765226566922
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18767447086416,
+      "end_ns": 18767488099667
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18769667142848,
+      "end_ns": 18769749220968
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18773973747502,
+      "end_ns": 18774016125293
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18776451906857,
+      "end_ns": 18776490728054
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18778712780793,
+      "end_ns": 18778794551768
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18781013719638,
+      "end_ns": 18781098563076
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18785324398112,
+      "end_ns": 18785365676795
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18787797618331,
+      "end_ns": 18787882564455
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18790103513766,
+      "end_ns": 18790186554555
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18792366054950,
+      "end_ns": 18792405651189
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18796676021885,
+      "end_ns": 18796714815543
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18799150566464,
+      "end_ns": 18799189468657
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18801410032588,
+      "end_ns": 18801450834497
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18803627100989,
+      "end_ns": 18803711889732
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18807937139801,
+      "end_ns": 18807978782554
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18810328634743,
+      "end_ns": 18810368108072
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18812588479234,
+      "end_ns": 18812629430065
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18814808558164,
+      "end_ns": 18814890558181
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18819115737001,
+      "end_ns": 18819157443986
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18821548550355,
+      "end_ns": 18821589575286
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18823809081341,
+      "end_ns": 18823850768038
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18826027727554,
+      "end_ns": 18826111895074
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18830338268103,
+      "end_ns": 18830378789378
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18832769177582,
+      "end_ns": 18832810822933
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18835032663270,
+      "end_ns": 18835072125371
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18837291866454,
+      "end_ns": 18837375893664
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18841603933068,
+      "end_ns": 18841642810761
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18844077873604,
+      "end_ns": 18844117448279
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18846296517932,
+      "end_ns": 18846378543817
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18848556955960,
+      "end_ns": 18848639894684
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18852865777663,
+      "end_ns": 18852906951329
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18855341939285,
+      "end_ns": 18855423892697
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18857602219496,
+      "end_ns": 18857685230820
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18859862466662,
+      "end_ns": 18859946573568
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18864215547586,
+      "end_ns": 18864256120372
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18866688308792,
+      "end_ns": 18866730776385
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18868953206901,
+      "end_ns": 18868992118291
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18871212542225,
+      "end_ns": 18871295882311
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18875524221965,
+      "end_ns": 18875562776434
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18877996401127,
+      "end_ns": 18878079896387
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18880260019010,
+      "end_ns": 18880341230612
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18882517653186,
+      "end_ns": 18882602559693
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18886870329401,
+      "end_ns": 18886912070820
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18889345024248,
+      "end_ns": 18889386912655
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18891608455051,
+      "end_ns": 18891648148356
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18893826013534,
+      "end_ns": 18893866966049
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18898137405003,
+      "end_ns": 18898176144482
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18900609070405,
+      "end_ns": 18900650813449
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18902873317535,
+      "end_ns": 18902912104785
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18905131842317,
+      "end_ns": 18905215875086
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18909440325973,
+      "end_ns": 18909482772453
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18911875974115,
+      "end_ns": 18911957262519
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18914136532228,
+      "end_ns": 18914218547060
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18916397878289,
+      "end_ns": 18916479875409
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18920705922385,
+      "end_ns": 18920746941098
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18923178978064,
+      "end_ns": 18923263886557
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18925442166355,
+      "end_ns": 18925525222050
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18927701590395,
+      "end_ns": 18927786539034
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18932054331414,
+      "end_ns": 18932096092786
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18934529715599,
+      "end_ns": 18934570734184
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18936793214090,
+      "end_ns": 18936874562723
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18939097335264,
+      "end_ns": 18939178544516
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18943405828512,
+      "end_ns": 18943445587997
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18945834998340,
+      "end_ns": 18945919894986
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18948097872759,
+      "end_ns": 18948181225228
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18950358643842,
+      "end_ns": 18950442568479
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18954667105297,
+      "end_ns": 18954709426206
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18957141627449,
+      "end_ns": 18957226555637
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18959449341481,
+      "end_ns": 18959530560185
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18961708004907,
+      "end_ns": 18961791874603
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18966017012156,
+      "end_ns": 18966058821643
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18968408633131,
+      "end_ns": 18968448131267
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18970668518784,
+      "end_ns": 18970709475937
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18972929869950,
+      "end_ns": 18973013218798
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 18977238332283,
+      "end_ns": 18977280114430
+    }
+  ],
+  "trials": [
+    {
+      "index": 0,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18640984521095,
+        "first_qualifying_frame_ns": 18641066557058,
+        "confirmation_ns": 18643072096180
+      },
+      "vc_gate": {
+        "command_ns": 18643289211310,
+        "first_qualifying_frame_ns": 18643328117443,
+        "confirmation_ns": 18645333443177
+      },
+      "global_mute": {
+        "command_ns": 18645507206381,
+        "first_qualifying_frame_ns": 18645546925654,
+        "confirmation_ns": 18647552055503
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18649814325228,
+        "first_qualifying_frame_ns": 18649856184750,
+        "confirmation_ns": 18651861390895
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 1,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18652249332348,
+        "first_qualifying_frame_ns": 18652288085305,
+        "confirmation_ns": 18654293454201
+      },
+      "vc_gate": {
+        "command_ns": 18654510035158,
+        "first_qualifying_frame_ns": 18654549416167,
+        "confirmation_ns": 18656554737938
+      },
+      "global_mute": {
+        "command_ns": 18656725768520,
+        "first_qualifying_frame_ns": 18656810552069,
+        "confirmation_ns": 18658816086452
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18661037898359,
+        "first_qualifying_frame_ns": 18661077419292,
+        "confirmation_ns": 18663082740126
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 2,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18663470587253,
+        "first_qualifying_frame_ns": 18663509448646,
+        "confirmation_ns": 18665514743285
+      },
+      "vc_gate": {
+        "command_ns": 18665729014689,
+        "first_qualifying_frame_ns": 18665770798631,
+        "confirmation_ns": 18667776112388
+      },
+      "global_mute": {
+        "command_ns": 18667947752436,
+        "first_qualifying_frame_ns": 18668031880036,
+        "confirmation_ns": 18670037427284
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18672257070923,
+        "first_qualifying_frame_ns": 18672298767994,
+        "confirmation_ns": 18674304127160
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 3,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18674688371209,
+        "first_qualifying_frame_ns": 18674730774889,
+        "confirmation_ns": 18676736110194
+      },
+      "vc_gate": {
+        "command_ns": 18676949684097,
+        "first_qualifying_frame_ns": 18676992156006,
+        "confirmation_ns": 18678997439595
+      },
+      "global_mute": {
+        "command_ns": 18679214767113,
+        "first_qualifying_frame_ns": 18679295897788,
+        "confirmation_ns": 18681301410190
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18683523207942,
+        "first_qualifying_frame_ns": 18683562774807,
+        "confirmation_ns": 18685568178945
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 4,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18685995023769,
+        "first_qualifying_frame_ns": 18686079894925,
+        "confirmation_ns": 18688085659465
+      },
+      "vc_gate": {
+        "command_ns": 18688259944337,
+        "first_qualifying_frame_ns": 18688341228173,
+        "confirmation_ns": 18690346981294
+      },
+      "global_mute": {
+        "command_ns": 18690519208175,
+        "first_qualifying_frame_ns": 18690602559593,
+        "confirmation_ns": 18692608080718
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18694830845499,
+        "first_qualifying_frame_ns": 18694869414768,
+        "confirmation_ns": 18696874869808
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 5,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18697305633198,
+        "first_qualifying_frame_ns": 18697386568201,
+        "confirmation_ns": 18699392119716
+      },
+      "vc_gate": {
+        "command_ns": 18699605929015,
+        "first_qualifying_frame_ns": 18699648141060,
+        "confirmation_ns": 18701653448788
+      },
+      "global_mute": {
+        "command_ns": 18701870352572,
+        "first_qualifying_frame_ns": 18701951885392,
+        "confirmation_ns": 18703957413415
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18706176370085,
+        "first_qualifying_frame_ns": 18706218795703,
+        "confirmation_ns": 18708224069747
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 6,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18708609925159,
+        "first_qualifying_frame_ns": 18708650860433,
+        "confirmation_ns": 18710656120223
+      },
+      "vc_gate": {
+        "command_ns": 18710870681637,
+        "first_qualifying_frame_ns": 18710912132993,
+        "confirmation_ns": 18712917461392
+      },
+      "global_mute": {
+        "command_ns": 18713134687644,
+        "first_qualifying_frame_ns": 18713215883524,
+        "confirmation_ns": 18715221369830
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18717442400736,
+        "first_qualifying_frame_ns": 18717482767702,
+        "confirmation_ns": 18719488113904
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 7,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18719916417619,
+        "first_qualifying_frame_ns": 18719957434148,
+        "confirmation_ns": 18721962772236
+      },
+      "vc_gate": {
+        "command_ns": 18722137519083,
+        "first_qualifying_frame_ns": 18722218542171,
+        "confirmation_ns": 18724224109931
+      },
+      "global_mute": {
+        "command_ns": 18724396617707,
+        "first_qualifying_frame_ns": 18724479886322,
+        "confirmation_ns": 18726485543821
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18728706157682,
+        "first_qualifying_frame_ns": 18728747054568,
+        "confirmation_ns": 18730752265012
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 8,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18731180104715,
+        "first_qualifying_frame_ns": 18731263881438,
+        "confirmation_ns": 18733269497368
+      },
+      "vc_gate": {
+        "command_ns": 18733482975094,
+        "first_qualifying_frame_ns": 18733525642393,
+        "confirmation_ns": 18735530775803
+      },
+      "global_mute": {
+        "command_ns": 18735701915453,
+        "first_qualifying_frame_ns": 18735786560082,
+        "confirmation_ns": 18737792065933
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18740056398040,
+        "first_qualifying_frame_ns": 18740096254359,
+        "confirmation_ns": 18742101534442
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 9,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18742485844242,
+        "first_qualifying_frame_ns": 18742528201688,
+        "confirmation_ns": 18744533527588
+      },
+      "vc_gate": {
+        "command_ns": 18744751024009,
+        "first_qualifying_frame_ns": 18744831916389,
+        "confirmation_ns": 18746837404183
+      },
+      "global_mute": {
+        "command_ns": 18747053859245,
+        "first_qualifying_frame_ns": 18747135891922,
+        "confirmation_ns": 18749141423448
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18751361150653,
+        "first_qualifying_frame_ns": 18751402789449,
+        "confirmation_ns": 18753408144689
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 10,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18753836462813,
+        "first_qualifying_frame_ns": 18753919874829,
+        "confirmation_ns": 18755925585238
+      },
+      "vc_gate": {
+        "command_ns": 18756096313948,
+        "first_qualifying_frame_ns": 18756181218343,
+        "confirmation_ns": 18758186935874
+      },
+      "global_mute": {
+        "command_ns": 18758361274270,
+        "first_qualifying_frame_ns": 18758442547581,
+        "confirmation_ns": 18760448119567
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18762668454992,
+        "first_qualifying_frame_ns": 18762709423768,
+        "confirmation_ns": 18764714780163
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 11,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18765141636826,
+        "first_qualifying_frame_ns": 18765226566922,
+        "confirmation_ns": 18767232143782
+      },
+      "vc_gate": {
+        "command_ns": 18767447086416,
+        "first_qualifying_frame_ns": 18767488099667,
+        "confirmation_ns": 18769493437996
+      },
+      "global_mute": {
+        "command_ns": 18769667142848,
+        "first_qualifying_frame_ns": 18769749220968,
+        "confirmation_ns": 18771754753421
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18773973747502,
+        "first_qualifying_frame_ns": 18774016125293,
+        "confirmation_ns": 18776021442805
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 12,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18776451906857,
+        "first_qualifying_frame_ns": 18776490728054,
+        "confirmation_ns": 18778496089869
+      },
+      "vc_gate": {
+        "command_ns": 18778712780793,
+        "first_qualifying_frame_ns": 18778794551768,
+        "confirmation_ns": 18780800122264
+      },
+      "global_mute": {
+        "command_ns": 18781013719638,
+        "first_qualifying_frame_ns": 18781098563076,
+        "confirmation_ns": 18783104092644
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18785324398112,
+        "first_qualifying_frame_ns": 18785365676795,
+        "confirmation_ns": 18787370770145
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 13,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18787797618331,
+        "first_qualifying_frame_ns": 18787882564455,
+        "confirmation_ns": 18789888169006
+      },
+      "vc_gate": {
+        "command_ns": 18790103513766,
+        "first_qualifying_frame_ns": 18790186554555,
+        "confirmation_ns": 18792192088050
+      },
+      "global_mute": {
+        "command_ns": 18792366054950,
+        "first_qualifying_frame_ns": 18792405651189,
+        "confirmation_ns": 18794410733111
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18796676021885,
+        "first_qualifying_frame_ns": 18796714815543,
+        "confirmation_ns": 18798720146367
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 14,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18799150566464,
+        "first_qualifying_frame_ns": 18799189468657,
+        "confirmation_ns": 18801194842901
+      },
+      "vc_gate": {
+        "command_ns": 18801410032588,
+        "first_qualifying_frame_ns": 18801450834497,
+        "confirmation_ns": 18803456280634
+      },
+      "global_mute": {
+        "command_ns": 18803627100989,
+        "first_qualifying_frame_ns": 18803711889732,
+        "confirmation_ns": 18805717430915
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18807937139801,
+        "first_qualifying_frame_ns": 18807978782554,
+        "confirmation_ns": 18809984140644
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 15,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18810328634743,
+        "first_qualifying_frame_ns": 18810368108072,
+        "confirmation_ns": 18812373451793
+      },
+      "vc_gate": {
+        "command_ns": 18812588479234,
+        "first_qualifying_frame_ns": 18812629430065,
+        "confirmation_ns": 18814634768142
+      },
+      "global_mute": {
+        "command_ns": 18814808558164,
+        "first_qualifying_frame_ns": 18814890558181,
+        "confirmation_ns": 18816896068859
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18819115737001,
+        "first_qualifying_frame_ns": 18819157443986,
+        "confirmation_ns": 18821162769667
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 16,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18821548550355,
+        "first_qualifying_frame_ns": 18821589575286,
+        "confirmation_ns": 18823594759108
+      },
+      "vc_gate": {
+        "command_ns": 18823809081341,
+        "first_qualifying_frame_ns": 18823850768038,
+        "confirmation_ns": 18825856108221
+      },
+      "global_mute": {
+        "command_ns": 18826027727554,
+        "first_qualifying_frame_ns": 18826111895074,
+        "confirmation_ns": 18828117404682
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18830338268103,
+        "first_qualifying_frame_ns": 18830378789378,
+        "confirmation_ns": 18832384198236
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 17,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18832769177582,
+        "first_qualifying_frame_ns": 18832810822933,
+        "confirmation_ns": 18834816125118
+      },
+      "vc_gate": {
+        "command_ns": 18835032663270,
+        "first_qualifying_frame_ns": 18835072125371,
+        "confirmation_ns": 18837077442821
+      },
+      "global_mute": {
+        "command_ns": 18837291866454,
+        "first_qualifying_frame_ns": 18837375893664,
+        "confirmation_ns": 18839381387793
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18841603933068,
+        "first_qualifying_frame_ns": 18841642810761,
+        "confirmation_ns": 18843648078423
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 18,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18844077873604,
+        "first_qualifying_frame_ns": 18844117448279,
+        "confirmation_ns": 18846122775811
+      },
+      "vc_gate": {
+        "command_ns": 18846296517932,
+        "first_qualifying_frame_ns": 18846378543817,
+        "confirmation_ns": 18848384088243
+      },
+      "global_mute": {
+        "command_ns": 18848556955960,
+        "first_qualifying_frame_ns": 18848639894684,
+        "confirmation_ns": 18850645534806
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18852865777663,
+        "first_qualifying_frame_ns": 18852906951329,
+        "confirmation_ns": 18854912101097
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 19,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18855341939285,
+        "first_qualifying_frame_ns": 18855423892697,
+        "confirmation_ns": 18857429471629
+      },
+      "vc_gate": {
+        "command_ns": 18857602219496,
+        "first_qualifying_frame_ns": 18857685230820,
+        "confirmation_ns": 18859690795391
+      },
+      "global_mute": {
+        "command_ns": 18859862466662,
+        "first_qualifying_frame_ns": 18859946573568,
+        "confirmation_ns": 18861952067331
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18864215547586,
+        "first_qualifying_frame_ns": 18864256120372,
+        "confirmation_ns": 18866261414999
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 20,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18866688308792,
+        "first_qualifying_frame_ns": 18866730776385,
+        "confirmation_ns": 18868736120102
+      },
+      "vc_gate": {
+        "command_ns": 18868953206901,
+        "first_qualifying_frame_ns": 18868992118291,
+        "confirmation_ns": 18870997472321
+      },
+      "global_mute": {
+        "command_ns": 18871212542225,
+        "first_qualifying_frame_ns": 18871295882311,
+        "confirmation_ns": 18873301426976
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18875524221965,
+        "first_qualifying_frame_ns": 18875562776434,
+        "confirmation_ns": 18877568080202
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 21,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18877996401127,
+        "first_qualifying_frame_ns": 18878079896387,
+        "confirmation_ns": 18880085709221
+      },
+      "vc_gate": {
+        "command_ns": 18880260019010,
+        "first_qualifying_frame_ns": 18880341230612,
+        "confirmation_ns": 18882346971805
+      },
+      "global_mute": {
+        "command_ns": 18882517653186,
+        "first_qualifying_frame_ns": 18882602559693,
+        "confirmation_ns": 18884608089864
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18886870329401,
+        "first_qualifying_frame_ns": 18886912070820,
+        "confirmation_ns": 18888917407774
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 22,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18889345024248,
+        "first_qualifying_frame_ns": 18889386912655,
+        "confirmation_ns": 18891392084464
+      },
+      "vc_gate": {
+        "command_ns": 18891608455051,
+        "first_qualifying_frame_ns": 18891648148356,
+        "confirmation_ns": 18893653451607
+      },
+      "global_mute": {
+        "command_ns": 18893826013534,
+        "first_qualifying_frame_ns": 18893866966049,
+        "confirmation_ns": 18895872101869
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18898137405003,
+        "first_qualifying_frame_ns": 18898176144482,
+        "confirmation_ns": 18900181467271
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 23,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18900609070405,
+        "first_qualifying_frame_ns": 18900650813449,
+        "confirmation_ns": 18902656107549
+      },
+      "vc_gate": {
+        "command_ns": 18902873317535,
+        "first_qualifying_frame_ns": 18902912104785,
+        "confirmation_ns": 18904917390413
+      },
+      "global_mute": {
+        "command_ns": 18905131842317,
+        "first_qualifying_frame_ns": 18905215875086,
+        "confirmation_ns": 18907221373279
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18909440325973,
+        "first_qualifying_frame_ns": 18909482772453,
+        "confirmation_ns": 18911488128784
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 24,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18911875974115,
+        "first_qualifying_frame_ns": 18911957262519,
+        "confirmation_ns": 18913962808814
+      },
+      "vc_gate": {
+        "command_ns": 18914136532228,
+        "first_qualifying_frame_ns": 18914218547060,
+        "confirmation_ns": 18916224075144
+      },
+      "global_mute": {
+        "command_ns": 18916397878289,
+        "first_qualifying_frame_ns": 18916479875409,
+        "confirmation_ns": 18918485529413
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18920705922385,
+        "first_qualifying_frame_ns": 18920746941098,
+        "confirmation_ns": 18922752084547
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 25,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18923178978064,
+        "first_qualifying_frame_ns": 18923263886557,
+        "confirmation_ns": 18925269440513
+      },
+      "vc_gate": {
+        "command_ns": 18925442166355,
+        "first_qualifying_frame_ns": 18925525222050,
+        "confirmation_ns": 18927530732648
+      },
+      "global_mute": {
+        "command_ns": 18927701590395,
+        "first_qualifying_frame_ns": 18927786539034,
+        "confirmation_ns": 18929792108246
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18932054331414,
+        "first_qualifying_frame_ns": 18932096092786,
+        "confirmation_ns": 18934101424707
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 26,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18934529715599,
+        "first_qualifying_frame_ns": 18934570734184,
+        "confirmation_ns": 18936576073403
+      },
+      "vc_gate": {
+        "command_ns": 18936793214090,
+        "first_qualifying_frame_ns": 18936874562723,
+        "confirmation_ns": 18938880167215
+      },
+      "global_mute": {
+        "command_ns": 18939097335264,
+        "first_qualifying_frame_ns": 18939178544516,
+        "confirmation_ns": 18941184094669
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18943405828512,
+        "first_qualifying_frame_ns": 18943445587997,
+        "confirmation_ns": 18945450753239
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 27,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18945834998340,
+        "first_qualifying_frame_ns": 18945919894986,
+        "confirmation_ns": 18947925559733
+      },
+      "vc_gate": {
+        "command_ns": 18948097872759,
+        "first_qualifying_frame_ns": 18948181225228,
+        "confirmation_ns": 18950186960250
+      },
+      "global_mute": {
+        "command_ns": 18950358643842,
+        "first_qualifying_frame_ns": 18950442568479,
+        "confirmation_ns": 18952448156877
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18954667105297,
+        "first_qualifying_frame_ns": 18954709426206,
+        "confirmation_ns": 18956714908279
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 28,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18957141627449,
+        "first_qualifying_frame_ns": 18957226555637,
+        "confirmation_ns": 18959232132412
+      },
+      "vc_gate": {
+        "command_ns": 18959449341481,
+        "first_qualifying_frame_ns": 18959530560185,
+        "confirmation_ns": 18961536167751
+      },
+      "global_mute": {
+        "command_ns": 18961708004907,
+        "first_qualifying_frame_ns": 18961791874603,
+        "confirmation_ns": 18963797396560
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18966017012156,
+        "first_qualifying_frame_ns": 18966058821643,
+        "confirmation_ns": 18968064098782
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 29,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 18968408633131,
+        "first_qualifying_frame_ns": 18968448131267,
+        "confirmation_ns": 18970453421023
+      },
+      "vc_gate": {
+        "command_ns": 18970668518784,
+        "first_qualifying_frame_ns": 18970709475937,
+        "confirmation_ns": 18972714763752
+      },
+      "global_mute": {
+        "command_ns": 18972929869950,
+        "first_qualifying_frame_ns": 18973013218798,
+        "confirmation_ns": 18975018754973
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 18977238332283,
+        "first_qualifying_frame_ns": 18977280114430,
+        "confirmation_ns": 18979285591947
+      },
+      "endpoint_survived_vc_crash": true
+    }
+  ],
+  "versions": {
+    "pipewire": "pipewire\nCompiled with libpipewire 1.6.10\nLinked with libpipewire 1.6.10",
+    "wireplumber": "wireplumber\nCompiled with libwireplumber 0.5.18\nLinked with libwireplumber 0.5.18"
+  },
+  "soak": {
+    "requested_seconds": 1800.0,
+    "elapsed_seconds": 1800.0005590610017,
+    "checkpoints": 8980,
+    "before": {
+      "frames": 16947,
+      "sample_count": 16269120,
+      "last_read_ns": 18979669634703,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 43.318898,
+      "nonzero_frames": 10767,
+      "detected_frames": {
+        "440": 4554,
+        "880": 7624,
+        "1760": 0
+      }
+    },
+    "after": {
+      "frames": 106946,
+      "sample_count": 102668160,
+      "last_read_ns": 20779648103775,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 44.552476,
+      "nonzero_frames": 100766,
+      "detected_frames": {
+        "440": 94553,
+        "880": 97623,
+        "1760": 0
+      }
+    },
+    "physical_clock_drift_measured": false,
+    "gpu_contention_measured": false
+  },
+  "main_capture": {
+    "frames": 106956,
+    "sample_count": 102677760,
+    "last_read_ns": 20779861425107,
+    "capture_gaps_over_100ms": 0,
+    "max_read_gap_ms": 44.552476,
+    "nonzero_frames": 100776,
+    "detected_frames": {
+      "440": 94563,
+      "880": 97626,
+      "1760": 0
+    }
+  },
+  "consumer_faults": [
+    {
+      "index": 0,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 1,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 2,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 122,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 3,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 4,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 5,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 6,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 7,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 8,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 9,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 122,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 10,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 122,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 11,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 12,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 13,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 14,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 15,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 16,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 17,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 18,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 19,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 20,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 21,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 122,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 22,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 23,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 24,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 25,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 26,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 27,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 28,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 29,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_live_capture": false,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    }
+  ],
+  "output_guard": {
+    "frames": 111513,
+    "sample_count": 107052480,
+    "last_read_ns": 20870906751069,
+    "capture_gaps_over_100ms": 0,
+    "max_read_gap_ms": 44.40621,
+    "nonzero_frames": 0,
+    "detected_frames": {
+      "440": 0,
+      "880": 0,
+      "1760": 0
+    }
+  },
+  "summary": [
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "count": 30,
+      "p50_ms": 83.340086,
+      "p95_ms": 84.906507,
+      "p99_ms": 84.948639
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "count": 30,
+      "p50_ms": 42.357446,
+      "p95_ms": 84.930096,
+      "p99_ms": 84.946124
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "count": 30,
+      "p50_ms": 41.018713,
+      "p95_ms": 42.425618,
+      "p99_ms": 42.44648
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "count": 30,
+      "p50_ms": 42.471909,
+      "p95_ms": 83.352469,
+      "p99_ms": 84.904395
+    }
+  ],
+  "stop_budget": {
+    "p95_target_ms": 100,
+    "worst_target_ms": 250,
+    "all_measured_groups_meet": true
+  }
+}
