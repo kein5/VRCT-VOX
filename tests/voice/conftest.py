@@ -11,7 +11,8 @@ import pytest
 def pcm_server():
     @contextmanager
     def start(*, chunks=(b"\x01", b"\x00\x02", b"\x00"), status=200,
-              content_type="audio/pcm", rate="48000", before_chunk=None, headers=None, truncate=False):
+              content_type="audio/pcm", rate="48000", before_chunk=None, before_headers=None,
+              headers=None, truncate=False):
         requests = []
 
         class Handler(BaseHTTPRequestHandler):
@@ -20,6 +21,8 @@ def pcm_server():
             def do_POST(self):
                 requests.append((self.path, json.loads(self.rfile.read(int(self.headers["Content-Length"])))))
                 try:
+                    if before_headers:
+                        before_headers()
                     self.send_response(status)
                     self.send_header("Content-Type", content_type)
                     if rate is not None:

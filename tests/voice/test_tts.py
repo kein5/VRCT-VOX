@@ -8,8 +8,9 @@ from models.tts.speechcpp_tts import CancelToken, SpeechCppTTS, SpeechError
 from models.voice_events import SpeechMessageEvent
 
 
-def test_pcm_contract_and_odd_http_boundaries(pcm_server):
-    with pcm_server() as (url, requests):
+@pytest.mark.parametrize("connection_close", [False, True])
+def test_pcm_contract_and_odd_http_boundaries(pcm_server, connection_close):
+    with pcm_server(headers={"Connection": "close"} if connection_close else None) as (url, requests):
         frames = list(SpeechCppTTS(url).synthesize_stream("こんにちは", "none", "ja", CancelToken()))
     assert b"".join(f.pcm for f in frames) == b"\x01\x00\x02\x00"
     assert all(f.sample_rate == 48000 and f.channels == 1 for f in frames)
@@ -46,12 +47,14 @@ def test_protocol_errors(pcm_server, options, code):
             list(SpeechCppTTS(url).synthesize_stream("secret", "none", "ja", CancelToken()))
 
 
-def test_cancel_interrupts_a_stalled_body(pcm_server):
+@pytest.mark.parametrize("delay_headers", [False, True])
+def test_cancel_interrupts_a_stalled_response(pcm_server, delay_headers):
     arrived, release = Event(), Event()
     def wait(_):
         arrived.set()
         release.wait(2)
-    with pcm_server(before_chunk=wait) as (url, _):
+    with pcm_server(before_headers=(lambda: wait(0)) if delay_headers else None,
+                    before_chunk=None if delay_headers else wait) as (url, _):
         token = CancelToken()
         result = []
         def consume():
@@ -71,14 +74,48 @@ def test_cancel_interrupts_a_stalled_body(pcm_server):
         assert result == ["cancelled"]
 
 
-def test_read_timeout(pcm_server):
+def test_initial_audio_timeout(pcm_server):
     release = Event()
     with pcm_server(before_chunk=lambda i: release.wait(0.5)) as (url, _):
         try:
-            with pytest.raises(SpeechError, match="transport_error"):
-                list(SpeechCppTTS(url, timeout=0.05).synthesize_stream("x", "none", "ja", CancelToken()))
+            with pytest.raises(SpeechError, match="first_audio_timeout"):
+                list(SpeechCppTTS(url, timeout=0.05, first_audio_timeout=0.05).synthesize_stream("x", "none", "ja", CancelToken()))
         finally:
             release.set()
+
+
+@pytest.mark.parametrize("delay_headers", [False, True])
+def test_initial_inference_can_exceed_subsequent_read_timeout(pcm_server, delay_headers):
+    def delay():
+        Event().wait(0.08)
+    with pcm_server(before_headers=delay if delay_headers else None,
+                    before_chunk=None if delay_headers else lambda i: delay() if i == 0 else None) as (url, _):
+        frames = list(SpeechCppTTS(url, timeout=0.02, first_audio_timeout=0.5)
+                      .synthesize_stream("x", "none", "ja", CancelToken()))
+    assert b"".join(f.pcm for f in frames) == b"\x01\x00\x02\x00"
+
+
+def test_read_timeout_is_short_again_after_first_pcm(pcm_server):
+    release = Event()
+    with pcm_server(chunks=(b"\x01\x00", b"\x02\x00"),
+                    before_chunk=lambda i: release.wait(1) if i else Event().wait(0.08)) as (url, _):
+        stream = SpeechCppTTS(url, timeout=0.02, first_audio_timeout=0.5).synthesize_stream("x", "none", "ja", CancelToken())
+        try:
+            assert next(stream).pcm == b"\x01\x00"
+            started = monotonic()
+            with pytest.raises(SpeechError, match="transport_error"):
+                next(stream)
+            assert monotonic() - started < 0.3
+        finally:
+            release.set()
+            stream.close()
+
+
+def test_first_audio_budget_includes_header_wait(pcm_server):
+    with pcm_server(before_headers=lambda: Event().wait(0.04),
+                    before_chunk=lambda _: Event().wait(0.04)) as (url, _):
+        with pytest.raises(SpeechError, match="first_audio_timeout"):
+            list(SpeechCppTTS(url, first_audio_timeout=0.06).synthesize_stream("x", "none", "ja", CancelToken()))
 
 
 def test_server_not_running(pcm_server):

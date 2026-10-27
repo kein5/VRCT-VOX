@@ -2,7 +2,9 @@
 
 ヘッドレスCLIはWindowsのPyAudioWPatch/pycaw/windows-captureをimportしない。
 Pythonは標準ライブラリだけで発声でき、`pw-cat` / `pw-dump` が必要。
-VRCT全GUIのLinux互換化はP5。以下は実機確認用手順で、実VRChatで未検証。
+VRCT全GUIのLinux互換化はP5。以下のCLI→仮想マイク→VRChat desktopの経路は、
+ユーザーが内蔵マイクテストの再生で声を確認済み。途中停止後のメーター停止も確認。
+VRCT UI→OSCの同時動作、他ユーザーでの受信、HMDは未検証。
 取得済みIrodori MF / speech.cpp 0.8.11の単発PoCと、0.9.0の専用PipeWireグラフでの
 [30回測定](benchmarks.md)は確認済み。新規モデル取得は行っていない。
 
@@ -51,7 +53,11 @@ CLIは`X-Sample-Rate`の実rateを[pw-cat](https://docs.pipewire.org/page_man_pw
 
 ## 手動受入とP2入口
 
-- VRChatのマイクテストで1回だけ聞こえるか。停止/Ctrl-C後に音声が残らないか。
+- VRChatの[マイクテスト](https://wiki.vrchat.com/wiki/Settings#Microphone)は短い録音の後に再生する。
+  テスト開始してから送信を長く待つと、録音区間から音声が外れる可能性がある。
+  入力メーターが動いている間に`New Test`を押すなどしてタイミングを合わせる。
+  音声送信は各要求1回。録音の`Play Again`による再生回数とは区別する。
+- 停止/Ctrl-C後に入力メーターが止まるか。VRChatがすでに録音したclipの再生はVRCTの停止対象外。
 - loopbackを削除→エラー、物理スピーカーへのfallbackなし。復元→明示再選択後に新しい文で再試行。
 - WiVRn入力/出力を図示し、ゲーム音声・TTS monitorを将来のASR入力から除外する。
 - P2外部VC: 別ソフトの入力を物理マイク、出力を**変換専用sink**へ設定して単体確認。

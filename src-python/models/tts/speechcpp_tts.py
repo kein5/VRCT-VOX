@@ -3,6 +3,7 @@ import http.client
 import json
 import socket
 from threading import Event, Lock
+from time import monotonic
 from urllib.parse import urlsplit
 
 from models.voice_events import AudioFrame
@@ -52,9 +53,10 @@ class CancelToken:
 
 
 class SpeechCppTTS:
-    def __init__(self, base_url, timeout=2.0):
+    def __init__(self, base_url, timeout=2.0, first_audio_timeout=10.0):
         self.base_url = local_url(base_url)
         self.timeout = timeout
+        self.first_audio_timeout = first_audio_timeout
 
     def synthesize_stream(self, text, voice, language, cancel_token):
         if not isinstance(text, str) or not text.strip() or len(text) > 4000:
@@ -62,6 +64,7 @@ class SpeechCppTTS:
         url = urlsplit(self.base_url)
         conn = http.client.HTTPConnection(url.hostname, url.port, timeout=self.timeout)
         response = None
+        waiting_for_audio = False
         try:
             cancel_token.check()
             conn.connect()
@@ -80,6 +83,11 @@ class SpeechCppTTS:
             body = json.dumps({"input": text, "voice": voice,
                                "language": language, "response_format": "pcm"}).encode()
             conn.request("POST", "/v1/audio/speech", body, {"Content-Type": "application/json"})
+            # Initial model work can include cold Vulkan kernels. Keep connection
+            # and subsequent chunk stalls short, but allow bounded first audio.
+            waiting_for_audio = True
+            first_audio_deadline = monotonic() + self.first_audio_timeout
+            sock.settimeout(self.first_audio_timeout)
             response = conn.getresponse()
             if response.status != 200:
                 raise SpeechError(f"http_{response.status}")
@@ -94,6 +102,11 @@ class SpeechCppTTS:
             samples = 0
             while True:
                 cancel_token.check()
+                if waiting_for_audio:
+                    remaining = first_audio_deadline - monotonic()
+                    if remaining <= 0:
+                        raise TimeoutError()
+                    sock.settimeout(remaining)
                 chunk = response.read1(4096)
                 cancel_token.check()
                 if not chunk:
@@ -101,6 +114,9 @@ class SpeechCppTTS:
                 pending += chunk
                 complete = len(pending) // 2 * 2
                 if complete:
+                    if waiting_for_audio:
+                        waiting_for_audio = False
+                        sock.settimeout(self.timeout)
                     samples += complete // 2
                     if samples > rate * 60:
                         raise SpeechError("audio_duration_limit")
@@ -112,6 +128,9 @@ class SpeechCppTTS:
                 raise SpeechError("empty_pcm")
             if response.length not in (None, 0):
                 raise SpeechError("truncated_http")
+        except TimeoutError as exc:
+            cancel_token.check()
+            raise SpeechError("first_audio_timeout" if waiting_for_audio else "transport_error") from exc
         except (OSError, http.client.HTTPException) as exc:
             cancel_token.check()
             raise SpeechError("transport_error") from exc
