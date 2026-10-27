@@ -980,6 +980,7 @@ class Controller:
         language: Optional[str],
         msg_id: Optional[str] = None,
         asr_ms: Optional[int] = None,
+        voice_generation: Optional[int] = None,
     ) -> Optional[dict]:
         """mic/speaker/chatMessage共通のパイプライン(バックエンドレビュー
         フェーズ3項目25、`MessageDirectionSpec`参照)。
@@ -1023,8 +1024,14 @@ class Controller:
                         copy.deepcopy(config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]),
                         list(config.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST),
                         self.voice_events.settings,
-                        self.voice_events.generation(),
+                        (voice_generation if type(voice_generation) is int
+                         else self.voice_events.generation()),
                     )
+
+        # Original speech has no dependency on the translator or text delivery.
+        # The receiver's generation also invalidates chat waiting in Main.queue.
+        if voice_snapshot is not None and voice_snapshot[3].mode == "original":
+            self._publishChatVoice(voice_snapshot, message, [], msg_id, voice_started_ns)
 
         translation: list = []
         if config.ENABLE_TRANSLATION is False:
@@ -1243,20 +1250,8 @@ class Controller:
 
         model.addTranslationHistory(spec.kind, message)
 
-        if voice_snapshot is not None:
-            source_language, targets, slots, voice_settings, generation = voice_snapshot
-            try:
-                # Settings changes while translating invalidate the old request.
-                with self._voice_settings_lock:
-                    if self.voice_events.settings == voice_settings:
-                        self.voice_events.publish(chat_event(
-                            message, translation, event_id=msg_id, started_ns=voice_started_ns,
-                            source_language=source_language, targets=targets, target_slots=slots,
-                            selected_slot=voice_settings.target_slot,
-                        ), expected_generation=generation)
-            except Exception:
-                # Isolate optional audio from successful OSC/UI/history delivery.
-                printLog("[voice] message enqueue failed")
+        if voice_snapshot is not None and voice_snapshot[3].mode == "translated":
+            self._publishChatVoice(voice_snapshot, message, translation, msg_id, voice_started_ns)
 
         pipeline_elapsed_ms = round((time.perf_counter() - pipeline_started_at) * 1000)
         # asr= は mic/speaker のみ (chat には ASR 段が無い)。
@@ -1413,6 +1408,20 @@ class Controller:
     def getVoiceSettings(self, *args, **kwargs) -> dict:
         return {"status": 200, "result": config.VOICE_SETTINGS}
 
+    def _publishChatVoice(self, snapshot, message, translations, msg_id, started_ns):
+        source_language, targets, slots, voice_settings, generation = snapshot
+        try:
+            with self._voice_settings_lock:
+                if self.voice_events.settings == voice_settings:
+                    self.voice_events.publish(chat_event(
+                        message, translations, event_id=msg_id, started_ns=started_ns,
+                        source_language=source_language, targets=targets, target_slots=slots,
+                        selected_slot=voice_settings.target_slot,
+                    ), expected_generation=generation)
+        except Exception:
+            # Optional speech must not change legacy OSC/UI/history delivery.
+            printLog("[voice] message enqueue failed")
+
     def setVoiceSettings(self, data, *args, **kwargs) -> dict:
         try:
             settings = VoiceSettings.from_dict(data)
@@ -1453,7 +1462,8 @@ class Controller:
                     "translations": []
                 },
             }
-        result = self._processMessage(CHAT_MESSAGE_SPEC, message, None, msg_id=msg_id)
+        result = self._processMessage(CHAT_MESSAGE_SPEC, message, None, msg_id=msg_id,
+                                      voice_generation=data.get("_voice_generation"))
         return {"status": 200, "result": result}
 
 

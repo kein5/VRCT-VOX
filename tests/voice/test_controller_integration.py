@@ -4,6 +4,7 @@ This validates pipeline contracts; it is not a Windows runtime or VRChat E2E.
 """
 import importlib.util
 import sys
+from threading import Event, Thread
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
@@ -13,6 +14,7 @@ import pytest
 from models.audio_routing.audio_router import AudioRouter
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
+from models.voice_events import AudioFrame
 from test_scheduler import Sink, until
 
 
@@ -121,6 +123,71 @@ def test_settings_endpoint_invalid_does_not_mutate(controller_module):
     assert controller.setVoiceSettings({"mode": "off"})["status"] == 200
     assert controller.voice_events._thread is None
     controller.voice_events.close()
+
+
+@pytest.mark.parametrize("mode", ["original", "translated"])
+def test_original_speaks_before_translation_but_translated_waits(controller_module, mode):
+    """Putting both modes after translation must break the original-mode case."""
+    module = controller_module
+    module.config.ENABLE_TRANSLATION = True
+    entered, release, spoken = Event(), Event(), Event()
+    sink = Sink()
+
+    class Provider:
+        def __init__(self, url):
+            pass
+
+        def synthesize_stream(self, text, voice, language, token):
+            spoken.set()
+            yield AudioFrame(b"\x01\x00" * 48, 48000)
+
+    def translate(*args, **kwargs):
+        entered.set()
+        assert release.wait(2), "test translation not released"
+        return ["hello", "こんにちは"], [True, True]
+
+    module.model.getInputTranslate.side_effect = translate
+    controller = module.Controller()
+    controller.messageFormatter = MagicMock(return_value="text")
+    controller.voice_events = VoiceEventBus(
+        VoiceSettings(mode=mode, output_device="cable", target_slot="2"),
+        provider_factory=Provider, router=AudioRouter(lambda *args: sink))
+    result = []
+    worker = Thread(target=lambda: result.append(controller.chatMessage({"id": mode, "message": "原文"})))
+    worker.start()
+    try:
+        assert entered.wait(1)
+        assert spoken.wait(0.25) is (mode == "original")
+        assert not result  # Translation remains blocked while original speech starts.
+        release.set()
+        worker.join(1)
+        assert result[0]["status"] == 200
+        until(lambda: controller.voice_events.status()["completed"] == 1)
+        assert len(sink.data) == 1
+        module.model.addTranslationHistory.assert_called_once_with("chat", "原文")
+    finally:
+        release.set()
+        worker.join(2)
+        controller.voice_events.close()
+
+
+def test_chat_accepted_before_cancel_cannot_speak_later(controller_module):
+    """A chat still in Main's queue keeps text delivery but loses old TTS intent."""
+    module = controller_module
+    controller = module.Controller()
+    controller.messageFormatter = MagicMock(return_value="text")
+    controller.voice_events.configure(VoiceSettings(mode="original", output_device="cable"))
+    old_generation = controller.voice_events.generation()
+    controller.stopVoice()
+    try:
+        result = controller.chatMessage({"id": "old", "message": "queued",
+                                         "_voice_generation": old_generation})
+        assert result["status"] == 200
+        assert controller.voice_events.status()["accepted"] == 0
+        module.model.addTranslationHistory.assert_called_once_with("chat", "queued")
+        assert controller.voice_events._thread is None
+    finally:
+        controller.voice_events.close()
 
 
 def test_existing_message_pipeline_suite_with_injected_services(controller_module, monkeypatch, tmp_path):

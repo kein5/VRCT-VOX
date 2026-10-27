@@ -739,6 +739,18 @@ class Main:
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
                     printLog(endpoint, {"receive_data": data})
+                    if endpoint == "/run/stop_voice":
+                        # Cancellation only signals the TTS worker; it does not
+                        # join, infer, or close a driver here. Busy ordinary
+                        # handlers must not delay this request.
+                        result, status = self._call_handler(endpoint, data)
+                        printResponse(status, endpoint, result)
+                        continue
+                    if endpoint == "/run/send_message_box" and isinstance(data, dict):
+                        # Backend-owned stamp, never trust a value from stdin.
+                        # Queued text still reaches OSC/history after a stop,
+                        # but its old speech intent must not start later.
+                        data["_voice_generation"] = self.controller.voice_events.generation()
                     self.queue.put((endpoint, data, 0))
             except json.JSONDecodeError:
                 # malformed input; log and continue
