@@ -1,12 +1,18 @@
 import * as common from "@logics_common";
 import * as main from "@logics_main";
 import * as configs from "@logics_configs";
+import * as voice from "./voice/useVoice";
 import { _useBackendErrorHandling } from "./_useBackendErrorHandling";
 import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { receiveLanguageMutation, resetLanguageMutations } from "./main/languageMutations";
 
 export const STATIC_ROUTE_META_LIST = [
+    { endpoint: "/get/data/voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateSettings" },
+    { endpoint: "/set/data/voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateSettings" },
+    { endpoint: "/get/data/voice_status", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
+    { endpoint: "/get/data/voice_output_devices", ns: voice, hook_name: "useVoice", method_name: "updateDevices" },
+    { endpoint: "/run/stop_voice", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
     // Common
     { endpoint: "/run/feed_watchdog", ns: null, hook_name: null, method_name: null },
     { endpoint: "/run/initialization_progress", ns: common, hook_name: "useInitProgress", method_name: "updateInitProgress" },
@@ -133,6 +139,7 @@ export const STATIC_ROUTE_META_LIST = [
 export const useReceiveRoutes = () => {
     const { showNotification_Error } = common.useNotificationStatus();
     const { errorHandling_Backend } = _useBackendErrorHandling();
+    const { updateError: updateVoiceError } = voice.useVoice();
     const { updateIsBackendReady } = common.useIsBackendReady();
     const { asyncStdoutToPython } = useStdoutToPython();
 
@@ -171,6 +178,10 @@ export const useReceiveRoutes = () => {
 
     const receiveRoutes = (parsed_data) => {
         const { endpoint, status, result } = parsed_data;
+        if (status !== 200 && (endpoint.includes("/voice_") || endpoint === "/run/stop_voice")) {
+            updateVoiceError(result?.error_code || "voice_request_failed");
+            return;
+        }
 
         if (endpoint === "/run/initialization_complete") {
             Object.entries(result).forEach(([ep, value]) => {

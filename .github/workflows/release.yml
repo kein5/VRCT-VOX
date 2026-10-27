@@ -144,6 +144,9 @@ jobs:
           echo "cpu_zip_sha_path=$cpuZipShaPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           echo "gpu_zip_sha_path=$gpuZipShaPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
+      - name: Reject restricted upstream model in fork artifacts
+        run: python tools/check_voice_distribution.py VRCT.zip VRCT_cuda.zip src-tauri/bin/_internal
+
       - name: Upload to Hugging Face Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}

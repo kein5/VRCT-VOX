@@ -571,6 +571,12 @@ mapping = {
     "/set/disable/send_received_message_to_vrc": {"status": True, "variable":controller.setDisableSendReceivedMessageToVrc},
 
     # WebSocket Settings
+    "/get/data/voice_settings": {"status": True, "variable":controller.getVoiceSettings},
+    "/set/data/voice_settings": {"status": True, "variable":controller.setVoiceSettings},
+    "/get/data/voice_status": {"status": True, "variable":controller.getVoiceStatus},
+    "/get/data/voice_output_devices": {"status": True, "variable":controller.getVoiceOutputDevices},
+    "/run/stop_voice": {"status": True, "variable":controller.stopVoice},
+
     "/get/data/websocket_host": {"status": True, "variable":controller.getWebSocketHost},
     "/set/data/websocket_host": {"status": True, "variable":controller.setWebSocketHost},
     "/get/data/websocket_port": {"status": True, "variable":controller.getWebSocketPort},

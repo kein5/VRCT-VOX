@@ -15,6 +15,10 @@ from errors import ErrorCode, OcrStartError, VRCTError
 from models.transcription.transcription_openai_compatible import TRANSCRIPTION_MODEL_KEYWORDS, TRANSCRIPTION_API_ENGINES
 from models.translation.translation_providers import TRANSLATION_PROVIDER_REGISTRY, CONNECTION_PROVIDER_REGISTRY
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
+from models.tts.settings import VoiceSettings
+from models.tts.tts_scheduler import VoiceEventBus
+from models.tts.message_hook import chat_event
+from models.audio_routing.audio_router import enumerate_outputs
 from models.overlay.overlay_tooltip import validate_tooltip
 from models.overlay.overlay import PANEL_ANCHORS, computeVrLayout, clampPanelSize, mirrorHandPosition
 
@@ -323,6 +327,9 @@ class Controller:
         """
         self._config = config_override if config_override is not None else config
         self._model = model_override if model_override is not None else model
+        voice_settings = getattr(self._config, "VOICE_SETTINGS", {})
+        self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings if isinstance(voice_settings, dict) else {}))
+        self._voice_settings_lock = Lock()
         # typed attributes to satisfy static type checkers
         self.init_mapping: dict = {}
         self.run_mapping: dict = {}
@@ -427,6 +434,8 @@ class Controller:
         Returns:
             dict with status 200 and result True on success.
         """
+        if getattr(self, "voice_events", None) is not None:
+            self._stopServiceForShutdown(self.voice_events.close, "TTS")
         # デバイス監視・録音系スレッドを明示的に停止する。これを怠ると
         # PyAudio/WASAPI ストリームが open されたままプロセスが終了し、
         # デバイスハンドルがリークしたり、次回起動時の初期化に影響し得る。
@@ -1002,6 +1011,20 @@ class Controller:
         # した場合は出力自体が無いので測らない。
         pipeline_started_at = time.perf_counter()
         translate_elapsed_ms = 0
+        # Snapshot the selected preset before translation can block. P1 is chat
+        # only; a receive/OCR/ASR message must never become microphone audio.
+        voice_snapshot = None
+        voice_started_ns = time.monotonic_ns()
+        if spec.kind == "chat" and getattr(self, "voice_events", None) is not None:
+            with self._voice_settings_lock:
+                if self.voice_events.settings.mode != "off":
+                    voice_snapshot = (
+                        config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"],
+                        copy.deepcopy(config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]),
+                        list(config.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST),
+                        self.voice_events.settings,
+                        self.voice_events.generation(),
+                    )
 
         translation: list = []
         if config.ENABLE_TRANSLATION is False:
@@ -1220,6 +1243,21 @@ class Controller:
 
         model.addTranslationHistory(spec.kind, message)
 
+        if voice_snapshot is not None:
+            source_language, targets, slots, voice_settings, generation = voice_snapshot
+            try:
+                # Settings changes while translating invalidate the old request.
+                with self._voice_settings_lock:
+                    if self.voice_events.settings == voice_settings:
+                        self.voice_events.publish(chat_event(
+                            message, translation, event_id=msg_id, started_ns=voice_started_ns,
+                            source_language=source_language, targets=targets, target_slots=slots,
+                            selected_slot=voice_settings.target_slot,
+                        ), expected_generation=generation)
+            except Exception:
+                # Isolate optional audio from successful OSC/UI/history delivery.
+                printLog("[voice] message enqueue failed")
+
         pipeline_elapsed_ms = round((time.perf_counter() - pipeline_started_at) * 1000)
         # asr= は mic/speaker のみ (chat には ASR 段が無い)。
         # output= は翻訳以外の全て (transliteration/OSC/オーバーレイ生成/
@@ -1371,6 +1409,34 @@ class Controller:
             return
         # UI は既存の disable endpoint の run 通知を状態更新として処理する。
         self.run(200, endpoint, False)
+
+    def getVoiceSettings(self, *args, **kwargs) -> dict:
+        return {"status": 200, "result": config.VOICE_SETTINGS}
+
+    def setVoiceSettings(self, data, *args, **kwargs) -> dict:
+        try:
+            settings = VoiceSettings.from_dict(data)
+        except (ValueError, TypeError):
+            return {"status": 400, "result": {"error_code": "VOICE_SETTINGS_INVALID",
+                    "message": "Invalid voice settings; select an output and local server.", "data": None}}
+        with self._voice_settings_lock:
+            config.VOICE_SETTINGS = settings.to_dict()
+            self.voice_events.configure(settings)
+        return self.getVoiceSettings()
+
+    def getVoiceStatus(self, *args, **kwargs) -> dict:
+        return {"status": 200, "result": self.voice_events.status()}
+
+    def getVoiceOutputDevices(self, *args, **kwargs) -> dict:
+        try:
+            devices = enumerate_outputs()
+            return {"status": 200, "result": {"devices": devices, "error": None}}
+        except Exception:
+            return {"status": 200, "result": {"devices": [], "error": "audio_devices_unavailable"}}
+
+    def stopVoice(self, *args, **kwargs) -> dict:
+        self.voice_events.cancel()
+        return self.getVoiceStatus()
 
     def chatMessage(self, data) -> dict:
         msg_id = data["id"]

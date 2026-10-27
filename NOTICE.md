@@ -1,5 +1,13 @@
 # NOTICE
 
+## Optional voice integration in this fork
+
+The speech.cpp integration connects to a separately installed local server.
+No TTS/VC engine binaries, voice recordings, or additional model weights are
+bundled by this change. Fork builds exclude `chatbox_yolox_tiny.onnx` and retain
+its license notices. See [voice licensing](docs/voice-stack/licensing.md) for
+the external component boundaries and model-specific checks still required.
+
 VRCT is distributed under the MIT License (see [`LICENSE`](LICENSE)), **with
 the one exception listed below**. The exception applies both to this
 repository and to the built application published on GitHub Releases and

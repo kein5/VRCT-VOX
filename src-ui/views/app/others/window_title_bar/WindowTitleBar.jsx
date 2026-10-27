@@ -4,7 +4,7 @@ import styles from "./WindowTitleBar.module.scss";
 import XMarkSvg from "@images/cancel.svg?react";
 import SquareSvg from "@images/square.svg?react";
 import LineSvg from "@images/line.svg?react";
-import VrctSvg from "@images/vrct.svg?react";
+import VrctSvg from "@images/VRCT.svg?react";
 
 export const WindowTitleBar = () => {
     const { asyncCloseApp, asyncToggleMaximizeApp, asyncMinimizeApp} = useWindow();

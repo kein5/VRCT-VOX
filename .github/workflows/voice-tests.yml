@@ -1,0 +1,27 @@
+name: Voice contracts (no models)
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  headless:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv venv --python 3.11
+      - run: uv pip install -r requirements-voice-test.txt
+      - run: uv run --no-project python -m pytest -c tests/voice/pytest.ini tests/voice -q
+      - run: uv run --no-project ruff check src-python/models/tts src-python/models/audio_routing src-python/models/voice_events.py tests/voice tools/voice_cli.py tools/voice_latency.py tools/check_voice_distribution.py
+      - run: uv run --no-project python tools/voice_cli.py --help
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.15.0'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --test src-ui/logics/main/languageMutationCoordinator.test.js src-ui/logics/main/languageMutations.test.js src-ui/logics/common/vrPanelWire.test.js src-ui/logics/common/vrPanelTooltip.test.js
+      - run: npm run vite-build

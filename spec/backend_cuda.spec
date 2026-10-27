@@ -37,6 +37,8 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+a.datas = [entry for entry in a.datas
+           if os.path.basename(entry[0].replace('\\', '/')).lower() != 'chatbox_yolox_tiny.onnx']
 pyz = PYZ(a.pure)
 
 exe = EXE(

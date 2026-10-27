@@ -1,0 +1,13 @@
+.container {
+    display: grid;
+    gap: 1rem;
+    max-width: 65rem;
+    form { display: grid; gap: 1rem; }
+    label { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(15rem, 2fr); gap: 1rem; align-items: center; }
+    input, select, button { font: inherit; padding: .6rem; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: .4rem; }
+    select option { color: #111; background: #fff; }
+    button { cursor: pointer; }
+    :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    button:disabled { opacity: .6; cursor: wait; }
+    [role="alert"] { border-left: 3px solid currentColor; padding-left: 1rem; }
+}

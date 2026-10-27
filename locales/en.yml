@@ -3,6 +3,34 @@
 # Please read 'readme_first.txt' before making any changes.
 # =================================
 
+voice:
+    title: "Text to voice (speech.cpp)"
+    description: "Read sent text through a virtual microphone. Start your local speech.cpp server first."
+    loading: "Loading voice settings…"
+    mode: "Read aloud"
+    off: "Off / silent send"
+    original: "Original text"
+    translated: "Translated text"
+    target_slot: "Translation slot"
+    output_device: "Virtual cable playback device"
+    select_output: "Select an output"
+    disconnected: "Disconnected"
+    refresh: "Refresh devices"
+    japanese_url: "Japanese server (Irodori)"
+    japanese_voice: "Japanese voice name"
+    multilingual_url: "Other languages server (Qwen3-TTS)"
+    multilingual_voice: "Other languages voice name"
+    routing_hint: "Choose the cable's recording end in VRChat. Use a separate port for Qwen3-TTS. Disable other TTS clients to avoid double speech."
+    save: "Save voice settings"
+    saving: "Saving…"
+    stop: "Stop playback and clear queue"
+    playing: "Speaking"
+    idle: "Idle"
+    queued: "Queued"
+    retry: "Reload voice settings"
+    dropped: "Discarded queued messages: {{count}}"
+    error: "Voice unavailable (check server, language and output)"
+
 common:
     close_button_label: "Close"
     go_back_button_label: "Go Back"

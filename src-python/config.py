@@ -5,6 +5,7 @@ from json import load as json_load
 from json import dump as json_dump
 from secrets import token_urlsafe as secrets_token_urlsafe
 import threading
+from models.tts.settings import VoiceSettings, normalize_settings
 from typing import Optional, Dict, Any
 
 # Guard optional, potentially heavy or platform-specific imports so importing
@@ -968,6 +969,7 @@ class Config:
     RECEIVED_MESSAGE_FORMAT_PARTS = ValidatedProperty('RECEIVED_MESSAGE_FORMAT_PARTS', _format_validator_received)
 
     # Convert remaining simple properties to ManagedProperty to reduce repetition
+    VOICE_SETTINGS = ValidatedProperty('VOICE_SETTINGS', normalize_settings)
     WEBSOCKET_SERVER = ManagedProperty('WEBSOCKET_SERVER', type_=bool)
     OSC_IP_ADDRESS = ManagedProperty('OSC_IP_ADDRESS', type_=str)
     OSC_PORT = ManagedProperty('OSC_PORT', type_=int)
@@ -1372,6 +1374,7 @@ class Config:
             },
             "translation_first": False,
         }
+        self._VOICE_SETTINGS = VoiceSettings().to_dict()
         self._WEBSOCKET_SERVER = False
         self._WEBSOCKET_HOST = "127.0.0.1"
         self._WEBSOCKET_PORT = 2231

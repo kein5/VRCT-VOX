@@ -2,9 +2,15 @@ import zipfile
 import argparse
 from pathlib import Path
 import time
+import sys
 from tqdm import tqdm # tqdmをインポート
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+from check_voice_distribution import check
+
 def zip_files_and_directory(zip_name, file_paths, dir_paths, verbose=False):
+    # Check before creating/truncating the archive, including stale build trees.
+    check([p for p in [*file_paths, *dir_paths] if Path(p).exists()])
     zip_file_path = Path(zip_name)
     # ZIPファイルを作成
     try:

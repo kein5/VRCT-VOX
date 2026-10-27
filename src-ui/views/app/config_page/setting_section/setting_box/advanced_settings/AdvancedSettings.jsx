@@ -1,5 +1,6 @@
 import { useI18n } from "@useI18n";
 import styles from "./AdvancedSettings.module.scss";
+import { VoiceSettings } from "./VoiceSettings";
 
 import { useCopyToClipboard, useOpenFolder } from "@logics_common";
 import {
@@ -31,6 +32,7 @@ export const AdvancedSettings = () => {
                 <OpenConfigFolderContainer />
             </div>
             <WebsocketContainer />
+            <VoiceSettings />
             <ObsBrowserSourceContainer />
         </div>
     );

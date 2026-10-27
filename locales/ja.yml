@@ -3,6 +3,34 @@
 # Please read 'readme_first.txt' before making any changes.
 # =================================
 
+voice:
+    title: "テキスト発声（speech.cpp）"
+    description: "送信テキストを仮想マイクへ読み上げます。先にローカルのspeech.cppサーバーを起動してください。"
+    loading: "音声設定を読み込み中…"
+    mode: "読み上げ"
+    off: "OFF・無音送信"
+    original: "原文"
+    translated: "翻訳文"
+    target_slot: "読み上げる翻訳先の番号"
+    output_device: "仮想ケーブルの再生デバイス"
+    select_output: "出力先を選択"
+    disconnected: "未接続"
+    refresh: "デバイス一覧を更新"
+    japanese_url: "日本語サーバー（Irodori）"
+    japanese_voice: "日本語の声名"
+    multilingual_url: "他言語サーバー（Qwen3-TTS）"
+    multilingual_voice: "他言語の声名"
+    routing_hint: "VRChatではケーブルの録音側をマイクに選んでください。Qwen3-TTSには別ポートを使います。二重発声を防ぐため他のTTSクライアントは停止してください。"
+    save: "音声設定を保存"
+    saving: "保存中…"
+    stop: "読み上げを停止・キューを消去"
+    playing: "読み上げ中"
+    idle: "待機中"
+    queued: "待機件数"
+    retry: "音声設定を再読み込み"
+    dropped: "破棄した待機メッセージ: {{count}}件"
+    error: "発声できません（サーバー・言語・出力先を確認）"
+
 common:
     close_button_label: "閉じる"
     go_back_button_label: "戻る"
