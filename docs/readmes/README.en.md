@@ -1,3 +1,14 @@
+# VRCT-TTS
+
+[VRCT-TTS](https://github.com/kein5/VRCT-TTS) is a development fork of
+[VRCT](https://github.com/misyaguziya/VRCT), previously named `kein5/VRCT.cpp`.
+It adds low-latency speech.cpp text-to-speech and is developing external voice conversion,
+real-time speech recognition, translated speech, and Windows/Linux audio routing.
+
+The full feature set is still in development. See the [implementation and validation status](docs/voice-stack/completion-ledger.md)
+and [publication/upstream plan](docs/voice-stack/publication-and-upstream.md) for what works and what remains unverified.
+The upstream documentation below, including its downloads and support links, describes the original VRCT project.
+
 <div align="center">
 
 <picture>
