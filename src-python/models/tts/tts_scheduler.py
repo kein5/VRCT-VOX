@@ -24,6 +24,7 @@ class VoiceEventBus:
         self._thread = None
         self._active = None
         self._closed = False
+        self._muted = False
         self._epoch = 0
         self._stats = {"accepted": 0, "completed": 0, "dropped": 0, "duplicates": 0,
                        "cancelled": 0, "errors": 0, "last_error": None,
@@ -47,6 +48,13 @@ class VoiceEventBus:
         with self._condition:
             self._cancel_locked()
 
+    def set_muted(self, muted):
+        with self._condition:
+            if self._muted != bool(muted):
+                self._muted = bool(muted)
+                # Both edges invalidate chat accepted before the transition.
+                self._cancel_locked()
+
     def close(self, timeout=3.0):
         with self._condition:
             self._closed = True
@@ -64,7 +72,7 @@ class VoiceEventBus:
         with self._condition:
             if expected_generation is not None and expected_generation != self._epoch:
                 return False
-            if self._closed or self.settings.mode == "off" or event.source != "chat" or not event.is_final:
+            if self._closed or self._muted or self.settings.mode == "off" or event.source != "chat" or not event.is_final:
                 return False
             if not event.event_id or not event.original_text.strip():
                 return False
@@ -92,7 +100,7 @@ class VoiceEventBus:
     def status(self):
         with self._condition:
             return {**self._stats, "queued": len(self._queue), "active": self._active is not None,
-                    "mode": self.settings.mode, "closed": self._closed}
+                    "mode": self.settings.mode, "closed": self._closed, "muted": self._muted}
 
     def _work(self):
         while True:
@@ -118,7 +126,7 @@ class VoiceEventBus:
                         self._stats["last_first_write_ms"] = round((timestamp - event.timestamp_ns) / 1e6, 3)
                         self._stats["sample_rate"] = rate
 
-                self.router.play(frames, settings.output_device, token, first_audio)
+                self.router.play(frames, settings.playback_device, token, first_audio)
                 token.check()
                 with self._condition:
                     self._stats["completed"] += 1

@@ -44,6 +44,11 @@ class VoiceSettings:
     multilingual_url: str = ""
     multilingual_voice: str = "ryan"
     output_device: str = ""
+    routing: str = "external"  # external | managed (Linux daemon-owned route)
+
+    @property
+    def playback_device(self):
+        return "vrct.managed.tts" if self.routing == "managed" else self.output_device
 
     @classmethod
     def from_dict(cls, value):
@@ -54,6 +59,8 @@ class VoiceSettings:
             raise ValueError("Voice settings must be strings")
         if settings.mode not in ("off", "original", "translated") or settings.target_slot not in ("1", "2", "3"):
             raise ValueError("Invalid speech mode or translation slot")
+        if settings.routing not in ("external", "managed"):
+            raise ValueError("Invalid routing mode")
         local_url(settings.japanese_url)
         if settings.multilingual_url:
             local_url(settings.multilingual_url)
@@ -62,7 +69,7 @@ class VoiceSettings:
                 raise ValueError("Invalid voice name")
         if len(settings.output_device) > 512 or any(ord(c) < 32 for c in settings.output_device):
             raise ValueError("Invalid output device")
-        if settings.mode != "off" and not settings.output_device.strip():
+        if settings.mode != "off" and not settings.playback_device.strip():
             raise ValueError("Select a virtual microphone output before enabling TTS")
         return settings
 

@@ -108,7 +108,7 @@ def default_output():
 
 
 @contextmanager
-def private_graph():
+def private_graph(*, config_fragment=None):
     """Isolate both sockets and policy state; restore environment after workers exit."""
     if not sys.platform.startswith("linux"):
         raise RuntimeError("linux_required")
@@ -118,7 +118,15 @@ def private_graph():
     with tempfile.TemporaryDirectory(prefix="vrct-p1-") as directory, ExitStack() as stack:
         root = Path(directory)
         config = root / "acceptance.conf"
-        config.write_text(PIPEWIRE_CONFIG, encoding="utf-8")
+        configuration = PIPEWIRE_CONFIG
+        if config_fragment:
+            fragment = Path(config_fragment).read_text(encoding="utf-8").strip()
+            prefix = "context.modules = ["
+            if not fragment.startswith(prefix) or not fragment.endswith("]"):
+                raise ValueError("expected_modules_fragment")
+            marker = "{ name = libpipewire-module-link-factory }"
+            configuration = configuration.replace(marker, marker + "\n" + fragment[len(prefix):-1], 1)
+        config.write_text(configuration, encoding="utf-8")
         overrides = {"PIPEWIRE_RUNTIME_DIR": directory, "PIPEWIRE_REMOTE": "vrct-acceptance",
                      "XDG_STATE_HOME": str(root / "state"), "XDG_CONFIG_HOME": str(root / "config"),
                      "WIREPLUMBER_CONFIG_DIR": "/usr/share/wireplumber"}
