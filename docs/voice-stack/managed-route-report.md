@@ -1,7 +1,9 @@
 # 常駐仮想マイクと保持ミュートの検証
 
 2026-10-27。依頼された手順1のソース実装と、モデル不要のLinux経路試験を完了した。
-ホストのPipeWire設定配置・再起動、VRChat/WiVRn操作、音声モデル取得は実施していない。
+この独立グラフ試験ではホストのPipeWire設定配置・再起動、VRChat/WiVRn操作、音声モデル取得は実施していない。
+後続の[ホスト・VRChat自動受入](managed-vrchat-report.md)で一時配置、1回再生、保持mute、
+音声制御process再起動を確認した。実機結果と本書の独立グラフ測定は分けて扱う。
 [設計](../superpowers/specs/2026-10-27-managed-voice-route-design.md) と
 [ADR-005](adr-005-managed-microphone-lifetime.md) を参照。
 
@@ -92,13 +94,15 @@ CIにはLinux helperのコンパイルを追加したが、リモートCI/Window
    engine終了について回避しただけで、daemon停止やVRChat自体の選択動作まで解決していない。
 3. monitorは0.1秒周期＋OS操作時間の検出であり即時保証ではない。gate/storage失敗時のUIは
    unknown/errorを表示する。status200だけを無音確認と解釈してはいけない。
-4. hostへの導入、VRCT Linux全GUI起動、VRChat内の1回再生・停止・再接続、WiVRn/HMD、
-   実VC/ASR/翻訳音声モデル同時動作、Windows OS gate、helperのバイナリ配布は未検証。
+4. この独立グラフ試験時点ではhost導入とVRChat受入も未実施だった。後続の結果は次項を参照。
+   VRCT Linux全GUI起動、daemon消失時のVRChat再接続、WiVRn/HMD、実VC/ASR/翻訳音声モデル
+   同時動作、Windows OS gate、helperのバイナリ配布は引き続き未検証。
 5. 当初は専用computer-useツールがないためGUI操作を手動必須と説明したが、
    [後続のimozuru調査](vrchat-gui-automation-research.md)でydotool/kdotool/Spectacleの導入と
    uinput権限を確認した。CLIを組み合わせる自動化案を採れる見込みがあり、前の断定を訂正する。
    後続の[GUI PoC](vrchat-gui-poc-report.md)では既存P1経路で操作・録音再生を試験した。
-   managed経路のVRChat実機受入と、今回の物理的な聞こえの確認は未実施。
+   managed経路の受入は[後続試験](managed-vrchat-report.md)で条件付きPASS。
+   物理的な聞こえ、全GUI再起動、daemon消失時の再接続は引き続き未検証。
 
 ## 実装時の判断
 

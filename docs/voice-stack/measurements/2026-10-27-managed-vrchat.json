@@ -1,0 +1,980 @@
+{
+  "date": "2026-10-27",
+  "production_code_base": "6549e60f",
+  "environment": {
+    "kernel": "6.18.55-2-cachyos-lts",
+    "python": "3.13.17",
+    "pipewire": "pipewire",
+    "wireplumber": "wireplumber",
+    "ydotool": "ydotool 1.0.4-3.1",
+    "session": "KDE Wayland / VRChat desktop Japanese UI"
+  },
+  "scope": {
+    "model_downloaded": false,
+    "physical_microphone_recorded": false,
+    "full_vrct_gui_restarted": false,
+    "voice_core_subprocess_restarted": true,
+    "vrchat_connected_during_pipewire_restart": false,
+    "windows_tested": false,
+    "inference": "reference WAV fixture via real VoiceEventBus; external VC replaced with 440 Hz pw-cat"
+  },
+  "fixture": {
+    "rate": 48000,
+    "channels": 1,
+    "sample_width": 2,
+    "seconds": 5.745979166666666,
+    "sha256": "da502624c4d78c546c4dc41353cc4412a4c81d0a1241d203b67448430e3916aa"
+  },
+  "host_setup": {
+    "managed_config_sha256": "4e6cb51b147529d31be25bc535e2792fb3c2c2a38ab649365b4897b20ff4784b",
+    "temporary_combined_config_sha256": "c74ee30f6fb374b365c73d504895d30d6a0f6347e472ed2c8e01009e7ed35e53",
+    "managed_module_count": 3,
+    "legacy_compatibility_module_count": 1,
+    "daemon_loopback_modules": [
+      {
+        "id": 29,
+        "name": "libpipewire-module-loopback",
+        "args": "{ audio.position = [ \"MONO\" ] capture.props = { node.virtual = true vrct.managed.route = \"v1\" priority.session = -100 state.restore-props = false media.class = \"Audio/Sink\" node.name = \"vrct.managed.mix\" node.description = \"VRCT Managed Virtual Microphone Input\" } playback.props = { node.virtual = true vrct.managed.route = \"v1\" priority.session = -100 state.restore-props = false node.name = \"vrct.managed.source\" node.description = \"VRCT Managed Virtual Microphone\" media.class = \"Audio/Source\" node.passive = true node.param.Props = { mute = true } } }"
+      },
+      {
+        "id": 30,
+        "name": "libpipewire-module-loopback",
+        "args": "{ audio.position = [ \"MONO\" ] capture.props = { node.virtual = true vrct.managed.route = \"v1\" priority.session = -100 state.restore-props = false media.class = \"Audio/Sink\" node.name = \"vrct.managed.tts\" node.description = \"VRCT Managed TTS Input\" } playback.props = { node.virtual = true vrct.managed.route = \"v1\" priority.session = -100 state.restore-props = false node.name = \"vrct.managed.tts.output\" node.description = \"VRCT Managed TTS\" target.object = \"vrct.managed.mix\" node.dont-fallback = true node.dont-reconnect = true } }"
+      },
+      {
+        "id": 31,
+        "name": "libpipewire-module-loopback",
+        "args": "{ audio.position = [ \"MONO\" ] capture.props = { node.virtual = true vrct.managed.route = \"v1\" priority.session = -100 state.restore-props = false media.class = \"Audio/Sink\" node.name = \"vrct.managed.vc\" node.description = \"VRCT Managed VC Input\" } playback.props = { node.virtual = true vrct.managed.route = \"v1\" priority.session = -100 state.restore-props = false node.name = \"vrct.managed.vc.output\" node.description = \"VRCT Managed VC\" target.object = \"vrct.managed.mix\" node.dont-fallback = true node.dont-reconnect = true } }"
+      },
+      {
+        "id": 32,
+        "name": "libpipewire-module-loopback",
+        "args": "{\n  audio.position = [ MONO ]\n  capture.props = { media.class = Audio/Sink node.name = vrct.p1.sink node.description = \"VRCT P1 Voice Input\" priority.session = -100 node.virtual = true }\n  playback.props = { media.class = Audio/Source node.name = vrct.p1.source node.description = \"VRCT P1 Virtual Microphone\" priority.session = -100 node.virtual = true node.passive = true }\n }"
+      }
+    ],
+    "initial_gate": {
+      "identity": [
+        3404556692,
+        44
+      ],
+      "muted": true
+    },
+    "original_default_sink": "vrct.p1.sink",
+    "original_default_source": "vrct.p1.source"
+  },
+  "private_worker_smoke": {
+    "passed": true,
+    "completed": 1,
+    "restart_muted": true
+  },
+  "trials": [
+    {
+      "status": "failed",
+      "boundary": "managed virtual source + local VRChat test playback",
+      "full_vrct_gui_restarted": false,
+      "voice_control_process_restarted": false,
+      "real_vc_model": false,
+      "inference": "WAV fixture through real VoiceEventBus",
+      "noise_suppression": "off",
+      "physical_headphone_tested": false,
+      "initial": {
+        "identity": [
+          3404556692,
+          44
+        ],
+        "muted": true
+      },
+      "route_before": {
+        "core": [
+          3404556692
+        ],
+        "nodes": {
+          "vrct.managed.source": 44,
+          "vrct.managed.replay": 100
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.managed.replay"
+          ],
+          [
+            "vrct.managed.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "control_pid_before": 1460411,
+      "failure": "gui_ready_timeout",
+      "trial": "old_templates_before_first_publish",
+      "diagnostic": {
+        "kind": "GUI readiness unconfirmed; no speech published",
+        "ready_score": 0.7490876200690662,
+        "minimum_ready_score": 0.8
+      }
+    },
+    {
+      "status": "passed",
+      "boundary": "managed virtual source + local VRChat test playback",
+      "full_vrct_gui_restarted": false,
+      "voice_control_process_restarted": true,
+      "real_vc_model": false,
+      "inference": "WAV fixture through real VoiceEventBus",
+      "noise_suppression": "off",
+      "physical_headphone_tested": false,
+      "initial": {
+        "identity": [
+          3404556692,
+          44
+        ],
+        "muted": true
+      },
+      "route_before": {
+        "core": [
+          3404556692
+        ],
+        "nodes": {
+          "vrct.managed.source": 44,
+          "vrct.managed.replay": 100
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.managed.replay"
+          ],
+          [
+            "vrct.managed.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "gui_observations": [
+        {
+          "image": "screen-001.png",
+          "scores": {
+            "ready": 1.0,
+            "recording": 0.2973317476555001
+          }
+        },
+        {
+          "image": "screen-002.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-003.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-004.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-005.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-006.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-007.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-008.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-009.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-010.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-011.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-012.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-013.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-014.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-015.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-016.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-017.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-018.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-019.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-020.png",
+          "scores": {
+            "ready": 1.0,
+            "recording": 0.2973317476555001
+          }
+        },
+        {
+          "image": "screen-021.png",
+          "scores": {
+            "ready": 1.0,
+            "recording": 0.2973317476555001
+          }
+        },
+        {
+          "image": "screen-022.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-023.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-024.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-025.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-026.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-027.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-028.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-029.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-030.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-031.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-032.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-033.png",
+          "scores": {
+            "ready": 0.2973317476555001,
+            "recording": 1.0
+          }
+        },
+        {
+          "image": "screen-034.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-035.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-036.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-037.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-038.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-039.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-040.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-041.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-042.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-043.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-044.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-045.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-046.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-047.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-048.png",
+          "scores": {
+            "ready": 0.315741567344205,
+            "recording": 0.563268841999633
+          }
+        },
+        {
+          "image": "screen-049.png",
+          "scores": {
+            "ready": 1.0,
+            "recording": 0.2973317476555001
+          }
+        }
+      ],
+      "control_pid_before": 1465183,
+      "single_replay": {
+        "muted": false,
+        "publish_accepted": true,
+        "route": {
+          "core": [
+            3404556692
+          ],
+          "nodes": {
+            "vrct.managed.source": 44,
+            "vrct.managed.replay": 100
+          },
+          "edges": [
+            [
+              "VRChat.exe",
+              "vrct.managed.replay"
+            ],
+            [
+              "vrct.managed.source",
+              "VRChat.exe"
+            ]
+          ]
+        },
+        "captures": {
+          "mic": {
+            "valid": true,
+            "samples": 1152000,
+            "elapsed_seconds": 24.012720623999485,
+            "last_read_seconds": 24.013178656998207,
+            "max_read_gap_seconds": 0.045490163000067696,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "replay": {
+            "valid": true,
+            "samples": 1152000,
+            "elapsed_seconds": 24.013311668000824,
+            "last_read_seconds": 24.013802942994516,
+            "max_read_gap_seconds": 0.04627091500151437,
+            "early_exit": false,
+            "reader_error": null
+          }
+        },
+        "mic": {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9753174628285846,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 3.16,
+              "score": 0.9753174628285846
+            }
+          ],
+          "observed_seconds": 24.0,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        "replay": {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9986994728916908,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 12.98,
+              "score": 0.9986994728916908
+            }
+          ],
+          "observed_seconds": 24.0,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        "passed": true
+      },
+      "engine_pid": 1467131,
+      "engine_exit": {
+        "same_identity": true,
+        "capture": {
+          "frames": 1444,
+          "sample_count": 1386240,
+          "last_read_ns": 32945126414931,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 47.475957,
+          "nonzero_frames": 244,
+          "detected_frames": {
+            "440": 60,
+            "880": 22,
+            "1760": 5
+          },
+          "reader_eof": false,
+          "reader_error": null
+        },
+        "route": {
+          "core": [
+            3404556692
+          ],
+          "nodes": {
+            "vrct.managed.source": 44,
+            "vrct.managed.replay": 100
+          },
+          "edges": [
+            [
+              "VRChat.exe",
+              "vrct.managed.replay"
+            ],
+            [
+              "vrct.managed.source",
+              "VRChat.exe"
+            ]
+          ]
+        }
+      },
+      "mute": {
+        "command_ns": 32945343249135,
+        "first_silent_frame_ns": 32945424875582,
+        "command_to_first_silent_read_ms": 81.626447,
+        "confirmed_ns": 32947430414229,
+        "route_state": {
+          "managed": true,
+          "requested_muted": true,
+          "observed_muted": true,
+          "ready": true,
+          "pending": false,
+          "error": null,
+          "generation": 4,
+          "closed": false,
+          "observation_id": "32947430663960"
+        },
+        "external_producer_still_running": true
+      },
+      "stored_after_sigkill": true,
+      "control_pid_after": 1467430,
+      "control_restart": {
+        "route_state": {
+          "managed": true,
+          "requested_muted": true,
+          "observed_muted": true,
+          "ready": true,
+          "pending": false,
+          "error": null,
+          "generation": 2,
+          "closed": false,
+          "observation_id": "32949533340558"
+        },
+        "same_identity": true,
+        "route": {
+          "core": [
+            3404556692
+          ],
+          "nodes": {
+            "vrct.managed.source": 44,
+            "vrct.managed.replay": 100
+          },
+          "edges": [
+            [
+              "VRChat.exe",
+              "vrct.managed.replay"
+            ],
+            [
+              "vrct.managed.source",
+              "VRChat.exe"
+            ]
+          ]
+        }
+      },
+      "muted_replay": {
+        "muted": true,
+        "publish_accepted": false,
+        "route": {
+          "core": [
+            3404556692
+          ],
+          "nodes": {
+            "vrct.managed.source": 44,
+            "vrct.managed.replay": 100
+          },
+          "edges": [
+            [
+              "VRChat.exe",
+              "vrct.managed.replay"
+            ],
+            [
+              "vrct.managed.source",
+              "VRChat.exe"
+            ]
+          ]
+        },
+        "captures": {
+          "mic": {
+            "valid": true,
+            "samples": 1152000,
+            "elapsed_seconds": 24.013356337003643,
+            "last_read_seconds": 24.01386325200292,
+            "max_read_gap_seconds": 0.046690278002643026,
+            "early_exit": false,
+            "reader_error": null
+          },
+          "replay": {
+            "valid": true,
+            "samples": 1152256,
+            "elapsed_seconds": 24.014044583993382,
+            "last_read_seconds": 24.014623784998548,
+            "max_read_gap_seconds": 0.04353946100309258,
+            "early_exit": false,
+            "reader_error": null
+          }
+        },
+        "mic": {
+          "verdict": "pass",
+          "peak_s16": 0,
+          "observed_seconds": 24.0,
+          "peak_limit_s16": 8
+        },
+        "replay": {
+          "verdict": "fail",
+          "occurrences": 0,
+          "best_envelope_correlation": 0.33498957833604864,
+          "threshold": 0.8,
+          "matches": [],
+          "observed_seconds": 24.005333333333333,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        "passed": true
+      },
+      "muted_hold": {
+        "before": {
+          "frames": 1559,
+          "sample_count": 1496640,
+          "last_read_ns": 32947430414229,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 47.475957,
+          "nonzero_frames": 255,
+          "detected_frames": {
+            "440": 70,
+            "880": 22,
+            "1760": 5
+          },
+          "reader_eof": false,
+          "reader_error": null
+        },
+        "after": {
+          "frames": 2990,
+          "sample_count": 2870400,
+          "last_read_ns": 32976064831088,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 47.475957,
+          "nonzero_frames": 255,
+          "detected_frames": {
+            "440": 70,
+            "880": 22,
+            "1760": 5
+          },
+          "reader_eof": false,
+          "reader_error": null
+        },
+        "external_producer_still_running": true,
+        "observed_frames": 1431,
+        "additional_nonzero_frames": 0
+      },
+      "explicit_resume_restores_external_signal": true,
+      "final_capture": {
+        "frames": 3106,
+        "sample_count": 2981760,
+        "last_read_ns": 32978363766628,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.475957,
+        "nonzero_frames": 265,
+        "detected_frames": {
+          "440": 80,
+          "880": 22,
+          "1760": 5
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "route_after": {
+        "core": [
+          3404556692
+        ],
+        "nodes": {
+          "vrct.managed.source": 44,
+          "vrct.managed.replay": 100
+        },
+        "edges": [
+          [
+            "VRChat.exe",
+            "vrct.managed.replay"
+          ],
+          [
+            "vrct.managed.source",
+            "VRChat.exe"
+          ]
+        ]
+      },
+      "trial": "current_session_templates"
+    }
+  ],
+  "gui_cleanup": {
+    "restored_vrchat_route": {
+      "core": [
+        3404556692
+      ],
+      "nodes": {
+        "vrct.p1.source": 50,
+        "vrct.managed.replay": 100
+      },
+      "edges": [
+        [
+          "VRChat.exe",
+          "vrct.managed.replay"
+        ],
+        [
+          "vrct.p1.source",
+          "VRChat.exe"
+        ]
+      ]
+    },
+    "noise_suppression_restored_visually": true,
+    "test_started_vrchat_closed": true,
+    "ydotool_unit_active": "inactive",
+    "input_socket_removed": true
+  },
+  "host_cleanup": {
+    "managed_config_removed": true,
+    "managed_nodes_removed": true,
+    "legacy_p1_nodes_present": true,
+    "default_sink": "vrct.p1.sink",
+    "default_source": "vrct.p1.source",
+    "audio_services": [
+      "active",
+      "active",
+      "active"
+    ],
+    "sink_inputs": "",
+    "source_outputs": "",
+    "input_socket_removed": true,
+    "vrchat_closed": true,
+    "restored_p1_transient_unit": "vrct-p1-restored-1793091269"
+  },
+  "verification": {
+    "voice_suite": {
+      "command": "uv run --no-project python -m pytest -q tests/voice",
+      "passed": 162,
+      "failed": 0,
+      "seconds": 5.15,
+      "needs_local_socket_permission": true,
+      "initial_sandbox_attempt": {
+        "passed": 134,
+        "failed": 27,
+        "reason": "PermissionError creating local HTTP test-server sockets"
+      },
+      "before_cleanup_result_fix": {
+        "passed": 161,
+        "failed": 0,
+        "seconds": 5.13
+      }
+    },
+    "ruff": "passed",
+    "general_collection": {
+      "command": "uv run --no-project python -m pytest src-python/test --collect-only -q",
+      "collected": 164,
+      "collection_errors": [
+        "test_audio_pipeline_failure.py",
+        "test_audio_vad.py",
+        "test_chatbox_sample_player.py",
+        "test_clipboard_focus_and_paste.py",
+        "test_controller_audio.py",
+        "test_controller_change_to_ctranslate2.py",
+        "test_controller_config_validation_decorator.py",
+        "test_controller_di_constructor.py",
+        "test_controller_init_config_settings.py",
+        "test_controller_init_watchdog_and_join_timeout.py",
+        "test_controller_message_pipeline.py",
+        "test_controller_ocr_enable.py",
+        "test_controller_ocr_settings.py",
+        "test_controller_overlay_running.py",
+        "test_controller_shutdown_lock.py",
+        "test_controller_simple_config_getters.py",
+        "test_controller_transcription_api_endpoints.py",
+        "test_controller_transcription_engine_status.py",
+        "test_controller_transcription_language_fallback.py",
+        "test_controller_translation_connection_endpoints.py",
+        "test_controller_translation_engine_language_fallback.py",
+        "test_controller_translation_gemini_endpoint.py",
+        "test_controller_translation_registry_endpoints.py",
+        "test_controller_update_software_failure.py",
+        "test_controller_update_transcription_engine.py",
+        "test_controller_vr_panel_opacity.py",
+        "test_controller_vr_panel_toolbar.py",
+        "test_controller_vrc_mic_mute_sync_init.py",
+        "test_dead_code_removed.py",
+        "test_gemini_bbox_labeler.py",
+        "test_mainloop_retry_limit.py",
+        "test_mainloop_watchdog_escalation.py",
+        "test_model_api_transcription_wiring.py",
+        "test_model_audio_lifecycle_worker.py",
+        "test_model_audio_queue_bounded.py",
+        "test_model_get_translate_unsupported_language.py",
+        "test_model_http_timeouts.py",
+        "test_model_init_failure_no_retry.py",
+        "test_model_input_translate_parallel.py",
+        "test_model_language_engine_compatibility.py",
+        "test_model_osc_mute_sync.py",
+        "test_model_session_reconfigure.py",
+        "test_model_session_resume_drain.py",
+        "test_model_session_start_failure_rollback.py",
+        "test_model_stop_receive_osc.py",
+        "test_model_stop_watchdog.py",
+        "test_model_transcript_stop.py",
+        "test_model_transcript_wiring.py",
+        "test_model_transcription_language_support.py",
+        "test_model_translate_fallback_no_wait.py",
+        "test_model_update.py",
+        "test_model_vad_recorder_selection.py",
+        "test_model_watchdog_available_during_init.py",
+        "test_ocr_bubble_detector.py",
+        "test_ocr_capture.py",
+        "test_ocr_dataset_collector.py",
+        "test_ocr_languages.py",
+        "test_ocr_onnx_threads.py",
+        "test_ocr_pipeline.py",
+        "test_openvr_session.py",
+        "test_osc_receive_single_thread.py",
+        "test_osc_server_shutdown_responsiveness.py",
+        "test_overlay_grab_move.py",
+        "test_overlay_shutdown_timeout.py",
+        "test_overlay_tooltip.py",
+        "test_phase4_low_risk_cleanup.py",
+        "test_transcription_openai_compatible.py",
+        "test_transcription_providers.py",
+        "test_transcription_recorder.py",
+        "test_transcription_transcriber.py",
+        "test_translation_ctranslate2_lock.py",
+        "test_translation_providers.py",
+        "test_translation_translator_ctranslate2.py",
+        "test_translation_translator_registry.py",
+        "test_translation_unsupported_language.py",
+        "test_ui_endpoint_contract.py",
+        "test_vr_panel_capture_recovery.py",
+        "test_vrct_transcription_integration.py",
+        "test_websocket_auth_and_bind_guard.py",
+        "test_whisper_eval.py"
+      ],
+      "same_error_files_as_previous": true,
+      "missing_modules": [
+        "PIL",
+        "deepl",
+        "google",
+        "httpx",
+        "numpy",
+        "openai",
+        "openvr",
+        "psutil",
+        "pythonosc",
+        "speech_recognition",
+        "translation_gemini"
+      ]
+    }
+  },
+  "provenance": {
+    "source_sha256": {
+      "tools/managed_vrchat_probe.py": "322ed0ef1936a8f74b4a066df2b26fd7552caa8549a77ab42e3b3e358b74b684",
+      "tools/vrchat_gui_probe.py": "24e3e6cb5f9f6a5974420eecbe901273da6395acad0317dfa1f2ee27bd022802",
+      "tools/vrchat_audio_probe.py": "a32f54cc7d06735fdd4c3b757ae2f623380689af4d044219a1024edbbec5ac05",
+      "tools/voice_b_poc.py": "a09e76930d6e31c38741cfd8ebaed3d9061d9160e549898b11736170951c98a1",
+      "tools/voice_acceptance.py": "95cf8e17be307b9af27cedaf3215e850bf56981b9a9047095c68f874ceeaf35a",
+      "src-python/models/audio_routing/managed_route.py": "a88c3f15591a19fcef233863921d151f89fc7f8a3df899b4b43e161ca6a6bf73",
+      "src-python/models/audio_routing/mute_state.py": "09275fe40ef6c0213825033a7d050958d96a1c6878a108b88681d505f1ae4aec",
+      "src-python/models/audio_routing/pipewire_gate.py": "6b01a944ae0f955834924c1838f4087cf1b480bd0aca4f25519bed6dcb39d0f9",
+      "src-python/models/audio_routing/devices_pipewire.py": "5367d8b4281dd8d6ea0ee611a807891961a7a01f1f50f814f0242bb62e3fb146",
+      "src-python/models/tts/tts_scheduler.py": "8dc06a2a5d1d846a403b9267d4b84968a77816c3e8b2d66e678a721bd0de2f6b",
+      "config/pipewire/90-vrct-managed.conf": "4e6cb51b147529d31be25bc535e2792fb3c2c2a38ab649365b4897b20ff4784b",
+      "native/voice-gate/main.c": "92a3cfe3e8c345a38db6b138169e58a6654275cdcf38a5be0ce05c9d94f9cb7d",
+      "build/vrct-voice-gate": "3addad9389c6c0420e06554f53e6decd2246a180d926dea8dfb390c1dbe4660b"
+    },
+    "final_runner_sha256": "b8516fb81a6ec0d7fcfe4c1a2f439e856517da4ae5ff38399f7e5efdacce51ba",
+    "post_host_test_changes": "Runner success is set after cleanup, and exceptions force failure; verified by a new regression test. Host sequence was not rerun after this result-handling-only change.",
+    "ready_template_sha256": "6fcad2eb6b8fabba97fc31b81cd795c2c66e7a98b3a6af8f8bd600657ae3339b",
+    "recording_template_sha256": "6a317b2c4dc3d80983c2a66754988dfb56c519847e3a126894a07de12053cfb5",
+    "template_cross_correlation": 0.2973317476555001,
+    "successful_command": "uv run --no-project python tools/managed_vrchat_probe.py --reference tmp/vrchat-gui-poc/reference.wav --state-file tmp/managed-vrchat-poc/host-state.json --window <VRChat-window-UUID> --socket /tmp/vrct-managed-poc.sock --replay-sink vrct.managed.replay --ready-image tmp/managed-vrchat-poc/templates/ready.png --recording-image tmp/managed-vrchat-poc/templates/recording.png --output tmp/managed-vrchat-poc/acceptance-2",
+    "raw_artifacts": "tmp/managed-vrchat-poc (gitignored; screenshots and PCM not committed)"
+  }
+}

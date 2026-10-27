@@ -2,6 +2,8 @@
 
 2026-10-27。KDE Wayland上で、ydotoolによるVRChat操作と、PipeWireでのデジタル録音再生の観測を実施。
 [調査案](vrchat-gui-automation-research.md)を具体化した試作であり、汎用のGUIテスト基盤ではない。
+本書は既存P1経路の結果。後続の[managed経路の受入](managed-vrchat-report.md)では、
+常駐マイク・保持mute・音声制御process再起動まで接続して確認した。
 
 ## 最終結果
 

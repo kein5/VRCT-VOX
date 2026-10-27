@@ -1,6 +1,7 @@
 # ADR-005: 仮想マイクの寿命と保持ミュート
 
-Status: ソースcheckout向けLinux実装を採用。host導入・VRChat再接続受入は保留。
+Status: ソースcheckout向けLinux実装を採用。host一時導入とVRChat受入は条件付きPASS。
+全GUI・daemon消失時の再接続受入は保留。
 Date: 2026-10-27
 Related: [ADR-004](adr-004-audio-integration-boundaries.md)
 
@@ -40,3 +41,7 @@ UIはmonotonicな観測IDで古いstatus応答を拒否する。通常shutdown�
 CLIはVRCT停止中の一回の診断操作専用で、常駐監視は提供しない。
 追加SDKはLinuxのsystem PipeWire headers/compilerのみ。モデルとpip依存は追加しない。
 実測境界・30回試験・未検証事項は [managed-route-report.md](managed-route-report.md) に記録する。
+
+後続の[ホスト試験](managed-vrchat-report.md)では、engine終了とmute中の実音声制御process再起動後も
+VRChatの入力先が同じであることを確認した。ノイズ抑制OFF・モデル代替の1シーケンスであり、
+上のSIGKILL制限やdaemon停止時のfallbackを解消する結果ではない。

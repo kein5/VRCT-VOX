@@ -69,7 +69,8 @@ CLIは`X-Sample-Rate`の実rateを[pw-cat](https://docs.pipewire.org/page_man_pw
 
 これはソースcheckout向けの任意機能。上の一時マイクとは名前が異なる。
 実装・独立グラフの結果は [managed-route-report.md](managed-route-report.md) を参照。
-稼働中デスクトップへの配置・再起動は自動試験では実施していない。
+後続の[ホスト・VRChat自動受入](managed-vrchat-report.md)で一時配置と再起動を実施し、
+試験後に元の設定へ戻した。初期画面の準備と復元はエージェントが確認し、受入シーケンスを自動実行した。
 VRCT全GUIのLinux対応完了を意味しない。UI/APIはサービスを差し替えたController試験とUIビルドで検証している。
 
 1. systemのC compiler、pkg-config、PipeWire開発headersを用意し、repo rootでビルドする。
