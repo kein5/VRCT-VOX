@@ -19,6 +19,7 @@ struct state {
     struct spa_hook core_listener, registry_listener, node_listener;
     uint32_t cookie, expected_cookie, target_id;
     uint64_t expected_serial;
+    const char *target, *marker, *media_class;
     int seq, phase, names, result;
     bool mute, valid_node;
 };
@@ -36,9 +37,9 @@ static void core_error(void *data, uint32_t id, int seq, int res, const char *me
 static void node_info(void *data, const struct pw_node_info *info) {
     struct state *s = data;
     if (!info->props) return;
-    const char *tag = spa_dict_lookup(info->props, "vrct.managed.route");
+    const char *tag = spa_dict_lookup(info->props, s->marker);
     const char *media = spa_dict_lookup(info->props, PW_KEY_MEDIA_CLASS);
-    s->valid_node = tag && !strcmp(tag, "v1") && media && !strcmp(media, "Audio/Source");
+    s->valid_node = tag && !strcmp(tag, "v1") && media && !strcmp(media, s->media_class);
 }
 static const struct pw_node_events node_events = {PW_VERSION_NODE_EVENTS, .info = node_info};
 static void global(void *data, uint32_t id, uint32_t permissions, const char *type,
@@ -47,7 +48,7 @@ static void global(void *data, uint32_t id, uint32_t permissions, const char *ty
     (void)permissions; (void)version;
     if (strcmp(type, PW_TYPE_INTERFACE_Node) || !props) return;
     const char *name = spa_dict_lookup(props, PW_KEY_NODE_NAME);
-    if (!name || strcmp(name, TARGET)) return;
+    if (!name || strcmp(name, s->target)) return;
     s->names++;
     const char *serial = spa_dict_lookup(props, PW_KEY_OBJECT_SERIAL);
     if (!serial || strtoull(serial, NULL, 10) != s->expected_serial) return;
@@ -108,10 +109,19 @@ static bool number(const char *text, uint64_t *value) {
 }
 int main(int argc, char **argv) {
     uint64_t cookie, serial;
-    if (argc != 4 || !number(argv[1], &cookie) || cookie > UINT32_MAX ||
+    if ((argc != 4 && argc != 5) || !number(argv[1], &cookie) || cookie > UINT32_MAX ||
         !number(argv[2], &serial) || (strcmp(argv[3], "0") && strcmp(argv[3], "1"))) return 2;
+    char target[80];
     struct state s = {.expected_cookie = (uint32_t)cookie, .expected_serial = serial,
-                      .mute = !strcmp(argv[3], "1")};
+                      .mute = !strcmp(argv[3], "1"), .target = TARGET,
+                      .marker = "vrct.managed.route", .media_class = "Audio/Source"};
+    if (argc == 5) {
+        if (strlen(argv[4]) != 32 || strspn(argv[4], "0123456789abcdef") != 32) return 2;
+        snprintf(target, sizeof(target), "vrct.source-bridge.%s.playback", argv[4]);
+        s.target = target;
+        s.marker = "vrct.source.bridge";
+        s.media_class = "Stream/Output/Audio";
+    }
     pw_init(NULL, NULL);
     s.loop = pw_main_loop_new(NULL);
     if (!s.loop) return 1;
