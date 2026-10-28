@@ -37,8 +37,8 @@ Input5–100ms、queue20items/200ms、250msage。単一worker/consumer。nativep
 **Files:** Modify `tests/voice/test_speechcpp_realtime_vad_live.py`; Create `docs/voice-stack/realtime-audio-ingress-report.md`。
 **Interfaces:** Task1のIngress.pushとpumpを実producerへ接続。入力は元の48kHzfixture、offline比較だけ明示24kHz化。
 
-- [ ] 既存live testを新境界へ接続し、真のnative48kHzを20ms間隔でfeedする。停止後input拒否とclient終了も確認。Expected: actualserver_vad partial/final/無音PASS。
-- [ ] related/default失敗集合比較、性能境界とlicenseをreport/ledgerへ。Expected: 新規失敗なし、物理性能と混同しない。ローカルcommit。
+- [x] 既存live testを新境界へ接続し、真のnative48kHzを20ms間隔でfeedする。停止後input拒否とclient終了も確認。Expected: actualserver_vad partial/final/無音PASS。
+- [x] related/default失敗集合比較、性能境界とlicenseをreport/ledgerへ。Expected: 新規失敗なし、物理性能と混同しない。ローカルcommit。
 - [ ] 一回の独立review、Critical/Importantのみ1回RED→GREEN。Minor保留。全機能作業を継続。
 
 ## Pre-flight
