@@ -33,6 +33,25 @@ def until(predicate, seconds=2):
     raise AssertionError('condition did not become true')
 
 
+def test_health_distinguishes_stop_request_from_completed_cleanup(monkeypatch):
+    m, backend = module(), Backend()
+    monkeypatch.setattr(m.sys, 'platform', 'linux')
+    monkeypatch.setattr(m, '_read_graph', backend.read)
+    monkeypatch.setattr(m, '_launch', backend.launch)
+    backend.block_at = 'launch'
+    bridge = m.SourceBridge()
+    try:
+        bridge.start(source=m.select_source(backend.data, 'external.source'))
+        assert backend.enter.wait(1)
+        bridge.stop()
+        assert bridge.health()['stopping'] is True
+        assert not bridge.health()['requested']
+    finally:
+        backend.release.set()
+        assert bridge.close()
+    assert bridge.health()['stopping'] is False
+
+
 @pytest.mark.parametrize('fault', ['absent', 'duplicate', 'class', 'feedback', 'cookie', 'serial'])
 def test_selection_rejects_unsafe_or_ambiguous_source(fault):
     m = module()
@@ -141,7 +160,7 @@ def test_default_and_configuration_never_open_audio(system):
     initial = bridge.health()
     assert int(initial.pop('observation_id')) > 0
     assert initial == {'requested': False, 'active': False, 'pending': False, 'source': None,
-                       'error': None, 'generation': 0, 'conversion_verified': False}
+                       'error': None, 'generation': 0, 'conversion_verified': False, 'stopping': False}
     bridge.configure(m.select_source(b.data, 'external.source'))
     assert not b.children and not b.unmutes
     bridge.start()

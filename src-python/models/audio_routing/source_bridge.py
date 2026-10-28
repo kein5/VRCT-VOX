@@ -272,6 +272,8 @@ class SourceBridge:
         with self._lock:
             self._observation_id = max(time.monotonic_ns(), self._observation_id + 1)
             return dict(self._state, source=_source_id(self._source) if self._source else None,
+                        stopping=bool(self._run and self._run.thread.is_alive()
+                                      and not self._state['requested']),
                         observation_id=str(self._observation_id))
 
     def _stop_locked(self):
