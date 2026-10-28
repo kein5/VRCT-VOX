@@ -47,8 +47,8 @@ UI通知 `/run/realtime_caption` にsource/namespace/generation/item_id/revision
 
 ### Task 3: Realtime controls, subtitle replacement and overlay
 
-**Files:** Create `src-ui/logics/transcription/useRealtimeASR.js`, `src-ui/logics/transcription/realtimeCaptionState.js`, `src-ui/views/app/config_page/setting_section/setting_box/transcription/RealtimeASRSettings.jsx`, `tests/voice/test_realtime_ui.py`; Modify `src-ui/logics/useReceiveRoutes.js`, `src-ui/logics/common/useMessage.js`, transcription `Transcription.jsx`, `src-python/models/overlay/overlay_image.py`, `src-python/model.py`。
-**Interfaces:** `applyRealtimeCaption(current,payload,activeNamespaces)`はsource/namespace/item_idでupsert、revision逆行/terminal後partial/旧namespace拒否。既存legacyappendを変更しない。overlayはoptional caption_id/stateでpending置換・discard、legacy呼出しは既存append。
+**Files:** Create `src-ui/logics/transcription/useRealtimeASR.js`, `src-ui/logics/transcription/realtimeCaptionState.js`, `src-ui/views/app/config_page/setting_section/setting_box/transcription/RealtimeASRSettings.jsx`, `tests/voice/test_realtime_ui.py`, `tests/voice/test_realtime_ui_browser.py`, `tests/voice/test_realtime_overlay.py`, `src-python/test/test_realtime_overlay_publication.py`; Modify `src-ui/logics/useReceiveRoutes.js`, `src-ui/logics/common/useMessage.js`, transcription `Transcription.jsx`, `src-python/models/overlay/overlay_image.py`, `src-python/model.py`。
+**Interfaces:** `applyRealtimeCaption(current,payload,activeNamespaces)`はsource/namespace/item_idでupsert、revision逆行/terminal後partial/旧namespace拒否。既存legacyappendを変更しない。overlayはoptional caption_id/state/revisionでpending置換・discard、legacy呼出しは既存append。大きいオーバーレイの履歴へ接続し、Modelの描画世代で古い画像の上書きを防ぐ。Controller/Deliveryにworker側の停止時cleanupを追加し、prioritystopは非joinを維持する。endpoint/model列挙にsource/base_urlを付け、並列応答を識別する。
 
 - [ ] RED: partial→partial→final→translationで1行、逆順/旧namespace拒否、停止でpending削除、legacyappend維持、モデル/言語/端点選択と開始停止。Expected: reducer/component未実装FAIL。
 - [ ] 設定/状態/固定errorをUIへ接続し、mic/speaker独立操作。ゲーム専用出力の明示選択、Linuxのみ対応を表示。overlay pendingは履歴に追加せずfinalで1回確定。Expected: UI部品試験とoverlay回帰PASS。

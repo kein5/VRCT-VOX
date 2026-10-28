@@ -432,21 +432,21 @@ class Controller:
         except ValueError:
             return {"status": 400, "result": {"error_code": "realtime_source_invalid"}}
         if sys.platform != "linux":
-            return {"status": 200, "result": {"endpoints": [], "error_code": "realtime_linux_only"}}
+            return {"status": 200, "result": {"source": source, "endpoints": [], "error_code": "realtime_linux_only"}}
         try:
             rows = [{"endpoint": endpoint_dict(row["endpoint"]), "label": row["label"]}
                     for row in enumerate_endpoints(source)]
-            return {"status": 200, "result": {"endpoints": rows, "error_code": None}}
+            return {"status": 200, "result": {"source": source, "endpoints": rows, "error_code": None}}
         except Exception:
-            return {"status": 200, "result": {"endpoints": [], "error_code": "realtime_graph_unavailable"}}
+            return {"status": 200, "result": {"source": source, "endpoints": [], "error_code": "realtime_graph_unavailable"}}
 
     def getRealtimeASRModels(self, *args, **kwargs):
         url = self.getRealtimeASRSettings()["result"]["base_url"]
         try:
             models = SpeechCppASR(url, timeout=5).recognizers()
-            return {"status": 200, "result": {"models": [asdict(row) for row in models], "error_code": None}}
+            return {"status": 200, "result": {"base_url": url, "models": [asdict(row) for row in models], "error_code": None}}
         except Exception:
-            return {"status": 200, "result": {"models": [], "error_code": "realtime_models_unavailable"}}
+            return {"status": 200, "result": {"base_url": url, "models": [], "error_code": "realtime_models_unavailable"}}
 
     def getRealtimeASRState(self, *args, **kwargs):
         with self._realtime_lock:
@@ -557,6 +557,18 @@ class Controller:
             def publish(payload):
                 if current():
                     self.run(200, "/run/realtime_caption", {**payload, "generation": generation})
+                    if config.OVERLAY_LARGE_LOG is True and self._is_overlay_available():
+                        def valid_overlay():
+                            return (current() and session.is_current(payload["namespace"])
+                                    and (payload["state"] == "discarded" or time.monotonic_ns() < payload["expires_ns"]))
+                        languages = (config.SELECTED_TARGET_LANGUAGES if source == "mic" else config.SELECTED_YOUR_LANGUAGES)[config.SELECTED_TAB_NO]
+                        model.publishRealtimeCaptionOverlay(payload, language, languages, valid_overlay,
+                            only_translated=config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES)
+
+            def clear_overlay():
+                namespace = session.health()["namespace"]
+                if namespace and self._is_overlay_available():
+                    model.clearRealtimeCaptionOverlay(source, namespace)
 
             def process(update, valid):
                 def guard():
@@ -578,7 +590,7 @@ class Controller:
                     return failure("realtime_stale_start")
                 try:
                     session = RealtimeSession(source, options, endpoint)
-                    delivery = RealtimeDelivery(session, publish, process, error)
+                    delivery = RealtimeDelivery(session, publish, process, error, on_stopped=clear_overlay)
                     self._realtime_owners[source] = (session, delivery)
                     # These only launch workers; neither waits for capture/network.
                     session.start()
@@ -1442,7 +1454,7 @@ class Controller:
                     return None
                 model.oscSendMessage(osc_message)
 
-            if spec.overlay_small_log and config.OVERLAY_SMALL_LOG is True and self._is_overlay_available():
+            if spec.render_overlay and spec.overlay_small_log and config.OVERLAY_SMALL_LOG is True and self._is_overlay_available():
                 if config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES is True:
                     if len(translation) > 0:
                         overlay_image = model.createOverlayImageSmallLog(
@@ -1469,7 +1481,7 @@ class Controller:
                         return None
                     model.updateOverlaySmallLog(overlay_image)
 
-            if config.OVERLAY_LARGE_LOG is True and self._is_overlay_available():
+            if spec.render_overlay and config.OVERLAY_LARGE_LOG is True and self._is_overlay_available():
                 if spec.overlay_direction == "send":
                     overlay_own_language = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
                     overlay_language_list = config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]

@@ -251,3 +251,28 @@ def test_expiry_in_session_mailbox_does_not_restart_deadline():
         assert published[0]["text"] == ""
     finally:
         assert delivery.close()
+
+
+def test_stop_cleanup_is_owned_by_worker_and_never_blocks_fast_signal():
+    session, errors = Session(), []
+    entered, release = Event(), Event()
+
+    def cleanup():
+        entered.set()
+        release.wait(2)
+
+    delivery = create(
+        session, lambda payload: None, lambda u, c: None, errors, on_stopped=cleanup
+    )
+    delivery.start()
+    try:
+        began = time.monotonic()
+        delivery.request_stop()
+        assert time.monotonic() - began < 0.1
+        assert entered.wait(1)
+        assert not delivery.close(0.02)
+        release.set()
+        assert delivery.close()
+    finally:
+        release.set()
+        delivery.close()

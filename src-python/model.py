@@ -2377,7 +2377,37 @@ class Model:
 
     def updateOverlayLargeLog(self, img):
         self.ensure_initialized()
-        self.overlay.updateImage(img, "large")
+        with self.overlay_image.log_lock:
+            if self.overlay_image.isCurrentLargeLog(img):
+                self.overlay.updateImage(img, "large")
+
+    def publishRealtimeCaptionOverlay(self, payload, language, target_languages, current, *, only_translated=False):
+        """Serialize history/render/publication; caller runs outside the WS loop."""
+        if not current():
+            return
+        self.ensure_initialized()
+        with self.overlay_image.log_lock:
+            if not current():
+                return
+            translation = [row["message"] for row in payload.get("translations", [])]
+            if only_translated and not translation and payload["state"] != "discarded":
+                return
+            original = payload.get("original", {"message": payload["text"], "transliteration": []})
+            image = self.overlay_image.createOverlayImageLargeLog(
+                "send" if payload["source"] == "mic" else "receive",
+                None if only_translated else original["message"], language,
+                translation, [row["language"] for row in target_languages.values() if row.get("enable")],
+                original.get("transliteration", []), [row.get("transliteration", []) for row in payload.get("translations", [])],
+                caption_id=(payload["source"], payload["namespace"], payload["item_id"]),
+                caption_state=payload["state"], caption_revision=payload["revision"])
+            if image is not None and current():
+                self.updateOverlayLargeLog(image)
+
+    def clearRealtimeCaptionOverlay(self, source, namespace):
+        self.ensure_initialized()
+        with self.overlay_image.log_lock:
+            image = self.overlay_image.discardCaptionNamespace(source, namespace)
+            self.updateOverlayLargeLog(image)
 
     def updateOverlayLargeLogSettings(self):
         self.ensure_initialized()

@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import * as realtime from "./transcription/useRealtimeASR";
 import * as common from "@logics_common";
 import * as main from "@logics_main";
 import * as configs from "@logics_configs";
@@ -8,6 +10,14 @@ import { useStdoutToPython } from "@useStdoutToPython";
 import { receiveLanguageMutation, resetLanguageMutations } from "./main/languageMutations";
 
 export const STATIC_ROUTE_META_LIST = [
+    { endpoint: "/get/data/realtime_asr_settings", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateSettings" },
+    { endpoint: "/set/data/realtime_asr_settings", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateSettings" },
+    { endpoint: "/get/data/realtime_asr_endpoints", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateEndpoints" },
+    { endpoint: "/get/data/realtime_asr_models", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateModels" },
+    { endpoint: "/get/data/realtime_asr_state", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateState" },
+    { endpoint: "/run/start_realtime_asr", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateState" },
+    { endpoint: "/run/stop_realtime_asr", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateState" },
+    { endpoint: "/run/realtime_caption", ns: common, hook_name: "useMessage", method_name: "updateRealtimeCaption" },
     { endpoint: "/get/data/voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateSettings" },
     { endpoint: "/set/data/voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateSettings" },
     { endpoint: "/get/data/voice_status", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
@@ -147,6 +157,13 @@ export const useReceiveRoutes = () => {
     const { showNotification_Error } = common.useNotificationStatus();
     const { errorHandling_Backend } = _useBackendErrorHandling();
     const { updateError: updateVoiceError, updateDirectError } = voice.useVoice();
+    const { state: realtimeState, send: sendRealtime, updateError: updateRealtimeError, reset: resetRealtime } = realtime.useRealtimeASR();
+    const realtimeActive = Object.values(realtimeState).some(value => value.requested);
+    useEffect(() => {
+        if (!realtimeActive) return;
+        const timer = setInterval(() => sendRealtime("/get/data/realtime_asr_state"), 500);
+        return () => clearInterval(timer);
+    }, [realtimeActive, sendRealtime]);
     const { updateIsBackendReady } = common.useIsBackendReady();
     const { asyncStdoutToPython } = useStdoutToPython();
 
@@ -185,6 +202,10 @@ export const useReceiveRoutes = () => {
 
     const receiveRoutes = (parsed_data) => {
         const { endpoint, status, result } = parsed_data;
+        if (status !== 200 && endpoint.includes("realtime_asr")) {
+            updateRealtimeError(result?.error_code || "realtime_request_failed");
+            return;
+        }
         if (status !== 200 && endpoint.includes("direct_voice")) {
             updateDirectError(result?.error_code || "source_bridge_request_failed");
             return;
@@ -195,6 +216,10 @@ export const useReceiveRoutes = () => {
         }
 
         if (endpoint === "/run/initialization_complete") {
+            resetRealtime();
+            sendRealtime("/get/data/realtime_asr_settings");
+            sendRealtime("/get/data/realtime_asr_state");
+            for (const source of ["mic", "speaker"]) sendRealtime("/get/data/realtime_asr_endpoints", { source });
             Object.entries(result).forEach(([ep, value]) => {
                 if (ep in routes) {
                     routes[ep](value);

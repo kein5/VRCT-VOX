@@ -1,5 +1,6 @@
 import { useI18n } from "@useI18n";
 import styles from "./Transcription.module.scss";
+import { RealtimeASRSettings } from "./RealtimeASRSettings";
 import { genNumObjArray } from "@utils";
 
 import {
@@ -27,6 +28,7 @@ export const Transcription = () => {
             <Mic_Container />
             <Speaker_Container />
             <TranscriptionEngine_Container />
+            <RealtimeASRSettings />
         </div>
     );
 };

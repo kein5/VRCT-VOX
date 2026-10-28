@@ -2,7 +2,12 @@ import {
     useStore_MessageLogs,
     useStore_MessageInputValue,
     store,
+    Atom_MessageLogs,
 } from "@store";
+
+import { useStore } from "jotai";
+import { realtimeStateAtom, realtimeRetiredAtom } from "../transcription/useRealtimeASR";
+import { applyRealtimeCaption } from "../transcription/realtimeCaptionState";
 
 import { useStdoutToPython } from "@useStdoutToPython";
 
@@ -12,6 +17,7 @@ export const useMessage = () => {
     const { currentMessageLogs, addMessageLogs, updateMessageLogs } = useStore_MessageLogs();
     const { currentMessageInputValue, updateMessageInputValue } = useStore_MessageInputValue();
     const { asyncStdoutToPython } = useStdoutToPython();
+    const atoms = useStore();
 
     const sendMessage = (message) => {
         const uuid = crypto.randomUUID();
@@ -67,6 +73,24 @@ export const useMessage = () => {
         updateMessageLogs((current) => [...current.data, message_object]);
     };
 
+    const updateRealtimeCaption = (payload) => {
+        let active = atoms.get(realtimeStateAtom);
+        const owner = active[payload?.source];
+        // The first caption can beat the first ready-state poll. It may bind
+        // only the already accepted backend generation, never revive a stop.
+        if (owner?.requested && owner.generation === payload.generation && !owner.namespace) {
+            active = { ...active, [payload.source]: { ...owner, namespace: payload.namespace } };
+            atoms.set(realtimeStateAtom, active);
+        }
+        const logs = atoms.get(Atom_MessageLogs);
+        const before = { rows: logs.data, retired: atoms.get(realtimeRetiredAtom) };
+        const after = applyRealtimeCaption(before, payload, active);
+        if (after !== before) {
+            atoms.set(Atom_MessageLogs, { ...logs, state: "ok", data: after.rows });
+            atoms.set(realtimeRetiredAtom, after.retired);
+        }
+    };
+
     const startTyping = () => {
         const now = Date.now();
         if (now - store.last_executed_time_startTyping >= 2000) {
@@ -87,6 +111,7 @@ export const useMessage = () => {
         updateSentMessageLogById,
         addSentMessageLog,
         addReceivedMessageLog,
+        updateRealtimeCaption,
 
         currentMessageInputValue,
         updateMessageInputValue,

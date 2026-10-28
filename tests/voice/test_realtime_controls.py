@@ -313,6 +313,7 @@ def test_explicit_model_and_endpoint_lists_and_safe_errors(app, monkeypatch):
     service.recognizers.return_value = [RecognitionModel("asr", ("ja",), False)]
     monkeypatch.setattr(m, "SpeechCppASR", MagicMock(return_value=service))
     assert c.getRealtimeASRModels()["result"] == {
+        "base_url": "http://127.0.0.1:8080",
         "models": [{"id": "asr", "languages": ("ja",), "accepts_language": False}],
         "error_code": None,
     }
@@ -331,6 +332,7 @@ def test_explicit_model_and_endpoint_lists_and_safe_errors(app, monkeypatch):
     assert row["endpoint"]["serial"] == str(2**63 + 1)
     service.recognizers.side_effect = RuntimeError("private response body")
     assert c.getRealtimeASRModels()["result"] == {
+        "base_url": "http://127.0.0.1:8080",
         "models": [],
         "error_code": "realtime_models_unavailable",
     }
@@ -387,7 +389,8 @@ def test_invalid_start_never_captures(app, data):
 
 
 def test_stop_receiver_bypasses_queue_and_overwrites_frontend_generation(
-    mainloop_module, monkeypatch  # noqa: F811
+    mainloop_module,
+    monkeypatch,  # noqa: F811
 ):
     mod, pending, responses = mainloop_module, Queue(), Queue()
     c = mod.controller

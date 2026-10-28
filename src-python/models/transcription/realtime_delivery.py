@@ -7,10 +7,20 @@ from time import monotonic
 
 
 class RealtimeDelivery:
-    def __init__(self, session, publish, process_final, on_error, *, clock=monotonic):
+    def __init__(
+        self,
+        session,
+        publish,
+        process_final,
+        on_error,
+        *,
+        clock=monotonic,
+        on_stopped=None,
+    ):
         self.session = session
         self._publish, self._process, self._error = publish, process_final, on_error
         self._clock = clock
+        self._on_stopped = on_stopped
         self._stop = Event()
         self._finals = Queue(maxsize=4)
         self._terminal = OrderedDict()
@@ -51,6 +61,7 @@ class RealtimeDelivery:
             state=update.state,
             text=update.text,
             translations=[],
+            expires_ns=update.received_ns + 2_000_000_000,
         )
 
     def _report(self, code, *, terminal=False):
@@ -94,6 +105,12 @@ class RealtimeDelivery:
                         self._report("realtime_final_queue_full", terminal=True)
         except Exception:
             self._report("realtime_caption_failed", terminal=True)
+        finally:
+            if self._on_stopped is not None:
+                try:
+                    self._on_stopped()
+                except Exception:
+                    self._report("realtime_caption_cleanup_failed")
 
     def _translate(self):
         while not self._stop.is_set():
