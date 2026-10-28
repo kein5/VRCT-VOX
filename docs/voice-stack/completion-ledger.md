@@ -154,3 +154,11 @@ Ruling: latency変更後のbuffer epoch対応が保証されないため停止�
 Ruling: 非協調callbackを無理に終了せずnative取得を先に停止し、残callbackがあればconsumer_busy。UI側の停止世代破棄は後続で必要。
 P3の次工程はUI字幕・final翻訳接続。物理録音・Windows・P4/P5・VC聴感を完了扱いにしない。
 Linux captureの独立review Important2は合成C6case RED→GREENで修正。実ASR/VAD込み音声suite490 PASS/8 opt-in SKIP、default既知16失敗不変。破損PCM/NULLlatencyの停止契約を保持。追加reviewなし、Minorなし。
+
+### Realtime字幕接続: session owner（2026-10-28）
+
+source別の単一使用RealtimeSessionと保存設定validationを追加。取得/Ingress/WSを所有し、update queue32・停止時のnamespace即無効化・非join取消とclose完了境界を分離する。
+model/languageを既存RESTでpreflightし、host名localhost入力は既存helperで数値loopbackへ正規化する。
+設定に録音enabledを保存しない。起動中取消、2source独立、切断/queue overflow、古い字幕破棄、再停止のterminal stateを検証。
+新規関連54 PASS、実ASR/VAD込み全音声527 PASS/8 opt-in SKIP、default1173 PASS/既知16 FAIL不変。
+Controller/UIへはまだ接続していない。次工程は同sourceのlegacyとの排他、字幕更新・final翻訳・停止世代のIPC接続。

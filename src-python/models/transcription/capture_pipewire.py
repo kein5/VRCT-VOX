@@ -109,9 +109,13 @@ class PipeWireCapture:
                 except ProcessLookupError:
                     pass
 
-    def stop(self):
+    def request_stop(self):
+        """Invalidate pending startup/delivery without joining or touching a driver."""
         self._stop.set()
         self._ready.set()
+
+    def stop(self):
+        self.request_stop()
         self._reap()
         with self._lock:
             thread = self._thread

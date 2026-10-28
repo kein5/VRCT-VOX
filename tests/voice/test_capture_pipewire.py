@@ -118,6 +118,7 @@ def test_capture_stale_identity_disconnect_and_consumer_rejection_fail_closed(fa
                     stop_process(device)
                 elif fault == "latency":
                     from tools.voice_b_poc import Producer
+
                     Producer(stack, "vrct.capture.fault.sink", 440)
                 else:
                     reject.set()
@@ -177,3 +178,19 @@ def test_stop_before_start_is_terminal_and_does_not_open_audio():
     capture.stop()
     with pytest.raises(RuntimeError):
         capture.start()
+
+
+def test_request_stop_is_nonblocking_and_prevents_later_launch():
+    m = module()
+    capture = m.PipeWireCapture(
+        Endpoint(1, 2, "selected", "Audio/Source"),
+        "mic",
+        lambda f: True,
+        lambda e: None,
+    )
+    started = time.monotonic()
+    capture.request_stop()
+    assert time.monotonic() - started < 0.1
+    with pytest.raises(RuntimeError):
+        capture.start()
+    capture.stop()
