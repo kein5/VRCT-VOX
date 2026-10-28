@@ -32,11 +32,11 @@ Files: `src-python/models/voice_conversion/{settings,protocol,process,seed_proce
 
 Interfaces: `VCProcess(engine=...)` common owner with `_launch_worker()` specialization; `RVCProcess(options)` mirrors Seed start/stop/close/health; `create_converted_process(options)` selects a fixed engine; `ready_info/require_ready(..., engine='seed-vc')` keeps old behavior.
 
-- [ ] Write RVC option, migration, factory and handshake tests; parameterize real fake-worker pipe/lifetime tests over engines. Assert missing model fails without capture, stale output is discarded, cleanup completes.
-- [ ] Run new tests with uv; observe missing feature failures.
-- [ ] Extract the shared transport without changing its queue/deadline rules; implement strict options and native fixed-module branch.
-- [ ] Run targeted VC/controller/native-supervisor regression tests; all must pass.
-- [ ] Commit Task 1.
+- [x] Write RVC option, migration, factory and handshake tests; parameterize real fake-worker pipe/lifetime tests over engines. Assert missing model fails without capture, stale output is discarded, cleanup completes.
+- [x] Run new tests with uv; observe missing feature failures.
+- [x] Extract the shared transport without changing its queue/deadline rules; implement strict options and native fixed-module branch.
+- [x] Run targeted VC/controller/native-supervisor regression tests; all must pass.
+- [x] Commit Task 1.
 
 ### Task 2: Offline RVC inference worker and streaming adapter
 
@@ -44,18 +44,18 @@ Files: `integrations/rvc/{__init__,loader,blocks,live_worker}.py`, `integrations
 
 Interfaces: `create_engine(engine_path, assets, model, index, pitch, index_rate)` validates pinned sources/local assets and returns checked RVC; `BlockSession(engine).convert(float32[3840]) -> float32[3840]`; `convert_packet(...)` validates protocol and calls the block session.
 
-- [ ] Write fake-engine block/packet tests: exact shape, finite samples, history reset, unsupported model formats, index failure and malformed output; source validation rejects changed/missing checkout or assets.
-- [ ] Run tests RED before implementing each boundary.
-- [ ] Implement pinned offline loader and minimal upstream-derived ring/resampling/SOLA; fixed worker warms up then resets before readiness. Include MIT attribution.
-- [ ] Run model-free tests with available optional Torch interpreter; explicitly distinguish these from a real RVC runtime test.
-- [ ] Commit Task 2.
+- [x] Write fake-engine block/packet tests: exact shape, finite samples, history reset, unsupported model formats, index failure and malformed output; source validation rejects changed/missing checkout or assets.
+- [x] Run tests RED before implementing each boundary.
+- [x] Implement pinned offline loader and minimal upstream-derived ring/resampling/SOLA; fixed worker warms up then resets before readiness. Include MIT attribution.
+- [x] Run model-free tests with available optional Torch interpreter; explicitly distinguish these from a real RVC runtime test.
+- [x] Commit Task 2.
 
 ### Task 3: GUI engine selection and honest acceptance record
 
 Files: `src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/DirectVoiceSettings.jsx`, `locales/{en,ja}.yml`, `tests/voice/test_direct_voice_ui.py`, `docs/voice-stack/{completion-ledger,licensing}.md`, RVC report.
 
-- [ ] Add browser checks for RVC fields, persistence, Start payload, disabled edits while active and no automatic Start; observe RED.
-- [ ] Implement engine-specific controls, complete/dirty validation and translated labels.
-- [ ] Run browser integration, standard suite, voice regression, optional fake-engine tests and Vite build; record failures/skips honestly.
-- [ ] Run one read-only independent P2 code review (previously authorized standalone Codex CLI); fix justified findings with RED→GREEN.
-- [ ] Record model acquisition candidates/conditions, unmeasured quality/latency and open Seed issues; commit Task 3. Do not label real RVC acceptance complete.
+- [x] Add browser checks for RVC fields, persistence, Start payload, disabled edits while active and no automatic Start; observe RED.
+- [x] Implement engine-specific controls, complete/dirty validation and translated labels.
+- [x] Run browser integration, standard suite, voice regression, optional fake-engine tests and Vite build; record failures/skips honestly.
+- [x] Run one read-only independent P2 code review (previously authorized standalone Codex CLI); fix justified findings with RED→GREEN.
+- [x] Record model acquisition candidates/conditions, unmeasured quality/latency and open Seed issues; commit Task 3. Do not label real RVC acceptance complete.

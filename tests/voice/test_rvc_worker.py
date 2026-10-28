@@ -145,6 +145,30 @@ def test_requested_index_failure_blocks_audio_even_if_upstream_continues():
         BlockSession(engine).convert(np.zeros(p.FRAMES, np.float32))
 
 
+def test_upstream_post_search_blending_failure_cannot_be_swallowed(monkeypatch):
+    from pathlib import Path
+    import traceback
+    from integrations.rvc import loader
+    class Index:
+        def search(self, values, k):
+            return np.ones((len(values), k), np.float32), np.zeros((len(values), k), np.int64)
+    engine = SimpleNamespace(index=loader.CheckedIndex(Index(), 8), index_rate=.5,
+        big_npy=np.ones((8, 768), np.float32), config=SimpleNamespace(is_half=False), device='cpu')
+    module = SimpleNamespace(traceback=traceback)
+    # Emulate a device/conversion error after successful FAISS search.
+    def fail_conversion(*args, **kwargs):
+        raise RuntimeError('injected post-search allocation failure')
+    monkeypatch.setattr(torch, 'from_numpy', fail_conversion)
+    configure = getattr(loader, 'enforce_retrieval_errors', lambda module: None)
+    configure(module)
+    scope = dict(self=engine, feats=torch.ones(1, 8, 768), skip_head=0, report_status=True,
+        np=np, torch=torch, traceback=module.traceback, i18n=lambda x: x, printt=lambda *args: None)
+    code = (Path(__file__).parent / 'fixtures/rvc_retrieval.py').read_text()
+    with pytest.raises(ValueError, match='vc_index_failed'):
+        exec(compile(code, 'pinned-rvc-retrieval', 'exec'), scope)
+    assert engine.index.calls == 1  # Search succeeded; the failure occurred afterward.
+
+
 def test_fixed_worker_main_warms_up_then_streams_real_pipe_packets(tmp_path):
     import os
     import subprocess

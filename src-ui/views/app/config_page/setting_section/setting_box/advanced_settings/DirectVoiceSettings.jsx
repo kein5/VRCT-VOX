@@ -4,7 +4,8 @@ import { useVoice } from "../../../../../../logics/voice/useVoice";
 
 // Keep the complete backend identity. Refresh never rebinds a selected name.
 const key = id => JSON.stringify([id.cookie, id.serial, id.name, id.media_class]);
-const defaults = { mode: "passthrough", runtime: "", reference: "" };
+const defaults = { mode: "passthrough", runtime: "", reference: "", engine: "seed-vc",
+    rvc_runtime: "", rvc_model: "", rvc_index: "", rvc_pitch: 0, rvc_index_rate: 0 };
 
 export const DirectVoiceSettings = () => {
     const { t } = useI18n();
@@ -12,7 +13,7 @@ export const DirectVoiceSettings = () => {
     const [selected, setSelected] = useState("");
     const [draft, setDraft] = useState(defaults);
     const [saving, setSaving] = useState(false);
-    const savedKey = JSON.stringify(directState.settings || defaults);
+    const savedKey = JSON.stringify({ ...defaults, ...directState.settings });
     useEffect(() => {
         setDraft(JSON.parse(savedKey));
         setSaving(false);
@@ -31,7 +32,15 @@ export const DirectVoiceSettings = () => {
     const busy = directState.requested || directState.pending;
     const dirty = JSON.stringify(draft) !== savedKey;
     const converted = draft.mode === "converted";
-    const complete = !converted || (draft.runtime.trim() && draft.reference.trim());
+    const rvc = draft.engine === "rvc";
+    const validNumbers = Number.isInteger(draft.rvc_pitch) && Math.abs(draft.rvc_pitch) <= 24 &&
+        Number.isFinite(draft.rvc_index_rate) && draft.rvc_index_rate >= 0 && draft.rvc_index_rate <= 1;
+    const complete = !converted || (rvc ? (draft.rvc_runtime.trim() && /\.pth$/i.test(draft.rvc_model) &&
+        (!draft.rvc_index || /\.index$/i.test(draft.rvc_index)) &&
+        (!draft.rvc_index_rate || draft.rvc_index) && validNumbers) : (draft.runtime.trim() && draft.reference.trim()));
+    const options = rvc ? { engine: "rvc", runtime: draft.rvc_runtime, model: draft.rvc_model,
+        index: draft.rvc_index, pitch: draft.rvc_pitch, index_rate: draft.rvc_index_rate } :
+        { runtime: draft.runtime, reference: draft.reference };
     let status = "voice.input_stopped";
     if (!directState.observation_id) status = "voice.input_unknown";
     else if (directState.error) status = "voice.input_failed";
@@ -49,13 +58,25 @@ export const DirectVoiceSettings = () => {
             </select>
         </label>
         {converted && <>
-            <p>{t("voice.vc_hint")}</p>
-            {["runtime", "reference"].map(name => <label key={name}>{t(`voice.vc_${name}`)}
+            <label>{t("voice.vc_engine")}
+                <select value={draft.engine} disabled={busy} onChange={e => setDraft({ ...draft, engine: e.target.value })}>
+                    <option value="seed-vc">Seed-VC</option>
+                    <option value="rvc">RVC</option>
+                </select>
+            </label>
+            <p>{t(rvc ? "voice.vc_rvc_hint" : "voice.vc_hint")}</p>
+            {(rvc ? ["rvc_runtime", "rvc_model", "rvc_index"] : ["runtime", "reference"]).map(name => <label key={name}>{t(`voice.vc_${name}`)}
                 <input type="text" value={draft[name]} disabled={busy} maxLength={4096}
                     onChange={e => setDraft({ ...draft, [name]: e.target.value })} />
             </label>)}
+            {rvc && [["rvc_pitch", -24, 24, 1], ["rvc_index_rate", 0, 1, 0.05]].map(([name, min, max, step]) =>
+                <label key={name}>{t(`voice.vc_${name}`)}
+                    <input type="number" min={min} max={max} step={step} disabled={busy}
+                        value={Number.isFinite(draft[name]) ? draft[name] : ""}
+                        onChange={e => setDraft({ ...draft, [name]: e.target.valueAsNumber })} />
+                </label>)}
         </>}
-        <button type="button" disabled={busy || !dirty || saving} onClick={() => {
+        <button type="button" disabled={busy || !dirty || saving || !validNumbers} onClick={() => {
             setSaving(true);
             send("/set/data/direct_voice_settings", draft);
         }}>{t(saving ? "voice.saving" : "voice.direct_save")}</button>
@@ -71,7 +92,7 @@ export const DirectVoiceSettings = () => {
         <button type="button" disabled={!managed || !source || !!directSources.error || !complete || dirty || saving ||
             !directState.observation_id || busy}
             onClick={() => send("/run/start_direct_voice", converted ? {
-                source: source.id, mode: "converted", options: { runtime: draft.runtime, reference: draft.reference },
+                source: source.id, mode: "converted", options,
             } : { source: source.id })}>{t("voice.input_start")}</button>
         <button type="button" onClick={() => send("/run/stop_direct_voice")}>{t("voice.input_stop")}</button>
         <p role="status">{t(status)}</p>

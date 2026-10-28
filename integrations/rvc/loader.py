@@ -80,6 +80,16 @@ def require_engine(engine):
         raise ValueError('vc_engine_initialization_failed')
 
 
+def enforce_retrieval_errors(module):
+    # In the pinned rtrvc.py, the retrieval try/except calls traceback.print_exc
+    # before continuing. Search success alone cannot prove blending succeeded.
+    # Replace only this module's traceback binding, not Python's global module.
+    # The source pin is required: this is an adapter to a fixed internal hook.
+    def fail():
+        raise ValueError('vc_index_failed') from None
+    module.traceback = SimpleNamespace(format_exc=module.traceback.format_exc, print_exc=fail)
+
+
 def _synthesizer(path, device):
     import torch
     from infer.module import models
@@ -132,6 +142,7 @@ def create_engine(engine_path, assets, model, index, pitch, index_rate):
         return model.eval().to(device)
     rtrvc.load_hubert_model = load_hubert
     rtrvc.get_synthesizer = _synthesizer
+    enforce_retrieval_errors(rtrvc)
     vc = rtrvc.RVC(pitch, 0, str(model), str(index), index_rate, config)
     require_engine(vc)
     if index_rate:

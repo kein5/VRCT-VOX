@@ -1,7 +1,7 @@
 # 配布境界と原典
 
 2026-10-27に提供されたevidence mapと以下の一次資料を参照。
-音声エンジン・モデル・参照音声は取得/同梱していない。
+この冒頭表は初期調査時点の記録。後日、ユーザー承認済みの開発用モデル取得とSeed外部worker実装を行った。配布許可とは区別し、各PoC報告と下記追記を参照。
 
 | 対象 | 確認した根拠 | 今回の扱い |
 |---|---|---|
@@ -11,7 +11,7 @@
 | Irodori v4.1 Small MF | [モデルカード](https://huggingface.co/Aratako/Irodori-TTS-v4.1-Small-MF) | 日本語のみ。MIT表示に加え、声の本人の明示同意・なりすまし/誤情報禁止の記載を確認。ユーザー管理のvoiceだけ利用 |
 | Irodori Large | [モデル説明](https://github.com/nyosegawa/speech.cpp/blob/main/docs/models/irodori-tts.md) | Smallと条件を混同しない。今回は同梱・検証なし |
 | Qwen3-TTS | [モデル説明](https://github.com/nyosegawa/speech.cpp/tree/main/docs/models) | ユーザーが選んだ重みの条件・hashを実機導入時に記録。モデル取得なし |
-| Seed-VC Realtime | [GPL-3.0](https://github.com/jiaheguo521/seed-vc-realtime/blob/main/LICENSE) | 採用保留。コードコピー・リンク・バイナリ同梱なし |
+| Seed-VC Realtime | [GPL-3.0](https://github.com/jiaheguo521/seed-vc-realtime/blob/main/LICENSE) | 開発用外部workerを統合。`integrations/seed_vc`の派生コードはGPL-3.0-only表示。承認済みモデルでPoC実施、最終配布条件と対応ソースの整理は未完了 |
 | Beatrice | [v1.1 JVS版条件](https://github.com/w-okada/voice-changer/blob/master/server/voice_changer/Beatrice/README.md) | 商用利用禁止・再配布時許諾の記載。これをv2全モデルへ一般化しない。版/モデル別条件はP2ゲート |
 
 CPU/CUDA PyInstallerの展開済みTOCから `chatbox_yolox_tiny.onnx` を除外し、
@@ -55,3 +55,21 @@ Windowsはartifact検査のみ、実行試験ではない。numpy1.26.4との実
 **バイナリ配布前の残件:** LGPL§4/§6に沿った対応ソース/置換・再リンク方法、nanobindの実ビルド版と通知の網羅性を確認する。
 noticeが入っているだけで最終配布条件を満たすとは判断しない。現段階は開発環境への導入で、配布物は作成していない。
 既存transitive PyAVのwheelについても最終bundle監査の対象として保持する。
+
+## RVC追加分（2026-10-29、モデル未取得）
+
+RVC-Project/Retrieval-based-Voice-Conversion-WebUI固定commit
+`81eed5e8f68b6bed1789f682fe78cdd324495afc`の推論APIを外部workerから利用する。
+`integrations/rvc/blocks.py`のresampling/SOLAとloaderのsynthesizer構築は同commit由来のMITコード。
+[MIT原典](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/blob/81eed5e8f68b6bed1789f682fe78cdd324495afc/LICENSE)
+と、RVCがSOLA出典として挙げる[DDSP-SVCのMIT](https://github.com/yxlllc/DDSP-SVC/blob/master/LICENSE)の通知を
+[LICENSE.upstream](../../integrations/rvc/LICENSE.upstream)に保持する。レビュー再現用の原典抜粋にも帰属を記載。
+
+基礎モデル候補は公式READMEが指す `lj1995/VoiceConversionWebUI` のHuBERT/RMVPE。
+[モデルカード](https://huggingface.co/lj1995/VoiceConversionWebUI)はMITを表示するが本文は空である。
+固定版・サイズ・hashは[rvc-base-artifacts.proposal.json](rvc-base-artifacts.proposal.json)に記録。
+これは未承認・未取得の候補で、実モデル互換性や第三者の声の利用許諾を証明しない。
+話者モデル・indexは別途利用条件を確認し、同意後に取得する。無断同梱しない。
+
+独立したuv実行環境の依存lockと各wheelの再配布条件は未監査。RVCモデル・エンジンバイナリを
+配布物へ同梱したとは主張しない。Seed workerのGPL-3.0-only境界はRVC追加で変わらない。
