@@ -52,6 +52,7 @@ class PipeWireOutput:
             _, writable, _ = select.select([], [self.process.stdin], [], 0.02)
             if writable:
                 try:
+                    token.check()
                     count = os.write(self.process.stdin.fileno(), pending)
                     pending = pending[count:]
                 except BlockingIOError:

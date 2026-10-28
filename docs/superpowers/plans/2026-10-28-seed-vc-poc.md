@@ -51,7 +51,7 @@
 - [x] RED: 実adapterのfault/stop、入力そのまま出力、死んだcaptureを検出するnegative controlsを先に実行。Expected: 未実装fault閉鎖や観測不足を検出。
 - [x] 実checkpoint変換→私有仮想マイク、モデル単体/OS read時刻を別に測定。GPU/VRAM・warmup・chunk設定・低遅延未達/聴感未検証を記録。Expected: 合否が明確で原声fallbackなし。real-time throughput未達なら合格とはしない。
 - [x] 回帰（関連+既定known16比較）、ライセンス/同意/測定境界を報告しcommit。必要なら問題をimozuru調査、それでも解決不能ならユーザー指定通り中断する。
-- [ ] 一回の独立review、Critical/ImportantのみRED→GREEN一修正pass。Minor保留。全機能継続のためworktree/ledger保持、push/merge/PRなし。
+- [x] 一回の独立review、Critical/ImportantのみRED→GREEN一修正pass。Minor保留。全機能継続のためworktree/ledger保持、push/merge/PRなし。
 
 ## Pre-flight
 

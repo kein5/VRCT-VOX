@@ -19,8 +19,21 @@ from models.audio_routing.source_bridge import SourceBridge, select_source
 from models.tts.speechcpp_tts import CancelToken
 from .packets import read_packet
 from .profiles import PROFILES
+from .blocks import require_fresh_block
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+class PacketDeadline:
+    """Apply the same two-block age limit throughout cancellable OS writes."""
+    def __init__(self, token, due_ns, block_ms):
+        if type(due_ns) is not int or due_ns <= 0 or due_ns > time.monotonic_ns():
+            raise ValueError('invalid_packet_timestamp')
+        self.token, self.due_ns, self.block_ms = token, due_ns, block_ms
+
+    def check(self):
+        self.token.check()
+        require_fresh_block(self.due_ns, time.monotonic_ns(), self.block_ms)
 
 
 class WorkerRoute:
@@ -67,6 +80,9 @@ class WorkerRoute:
             header, pcm = read_packet(self.child.stdout)
             if header['state'] != 'ready' or pcm:
                 raise ValueError('worker_not_ready')
+            block_ms = header.get('block_ms')
+            if type(block_ms) not in (int, float) or not 0 < block_ms <= 1000:
+                raise ValueError('invalid_worker_block_time')
             self.ready.set()
             while not self.token.is_set():
                 header, pcm = read_packet(self.child.stdout, timeout=1)
@@ -74,12 +90,15 @@ class WorkerRoute:
                 if header['state'] not in ('converted', 'vad_silence') or not pcm:
                     self.reason = 'worker_' + header['state']
                     break
-                self.token.check()
+                deadline = PacketDeadline(self.token, header.get('input_due_ns'), block_ms)
+                deadline.check()
                 if not self.forwarding:
                     if header['state'] != 'converted' or not any(pcm):
                         continue
                     self.prepare_route()
-                self.output.write(pcm, self.token)
+                deadline.check()
+                self.output.write(pcm, deadline)
+                deadline.check()
         except Exception as exc:
             self.reason = type(exc).__name__
         finally:
@@ -88,6 +107,8 @@ class WorkerRoute:
                 self.token.cancel()
                 self.output.close(drain=False, token=self.token)
             finally:
+                if self.child.poll() is None:
+                    self.child.terminate()
                 self.closed_ns = time.monotonic_ns()
                 self.done.set()
 

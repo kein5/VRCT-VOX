@@ -69,3 +69,17 @@ OS経路を先に準備するのは、このsupervisorだけが検査済みPCM�
 このPoCは外部GPL adapterと固定モデルの検証まで。製品の物理capture/converted切替・能力確認・UI統合、P3 ASR、P4翻訳発声、P5 Windows/配布・長時間/競合試験は引き続き残る。VAD判定前の語頭が失われていないか、参照声に近いか、雑音下での動作を次の品質ゲートにする。短い数値だけで低遅延profileを製品既定にしない。
 
 GPL engine/adapter/model、Apacheモデルと依存ごとの配布条件を保持し、モデルを製品へ同梱していない。これは最終ライセンス監査ではない。push、公開release、PR、上流への打診は行っていない。
+
+## 独立レビュー後の修正
+
+独立レビューはCritical 0 / Important 1 / Minor 2。推論後にOS出力が詰まると古いPCMを転送できるImportantを修正した。
+受信時・経路準備後・書き込み待機後にも入力期限（2block）を確認し、期限超過時は経路を閉じて専用workerを終了する。
+4つの再現テストが修正前FAIL→修正後PASS。関連356 PASS / 8 opt-in SKIP、実モデルの私有経路7ケースPASS（65.95秒）。
+修正後の仮想入力→readは296.41–339.52ms、停止等→無音は28.76–126.79ms。
+進行停止のsupervisor closeは1020.50msであり、無音までの126.79msとは別。最大capture間隔47.76ms、100ms超欠測0。
+既定suiteは1173 PASS / 16既知FAIL / 6 SKIP、失敗名集合に変化なし。rawは`tmp/voice-resume/seed-vc-poc/route-review/`。
+
+保留Minor: 本文とJSONのbaseline値が異なる測定回であることのラベル不足、入力開始前から1秒packet timeoutが走るため経路準備が遅いと閉じる点。
+後者は無音側へ失敗するが、起動成功率に影響し得る。
+レビューで範囲外とされた項目は、製品統合、実デバイス/OS、物理遅延と採用、聴感、長時間/競合、発声中の混入識別、最終配布監査、
+信頼済みcheckout外の改変、複数threadからの推論。いずれも合格扱いにせず、[判断一覧](seed-vc-poc-decisions.md)に代償とともに記録した。

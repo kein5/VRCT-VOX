@@ -109,3 +109,10 @@ imozuruで調べた回避候補は試験プロセス内でのみ比較し、い�
 次の[実VC PoC候補](vc-engine-poc-proposal.md)と[固定artifact一覧](seed-vc-poc-artifacts.json)を用意。
 Seed候補約1.524GBは未取得。VADはHF固定モデルを明示的な別候補として扱い、既定ModelScope版との同一性を主張しない。
 仕様§8のモデル取得同意と許可ある参照音声が必要。上流への連絡・PRは引き続き禁止。
+
+### P2 実VC PoCと独立レビュー完了（2026-10-28）
+
+前節の取得同意待ちは解消。ユーザーが固定5モデル取得と参照音声利用を承認し、uvの隔離runtimeで実変換を確認した。
+[PoC報告](seed-vc-poc-report.md)・[判断と保留](seed-vc-poc-decisions.md)。実モデル59 PASS、私有経路7ケースPASS、レビュー修正後関連356 PASS。
+外部GPL候補の評価までで、製品converted機能は未公開。物理mic/VRChat/Windows、品質、語頭、長時間VAD/負荷は未検証。
+次は品質・継続性ゲートを実施し、採用可否と製品統合を分けて判断する。全機能閉ループの指示を継続し、PR/上流連絡は実行しない。

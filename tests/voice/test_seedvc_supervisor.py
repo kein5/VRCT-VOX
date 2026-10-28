@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 import importlib
 import io
+from threading import Event
+from types import SimpleNamespace
 
 import pytest
 
@@ -35,3 +37,69 @@ def test_worker_spawn_failure_releases_output_and_bridge(tmp_path, monkeypatch):
     with pytest.raises(FileNotFoundError):
         module.WorkerRoute(tmp_path, io.BytesIO())
     assert set(closed) == {'output', 'bridge'}
+
+
+@pytest.mark.parametrize('delay_at', ['receive', 'prepare', 'write'])
+def test_stale_packet_never_reaches_output_after_a_stall(monkeypatch, delay_at):
+    module = importlib.import_module('integrations.seed_vc.acceptance')
+    clock = [10_000_000_000]
+    due = clock[0] - (2_000_000_000 if delay_at == 'receive' else 0)
+    sent, closed = [], []
+    packets = iter([
+        ({'state': 'ready', 'block_ms': 80}, b''),
+        ({'state': 'converted', 'input_due_ns': due}, b'\1\0' * 8),
+        ({'state': 'overload'}, b''),
+    ])
+    monkeypatch.setattr(module, 'read_packet', lambda *a, **k: next(packets))
+    monkeypatch.setattr(module.time, 'monotonic_ns', lambda: clock[0])
+
+    def connected(bridge):
+        if delay_at == 'prepare':
+            clock[0] += 200_000_000
+
+    def write(pcm, token):
+        if delay_at == 'write':
+            clock[0] += 200_000_000
+        token.check()
+        sent.append(pcm)
+
+    monkeypatch.setattr(module, 'active', connected)
+    route = module.WorkerRoute.__new__(module.WorkerRoute)
+    route.token = module.CancelToken()
+    route.bridge = SimpleNamespace(start=lambda: None, stop=lambda: closed.append('bridge'))
+    route.output = SimpleNamespace(write=write, close=lambda **kwargs: closed.append('output'))
+    route.child = SimpleNamespace(stdout=None, poll=lambda: None,
+                                  terminate=lambda: closed.append('worker'))
+    route.ready, route.done = Event(), Event()
+    route.reason = None
+    route.forwarding = False
+    route.packets = []
+    route.pump()
+    assert sent == []
+    assert route.reason == 'TimeoutError' and route.done.is_set()
+    assert set(closed) == {'bridge', 'output', 'worker'}
+
+
+def test_pipewire_rechecks_cancellation_after_writable_wait(monkeypatch):
+    module = importlib.import_module('models.audio_routing.devices_pipewire')
+    writable = [False]
+    sent = []
+
+    class Token:
+        def check(self):
+            if writable[0]:
+                raise TimeoutError('packet expired while waiting')
+
+    pipe = SimpleNamespace(fileno=lambda: 55)
+    output = module.PipeWireOutput.__new__(module.PipeWireOutput)
+    output.process = SimpleNamespace(poll=lambda: None, stdin=pipe)
+
+    def select(*args):
+        writable[0] = True
+        return [], [pipe], []
+
+    monkeypatch.setattr(module.select, 'select', select)
+    monkeypatch.setattr(module.os, 'write', lambda fd, data: sent.append(bytes(data)) or len(data))
+    with pytest.raises(TimeoutError):
+        output.write(b'\1\0' * 8, Token())
+    assert sent == []
