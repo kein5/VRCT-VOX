@@ -54,6 +54,25 @@ class CancelToken:
         self._close(closers)
         self.check()
 
+    def commit_audio_write(self, pcm, write):
+        """Serialize expiry with a NONBLOCKING write, never a readiness wait.
+
+        Only successfully written nonzero bytes end the startup deadline.
+        A partial all-zero prefix or EAGAIN leaves expiry active.
+        """
+        count = None
+        with self._lock:
+            closers = self._expire_start_locked()
+            if not self.is_set():
+                count = write()
+                if type(count) is not int or not 0 < count <= len(pcm):
+                    raise SpeechError('output_write_invalid')
+                if any(pcm[:count]):
+                    self._started = True
+        self._close(closers)
+        self.check()
+        return count
+
     def register(self, closer):
         with self._lock:
             if not self.is_set():

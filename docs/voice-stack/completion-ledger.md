@@ -14,6 +14,16 @@
 実行前にユーザーの明示的な指示を必要とする。完成後の成果公開は維持、上流mergeは別。
 詳しくは[公開・上流方針](publication-and-upstream.md)。
 
+### 現在のPCで進める範囲（2026-10-28追加指示）
+
+ユーザーはWindows作業を後日、別のWindows PCで行う方針を指定した。
+このLinux PCでは、進行中のP4マイク翻訳発声の受入試験を完了させ、P2直接VCの製品統合、
+P5のLinux配布・OS共通の安定化/ライセンス確認を進める。
+P3のLinux側に残る実機確認も対象として保持する。Windows専用経路の実装・実機試験は後日へ移し、
+必要事項と再現手順を引き継げる形で記録する。Windows未対応を理由に独立したLinux作業を止めない。
+一方、Windows要件を完了扱いにはせず、両OSを含む全機能完成とは区別する。
+VCの聴感・物理入力・HMD・混在負荷などの未検証条件と、上流PR/連絡を自動実行しない指示は維持する。
+
 **現在: 再開（2026-10-28）。** ユーザー提供のDPMS再現調査と消灯防止ガードを照合し、
 通常configの実Tauriで描画・設定保存復元・終了と再起動後のミュートを確認した。
 10/27の原因はDPMS未記録のため推定と区別する。[追記報告・試験手順](native-ui-report.md)。
@@ -36,7 +46,7 @@ Windows・混在負荷等の残条件を全機能完了として扱わない。
 | P1 | TTS provider、scheduler、UI、OSC契約、Linux/Windows出力adapter。部品UI試験16件、実Tauri/全Modelの描画・保存復元・安全な再起動、本番UI→実TTS→独立仮想マイク9件とホスト/VRChat9件。本人Chatbox実表示＋発話1回/OFF無音2件、UI→PCM write30回で目標内 | Windows実機、VRChat併用の性能・混在負荷 |
 | P2 | OS音声経路BのPoC、managed endpoint、Linux明示source bridge・切断/親終了・同名再作成の自動試験。私有実OS3試行×14観測PASS（[報告](source-bridge-report.md)）。本番Controller/UIに明示入力選択・開始停止を接続し、実Tauri→私有仮想マイク16ケースPASS（[報告](source-controls-report.md)） | converted/passthroughの排他、外部VCの変換状態・品質・遅延・ライセンス比較、Windows経路。経路healthを実変換成功とは扱わない |
 | P3 | legacyを維持し、speech.cpp REST/Realtime、mic/speaker別session、VAD、Linux capture/resample、有界queue、字幕置換・確定翻訳・大きいoverlayを接続。実Tauri/private音声/実ASR/VADで表示・停止・再起動OFFを確認（[報告](realtime-captions-report.md)） | 実翻訳モデルの品質/速度、物理発話終端からの遅延、HMD表示、native legacy録音への切替、Windows、混在負荷 |
-| P4 | テキストの原文/訳文TTSのみ | mic final訳文発声、VCとの排他/ducking、優先度・期限、remote受信の再送防止、多言語振分け |
+| P4 | テキストの原文/訳文TTS、mic finalの選択訳文発声、共有queueの優先度・期限・取消、managed直接音声の抑制/明示mix、Controller/UI接続、Mainからの入力別停止を実装。実ASR/VAD/Qwen・私有音声経路で原音＋TTS＋原文/訳文OSCのnative試験3件PASS（[報告](spoken-translation-report.md)） | 実翻訳品質/速度、多言語全体の受入、動的ducking、VC統合・混在負荷。P4全体は未完了 |
 | P5 | Linux専用graphと一部host試験、禁止OCR重み除外検査 | ネイティブUI/配布・fork識別、両OS障害復旧、30分混在負荷、回帰、実artifact台帳 |
 
 ## 判断
@@ -44,6 +54,7 @@ Windows・混在負荷等の残条件を全機能完了として扱わない。
 - Ruling: P1の実アプリ検証に必要なLinux起動作業をP5から前倒しする — Windows実機を前提にしたままP1を完了扱いにせず、利用者のCachyOSで実経路を検証するため — Windows・HMDを代替した証拠にはならない。
 - Ruling: 調査原文とraw試験はworktreeの`tmp/voice-completion/`、共有する結論・計画・測定要約はdocsへ — 書込み可能範囲と既存成果物方針に合わせる — tmpを削除すると原文/raw再取得が必要。
 - Ruling: 既存設計Bを条件付きで継続し、全機能を一度に作り直さない — 既に停止・故障の証拠があり、追加抽象化の利益は未測定 — Bの判断を覆す条件はADR004/005のまま。
+- ユーザー確認（2026-10-28）: fork元の途中認識も翻訳・OSCへ送る経路と比較し、新Realtimeの「partialは原文字幕更新、finalを翻訳し、選択した成功訳文のみTTSへ」を採用。途中の認識変更による表示と発声の齟齬を避けることを優先し、翻訳字幕・OSC・TTSが確定を待つ挙動を維持する。OSCは既存送信設定に従う。認識/翻訳の正しさや実測遅延の保証ではない。[設計記録](../superpowers/specs/2026-10-28-spoken-translation-design.md)。
 
 ## 現在の作業
 
@@ -192,3 +203,12 @@ ChatboxのOS共通処理を妨げるWindows限定ガードを除き、POSIX端�
 COMピーク自動選択・Win32フォーカス/キー送信・Windowsパネル撮影のLinux実装を追加した意味ではない。
 [修正範囲・原典・検証と残条件](linux-test-portability-report.md)。最終独立reviewはCritical/Important/Minorとも0件。
 本節より前の16FAILは当時の記録として保持する。
+
+### P4 native受入と独立レビュー修正（2026-10-28）
+
+明示承認済みの読み取り専用Codex CLIレビューが完了。AITの子→親通知を使わず実行できた。
+指摘3点をREDで再現し、Resume時の両経路確認、旧ASR所有者の発声取消、最初の非ゼロ書込みまでの期限維持を修正。
+追加のPipeWire通知回帰はimozuruで公式change_mask契約と実通知を照合して解決した。
+修正後: 選択110 PASS、標準1222 PASS/6既存SKIP、音声665 PASS/7任意Seed runtime SKIP、実Tauri3 PASS。
+Native/Vite/Tauri build・変更範囲Ruff・diff検査PASS。P4のこの実装計画は完了、P4全要件の受入ではない。
+[測定境界・残条件・レビュー修正](spoken-translation-report.md)。P2の外部VC製品統合を継続する。

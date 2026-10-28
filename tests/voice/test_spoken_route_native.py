@@ -20,6 +20,24 @@ CONFIG = ROOT / 'config/pipewire/90-vrct-managed.conf'
 pytestmark = pytest.mark.skipif(sys.platform != 'linux', reason='Linux PipeWire native gate')
 
 
+def test_native_resume_checks_direct_identity_and_suppression(tmp_path):
+    helper = compile_helper(tmp_path, 'native/voice-gate/main.c', pipewire=True)
+    with private_graph(config_fragment=CONFIG):
+        gate = PipeWireGate(helper)
+        pair = gate.inspect_pair()
+        cookie, serial = pair['source']['identity']
+        direct = pair['direct']['identity']
+        gate.set_direct_muted(True, direct)
+        for expected_serial, suppressed, ok in ((direct[1] + 1, True, False),
+                                                (direct[1], False, False),
+                                                (direct[1], True, True)):
+            result = subprocess.run([str(helper), str(cookie), str(serial), '0',
+                'guard-direct', str(expected_serial), '1' if suppressed else '0'], timeout=3)
+            assert (result.returncode == 0) is ok
+            assert gate.inspect()['muted'] is not ok
+        gate.set_muted(True, (cookie, serial))
+
+
 def test_direct_gate_targets_only_bound_vc_sink(tmp_path):
     helper = compile_helper(tmp_path, 'native/voice-gate/main.c', pipewire=True)
     with private_graph(config_fragment=CONFIG):

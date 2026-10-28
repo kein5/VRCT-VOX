@@ -143,7 +143,12 @@ class VoiceRoute:
                     if direct_observed != suppress_direct:
                         raise RuntimeError('direct_gate_change_unconfirmed')
                     if state['muted'] != desired:
-                        state = self.gate.set_muted(desired, state['identity'])
+                        if desired:
+                            state = self.gate.set_muted(True, state['identity'])
+                        else:
+                            pair = self.gate.resume(state['identity'], direct['identity'], suppress_direct)
+                            state, direct = pair['source'], pair['direct']
+                            direct_observed = direct['muted']
                     observed = state['muted']
                     if observed != desired:
                         raise RuntimeError('gate_change_unconfirmed')

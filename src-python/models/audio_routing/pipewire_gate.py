@@ -63,6 +63,25 @@ class PipeWireGate:
     def set_direct_muted(self, value, expected_identity):
         return self._set_muted(value, expected_identity, direct=True)
 
+    def resume(self, expected_identity, expected_direct_identity, suppress_direct):
+        if not self.helper.is_file():
+            raise RuntimeError('voice_gate_helper_missing')
+        if expected_identity[0] != expected_direct_identity[0]:
+            raise RuntimeError('direct_gate_identity_changed')
+        try:
+            subprocess.run([str(self.helper), *(str(x) for x in expected_identity),
+                '0', 'guard-direct', str(expected_direct_identity[1]), '1' if suppress_direct else '0'],
+                check=True, capture_output=True, timeout=2.5)
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise RuntimeError('gate_identity_or_control_failed') from exc
+        pair = self.inspect_pair()
+        if pair['source']['identity'] != expected_identity or pair['source']['muted']:
+            raise RuntimeError('gate_change_unconfirmed')
+        if (pair['direct']['identity'] != expected_direct_identity
+                or pair['direct']['muted'] != suppress_direct):
+            raise RuntimeError('direct_gate_change_unconfirmed')
+        return pair
+
     def _set_muted(self, value, expected_identity, *, direct):
         if not self.helper.is_file():
             raise RuntimeError('voice_gate_helper_missing')

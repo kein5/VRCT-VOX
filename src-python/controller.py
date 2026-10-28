@@ -527,6 +527,10 @@ class Controller:
                     language = self._realtimeLanguage(options.language)
                 except ValueError as exc:
                     return failure(str(exc), 400)
+                if source == "mic":
+                    # A terminal owner's cleanup may run after this ownership
+                    # advance. Cancel its speech before making it stale.
+                    self._cancelMicVoice()
                 self._realtime_generation[source] += 1
                 generation = self._realtime_generation[source]
                 self._realtime_requested[source] = True

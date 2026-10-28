@@ -35,6 +35,9 @@ pytestmark = pytest.mark.skipif(
 class TranslationFixture:
     """The production LMStudio provider talks to this deterministic HTTP peer."""
 
+    def __init__(self, translations=None):
+        self.translations = translations
+
     def __enter__(self):
         self.requests = []
         owner = self
@@ -59,7 +62,9 @@ class TranslationFixture:
                 owner.requests.append({"time_ns": time.monotonic_ns(), "message_count": len(request["messages"])})
                 self.respond({"id": "fixture", "object": "chat.completion", "created": 0,
                               "model": request["model"], "choices": [{"index": 0, "finish_reason": "stop",
-                              "message": {"role": "assistant", "content": "Integration translation " + str(len(owner.requests))}}]})
+                              "message": {"role": "assistant", "content": (
+                                  owner.translations[(len(owner.requests) - 1) % len(owner.translations)]
+                                  if owner.translations else "Integration translation " + str(len(owner.requests)))}}]})
 
             def log_message(self, *args):
                 pass
@@ -238,11 +243,11 @@ def test_real_asr_native_caption_translation_and_stop(tmp_path):
             # Match each datagram to a microphone row, not merely the total;
             # a swapped or duplicated speaker final must fail this check.
             assert all(sum(translation in text for text in sent) == 1 for translation in expected_osc)
-            open_captions(ui)
+            # Main-view source controls stop capture without opening config,
+            # whose existing lifecycle temporarily disables translation.
             ui.click_text("button", "Stop microphone captions")
             ui.click_text("button", "Stop game audio captions")
             wait_for(lambda: not any(name.startswith("vrct.asr.capture.") for name in nodes()))
-            ui.click_text("p", "Go Back")
             instrument_rows(ui)
             assert producer.play().wait(10)
             time.sleep(0.5)

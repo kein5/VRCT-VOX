@@ -81,7 +81,9 @@ class NativeWebDriver:
         return self.element_command(element, "click")
 
     def click_text(self, tag, text):
-        element = self.evaluate("return [...document.querySelectorAll(arguments[0])].find(e => e.textContent.trim() === arguments[1]);", tag, text)
+        # Main and the hidden configuration page can expose the same label.
+        # Select the visible control, retaining native WebDriver hit testing.
+        element = self.evaluate("return [...document.querySelectorAll(arguments[0])].find(e => e.textContent.trim() === arguments[1] && getComputedStyle(e).visibility === 'visible' && e.getClientRects().length);", tag, text)
         return self.element_command(element, "click")
 
     def control(self, label):

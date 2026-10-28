@@ -58,7 +58,7 @@
 
 **Files:** tests/platform/test_native_spoken_translation.py or an extension of the existing native realtime acceptance; docs/voice-stack spoken report/results, completion ledger.
 
-- [ ] Exercise real Tauri/Controller/ASR/VAD/TTS through private PipeWire using approved synthetic input. Fixed local translation fixture remains labeled as such. Multilingual inference is opt-in after fixed-model consent.
-- [ ] Measure final receipt→first PCM write and private virtual-source onset separately; do not infer physical/VRChat latency. Verify one utterance, source stop silence and TTS/direct exclusion.
-- [ ] Run default pytest plus voice regression with appropriate approved-model opt-ins and browser tests; Ruff/diff/build checks → PASS. Record all remaining gates rather than declaring all P4/P5 accepted.
-- [ ] One fresh final review across this plan, one RED→GREEN important-finding fix pass, no re-review. Commit reports. Preserve worktree/ledger for continued full-feature work.
+- [x] Exercise real Tauri/Controller/ASR/VAD/TTS through private PipeWire using approved synthetic input. Fixed local translation fixture remains labeled as such. Multilingual inference is opt-in after fixed-model consent.
+- [x] Measure final receipt→first PCM write and private virtual-source onset separately; do not infer physical/VRChat latency. Verify one utterance, source stop silence and TTS/direct exclusion.
+- [x] Run default pytest plus voice regression with appropriate approved-model opt-ins and browser tests; Ruff/diff/build checks → PASS. Record all remaining gates rather than declaring all P4/P5 accepted.
+- [x] One fresh final review across this plan, one RED→GREEN important-finding fix pass, no re-review. Commit reports. Preserve worktree/ledger for continued full-feature work.

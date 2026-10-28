@@ -100,6 +100,14 @@ class Gate:
         self.changes.append(('direct', value))
         return self.inspect_pair()['direct']
 
+    def resume(self, expected_identity, expected_direct_identity, suppress_direct):
+        self.set_muted(False, expected_identity)
+        pair = self.inspect_pair()
+        if (pair['direct']['identity'] != expected_direct_identity
+                or pair['direct']['muted'] != suppress_direct):
+            raise RuntimeError('direct_gate_change_unconfirmed')
+        return pair
+
 
 @pytest.fixture
 def route():
@@ -143,6 +151,32 @@ def test_stale_resume_never_opens_bus_after_new_mute(route):
     gate.release.set()
     ready(control)
     assert gate.muted and store.value and bus.status()['muted']
+
+
+@pytest.mark.parametrize('fault', ['drift', 'replacement'])
+def test_direct_change_during_resume_never_opens_software(route, fault):
+    control, bus, gate, store = route
+    control.configure(True, suppress_direct=True)
+    ready(control)
+    opened = []
+    original_bus, original_gate = bus.set_muted, gate.set_muted
+    def mute(value):
+        if not value:
+            opened.append(True)
+        return original_bus(value)
+    def change(value, identity):
+        state = original_gate(value, identity)
+        if not value:
+            if fault == 'drift':
+                gate.direct_muted = False
+            else:
+                gate.direct_identity = (123, 999)
+        return state
+    bus.set_muted, gate.set_muted = mute, change
+    control.resume()
+    until(lambda: gate.resuming.is_set() and not control.status()['pending'])
+    assert opened == []
+    assert control.status()['requested_muted'] and gate.muted and store.value
 
 
 def test_identity_replacement_requires_another_explicit_resume(route):

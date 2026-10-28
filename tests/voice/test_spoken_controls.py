@@ -180,6 +180,33 @@ def test_delayed_previous_session_cleanup_does_not_cancel_new_mic_audio(app, pcm
             release.set()
 
 
+def test_restart_of_terminal_session_cancels_its_speech_before_old_cleanup(app, pcm_server):
+    c, m, made = app
+    entered, release = Event(), Event()
+    def stalled(index):
+        entered.set()
+        release.wait(3)
+    with pcm_server(before_chunk=stalled) as (url, requests):
+        sink = configure(c, m, url)
+        start(c)
+        made[0].emit(final=True)
+        try:
+            assert entered.wait(1)
+            delivery = c._realtime_owners['mic'][1]
+            old_cleanup = delivery._on_stopped
+            delivery._on_stopped = lambda: None  # Defer this owner's cleanup callback.
+            made[0].request_stop()
+            assert delivery.close(1)
+            start(c)
+            until(lambda: c.voice_events.status()['cancelled'] == 1)
+            assert sink.data == []
+            generation = c.voice_events.source_generation('mic')
+            old_cleanup()
+            assert c.voice_events.source_generation('mic') == generation
+        finally:
+            release.set()
+
+
 def test_managed_setting_controls_direct_branch_without_starting_capture(app):
     from test_managed_route import Gate, ready
     c, m, made = app

@@ -53,7 +53,10 @@ class PipeWireOutput:
             if writable:
                 try:
                     token.check()
-                    count = os.write(self.process.stdin.fileno(), pending)
+                    def write():
+                        return os.write(self.process.stdin.fileno(), pending)
+                    commit = getattr(token, 'commit_audio_write', None)
+                    count = commit(pending, write) if commit is not None else write()
                     pending = pending[count:]
                 except BlockingIOError:
                     continue

@@ -1,0 +1,136 @@
+{
+  "boundary": "Native Tauri final receipt to local PCM; fixed translation fixture, warmed existing models, private PipeWire, synthetic direct tone",
+  "samples_are_percentiles": false,
+  "cases": [
+    {
+      "status": "passed",
+      "native_ui": true,
+      "real_asr_vad_tts": true,
+      "real_translation_model": false,
+      "translation": "fixed local HTTP via production LMStudio adapter",
+      "physical_capture": false,
+      "vrchat": false,
+      "gpu_contention_measured": false,
+      "direct_policy": "suppress",
+      "direct_input": "continuous synthetic 440 Hz",
+      "shared_physical_capture_verified": false,
+      "warm": true,
+      "measurements": [
+        {
+          "final_receipt_to_first_write_ms": 148.299249,
+          "final_receipt_to_private_read_ms": 648.942657
+        },
+        {
+          "final_receipt_to_first_write_ms": 40.9696,
+          "final_receipt_to_private_read_ms": 508.462806
+        }
+      ],
+      "matches": [
+        {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9943205994406551,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 2.94,
+              "score": 0.9943205994406551
+            }
+          ],
+          "observed_seconds": 10.725333333333333,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9888609309472265,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 5.4,
+              "score": 0.9888609309472265
+            }
+          ],
+          "observed_seconds": 10.725333333333333,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        }
+      ],
+      "stop_call_to_silent_private_read_ms": 84.504545,
+      "stop_during_speech": true,
+      "original_and_translated_osc_once": true,
+      "osc_messages": 2,
+      "direct_tone_coverage_during_speech": [],
+      "route_confirmation_ms": 2000,
+      "silence_confirmation_ms": 2000,
+      "restart_capture_off_and_muted": true
+    },
+    {
+      "status": "passed",
+      "native_ui": true,
+      "real_asr_vad_tts": true,
+      "real_translation_model": false,
+      "translation": "fixed local HTTP via production LMStudio adapter",
+      "physical_capture": false,
+      "vrchat": false,
+      "gpu_contention_measured": false,
+      "direct_policy": "mix",
+      "direct_input": "continuous synthetic 440 Hz",
+      "shared_physical_capture_verified": false,
+      "warm": true,
+      "measurements": [
+        {
+          "final_receipt_to_first_write_ms": 133.606228
+        },
+        {
+          "final_receipt_to_first_write_ms": 40.341608
+        }
+      ],
+      "matches": [
+        {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9753032141754051,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 2.94,
+              "score": 0.9753032141754051
+            }
+          ],
+          "observed_seconds": 10.736,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        },
+        {
+          "verdict": "pass",
+          "occurrences": 1,
+          "best_envelope_correlation": 0.9500724225755729,
+          "threshold": 0.8,
+          "matches": [
+            {
+              "offset_seconds": 5.4,
+              "score": 0.9500724225755729
+            }
+          ],
+          "observed_seconds": 10.736,
+          "boundary": "saved_pcm_envelope_only",
+          "perceptual_quality_measured": false
+        }
+      ],
+      "stop_call_to_silent_private_read_ms": null,
+      "stop_during_speech": false,
+      "original_and_translated_osc_once": true,
+      "osc_messages": 2,
+      "direct_tone_coverage_during_speech": [
+        0.9913793103448276,
+        0.9939024390243902
+      ],
+      "route_confirmation_ms": 2000,
+      "silence_confirmation_ms": null,
+      "restart_capture_off_and_muted": true
+    }
+  ],
+  "verification_run": "post-review-fixes 2026-10-28"
+}

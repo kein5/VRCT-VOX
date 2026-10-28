@@ -6,6 +6,10 @@ Basis: user implementation spec §4/§5/P4, approved architecture B, and the use
 
 Realtime microphone **finals** may produce the selected successful translation as speech. Partials, speaker/OCR/WebSocket receive events, failed translations, disabled targets and stale work never produce microphone audio. Default remains OFF. Keep P1 chat behavior and legacy payload contracts. Keep inference external, bounded queues, source-specific stop and explicit OS routing; no new audio capture during validation, use existing synthetic fixtures and a private PipeWire graph.
 
+## User-confirmed final-only translation policy (2026-10-28)
+
+After comparing the fork baseline's cumulative interim recognition and translation/OSC path with the new Realtime path, the user explicitly chose the new path: partials update original-language captions; finals enter translation, and only the selected successful final translation may enter TTS. Microphone OSC remains conditional on its existing send setting. This prioritizes consistency between the translated text and spoken content over starting translation or speech from an unstable interim transcript. Translated captions, OSC and TTS consequently wait for final recognition; this is not a claim of lower end-to-end latency or guaranteed recognition/translation accuracy. Existing legacy behavior remains available. Revisit interim translation only if the user requests a different behavior; it must not silently enable interim speech.
+
 ## Approaches
 
 1. Extend the existing single TTS worker and managed router (chosen engineering decision): one serialization/cancellation boundary, common model routing and output ownership. Requires separate mic cancellation and scheduling policy.

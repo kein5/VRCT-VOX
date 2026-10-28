@@ -50,10 +50,11 @@ class AudioRouter:
                 for offset in range(0, len(frame.pcm), block):
                     token.check()
                     pcm = frame.pcm[offset:offset + block]
-                    if first and any(pcm):
-                        token.begin_playback()
                     sink.write(pcm, token)
                     if first and any(pcm):
+                        # Native nonblocking adapters commit at their write
+                        # boundary; other outputs confirm when write returns.
+                        token.begin_playback()
                         first = False
                         on_first_audio(monotonic_ns(), frame.sample_rate)
             token.check()

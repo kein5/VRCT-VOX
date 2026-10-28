@@ -75,3 +75,22 @@ def test_direct_control_uses_fixed_selector_and_rechecks_identity(tmp_path, monk
     state['identity'] = (42, 21)
     with pytest.raises(RuntimeError, match='managed_endpoint_changed'):
         gate.set_direct_muted(True, (42, 20))
+
+
+@pytest.mark.parametrize('changed', [None, 'identity', 'mute'])
+def test_resume_binds_and_confirms_both_gate_states(tmp_path, monkeypatch, changed):
+    from models.audio_routing import pipewire_gate as module
+    helper = tmp_path / 'gate'
+    helper.touch()
+    gate, calls = module.PipeWireGate(helper), []
+    monkeypatch.setattr(module.subprocess, 'run', lambda args, **kwargs: calls.append(args))
+    pair = {'source': {'identity': (42, 15), 'muted': False},
+            'direct': {'identity': (42, 21 if changed == 'identity' else 20),
+                       'muted': changed != 'mute'}}
+    monkeypatch.setattr(gate, 'inspect_pair', lambda: pair)
+    if changed:
+        with pytest.raises(RuntimeError, match='direct_gate'):
+            gate.resume((42, 15), (42, 20), True)
+    else:
+        assert gate.resume((42, 15), (42, 20), True) == pair
+    assert calls == [[str(helper), '42', '15', '0', 'guard-direct', '20', '1']]

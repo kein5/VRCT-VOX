@@ -42,6 +42,58 @@ def test_silence_does_not_count_as_first_audio():
     first.assert_not_called()
 
 
+def test_first_nonzero_write_remains_subject_to_deadline_while_waiting(monkeypatch):
+    from models.tts import speechcpp_tts as tokens
+    clock = [1.0]
+    monkeypatch.setattr(tokens, 'monotonic', lambda: clock[0])
+    token = CancelToken(start_deadline=2.0)
+    written = []
+    def write(pcm, guard):
+        if any(pcm):
+            clock[0] = 2.1  # Output readiness arrives after the startup deadline.
+        guard.check()
+        written.append(pcm)
+    sink = MagicMock()
+    sink.write.side_effect = write
+    frames = [AudioFrame(bytes(960) + b'\1\0' * 480, 48000)]
+    with pytest.raises(SpeechError, match='speech_expired'):
+        AudioRouter(lambda *args: sink).play(frames, 'test', token, MagicMock())
+    assert written == [bytes(960)]
+    assert sink.close.call_args.kwargs['drain'] is False
+
+
+def test_successful_nonblocking_audio_write_commits_start_before_expiry(monkeypatch):
+    from models.tts import speechcpp_tts as tokens
+    clock = [1.0]
+    monkeypatch.setattr(tokens, 'monotonic', lambda: clock[0])
+    token = CancelToken(start_deadline=2.0)
+    written = []
+    def write():
+        written.append(b'\1\0')
+        return 2
+    assert token.commit_audio_write(b'\1\0', write) == 2
+    clock[0] = 3.0
+    token.check()
+    assert not token.is_set() and written == [b'\1\0']
+
+
+def test_failed_or_silent_nonblocking_write_does_not_disable_expiry(monkeypatch):
+    from models.tts import speechcpp_tts as tokens
+    clock = [1.0]
+    monkeypatch.setattr(tokens, 'monotonic', lambda: clock[0])
+    for pcm, writer in [(b'\1\0', lambda: (_ for _ in ()).throw(BlockingIOError())),
+                        (b'\0\0', lambda: 2)]:
+        token = CancelToken(start_deadline=2.0)
+        try:
+            token.commit_audio_write(pcm, writer)
+        except BlockingIOError:
+            pass
+        clock[0] = 2.1
+        with pytest.raises(SpeechError, match='speech_expired'):
+            token.check()
+        clock[0] = 1.0
+
+
 def test_format_change_and_write_failure_release_device():
     sink = MagicMock()
     frames = iter([AudioFrame(b"\x01\x00", 48000), AudioFrame(b"\x01\x00", 24000)])
