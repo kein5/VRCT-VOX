@@ -17,6 +17,13 @@ from errors import ErrorCode, OcrStartError, VRCTError
 from models.transcription.transcription_openai_compatible import TRANSCRIPTION_MODEL_KEYWORDS, TRANSCRIPTION_API_ENGINES
 from models.translation.translation_providers import TRANSLATION_PROVIDER_REGISTRY, CONNECTION_PROVIDER_REGISTRY
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
+from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
+from models.transcription.realtime_settings import normalize_settings as normalize_realtime_settings, session_options, endpoint_dict
+from models.transcription.realtime_session import RealtimeSession
+from models.transcription.realtime_delivery import RealtimeDelivery
+from models.transcription.capture_pipewire import enumerate_endpoints
+from models.transcription.speechcpp_asr import SpeechCppASR
+from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
 from models.tts.message_hook import chat_event
@@ -345,6 +352,8 @@ class Controller:
         self._voice_settings_lock = Lock()
         self.direct_voice = SourceBridge()
         self._direct_voice_closed = False
+        choices = getattr(self._config, "REALTIME_ASR_SETTINGS", {})
+        self._initRealtimeASR(choices if isinstance(choices, dict) else {})
         # typed attributes to satisfy static type checkers
         self.init_mapping: dict = {}
         self.run_mapping: dict = {}
@@ -362,6 +371,223 @@ class Controller:
         # 取るため、start*Message の中から呼ぶとデッドロックする)。
         self.mic_lifecycle_lock: Lock = Lock()
         self.speaker_lifecycle_lock: Lock = Lock()
+
+    def _initRealtimeASR(self, choices):
+        self._realtime_settings = normalize_realtime_settings(choices)
+        self._realtime_lock = Lock()
+        self._realtime_settings_lock = Lock()
+        self._realtime_generation = {source: 0 for source in ("mic", "speaker")}
+        self._realtime_requested = dict.fromkeys(self._realtime_generation, False)
+        self._realtime_owners = dict.fromkeys(self._realtime_generation)
+        self._realtime_errors = dict.fromkeys(self._realtime_generation)
+        self._realtime_closed = False
+
+    @staticmethod
+    def _realtimeSource(data):
+        if not isinstance(data, dict) or data.get("source") not in ("mic", "speaker"):
+            raise ValueError("realtime_source_invalid")
+        return data["source"]
+
+    @staticmethod
+    def _realtimeLanguage(code):
+        # Translator and overlay APIs take the existing display names, whereas
+        # speech.cpp takes language codes. Prefer an exact locale when present.
+        for engine in ("Google", "Whisper"):
+            for name, locales in transcription_lang.items():
+                if any(row.get(engine, "").lower() == code.lower() for row in locales.values()):
+                    return name
+        raise ValueError("realtime_translation_language_unsupported")
+
+    def getRealtimeASRSettings(self, *args, **kwargs):
+        with self._realtime_lock:
+            return {"status": 200, "result": copy.deepcopy(self._realtime_settings)}
+
+    def _invalidateRealtimeLocked(self, source):
+        self._realtime_generation[source] += 1
+        self._realtime_requested[source] = False
+        owner = self._realtime_owners[source]
+        if owner is not None:
+            owner[1].request_stop()
+
+    def setRealtimeASRSettings(self, data, *args, **kwargs):
+        try:
+            settings = normalize_realtime_settings(data)
+        except ValueError:
+            return {"status": 400, "result": {"error_code": "realtime_settings_invalid"}}
+        with self._realtime_settings_lock:
+            with self._realtime_lock:
+                old = self._realtime_settings
+                shared_changed = any(settings[key] != old[key] for key in ("base_url", "model"))
+                for source in ("mic", "speaker"):
+                    if shared_changed or settings[source] != old[source]:
+                        self._invalidateRealtimeLocked(source)
+                self._realtime_settings = settings
+            # Disk persistence never holds the fast-stop lock.
+            config.REALTIME_ASR_SETTINGS = settings
+        return self.getRealtimeASRSettings()
+
+    def getRealtimeASREndpoints(self, data, *args, **kwargs):
+        try:
+            source = self._realtimeSource(data)
+        except ValueError:
+            return {"status": 400, "result": {"error_code": "realtime_source_invalid"}}
+        if sys.platform != "linux":
+            return {"status": 200, "result": {"endpoints": [], "error_code": "realtime_linux_only"}}
+        try:
+            rows = [{"endpoint": endpoint_dict(row["endpoint"]), "label": row["label"]}
+                    for row in enumerate_endpoints(source)]
+            return {"status": 200, "result": {"endpoints": rows, "error_code": None}}
+        except Exception:
+            return {"status": 200, "result": {"endpoints": [], "error_code": "realtime_graph_unavailable"}}
+
+    def getRealtimeASRModels(self, *args, **kwargs):
+        url = self.getRealtimeASRSettings()["result"]["base_url"]
+        try:
+            models = SpeechCppASR(url, timeout=5).recognizers()
+            return {"status": 200, "result": {"models": [asdict(row) for row in models], "error_code": None}}
+        except Exception:
+            return {"status": 200, "result": {"models": [], "error_code": "realtime_models_unavailable"}}
+
+    def getRealtimeASRState(self, *args, **kwargs):
+        with self._realtime_lock:
+            result = {}
+            for source in ("mic", "speaker"):
+                owner = self._realtime_owners[source]
+                health = owner[0].health() if owner else dict(source=source, state="idle", namespace=None, error_code=None)
+                health.update(generation=self._realtime_generation[source],
+                              requested=self._realtime_requested[source] and health["state"] not in ("closed", "failed", "stopping"),
+                              error_code=self._realtime_errors[source] or health.get("error_code"))
+                result[source] = health
+            return {"status": 200, "result": result}
+
+    def stopRealtimeASR(self, data, *args, **kwargs):
+        try:
+            source = self._realtimeSource(data)
+        except ValueError:
+            return {"status": 400, "result": {"error_code": "realtime_source_invalid"}}
+        with self._realtime_lock:
+            self._invalidateRealtimeLocked(source)
+        return self.getRealtimeASRState()
+
+    def _drainRealtimeASR(self, source, timeout=3.0):
+        # Callers serialize replacement with the source lifecycle lock. Keep a
+        # busy owner referenced so repeated starts cannot accumulate workers.
+        with self._realtime_lock:
+            owner = self._realtime_owners[source]
+        if owner is None:
+            return True
+        deadline = time.monotonic() + timeout
+        session_done = owner[0].close(timeout)
+        delivery_done = owner[1].close(max(0.0, deadline - time.monotonic()))
+        if session_done and delivery_done:
+            with self._realtime_lock:
+                if self._realtime_owners[source] is owner:
+                    self._realtime_owners[source] = None
+            return True
+        return False
+
+    def _closeRealtimeASR(self):
+        with self._realtime_lock:
+            self._realtime_closed = True
+            for source in ("mic", "speaker"):
+                self._invalidateRealtimeLocked(source)
+        # In-flight starts recheck closed/generation before creating an owner.
+        results = [self._drainRealtimeASR(source) for source in ("mic", "speaker")]
+        return all(results)
+
+    def startRealtimeASR(self, data, *args, **kwargs):
+        try:
+            source = self._realtimeSource(data)
+            expected = data.get("_realtime_generation")
+            if type(expected) is not int or expected < 0:
+                raise ValueError()
+        except ValueError:
+            return {"status": 400, "result": {"error_code": "realtime_start_invalid"}}
+
+        def failure(code, status=409):
+            return {"status": status, "result": {"error_code": code}}
+
+        with getattr(self, source + "_lifecycle_lock"):
+            with self._realtime_lock:
+                if self._realtime_closed or expected != self._realtime_generation[source]:
+                    return failure("realtime_stale_start")
+                if sys.platform != "linux":
+                    return failure("realtime_linux_only")
+                if self._realtime_requested[source]:
+                    owner = self._realtime_owners[source]
+                    if owner is None or owner[0].health()["state"] not in ("closed", "failed"):
+                        return failure("realtime_already_started")
+                try:
+                    options, endpoint = session_options(self._realtime_settings, source)
+                    language = self._realtimeLanguage(options.language)
+                except ValueError as exc:
+                    return failure(str(exc), 400)
+                self._realtime_generation[source] += 1
+                generation = self._realtime_generation[source]
+                self._realtime_requested[source] = True
+                self._realtime_errors[source] = None
+
+            def current():
+                with self._realtime_lock:
+                    return (not self._realtime_closed and self._realtime_requested[source]
+                            and self._realtime_generation[source] == generation)
+
+            def fail_start(code):
+                with self._realtime_lock:
+                    if self._realtime_generation[source] == generation:
+                        self._invalidateRealtimeLocked(source)
+                        self._realtime_errors[source] = code
+                return failure(code)
+
+            if not self._drainRealtimeASR(source):
+                return fail_start("realtime_previous_owner_busy")
+            if not current():
+                return failure("realtime_stale_start")
+            cap, direction = ("Mic", "SEND") if source == "mic" else ("Speaker", "RECEIVE")
+            try:
+                getattr(model, "stop" + cap + "Transcript")()
+                getattr(model, "stopCheck" + cap + "Energy")()
+                setattr(config, "ENABLE_TRANSCRIPTION_" + direction, False)
+                setattr(config, "ENABLE_CHECK_ENERGY_" + direction, False)
+                self.run(200, "/set/disable/transcription_" + direction.lower(), False)
+                self.run(200, "/set/disable/check_" + source + "_threshold", False)
+            except Exception:
+                return fail_start("realtime_legacy_stop_failed")
+
+            def publish(payload):
+                if current():
+                    self.run(200, "/run/realtime_caption", {**payload, "generation": generation})
+
+            def process(update, valid):
+                def guard():
+                    return current() and valid()
+                if source == "mic" and getattr(config, "VRC_MIC_MUTE_SYNC", False) and model.mic_mute_status is True:
+                    return None
+                return self._processMessage(
+                    REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC,
+                    update.text, language, msg_id=update.namespace + ":" + update.item_id,
+                    publication_guard=guard)
+
+            def error(code):
+                with self._realtime_lock:
+                    if self._realtime_generation[source] == generation:
+                        self._realtime_errors[source] = code
+
+            with self._realtime_lock:
+                if self._realtime_closed or self._realtime_generation[source] != generation:
+                    return failure("realtime_stale_start")
+                try:
+                    session = RealtimeSession(source, options, endpoint)
+                    delivery = RealtimeDelivery(session, publish, process, error)
+                    self._realtime_owners[source] = (session, delivery)
+                    # These only launch workers; neither waits for capture/network.
+                    session.start()
+                    delivery.start()
+                except Exception:
+                    self._invalidateRealtimeLocked(source)
+                    self._realtime_errors[source] = "realtime_start_failed"
+                    return failure("realtime_start_failed")
+        return self.getRealtimeASRState()
 
     def _is_overlay_available(self) -> bool:
         """Safe check whether overlay is present and initialized.
@@ -449,6 +675,8 @@ class Controller:
         Returns:
             dict with status 200 and result True on success.
         """
+        if not self._closeRealtimeASR():
+            printLog("[asr] realtime shutdown unconfirmed")
         if getattr(self, "direct_voice", None) is not None:
             with self._voice_settings_lock:
                 self._direct_voice_closed = True
@@ -1008,6 +1236,7 @@ class Controller:
         msg_id: Optional[str] = None,
         asr_ms: Optional[int] = None,
         voice_generation: Optional[int] = None,
+        publication_guard: Optional[Callable[[], bool]] = None,
     ) -> Optional[dict]:
         """mic/speaker/chatMessage共通のパイプライン(バックエンドレビュー
         フェーズ3項目25、`MessageDirectionSpec`参照)。
@@ -1023,7 +1252,12 @@ class Controller:
         ワードフィルタ・繰り返し検出・VRAMエラーで早期returnした場合は
         `model.addTranslationHistory`を呼ばない(旧実装の挙動を踏襲)。
         """
+        current = publication_guard or (lambda: True)
+        if not current():
+            return None
         if spec.has_word_filter and model.checkKeywords(message):
+            if not current():
+                return None
             self.run(
                 200,
                 self.run_mapping["word_filter"],
@@ -1068,6 +1302,8 @@ class Controller:
             try:
                 translate = getattr(model, spec.translate_attr)
                 translation, success = translate(message, source_language=language)
+                if not current():
+                    return None
                 if all(success) is not True:
                     self.changeToCTranslate2Process()
                     error_response = VRCTError.create_error_response(
@@ -1080,6 +1316,8 @@ class Controller:
                         error_response["result"],
                     )
             except Exception as e:
+                if not current():
+                    return None
                 # VRAM不足エラーの検出
                 is_vram_error, error_message = model.detectVRAMError(e)
                 if not is_vram_error:
@@ -1119,6 +1357,8 @@ class Controller:
             finally:
                 translate_elapsed_ms = round((time.perf_counter() - translate_started_at) * 1000)
 
+        if not current():
+            return None
         transliteration_message: List[Any] = []
         transliteration_translation: list = []
         if config.CONVERT_MESSAGE_TO_HIRAGANA is True or config.CONVERT_MESSAGE_TO_ROMAJI is True:
@@ -1167,6 +1407,8 @@ class Controller:
             else:
                 transliteration_translation = [[]]
 
+        if not current():
+            return None
         payload = {
             "original": {
                 "message": message,
@@ -1196,6 +1438,8 @@ class Controller:
                         osc_message = self.messageFormatter(spec.osc_format_type, translation, "")
                 else:
                     osc_message = self.messageFormatter(spec.osc_format_type, translation, message)
+                if not current():
+                    return None
                 model.oscSendMessage(osc_message)
 
             if spec.overlay_small_log and config.OVERLAY_SMALL_LOG is True and self._is_overlay_available():
@@ -1209,6 +1453,8 @@ class Controller:
                             transliteration_message,
                             transliteration_translation
                         )
+                        if not current():
+                            return None
                         model.updateOverlaySmallLog(overlay_image)
                 else:
                     overlay_image = model.createOverlayImageSmallLog(
@@ -1219,6 +1465,8 @@ class Controller:
                         transliteration_message,
                         transliteration_translation
                     )
+                    if not current():
+                        return None
                     model.updateOverlaySmallLog(overlay_image)
 
             if config.OVERLAY_LARGE_LOG is True and self._is_overlay_available():
@@ -1239,6 +1487,8 @@ class Controller:
                             transliteration_message,
                             transliteration_translation
                         )
+                        if not current():
+                            return None
                         model.updateOverlayLargeLog(overlay_image)
                 else:
                     overlay_image = model.createOverlayImageLargeLog(
@@ -1250,16 +1500,24 @@ class Controller:
                         transliteration_message,
                         transliteration_translation
                     )
+                    if not current():
+                        return None
                     model.updateOverlayLargeLog(overlay_image)
 
             if spec.clipboard and config.ENABLE_CLIPBOARD is True:
                 clipboard_message = self.messageFormatter(spec.osc_format_type, translation, message)
+                if not current():
+                    return None
                 model.setCopyToClipboardAndPasteFromClipboard(clipboard_message)
 
             if spec.delivery == "push":
+                if not current():
+                    return None
                 self.run(200, self.run_mapping[spec.run_mapping_key], payload)
 
             if model.checkWebSocketServerAlive() is True:
+                if not current():
+                    return None
                 model.websocketSendMessage(
                     {
                         "type": spec.ws_type,
@@ -1273,8 +1531,12 @@ class Controller:
 
             if config.LOGGER_FEATURE is True:
                 translation_text = f" ({'/'.join(translation)})" if translation else ""
+                if not current():
+                    return None
                 model.logger.info(f"{spec.logger_prefix} {message}{translation_text}")
 
+        if not current():
+            return None
         model.addTranslationHistory(spec.kind, message)
 
         if voice_snapshot is not None and voice_snapshot[3].mode == "translated":
@@ -3603,8 +3865,7 @@ class Controller:
 
     def setEnableCheckSpeakerThreshold(self, *args, **kwargs) -> dict:
         if config.ENABLE_CHECK_ENERGY_RECEIVE is False:
-            self.startCheckSpeakerEnergy()
-            config.ENABLE_CHECK_ENERGY_RECEIVE = True
+            config.ENABLE_CHECK_ENERGY_RECEIVE = self.startCheckSpeakerEnergy()
         return {"status":200, "result":config.ENABLE_CHECK_ENERGY_RECEIVE}
 
     def setDisableCheckSpeakerThreshold(self, *args, **kwargs) -> dict:
@@ -3615,8 +3876,7 @@ class Controller:
 
     def setEnableCheckMicThreshold(self, *args, **kwargs) -> dict:
         if config.ENABLE_CHECK_ENERGY_SEND is False:
-            self.startCheckMicEnergy()
-            config.ENABLE_CHECK_ENERGY_SEND = True
+            config.ENABLE_CHECK_ENERGY_SEND = self.startCheckMicEnergy()
         return {"status":200, "result":config.ENABLE_CHECK_ENERGY_SEND}
 
     def setDisableCheckMicThreshold(self, *args, **kwargs) -> dict:
@@ -3836,6 +4096,9 @@ class Controller:
 
     def startTranscriptionSendMessage(self) -> bool:
         with self.mic_lifecycle_lock:
+            self.stopRealtimeASR({"source": "mic"})
+            if not self._drainRealtimeASR("mic"):
+                return False
             try:
                 started = model.startMicTranscript(self.micMessage)
                 if not started:
@@ -3889,6 +4152,9 @@ class Controller:
 
     def startTranscriptionReceiveMessage(self) -> bool:
         with self.speaker_lifecycle_lock:
+            self.stopRealtimeASR({"source": "speaker"})
+            if not self._drainRealtimeASR("speaker"):
+                return False
             try:
                 started = model.startSpeakerTranscript(self.speakerMessage)
                 if not started:
@@ -4175,17 +4441,25 @@ class Controller:
             self.fallbackUnsupportedLanguagesForTranscriptionEngine(config.SELECTED_TRANSCRIPTION_ENGINE)
             self.run(200, self.run_mapping["selectable_language_list"], model.getListLanguageAndCountry())
 
-    def startCheckMicEnergy(self) -> None:
+    def startCheckMicEnergy(self) -> bool:
         with self.mic_lifecycle_lock:
+            with self._realtime_lock:
+                if self._realtime_requested["mic"] or self._realtime_owners["mic"] is not None:
+                    return False
             model.startCheckMicEnergy(self.progressBarMicEnergy)
+            return True
 
     def stopCheckMicEnergy(self) -> None:
         with self.mic_lifecycle_lock:
             model.stopCheckMicEnergy()
 
-    def startCheckSpeakerEnergy(self) -> None:
+    def startCheckSpeakerEnergy(self) -> bool:
         with self.speaker_lifecycle_lock:
+            with self._realtime_lock:
+                if self._realtime_requested["speaker"] or self._realtime_owners["speaker"] is not None:
+                    return False
             model.startCheckSpeakerEnergy(self.progressBarSpeakerEnergy)
+            return True
 
     def stopCheckSpeakerEnergy(self) -> None:
         with self.speaker_lifecycle_lock:

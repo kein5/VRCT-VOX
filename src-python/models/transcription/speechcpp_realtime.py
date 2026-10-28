@@ -3,6 +3,7 @@
 import asyncio
 import base64
 from contextlib import suppress
+from dataclasses import replace
 import json
 import logging
 from time import monotonic, monotonic_ns
@@ -212,7 +213,7 @@ class SpeechCppRealtime:
                     self._check_config(event)
                 previous_pending = self._events.pending_ids
                 for update in self._events.accept(event):
-                    self._updates.put_nowait(update)
+                    self._updates.put_nowait(replace(update, received_ns=monotonic_ns()))
                 pending = self._events.pending_ids
                 # Manual mode has no speech_started: a successful commit must
                 # register a fresh item. Replayed/retired items cannot ack it.

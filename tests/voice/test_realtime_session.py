@@ -311,6 +311,7 @@ def test_real_transport_owner_can_stop_while_streaming_or_connecting(monkeypatch
                 if mode == "clear":
                     update = await asyncio.to_thread(s.pop_update, 2)
                     assert update and update.state == "partial"
+                    assert 0 < update.received_ns <= time.monotonic_ns()
                 s.request_stop()
                 assert await asyncio.to_thread(s.close, 2)
                 assert s.pop_update(0.01) is None

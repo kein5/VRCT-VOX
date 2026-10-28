@@ -39,7 +39,7 @@ settingsはversion1/base_url/model/mic{language,endpoint}/speaker{language,endpo
 **Files:** Modify `src-python/config.py`, `src-python/controller.py`, `src-python/mainloop.py`, `src-python/models/message_pipeline.py`; Create `src-python/models/transcription/realtime_delivery.py`, `tests/voice/test_realtime_controls.py`, `tests/voice/test_realtime_delivery.py`。
 **Interfaces:** config.REALTIME_ASR_SETTINGS。Controller get/setRealtimeASRSettings、getRealtimeASREndpoints(data{source})、getRealtimeASRModels、getRealtimeASRState、startRealtimeASR(data{source,_realtime_generation})、stopRealtimeASR(data{source})。
 IPC `/get/data/realtime_asr_{settings,endpoints,models,state}`, `/set/data/realtime_asr_settings`, `/run/{start,stop}_realtime_asr`。stopはreceiverで先行、start世代はbackend受信時付与。
-UI通知 `/run/realtime_caption` にsource/namespace/item_id/revision/state/text/translations。final queue最大4/待ち期限2s、重い翻訳後に再検証。字幕通知とfinal翻訳は別worker。
+UI通知 `/run/realtime_caption` にsource/namespace/generation/item_id/revision/state/text/translations。final queue最大4/WS受信時刻から期限2s、重い翻訳後に再検証。受信時刻を`realtime_events.py`/`speechcpp_realtime.py`/`realtime_session.py`で保持し、停止後IPC書込はUIのgenerationでも拒否する。字幕通知とfinal翻訳は別worker。
 
 - [ ] RED: 保存復元OFF、同source legacy排他、2source独立、古いstart/翻訳後stop/overflow、speaker再送設定ONでもOSC/TTS0、partial副作用0。Expected: route/method未実装FAIL。
 - [ ] 既存翻訳/formatterを共用し、finalだけ同idの翻訳通知へ接続。legacy呼出しの既定動作を維持。副作用直前にnamespace/期限を検査。設定変更は該当session停止、shutdownで全所有worker終了。Expected: 新旧pipeline回帰PASS。

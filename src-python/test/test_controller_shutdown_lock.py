@@ -27,6 +27,7 @@ from controller import Controller
 class StopLockedForShutdownTests(unittest.TestCase):
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller._initRealtimeASR({})
         self.controller.mic_lifecycle_lock = threading.Lock()
         self.controller.speaker_lifecycle_lock = threading.Lock()
 
@@ -113,6 +114,7 @@ class StopServiceForShutdownTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller._initRealtimeASR({})
 
     def test_calls_stop_fn(self) -> None:
         calls = []
@@ -158,6 +160,7 @@ class ShutdownStopsOscWebsocketObsOverlayTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller._initRealtimeASR({})
         self.controller.mic_lifecycle_lock = threading.Lock()
         self.controller.speaker_lifecycle_lock = threading.Lock()
         self.controller._stopLockedForShutdown = lambda lock, stop_fn, label: None
@@ -231,6 +234,7 @@ class ShutdownUsesLockedStopHelpersTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller._initRealtimeASR({})
         self.controller.mic_lifecycle_lock = threading.Lock()
         self.controller.speaker_lifecycle_lock = threading.Lock()
         self.locked_calls = []

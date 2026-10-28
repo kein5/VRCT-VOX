@@ -1,6 +1,6 @@
 """Single-loop, bounded subtitle state; no audio, translation, OSC or TTS."""
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 PREFIX = 'conversation.item.input_audio_transcription.'
 
@@ -14,6 +14,9 @@ class TranscriptUpdate:
     text: str
     is_final: bool
     state: str
+    # Transport receipt, not acoustic capture or utterance-end time. The pure
+    # reducer leaves this unset; the transport stamps it before queueing.
+    received_ns: int = field(default=0, compare=False)
 
 
 @dataclass

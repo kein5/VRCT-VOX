@@ -1,8 +1,10 @@
 """One source owns capture, transport and a bounded, nonblocking subtitle mailbox."""
 
 import asyncio
+from dataclasses import replace
 from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread, current_thread
+from time import monotonic_ns
 
 from models.tts.speechcpp_tts import CancelToken
 from .capture_pipewire import PipeWireCapture, _validate
@@ -182,6 +184,8 @@ class RealtimeSession:
                 self._state = "ready"
             while not self._stop.is_set():
                 update = await client.next_update()
+                if not update.received_ns:
+                    update = replace(update, received_ns=monotonic_ns())
                 with self._lock:
                     if self._stop.is_set():
                         return

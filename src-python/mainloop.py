@@ -579,6 +579,13 @@ mapping = {
     "/set/disable/send_received_message_to_vrc": {"status": True, "variable":controller.setDisableSendReceivedMessageToVrc},
 
     # WebSocket Settings
+    "/get/data/realtime_asr_settings": {"status": True, "variable":controller.getRealtimeASRSettings},
+    "/set/data/realtime_asr_settings": {"status": True, "variable":controller.setRealtimeASRSettings},
+    "/get/data/realtime_asr_endpoints": {"status": True, "variable":controller.getRealtimeASREndpoints},
+    "/get/data/realtime_asr_models": {"status": True, "variable":controller.getRealtimeASRModels},
+    "/get/data/realtime_asr_state": {"status": True, "variable":controller.getRealtimeASRState},
+    "/run/start_realtime_asr": {"status": True, "variable":controller.startRealtimeASR},
+    "/run/stop_realtime_asr": {"status": True, "variable":controller.stopRealtimeASR},
     "/get/data/voice_settings": {"status": True, "variable":controller.getVoiceSettings},
     "/set/data/voice_settings": {"status": True, "variable":controller.setVoiceSettings},
     "/get/data/voice_status": {"status": True, "variable":controller.getVoiceStatus},
@@ -754,7 +761,7 @@ class Main:
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
                     printLog(endpoint, {"receive_data": data})
-                    if endpoint in {"/run/stop_voice", "/run/mute_voice", "/run/resume_voice", "/run/stop_direct_voice"}:
+                    if endpoint in {"/run/stop_voice", "/run/mute_voice", "/run/resume_voice", "/run/stop_direct_voice", "/run/stop_realtime_asr"}:
                         # These requests only signal workers; they do not
                         # join, infer, or close a driver here. Busy ordinary
                         # handlers must not delay this request.
@@ -768,6 +775,10 @@ class Main:
                         data["_voice_generation"] = self.controller.voice_events.generation()
                     if endpoint == "/run/start_direct_voice" and isinstance(data, dict):
                         data['_direct_generation'] = self.controller.direct_voice.health()['generation']
+                    if endpoint == "/run/start_realtime_asr" and isinstance(data, dict):
+                        state = self.controller.getRealtimeASRState()["result"]
+                        source = data.get("source")
+                        data["_realtime_generation"] = state[source]["generation"] if source in ("mic", "speaker") else None
                     self.queue.put((endpoint, data, 0))
             except json.JSONDecodeError:
                 # malformed input; log and continue
