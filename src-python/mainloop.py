@@ -595,6 +595,7 @@ mapping = {
     "/run/mute_voice": {"status": True, "variable":controller.muteVoice},
     "/run/resume_voice": {"status": True, "variable":controller.resumeVoice},
     "/get/data/direct_voice_sources": {"status": True, "variable":controller.getDirectVoiceSources},
+    "/set/data/direct_voice_settings": {"status": True, "variable":controller.setDirectVoiceSettings},
     "/get/data/direct_voice_state": {"status": True, "variable":controller.getDirectVoiceState},
     "/run/start_direct_voice": {"status": True, "variable":controller.startDirectVoice},
     "/run/stop_direct_voice": {"status": True, "variable":controller.stopDirectVoice},

@@ -11,6 +11,12 @@ import time
 from models.audio_routing.source_bridge import Endpoint, SourceBridge, _source_id, parse_source
 
 
+def create_seed_process(options):
+    # Linux-only optional backend is loaded only after an explicit converted Start.
+    from .seed_process import SeedProcess
+    return SeedProcess(options)
+
+
 class DirectVoice:
     def __init__(self, *, passthrough_factory=SourceBridge, converted_factory=None):
         self._original = passthrough_factory
@@ -97,6 +103,7 @@ class DirectVoice:
                 source=_source_id(self._source) if self._source else None,
                 generation=self._generation, observation_id=str(self._observation),
                 error=self._error or state.get('error'),
+                conversion_state=(state.get('state') if self._requested and self._mode == 'converted' else None),
                 conversion_verified=(self._requested and self._mode == 'converted'
                                      and bool(state.get('conversion_verified'))),
             )

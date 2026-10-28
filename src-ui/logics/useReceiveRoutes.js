@@ -27,6 +27,7 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/run/mute_voice", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
     { endpoint: "/run/resume_voice", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
     { endpoint: "/get/data/direct_voice_sources", ns: voice, hook_name: "useVoice", method_name: "updateDirectSources" },
+    { endpoint: "/set/data/direct_voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateDirectState" },
     { endpoint: "/get/data/direct_voice_state", ns: voice, hook_name: "useVoice", method_name: "updateDirectState" },
     { endpoint: "/run/start_direct_voice", ns: voice, hook_name: "useVoice", method_name: "updateDirectState" },
     { endpoint: "/run/stop_direct_voice", ns: voice, hook_name: "useVoice", method_name: "updateDirectState" },

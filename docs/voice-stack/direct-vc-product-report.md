@@ -1,6 +1,6 @@
 # Direct VC product integration — implementation record
 
-The Linux direct-session owner and live external Seed adapter are implemented as components. Controller/UI hookup is still pending. This is experimental Seed integration, not an RVC implementation or a full P2 acceptance claim.
+The Linux direct-session owner, live external Seed adapter and Controller/browser UI hookup are implemented. Real native product controls and coexistence acceptance remain next. This is experimental Seed integration, not an RVC implementation or a full P2 acceptance claim.
 
 The owner makes passthrough and conversion mutually exclusive, requires Stop and completed cleanup before changing producers, and does not fall back to original audio. The app sends timestamped 48kHz mono S16 blocks to a separate optional GPL worker. Only the worker imports Seed/Torch. It uses the already approved local runtime, pinned model assets and permitted reference; no download or physical recording was performed.
 
@@ -25,4 +25,12 @@ Raw evidence: `tmp/voice-resume/vc-{live,worker,adapter}*.log`, `tmp/voice-resum
 
 ## Remaining gates
 
-Controller/native UI connection, same-input ASR/TTS coexistence, sustained converted speech and input replacement acceptance remain in the plan. Physical mic, listening quality, VRChat/HMD, long mixed GPU load, Windows, RVC model/runtime selection, final artifact/license audit and release packaging are not verified by this slice.
+Native UI acceptance, same-input ASR/TTS coexistence, sustained converted speech and input replacement acceptance remain in the plan. Physical mic, listening quality, VRChat/HMD, long mixed GPU load, Windows, RVC model/runtime selection, final artifact/license audit and release packaging are not verified by this slice.
+
+## Controller and settings UI
+
+The existing Start endpoint accepts explicit converted mode/options. A mode-less old payload remains passthrough. `DIRECT_VOICE_SETTINGS` stores mode/runtime/reference separately from TTS settings, and saving requires stopped input; saving invalidates earlier queued Starts. App restart restores choices but neither the selected input nor audio activity. The optional Linux backend is imported only on converted Start, keeping the regular Windows import path free of `fcntl`/Torch.
+
+English/Japanese UI distinguishes model preparation, ready without conversion evidence, confirmed conversion, VAD silence and failure. It exposes the experimental Seed scope and local runtime/reference requirements. No automatic model acquisition or global Resume is added.
+
+Controller RED8 → selected **70 passed** (one existing warning). Browser RED missing selector → **1 passed**, covering original-payload compatibility, saved mode/path reload, no automatic selection/start, converted state, Stop and stale snapshots. Post-hookup standard: **1,222 passed, 6 existing skips, 46 warnings** (13.99s); voice with browser/ASR opt-ins: **705 passed, 8 optional-runtime skips, 2 warnings** (71.96s). Vite/offline Tauri debug build, changed-file Ruff and whitespace checks pass. Evidence: `tmp/voice-resume/vc-controller-*.log`, `vc-ui-{red,green}.log`.

@@ -32,7 +32,9 @@ from models.audio_routing.audio_router import enumerate_outputs
 from models.audio_routing.managed_route import VoiceRoute
 from models.audio_routing.mute_state import MuteState
 from models.audio_routing.pipewire_gate import PipeWireGate
-from models.audio_routing.source_bridge import SourceBridge, enumerate_sources, parse_source
+from models.audio_routing.source_bridge import enumerate_sources, parse_source
+from models.voice_conversion.direct_voice import DirectVoice, create_seed_process
+from models.voice_conversion.settings import DirectSettings, start_options
 from models.overlay.overlay_tooltip import validate_tooltip
 from models.overlay.overlay import PANEL_ANCHORS, computeVrLayout, clampPanelSize, mirrorHandPosition
 
@@ -353,7 +355,9 @@ class Controller:
             suppress_direct=(self.voice_events.settings.mic_mode == 'translated'
                              and self.voice_events.settings.direct_policy == 'suppress'))
         self._voice_settings_lock = Lock()
-        self.direct_voice = SourceBridge()
+        direct = getattr(self._config, 'DIRECT_VOICE_SETTINGS', {})
+        self._direct_settings = DirectSettings.from_dict(direct if isinstance(direct, dict) else {})
+        self.direct_voice = DirectVoice(converted_factory=create_seed_process)
         self._direct_voice_closed = False
         choices = getattr(self._config, "REALTIME_ASR_SETTINGS", {})
         self._initRealtimeASR(choices if isinstance(choices, dict) else {})
@@ -1805,13 +1809,30 @@ class Controller:
         return {'status': 200, 'result': {'sources': sources, 'error': error}}
 
     def getDirectVoiceState(self, *args, **kwargs) -> dict:
-        return {'status': 200, 'result': self.direct_voice.health()}
+        return {'status': 200, 'result': dict(self.direct_voice.health(), settings=self._direct_settings.to_dict())}
+
+    def setDirectVoiceSettings(self, data, *args, **kwargs) -> dict:
+        try:
+            settings = DirectSettings.from_dict(data)
+        except ValueError:
+            return {'status': 400, 'result': {'error_code': 'vc_settings_invalid'}}
+        with self._voice_settings_lock:
+            state = self.direct_voice.health()
+            if self._direct_voice_closed or state['requested'] or state['pending']:
+                return {'status': 409, 'result': {'error_code': 'vc_stop_required'}}
+            # Saving new intent invalidates any Start queued before the change.
+            self.direct_voice.stop()
+            self._config.DIRECT_VOICE_SETTINGS = settings.to_dict()
+            self._direct_settings = settings
+        return self.getDirectVoiceState()
 
     def startDirectVoice(self, data, *args, **kwargs) -> dict:
         try:
             if not isinstance(data, dict) or type(data.get('_direct_generation')) is not int:
                 raise ValueError('source_bridge_source_invalid')
             source = parse_source(data.get('source'))
+            mode = data.get('mode', 'passthrough')
+            options = start_options(mode, data.get('options'))
         except ValueError:
             return {'status': 400, 'result': {'error_code': 'source_bridge_source_invalid'}}
         with self._voice_settings_lock:
@@ -1822,7 +1843,8 @@ class Controller:
                     raise RuntimeError('source_bridge_closed')
                 if self.voice_events.settings.routing != 'managed':
                     raise RuntimeError('source_bridge_managed_required')
-                self.direct_voice.start(source=source, expected_generation=data['_direct_generation'])
+                self.direct_voice.start(source=source, expected_generation=data['_direct_generation'],
+                                        mode=mode, options=options)
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
         return self.getDirectVoiceState()

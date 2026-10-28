@@ -152,3 +152,79 @@ def test_receiver_input_stop_bypasses_queue_and_invalidates_delayed_start(mainlo
         for thread in main._threads:
             thread.join(2)
         c.direct_voice.close()
+
+
+class ConvertedBackend:
+    def __init__(self):
+        self.state = dict(requested=False, active=False, pending=False, stopping=False,
+                          conversion_verified=False, error=None, state='off')
+    def start(self, *, source):
+        self.state.update(requested=True, active=True, state='ready')
+    def stop(self):
+        self.state.update(requested=False, active=False, state='stopped')
+    def close(self, timeout=3):
+        self.stop()
+        return True
+    def health(self):
+        return dict(self.state)
+
+
+def test_converted_choice_is_independent_and_failure_has_no_raw_fallback(app, monkeypatch):
+    from models.voice_conversion import seed_process
+    c, raw, gate, _ = app
+    converted, options = ConvertedBackend(), []
+    monkeypatch.setattr(seed_process, 'SeedProcess', lambda value: options.append(value) or converted)
+    managed(c)
+    choice = {'runtime': '/permitted/runtime', 'reference': '/permitted/reference.wav'}
+    response = c.startDirectVoice({**request(c), 'mode': 'converted', 'options': choice})
+    assert response['status'] == 200
+    state = c.getDirectVoiceState()['result']
+    assert state['mode'] == 'converted' and state['conversion_state'] == 'ready'
+    assert state['active'] and not state['conversion_verified']
+    assert options == [choice] and not raw.children and gate.muted
+    converted.state.update(conversion_verified=True, state='converted')
+    assert c.getDirectVoiceState()['result']['conversion_verified']
+    c.stopVoice()
+    assert c.getDirectVoiceState()['result']['active']
+    assert c.startDirectVoice(request(c))['result']['error_code'] == 'vc_stop_required'
+    converted.state.update(error='vc_worker_eof', requested=False, active=False)
+    state = c.getDirectVoiceState()['result']
+    assert not state['requested'] and state['error'] == 'vc_worker_eof'
+    assert not raw.children
+
+
+@pytest.mark.parametrize('extra', [{'mode': 'other'}, {'mode': None}, {'options': {'runtime': '/x'}},
+    {'mode': 'converted', 'options': None}, {'mode': 'converted', 'options': {}},
+    {'mode': 'converted', 'options': {'runtime': '/x', 'reference': '/y', 'download': True}}])
+def test_invalid_conversion_payload_never_opens_original(app, extra):
+    c, raw, *_ = app
+    managed(c)
+    assert c.startDirectVoice({**request(c), **extra})['status'] == 400
+    assert not raw.children and not c.direct_voice.health()['requested']
+
+
+def test_saved_vc_choices_survive_restart_but_do_not_start_or_change_old_payload(app):
+    c, raw, gate, mod = app
+    managed(c)
+    old = request(c)
+    choices = {'mode': 'converted', 'runtime': '/allowed/runtime', 'reference': '/allowed/ref.wav'}
+    assert c.setDirectVoiceSettings(choices)['status'] == 200
+    assert c.getDirectVoiceState()['result']['settings'] == choices
+    assert not raw.children
+    assert c.startDirectVoice(old)['result']['error_code'] == 'source_bridge_stale_start'
+    # A legacy client omits mode: still means passthrough even with saved VC choices.
+    start(c)
+    assert c.getDirectVoiceState()['result']['mode'] == 'passthrough'
+    assert c.setDirectVoiceSettings(choices)['status'] == 409  # explicit Stop first
+    c.stopDirectVoice()
+    assert c.direct_voice.close()
+    replacement = mod.Controller()
+    try:
+        state = replacement.getDirectVoiceState()['result']
+        assert state['settings'] == choices
+        assert not state['requested'] and state['mode'] == 'off'
+        assert len(raw.children) == 1
+    finally:
+        replacement.direct_voice.close()
+        replacement.voice_route.close()
+        replacement.voice_events.close()

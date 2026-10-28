@@ -14,6 +14,7 @@ import time
 import pytest
 
 from models.tts.settings import VoiceSettings
+from models.voice_conversion.settings import DirectSettings
 
 ROOT = Path(__file__).resolve().parents[2]
 pytestmark = pytest.mark.skipif(os.environ.get('VRCT_TEST_DIRECT_UI') != '1', reason='opt-in browser integration')
@@ -51,7 +52,8 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         page.on('pageerror', lambda e: errors.append(str(e)))
         sources = {'sources': [{'id': ID, 'label': 'External voice'}], 'error': None}
         state = {'source': None, 'requested': False, 'active': False, 'pending': False, 'error': None,
-                 'generation': 0, 'conversion_verified': False, 'observation_id': '10'}
+                 'generation': 0, 'conversion_verified': False, 'observation_id': '10',
+                 'settings': DirectSettings().to_dict(), 'mode': 'off'}
         voice_settings = VoiceSettings(routing='managed').to_dict()
         def reply(endpoint, result, status=200):
             replies.append(json.dumps({'endpoint': endpoint, 'status': status, 'result': result}))
@@ -68,6 +70,10 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
             }
             if endpoint in values:
                 reply(endpoint, values[endpoint])
+            elif endpoint == '/set/data/direct_voice_settings':
+                saved = DirectSettings.from_dict(json.loads(base64.b64decode(request['data']))).to_dict()
+                state.update(settings=saved, observation_id=str(int(state['observation_id'])+10))
+                reply(endpoint, dict(state))
             elif endpoint == '/set/data/voice_settings':
                 saved = VoiceSettings.from_dict(json.loads(base64.b64decode(request['data']))).to_dict()
                 voice_settings.clear()
@@ -130,10 +136,40 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         reply('/run/start_direct_voice', {'error_code': 'source_bridge_stale_start'}, 409)
         expect(page.get_by_role('alert').filter(has_text='source_bridge_stale_start')).to_be_visible()
         expect(page.get_by_text('Input forwarding stopped', exact=True)).to_be_visible()
+        mode = page.get_by_role('combobox', name='Direct voice mode', exact=True)
+        mode.select_option('converted')
+        page.get_by_role('textbox', name='Seed runtime folder', exact=True).fill('/allowed/runtime')
+        page.get_by_role('textbox', name='Permitted reference WAV', exact=True).fill('/allowed/reference.wav')
+        expect(start).to_be_disabled()  # Unsaved intent cannot start a different producer.
+        page.get_by_role('button', name='Save input settings', exact=True).click()
+        expect(start).to_be_enabled()
+        assert len([r for r in sent if r['endpoint'] == '/run/start_direct_voice']) == 2
+        page.reload()
+        expect(mode).to_have_value('converted')
+        expect(page.get_by_role('textbox', name='Seed runtime folder', exact=True)).to_have_value('/allowed/runtime')
+        expect(start).to_be_disabled()  # Input selection is never restored.
+        selector.select_option(replacement)
+        start.click()
+        page.wait_for_timeout(50)
+        payload = json.loads(base64.b64decode([r for r in sent if r['endpoint'] == '/run/start_direct_voice'][-1]['data']))
+        assert payload == {'source': sources['sources'][0]['id'], 'mode': 'converted',
+                           'options': {'runtime': '/allowed/runtime', 'reference': '/allowed/reference.wav'}}
+        vc_ready = {**state, 'mode': 'converted', 'conversion_state': 'ready',
+                    'active': True, 'requested': True, 'conversion_verified': False, 'observation_id': '50'}
+        reply('/run/start_direct_voice', vc_ready)
+        expect(page.get_by_text('VC ready; conversion not yet confirmed', exact=True)).to_be_visible()
+        expect(mode).to_be_disabled()
+        reply('/get/data/direct_voice_state', {**vc_ready, 'conversion_state': 'converted',
+               'conversion_verified': True, 'observation_id': '60'})
+        expect(page.get_by_text('Converting voice', exact=True)).to_be_visible()
+        stop.click()
+        state.update(mode='off', requested=False, active=False, observation_id='70')
+        reply('/run/stop_direct_voice', dict(state))
+        expect(page.get_by_text('Input forwarding stopped', exact=True)).to_be_visible()
         sources.update(sources=[], error='source_bridge_linux_only')
         page.get_by_role('button', name='Refresh inputs', exact=True).click()
         expect(page.get_by_role('alert').filter(has_text='source_bridge_linux_only')).to_be_visible()
         expect(start).to_be_disabled()
-        assert len([r for r in sent if r['endpoint'] == '/run/start_direct_voice']) == 2
+        assert len([r for r in sent if r['endpoint'] == '/run/start_direct_voice']) == 3
         assert not any(r['endpoint'] == '/run/resume_voice' for r in sent)
         assert not errors, errors

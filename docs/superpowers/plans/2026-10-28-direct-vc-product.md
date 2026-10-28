@@ -53,9 +53,9 @@
 **Files:** Modify `src-python/{controller,mainloop,config}.py`, `src-ui/logics/voice/useVoice.js`, `src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/DirectVoiceSettings.jsx`, en/ja locales; extend `tests/voice/test_direct_voice_controller.py`, `test_direct_voice_ui.py`.
 **Interfaces:** Existing `/run/start_direct_voice` accepts optional mode/options; receiver stamps owner generation. Existing stop fast path retained. Runtime/reference settings persist without starting audio; get state carries explicit mode/converted-ready/activity/error.
 
-- [ ] Write RED tests for original payload compatibility, converted selection/strict validation, restart-off, mode switch requiring completed Stop, VC failure without fallback, independent ASR/TTS, routing change and stale queued Start.
-- [ ] Connect owner/adapter and localized experimental UI; no implicit startup, download or final-gate Resume.
-- [ ] Run Controller/source regressions and browser save/reload/stop cases in a private network namespace. Expected: PASS. Vite and offline native debug builds must pass. Commit connected feature.
+- [x] Write RED tests for original payload compatibility, converted selection/strict validation, restart-off, mode switch requiring completed Stop, VC failure without fallback, independent ASR/TTS, routing change and stale queued Start.
+- [x] Connect owner/adapter and localized experimental UI; no implicit startup, download or final-gate Resume.
+- [x] Run Controller/source regressions and browser save/reload/stop cases in a private network namespace. Expected: PASS. Vite and offline native debug builds must pass. Commit connected feature.
 
 ### Task 4: Private audio acceptance and report
 
