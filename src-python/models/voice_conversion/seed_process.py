@@ -14,7 +14,9 @@ from uuid import uuid4
 
 from models.audio_routing.devices_pipewire import PipeWireOutput
 from models.audio_routing.source_bridge import _read_graph, _sink, select_source
-from models.transcription.capture_pipewire import PipeWireCapture, _validate
+from models.transcription.capture_pipewire import (
+    CaptureError, PipeWireCapture, _validate, capture_error_code,
+)
 from models.tts.speechcpp_tts import CancelToken, SpeechError
 from . import protocol as p
 
@@ -52,6 +54,14 @@ class _Deadline:
     def check(self):
         self.token.check()
         p.require_fresh(self.end_ns, time.monotonic_ns())
+
+    def commit_audio_write(self, pcm, write):
+        # Stop and the nonblocking write use the same cancellation lock. Check
+        # age after acquiring it too: waiting for readiness is not a commit.
+        def fresh_write():
+            p.require_fresh(self.end_ns, time.monotonic_ns())
+            return write()
+        return self.token.commit_audio_write(pcm, fresh_write)
 
 
 class SeedProcess:
@@ -119,6 +129,10 @@ class SeedProcess:
                 self._state = 'failed'
         self.stop()
 
+    def _capture_failed(self, code):
+        safe = capture_error_code(code)
+        self._fail('vc_capture_failed' if safe == 'asr_capture_failed' else safe)
+
     def _audio(self, captured):
         fault = None
         with self._lock:
@@ -178,7 +192,7 @@ class SeedProcess:
             self._output = _output(sink)
             self._token.check()
             capture = PipeWireCapture(source, 'mic', self._audio,
-                                      lambda code: self._fail('vc_capture_failed'))
+                                      self._capture_failed)
             with self._lock:
                 self._capture = capture
                 if self._token.is_set():
@@ -215,6 +229,8 @@ class SeedProcess:
                         self._verified = True
                         self._blocks += 1
                     self._state = 'converted' if state == 'converted' else 'idle'
+        except CaptureError as exc:
+            self._capture_failed(str(exc))
         except Exception as exc:
             code = str(exc) if isinstance(exc, (p.ProtocolError, SpeechError)) else 'vc_worker_failed'
             self._fail(code)

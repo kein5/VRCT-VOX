@@ -3,6 +3,7 @@ from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
+import sys
 import time
 import wave
 
@@ -10,17 +11,18 @@ import pytest
 
 from native_webdriver import NativeWebDriver, ROOT
 from test_native_ui import initial_state
-from test_native_realtime import SyntheticProducer
 from models.audio_routing.pipewire_gate import PipeWireGate, SOURCE, TTS_SINK
 from models.audio_routing.source_bridge import select_source
 from tools.voice_acceptance import graph_snapshot, loopback, nodes, private_graph, stop_process, wait_for
 from tools.voice_b_poc import Producer, ToneCapture, settled
 
-pytestmark = pytest.mark.skipif(os.environ.get('VRCT_TEST_NATIVE_DIRECT_VC') != '1',
+pytestmark = pytest.mark.skipif(sys.platform != 'linux' or os.environ.get('VRCT_TEST_NATIVE_DIRECT_VC') != '1',
                                reason='approved Seed, native app and display guard required')
 
 
 def test_native_converted_controls_stop_replacement_and_restart(tmp_path):
+    from test_native_realtime import SyntheticProducer
+
     runtime = Path(os.environ['VRCT_SEED_POC']).resolve()
     reference = runtime / 'private-inputs/reference.wav'
     with wave.open(str(runtime/'private-inputs/input.wav')) as wav:

@@ -4,6 +4,7 @@ from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
+import sys
 import time
 import wave
 
@@ -11,14 +12,12 @@ import pytest
 
 from models.audio_routing.pipewire_gate import PipeWireGate, SOURCE
 from models.audio_routing.source_bridge import select_source
-from models.voice_conversion import seed_process
 from tools.voice_acceptance import graph_snapshot, loopback, private_graph, wait_for
 from tools.voice_b_poc import ToneCapture, settled
-from test_native_realtime import SyntheticProducer
 
 ROOT = Path(__file__).resolve().parents[2]
 pytestmark = pytest.mark.skipif(
-    not os.environ.get("VRCT_TEST_LIVE_VC"),
+    sys.platform != "linux" or not os.environ.get("VRCT_TEST_LIVE_VC"),
     reason="approved Seed runtime and synthetic input required",
 )
 
@@ -27,6 +26,9 @@ pytestmark = pytest.mark.skipif(
 def test_live_seed_worker_to_private_source_stops_without_raw_fallback(
     tmp_path, monkeypatch, end
 ):
+    from models.voice_conversion import seed_process
+    from test_native_realtime import SyntheticProducer
+
     runtime = Path(os.environ["VRCT_SEED_POC"]).resolve()
     with wave.open(str(runtime / "private-inputs/input.wav")) as wav:
         assert (wav.getframerate(), wav.getnchannels(), wav.getsampwidth()) == (

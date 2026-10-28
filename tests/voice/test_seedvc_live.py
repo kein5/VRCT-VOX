@@ -13,6 +13,8 @@ from models.transcription.realtime_audio import CapturedAudio
 from models.voice_events import AudioFrame
 from tools.voice_acceptance import wait_for
 
+pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="Linux VC adapter")
+
 SOURCE = Endpoint(1, 20, "test.original", "Audio/Source")
 SINK = Endpoint(1, 30, "vrct.managed.vc", "Audio/Sink")
 RAW = b"\1\0" * 3840
@@ -40,7 +42,8 @@ while True:
 
 @contextmanager
 def fixture(
-    tmp_path, monkeypatch, mode="converted", blocked_output=False, cleanup_error=False
+    tmp_path, monkeypatch, mode="converted", blocked_output=False, cleanup_error=False,
+    capture_start_error=None,
 ):
     from models.voice_conversion import seed_process as m
 
@@ -61,7 +64,9 @@ def fixture(
             captures.append(self)
 
         def start(self):
-            pass
+            if capture_start_error:
+                from models.transcription.capture_pipewire import CaptureError
+                raise CaptureError(capture_start_error)
 
         def request_stop(self):
             self.stopped = True
@@ -127,6 +132,48 @@ def ready(process, captures):
     wait_for(lambda: captures and process.health()["active"], timeout=3)
 
 
+@pytest.mark.parametrize("fault", ["cancel", "expire"])
+def test_vc_output_rechecks_stop_and_age_at_actual_write(monkeypatch, fault):
+    """Force preemption after the last readiness check, without an audio device."""
+    import os
+    from types import SimpleNamespace
+    from models.audio_routing.devices_pipewire import PipeWireOutput
+    from models.tts.speechcpp_tts import CancelToken, SpeechError
+    from models.voice_conversion import seed_process as m
+
+    clock = [1_010_000_000]
+    monkeypatch.setattr(m.time, "monotonic_ns", lambda: clock[0])
+    token = CancelToken()
+    guard = m._Deadline(token, 1_000_000_000)
+    original_check, checks = guard.check, []
+
+    def check_then_preempt():
+        original_check()
+        checks.append(True)
+        if len(checks) == 2:
+            if fault == "cancel":
+                token.cancel()  # Stop wins immediately before the OS write.
+            else:
+                clock[0] += m.p.MAX_AGE_NS  # Scheduling pause beyond the budget.
+
+    monkeypatch.setattr(guard, "check", check_then_preempt)
+    read_fd, write_fd = os.pipe()
+    os.set_blocking(read_fd, False)
+    os.set_blocking(write_fd, False)
+    pipe = os.fdopen(write_fd, "wb", buffering=0)
+    output = PipeWireOutput.__new__(PipeWireOutput)
+    output.process = SimpleNamespace(stdin=pipe, poll=lambda: None)
+    try:
+        error = SpeechError if fault == "cancel" else m.p.ProtocolError
+        with pytest.raises(error, match="cancelled|vc_block_expired"):
+            output.write(b"\x02\x00", guard)
+        with pytest.raises(BlockingIOError):
+            os.read(read_fd, 2)  # Nothing reached the actual kernel pipe.
+    finally:
+        pipe.close()
+        os.close(read_fd)
+
+
 def test_model_ready_is_not_conversion_and_stop_discards_old_capture(
     tmp_path, monkeypatch
 ):
@@ -180,6 +227,22 @@ def test_silence_is_not_conversion_proof(tmp_path, monkeypatch):
         send(captures[0])
         wait_for(lambda: sent)
         assert sent == [bytes(7680)] and not p.health()["conversion_verified"]
+
+
+@pytest.mark.parametrize("source", ["callback", "start"])
+@pytest.mark.parametrize("code", ["asr_capture_latency_changed", "asr_capture_helper_closed",
+                                 "asr_capture_start_timeout", "private unknown error"])
+def test_capture_diagnostics_reach_vc_only_as_fixed_codes(tmp_path, monkeypatch, source, code):
+    with fixture(tmp_path, monkeypatch, capture_start_error=code if source == "start" else None) as (
+        p, captures, children, sent, closed, _,
+    ):
+        if source == "callback":
+            ready(p, captures)
+            captures[0].on_error(code)
+        wait_for(lambda: p.health()["error"])
+        expected = code if code.startswith("asr_capture_") else "vc_capture_failed"
+        assert p.health()["error"] == expected
+        assert not p.health()["requested"] and sent == []
 
 
 @pytest.mark.parametrize(

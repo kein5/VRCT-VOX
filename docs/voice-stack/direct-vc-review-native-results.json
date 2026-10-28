@@ -1,0 +1,201 @@
+{
+  "status": "passed_this_run",
+  "independent_review_fixes": true,
+  "unresolved_prior_intermittent_failures": true,
+  "native_product": {
+    "status": "passed",
+    "native_tauri": true,
+    "real_seed": true,
+    "physical_capture": false,
+    "vrchat": false,
+    "subjective_quality": false,
+    "actual_asr": false,
+    "actual_tts": false,
+    "tts_branch": "independent synthetic 880Hz producer",
+    "cases": [
+      "full_synthetic_utterance_then_idle",
+      "stop_during_speech_silent_for_2s",
+      "source_replacement_no_reconnect_tts_continues"
+    ],
+    "stop_to_silent_read_ms": 32.969618,
+    "capture": {
+      "frames": 2530,
+      "sample_count": 2428800,
+      "last_read_ns": 134442779302589,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 43.655619,
+      "nonzero_frames": 695,
+      "detected_frames": {
+        "440": 48,
+        "880": 584,
+        "1760": 22
+      },
+      "reader_eof": false,
+      "reader_error": null
+    },
+    "restart_muted_without_capture": true,
+    "model_download": false,
+    "shared_endpoint_preserved": true
+  },
+  "legacy_compatibility": {
+    "status": "passed",
+    "cases": [
+      {
+        "case": "selection_stays_silent",
+        "operation_to_read_ms": 33.838594,
+        "confirmation_ms": 2005.579091,
+        "present_hz": [],
+        "silent": true
+      },
+      {
+        "case": "start_preserves_global_mute",
+        "operation_to_read_ms": 39.755064,
+        "confirmation_ms": 2005.571874,
+        "present_hz": [],
+        "silent": true
+      },
+      {
+        "case": "resume_selected_input",
+        "operation_to_read_ms": 38.516522,
+        "confirmation_ms": 2005.428171,
+        "present_hz": [
+          440
+        ],
+        "silent": false
+      },
+      {
+        "case": "tts_coexists",
+        "operation_to_read_ms": 167.459276,
+        "confirmation_ms": 2005.313372,
+        "present_hz": [
+          440,
+          880
+        ],
+        "silent": false
+      },
+      {
+        "case": "input_stop_keeps_tts",
+        "operation_to_read_ms": 70.076175,
+        "confirmation_ms": 2005.55311,
+        "present_hz": [
+          880
+        ],
+        "silent": false
+      },
+      {
+        "case": "explicit_restart_with_tts",
+        "operation_to_read_ms": 156.831074,
+        "confirmation_ms": 2005.331641,
+        "present_hz": [
+          440,
+          880
+        ],
+        "silent": false
+      },
+      {
+        "case": "tts_stop_keeps_input",
+        "operation_to_read_ms": 83.062857,
+        "confirmation_ms": 2005.558776,
+        "present_hz": [
+          440
+        ],
+        "silent": false
+      },
+      {
+        "case": "whole_mute",
+        "operation_to_read_ms": 84.268176,
+        "confirmation_ms": 2005.530881,
+        "present_hz": [],
+        "silent": true
+      },
+      {
+        "case": "whole_resume",
+        "operation_to_read_ms": 84.916698,
+        "confirmation_ms": 2005.584409,
+        "present_hz": [
+          440
+        ],
+        "silent": false
+      },
+      {
+        "case": "source_loss",
+        "operation_to_read_ms": 38.401175,
+        "confirmation_ms": 2005.25685,
+        "present_hz": [],
+        "silent": true
+      },
+      {
+        "case": "same_name_no_reconnect",
+        "operation_to_read_ms": 25.589021,
+        "confirmation_ms": 2005.703358,
+        "present_hz": [],
+        "silent": true
+      },
+      {
+        "case": "explicit_reselect_after_loss",
+        "operation_to_read_ms": 173.698171,
+        "confirmation_ms": 2005.316918,
+        "present_hz": [
+          440
+        ],
+        "silent": false
+      },
+      {
+        "case": "external_routing_stops_input",
+        "operation_to_read_ms": 80.287811,
+        "confirmation_ms": 2005.522602,
+        "present_hz": [],
+        "silent": true
+      },
+      {
+        "case": "input_before_exit",
+        "operation_to_read_ms": 192.072597,
+        "confirmation_ms": 2005.737582,
+        "present_hz": [
+          440
+        ],
+        "silent": false
+      },
+      {
+        "case": "app_exit_closes_input",
+        "operation_to_read_ms": 49.86021,
+        "confirmation_ms": 2005.314102,
+        "present_hz": [],
+        "silent": true
+      },
+      {
+        "case": "app_restart_off",
+        "operation_to_read_ms": 1.461622,
+        "confirmation_ms": 2005.50147,
+        "present_hz": [],
+        "silent": true
+      }
+    ],
+    "native_tauri": true,
+    "full_model_runtime": true,
+    "real_vc_verified": false,
+    "real_inference": false,
+    "physical_input": false,
+    "host_audio_changed": false,
+    "raw_pcm_saved": false,
+    "timing_boundary": "WebDriver operation call to first qualifying private-source read; 2s confirmation",
+    "latency_percentiles": null,
+    "private_runtime_dir": "/tmp/vrct-p1-4e9zhvyg",
+    "capture": {
+      "frames": 2278,
+      "sample_count": 2186880,
+      "last_read_ns": 134488471273307,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 43.249102,
+      "nonzero_frames": 861,
+      "detected_frames": {
+        "440": 751,
+        "880": 329,
+        "1760": 0
+      },
+      "reader_eof": false,
+      "reader_error": null
+    },
+    "private_graph_removed": true
+  }
+}
