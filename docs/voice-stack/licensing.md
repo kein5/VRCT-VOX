@@ -32,3 +32,26 @@ PipeWireの [COPYING](https://github.com/PipeWire/pipewire/blob/master/COPYING) 
 今回はソースcheckoutとsystemライブラリでの検証で、helperのバイナリ配布は未整備。
 バイナリ配布時はPipeWire/SPA header由来のコードを含め、利用版の著作権・許諾表示を同梱する。
 VCモデルの採用条件はこの追加によって変わらない。
+
+## Realtime ASR用resampler（2026-10-28）
+
+`soxr==1.1.0`を明示依存に追加。Python wrapper固定commit
+`91479780e687fa994daabcff074e5960dc0bd4e2`、同梱modified libsoxr固定commit
+`a66f3eeeeb62a32403ff143b756eed92b1ec6b62`。双方LGPL-2.1-or-later。
+PFFFTは付属BSD系noticeを保持する。PyAV/FFmpegをこの変換処理に追加利用しない。
+
+Python3.11実wheelのsha256:
+
+- Linux x64 manylinux2.27/2.28: `3da87e3ffa3e41823d873b051c7ecb2acebd8d1b6b46b752f5facf10a0d84ab9`。
+- Windows x64: `ae30c48ac795378cf23ba3c7c640b8ff794af714ac388b9fd6b31a40b39e6e86`。
+
+Linux固定wheelはuvでhash照合して導入。両wheelに`COPYING.LGPL`、`LICENSE.txt`、
+`LICENSE-libsoxr.txt`、`LICENSE-PFFFT.txt`が実在することを調査で確認した。
+Windowsはartifact検査のみ、実行試験ではない。numpy1.26.4との実行はLinuxで確認。
+
+[固定LICENSE](https://github.com/dofuuz/python-soxr/blob/91479780e687fa994daabcff074e5960dc0bd4e2/LICENSE.txt)、
+[固定build](https://github.com/dofuuz/python-soxr/blob/91479780e687fa994daabcff074e5960dc0bd4e2/CMakeLists.txt)、
+[PyPI固定配布](https://pypi.org/project/soxr/1.1.0/)。native libsoxrは拡張へ静的組込み。
+**バイナリ配布前の残件:** LGPL§4/§6に沿った対応ソース/置換・再リンク方法、nanobindの実ビルド版と通知の網羅性を確認する。
+noticeが入っているだけで最終配布条件を満たすとは判断しない。現段階は開発環境への導入で、配布物は作成していない。
+既存transitive PyAVのwheelについても最終bundle監査の対象として保持する。

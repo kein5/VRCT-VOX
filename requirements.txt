@@ -14,6 +14,7 @@ deepl == 1.22.0
 flashtext ==2.7
 pyinstaller==6.10.0
 numpy==1.26.4
+soxr==1.1.0  # Streaming ASR resampling; LGPL-2.1-or-later, see docs/voice-stack/licensing.md.
 sentencepiece==0.2.1  # PYSEC-2026-1909 fixed in 0.2.1
 openvr==1.26.701
 # VR UI overlay texture (models/overlay/overlay.py). Were imported but not
