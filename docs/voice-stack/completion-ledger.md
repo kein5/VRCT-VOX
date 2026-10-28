@@ -44,7 +44,7 @@ Windows・混在負荷等の残条件を全機能完了として扱わない。
 |---|---|---|
 | P0 | baseline・ADR・測定器・ライセンス台帳 | 新しい構成ごとの差分検証を継続 |
 | P1 | TTS provider、scheduler、UI、OSC契約、Linux/Windows出力adapter。部品UI試験16件、実Tauri/全Modelの描画・保存復元・安全な再起動、本番UI→実TTS→独立仮想マイク9件とホスト/VRChat9件。本人Chatbox実表示＋発話1回/OFF無音2件、UI→PCM write30回で目標内 | Windows実機、VRChat併用の性能・混在負荷 |
-| P2 | OS音声経路BのPoC、managed endpoint、Linux明示source bridge・切断/親終了・同名再作成の自動試験。私有実OS3試行×14観測PASS（[報告](source-bridge-report.md)）。本番Controller/UIに明示入力選択・開始停止を接続し、実Tauri→私有仮想マイク16ケースPASS（[報告](source-controls-report.md)） | converted/passthroughの排他、外部VCの変換状態・品質・遅延・ライセンス比較、Windows経路。経路healthを実変換成功とは扱わない |
+| P2 | OS音声経路BのPoC、managed endpoint、Linux明示source bridge・切断/親終了・同名再作成の自動試験。私有実OS3試行×14観測PASS（[報告](source-bridge-report.md)）。本番Controller/UIに明示入力選択・開始停止を接続し、実Tauri→私有仮想マイク16ケースPASS（[報告](source-controls-report.md)） | 原音/VCを選ぶController/UI接続、外部VCの品質・継続遅延・ライセンス比較、Windows経路。経路healthを実変換成功とは扱わない |
 | P3 | legacyを維持し、speech.cpp REST/Realtime、mic/speaker別session、VAD、Linux capture/resample、有界queue、字幕置換・確定翻訳・大きいoverlayを接続。実Tauri/private音声/実ASR/VADで表示・停止・再起動OFFを確認（[報告](realtime-captions-report.md)） | 実翻訳モデルの品質/速度、物理発話終端からの遅延、HMD表示、native legacy録音への切替、Windows、混在負荷 |
 | P4 | テキストの原文/訳文TTS、mic finalの選択訳文発声、共有queueの優先度・期限・取消、managed直接音声の抑制/明示mix、Controller/UI接続、Mainからの入力別停止を実装。実ASR/VAD/Qwen・私有音声経路で原音＋TTS＋原文/訳文OSCのnative試験3件PASS（[報告](spoken-translation-report.md)） | 実翻訳品質/速度、多言語全体の受入、動的ducking、VC統合・混在負荷。P4全体は未完了 |
 | P5 | Linux専用graphと一部host試験、禁止OCR重み除外検査 | ネイティブUI/配布・fork識別、両OS障害復旧、30分混在負荷、回帰、実artifact台帳 |
@@ -212,3 +212,10 @@ COMピーク自動選択・Win32フォーカス/キー送信・Windowsパネル�
 修正後: 選択110 PASS、標準1222 PASS/6既存SKIP、音声665 PASS/7任意Seed runtime SKIP、実Tauri3 PASS。
 Native/Vite/Tauri build・変更範囲Ruff・diff検査PASS。P4のこの実装計画は完了、P4全要件の受入ではない。
 [測定境界・残条件・レビュー修正](spoken-translation-report.md)。P2の外部VC製品統合を継続する。
+
+### P2 live worker部品（2026-10-28）
+
+原音/VCの排他owner、時刻・session・sequence検証付き外部Seed worker、所有スレッド終了時の強制停止を実装。
+既存許可済みモデルと合成入力による私有音声経路でStop/worker死亡の2試験PASS。Controller/UI接続は次。
+標準1222 PASS/6 SKIP、音声689 PASS/8任意runtime SKIP。物理入力・品質・継続負荷の受入ではない。
+[実装・ライセンス境界・測定](direct-vc-product-report.md)。

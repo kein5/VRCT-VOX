@@ -188,3 +188,37 @@ def test_pipewire_disappearing_consumer_reports_disconnect(monkeypatch):
         output.close(drain=False, token=CancelToken())
     assert pipe.closed
     process.terminate.assert_called_once()
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='PipeWire identity binding')
+@pytest.mark.parametrize('fault', [None, 'cookie', 'serial'])
+def test_pipewire_optional_binding_targets_serial_and_rejects_replacement(monkeypatch, fault):
+    import os
+    from models.audio_routing import devices_pipewire as pw, source_bridge as sb
+    serial = 9007199254740993
+    graph = [{'type': 'PipeWire:Interface:Core', 'info': {'cookie': 7}},
+             {'type': 'PipeWire:Interface:Node', 'info': {'props': {
+                 'node.name': 'vrct.managed.vc', 'media.class': 'Audio/Sink',
+                 'object.serial': serial}}}]
+    monkeypatch.setattr(sb, '_read_graph', lambda: graph)
+    read_fd, write_fd = os.pipe()
+    pipe = os.fdopen(write_fd, 'wb', buffering=0)
+    process = MagicMock(stdin=pipe)
+    process.poll.return_value = 0
+    start = MagicMock(return_value=process)
+    monkeypatch.setattr(pw.subprocess, 'Popen', start)
+    expected = (8 if fault == 'cookie' else 7, serial + (fault == 'serial'))
+    try:
+        if fault:
+            with pytest.raises(SpeechError, match='output_identity_changed'):
+                pw.PipeWireOutput('vrct.managed.vc', 48000, 1, expected_identity=expected)
+            start.assert_not_called()
+        else:
+            output = pw.PipeWireOutput('vrct.managed.vc', 48000, 1, expected_identity=expected)
+            args = start.call_args.args[0]
+            assert args[args.index('--target') + 1] == str(serial)
+            assert 'node.dont-reconnect=true' in args[args.index('--properties') + 1]
+            output.close(drain=False, token=CancelToken())
+    finally:
+        os.close(read_fd)
+        pipe.close()

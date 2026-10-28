@@ -21,13 +21,21 @@ def enumerate_outputs():
 
 
 class PipeWireOutput:
-    def __init__(self, device, rate, channels):
-        if device not in {d["id"] for d in enumerate_outputs()}:
-            raise SpeechError("output_missing")
+    def __init__(self, device, rate, channels, *, expected_identity=None):
+        target = device
+        if expected_identity is None:
+            if device not in {d["id"] for d in enumerate_outputs()}:
+                raise SpeechError("output_missing")
+        else:
+            from .source_bridge import _read_graph, _endpoint
+            endpoint = _endpoint(_read_graph(), device, 'Audio/Sink')
+            if (endpoint.cookie, endpoint.serial) != expected_identity:
+                raise SpeechError('output_identity_changed')
+            target = str(endpoint.serial)
         self.process = subprocess.Popen(
             ["pw-cat", "--playback", "--raw", "--format", "s16", "--rate", str(rate),
-             "--channels", str(channels), "--latency", "20ms", "--target", device,
-             "--properties", "{ node.name=vrct.tts node.dont-fallback=true node.dont-reconnect=true }", "-"],
+             "--channels", str(channels), "--latency", "20ms", "--target", target,
+             "--properties", "{ node.name=vrct.tts node.dont-fallback=true node.dont-reconnect=true node.dont-move=true }", "-"],
             stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, bufsize=0,
         )
         # Bound the kernel queue as well as the scheduler (about 85 ms at 24 kHz).

@@ -1,0 +1,395 @@
+{
+  "boundary": "private synthetic input through real Seed, capture block end bound to OS write; stop to private read",
+  "trials": [
+    {
+      "status": "passed",
+      "case": "stop",
+      "physical_capture": false,
+      "vrchat": false,
+      "real_seed": true,
+      "perceptual_quality": false,
+      "samples_are_percentiles": false,
+      "boundary": "capture block end bound to successful OS write; private read stop",
+      "writes": [
+        {
+          "input_end_to_write_ms": 56.228085,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 59.174534,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 54.529565,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.460938,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.902589,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 57.05198,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.379399,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.511549,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.370636,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.361771,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 54.157808,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.890157,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 55.797423,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 56.205151,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 58.506358,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 54.637137,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 54.048102,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.579944,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 54.134888,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 58.671757,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 55.88946,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.370738,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.498901,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.516075,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.733115,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 54.778461,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 55.248817,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 56.215225,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 55.233993,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.395169,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 57.524312,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.737957,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 54.560074,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.799748,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 54.412401,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 56.758773,
+          "nonzero": true
+        },
+        {
+          "input_end_to_write_ms": 53.366901,
+          "nonzero": true
+        }
+      ],
+      "stop_to_silent_read_ms": 80.854378,
+      "after": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": null,
+        "state": "stopped",
+        "converted_blocks": 2
+      },
+      "capture": {
+        "frames": 736,
+        "sample_count": 706560,
+        "last_read_ns": 130572938709061,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.591733,
+        "nonzero_frames": 8,
+        "detected_frames": {
+          "440": 4,
+          "880": 5,
+          "1760": 4
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "silence_hold_ms": 2000,
+      "last_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": null,
+        "state": "stopped",
+        "converted_blocks": 2
+      }
+    },
+    {
+      "status": "passed",
+      "case": "worker_death",
+      "physical_capture": false,
+      "vrchat": false,
+      "real_seed": true,
+      "perceptual_quality": false,
+      "samples_are_percentiles": false,
+      "boundary": "capture block end bound to successful OS write; private read stop",
+      "writes": [
+        {
+          "input_end_to_write_ms": 54.724429,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.161938,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 54.218219,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 52.662461,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 52.423217,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 52.567814,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.138012,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.864383,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 51.97622,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.076864,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 52.837941,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 55.181802,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.55472,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 56.357564,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 52.53786,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 52.387644,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 51.537121,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 50.718278,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 52.455159,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 52.405281,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 56.166888,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 51.147379,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 51.549581,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 58.022173,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 56.326342,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 55.250165,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 54.515009,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.692489,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 54.4503,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 58.18211,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 57.362105,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 56.614447,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 53.905962,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 56.883074,
+          "nonzero": false
+        },
+        {
+          "input_end_to_write_ms": 55.535648,
+          "nonzero": true
+        },
+        {
+          "input_end_to_write_ms": 52.164378,
+          "nonzero": true
+        }
+      ],
+      "stop_to_silent_read_ms": 80.893225,
+      "after": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": "vc_worker_eof",
+        "state": "failed",
+        "converted_blocks": 2
+      },
+      "capture": {
+        "frames": 654,
+        "sample_count": 627840,
+        "last_read_ns": 130588215294953,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.587476,
+        "nonzero_frames": 9,
+        "detected_frames": {
+          "440": 6,
+          "880": 6,
+          "1760": 6
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "silence_hold_ms": 2000,
+      "last_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": "vc_worker_eof",
+        "state": "failed",
+        "converted_blocks": 2
+      }
+    }
+  ]
+}

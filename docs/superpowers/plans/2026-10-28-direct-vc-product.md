@@ -43,10 +43,10 @@
 **Files:** Create `src-python/models/voice_conversion/{protocol,seed_process}.py`, `integrations/seed_vc/live_worker.py`, `tests/voice/test_vc_protocol.py`, `tests/voice/test_seedvc_live.py`.
 **Interfaces:** `SeedProcess(options)` implements Task1 backend; options contain explicit runtime root and permitted reference path. PipeWireCapture delivers `CapturedAudio(AudioFrame, timestamp_ns)` to a bounded assembler. Protocol uses length-prefixed JSON metadata plus exact S16 PCM; session/sequence/rate/channels/input timestamp are validated in both directions. Worker imports GPL loader/BlockSession only in the isolated interpreter.
 
-- [ ] Write RED tests for partial framing, oversized header/PCM, wrong session/sequence/shape/rate, stale/future timestamps, nonzero VAD silence, bypass/failure/EOF, input overrun, blocked write, stop-before-ready and old output after cancellation. Assert no raw fallback and all owned children reaped.
-- [ ] Run protocol/adapter tests with the command prefix from Task1. Expected: RED before implementation.
-- [ ] Implement bounded duplex transport, strict worker handshake, warmup-before-capture, cancelable existing sink writer and endpoint identity supervision. Keep original file-input PoC intact.
-- [ ] Run protocol/adapter plus existing Seed and capture unit tests. Expected: PASS. Opt-in real low-profile inference with existing synthetic input reports actual processing and silence behavior; no physical capture. Commit tested adapter.
+- [x] Write RED tests for partial framing, oversized header/PCM, wrong session/sequence/shape/rate, stale/future timestamps, nonzero VAD silence, bypass/failure/EOF, input overrun, blocked write, stop-before-ready and old output after cancellation. Assert no raw fallback and all owned children reaped.
+- [x] Run protocol/adapter tests with the command prefix from Task1. Expected: RED before implementation.
+- [x] Implement bounded duplex transport, strict worker handshake, warmup-before-capture, cancelable existing sink writer and endpoint identity supervision. Keep original file-input PoC intact.
+- [x] Run protocol/adapter plus existing Seed and capture unit tests. Expected: PASS. Opt-in real low-profile inference with existing synthetic input reports actual processing and silence behavior; no physical capture. Commit tested adapter.
 
 ### Task 3: Product Controller and native controls
 
