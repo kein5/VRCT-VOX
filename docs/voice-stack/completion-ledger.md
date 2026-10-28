@@ -142,3 +142,14 @@ P2品質についてユーザーは「今は試聴できない」と回答。未
 元48k合成fixtureを実server_vadへ流し、mic/speaker各6partial/2final、無音で更新なし。
 独立レビューImportant1（send待ち中の停止）を修正し、実モデル込み56PASS・関連526PASS/11SKIP。
 物理capture/選択UI/partial表示/final統合は次工程。license配布条件とWindows実機は保留。
+
+### Linux Realtime capture（2026-10-28）
+
+取得cycleとidentityを保持するnative helper、20ms parser、Python ownerを追加。
+私有OSの合成source/sink-monitor→実speech.cpp/ReazonSpeech/Sileroでpartial7/final2ずつ、開始前無音・停止後結果破棄を確認。
+取得/変換/protocol/実モデル97 PASS。音声回帰480 PASS/12 opt-in SKIP、defaultは1173 PASS/既知16 FAILのまま。
+[報告](linux-realtime-capture-report.md)・[時刻境界付き結果](linux-realtime-capture-results.json)。
+Ruling: raw pw-catでは取得時刻が失われるためnative libpipewire helperを使用。C/PipeWire/対応kernelの配布条件が増える。
+Ruling: latency変更後のbuffer epoch対応が保証されないため停止を維持し、実試験producerは先に構成。実運用の経路変更で手動再選択が必要になる。
+Ruling: 非協調callbackを無理に終了せずnative取得を先に停止し、残callbackがあればconsumer_busy。UI側の停止世代破棄は後続で必要。
+P3の次工程はUI字幕・final翻訳接続。物理録音・Windows・P4/P5・VC聴感を完了扱いにしない。
