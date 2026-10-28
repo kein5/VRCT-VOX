@@ -52,6 +52,7 @@ class SpeechCppRealtime:
         self._ws = self._reader = self._starting = None
         self._sending = False
         self._pending_since = {}
+        self._commit_sent_at = None
 
     def _settings(self):
         return {
@@ -163,6 +164,7 @@ class SpeechCppRealtime:
         self.state, self.error = ("failed" if failed else "closed"), reason
         self._events.close()
         self._pending_since.clear()
+        self._commit_sent_at = None
         self._flush_updates()
         self._updates.put_nowait(None)
         self._clear_ack.set()
@@ -191,6 +193,11 @@ class SpeechCppRealtime:
     async def _read(self):
         try:
             while self.state in ("ready", "clearing"):
+                if (
+                    self._commit_sent_at is not None
+                    and monotonic() - self._commit_sent_at > PENDING_TIMEOUT
+                ):
+                    raise RealtimeError("commit_ack_timeout")
                 if any(
                     monotonic() - stamp > PENDING_TIMEOUT
                     for stamp in self._pending_since.values()
@@ -203,15 +210,26 @@ class SpeechCppRealtime:
                 event = self._decode(raw)
                 if event["type"] == "session.updated":
                     self._check_config(event)
+                previous_pending = self._events.pending_ids
                 for update in self._events.accept(event):
                     self._updates.put_nowait(update)
                 pending = self._events.pending_ids
+                # Manual mode has no speech_started: a successful commit must
+                # register a fresh item. Replayed/retired items cannot ack it.
+                if (
+                    not self.server_vad
+                    and event["type"] == "input_audio_buffer.committed"
+                    and event.get("item_id") in pending
+                    and event["item_id"] not in previous_pending
+                ):
+                    self._commit_sent_at = None
                 self._pending_since = {
                     item: self._pending_since.get(item, monotonic()) for item in pending
                 }
                 if (
                     event["type"] == "input_audio_buffer.cleared"
                     and self.state == "clearing"
+                    and not self._events.clearing
                 ):
                     self.state = "ready"
                     self._clear_ack.set()
@@ -268,6 +286,11 @@ class SpeechCppRealtime:
     async def commit(self):
         if self.state != "ready" or self.server_vad:
             raise RealtimeError("manual_commit_unavailable")
+        if self._commit_sent_at is not None:
+            raise RealtimeError("commit_pending")
+        # Register before send; an immediate acknowledgement may race send's
+        # completion. Ping/Pong is independent of this application response.
+        self._commit_sent_at = monotonic()
         await self._send({"type": "input_audio_buffer.commit"})
 
     async def clear(self):
@@ -279,6 +302,7 @@ class SpeechCppRealtime:
         for update in self._events.begin_clear():
             self._updates.put_nowait(update)
         self._pending_since.clear()
+        self._commit_sent_at = None
         try:
             await self._send({"type": "input_audio_buffer.clear"})
             await asyncio.wait_for(self._clear_ack.wait(), 2)

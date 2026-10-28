@@ -77,6 +77,19 @@ async def mock_server(mode="normal"):
                     )
                 if kind != "input_audio_buffer.commit":
                     continue
+                if mode == "no_commit_ack":
+                    continue
+                if mode == "replay_commit_ack" and item:
+                    await ws.send(
+                        json.dumps(
+                            {
+                                "event_id": "replayed",
+                                "type": "input_audio_buffer.committed",
+                                "item_id": str(item),
+                            }
+                        )
+                    )
+                    continue
                 if mode == "disconnect":
                     await ws.close()
                     return
@@ -215,7 +228,29 @@ def test_configuration_must_be_acknowledged_before_audio(mode):
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("mode", ["disconnect", "large", "flood", "pending"])
+def test_manual_commit_ack_is_bounded_and_old_item_cannot_ack_new_commit(monkeypatch):
+    monkeypatch.setattr(module(), "PENDING_TIMEOUT", 0.1)
+
+    async def run():
+        async with mock_server("replay_commit_ack") as (url, _):
+            c = module().SpeechCppRealtime(url, "asr", "ja", "mic", server_vad=False)
+            await c.start()
+            await c.commit()
+            await c.next_update()
+            assert (await c.next_update()).is_final
+            await c.commit()
+            with pytest.raises(module().RealtimeError, match="commit_pending"):
+                await c.commit()
+            await until(lambda: c.state == "failed")
+            assert c.error == "commit_ack_timeout"
+            await c.stop()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "mode", ["disconnect", "large", "flood", "pending", "no_commit_ack"]
+)
 def test_transport_fault_or_unconsumed_results_closes_and_discards(mode, monkeypatch):
     async def run():
         async with mock_server(mode) as (url, _):
@@ -339,5 +374,81 @@ def test_concurrent_feed_does_not_build_an_unbounded_queue(monkeypatch):
             release.set()
             await asyncio.gather(first, return_exceptions=True)
             assert c.state == "failed"
+
+    asyncio.run(run())
+
+
+def test_duplicate_clear_ack_cannot_release_a_new_clear_barrier():
+    async def run():
+        second_seen, release = asyncio.Event(), asyncio.Event()
+
+        async def handler(ws):
+            await ws.send(
+                json.dumps({"event_id": "created", "type": "session.created"})
+            )
+            config = json.loads(await ws.recv())
+            await ws.send(
+                json.dumps(
+                    {
+                        "event_id": "updated",
+                        "type": "session.updated",
+                        "session": config["session"],
+                    }
+                )
+            )
+            clear_ack = {"event_id": "old-clear", "type": "input_audio_buffer.cleared"}
+            assert json.loads(await ws.recv())["type"] == "input_audio_buffer.clear"
+            await ws.send(json.dumps(clear_ack))
+            assert json.loads(await ws.recv())["type"] == "input_audio_buffer.clear"
+            await ws.send(json.dumps(clear_ack))
+            second_seen.set()
+            await release.wait()
+            await ws.send(json.dumps({**clear_ack, "event_id": "new-clear"}))
+            assert json.loads(await ws.recv())["type"] == "input_audio_buffer.commit"
+            await ws.send(
+                json.dumps(
+                    {
+                        "event_id": "item",
+                        "type": "input_audio_buffer.committed",
+                        "item_id": "new",
+                    }
+                )
+            )
+            await ws.send(
+                json.dumps(
+                    {
+                        "event_id": "final",
+                        "type": PREFIX + "completed",
+                        "item_id": "new",
+                        "transcript": "new",
+                        "stop": "complete",
+                    }
+                )
+            )
+            await ws.wait_closed()
+
+        async with serve(handler, "127.0.0.1", 0, close_timeout=0.1) as server:
+            c = module().SpeechCppRealtime(
+                f"http://127.0.0.1:{server.sockets[0].getsockname()[1]}",
+                "asr",
+                "ja",
+                "mic",
+                server_vad=False,
+            )
+            await c.start()
+            await c.clear()
+            clearing = asyncio.create_task(c.clear())
+            try:
+                await asyncio.wait_for(second_seen.wait(), 1)
+                await asyncio.sleep(0.05)
+                assert not clearing.done() and c.state == "clearing"
+                release.set()
+                await clearing
+                await c.commit()
+                assert (await asyncio.wait_for(c.next_update(), 1)).text == "new"
+            finally:
+                release.set()
+                await c.stop()
+                await asyncio.gather(clearing, return_exceptions=True)
 
     asyncio.run(run())

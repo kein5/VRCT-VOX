@@ -123,3 +123,14 @@ P2の聴感回答待ちの間に、仕様指定のREST-first部品/CLIを作成�
 新規モデルなしで実speech.cpp0.9.0/ReazonSpeechを検証。レビュー後29実/模擬テスト、関連471PASS。
 Realtime用Silero約1.24MBは[固定候補](speechcpp-vad-proposal.md)を確認し、取得同意待ち。重みは未取得。
 P2実デバイス/品質とP3WS/capture/UI/final統合は未完了。ユーザーへSilero同意とVC聴感を別途依頼中。
+
+
+### P3 Realtime部品・承認済みSileroの実試験（2026-10-28）
+
+前節のSilero同意待ちは解消。固定1,238,624 bytes/MITモデルをユーザー承認後に取得しSHA256照合。
+mic/speakerの2セッションで各7 partial・2 final、無音入力で更新なしを実モデルで確認した。
+[プロトコル報告](realtime-asr-protocol-report.md)。独立レビューImportant2を再現修正し、模擬36PASS・実試験込み38PASS。
+関連542PASS/11SKIP、既定1173PASS/16既知FAIL/6SKIP。現時点ではファイル入力による通信部品の検証。
+次はcaptureの明示format変換と有界queue、UI字幕、finalだけを既存翻訳へ接続する。
+P2品質についてユーザーは「今は試聴できない」と回答。未確認を残し、独立工程を継続する。
+41秒のVC継続試験は完了済みだが、30分混在負荷・実デバイス・Windows・聴感の代わりにはしない。

@@ -9,7 +9,7 @@
 
 ## Scope / decisions
 
-- ユーザーの閉ループ実装指示を継続。Silero取得は別途同意待ち。未承認モデル・新規録音なし。
+- ユーザーの閉ループ実装指示を継続。Silero取得は後にユーザー承認され、固定artifact/hashを検証済み。未承認モデル・新規録音なし。
 - 24kHz mono s16leのみをfeedで受け付け、違うrate/channelsを再解釈しない。capture/resamplerは次段。
 - 生音声や認識本文をログへ出さない。local_url規則、proxy/redirect拒否。
 - 自動再接続や古いPCMの再送はしない。切断後は新instanceと新namespaceで明示start。
@@ -45,7 +45,7 @@ speech_started/committedでitemを登録、deltaを追加、completedで全文�
 - [x] RED: real mockWS created→update→updated contract、exact24000 mono append、2sources隔離、final1回、clear ack/late final、切断/再start別namespace、wrong config/error、接続待ちcancel、server無応答、巨大JSON、slowconsumer/oldframe/同時feed、redirect/proxy拒否。Expected: producer absentFAIL。
 - [x] producer実装、GREEN。Expected: allmock casesPASS、Ruff/diffPASS。reader停止時は未配信結果破棄、stopはsocket/task解放。
 - [x] 既存ReazonSpeechサーバでmanual commit/file-input試験。Silero承認があれば別固定artifact/hash検証後server_vadも測定、なければ未検証。Expected: manual completedは1回、mic/speakerは別namespace、rawprivate保存。回帰比較とcommit。
-- [ ] 一回の独立review、Important/CriticalだけRED→GREEN一修正pass。Minor保留。全機能作業継続、PR/pushなし。
+- [x] 一回の独立review、Important/CriticalだけRED→GREEN一修正pass。Minor保留。全機能作業継続、PR/pushなし。
 
 ## Pre-flight
 
