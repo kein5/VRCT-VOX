@@ -389,8 +389,8 @@ def test_invalid_start_never_captures(app, data):
 
 
 def test_stop_receiver_bypasses_queue_and_overwrites_frontend_generation(
-    mainloop_module,
-    monkeypatch,  # noqa: F811
+    mainloop_module,  # noqa: F811
+    monkeypatch,
 ):
     mod, pending, responses = mainloop_module, Queue(), Queue()
     c = mod.controller
