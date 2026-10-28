@@ -116,3 +116,10 @@ Seed候補約1.524GBは未取得。VADはHF固定モデルを明示的な別候�
 [PoC報告](seed-vc-poc-report.md)・[判断と保留](seed-vc-poc-decisions.md)。実モデル59 PASS、私有経路7ケースPASS、レビュー修正後関連356 PASS。
 外部GPL候補の評価までで、製品converted機能は未公開。物理mic/VRChat/Windows、品質、語頭、長時間VAD/負荷は未検証。
 次は品質・継続性ゲートを実施し、採用可否と製品統合を分けて判断する。全機能閉ループの指示を継続し、PR/上流連絡は実行しない。
+
+### P3 専用REST adapterの先頭工程（2026-10-28）
+
+P2の聴感回答待ちの間に、仕様指定のREST-first部品/CLIを作成。[報告](speechcpp-rest-asr-report.md)。
+新規モデルなしで実speech.cpp0.9.0/ReazonSpeechを検証。レビュー後29実/模擬テスト、関連471PASS。
+Realtime用Silero約1.24MBは[固定候補](speechcpp-vad-proposal.md)を確認し、取得同意待ち。重みは未取得。
+P2実デバイス/品質とP3WS/capture/UI/final統合は未完了。ユーザーへSilero同意とVC聴感を別途依頼中。

@@ -34,7 +34,7 @@ URLは既存local_url規則、redirect/proxy不使用。音声/書き起こし/�
 - [x] RED: local URL refusal, recognition model discovery, missing/wrong task/language, exact multipart params, stereo WAV/rate preservation, success/empty text, model_limit, redirect, bad/large JSON, error privacy, header/body stall cancellation and absolute timeout. Expected: module absent failures.
 - [x] Implement minimal HTTP adapter with bounded reads, total deadline and interruptible socket; CLI preserves PCM format and refuses overwrite. Expected: same cases PASS, Ruff/diff PASS.
 - [x] Real installed server + synthetic WAV in isolated loopback: metadata and actual transcript success; unsupported language/model rejected before audio upload. Unit+related regressions and existing16 failures compared. Expected: no new regression; no new models or host audio changes. Commit deliverable/report.
-- [ ] One independent final review. Important/Critical only one RED→GREEN pass; minors ledger. Continue full user goal, retain workspace/evidence, no push/PR.
+- [x] One independent final review. Important/Critical only one RED→GREEN pass; minors ledger. Continue full user goal, retain workspace/evidence, no push/PR.
 
 ## Pre-flight / scope
 

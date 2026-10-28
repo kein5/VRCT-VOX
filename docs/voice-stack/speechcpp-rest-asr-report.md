@@ -27,3 +27,21 @@
 
 Realtime WS、Silero VAD、mic/speaker capture、finalのdedup/翻訳/OSC/TTS連携、設定/UI、実機性能は次工程。
 短いREST成功を長い発話や多言語の精度保証として扱わない。
+
+## 独立レビューと修正
+
+Critical0 / Important1 / Minor1。accept待ち行列が満杯だと接続中の取消しがtimeoutまで待つ問題を、実socketで再現して修正した。
+nonblocking connectを20ms以下の指定間隔で待ち、取消し/共通期限を確認。writefds/exceptfdsの両方とSO_ERRORで完了を判定する。
+指定20msはOSスケジューリング込みの硬い保証ではない。修正前1.54秒の再現失敗→修正後は500ms未満の上限テストを通過。
+実サーバ含む29 PASS、関連471 PASS / 9 SKIP / 7 warnings。既定1173 PASS / 16既知FAIL / 6 SKIP、同一失敗名集合。
+
+imozuruの2検索役で[Python socket](https://docs.python.org/3.11/library/socket.html#socket.socket.connect_ex)→
+[CPython固定実装](https://github.com/python/cpython/blob/v3.11.10/Modules/socketmodule.c)、
+[Linux connect](https://man7.org/linux/man-pages/man2/connect.2.html)、
+[Winsock select](https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-select)を照合。
+原典5本・検証済み7抜粋・5queryの結果25URL（2batch）を`tmp/voice-resume/research/asr-connect-cancel/`に保存。
+Windows実機の検証は残る。
+
+保留Minor: 深い入れ子JSONではASRErrorではなくRecursionErrorになり得る。本文漏洩・不完全結果の確定はないが、呼出側の例外処理に注意が必要。
+判断: Realtime/UI/capture/下流確定処理は次工程（UI選択はまだ不可）、長文/多言語/競合/30分性能は未保証、
+P2の41秒継続試験は元の限定条件だけを根拠とし、このASRレビューで再測定したとは扱わない。

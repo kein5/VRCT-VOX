@@ -1,9 +1,11 @@
 """Local speech.cpp REST recognition without OpenAI SDK parameter defaults."""
 from dataclasses import dataclass
+import errno
 import http.client
 import io
 import json
 import math
+import select
 import socket
 from threading import Event, Timer
 from time import monotonic
@@ -71,10 +73,32 @@ class SpeechCppASR:
             timer = Timer(max(0, deadline - monotonic()), expire)
             timer.daemon = True
             timer.start()
-            conn.connect()
-            sock = conn.sock
+            # Own a nonblocking numeric-loopback socket before connecting.
+            # Timeout-mode connect can hide cancellation inside the OS wait.
+            sock = socket.socket(socket.AF_INET6 if ':' in url.hostname else socket.AF_INET,
+                                 socket.SOCK_STREAM)
+            conn.sock = sock
+            sock.setblocking(False)
             token.register(interrupt)
             check()
+            error = sock.connect_ex((url.hostname, url.port))
+            pending = {errno.EINPROGRESS, errno.EWOULDBLOCK, errno.EALREADY, errno.EINTR,
+                       getattr(errno, 'WSAEWOULDBLOCK', errno.EWOULDBLOCK)}
+            if error in pending:
+                while True:
+                    check()
+                    # Winsock reports failed connects in exceptfds; Linux can
+                    # report success or failure as writable. Inspect SO_ERROR.
+                    _, writable, exceptional = select.select(
+                        [], [sock], [sock], max(0, min(.02, deadline - monotonic())))
+                    check()
+                    if writable or exceptional:
+                        error = sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
+                        break
+            if error not in (0, errno.EISCONN):
+                raise OSError(error, 'connect_failed')
+            check()
+            sock.settimeout(max(.001, deadline - monotonic()))
             conn.request(method, path, body=body, headers=headers or {})
             response = conn.getresponse()
             check()

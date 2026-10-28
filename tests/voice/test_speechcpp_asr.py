@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib
 import io
 import json
+import socket
 from threading import Event, Thread, Timer
 import time
 from types import SimpleNamespace
@@ -198,3 +199,22 @@ def test_file_cli_writes_metrics_without_transcript_and_refuses_overwrite(tmp_pa
         with pytest.raises(FileExistsError):
             command.main()
         assert len(state.posts) == 1
+
+
+def test_cancel_interrupts_connect_when_local_accept_queue_is_full():
+    with socket.socket() as listener, socket.socket() as queued:
+        queued.settimeout(1)
+        listener.bind(('127.0.0.1', 0))
+        listener.listen(0)
+        queued.connect(listener.getsockname())
+        token = CancelToken()
+        timer = Timer(.05, token.cancel)
+        started = time.monotonic()
+        timer.start()
+        try:
+            with pytest.raises(module().ASRError, match='cancelled'):
+                module().SpeechCppASR(
+                    f'http://127.0.0.1:{listener.getsockname()[1]}', timeout=1.5).recognizers(token)
+        finally:
+            timer.cancel()
+        assert time.monotonic() - started < .5
