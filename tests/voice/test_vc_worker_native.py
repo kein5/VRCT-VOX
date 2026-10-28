@@ -13,6 +13,26 @@ from tools.voice_acceptance import wait_for
 pytestmark = pytest.mark.skipif(sys.platform != 'linux', reason='Linux worker supervisor')
 
 
+def test_rvc_supervisor_passes_only_fixed_module_and_explicit_settings(tmp_path):
+    import json
+    import os
+    import threading
+    helper = compile_helper(tmp_path, 'native/vc-worker/main.c')
+    interpreter = tmp_path / 'capture-args'
+    interpreter.write_text('#!' + sys.executable + '\nimport sys,json\nprint(json.dumps(sys.argv[1:]))\n')
+    interpreter.chmod(0o700)
+    owner = os.pidfd_open(threading.get_native_id(), os.O_EXCL)
+    try:
+        result = subprocess.run([str(helper), str(os.getpid()), str(owner), str(interpreter),
+            '/engine', '/assets', '/voice.pth', 'a'*32, 'rvc', '/voice.index', '-3', '0.5'],
+            pass_fds=(owner,), capture_output=True, timeout=3, check=True)
+        assert json.loads(result.stdout) == ['-u', '-m', 'integrations.rvc.live_worker',
+            '--engine', '/engine', '--assets', '/assets', '--model', '/voice.pth', '--session',
+            'a'*32, '--index', '/voice.index', '--pitch', '-3', '--index-rate', '0.5']
+    finally:
+        os.close(owner)
+
+
 @pytest.mark.parametrize('engine', ['seed-vc', 'rvc'])
 @pytest.mark.parametrize('mode', ['normal', 'kill', 'thread', 'supervisor'])
 def test_worker_lifetime_is_bound_to_owner_and_supervisor(tmp_path, mode, engine):
