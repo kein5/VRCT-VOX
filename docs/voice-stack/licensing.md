@@ -7,7 +7,7 @@
 |---|---|---|
 | VRCTコード | [LICENSE](../../LICENSE), [NOTICE](../../NOTICE.md) | MIT帰属を維持 |
 | upstream OCR検出重み | [モデルライセンス](../../src-python/models/ocr/onnx/LICENSE.txt) | fork成果物から除外。ソース内の開発用ファイルは保持 |
-| speech.cpp | [MIT](https://github.com/nyosegawa/speech.cpp/blob/main/LICENSE) | 外部localhost HTTPのみ |
+| speech.cpp | [検証済みv0.9.0のMIT](https://github.com/nyosegawa/speech.cpp/blob/v0.9.0/LICENSE) | 現在は外部localhost HTTP。2026-10-29ユーザー承認によりP5で本体を同梱する方針。配布版・hash・依存物の条件と通知を確定してから同梱し、モデル条件は別に確認。未同梱 |
 | Irodori v4.1 Small MF | [モデルカード](https://huggingface.co/Aratako/Irodori-TTS-v4.1-Small-MF) | 日本語のみ。MIT表示に加え、声の本人の明示同意・なりすまし/誤情報禁止の記載を確認。ユーザー管理のvoiceだけ利用 |
 | Irodori Large | [モデル説明](https://github.com/nyosegawa/speech.cpp/blob/main/docs/models/irodori-tts.md) | Smallと条件を混同しない。今回は同梱・検証なし |
 | Qwen3-TTS | [モデル説明](https://github.com/nyosegawa/speech.cpp/tree/main/docs/models) | ユーザーが選んだ重みの条件・hashを実機導入時に記録。モデル取得なし |

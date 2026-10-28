@@ -24,7 +24,21 @@ P3のLinux側に残る実機確認も対象として保持する。Windows専用
 一方、Windows要件を完了扱いにはせず、両OSを含む全機能完成とは区別する。
 VCの聴感・物理入力・HMD・混在負荷などの未検証条件と、上流PR/連絡を自動実行しない指示は維持する。
 
-**現在: 再開（2026-10-28）。** ユーザー提供のDPMS再現調査と消灯防止ガードを照合し、
+### P5の追加要件（2026-10-29ユーザー承認）
+
+speech.cpp本体をVRCT-TTSの配布物へ同梱する。検証した版・hashを固定し、OSごとの実行ファイルと
+必要な再配布可能依存物、ライセンス表示を揃える。現在は未実装・未配布。
+GUIから同梱サーバーの起動・状態確認・終了を管理し、既存のlocalhost HTTP接続を活用する。
+既存の外部サーバーを指定する方法も保持する。アプリが起動したプロセスだけを終了対象とする。
+モデルは既存ファイルの指定、または個別条件を示して同意後に取得する方針とし、本体同梱の承認を
+全モデル・参照音声の取得や再配布の承認へ拡張しない。Windows実機作業は後日の別PCで行う。
+
+**現在: P2の間欠停止原因が未特定のため実装中断中（2026-10-29確認）。**
+独立レビューの3指摘は`c8d3c399`で修正。標準1,222件、音声721件、実TauriのVC/原音試験2件が成功したが、
+過去の`vc_block_expired`とキャプチャ開始失敗を解消した証拠にはしない。
+[最新レビュー・残課題](direct-vc-review-2026-10-28.md)。今回のP5追加要件は記録のみで、同梱実装は開始していない。
+
+**以下は2026-10-28の再開時点の記録。** ユーザー提供のDPMS再現調査と消灯防止ガードを照合し、
 通常configの実Tauriで描画・設定保存復元・終了と再起動後のミュートを確認した。
 10/27の原因はDPMS未記録のため推定と区別する。[追記報告・試験手順](native-ui-report.md)。
 本番UI→実speech.cpp→独立仮想マイクの9ケースも通過した。[本番音声試験](native-voice-report.md)。
@@ -44,10 +58,10 @@ Windows・混在負荷等の残条件を全機能完了として扱わない。
 |---|---|---|
 | P0 | baseline・ADR・測定器・ライセンス台帳 | 新しい構成ごとの差分検証を継続 |
 | P1 | TTS provider、scheduler、UI、OSC契約、Linux/Windows出力adapter。部品UI試験16件、実Tauri/全Modelの描画・保存復元・安全な再起動、本番UI→実TTS→独立仮想マイク9件とホスト/VRChat9件。本人Chatbox実表示＋発話1回/OFF無音2件、UI→PCM write30回で目標内 | Windows実機、VRChat併用の性能・混在負荷 |
-| P2 | OS音声経路BのPoC、managed endpoint、Linux明示source bridge・切断/親終了・同名再作成の自動試験。私有実OS3試行×14観測PASS（[報告](source-bridge-report.md)）。本番Controller/UIに明示入力選択・開始停止を接続し、実Tauri→私有仮想マイク16ケースPASS（[報告](source-controls-report.md)） | 原音/VCを選ぶController/UI接続済み。native受入の間欠停止原因、外部VCの品質・継続遅延・ライセンス比較、Windows経路。経路healthを実変換成功とは扱わない |
+| P2 | Linuxの原音/Seed-VC選択、外部変換worker、入力選択・設定保存・開始停止を本番Controller/UIへ接続。実Seedと合成入力で変換→私有仮想マイク、発話途中停止、同名入力再作成時の自動再接続なし、再起動OFFを確認。最新native VC/原音2試験PASS（[報告](direct-vc-review-2026-10-28.md)） | 過去の間欠停止原因、同じ入力によるVC/ASR/TTS併用、物理マイク→VRChat、聴感・長時間遅延・負荷、Windows、最終ライセンス比較。RVCは未実装 |
 | P3 | legacyを維持し、speech.cpp REST/Realtime、mic/speaker別session、VAD、Linux capture/resample、有界queue、字幕置換・確定翻訳・大きいoverlayを接続。実Tauri/private音声/実ASR/VADで表示・停止・再起動OFFを確認（[報告](realtime-captions-report.md)） | 実翻訳モデルの品質/速度、物理発話終端からの遅延、HMD表示、native legacy録音への切替、Windows、混在負荷 |
 | P4 | テキストの原文/訳文TTS、mic finalの選択訳文発声、共有queueの優先度・期限・取消、managed直接音声の抑制/明示mix、Controller/UI接続、Mainからの入力別停止を実装。実ASR/VAD/Qwen・私有音声経路で原音＋TTS＋原文/訳文OSCのnative試験3件PASS（[報告](spoken-translation-report.md)） | 実翻訳品質/速度、多言語全体の受入、動的ducking、VC統合・混在負荷。P4全体は未完了 |
-| P5 | Linux専用graphと一部host試験、禁止OCR重み除外検査 | ネイティブUI/配布・fork識別、両OS障害復旧、30分混在負荷、回帰、実artifact台帳 |
+| P5 | Linux専用graphと一部host試験、禁止OCR重み除外検査。speech.cpp本体同梱をユーザー承認済み | speech.cpp同梱・GUIからのサーバー管理、配布・fork識別、両OS障害復旧、30分混在負荷、回帰、実artifact台帳 |
 
 ## 判断
 
