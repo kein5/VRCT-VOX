@@ -26,7 +26,7 @@ pytestmark = pytest.mark.skipif(
 def test_live_seed_worker_to_private_source_stops_without_raw_fallback(
     tmp_path, monkeypatch, end
 ):
-    from models.voice_conversion import seed_process
+    from models.voice_conversion import seed_process, process
     from test_native_realtime import SyntheticProducer
 
     runtime = Path(os.environ["VRCT_SEED_POC"]).resolve()
@@ -48,7 +48,7 @@ def test_live_seed_worker_to_private_source_stops_without_raw_fallback(
         boundary="capture block end bound to successful OS write; private read stop",
         writes=[],
     )
-    output = seed_process._output
+    output = process._output
 
     class Measured:
         def __init__(self, endpoint):
@@ -66,7 +66,7 @@ def test_live_seed_worker_to_private_source_stops_without_raw_fallback(
         def close(self, **kwargs):
             return self.inner.close(**kwargs)
 
-    monkeypatch.setattr(seed_process, "_output", Measured)
+    monkeypatch.setattr(process, "_output", Measured)
     vc = None
     try:
         with (

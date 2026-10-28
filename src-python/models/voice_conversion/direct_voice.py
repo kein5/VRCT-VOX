@@ -11,8 +11,13 @@ import time
 from models.audio_routing.source_bridge import Endpoint, SourceBridge, _source_id, parse_source
 
 
-def create_seed_process(options):
+def create_converted_process(options):
     # Linux-only optional backend is loaded only after an explicit converted Start.
+    from .settings import start_options
+    options = start_options('converted', options)
+    if options.get('engine') == 'rvc':
+        from .rvc_process import RVCProcess
+        return RVCProcess(options)
     from .seed_process import SeedProcess
     return SeedProcess(options)
 

@@ -21,10 +21,10 @@ RAW = b"\1\0" * 3840
 WORKER = """
 import sys, time
 from models.voice_conversion import protocol as p
-mode, session = sys.argv[1:]
+mode, session, engine = sys.argv[1:]
 if mode == 'load_stall': time.sleep(30)
 out = sys.stdout.buffer
-out.write(p.encode_packet(p.ready_info(session))); out.flush()
+out.write(p.encode_packet(p.ready_info(session, engine=('seed-vc' if mode == 'wrong_engine' else engine)))); out.flush()
 if mode == 'no_read': time.sleep(30)
 while True:
     info, raw = p.read_packet(sys.stdin.buffer, timeout=30)
@@ -43,9 +43,13 @@ while True:
 @contextmanager
 def fixture(
     tmp_path, monkeypatch, mode="converted", blocked_output=False, cleanup_error=False,
-    capture_start_error=None,
+    capture_start_error=None, engine="seed-vc",
 ):
     from models.voice_conversion import seed_process as m
+    if engine == "rvc":
+        from models.voice_conversion import rvc_process as m
+
+    from models.voice_conversion import process as transport
 
     captures, children, sent, closed = [], [], [], []
     binding = [SINK]
@@ -87,9 +91,10 @@ def fixture(
         def close(self, **kwargs):
             closed.append("output")
 
-    def launch(runtime, reference, session):
+    def launch(*args):
+        session = args[-1]
         child = subprocess.Popen(
-            [sys.executable, "-u", "-c", WORKER, mode, session],
+            [sys.executable, "-u", "-c", WORKER, mode, session, engine],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -103,10 +108,16 @@ def fixture(
         return child
 
     monkeypatch.setattr(m, "_launch", launch)
-    monkeypatch.setattr(m, "PipeWireCapture", Capture)
-    monkeypatch.setattr(m, "_binding", lambda source: binding[0])
-    monkeypatch.setattr(m, "_output", lambda endpoint: Output())
-    process = m.SeedProcess({"runtime": str(runtime), "reference": str(reference)})
+    monkeypatch.setattr(transport, "PipeWireCapture", Capture)
+    monkeypatch.setattr(transport, "_binding", lambda source: binding[0])
+    monkeypatch.setattr(transport, "_output", lambda endpoint: Output())
+    if engine == "seed-vc":
+        process = m.SeedProcess({"runtime": str(runtime), "reference": str(reference)})
+    else:
+        model = tmp_path / "voice.pth"
+        model.touch()
+        process = m.RVCProcess(dict(engine="rvc", runtime=str(runtime), model=str(model),
+                                    index="", pitch=0, index_rate=0.0))
     try:
         process.start(source=SOURCE)
         yield process, captures, children, sent, closed, binding
@@ -139,7 +150,7 @@ def test_vc_output_rechecks_stop_and_age_at_actual_write(monkeypatch, fault):
     from types import SimpleNamespace
     from models.audio_routing.devices_pipewire import PipeWireOutput
     from models.tts.speechcpp_tts import CancelToken, SpeechError
-    from models.voice_conversion import seed_process as m
+    from models.voice_conversion import process as m
 
     clock = [1_010_000_000]
     monkeypatch.setattr(m.time, "monotonic_ns", lambda: clock[0])

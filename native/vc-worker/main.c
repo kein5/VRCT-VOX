@@ -28,9 +28,11 @@ static bool owner_alive(int fd) {
     return syscall(SYS_pidfd_send_signal, fd, 0, NULL, 0) == 0 && poll(&item, 1, 0) == 0;
 }
 int main(int argc, char **argv) {
-    if (argc != 8 || argv[3][0] != '/' || argv[4][0] != '/' || argv[5][0] != '/' ||
+    bool rvc = argc == 12 && strcmp(argv[8], "rvc") == 0;
+    if ((argc != 8 && !rvc) || argv[3][0] != '/' || argv[4][0] != '/' || argv[5][0] != '/' ||
         argv[6][0] != '/' || strlen(argv[7]) != 32 ||
         strspn(argv[7], "0123456789abcdef") != 32) return 2;
+    if (rvc && argv[9][0] && argv[9][0] != '/') return 2;
     long expected_parent = number(argv[1]), descriptor = number(argv[2]);
     if (expected_parent <= 1 || descriptor < 3) return 2;
     int owner_fd = (int)descriptor;
@@ -57,7 +59,11 @@ int main(int argc, char **argv) {
         char *args[] = {argv[3], "-u", "-m", "integrations.seed_vc.live_worker",
             "--engine", argv[4], "--assets", argv[5], "--reference", argv[6],
             "--session", argv[7], NULL};
-        execv(args[0], args);
+        char *rvc_args[] = {argv[3], "-u", "-m", "integrations.rvc.live_worker",
+            "--engine", argv[4], "--assets", argv[5], "--model", argv[6],
+            "--session", argv[7], "--index", rvc ? argv[9] : "",
+            "--pitch", rvc ? argv[10] : "0", "--index-rate", rvc ? argv[11] : "0", NULL};
+        execv(argv[3], rvc ? rvc_args : args);
         _exit(1);
     }
     /* Only the worker owns these protocol pipes; do not keep EOF alive. */

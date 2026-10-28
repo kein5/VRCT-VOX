@@ -13,21 +13,22 @@ from tools.voice_acceptance import wait_for
 pytestmark = pytest.mark.skipif(sys.platform != 'linux', reason='Linux worker supervisor')
 
 
+@pytest.mark.parametrize('engine', ['seed-vc', 'rvc'])
 @pytest.mark.parametrize('mode', ['normal', 'kill', 'thread', 'supervisor'])
-def test_worker_lifetime_is_bound_to_owner_and_supervisor(tmp_path, mode):
+def test_worker_lifetime_is_bound_to_owner_and_supervisor(tmp_path, mode, engine):
     helper = compile_helper(tmp_path, 'native/vc-worker/main.c')
     interpreter = tmp_path / 'python'
     interpreter.write_text('#!/bin/sh\nprintf "%s\\n" "$$"\nexec ' + shutil.which('sleep') + ' 30\n')
     interpreter.chmod(0o700)
     script = '''
 import os, subprocess, sys, threading, time
-mode, helper, interpreter = sys.argv[1:]
+mode, helper, interpreter, engine = sys.argv[1:]
 leave = threading.Event()
 def launch():
     fd = os.pidfd_open(threading.get_native_id(), os.O_EXCL)
     try:
         child = subprocess.Popen([helper, str(os.getpid()), str(fd), interpreter,
-            '/engine', '/assets', '/reference.wav', 'a'*32], pass_fds=(fd,), stdout=subprocess.PIPE)
+            '/engine', '/assets', '/reference.wav', 'a'*32] + (['rvc', '', '0', '0'] if engine == 'rvc' else []), pass_fds=(fd,), stdout=subprocess.PIPE)
     finally:
         os.close(fd)
     print(child.stdout.readline().decode().strip(), flush=True)
@@ -48,7 +49,7 @@ else:
     launch()
     input()
 '''
-    owner = subprocess.Popen([sys.executable, '-u', '-c', script, mode, str(helper), str(interpreter)],
+    owner = subprocess.Popen([sys.executable, '-u', '-c', script, mode, str(helper), str(interpreter), engine],
                              stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     child = None
     try:

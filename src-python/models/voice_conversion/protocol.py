@@ -33,8 +33,10 @@ def _same(actual, expected):
             and all(type(actual[k]) is type(v) and actual[k] == v for k, v in expected.items()))
 
 
-def ready_info(session):
-    return dict(type='ready', protocol=1, session=_session(session), engine='seed-vc',
+def ready_info(session, *, engine='seed-vc'):
+    if engine not in ('seed-vc', 'rvc'):
+        raise ProtocolError('vc_engine_invalid')
+    return dict(type='ready', protocol=1, session=_session(session), engine=engine,
                 profile='low', rate=RATE, channels=1, block_frames=FRAMES)
 
 
@@ -46,8 +48,8 @@ def input_info(session, sequence, start_ns):
                 start_ns=start_ns, end_ns=start_ns + BLOCK_NS, rate=RATE, channels=1)
 
 
-def require_ready(info, pcm, session):
-    if pcm or not _same(info, dict(ready_info(session), pcm_bytes=0)):
+def require_ready(info, pcm, session, *, engine='seed-vc'):
+    if pcm or not _same(info, dict(ready_info(session, engine=engine), pcm_bytes=0)):
         raise ProtocolError('vc_ready_invalid')
 
 

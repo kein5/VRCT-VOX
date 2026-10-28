@@ -33,7 +33,7 @@ from models.audio_routing.managed_route import VoiceRoute
 from models.audio_routing.mute_state import MuteState
 from models.audio_routing.pipewire_gate import PipeWireGate
 from models.audio_routing.source_bridge import enumerate_sources, parse_source
-from models.voice_conversion.direct_voice import DirectVoice, create_seed_process
+from models.voice_conversion.direct_voice import DirectVoice, create_converted_process
 from models.voice_conversion.settings import DirectSettings, start_options
 from models.overlay.overlay_tooltip import validate_tooltip
 from models.overlay.overlay import PANEL_ANCHORS, computeVrLayout, clampPanelSize, mirrorHandPosition
@@ -357,7 +357,7 @@ class Controller:
         self._voice_settings_lock = Lock()
         direct = getattr(self._config, 'DIRECT_VOICE_SETTINGS', {})
         self._direct_settings = DirectSettings.from_dict(direct if isinstance(direct, dict) else {})
-        self.direct_voice = DirectVoice(converted_factory=create_seed_process)
+        self.direct_voice = DirectVoice(converted_factory=create_converted_process)
         self._direct_voice_closed = False
         choices = getattr(self._config, "REALTIME_ASR_SETTINGS", {})
         self._initRealtimeASR(choices if isinstance(choices, dict) else {})

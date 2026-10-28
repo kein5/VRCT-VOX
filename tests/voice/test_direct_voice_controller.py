@@ -2,6 +2,7 @@
 from queue import Queue
 
 import pytest
+from models.voice_conversion.settings import DirectSettings
 
 from test_controller_integration import controller_module  # noqa: F401
 from test_priority_cancel import mainloop_module, wire_message  # noqa: F401
@@ -169,13 +170,18 @@ class ConvertedBackend:
         return dict(self.state)
 
 
-def test_converted_choice_is_independent_and_failure_has_no_raw_fallback(app, monkeypatch):
-    from models.voice_conversion import seed_process
+@pytest.mark.parametrize("engine", ["seed-vc", "rvc"])
+def test_converted_choice_is_independent_and_failure_has_no_raw_fallback(app, monkeypatch, engine):
+    from models.voice_conversion import seed_process, rvc_process
     c, raw, gate, _ = app
     converted, options = ConvertedBackend(), []
-    monkeypatch.setattr(seed_process, 'SeedProcess', lambda value: options.append(value) or converted)
+    monkeypatch.setattr(seed_process if engine == 'seed-vc' else rvc_process,
+                        'SeedProcess' if engine == 'seed-vc' else 'RVCProcess',
+                        lambda value: options.append(value) or converted)
     managed(c)
-    choice = {'runtime': '/permitted/runtime', 'reference': '/permitted/reference.wav'}
+    choice = ({'runtime': '/permitted/runtime', 'reference': '/permitted/reference.wav'}
+              if engine == 'seed-vc' else dict(engine='rvc', runtime='/rvc', model='/voice.pth',
+                                              index='', pitch=0, index_rate=0.0))
     response = c.startDirectVoice({**request(c), 'mode': 'converted', 'options': choice})
     assert response['status'] == 200
     state = c.getDirectVoiceState()['result']
@@ -209,7 +215,7 @@ def test_saved_vc_choices_survive_restart_but_do_not_start_or_change_old_payload
     old = request(c)
     choices = {'mode': 'converted', 'runtime': '/allowed/runtime', 'reference': '/allowed/ref.wav'}
     assert c.setDirectVoiceSettings(choices)['status'] == 200
-    assert c.getDirectVoiceState()['result']['settings'] == choices
+    assert c.getDirectVoiceState()['result']['settings'] == DirectSettings.from_dict(choices).to_dict()
     assert not raw.children
     assert c.startDirectVoice(old)['result']['error_code'] == 'source_bridge_stale_start'
     # A legacy client omits mode: still means passthrough even with saved VC choices.
@@ -221,7 +227,7 @@ def test_saved_vc_choices_survive_restart_but_do_not_start_or_change_old_payload
     replacement = mod.Controller()
     try:
         state = replacement.getDirectVoiceState()['result']
-        assert state['settings'] == choices
+        assert state['settings'] == DirectSettings.from_dict(choices).to_dict()
         assert not state['requested'] and state['mode'] == 'off'
         assert len(raw.children) == 1
     finally:
