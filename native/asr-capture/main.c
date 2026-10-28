@@ -93,7 +93,14 @@ static bool same_latency(const struct spa_latency_info *a, const struct spa_late
 }
 static void stream_param(void *data, uint32_t id, const struct spa_pod *param) {
     struct state *s = data;
-    if (!param) { if (s->started && id == SPA_PARAM_Format) failed(s, "format_removed"); return; }
+    if (!param) {
+        if (id == SPA_PARAM_Latency) {
+            s->latency_ok = false;
+            if (s->started) failed(s, "latency_removed");
+        }
+        if (s->started && id == SPA_PARAM_Format) failed(s, "format_removed");
+        return;
+    }
     if (id == SPA_PARAM_Format) {
         struct spa_audio_info_raw audio = {0};
         if (spa_format_audio_raw_parse(param, &audio) < 0 || audio.format != SPA_AUDIO_FORMAT_S16_LE || audio.rate != RATE || audio.channels != 1) {
@@ -143,9 +150,11 @@ static bool send_buffer(struct state *s, struct pw_buffer *buffer) {
         failed(s, "clock_invalid"); return false;
     }
     struct spa_meta_header *header = spa_buffer_find_meta_data(b, SPA_META_Header, sizeof(*header));
+    if (header && (header->flags & SPA_META_HEADER_FLAG_CORRUPTED)) { failed(s, "buffer_corrupted"); return false; }
     if (s->started && header && (header->flags & SPA_META_HEADER_FLAG_DISCONT)) { failed(s, "discontinuity"); return false; }
     if (b->n_datas != 1 || !b->datas[0].data || !b->datas[0].chunk) { failed(s, "buffer_invalid"); return false; }
     struct spa_data *d = &b->datas[0];
+    if (d->chunk->flags & SPA_CHUNK_FLAG_CORRUPTED) { failed(s, "buffer_corrupted"); return false; }
     uint32_t bytes = d->chunk->size, offset = d->chunk->offset;
     if (!bytes) return true;
     if (bytes % 2 || bytes > RATE / 10 * 2 || offset > d->maxsize || bytes > d->maxsize - offset ||

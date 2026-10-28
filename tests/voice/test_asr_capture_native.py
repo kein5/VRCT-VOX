@@ -399,3 +399,124 @@ def test_capture_never_follows_changed_default_or_same_name_recreation(tmp_path)
             reader.join(2)
             p.stdout.close()
             p.stderr.close()
+
+
+@pytest.mark.parametrize("flag", ["header", "chunk"])
+@pytest.mark.parametrize("started", [False, True])
+def test_corrupted_buffer_never_emits_pcm(tmp_path, flag, started):
+    """Removing either corruption check would send a syntactically valid packet."""
+    harness = tmp_path / "corrupted.c"
+    harness.write_text(
+        '''
+#define main capture_main
+#define pw_stream_get_node_id fixture_node_id
+#define pw_stream_get_time_n fixture_time
+#include "'''
+        + str(ROOT / "native/asr-capture/main.c")
+        + """"
+#undef main
+static uint64_t cycle;
+uint32_t fixture_node_id(struct pw_stream *stream) { (void)stream; return 7; }
+int fixture_time(struct pw_stream *stream, struct pw_time *t, size_t size) {
+    (void)stream; (void)size; *t=(struct pw_time){.now=cycle,.rate={1,48000}}; return 0;
+}
+int main(int argc, char **argv) {
+    pw_init(&argc, &argv);
+    cycle=now_ns()-1000000;
+    struct spa_io_position position={.clock={.id=1,.rate={1,48000},.duration=480,.nsec=cycle}};
+    struct state s={.target_ok=true,.n_links=1,.format_ok=true,.latency_ok=true,.own=7,
+        .started=argv[2][0]=='1',.last_cycle=cycle-1,.position=&position,.epoch=position.clock};
+    s.loop=pw_main_loop_new(NULL);
+    struct spa_meta_header header={.flags=argv[1][0]=='h'?SPA_META_HEADER_FLAG_CORRUPTED:0};
+    struct spa_meta meta={.type=SPA_META_Header,.size=sizeof(header),.data=&header};
+    uint8_t pcm[960]={1};
+    struct spa_chunk chunk={.size=960,.stride=2,.flags=argv[1][0]=='c'?SPA_CHUNK_FLAG_CORRUPTED:0};
+    struct spa_data data={.data=pcm,.maxsize=960,.chunk=&chunk};
+    struct spa_buffer buffer={.n_datas=1,.datas=&data,.n_metas=1,.metas=&meta};
+    struct pw_buffer input={.buffer=&buffer,.time=cycle};
+    bool sent=send_buffer(&s,&input);
+    pw_main_loop_destroy(s.loop); pw_deinit();
+    return !sent && s.stopping && s.result ? 0 : 3;
+}
+"""
+    )
+    flags = shlex.split(
+        subprocess.check_output(
+            ["pkg-config", "--cflags", "--libs", "libpipewire-0.3"], text=True
+        )
+    )
+    binary = tmp_path / "corrupted"
+    subprocess.run(
+        [
+            "cc",
+            "-std=gnu11",
+            "-O2",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            str(harness),
+            "-o",
+            str(binary),
+            *flags,
+            "-lm",
+        ],
+        check=True,
+    )
+    result = subprocess.run(
+        [str(binary), flag, str(int(started))], capture_output=True, timeout=2
+    )
+    assert result.stdout == b"", "corrupted audio escaped as PCM packet"
+    assert result.returncode == 0
+    assert b"corrupted" in result.stderr
+
+
+@pytest.mark.parametrize("started", [False, True])
+def test_null_latency_invalidates_cached_value_and_stops_active_capture(
+    tmp_path, started
+):
+    harness = tmp_path / "latency.c"
+    harness.write_text(
+        '''
+#define main capture_main
+#include "'''
+        + str(ROOT / "native/asr-capture/main.c")
+        + """"
+#undef main
+int main(int argc, char **argv) {
+    pw_init(&argc,&argv);
+    struct state s={.started=argv[1][0]=='1',.latency_ok=true,.latency={.max_quantum=2}};
+    s.loop=pw_main_loop_new(NULL);
+    stream_param(&s,SPA_PARAM_Latency,NULL);
+    bool valid=!s.latency_ok && s.stopping==s.started && (!s.started || s.result!=0);
+    pw_main_loop_destroy(s.loop); pw_deinit();
+    return valid ? 0 : 3;
+}
+"""
+    )
+    flags = shlex.split(
+        subprocess.check_output(
+            ["pkg-config", "--cflags", "--libs", "libpipewire-0.3"], text=True
+        )
+    )
+    binary = tmp_path / "latency"
+    subprocess.run(
+        [
+            "cc",
+            "-std=gnu11",
+            "-O2",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            str(harness),
+            "-o",
+            str(binary),
+            *flags,
+            "-lm",
+        ],
+        check=True,
+    )
+    result = subprocess.run(
+        [str(binary), str(int(started))], capture_output=True, timeout=2
+    )
+    assert result.returncode == 0, "NULL latency left previous timing epoch usable"
+    assert result.stdout == b""

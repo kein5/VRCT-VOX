@@ -153,3 +153,4 @@ Ruling: raw pw-catでは取得時刻が失われるためnative libpipewire help
 Ruling: latency変更後のbuffer epoch対応が保証されないため停止を維持し、実試験producerは先に構成。実運用の経路変更で手動再選択が必要になる。
 Ruling: 非協調callbackを無理に終了せずnative取得を先に停止し、残callbackがあればconsumer_busy。UI側の停止世代破棄は後続で必要。
 P3の次工程はUI字幕・final翻訳接続。物理録音・Windows・P4/P5・VC聴感を完了扱いにしない。
+Linux captureの独立review Important2は合成C6case RED→GREENで修正。実ASR/VAD込み音声suite490 PASS/8 opt-in SKIP、default既知16失敗不変。破損PCM/NULLlatencyの停止契約を保持。追加reviewなし、Minorなし。

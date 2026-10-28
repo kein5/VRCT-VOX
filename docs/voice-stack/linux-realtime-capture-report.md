@@ -68,3 +68,21 @@ imozuru記録: `tmp/voice-resume/research/asr-capture-timestamps/`。
 - callbackは短時間で戻る契約。callbackが詰まってもstopはnative helperを終了するが、Python callbackが残る場合は`consumer_busy`を返し、停止完了と偽らない。
 - stop完了後の再利用は不可。新しいsession/namespace/ownerを作り直す。UI側の停止操作では結果公開namespaceも即時無効化する必要がある。
 - native helperはMIT。新しい推論モデル/音声の取得・録音は行っていない。soxrを含む最終配布の対応source・通知・置換条件は[ライセンス台帳](licensing.md)のゲートを維持する。
+
+## 独立レビューと修正
+
+fresh reviewerによる全変更レビューはCritical0/Important2/Minor0。
+header/chunkのCORRUPTEDを見逃してPCMを送出する問題と、NULL latency通知で旧epochが有効なまま残る問題を修正。
+音声デバイス不要のC harnessで、初回/開始後の破損4ケース、開始前/後のlatency解除2ケースが修正前6 FAIL→修正後6 PASS。
+最初のwrite前に破損を拒否し、NULL latencyは有効性を解除して開始後なら停止する。
+これらのフラグが付かないことだけで、全上流経路が無破損とは保証しない。
+
+修正後、承認済み実ASR/VADを有効にした全音声suite **490 PASS / 8 opt-in SKIP / 2 warnings（49.73秒）**。
+8 SKIPはbrowser1・別Seed VC runtime/route7で、この実行のASR/VAD/capture試験はスキップしていない。
+default **1173 PASS / 16既知FAIL / 6 SKIP / 46 warnings（14.50秒）**、失敗名集合は同一。
+生の結果は`tmp/voice-resume/capture-reviewed-voice/`、原典16本/照合引用13件/検索7語をimozuru記録に保存。
+独立レビューは1回で、修正後の追加レビューはしていない。
+
+レビューで対象外とされた物理ADC/VRChat E2E、Windows、UI/翻訳/OSC/TTS接続、認識品質/30分負荷は後続gateとして残す。
+非協調callbackを強制中断しない判断も維持し、native停止後にconsumer_busyを返す制限を明記する。
+この計画に未修正のMinor指摘はない。
