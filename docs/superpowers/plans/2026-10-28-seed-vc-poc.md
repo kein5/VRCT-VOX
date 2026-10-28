@@ -39,9 +39,9 @@
 **Files:** Create `integrations/seed_vc/`内GPL表記adapter/requirements/README（必要なら固定upstream patch）、`tests/voice/test_seedvc_offline.py`、raw環境/依存lock/checkout。
 **Interfaces:** adapter引数はengine root/assets root/reference path。必要全fileを確認してから重いimport。local Seed/checkpoint、CAMPPlus/HiFT、XLSR、HF FSMN-VADを明示。download functionsを汎用許可しない。network禁止時に追加取得を試みるloaderは失敗。voice statusをモデルready・VC active・bypass・failureに分ける。
 
-- [ ] RED: local resolverのunknown repository/file/欠損/改変拒否、remote path拒否、reference長さ不正、failureはready/convertedにならない、stopを上書きしない。Expected: 新adapterがなく失敗。
-- [ ] 固定engineソースと必要コードのみ取得（サンプル音声不要）、公式対応組合せをuvで隔離し依存lockを記録。requirements不整合はimozuruで原典を追い最小変更をledgerへ。Expected: GPU/torch実動作を確認、既存環境無変更。
-- [ ] offline loader/必要patchを最小実装しGREEN。実5モデルロード・VADの複数chunk入力を試験、ネットワーク取得0を観測。Expected: ロード成功または具体的な失敗記録。成果と互換差分をcommit。
+- [x] RED: local resolverのunknown repository/file/欠損/改変拒否、remote path拒否、reference長さ不正、必須state欠損/shape不一致拒否（failure/bypass/stopはTask3の実workerで検査）。Expected: 新adapterがなく失敗。
+- [x] 固定engineソースと必要コードのみ取得（サンプル音声不要）、公式対応組合せをuvで隔離し依存lockを記録。requirements不整合はimozuruで原典を追い最小変更をledgerへ。Expected: GPU/torch実動作を確認、既存環境無変更。
+- [x] offline loader/必要patchを最小実装しGREEN。実5モデルロード・VADの複数chunk入力を試験、ネットワーク取得0を観測。Expected: ロード成功または具体的な失敗記録。成果と互換差分をcommit。
 
 ### Task 3: 実変換block・私有仮想mic・故障試験
 

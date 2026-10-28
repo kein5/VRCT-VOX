@@ -1,0 +1,90 @@
+--- a/realtime_vc_engine.py
++++ b/realtime_vc_engine.py
+@@ -14,7 +14,6 @@
+ import torchaudio
+ import torchaudio.compliance.kaldi as kaldi
+ import torchaudio.transforms as tat
+-import sounddevice as sd
+ import librosa
+ from audio_modules.commons import str2bool, recursive_munch, build_model, load_checkpoint
+ 
+@@ -81,7 +80,7 @@
+         self.function = "vc"  # "vc" for voice conversion, "im" for input monitoring (passthrough)
+ 
+ class RealtimeVCEngine:
+-    def __init__(self, args):
++    def __init__(self, args, model_loader=None, enumerate_devices=True):
+         self.args = args
+         self.config = RealtimeVCConfig()
+         self.device = self._get_device(args.gpu)
+@@ -120,8 +119,12 @@
+         
+         # Load models
+         print(f"Loading models on {self.device}...")
+-        self.model_set = self._load_models(args)
+-        self.vad_model = AutoModel(model="fsmn-vad", model_revision="v2.0.4", disable_pbar=True, log_level="ERROR", disable_update=True)
++        if model_loader is None:
++            self.model_set = self._load_models(args)
++            self.vad_model = AutoModel(model="fsmn-vad", model_revision="v2.0.4", disable_pbar=True, log_level="ERROR", disable_update=True)
++        else:
++            self.model_set = model_loader.load_models(self, args)
++            self.vad_model = model_loader.load_vad(self)
+         
+         # Devices
+         self.hostapis = []
+@@ -129,7 +132,8 @@
+         self.output_devices = []
+         self.input_devices_indices = []
+         self.output_devices_indices = []
+-        self.update_devices()
++        if enumerate_devices:
++            self.update_devices()
+         
+         # Callbacks
+         # Reporting hook only: the engine never applies A/V sync policy itself, it
+@@ -320,6 +324,7 @@
+         )
+ 
+     def update_devices(self, hostapi_name=None):
++        import sounddevice as sd
+         self.stop_stream()
+         sd._terminate()
+         sd._initialize()
+@@ -381,9 +386,11 @@
+         return pool[0] if pool else ""
+ 
+     def get_device_samplerate(self):
++        import sounddevice as sd
+         return int(sd.query_devices(device=sd.default.device[0])["default_samplerate"])
+ 
+     def get_device_channels(self):
++        import sounddevice as sd
+         max_input_channels = sd.query_devices(device=sd.default.device[0])["max_input_channels"]
+         max_output_channels = sd.query_devices(device=sd.default.device[1])["max_output_channels"]
+         return min(max_input_channels, max_output_channels, 2)
+@@ -399,7 +406,7 @@
+              self.config.sr_model = (self.config.sr_type == "sr_model")
+              self.config.sr_device = (self.config.sr_type == "sr_device")
+ 
+-    def _prepare_buffers(self):
++    def _prepare_buffers(self, channels=None):
+         # Initialize variables based on current config
+         if self.device.type == "mps":
+             torch.mps.empty_cache()
+@@ -415,7 +422,7 @@
+             if self.config.sr_type == "sr_model"
+             else self.get_device_samplerate()
+         )
+-        self.config.channels = self.get_device_channels()
++        self.config.channels = self.get_device_channels() if channels is None else channels
+         self.zc = self.config.samplerate // 50
+         self.block_frame = int(np.round(self.config.block_time * self.config.samplerate / self.zc)) * self.zc
+         self.block_frame_16k = 320 * self.block_frame // self.zc
+@@ -503,6 +510,7 @@
+         self.last_vad_reset_time = time.time()
+ 
+     def start_stream(self):
++        import sounddevice as sd
+         if not self.flag_vc:
+             # Select the devices BEFORE preparing buffers: _prepare_buffers sizes
+             # everything from get_device_samplerate()/get_device_channels(), which
