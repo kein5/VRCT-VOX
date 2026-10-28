@@ -61,11 +61,16 @@ def test_private_capture_has_timestamped_pcm_and_stops_on_target_removal(
         nodes,
         stop_process,
     )
-    from tools.voice_b_poc import Producer
+    from tools.voice_b_poc import Producer, ToneCapture, ready
 
     with private_graph(), ExitStack() as stack:
         endpoint_process = loopback(stack, "vrct.capture.test")
         Producer(stack, "vrct.capture.test.sink", 440)
+        # Producer construction only launches pw-cat; its asynchronous link and
+        # latency propagation can still be pending. Establish actual signal flow
+        # before testing timestamp continuity and target removal on a fixed graph.
+        probe = ToneCapture(stack, "vrct.capture.test.source")
+        ready(probe, 440)
         name = "vrct.capture.test." + ("source" if source_kind == "mic" else "sink")
         snapshot = graph_snapshot()
         cookie = next(

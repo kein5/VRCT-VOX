@@ -1,4 +1,5 @@
 from typing import Callable, Any, List, Optional
+from contextlib import nullcontext
 from subprocess import Popen
 from threading import Thread, Lock
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -26,7 +27,7 @@ from models.transcription.speechcpp_asr import SpeechCppASR
 from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
-from models.tts.message_hook import chat_event
+from models.tts.message_hook import chat_event, microphone_event
 from models.audio_routing.audio_router import enumerate_outputs
 from models.audio_routing.managed_route import VoiceRoute
 from models.audio_routing.mute_state import MuteState
@@ -348,7 +349,9 @@ class Controller:
             config_path = 'config.json'
         self.voice_route = VoiceRoute(self.voice_events, gate=PipeWireGate(),
                                      store=MuteState(Path(config_path).with_name('voice_mute_state.json')))
-        self.voice_route.configure(self.voice_events.settings.routing == 'managed')
+        self.voice_route.configure(self.voice_events.settings.routing == 'managed',
+            suppress_direct=(self.voice_events.settings.mic_mode == 'translated'
+                             and self.voice_events.settings.direct_policy == 'suppress'))
         self._voice_settings_lock = Lock()
         self.direct_voice = SourceBridge()
         self._direct_voice_closed = False
@@ -405,6 +408,8 @@ class Controller:
     def _invalidateRealtimeLocked(self, source):
         self._realtime_generation[source] += 1
         self._realtime_requested[source] = False
+        if source == "mic":
+            self._cancelMicVoice()
         owner = self._realtime_owners[source]
         if owner is not None:
             owner[1].request_stop()
@@ -566,6 +571,9 @@ class Controller:
                             only_translated=config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES)
 
             def clear_overlay():
+                with self._realtime_lock:
+                    if source == "mic" and self._realtime_generation[source] == generation:
+                        self.voice_events.cancel_source("mic")
                 namespace = session.health()["namespace"]
                 if namespace and self._is_overlay_available():
                     model.clearRealtimeCaptionOverlay(source, namespace)
@@ -578,7 +586,7 @@ class Controller:
                 return self._processMessage(
                     REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC,
                     update.text, language, msg_id=update.namespace + ":" + update.item_id,
-                    publication_guard=guard)
+                    publication_guard=guard, speech_update=update if source == "mic" else None)
 
             def error(code):
                 with self._realtime_lock:
@@ -1249,6 +1257,7 @@ class Controller:
         asr_ms: Optional[int] = None,
         voice_generation: Optional[int] = None,
         publication_guard: Optional[Callable[[], bool]] = None,
+        speech_update=None,
     ) -> Optional[dict]:
         """mic/speaker/chatMessage共通のパイプライン(バックエンドレビュー
         フェーズ3項目25、`MessageDirectionSpec`参照)。
@@ -1285,9 +1294,10 @@ class Controller:
         # した場合は出力自体が無いので測らない。
         pipeline_started_at = time.perf_counter()
         translate_elapsed_ms = 0
-        # Snapshot the selected preset before translation can block. P1 is chat
-        # only; a receive/OCR/ASR message must never become microphone audio.
+        # Snapshot before translation can block; only the trusted realtime mic
+        # callback supplies a speech update. Other receive paths cannot speak.
         voice_snapshot = None
+        mic_snapshot = None
         voice_started_ns = time.monotonic_ns()
         if spec.kind == "chat" and getattr(self, "voice_events", None) is not None:
             with self._voice_settings_lock:
@@ -1301,12 +1311,24 @@ class Controller:
                          else self.voice_events.generation()),
                     )
 
+        if (spec is REALTIME_MIC_SPEC and speech_update is not None
+                and getattr(self, "voice_events", None) is not None):
+            with self._voice_settings_lock:
+                if self.voice_events.settings.mic_mode == "translated" and config.ENABLE_TRANSLATION:
+                    mic_snapshot = (
+                        config.SELECTED_TAB_NO,
+                        copy.deepcopy(config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]),
+                        self.voice_events.settings, self.voice_events.generation(),
+                        self.voice_events.source_generation("mic"),
+                    )
+
         # Original speech has no dependency on the translator or text delivery.
         # The receiver's generation also invalidates chat waiting in Main.queue.
         if voice_snapshot is not None and voice_snapshot[3].mode == "original":
             self._publishChatVoice(voice_snapshot, message, [], msg_id, voice_started_ns)
 
         translation: list = []
+        success: list = []
         if config.ENABLE_TRANSLATION is False:
             pass
         else:
@@ -1553,6 +1575,8 @@ class Controller:
 
         if voice_snapshot is not None and voice_snapshot[3].mode == "translated":
             self._publishChatVoice(voice_snapshot, message, translation, msg_id, voice_started_ns)
+        if mic_snapshot is not None:
+            self._publishMicVoice(mic_snapshot, speech_update, language, translation, success, current)
 
         pipeline_elapsed_ms = round((time.perf_counter() - pipeline_started_at) * 1000)
         # asr= は mic/speaker のみ (chat には ASR 段が無い)。
@@ -1723,6 +1747,27 @@ class Controller:
             # Optional speech must not change legacy OSC/UI/history delivery.
             printLog("[voice] message enqueue failed")
 
+    def _publishMicVoice(self, snapshot, update, language, translations, success, current):
+        tab, targets, settings, generation, source_generation = snapshot
+        try:
+            with self._voice_settings_lock:
+                if (not current() or not config.ENABLE_TRANSLATION
+                        or self.voice_events.settings != settings or config.SELECTED_TAB_NO != tab
+                        or config.SELECTED_TARGET_LANGUAGES[tab] != targets):
+                    return
+                event = microphone_event(update, translations, success, source_language=language,
+                                         targets=targets, selected_slot=settings.target_slot)
+                if event is not None:
+                    self.voice_events.publish(event, expected_generation=generation,
+                                              expected_source_generation=source_generation)
+        except Exception:
+            printLog("[voice] microphone enqueue failed")
+
+    def _cancelMicVoice(self):
+        bus = getattr(self, "voice_events", None)
+        if bus is not None:
+            bus.cancel_source("mic")
+
     def setVoiceSettings(self, data, *args, **kwargs) -> dict:
         try:
             settings = VoiceSettings.from_dict(data)
@@ -1735,7 +1780,8 @@ class Controller:
             try:
                 if settings.routing != 'managed':
                     self.direct_voice.stop()
-                self.voice_route.configure(settings.routing == 'managed')
+                self.voice_route.configure(settings.routing == 'managed',
+                    suppress_direct=(settings.mic_mode == 'translated' and settings.direct_policy == 'suppress'))
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
             config.VOICE_SETTINGS = settings.to_dict()
@@ -1917,9 +1963,9 @@ class Controller:
                 config.ENABLE_TRANSLATION = True
         return {"status":200, "result":config.ENABLE_TRANSLATION}
 
-    @staticmethod
-    def setDisableTranslation(*args, **kwargs) -> dict:
-        if config.ENABLE_TRANSLATION is True:
+    def setDisableTranslation(self, *args, **kwargs) -> dict:
+        with getattr(self, "_voice_settings_lock", nullcontext()):
+            self._cancelMicVoice()
             config.ENABLE_TRANSLATION = False
         return {"status":200, "result":config.ENABLE_TRANSLATION}
 
@@ -1938,7 +1984,9 @@ class Controller:
 
     def setSelectedTabNo(self, selected_tab_no:str, *args, **kwargs) -> dict:
         printLog("setSelectedTabNo", selected_tab_no)
-        config.SELECTED_TAB_NO = selected_tab_no
+        with getattr(self, "_voice_settings_lock", nullcontext()):
+            self._cancelMicVoice()
+            config.SELECTED_TAB_NO = selected_tab_no
         self.updateTranslationEngineAndEngineList()
         return {"status":200, "result":config.SELECTED_TAB_NO}
 
@@ -1978,7 +2026,9 @@ class Controller:
 
 
     def setSelectedTranslationEngines(self, data:dict, *args, **kwargs) -> dict:
-        config.SELECTED_TRANSLATION_ENGINES = data
+        with getattr(self, "_voice_settings_lock", nullcontext()):
+            self._cancelMicVoice()
+            config.SELECTED_TRANSLATION_ENGINES = data
         # Resolves the engine (availability / same-language checks can still
         # downgrade it to CTranslate2) and then validates the language
         # against whichever engine actually ends up active.
@@ -1987,13 +2037,17 @@ class Controller:
 
 
     def setSelectedYourLanguages(self, select:dict, *args, **kwargs) -> dict:
-        config.SELECTED_YOUR_LANGUAGES = select
+        with getattr(self, "_voice_settings_lock", nullcontext()):
+            self._cancelMicVoice()
+            config.SELECTED_YOUR_LANGUAGES = select
         self.updateTranslationEngineAndEngineList()
         return {"status":200, "result":config.SELECTED_YOUR_LANGUAGES}
 
 
     def setSelectedTargetLanguages(self, select:dict, *args, **kwargs) -> dict:
-        config.SELECTED_TARGET_LANGUAGES = select
+        with getattr(self, "_voice_settings_lock", nullcontext()):
+            self._cancelMicVoice()
+            config.SELECTED_TARGET_LANGUAGES = select
         self.updateTranslationEngineAndEngineList()
         return {"status":200, "result":config.SELECTED_TARGET_LANGUAGES}
 

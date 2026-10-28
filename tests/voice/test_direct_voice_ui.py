@@ -52,6 +52,7 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         sources = {'sources': [{'id': ID, 'label': 'External voice'}], 'error': None}
         state = {'source': None, 'requested': False, 'active': False, 'pending': False, 'error': None,
                  'generation': 0, 'conversion_verified': False, 'observation_id': '10'}
+        voice_settings = VoiceSettings(routing='managed').to_dict()
         def reply(endpoint, result, status=200):
             replies.append(json.dumps({'endpoint': endpoint, 'status': status, 'result': result}))
         def write(line):
@@ -59,7 +60,7 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
             sent.append(request)
             endpoint = request['endpoint']
             values = {
-                '/get/data/voice_settings': VoiceSettings(routing='managed').to_dict(),
+                '/get/data/voice_settings': voice_settings,
                 '/get/data/voice_route': {'managed': True, 'ready': True, 'observed_muted': True,
                                         'requested_muted': True, 'pending': False, 'observation_id': '1'},
                 '/get/data/voice_status': {}, '/get/data/voice_output_devices': {'devices': [], 'error': None},
@@ -67,6 +68,11 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
             }
             if endpoint in values:
                 reply(endpoint, values[endpoint])
+            elif endpoint == '/set/data/voice_settings':
+                saved = VoiceSettings.from_dict(json.loads(base64.b64decode(request['data']))).to_dict()
+                voice_settings.clear()
+                voice_settings.update(saved)
+                reply(endpoint, saved)
         def read():
             result = list(replies)
             replies.clear()
@@ -74,6 +80,20 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         page.expose_function('sidecarWrite', write)
         page.expose_function('sidecarRead', read)
         page.goto(f'http://127.0.0.1:{port}/tests/voice/ui-entry/')
+        mic_speech = page.get_by_role('combobox', name='Realtime microphone speech', exact=True)
+        expect(mic_speech).to_have_value('off')
+        mic_speech.select_option('translated')
+        policy = page.get_by_role('combobox', name='Direct input while translating', exact=True)
+        expect(policy).to_have_value('suppress')
+        policy.select_option('mix')
+        page.get_by_role('button', name='Save voice settings', exact=True).click()
+        expect(page.get_by_role('button', name='Save voice settings', exact=True)).to_be_enabled()
+        assert voice_settings['mic_mode'] == 'translated' and voice_settings['direct_policy'] == 'mix'
+        assert not any(r['endpoint'].startswith('/run/start') for r in sent)
+        page.reload()
+        expect(mic_speech).to_have_value('translated')
+        expect(policy).to_have_value('mix')
+        assert not any(r['endpoint'].startswith('/run/start') for r in sent)
         selector = page.get_by_role('combobox', name='Input to forward', exact=True)
         expect(selector).to_be_visible()  # RED: current application has no input forwarding UI
         start = page.get_by_role('button', name='Start input forwarding', exact=True)

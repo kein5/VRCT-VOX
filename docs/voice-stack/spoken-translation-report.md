@@ -1,6 +1,6 @@
 # P4 translated microphone speech — implementation record
 
-Status: scheduler and managed direct-branch suppression implemented; Controller/UI hookup and real-ASR/TTS acceptance still pending. This is not P4 completion.
+Status: scheduler, managed direct-branch suppression and Controller/UI hookup implemented; real-ASR/TTS native acceptance still pending. This is not P4 completion.
 
 ## Scheduler (27f09d0f)
 
@@ -23,3 +23,11 @@ Full voice regression initially exposed an existing native-test observer race: t
 No new model was downloaded. Existing Qwen3-TTS 0.6B CustomVoice Q8_0 matches the installed speech.cpp 0.9.0 catalog: 1,213,534,464 bytes; SHA-256 `f606ea3981aa42762b16db9a94826d2d560eb60f0b102001618f40d5a2f78cc6`. The [fixed converted card](https://huggingface.co/sakasegawa/Qwen3-TTS-12Hz-0.6B-CustomVoice-GGUF/blob/fd9df9364613a92a86b4137074bc281204823033/README.md) and [fixed upstream card](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice/blob/85e237c12c027371202489a0ec509ded67b5e4b5/README.md) declare Apache-2.0. The GGUF includes the decoder and tokenizer. The upstream fixed LICENSE path returned 404; the card is the available license declaration. Local inference and audible-onset measurements remain pending.
 
 Research originals and query records: `tmp/voice-resume/research/p4-spoken-translation/` (local-only copies). Agent searches did not return results in this harness; parent performed the documented fallback research. Physical capture, VRChat, Windows native control, voice quality and GPU contention are unverified here.
+
+## Controller and UI
+
+Only the Realtime microphone callback supplies the trusted final transcript. The pipeline snapshots settings/generations and enabled target order before translation. A selected successful translation publishes once; failed translations cannot fall back to speaking the original. Source stop, session failure and translation settings changes cancel microphone speech. Late cleanup from an old ASR session cannot cancel a newer owner. Optional enqueue failure leaves captions, OSC and history intact.
+
+English/Japanese controls persist mic mode and direct policy through existing settings IPC. Browser save/reload does not start capture or forwarding. Existing chat label and payload remain compatible. Controller-specific tests: 19 passed; browser integration: 1 passed; standard suite: 1,222 passed/6 existing skips/46 warnings; voice including both browser integrations: 610 passed/11 opt-in skips/2 warnings. Vite and offline Tauri debug build pass.
+
+The voice run exposed one intermittent preexisting native capture failure (`asr_capture_latency_changed`). A temporary instrumented helper observed initial propagation from zero to two quanta for mic, one for speaker; the original failing transition itself was not recorded. The fixed-topology test now requires an observed synthetic tone before opening the measured capture, instead of assuming producer process creation means negotiation is complete. Targeted tests and full rerun passed. Runtime termination on latency changes remains intact; arbitrary dynamic graphs may still require explicit restart. [PipeWire latency propagation](https://docs.pipewire.org/page_latency.html) is the original API basis for this distinction.

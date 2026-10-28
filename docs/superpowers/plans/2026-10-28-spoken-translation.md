@@ -50,9 +50,9 @@
 **Files:** src-python/controller.py; src-python/models/tts/message_hook.py; src-ui VoiceSettings/useVoice and en/ja locale files; tests/voice/test_spoken_controls.py and browser acceptance.
 **Interfaces:** Trusted TranscriptUpdate passed only from realtime mic process callback; pipeline snapshots voice generations/settings/target mappings before translation, supplies real success flags to the mic event builder. Invalidate/terminal callbacks cancel mic by owner generation. UI existing settings IPC carries added string fields; global Resume remains explicit.
 
-- [ ] Write/observe RED for successful selected mic final once; off/partial/speaker/OCR/failed-translation never speak; stop while translation blocks; target/config change; old owner cleanup; mic stop while chat queued/active.
-- [ ] Connect pipeline and cancellation; preserve legacy payloads and optional-error isolation. Expose mic mode/direct policy and truthful managed scope in UI with English/Japanese strings.
-- [ ] Verify real Controller + local HTTP PCM, existing pipeline suite, UI persistence/restart/no-auto-capture and error transitions → PASS; Vite build → PASS. Commit connected feature.
+- [x] Write/observe RED for successful selected mic final once; off/partial/speaker/OCR/failed-translation never speak; stop while translation blocks; target/config change; old owner cleanup; mic stop while chat queued/active.
+- [x] Connect pipeline and cancellation; preserve legacy payloads and optional-error isolation. Expose mic mode/direct policy and truthful managed scope in UI with English/Japanese strings.
+- [x] Verify real Controller + local HTTP PCM, existing pipeline suite, UI persistence/restart/no-auto-capture and error transitions → PASS; Vite build → PASS. Commit connected feature.
 
 ### Task 4: Native acceptance, report and review
 

@@ -49,6 +49,20 @@ export const VoiceSettings = () => {
                     {["off", "original", "translated"].map(mode => <option key={mode} value={mode}>{t(`voice.${mode}`)}</option>)}
                 </select>
             </label>
+            <label>{t("voice.mic_mode")}
+                <select value={draft.mic_mode || "off"} onChange={e => field("mic_mode", e.target.value)}>
+                    <option value="off">{t("voice.off")}</option>
+                    <option value="translated">{t("voice.mic_translated")}</option>
+                </select>
+            </label>
+            <label>{t("voice.direct_policy")}
+                <select disabled={draft.mic_mode !== "translated"} value={draft.direct_policy || "suppress"}
+                    onChange={e => field("direct_policy", e.target.value)}>
+                    <option value="suppress">{t("voice.direct_suppress")}</option>
+                    <option value="mix">{t("voice.direct_mix")}</option>
+                </select>
+            </label>
+            <p>{t("voice.mic_hint")}</p>
             <label>{t("voice.target_slot")}
                 <select value={draft.target_slot} onChange={e => field("target_slot", e.target.value)}>
                     {["1", "2", "3"].map(slot => <option key={slot}>{slot}</option>)}
