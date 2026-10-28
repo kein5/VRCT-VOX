@@ -1,0 +1,25 @@
+{
+  "mode": "manual_commit",
+  "server_vad_tested": false,
+  "source": "existing synthetic file, no physical capture",
+  "results": [
+    {
+      "source": "mic",
+      "namespace": "dbc35d22d0754ef58680c2d1f52b3768",
+      "finals": 1,
+      "partial_updates": 0,
+      "characters": 11,
+      "commit_to_final_ms": 70.056778,
+      "first_append_to_final_ms": 4930.854405
+    },
+    {
+      "source": "speaker",
+      "namespace": "c50c872f5057495a9011536b9ec0bf08",
+      "finals": 1,
+      "partial_updates": 0,
+      "characters": 11,
+      "commit_to_final_ms": 133.681569,
+      "first_append_to_final_ms": 4994.4446
+    }
+  ]
+}

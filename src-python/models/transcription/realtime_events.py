@@ -66,6 +66,11 @@ class TranscriptEvents:
         self.clearing = True
         return self._discard()
 
+    @property
+    def pending_ids(self):
+        """Snapshot for the transport's bounded utterance deadlines."""
+        return tuple(self._pending)
+
     def close(self):
         self.closed = True
         return self._discard()

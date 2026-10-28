@@ -42,9 +42,9 @@ speech_started/committedでitemを登録、deltaを追加、completedで全文�
 **Files:** Create `src-python/models/transcription/speechcpp_realtime.py`, `tests/voice/test_speechcpp_realtime.py`, `tests/voice/test_speechcpp_realtime_live.py`; report `docs/voice-stack/realtime-asr-protocol-report.md`。
 **Interfaces:** `SpeechCppRealtime(base_url, model, language, source, server_vad=True)` async `start()`, `feed(AudioFrame,captured_ns)`, `commit()` (manual only), `clear()`, `stop()`; async `next_update()` returns Task1 updates. status exposes fixed safe codes only. connect/config deadline2s, send1s, close.5s; incomplete pending item15s deadline. One loop/one producer per instance.
 
-- [ ] RED: real mockWS created→update→updated contract、exact24000 mono append、2sources隔離、final1回、clear ack/late final、切断/再start別namespace、wrong config/error、接続待ちcancel、server無応答、巨大JSON、slowconsumer/oldframe/同時feed、redirect/proxy拒否。Expected: producer absentFAIL。
-- [ ] producer実装、GREEN。Expected: allmock casesPASS、Ruff/diffPASS。reader停止時は未配信結果破棄、stopはsocket/task解放。
-- [ ] 既存ReazonSpeechサーバでmanual commit/file-input試験。Silero承認があれば別固定artifact/hash検証後server_vadも測定、なければ未検証。Expected: manual completedは1回、mic/speakerは別namespace、rawprivate保存。回帰比較とcommit。
+- [x] RED: real mockWS created→update→updated contract、exact24000 mono append、2sources隔離、final1回、clear ack/late final、切断/再start別namespace、wrong config/error、接続待ちcancel、server無応答、巨大JSON、slowconsumer/oldframe/同時feed、redirect/proxy拒否。Expected: producer absentFAIL。
+- [x] producer実装、GREEN。Expected: allmock casesPASS、Ruff/diffPASS。reader停止時は未配信結果破棄、stopはsocket/task解放。
+- [x] 既存ReazonSpeechサーバでmanual commit/file-input試験。Silero承認があれば別固定artifact/hash検証後server_vadも測定、なければ未検証。Expected: manual completedは1回、mic/speakerは別namespace、rawprivate保存。回帰比較とcommit。
 - [ ] 一回の独立review、Important/CriticalだけRED→GREEN一修正pass。Minor保留。全機能作業継続、PR/pushなし。
 
 ## Pre-flight

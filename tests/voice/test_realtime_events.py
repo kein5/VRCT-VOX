@@ -124,3 +124,12 @@ def test_empty_final_clears_partial_without_inventing_text():
     r.accept(event('delta', delta='mistake'))
     result = r.accept(event('completed', transcript='', stop='complete'))[0]
     assert result.is_final and result.text == ''
+
+
+def test_pending_ids_remain_during_partial_and_leave_after_terminal():
+    r = reducer()
+    r.accept(event('committed'))
+    r.accept(event('delta', delta='pending'))
+    assert r.pending_ids == ('u1',)
+    r.accept(event('completed', transcript='done', stop='complete'))
+    assert r.pending_ids == ()
