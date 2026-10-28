@@ -289,17 +289,23 @@ else:
                 assert parent.poll() is None
             else:
                 parent.wait(timeout=2)
-            wait_for(
-                lambda: not child.is_running()
-                or child.status() == psutil.STATUS_ZOMBIE,
-                timeout=2,
-            )
+            try:
+                wait_for(
+                    lambda: not child.is_running()
+                    or child.status() == psutil.STATUS_ZOMBIE,
+                    timeout=2,
+                )
+            except psutil.NoSuchProcess:
+                pass  # It exited between is_running() and status().
         finally:
             if parent.poll() is None:
                 parent.kill()
             parent.communicate(timeout=2)
-            if child and child.is_running() and child.status() != psutil.STATUS_ZOMBIE:
-                child.kill()
+            try:
+                if child and child.is_running() and child.status() != psutil.STATUS_ZOMBIE:
+                    child.kill()
+            except psutil.NoSuchProcess:
+                pass
 
 
 def test_capture_never_follows_changed_default_or_same_name_recreation(tmp_path):

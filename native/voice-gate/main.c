@@ -115,7 +115,10 @@ int main(int argc, char **argv) {
     struct state s = {.expected_cookie = (uint32_t)cookie, .expected_serial = serial,
                       .mute = !strcmp(argv[3], "1"), .target = TARGET,
                       .marker = "vrct.managed.route", .media_class = "Audio/Source"};
-    if (argc == 5) {
+    if (argc == 5 && !strcmp(argv[4], "vc")) {
+        s.target = "vrct.managed.vc";
+        s.media_class = "Audio/Sink";
+    } else if (argc == 5) {
         if (strlen(argv[4]) != 32 || strspn(argv[4], "0123456789abcdef") != 32) return 2;
         snprintf(target, sizeof(target), "vrct.source-bridge.%s.playback", argv[4]);
         s.target = target;

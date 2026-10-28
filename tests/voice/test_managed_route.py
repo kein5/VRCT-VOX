@@ -56,6 +56,11 @@ class Gate:
     def __init__(self):
         self.identity = (123, 10)
         self.muted = False
+        self.direct_identity = (123, 11)
+        self.direct_muted = False
+        self.direct_missing = False
+        self.direct_fail = False
+        self.changes = []
         self.missing = False
         self.fail = False
         self.resuming = Event()
@@ -76,7 +81,24 @@ class Gate:
         if expected_identity != self.identity:
             raise RuntimeError('managed_endpoint_changed')
         self.muted = value
+        self.changes.append(('main', value))
         return self.inspect()
+
+    def inspect_pair(self):
+        state = self.inspect()
+        if self.direct_missing:
+            raise RuntimeError('direct_endpoint_missing')
+        return {'source': state,
+                'direct': {'identity': self.direct_identity, 'muted': self.direct_muted}}
+
+    def set_direct_muted(self, value, expected_identity):
+        if self.direct_fail:
+            raise RuntimeError('direct_gate_control_failed')
+        if self.direct_missing or expected_identity != self.direct_identity:
+            raise RuntimeError('direct_endpoint_changed')
+        self.direct_muted = value
+        self.changes.append(('direct', value))
+        return self.inspect_pair()['direct']
 
 
 @pytest.fixture
@@ -87,6 +109,7 @@ def route():
     yield control, bus, gate, store
     gate.release.set()
     gate.missing = gate.fail = store.fail = False
+    gate.direct_missing = gate.direct_fail = False
     control.close()
     bus.close()
 
@@ -244,3 +267,52 @@ def test_status_orders_every_snapshot_including_same_generation_and_recreation()
             replacement.close()
         control.close()
         bus.close()
+
+
+def test_direct_suppression_closes_main_first_and_policy_change_requires_resume(route):
+    control, bus, gate, store = route
+    control.configure(True, suppress_direct=True)
+    ready(control)
+    assert gate.changes == [('main', True), ('direct', True)]
+    assert control.status()['requested_direct_suppressed'] is True
+    assert control.status()['observed_direct_suppressed'] is True
+    control.resume()
+    ready(control)
+    assert not gate.muted and gate.direct_muted and not bus.status()['muted']
+    gate.changes.clear()
+    control.configure(True, suppress_direct=False)
+    ready(control)
+    assert gate.changes == [('main', True), ('direct', False)]
+    assert gate.muted and store.value and bus.status()['muted']
+    control.resume()
+    ready(control)
+    assert not gate.muted and not gate.direct_muted
+
+
+@pytest.mark.parametrize('fault', ['drift', 'replacement', 'missing', 'control'])
+def test_direct_fault_revokes_resume_and_mutes_main_before_repair(route, fault):
+    control, bus, gate, store = route
+    control.configure(True, suppress_direct=True)
+    ready(control)
+    control.resume()
+    ready(control)
+    gate.changes.clear()
+    if fault == 'replacement':
+        gate.direct_identity = (123, 12)
+    if fault == 'missing':
+        gate.direct_missing = True
+    else:
+        gate.direct_muted = False
+        gate.direct_fail = fault == 'control'
+    until(lambda: control.status()['requested_muted'])
+    until(lambda: gate.muted)
+    assert gate.changes[0] == ('main', True)
+    assert bus.status()['muted']
+    if fault in ('missing', 'control'):
+        until(lambda: control.status()['error'])
+        assert not control.status()['ready']
+        with pytest.raises(RuntimeError):
+            control.resume()
+    gate.direct_fail = gate.direct_missing = False
+    ready(control)
+    assert gate.direct_muted and gate.muted and store.value

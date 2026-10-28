@@ -40,10 +40,10 @@
 **Files:** native/voice-gate/main.c; src-python/models/audio_routing/{pipewire_gate,managed_route}.py; tests/voice/{test_pipewire_gate,test_managed_route,test_spoken_route_native}.py; tools acceptance harness if needed.
 **Interfaces:** PipeWireGate.inspect_pair()->{source:{identity,muted},direct:{identity,muted}}; set_direct_muted(value,identity)->state. VoiceRoute.configure(managed, timeout=3, *, suppress_direct=False); status adds requested/observed direct suppression. Existing source set_muted and owned bridge helper arguments unchanged.
 
-- [ ] Write/observe RED for isolated direct branch identity/mute, fixed native selector, policy switch latch, failed/drifting/recreated branch and no implicit Resume.
-- [ ] Confirm PipeWire original-source contract; add fixed `vc` helper selector and route policy with main-gate-first transitions.
-- [ ] Build native helpers with `UV_CACHE_DIR=/tmp/vrct-uv-cache uv run --no-project --python .venv_linux/bin/python python tools/build_voice_gate.py` → PASS; run unit route regressions → PASS.
-- [ ] Run private PipeWire synthetic tone test → direct suppressed/TTS audible, mix/restoration, fail/recreation honest status. Commit route slice and measurements with boundaries.
+- [x] Write/observe RED for isolated direct branch identity/mute, fixed native selector, policy switch latch, failed/drifting/recreated branch and no implicit Resume.
+- [x] Confirm PipeWire original-source contract; add fixed `vc` helper selector and route policy with main-gate-first transitions.
+- [x] Build native helpers with `UV_CACHE_DIR=/tmp/vrct-uv-cache uv run --no-project --python .venv_linux/bin/python python tools/build_voice_gate.py` → PASS; run unit route regressions → PASS.
+- [x] Run private PipeWire synthetic tone test → direct suppressed/TTS audible, mix/restoration, fail/recreation honest status. Commit route slice and measurements with boundaries.
 
 ### Task 3: Controller and UI connection
 
