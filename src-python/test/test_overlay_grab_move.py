@@ -6,11 +6,13 @@
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock, patch
 
 import numpy as np
 import openvr
 from models.overlay import overlay_utils as utils
+from models.overlay import overlay as overlay_module
 from models.overlay.overlay import (
     LAUNCHER,
     PANEL,
@@ -1642,7 +1644,8 @@ class CaptureJobTest(unittest.TestCase):
         self.overlay.updatePanel()
         self.assertTrue(self.started.wait(2))
         opengl = MagicMock()
-        with patch.dict("sys.modules", {"glfw": MagicMock(), "OpenGL": opengl, "OpenGL.GL": opengl.GL}):
+        with patch.object(overlay_module, "os", SimpleNamespace(name="nt")), \
+             patch.dict("sys.modules", {"glfw": MagicMock(), "OpenGL": opengl, "OpenGL.GL": opengl.GL}):
             self.overlay.initPanelTexture()  # OFF→ON で作り直した
         self.assertIsNone(self.overlay.capture_job)
         self.release.set()
@@ -1650,6 +1653,14 @@ class CaptureJobTest(unittest.TestCase):
 
 class WindowStreamTakeTest(unittest.TestCase):
     """画面キャプチャの画像から、クライアント領域を切り出す範囲を付けて返す。"""
+
+    def test_linux_native_panel_capture_remains_explicitly_unsupported(self):
+        overlay = Overlay({PANEL: {}})
+        with patch.object(overlay_module, "os", SimpleNamespace(name="posix")), \
+             patch.dict("sys.modules", {"glfw": None}):
+            with self.assertRaisesRegex(RuntimeError, "Windows only"):
+                overlay.initPanelTexture()
+        self.assertIsNone(overlay.gl)
 
     def _stream(self, latest):
         from models.overlay.window_capture import WindowStream
@@ -1693,6 +1704,9 @@ class PanelStreamTest(unittest.TestCase):
         self.overlay.handle = {PANEL: 10, LAUNCHER: 11}
         self.overlay.overlay = MagicMock()
         self.overlay.gl = {"GL": MagicMock(), "texture": 1, "vr_texture": MagicMock(), "size": None}
+        # The fixture already owns fake GL resources. Retrying capture must not
+        # initialize native GL (or tear them down on Linux's native guard).
+        self.overlay.vr_resources_tried = True
         self.overlay.panel_hwnd = 123
         self.overlay.layout_rendered = self.overlay.layout["regions"][PANEL][2:]
         patcher = patch("models.overlay.overlay.window_capture")

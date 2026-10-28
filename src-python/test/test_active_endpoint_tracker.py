@@ -6,9 +6,12 @@ COM/pycaw を触らず、_decide_selected の純粋部分と、_enum_active_devi
 """
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from active_endpoint_tracker import ActiveEndpointTracker, _MeterEntry
+import active_endpoint_tracker
+from active_endpoint_tracker import ActiveEndpointTracker
+from platform_test_support import load_with_imports
 
 
 def _feed(tracker: ActiveEndpointTracker, peaks: dict, now: float) -> str:
@@ -81,6 +84,20 @@ class TestMeterCacheManagement(unittest.TestCase):
     ことを保証する。
     """
 
+    def setUp(self):
+        # Import the real cache logic with an explicit COM boundary on every OS.
+        self.platform = load_with_imports(active_endpoint_tracker, {
+            "comtypes": SimpleNamespace(CLSCTX_ALL=23, CLSCTX_INPROC_SERVER=1),
+            "pycaw.constants": SimpleNamespace(CLSID_MMDeviceEnumerator=object()),
+            "pycaw.pycaw": SimpleNamespace(
+                DEVICE_STATE=SimpleNamespace(ACTIVE=SimpleNamespace(value=1)),
+                EDataFlow=SimpleNamespace(eRender=SimpleNamespace(value=0), eCapture=SimpleNamespace(value=1)),
+                IMMDeviceEnumerator=object(),
+                IAudioMeterInformation=SimpleNamespace(_iid_="test-meter-iid"),
+                AudioUtilities=SimpleNamespace(CreateDevice=lambda dev: dev),
+            ),
+        })
+
     def _make_device(self, endpoint_id: str, name: str, peak: float) -> MagicMock:
         """IMMDevice ダミー。dev.GetId() / dev.Activate() / meter.GetPeakValue() を
         必要最低限だけ模す。"""
@@ -97,11 +114,6 @@ class TestMeterCacheManagement(unittest.TestCase):
         Activate / QueryInterface / CreateDevice.FriendlyName をパッチする。"""
         tracker._enum_active_devices = lambda: [(d.GetId(), d) for d in devices]
 
-        def fake_activate(iid, ctx, params):
-            # 呼び出された dev は closure で追跡できないので、Activate 引数と
-            # dev._meter_for_test の橋渡しは per-device の side_effect で行う。
-            raise AssertionError("shouldn't reach top-level fake_activate")
-
         for d in devices:
             activated = MagicMock(name=f"activated[{d.GetId()}]")
             activated.QueryInterface.return_value = d._meter_for_test
@@ -112,17 +124,19 @@ class TestMeterCacheManagement(unittest.TestCase):
         """同一 endpoint への 2 回目 poll では Activate 再発行されない。
         これが Phase 4 hotfix の中心的な保証。以前の実装ではキャッシュが
         全消しされ、毎回 Activate が走っていた。"""
-        tracker = ActiveEndpointTracker("render")
+        tracker = self.platform.ActiveEndpointTracker("render")
         dev_a = self._make_device("id_A", "Speaker A", peak=0.5)
         self._install_stubs(tracker, [dev_a])
 
-        with patch(
-            "active_endpoint_tracker.AudioUtilities.CreateDevice",
+        with patch.object(
+            self.platform.AudioUtilities, "CreateDevice", autospec=True,
             return_value=MagicMock(FriendlyName="Speaker A"),
         ):
             tracker._collect_peaks_locked()
             self.assertEqual(dev_a.Activate.call_count, 1)
-            dev_a._activated_for_test.QueryInterface.assert_called_once()
+            dev_a.Activate.assert_called_once_with("test-meter-iid", 23, None)
+            dev_a._activated_for_test.QueryInterface.assert_called_once_with(self.platform.IAudioMeterInformation)
+            self.assertEqual(tracker._collect_peaks_locked(), {"Speaker A": 0.5})
             self.assertIn("id_A", tracker._meter_cache)
 
             tracker._collect_peaks_locked()
@@ -130,12 +144,12 @@ class TestMeterCacheManagement(unittest.TestCase):
             self.assertEqual(dev_a.Activate.call_count, 1)
 
     def test_disappeared_endpoint_dropped_from_cache(self) -> None:
-        tracker = ActiveEndpointTracker("render")
+        tracker = self.platform.ActiveEndpointTracker("render")
         dev_a = self._make_device("id_A", "Speaker A", peak=0.5)
         dev_b = self._make_device("id_B", "Speaker B", peak=0.3)
 
-        with patch(
-            "active_endpoint_tracker.AudioUtilities.CreateDevice",
+        with patch.object(
+            self.platform.AudioUtilities, "CreateDevice", autospec=True,
             side_effect=lambda d: MagicMock(FriendlyName=d._friendly_name),
         ):
             self._install_stubs(tracker, [dev_a, dev_b])
@@ -150,17 +164,17 @@ class TestMeterCacheManagement(unittest.TestCase):
     def test_still_present_endpoint_kept_across_polls(self) -> None:
         """id 集合の差集合ロジックが型ミスマッチで壊れると、生存中の
         endpoint まで消える。回帰防止として明示的にチェック。"""
-        tracker = ActiveEndpointTracker("render")
+        tracker = self.platform.ActiveEndpointTracker("render")
         dev_a = self._make_device("id_A", "Speaker A", peak=0.5)
 
-        with patch(
-            "active_endpoint_tracker.AudioUtilities.CreateDevice",
+        with patch.object(
+            self.platform.AudioUtilities, "CreateDevice", autospec=True,
             return_value=MagicMock(FriendlyName="Speaker A"),
         ):
             self._install_stubs(tracker, [dev_a])
             tracker._collect_peaks_locked()
             entry_first = tracker._meter_cache["id_A"]
-            self.assertIsInstance(entry_first, _MeterEntry)
+            self.assertIsInstance(entry_first, self.platform._MeterEntry)
 
             tracker._collect_peaks_locked()
             entry_second = tracker._meter_cache["id_A"]
@@ -168,11 +182,11 @@ class TestMeterCacheManagement(unittest.TestCase):
             self.assertIs(entry_first, entry_second)
 
     def test_getpeakvalue_failure_invalidates_cache_entry(self) -> None:
-        tracker = ActiveEndpointTracker("render")
+        tracker = self.platform.ActiveEndpointTracker("render")
         dev_a = self._make_device("id_A", "Speaker A", peak=0.5)
 
-        with patch(
-            "active_endpoint_tracker.AudioUtilities.CreateDevice",
+        with patch.object(
+            self.platform.AudioUtilities, "CreateDevice", autospec=True,
             return_value=MagicMock(FriendlyName="Speaker A"),
         ):
             self._install_stubs(tracker, [dev_a])
@@ -193,6 +207,14 @@ class TestStopTimeout(unittest.TestCase):
     「スレッドが終わるまで待つ」以外に無いため、せめて診断できるよう
     printLog で警告することを保証する。
     """
+
+    def test_missing_pycaw_does_not_start_a_native_worker(self):
+        unavailable = load_with_imports(active_endpoint_tracker, {"comtypes": None})
+        tracker = unavailable.ActiveEndpointTracker("render")
+        with patch.object(unavailable, "Thread", side_effect=AssertionError("native worker must not start")):
+            tracker.start()
+        self.assertFalse(tracker.is_running())
+        self.assertTrue(tracker.stop())
 
     @patch("active_endpoint_tracker.report_error_code")
     def test_logs_warning_when_thread_does_not_stop_in_time(self, mock_report_error) -> None:

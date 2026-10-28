@@ -181,3 +181,14 @@ imozuru原典照合と6件の模擬cleanup試験で、未完了threadを保持�
 最終関連55PASS、音声568PASS/7Seed opt-in SKIP、標準1194PASS/既知16FAIL/6SKIP（失敗名一致）、実Tauri受入1PASS25.15秒。Ruff/diffPASS。
 Minor1: 両source停止後にpollが終わり「Stopping captions」表示が残る場合がある。再開始は可能、busyならbackendが拒否する。保留を明示。
 P3 Linuxの製品接続工程は完了。物理/Windows/実MT/HMD等の受入条件は前記のまま未検証。次はP4 mic final訳文発声と音声排他を実装する。ブランチ・ledgerは継続のため保持し、公開・上流PR/連絡はまだ実行しない。
+
+### Linuxの既存16失敗の修正（2026-10-28）
+
+ユーザーの追加指示に従い、P4の前にimozuruでTDD原典とPython/pytest公式仕様を調査。
+既存16失敗を再現後、Windows APIをテスト対象モジュール内に隔離し、Linux上でも既存の回帰条件を検証可能にした。
+ChatboxのOS共通処理を妨げるWindows限定ガードを除き、POSIX端末入力を追加。
+新規PTY/EOF試験はRED→GREEN。Linuxで標準suite **1222PASS / 0FAIL / 6既存SKIP / 46既存warnings**。
+元の16件をskip/xfailに変更していない。新規12件を追加。Windowsネイティブ動作の確認とは区別する。
+COMピーク自動選択・Win32フォーカス/キー送信・Windowsパネル撮影のLinux実装を追加した意味ではない。
+[修正範囲・原典・検証と残条件](linux-test-portability-report.md)。最終独立reviewはCritical/Important/Minorとも0件。
+本節より前の16FAILは当時の記録として保持する。
