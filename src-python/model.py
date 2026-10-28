@@ -15,7 +15,7 @@ from psutil import Process as psutil_Process
 from datetime import datetime
 from time import sleep
 from queue import Queue, Empty
-from threading import Thread, Lock, current_thread
+from threading import Thread, Lock, Event, current_thread
 from concurrent.futures import ThreadPoolExecutor
 from requests import get as requests_get
 from typing import Callable, Optional, cast
@@ -347,6 +347,8 @@ class _AudioDeviceSession:
         self.transcript_fnc: Optional[Callable[[dict], None]] = None
         self.energy_fnc: Callable[[float], None] = lambda v: None
         self._stop_lock = Lock()
+        self._cleanup_workers = []
+        self._cleanup_failed = Event()
         self._pipeline_error_lock = Lock()
         self._pipeline_error_started = False
         self._pipeline_error_notified = False
@@ -699,6 +701,7 @@ class _AudioDeviceSession:
         """停止とリソース解放を行い、完了できなければ True を返す。"""
         cleanup_timed_out = False
         with self._stop_lock:
+            self._cleanup_workers = [worker for worker in self._cleanup_workers if worker.is_alive()]
             transcript_thread = self._print_transcript
             if isinstance(transcript_thread, threadFnc):
                 transcript_thread.stop()
@@ -709,6 +712,8 @@ class _AudioDeviceSession:
                         printLog(
                             f"{self._kind.capitalize()} transcription thread did not terminate within timeout"
                         )
+                if transcript_thread.is_alive():
+                    self._cleanup_workers.append(transcript_thread)
                 self._print_transcript = None
 
             energy_thread = self._energy_progressbar
@@ -721,6 +726,8 @@ class _AudioDeviceSession:
                         printLog(
                             f"{self._kind.capitalize()} energy thread did not terminate within timeout"
                         )
+                if energy_thread.is_alive():
+                    self._cleanup_workers.append(energy_thread)
                 self._energy_progressbar = None
 
             recorder = self._recorder
@@ -734,9 +741,16 @@ class _AudioDeviceSession:
                     errorLogging()
 
                 if callable(recorder.stop):
+                    def stop_recorder():
+                        try:
+                            recorder.stop(wait_for_stop=True)
+                        except Exception:
+                            # A dead cleanup thread is not proof that the device
+                            # was released. Keep handoff blocked until restart.
+                            self._cleanup_failed.set()
+
                     stop_thread = Thread(
-                        target=recorder.stop,
-                        kwargs={"wait_for_stop": True},
+                        target=stop_recorder,
                         daemon=True,
                         name=f"{self._kind}-recorder-stop",
                     )
@@ -744,6 +758,7 @@ class _AudioDeviceSession:
                     stop_thread.join(timeout=TRANSCRIPT_STOP_JOIN_TIMEOUT)
                     if stop_thread.is_alive():
                         cleanup_timed_out = True
+                        self._cleanup_workers.append(stop_thread)
                         printLog(
                             f"{self._kind.capitalize()} recorder did not stop within timeout"
                         )
@@ -760,6 +775,13 @@ class _AudioDeviceSession:
             self._active_device = None
             self.features = set()
         return cleanup_timed_out
+
+    def stop_for_handoff(self) -> bool:
+        """Stop all legacy features, retaining incomplete cleanup across retries."""
+        self._stop()
+        with self._stop_lock:
+            self._cleanup_workers = [worker for worker in self._cleanup_workers if worker.is_alive()]
+            return not self._cleanup_workers and not self._cleanup_failed.is_set()
 
 
 class MicSession(_AudioDeviceSession):
@@ -2130,6 +2152,12 @@ class Model:
         self.ensure_initialized()
         self._mic_session.reconfigure(transcript=False)
 
+    def stopCaptureForRealtime(self, source: str) -> bool:
+        self.ensure_initialized()
+        if source not in ("mic", "speaker"):
+            raise ValueError("realtime_source_invalid")
+        return getattr(self, "_" + source + "_session").stop_for_handoff()
+
     def startCheckMicEnergy(self, fnc:Optional[Callable[[float], None]]=None) -> None:
         self.ensure_initialized()
         # fnc may be None or a callable. Use cast after checking for None to satisfy type checker.
@@ -2393,15 +2421,25 @@ class Model:
             if only_translated and not translation and payload["state"] != "discarded":
                 return
             original = payload.get("original", {"message": payload["text"], "transliteration": []})
-            image = self.overlay_image.createOverlayImageLargeLog(
-                "send" if payload["source"] == "mic" else "receive",
-                None if only_translated else original["message"], language,
-                translation, [row["language"] for row in target_languages.values() if row.get("enable")],
-                original.get("transliteration", []), [row.get("transliteration", []) for row in payload.get("translations", [])],
-                caption_id=(payload["source"], payload["namespace"], payload["item_id"]),
-                caption_state=payload["state"], caption_revision=payload["revision"])
-            if image is not None and current():
-                self.updateOverlayLargeLog(image)
+            identity = (payload["source"], payload["namespace"], payload["item_id"])
+            checkpoint = self.overlay_image.checkpointCaptionState()
+            committed = False
+            try:
+                image = self.overlay_image.createOverlayImageLargeLog(
+                    "send" if payload["source"] == "mic" else "receive",
+                    None if only_translated else original["message"], language,
+                    translation, [row["language"] for row in target_languages.values() if row.get("enable")],
+                    original.get("transliteration", []), [row.get("transliteration", []) for row in payload.get("translations", [])],
+                    caption_id=identity,
+                    caption_state=payload["state"], caption_revision=payload["revision"])
+                if image is None:
+                    committed = True  # An old/terminal revision changed nothing.
+                elif current():
+                    self.updateOverlayLargeLog(image)
+                    committed = True
+            finally:
+                if not committed:
+                    self.overlay_image.rejectCaptionUpdate(checkpoint, identity, payload["revision"])
 
     def clearRealtimeCaptionOverlay(self, source, namespace):
         self.ensure_initialized()

@@ -17,7 +17,7 @@ Linuxの専用Realtime設定、mic/speaker独立の開始・停止、字幕の�
 
 ## 実アプリ試験
 
-`tests/platform/test_native_realtime.py`、[結果JSON](realtime-captions-results.json)。実試験1件、25.06秒でPASS。
+`tests/platform/test_native_realtime.py`、[結果JSON](realtime-captions-results.json)。レビュー修正後の実試験1件、25.15秒でPASS。
 Tauri/WebKitGTK・実Python sidecar・全Controller/Model・実ASR/VAD・私有OS音声取得を使用した。HTTP翻訳peerだけが固定応答である。
 既存4.88秒の合成fixtureを使い、新規録音・モデル取得は行っていない。外部ネットワークはnamespaceで遮断し、UDPも私有loopbackへ送った。VRChat/HMDは試験経路に含まない。
 
@@ -43,6 +43,8 @@ Task1–3でsession/Controller/IPC/表示/overlayのRED→GREENを実施。実AS
 送信元と翻訳先が同じだった試験設定を修正し、外部通信遮断の通知は実UIの閉じる操作で除いた。
 常時診断ログへの字幕保存も1 RED→GREENで修正し、実アプリで保存されないことを確認した。
 raw試験は`tmp/voice-resume/realtime-native-{first,second,third,final,attribution}.log`、各basetemp内。
+独立レビューImportant4件を1回のRED→GREENで修正し、音声568 PASS、標準1194 PASS/既知16 FAIL、実アプリ1 PASSを確認した。
+[指摘・修正・保留1件・全判断記録](realtime-captions-review.md)。最終rawは`realtime-review-{red,green,voice,default}.log`と`realtime-native-reviewed.log`。
 
 ## 未検証・次工程
 

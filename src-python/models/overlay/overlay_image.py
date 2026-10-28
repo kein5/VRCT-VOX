@@ -1,6 +1,7 @@
 from os import path as os_path
 from datetime import datetime
 from collections import OrderedDict
+from copy import deepcopy
 from threading import RLock
 from typing import Tuple, List, Optional
 from PIL import Image, ImageDraw, ImageFont
@@ -580,6 +581,19 @@ class OverlayImage:
                     self.caption_pending.pop(identity)
                     self._rememberCaption(identity, self._caption_latest[identity][0], "discarded")
             return self._renderLargeLogVersion()
+
+    def checkpointCaptionState(self):
+        """Caller holds log_lock across render and the publication decision."""
+        return deepcopy((self.message_log, self.caption_pending, self._caption_latest))
+
+    def rejectCaptionUpdate(self, checkpoint, identity, revision):
+        self.message_log, self.caption_pending, self._caption_latest = checkpoint
+        # Preserve any earlier published final, but never leave an expired
+        # partial available for an unrelated source's later render.
+        self.caption_pending.pop(identity, None)
+        previous = self._caption_latest.get(identity, (0, None))
+        self._rememberCaption(identity, max(revision, previous[0]), "discarded")
+        self._large_revision += 1  # Invalidate the rejected image as well.
 
     def createOverlayImageLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, *, caption_id=None, caption_state="final", caption_revision=0) -> Image:
         with self.log_lock:

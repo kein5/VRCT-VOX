@@ -680,7 +680,7 @@ def printLog(log: str, data: Any = None) -> None:
 # High-rate pointer data and private captions are IPC only. Final transcript
 # persistence is handled by the explicitly enabled message logger, not this
 # always-on process diagnostic log.
-_UNLOGGED_ENDPOINTS = {"/run/vr_panel_pointer", "/run/realtime_caption"}
+_UNLOGGED_ENDPOINTS = {"/run/vr_panel_pointer", "/run/realtime_caption", "/run/word_filter"}
 
 
 def printResponse(status: int, endpoint: str, result: Any = None) -> None:

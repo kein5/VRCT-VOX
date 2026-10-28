@@ -33,11 +33,11 @@
   ],
   "ui_snapshots": [
     {
-      "ms": 2859,
+      "ms": 2965,
       "rows": []
     },
     {
-      "ms": 4961,
+      "ms": 5130,
       "rows": [
         {
           "translated": false,
@@ -48,7 +48,7 @@
       ]
     },
     {
-      "ms": 4979,
+      "ms": 5209,
       "rows": [
         {
           "translated": false,
@@ -65,24 +65,41 @@
       ]
     },
     {
-      "ms": 5597,
+      "ms": 5709,
       "rows": [
+        {
+          "translated": false,
+          "category": "Received",
+          "characters": 14,
+          "node": 1
+        },
+        {
+          "translated": false,
+          "category": "Sent",
+          "characters": 12,
+          "node": 2
+        }
+      ]
+    },
+    {
+      "ms": 5715,
+      "rows": [
+        {
+          "translated": false,
+          "category": "Received",
+          "characters": 14,
+          "node": 1
+        },
         {
           "translated": true,
-          "category": "Received",
-          "characters": 41,
-          "node": 1
-        },
-        {
-          "translated": false,
           "category": "Sent",
-          "characters": 10,
+          "characters": 37,
           "node": 2
         }
       ]
     },
     {
-      "ms": 5615,
+      "ms": 5746,
       "rows": [
         {
           "translated": true,
@@ -99,7 +116,7 @@
       ]
     },
     {
-      "ms": 6551,
+      "ms": 6698,
       "rows": [
         {
           "translated": true,
@@ -122,7 +139,7 @@
       ]
     },
     {
-      "ms": 6571,
+      "ms": 6716,
       "rows": [
         {
           "translated": true,
@@ -145,42 +162,13 @@
         {
           "translated": false,
           "category": "Sent",
-          "characters": 11,
+          "characters": 12,
           "node": 4
         }
       ]
     },
     {
-      "ms": 6752,
-      "rows": [
-        {
-          "translated": true,
-          "category": "Received",
-          "characters": 41,
-          "node": 1
-        },
-        {
-          "translated": true,
-          "category": "Sent",
-          "characters": 37,
-          "node": 2
-        },
-        {
-          "translated": false,
-          "category": "Received",
-          "characters": 16,
-          "node": 3
-        },
-        {
-          "translated": false,
-          "category": "Sent",
-          "characters": 11,
-          "node": 4
-        }
-      ]
-    },
-    {
-      "ms": 6771,
+      "ms": 6880,
       "rows": [
         {
           "translated": true,
@@ -209,7 +197,7 @@
       ]
     },
     {
-      "ms": 6975,
+      "ms": 7101,
       "rows": [
         {
           "translated": true,
@@ -226,19 +214,19 @@
         {
           "translated": false,
           "category": "Received",
-          "characters": 16,
+          "characters": 18,
           "node": 3
         },
         {
           "translated": false,
           "category": "Sent",
-          "characters": 14,
+          "characters": 12,
           "node": 4
         }
       ]
     },
     {
-      "ms": 6994,
+      "ms": 7140,
       "rows": [
         {
           "translated": true,
@@ -267,7 +255,7 @@
       ]
     },
     {
-      "ms": 7378,
+      "ms": 8309,
       "rows": [
         {
           "translated": true,
@@ -282,79 +270,21 @@
           "node": 2
         },
         {
-          "translated": false,
+          "translated": true,
           "category": "Received",
-          "characters": 18,
+          "characters": 49,
           "node": 3
         },
         {
           "translated": false,
           "category": "Sent",
-          "characters": 17,
+          "characters": 14,
           "node": 4
         }
       ]
     },
     {
-      "ms": 7397,
-      "rows": [
-        {
-          "translated": true,
-          "category": "Received",
-          "characters": 41,
-          "node": 1
-        },
-        {
-          "translated": true,
-          "category": "Sent",
-          "characters": 37,
-          "node": 2
-        },
-        {
-          "translated": false,
-          "category": "Received",
-          "characters": 21,
-          "node": 3
-        },
-        {
-          "translated": false,
-          "category": "Sent",
-          "characters": 17,
-          "node": 4
-        }
-      ]
-    },
-    {
-      "ms": 8215,
-      "rows": [
-        {
-          "translated": true,
-          "category": "Received",
-          "characters": 41,
-          "node": 1
-        },
-        {
-          "translated": true,
-          "category": "Sent",
-          "characters": 37,
-          "node": 2
-        },
-        {
-          "translated": false,
-          "category": "Received",
-          "characters": 21,
-          "node": 3
-        },
-        {
-          "translated": true,
-          "category": "Sent",
-          "characters": 45,
-          "node": 4
-        }
-      ]
-    },
-    {
-      "ms": 8240,
+      "ms": 8344,
       "rows": [
         {
           "translated": true,
@@ -396,7 +326,7 @@
   "fixture_seconds": 4.88,
   "native_pytest": {
     "passed": 1,
-    "duration_seconds": 25.06
+    "duration_seconds": 25.15
   },
   "ui_time_boundary": "performance.now() observations only; not audio capture, utterance-end, or physical latency",
   "actual_vrchat": false,
@@ -413,5 +343,14 @@
     "native legacy recorder switch-back",
     "Windows capture",
     "30-minute mixed GPU load"
-  ]
+  ],
+  "review_fix_validation": {
+    "related_passed": 55,
+    "voice_passed": 568,
+    "voice_skipped": 7,
+    "default_passed": 1194,
+    "default_known_failed": 16,
+    "default_skipped": 6,
+    "default_failure_names_unchanged": true
+  }
 }

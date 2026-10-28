@@ -543,14 +543,14 @@ class Controller:
                 return fail_start("realtime_previous_owner_busy")
             if not current():
                 return failure("realtime_stale_start")
-            cap, direction = ("Mic", "SEND") if source == "mic" else ("Speaker", "RECEIVE")
+            direction = "SEND" if source == "mic" else "RECEIVE"
             try:
-                getattr(model, "stop" + cap + "Transcript")()
-                getattr(model, "stopCheck" + cap + "Energy")()
                 setattr(config, "ENABLE_TRANSCRIPTION_" + direction, False)
                 setattr(config, "ENABLE_CHECK_ENERGY_" + direction, False)
                 self.run(200, "/set/disable/transcription_" + direction.lower(), False)
                 self.run(200, "/set/disable/check_" + source + "_threshold", False)
+                if model.stopCaptureForRealtime(source) is not True:
+                    return fail_start("realtime_legacy_stop_failed")
             except Exception:
                 return fail_start("realtime_legacy_stop_failed")
 
@@ -4464,8 +4464,10 @@ class Controller:
     def startCheckMicEnergy(self) -> bool:
         with self.mic_lifecycle_lock:
             with self._realtime_lock:
-                if self._realtime_requested["mic"] or self._realtime_owners["mic"] is not None:
+                if self._realtime_requested["mic"]:
                     return False
+            if not self._drainRealtimeASR("mic"):
+                return False
             model.startCheckMicEnergy(self.progressBarMicEnergy)
             return True
 
@@ -4476,8 +4478,10 @@ class Controller:
     def startCheckSpeakerEnergy(self) -> bool:
         with self.speaker_lifecycle_lock:
             with self._realtime_lock:
-                if self._realtime_requested["speaker"] or self._realtime_owners["speaker"] is not None:
+                if self._realtime_requested["speaker"]:
                     return False
+            if not self._drainRealtimeASR("speaker"):
+                return False
             model.startCheckSpeakerEnergy(self.progressBarSpeakerEnergy)
             return True
 

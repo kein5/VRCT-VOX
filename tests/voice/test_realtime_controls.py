@@ -4,7 +4,7 @@ import copy
 from queue import Queue
 from threading import Event, Thread
 import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 from uuid import uuid4
 
 import pytest
@@ -54,6 +54,7 @@ def app(controller_module, monkeypatch):  # noqa: F811
     m.config.ENABLE_TRANSCRIPTION_SEND = True
     m.config.ENABLE_CHECK_ENERGY_SEND = m.config.ENABLE_CHECK_ENERGY_RECEIVE = True
     m.config.VRC_MIC_MUTE_SYNC = False
+    m.model.stopCaptureForRealtime.return_value = True
     c = m.Controller()
     c.run = MagicMock()
     c.messageFormatter = MagicMock(return_value="formatted")
@@ -128,10 +129,7 @@ def test_sources_independent_and_legacy_capture_mutually_exclusive(app):
     start(c)
     start(c, "speaker")
     assert all(session.active for session in made)
-    m.model.stopMicTranscript.assert_called_once()
-    m.model.stopSpeakerTranscript.assert_called_once()
-    m.model.stopCheckMicEnergy.assert_called_once()
-    m.model.stopCheckSpeakerEnergy.assert_called_once()
+    assert m.model.stopCaptureForRealtime.call_args_list == [call("mic"), call("speaker")]
     c.startCheckMicEnergy()
     c.startCheckSpeakerEnergy()
     m.model.startCheckMicEnergy.assert_not_called()
@@ -163,7 +161,11 @@ def test_settings_invalidate_affected_source_and_shared_changes_stop_both(app):
 def test_fast_stop_invalidates_start_waiting_for_legacy_cleanup(app):
     c, m, made = app
     entered, release = Event(), Event()
-    m.model.stopMicTranscript.side_effect = lambda: (entered.set(), release.wait(2))
+    def handoff(source):
+        entered.set()
+        release.wait(2)
+        return True
+    m.model.stopCaptureForRealtime.side_effect = handoff
     result = []
     thread = Thread(target=lambda: result.append(c.startRealtimeASR(request(c))))
     thread.start()
@@ -207,6 +209,30 @@ def test_energy_control_does_not_claim_running_during_realtime(app):
     )
     m.model.startCheckMicEnergy.assert_not_called()
     m.model.startCheckSpeakerEnergy.assert_not_called()
+
+
+@pytest.mark.parametrize("source,cap", [("mic", "Mic"), ("speaker", "Speaker")])
+def test_legacy_meter_can_resume_only_after_stopped_owner_drains(app, source, cap):
+    c, m, made = app
+    start(c, source)
+    made[0].busy = True
+    c.stopRealtimeASR({"source": source})
+    assert getattr(c, "startCheck" + cap + "Energy")() is False
+    made[0].busy = False
+    assert getattr(c, "startCheck" + cap + "Energy")() is True
+    getattr(m.model, "startCheck" + cap + "Energy").assert_called_once()
+
+
+@pytest.mark.parametrize("source", ["mic", "speaker"])
+def test_realtime_start_requires_confirmed_legacy_handoff(app, source):
+    c, m, made = app
+    m.model.stopCaptureForRealtime.return_value = False
+    result = c.startRealtimeASR(request(c, source))
+    assert result == {"status": 409, "result": {"error_code": "realtime_legacy_stop_failed"}}
+    assert not made
+    m.model.stopCaptureForRealtime.return_value = True
+    start(c, source)
+    assert len(made) == 1
 
 
 def test_start_failure_invalidates_owner_and_allows_explicit_retry(app, monkeypatch):

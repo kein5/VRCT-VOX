@@ -173,3 +173,11 @@ Controller/UIへはまだ接続していない。次工程は同sourceのlegacy�
 Ruling: private PipeWireではhost Pulse/ALSAを隔離できないため、native legacy録音への切替は未実行。Controller排他試験を実録音の代替としない。
 Ruling: Realtimeのoverlayは大きい表示に接続し、小さい表示はlegacy providerのまま。HMD表示は別gate。
 物理遅延、Windows、VC聴感/製品統合、P4訳文発声、P5配布/負荷/ライセンスを未完として継続。上流PR/連絡は行わない。
+
+### Realtime字幕工程の独立review完了（2026-10-28）
+
+[レビュー記録](realtime-captions-review.md)。Important4を再現して修正: フィルター通知の暗黙本文保存、拒否したoverlay更新の履歴復活、legacy stopのtimeout誤認、停止後のenergy操作不可。
+imozuru原典照合と6件の模擬cleanup試験で、未完了threadを保持し正常停止を確認してからRealtimeへ引き継ぐ境界を追加した。
+最終関連55PASS、音声568PASS/7Seed opt-in SKIP、標準1194PASS/既知16FAIL/6SKIP（失敗名一致）、実Tauri受入1PASS25.15秒。Ruff/diffPASS。
+Minor1: 両source停止後にpollが終わり「Stopping captions」表示が残る場合がある。再開始は可能、busyならbackendが拒否する。保留を明示。
+P3 Linuxの製品接続工程は完了。物理/Windows/実MT/HMD等の受入条件は前記のまま未検証。次はP4 mic final訳文発声と音声排他を実装する。ブランチ・ledgerは継続のため保持し、公開・上流PR/連絡はまだ実行しない。

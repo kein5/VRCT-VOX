@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 from PIL import Image
+import pytest
 
 from model import Model
 from models.overlay.overlay_image import OverlayImage
@@ -60,3 +61,40 @@ def test_caption_guard_after_render_and_stop_cleanup():
     instance.clearRealtimeCaptionOverlay("mic", "n")
     assert not instance.overlay_image.caption_pending
     instance.overlay.updateImage.assert_called_once()
+
+
+@pytest.mark.parametrize("state", ["partial", "final", "translated"])
+@pytest.mark.parametrize("later", ["cleanup", "other_source"])
+def test_rejected_render_never_reappears_in_later_publication(state, later):
+    instance = model_fixture()
+    payload = dict(source="mic", namespace="n", item_id="u", revision=1,
+                   state="final" if state == "translated" else "partial", text="accepted", translations=[])
+    instance.publishRealtimeCaptionOverlay(payload, "English", {}, lambda: True)
+    current = [True]
+    original = instance.overlay_image.createTextboxLargeLog
+
+    def invalidate(*args, **kwargs):
+        current[0] = False
+        return original(*args, **kwargs)
+
+    instance.overlay_image.createTextboxLargeLog = invalidate
+    instance.overlay.updateImage.reset_mock()
+    instance.publishRealtimeCaptionOverlay({**payload, "revision": 2, "state": state,
+        "text": "rejected", "translations": [{"message": "rejected translation"}] if state == "translated" else []},
+        "English", {}, lambda: current[0])
+    instance.overlay.updateImage.assert_not_called()
+    drawn = []
+
+    def observe(kind, text, language, translations, *args, **kwargs):
+        drawn.append((text, translations))
+        return original(kind, text, language, translations, *args, **kwargs)
+
+    instance.overlay_image.createTextboxLargeLog = observe
+    if later == "cleanup":
+        instance.clearRealtimeCaptionOverlay("mic", "n")
+    else:
+        instance.publishRealtimeCaptionOverlay({**payload, "source": "speaker", "namespace": "other"},
+            "English", {}, lambda: True)
+    assert "rejected" not in str(drawn)
+    if state == "translated":
+        assert ("accepted", []) in drawn  # Keep the earlier valid final.
