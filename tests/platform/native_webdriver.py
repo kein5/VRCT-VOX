@@ -65,7 +65,7 @@ class NativeWebDriver:
             except AssertionError as error:
                 if action not in ("click", "clear", "value") or not any(code in str(error) for code in ('"element click intercepted"', '"element not interactable"')) or time.monotonic() >= deadline:
                     raise
-                notice = self.evaluate("return [...document.querySelectorAll('.Toastify__toast')].find(e => e.textContent.startsWith('Built-in translation or transcription models are unavailable.'))?.querySelector('button svg');")
+                notice = self.evaluate("return [...document.querySelectorAll('.Toastify__toast')].find(e => e.textContent.startsWith('Built-in translation or transcription models are unavailable.') || e.textContent.startsWith('Network is not connected.'))?.querySelector('button svg');")
                 if notice:
                     try:
                         self.command("POST", f"/element/{notice[key]}/click", {})
