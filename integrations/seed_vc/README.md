@@ -10,8 +10,10 @@ The upstream source is
 `jiaheguo521/seed-vc-realtime@58d0ca372cc76f60a798d9f84611f053f9029f3a`.
 `loader.py` adapts its model construction. Apply `offline-loader.patch` to that
 checkout: it supplies local model loading, defers PortAudio imports, and allows
-explicit channels during block preparation. It does not change the inference
-algorithm. Keep the original upstream copyright/license notices.
+explicit channels during block preparation. It also exposes each block's
+conversion/failure/bypass status and preserves VAD onset history between short
+blocks. Neural model architecture is unchanged. Keep the original upstream
+copyright/license notices.
 
 Use an isolated **Linux x86-64 Python 3.11** environment with uv. The lock is
 platform-specific; it pins the three CUDA wheels by official URL/hash and the
@@ -58,3 +60,34 @@ The optional real-runtime tests use `VRCT_SEED_POC` pointing to a private root
 containing `venv`, patched `engine`, `assets`, and `private-inputs/reference.wav`.
 Ordinary tests need no models or CUDA. Never set the optional variable on a
 machine lacking the prior model and audio permissions.
+
+The block and routing experiments are separate commands:
+
+```bash
+uv run --no-project --python "$SEED_POC/venv/bin/python" python -m integrations.seed_vc.convert \
+  --engine "$SEED_POC/engine" --assets "$SEED_POC/assets" \
+  --reference "$SEED_POC/private-inputs/reference.wav" --input "$PERMITTED_INPUT" \
+  --output tmp/converted.wav --report tmp/converted.json --profile low
+uv run --no-project --python .venv_linux/bin/python python -m integrations.seed_vc.acceptance \
+  --poc-root "$SEED_POC" --output tmp/seed-route-result --profile low --prime-route
+```
+
+The second command needs the existing native route helpers and PipeWire tools.
+It creates a private graph, uses synthetic file input, and supervises a separate
+GPU worker; it never selects a physical microphone. `--prime-route` prepares
+only the private source fed by validated worker packets. It verifies silence
+before starting input. OS route activity does not mean conversion is verified.
+The packet protocol is an experiment harness, not a production engine API.
+
+The `baseline`, `author` and `low` profiles request block/right-context lengths
+of 250/2000, 180/20 and 80/20 milliseconds. The baseline block quantizes to 240ms.
+The `author` profile uses the published block/right values; this is not a
+reproduction of the author's hardware or complete benchmark. All profiles retain
+10 diffusion steps, 2.5s CE history, 0.5s DiT history, and a 3s prompt.
+
+The fixed engine previously cleared VAD history before short blocks accumulated
+enough onset evidence. Both 180ms and 80ms tests were all-silent before removing
+that idle reset, then passed with the same model/input. The 10-second wall-clock
+reset remains; long-duration reset behavior and word-onset quality need further
+tests. Output before VAD opens can be lost, so short latency alone is not quality
+acceptance. Read the [PoC report](../../docs/voice-stack/seed-vc-poc-report.md).

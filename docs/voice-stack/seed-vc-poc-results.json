@@ -1,0 +1,779 @@
+{
+  "status": "scoped_poc_verified_not_p2_complete",
+  "models": {
+    "baseline": {
+      "scope": "offline model block processing only; no OS/VRChat latency",
+      "profile": "baseline",
+      "source": {
+        "duration_s": 4.88,
+        "sample_rate": 48000,
+        "channels": 1,
+        "sample_width": 2,
+        "sha256": "f1d49d0d6ef09bf3c0ee064596f5f788b2305a19a13a692ef816ad95b628e79f"
+      },
+      "reference": {
+        "duration_s": 14.52,
+        "sample_rate": 48000,
+        "channels": 1,
+        "sample_width": 2,
+        "sha256": "09a0087732d01500b74a79350deee83337f6df509089979233cf3336ed16db61"
+      },
+      "sample_rate": 22050,
+      "block_samples": 5292,
+      "block_ms": 240.0,
+      "diffusion_steps": 10,
+      "fp16": true,
+      "extra_time_ce": 2.5,
+      "extra_time": 0.5,
+      "extra_time_right": 2.0,
+      "crossfade_time": 0.05,
+      "max_prompt_length": 3.0,
+      "warmup_blocks_excluded": 3,
+      "processing_p50_ms": 37.364339,
+      "processing_p95_ms": 39.212500999999996,
+      "blocks_over_duration": 0,
+      "converted_blocks": 33,
+      "nonzero_samples": 49208,
+      "output_sha256": "396155c994195d29490f8f77113f901887030bd6d69ed6a8515c87c8b8367aed",
+      "output_duration_s": 11.04,
+      "peak_allocated_bytes": 964513792,
+      "audio_device_module_loaded": false,
+      "failure": null
+    },
+    "author": {
+      "scope": "offline model block processing only; no OS/VRChat latency",
+      "profile": "author",
+      "source": {
+        "duration_s": 4.88,
+        "sample_rate": 48000,
+        "channels": 1,
+        "sample_width": 2,
+        "sha256": "f1d49d0d6ef09bf3c0ee064596f5f788b2305a19a13a692ef816ad95b628e79f"
+      },
+      "reference": {
+        "duration_s": 14.52,
+        "sample_rate": 48000,
+        "channels": 1,
+        "sample_width": 2,
+        "sha256": "09a0087732d01500b74a79350deee83337f6df509089979233cf3336ed16db61"
+      },
+      "sample_rate": 22050,
+      "block_samples": 3969,
+      "block_ms": 180.0,
+      "diffusion_steps": 10,
+      "fp16": true,
+      "extra_time_ce": 2.5,
+      "extra_time": 0.5,
+      "extra_time_right": 0.02,
+      "crossfade_time": 0.05,
+      "max_prompt_length": 3.0,
+      "warmup_blocks_excluded": 3,
+      "processing_p50_ms": 35.646521,
+      "processing_p95_ms": 36.9861198,
+      "blocks_over_duration": 0,
+      "converted_blocks": 40,
+      "nonzero_samples": 48867,
+      "output_sha256": "afa154d22e70b432d9bd39908756a26ac2dba53bbbfcd6002c3ab05f10a1b49a",
+      "output_duration_s": 10.98,
+      "peak_allocated_bytes": 964513792,
+      "audio_device_module_loaded": false,
+      "failure": null
+    },
+    "low": {
+      "scope": "offline model block processing only; no OS/VRChat latency",
+      "profile": "low",
+      "source": {
+        "duration_s": 4.88,
+        "sample_rate": 48000,
+        "channels": 1,
+        "sample_width": 2,
+        "sha256": "f1d49d0d6ef09bf3c0ee064596f5f788b2305a19a13a692ef816ad95b628e79f"
+      },
+      "reference": {
+        "duration_s": 14.52,
+        "sample_rate": 48000,
+        "channels": 1,
+        "sample_width": 2,
+        "sha256": "09a0087732d01500b74a79350deee83337f6df509089979233cf3336ed16db61"
+      },
+      "sample_rate": 22050,
+      "block_samples": 1764,
+      "block_ms": 80.0,
+      "diffusion_steps": 10,
+      "fp16": true,
+      "extra_time_ce": 2.5,
+      "extra_time": 0.5,
+      "extra_time_right": 0.02,
+      "crossfade_time": 0.05,
+      "max_prompt_length": 3.0,
+      "warmup_blocks_excluded": 3,
+      "processing_p50_ms": 34.56499,
+      "processing_p95_ms": 35.7691964,
+      "blocks_over_duration": 0,
+      "converted_blocks": 74,
+      "nonzero_samples": 46578,
+      "output_sha256": "019ad7d7321db14a699e28b682da27332cdfa7389d98a0340bd634a06e2b8afe",
+      "output_duration_s": 10.88,
+      "peak_allocated_bytes": 964513792,
+      "audio_device_module_loaded": false,
+      "failure": null
+    },
+    "silence": {
+      "scope": "offline model block processing only; no OS/VRChat latency",
+      "profile": "low",
+      "source": {
+        "duration_s": 1.0,
+        "sample_rate": 16000,
+        "channels": 1,
+        "sample_width": 2,
+        "sha256": "643f8a8dc8bd9c19225afffad2becfec5426180b3749cb208abdf1a6c8354efc"
+      },
+      "reference": {
+        "duration_s": 14.52,
+        "sample_rate": 48000,
+        "channels": 1,
+        "sample_width": 2,
+        "sha256": "09a0087732d01500b74a79350deee83337f6df509089979233cf3336ed16db61"
+      },
+      "sample_rate": 22050,
+      "block_samples": 1764,
+      "block_ms": 80.0,
+      "diffusion_steps": 10,
+      "fp16": true,
+      "extra_time_ce": 2.5,
+      "extra_time": 0.5,
+      "extra_time_right": 0.02,
+      "crossfade_time": 0.05,
+      "max_prompt_length": 3.0,
+      "warmup_blocks_excluded": 3,
+      "processing_p50_ms": 34.438161,
+      "processing_p95_ms": 35.1597356,
+      "blocks_over_duration": 0,
+      "converted_blocks": 0,
+      "nonzero_samples": 0,
+      "output_sha256": "800357a953f8450b782ea019ea95fc1a6e1e73f57df4087e90a6662a0ad59417",
+      "output_duration_s": 7.04,
+      "peak_allocated_bytes": 964513792,
+      "audio_device_module_loaded": false,
+      "failure": null
+    }
+  },
+  "scenarios": {
+    "route-baseline": [
+      {
+        "case": "stop",
+        "stop_request_ns": 88590300675250,
+        "first_silent_read_ns": 88590382558828,
+        "stop_to_silent_read_ms": 81.883578,
+        "silent_confirmation_ms": 2005.586602,
+        "worker_reason": "SpeechError",
+        "simulated_source_to_first_read_ms": 2554.872272,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 514,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 44.999501,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 8,
+            "880": 9,
+            "1760": 4
+          }
+        },
+        "processing_p95_ms": 83.20991765,
+        "max_deadline_lag_ms": null
+      },
+      {
+        "case": "bypass",
+        "stop_request_ns": 88600728157960,
+        "first_silent_read_ns": 88601066348359,
+        "stop_to_silent_read_ms": 338.190399,
+        "silent_confirmation_ms": 2005.559499,
+        "worker_reason": "worker_failed",
+        "simulated_source_to_first_read_ms": 2516.938569,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 529,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 44.352164,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 11,
+            "880": 9,
+            "1760": 3
+          }
+        },
+        "processing_p95_ms": 84.5434945,
+        "max_deadline_lag_ms": null
+      },
+      {
+        "case": "fault",
+        "stop_request_ns": 88611497870366,
+        "first_silent_read_ns": 88611878054049,
+        "stop_to_silent_read_ms": 380.183683,
+        "silent_confirmation_ms": 2005.495237,
+        "worker_reason": "worker_failed",
+        "simulated_source_to_first_read_ms": 2557.444511,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 533,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 42.869983,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 13,
+            "880": 7,
+            "1760": 1
+          }
+        },
+        "processing_p95_ms": 85.5502195,
+        "max_deadline_lag_ms": null
+      },
+      {
+        "case": "death",
+        "stop_request_ns": 88622339587640,
+        "first_silent_read_ns": 88622678187019,
+        "stop_to_silent_read_ms": 338.599379,
+        "silent_confirmation_ms": 2005.340625,
+        "worker_reason": "EOFError",
+        "simulated_source_to_first_read_ms": 2559.002613,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 533,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 43.083135,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 11,
+            "880": 7,
+            "1760": 2
+          }
+        },
+        "processing_p95_ms": 83.99393950000001,
+        "max_deadline_lag_ms": null
+      }
+    ],
+    "route-low": [
+      {
+        "case": "stop",
+        "profile": "low",
+        "stop_request_ns": 89045280536214,
+        "first_silent_read_ns": 89045320101236,
+        "stop_to_silent_read_ms": 39.565022,
+        "silent_confirmation_ms": 2005.350485,
+        "worker_reason": null,
+        "simulated_source_to_first_read_ms": 466.089084,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 411,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 42.924665,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 8,
+            "880": 3,
+            "1760": 4
+          }
+        },
+        "processing_p95_ms": 36.8334355,
+        "max_deadline_lag_ms": 0.090042
+      },
+      {
+        "case": "bypass",
+        "profile": "low",
+        "stop_request_ns": 89053624099145,
+        "first_silent_read_ns": 89053748728901,
+        "stop_to_silent_read_ms": 124.629756,
+        "silent_confirmation_ms": 2005.780834,
+        "worker_reason": "worker_failed",
+        "simulated_source_to_first_read_ms": 465.66201,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 416,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 42.931579,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 8,
+            "880": 3,
+            "1760": 4
+          }
+        },
+        "processing_p95_ms": 37.0305734,
+        "max_deadline_lag_ms": 0.109169
+      },
+      {
+        "case": "fault",
+        "profile": "low",
+        "stop_request_ns": 89062095812046,
+        "first_silent_read_ns": 89062304888944,
+        "stop_to_silent_read_ms": 209.076898,
+        "silent_confirmation_ms": 2005.506578,
+        "worker_reason": "worker_failed",
+        "simulated_source_to_first_read_ms": 469.662961,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 422,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 47.727877,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 9,
+            "880": 4,
+            "1760": 5
+          }
+        },
+        "processing_p95_ms": 38.1966093,
+        "max_deadline_lag_ms": 0.294056
+      },
+      {
+        "case": "death",
+        "profile": "low",
+        "stop_request_ns": 89070615309869,
+        "first_silent_read_ns": 89070742833964,
+        "stop_to_silent_read_ms": 127.524095,
+        "silent_confirmation_ms": 2005.717093,
+        "worker_reason": "EOFError",
+        "simulated_source_to_first_read_ms": 468.280508,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 416,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 43.299371,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 9,
+            "880": 3,
+            "1760": 5
+          }
+        },
+        "processing_p95_ms": 37.160708,
+        "max_deadline_lag_ms": 0.09459
+      },
+      {
+        "case": "hold",
+        "profile": "low",
+        "stop_request_ns": 89079057065570,
+        "first_silent_read_ns": 89079267072399,
+        "stop_to_silent_read_ms": 210.006829,
+        "silent_confirmation_ms": 2005.213826,
+        "worker_reason": "TimeoutError",
+        "simulated_source_to_first_read_ms": 464.27541,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 420,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 43.170579,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 8,
+            "880": 4,
+            "1760": 4
+          }
+        },
+        "processing_p95_ms": 39.3173831,
+        "max_deadline_lag_ms": 0.075728
+      }
+    ],
+    "route-low-primed": [
+      {
+        "case": "stop",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "stop_request_ns": 89245981897081,
+        "first_silent_read_ns": 89246020723102,
+        "stop_to_silent_read_ms": 38.826021,
+        "silent_confirmation_ms": 2005.473258,
+        "worker_reason": "EOFError",
+        "simulated_source_to_first_read_ms": 337.026643,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 456,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 47.84134,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 7,
+            "880": 3,
+            "1760": 5
+          }
+        },
+        "processing_p95_ms": 41.9614986,
+        "max_deadline_lag_ms": 0.103468
+      },
+      {
+        "case": "bypass",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "stop_request_ns": 89255134256919,
+        "first_silent_read_ns": 89255217643735,
+        "stop_to_silent_read_ms": 83.386816,
+        "silent_confirmation_ms": 2005.214481,
+        "worker_reason": "worker_failed",
+        "simulated_source_to_first_read_ms": 296.272242,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 452,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 42.675958,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 8,
+            "880": 3,
+            "1760": 4
+          }
+        },
+        "processing_p95_ms": 46.093950750000005,
+        "max_deadline_lag_ms": 0.111571
+      },
+      {
+        "case": "fault",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "stop_request_ns": 89264344728368,
+        "first_silent_read_ns": 89264471582811,
+        "stop_to_silent_read_ms": 126.854443,
+        "silent_confirmation_ms": 2005.544512,
+        "worker_reason": "worker_failed",
+        "simulated_source_to_first_read_ms": 336.468864,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 456,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 47.824278,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 8,
+            "880": 3,
+            "1760": 5
+          }
+        },
+        "processing_p95_ms": 43.102044,
+        "max_deadline_lag_ms": 0.40492
+      },
+      {
+        "case": "death",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "stop_request_ns": 89273678945297,
+        "first_silent_read_ns": 89273759989233,
+        "stop_to_silent_read_ms": 81.043936,
+        "silent_confirmation_ms": 2005.53299,
+        "worker_reason": "EOFError",
+        "simulated_source_to_first_read_ms": 336.967662,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 458,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 42.559849,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 8,
+            "880": 4,
+            "1760": 5
+          }
+        },
+        "processing_p95_ms": 42.588968799999996,
+        "max_deadline_lag_ms": 0.100371
+      },
+      {
+        "case": "hold",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "stop_request_ns": 89282628685308,
+        "first_silent_read_ns": 89282710233603,
+        "stop_to_silent_read_ms": 81.548295,
+        "silent_confirmation_ms": 2005.380173,
+        "worker_reason": "TimeoutError",
+        "simulated_source_to_first_read_ms": 294.895801,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 441,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 42.595004,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 7,
+            "880": 4,
+            "1760": 4
+          }
+        },
+        "processing_p95_ms": 36.1340535,
+        "max_deadline_lag_ms": 0.088387
+      }
+    ],
+    "route-final": [
+      {
+        "case": "stop",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "ready_bridge_active": true,
+        "ready_silence_confirmed": true,
+        "stop_request_ns": 89428409979828,
+        "first_silent_read_ns": 89428448699097,
+        "stop_to_silent_read_ms": 38.719269,
+        "silent_confirmation_ms": 2005.488022,
+        "gate_closed_ms": 40.043342,
+        "worker_reason": "EOFError",
+        "simulated_source_to_first_read_ms": 337.570686,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 409,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 42.81055,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 7,
+            "880": 3,
+            "1760": 4
+          }
+        },
+        "processing_p95_ms": 37.243302,
+        "max_deadline_lag_ms": 0.072368
+      },
+      {
+        "case": "bypass",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "ready_bridge_active": true,
+        "ready_silence_confirmed": true,
+        "stop_request_ns": 89436764329502,
+        "first_silent_read_ns": 89436891635766,
+        "stop_to_silent_read_ms": 127.306264,
+        "silent_confirmation_ms": 2005.650748,
+        "gate_closed_ms": 53.582877,
+        "worker_reason": "worker_failed",
+        "simulated_source_to_first_read_ms": 336.682143,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 416,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 43.42157,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 8,
+            "880": 3,
+            "1760": 4
+          }
+        },
+        "processing_p95_ms": 38.803255,
+        "max_deadline_lag_ms": 0.07847
+      },
+      {
+        "case": "fault",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "ready_bridge_active": true,
+        "ready_silence_confirmed": true,
+        "stop_request_ns": 89445574586222,
+        "first_silent_read_ns": 89445697898528,
+        "stop_to_silent_read_ms": 123.312306,
+        "silent_confirmation_ms": 2005.718054,
+        "gate_closed_ms": 57.995974,
+        "worker_reason": "worker_failed",
+        "simulated_source_to_first_read_ms": 338.134227,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 433,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 42.942459,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 7,
+            "880": 3,
+            "1760": 5
+          }
+        },
+        "processing_p95_ms": 37.8739305,
+        "max_deadline_lag_ms": 0.280684
+      },
+      {
+        "case": "death",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "ready_bridge_active": true,
+        "ready_silence_confirmed": true,
+        "stop_request_ns": 89453965801145,
+        "first_silent_read_ns": 89454006588598,
+        "stop_to_silent_read_ms": 40.787453,
+        "silent_confirmation_ms": 2004.980456,
+        "gate_closed_ms": 40.954908,
+        "worker_reason": "EOFError",
+        "simulated_source_to_first_read_ms": 337.83278,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 409,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 43.160069,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 7,
+            "880": 3,
+            "1760": 4
+          }
+        },
+        "processing_p95_ms": 37.5266752,
+        "max_deadline_lag_ms": 0.072199
+      },
+      {
+        "case": "hold",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "ready_bridge_active": true,
+        "ready_silence_confirmed": true,
+        "stop_request_ns": 89462354019257,
+        "first_silent_read_ns": 89462478487639,
+        "stop_to_silent_read_ms": 124.468382,
+        "silent_confirmation_ms": 2005.520662,
+        "gate_closed_ms": 1006.436185,
+        "worker_reason": "TimeoutError",
+        "simulated_source_to_first_read_ms": 338.702386,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 418,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 44.012543,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 7,
+            "880": 4,
+            "1760": 6
+          }
+        },
+        "processing_p95_ms": 37.0105555,
+        "max_deadline_lag_ms": 0.09014
+      },
+      {
+        "case": "slow",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "ready_bridge_active": true,
+        "ready_silence_confirmed": true,
+        "stop_request_ns": 89470907763542,
+        "first_silent_read_ns": 89471034385787,
+        "stop_to_silent_read_ms": 126.622245,
+        "silent_confirmation_ms": 2005.731499,
+        "gate_closed_ms": 333.358196,
+        "worker_reason": "worker_overload",
+        "simulated_source_to_first_read_ms": 337.081195,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 416,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 42.738244,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 8,
+            "880": 3,
+            "1760": 4
+          }
+        },
+        "processing_p95_ms": 38.12047975,
+        "max_deadline_lag_ms": 0.080985
+      },
+      {
+        "case": "control",
+        "profile": "low",
+        "route_prepared_before_input": true,
+        "ready_bridge_active": true,
+        "ready_silence_confirmed": true,
+        "continued_without_stop": true,
+        "stop_request_ns": 89481470560355,
+        "first_silent_read_ns": 89481502884978,
+        "stop_to_silent_read_ms": 32.324623,
+        "silent_confirmation_ms": 2005.548665,
+        "gate_closed_ms": 43.407644,
+        "worker_reason": "EOFError",
+        "simulated_source_to_first_read_ms": 339.959472,
+        "status": "passed",
+        "private_graph_cleaned": true,
+        "bridge_active_after": false,
+        "capture": {
+          "frames": 518,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 47.834968,
+          "reader_eof": false,
+          "reader_error": null,
+          "detected_frames": {
+            "440": 12,
+            "880": 12,
+            "1760": 15
+          }
+        },
+        "processing_p95_ms": 39.31830225,
+        "max_deadline_lag_ms": 0.07798
+      }
+    ]
+  },
+  "measured_scope": "permitted synthetic file scheduled in real time -> private virtual-source read; models warm, VAD reset",
+  "not_verified": [
+    "physical microphone",
+    "VRChat voice quality/latency",
+    "phoneme onset preservation",
+    "long-duration VAD resets",
+    "GPU contention",
+    "Windows",
+    "distribution"
+  ],
+  "raw_evidence": "local ignored tmp/voice-resume/seed-vc-poc; private audio never tracked"
+}
