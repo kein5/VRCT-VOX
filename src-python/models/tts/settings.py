@@ -1,4 +1,4 @@
-"""Validated, serializable P1 settings. New installations remain silent."""
+"""Validated speech settings. Chat and microphone speech are separately opt-in."""
 from dataclasses import asdict, dataclass
 from urllib.parse import urlsplit
 
@@ -38,6 +38,8 @@ def language_tag(language):
 @dataclass(frozen=True)
 class VoiceSettings:
     mode: str = "off"  # off | original | translated (chat only)
+    mic_mode: str = "off"  # off | translated (Realtime mic finals only)
+    direct_policy: str = "suppress"  # suppress managed direct voice | mix explicitly
     target_slot: str = "1"
     japanese_url: str = "http://127.0.0.1:8080"
     japanese_voice: str = "none"
@@ -59,6 +61,8 @@ class VoiceSettings:
             raise ValueError("Voice settings must be strings")
         if settings.mode not in ("off", "original", "translated") or settings.target_slot not in ("1", "2", "3"):
             raise ValueError("Invalid speech mode or translation slot")
+        if settings.mic_mode not in ("off", "translated") or settings.direct_policy not in ("suppress", "mix"):
+            raise ValueError("Invalid microphone speech mode or direct voice policy")
         if settings.routing not in ("external", "managed"):
             raise ValueError("Invalid routing mode")
         local_url(settings.japanese_url)
@@ -69,15 +73,21 @@ class VoiceSettings:
                 raise ValueError("Invalid voice name")
         if len(settings.output_device) > 512 or any(ord(c) < 32 for c in settings.output_device):
             raise ValueError("Invalid output device")
-        if settings.mode != "off" and not settings.playback_device.strip():
+        if (settings.mode != "off" or settings.mic_mode != "off") and not settings.playback_device.strip():
             raise ValueError("Select a virtual microphone output before enabling TTS")
+        if settings.mic_mode != "off" and settings.direct_policy == "suppress" and settings.routing != "managed":
+            raise ValueError("Direct voice suppression requires managed routing")
         return settings
 
     def to_dict(self):
         return asdict(self)
 
     def request_for(self, event):
-        if self.mode == "translated":
+        if event.source == "mic":
+            if self.mic_mode != "translated":
+                raise ValueError("Microphone speech is disabled")
+            text, language = event.translated_text, event.target_language
+        elif self.mode == "translated":
             text, language = event.translated_text, event.target_language
         else:
             text, language = event.original_text, event.source_language

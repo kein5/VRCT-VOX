@@ -15,11 +15,13 @@ class SpeechError(Exception):
 
 
 class CancelToken:
-    def __init__(self):
+    def __init__(self, *, start_deadline=None):
         self._event = Event()
         self._lock = Lock()
         self._closers = []
         self.reason = "cancelled"
+        self._start_deadline = start_deadline
+        self._started = False
 
     def is_set(self):
         return self._event.is_set()
@@ -28,8 +30,29 @@ class CancelToken:
         return self._event.wait(timeout)
 
     def check(self):
+        self.expire_start()
         if self.is_set():
             raise SpeechError(self.reason)
+
+    def _expire_start_locked(self):
+        if (not self._started and self._start_deadline is not None
+                and monotonic() >= self._start_deadline):
+            return self._cancel_locked("speech_expired")
+        return []
+
+    def expire_start(self):
+        with self._lock:
+            closers = self._expire_start_locked()
+        self._close(closers)
+
+    def begin_playback(self):
+        # The expiry callback and first non-silent write compete under one lock.
+        with self._lock:
+            closers = self._expire_start_locked()
+            if not self.is_set():
+                self._started = True
+        self._close(closers)
+        self.check()
 
     def register(self, closer):
         with self._lock:
@@ -40,11 +63,19 @@ class CancelToken:
 
     def cancel(self, reason="cancelled"):
         with self._lock:
-            if self.is_set():
-                return
-            self.reason = reason
-            self._event.set()
-            closers, self._closers = self._closers, []
+            closers = self._cancel_locked(reason)
+        self._close(closers)
+
+    def _cancel_locked(self, reason):
+        if self.is_set():
+            return []
+        self.reason = reason
+        self._event.set()
+        closers, self._closers = self._closers, []
+        return closers
+
+    @staticmethod
+    def _close(closers):
         for closer in closers:
             try:
                 closer()

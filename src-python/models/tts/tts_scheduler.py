@@ -10,7 +10,7 @@ from .voice_trace import write_voice_trace
 
 
 class VoiceEventBus:
-    """P1 consumer for final chat events only. ASR/VC remain independent."""
+    """Serialize final chat and opted-in microphone translations."""
     def __init__(self, settings=None, *, provider_factory=SpeechCppTTS, router=None,
                  capacity=4, max_age=5.0, request_timeout=30.0):
         self.settings = settings or VoiceSettings()
@@ -24,9 +24,11 @@ class VoiceEventBus:
         self._seen = OrderedDict()
         self._thread = None
         self._active = None
+        self._active_source = None
         self._closed = False
         self._muted = False
         self._epoch = 0
+        self._source_epochs = {}
         self._stats = {"accepted": 0, "completed": 0, "dropped": 0, "duplicates": 0,
                        "cancelled": 0, "errors": 0, "last_error": None,
                        "last_first_write_ms": None, "sample_rate": None}
@@ -69,11 +71,39 @@ class VoiceEventBus:
         with self._condition:
             return self._epoch
 
-    def publish(self, event, *, expected_generation=None):
+    def source_generation(self, source):
+        with self._condition:
+            return self._source_epochs.get(source, 0)
+
+    def cancel_source(self, source):
+        with self._condition:
+            self._source_epochs[source] = self._source_epochs.get(source, 0) + 1
+            retained = deque(item for item in self._queue if item[0].source != source)
+            self._stats["dropped"] += len(self._queue) - len(retained)
+            self._queue = retained
+            if self._active_source == source and self._active:
+                self._active.cancel()
+            self._condition.notify_all()
+
+    def publish(self, event, *, expected_generation=None, expected_source_generation=None):
         with self._condition:
             if expected_generation is not None and expected_generation != self._epoch:
                 return False
-            if self._closed or self._muted or self.settings.mode == "off" or event.source != "chat" or not event.is_final:
+            if (expected_source_generation is not None and
+                    expected_source_generation != self._source_epochs.get(event.source, 0)):
+                return False
+            if self._closed or self._muted or not event.is_final:
+                return False
+            if event.source == "chat":
+                if self.settings.mode == "off":
+                    return False
+            elif event.source == "mic":
+                if self.settings.mic_mode != "translated" or not (event.translated_text or "").strip():
+                    return False
+                if event.timestamp_ns <= 0 or event.timestamp_ns > monotonic_ns():
+                    self._stats["dropped"] += 1
+                    return False
+            else:
                 return False
             if not event.event_id or not event.original_text.strip():
                 return False
@@ -84,12 +114,16 @@ class VoiceEventBus:
             if key in self._seen:
                 self._stats["duplicates"] += 1
                 return False
+            if len(self._queue) >= self.capacity:
+                oldest_mic = next((i for i, item in enumerate(self._queue) if item[0].source == "mic"), None)
+                if oldest_mic is None and event.source == "mic":
+                    self._stats["dropped"] += 1
+                    return False
+                del self._queue[oldest_mic if oldest_mic is not None else 0]
+                self._stats["dropped"] += 1
             self._seen[key] = now
             while len(self._seen) > 512:
                 self._seen.popitem(last=False)
-            if len(self._queue) >= self.capacity:
-                self._queue.popleft()
-                self._stats["dropped"] += 1
             self._queue.append((event, self.settings, self._epoch))
             self._stats["accepted"] += 1
             if self._thread is None:
@@ -109,11 +143,20 @@ class VoiceEventBus:
                 self._condition.wait_for(lambda: self._closed or self._queue)
                 if self._closed:
                     return
-                event, settings, epoch = self._queue.popleft()
+                next_chat = next((i for i, item in enumerate(self._queue) if item[0].source == "chat"), 0)
+                event, settings, epoch = self._queue[next_chat]
+                del self._queue[next_chat]
                 if monotonic_ns() - event.timestamp_ns > self.max_age * 1e9:
                     self._stats["dropped"] += 1
                     continue
-                token = self._active = CancelToken()
+                deadline = event.timestamp_ns / 1e9 + self.max_age if event.source == "mic" else None
+                token = self._active = CancelToken(start_deadline=deadline)
+                self._active_source = event.source
+            start_timer = None
+            if deadline is not None:
+                start_timer = Timer(max(0, deadline - monotonic()), token.expire_start)
+                start_timer.daemon = True
+                start_timer.start()
             timer = Timer(self.request_timeout, lambda: token.cancel("request_timeout"))
             timer.daemon = True
             timer.start()
@@ -154,6 +197,8 @@ class VoiceEventBus:
                                                          "audio_output_error")
             finally:
                 timer.cancel()
+                if start_timer is not None:
+                    start_timer.cancel()
                 if frames is not None:
                     try:
                         frames.close()
@@ -162,4 +207,5 @@ class VoiceEventBus:
                 write_voice_trace(event.event_id, event.timestamp_ns, first_write, outcome)
                 with self._condition:
                     self._active = None
+                    self._active_source = None
                     self._condition.notify_all()

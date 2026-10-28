@@ -50,6 +50,8 @@ class AudioRouter:
                 for offset in range(0, len(frame.pcm), block):
                     token.check()
                     pcm = frame.pcm[offset:offset + block]
+                    if first and any(pcm):
+                        token.begin_playback()
                     sink.write(pcm, token)
                     if first and any(pcm):
                         first = False
