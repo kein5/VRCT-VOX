@@ -131,6 +131,17 @@ class PrintResponseMaskingTests(unittest.TestCase):
         utils.process_logger = logger
         self.addCleanup(setattr, utils, "process_logger", self._original_logger)
 
+    def test_realtime_captions_reach_ui_without_implicit_disk_transcripts(self):
+        logged, written = [], []
+        utils.process_logger.info = logged.append
+        with patch.object(utils, "_enqueueResponseLine", written.append):
+            for state in ("partial", "final", "translated", "discarded"):
+                utils.printResponse(200, "/run/realtime_caption", {
+                    "state": state, "text": "private transcript", "translations": ["private translation"]})
+        self.assertEqual(logged, [])
+        self.assertEqual(len(written), 4)
+        self.assertTrue(all(json.loads(line)["result"]["text"] == "private transcript" for line in written))
+
     def test_direct_sensitive_endpoint_masks_whole_result(self):
         captured = {}
         utils.process_logger.info = lambda response: captured.update(response)

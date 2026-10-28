@@ -677,8 +677,10 @@ def printLog(log: str, data: Any = None) -> None:
     serialized = json.dumps(response)
     _enqueueLogLine(serialized)
 
-# 頻繁に送るため process.log に残さないエンドポイント (VR UIのポインタ位置は1秒に十数回送る)
-_UNLOGGED_ENDPOINTS = {"/run/vr_panel_pointer"}
+# High-rate pointer data and private captions are IPC only. Final transcript
+# persistence is handled by the explicitly enabled message logger, not this
+# always-on process diagnostic log.
+_UNLOGGED_ENDPOINTS = {"/run/vr_panel_pointer", "/run/realtime_caption"}
 
 
 def printResponse(status: int, endpoint: str, result: Any = None) -> None:

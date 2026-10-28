@@ -1870,6 +1870,14 @@ class Controller:
 
     def setEnableTranslation(self, *args, **kwargs) -> dict:
         if config.ENABLE_TRANSLATION is False:
+            engine = config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
+            if (engine != "CTranslate2" and
+                    config.SELECTABLE_TRANSLATION_ENGINE_STATUS.get(engine) is True and
+                    config.SELECTABLE_TRANSLATION_ENGINE_STATUS.get("CTranslate2") is False):
+                # A connected external provider does not require local weights.
+                # Keep the legacy warm fallback when CTranslate2 is available.
+                config.ENABLE_TRANSLATION = True
+                return {"status": 200, "result": True}
             if model.isLoadedCTranslate2Model() is False or model.isChangedTranslatorParameters() is True:
                 try:
                     model.changeTranslatorCTranslate2Model()

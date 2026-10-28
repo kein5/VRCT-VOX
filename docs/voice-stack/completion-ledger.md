@@ -35,7 +35,7 @@ Windows・混在負荷等の残条件を全機能完了として扱わない。
 | P0 | baseline・ADR・測定器・ライセンス台帳 | 新しい構成ごとの差分検証を継続 |
 | P1 | TTS provider、scheduler、UI、OSC契約、Linux/Windows出力adapter。部品UI試験16件、実Tauri/全Modelの描画・保存復元・安全な再起動、本番UI→実TTS→独立仮想マイク9件とホスト/VRChat9件。本人Chatbox実表示＋発話1回/OFF無音2件、UI→PCM write30回で目標内 | Windows実機、VRChat併用の性能・混在負荷 |
 | P2 | OS音声経路BのPoC、managed endpoint、Linux明示source bridge・切断/親終了・同名再作成の自動試験。私有実OS3試行×14観測PASS（[報告](source-bridge-report.md)）。本番Controller/UIに明示入力選択・開始停止を接続し、実Tauri→私有仮想マイク16ケースPASS（[報告](source-controls-report.md)） | converted/passthroughの排他、外部VCの変換状態・品質・遅延・ライセンス比較、Windows経路。経路healthを実変換成功とは扱わない |
-| P3 | 既存legacy ASRを維持 | speech.cpp専用REST→Realtime、mic/speaker別session、VAD、partial/final置換、capture/resample、有界queue、UI字幕・既存翻訳へのfinal接続 |
+| P3 | legacyを維持し、speech.cpp REST/Realtime、mic/speaker別session、VAD、Linux capture/resample、有界queue、字幕置換・確定翻訳・大きいoverlayを接続。実Tauri/private音声/実ASR/VADで表示・停止・再起動OFFを確認（[報告](realtime-captions-report.md)） | 実翻訳モデルの品質/速度、物理発話終端からの遅延、HMD表示、native legacy録音への切替、Windows、混在負荷 |
 | P4 | テキストの原文/訳文TTSのみ | mic final訳文発声、VCとの排他/ducking、優先度・期限、remote受信の再送防止、多言語振分け |
 | P5 | Linux専用graphと一部host試験、禁止OCR重み除外検査 | ネイティブUI/配布・fork識別、両OS障害復旧、30分混在負荷、回帰、実artifact台帳 |
 
@@ -162,3 +162,14 @@ model/languageを既存RESTでpreflightし、host名localhost入力は既存help
 設定に録音enabledを保存しない。起動中取消、2source独立、切断/queue overflow、古い字幕破棄、再停止のterminal stateを検証。
 新規関連54 PASS、実ASR/VAD込み全音声527 PASS/8 opt-in SKIP、default1173 PASS/既知16 FAIL不変。
 Controller/UIへはまだ接続していない。次工程は同sourceのlegacyとの排他、字幕更新・final翻訳・停止世代のIPC接続。
+
+### Realtime字幕接続: Controller・UI・実アプリ受入れ（2026-10-28）
+
+上記session工程の「Controller/UI未接続」は解消。source別の開始停止・設定保存、legacy排他、partial/final/翻訳の同一行更新、speakerのOSC/TTS禁止、大きいoverlayのpending/history管理を接続した。
+[報告](realtime-captions-report.md)・[結果](realtime-captions-results.json)。実Tauri/実ASR/VAD/private OS音声の受入1試験25.06秒PASS、各source2字幕、HTTP翻訳4件、mic訳文と一致するUDP2件、speaker0、停止後追加0、再起動captureOFF。
+翻訳は本番LMStudio adapterと固定HTTP応答による接続試験であり、実MTモデルの品質・速度ではない。
+外部翻訳でローカルCTranslate2が必須だった処理と、字幕本文の常時process.log保存をRED→GREENで修正。標準suite1181PASS/既知16FAIL/6SKIP、失敗名は前回と完全一致。
+受入修正後の音声suite564PASS/7Seed opt-in SKIP/2warnings56.62秒。最終独立reviewを続ける。
+Ruling: private PipeWireではhost Pulse/ALSAを隔離できないため、native legacy録音への切替は未実行。Controller排他試験を実録音の代替としない。
+Ruling: Realtimeのoverlayは大きい表示に接続し、小さい表示はlegacy providerのまま。HMD表示は別gate。
+物理遅延、Windows、VC聴感/製品統合、P4訳文発声、P5配布/負荷/ライセンスを未完として継続。上流PR/連絡は行わない。
