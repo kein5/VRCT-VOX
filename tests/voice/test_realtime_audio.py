@@ -268,3 +268,88 @@ def test_send_failure_closes_ingress_and_client():
         assert client.stopped and q.error == "input_failed"
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("transition", ["close", "overflow"])
+def test_capture_thread_shutdown_interrupts_blocked_send_and_discards_final(transition):
+    import json
+    from threading import Thread
+    from types import SimpleNamespace
+    from models.transcription.speechcpp_realtime import SpeechCppRealtime, RealtimeError
+
+    async def run():
+        sending, release = asyncio.Event(), asyncio.Event()
+        incoming = asyncio.Queue()
+
+        class WebSocket:
+            transport = SimpleNamespace(abort=lambda: None)
+
+            async def send(self, raw):
+                sending.set()
+                await release.wait()
+
+            async def recv(self):
+                return await incoming.get()
+
+            async def close(self):
+                pass
+
+        client = SpeechCppRealtime("http://127.0.0.1:8765", "asr", "ja", "mic")
+        client.state = "ready"
+        client._ws = WebSocket()
+        client._events.accept(
+            {
+                "event_id": "start",
+                "type": "input_audio_buffer.speech_started",
+                "item_id": "old",
+            }
+        )
+        client._reader = asyncio.create_task(client._read())
+        now = time.monotonic_ns()
+        q = module().RealtimeIngress(48000, 1, clock_ns=lambda: now)
+        assert q.push(pcm(48000, seconds=0.1), now - 100_000_000)
+        pump = asyncio.create_task(q.pump(client))
+        try:
+            await asyncio.wait_for(sending.wait(), 1)
+
+            def shutdown():
+                if transition == "close":
+                    q.close()
+                else:
+                    for i in range(11):
+                        q.push(
+                            pcm(48000, seconds=0.02), now - 90_000_000 + i * 1_000_000
+                        )
+
+            thread = Thread(target=shutdown)
+            thread.start()
+            thread.join()
+            await asyncio.sleep(0.05)
+            assert client.state == "closed", (
+                "client must close without releasing the blocked send"
+            )
+            await incoming.put(
+                json.dumps(
+                    {
+                        "event_id": "final",
+                        "type": "conversation.item.input_audio_transcription.completed",
+                        "item_id": "old",
+                        "transcript": "late",
+                        "stop": "complete",
+                    }
+                )
+            )
+            with pytest.raises(RealtimeError):
+                await client.next_update()
+            if transition == "overflow":
+                with pytest.raises(ValueError, match="input_overflow"):
+                    await asyncio.wait_for(pump, 1)
+            else:
+                await asyncio.wait_for(pump, 1)
+        finally:
+            release.set()
+            pump.cancel()
+            await asyncio.gather(pump, return_exceptions=True)
+            await client.stop()
+
+    asyncio.run(run())

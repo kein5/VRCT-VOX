@@ -117,6 +117,7 @@ class RealtimeIngress:
         self._last_stamp = -1
         self._reason = None
         self._pumping = False
+        self._loop = self._closing = None
 
     @property
     def error(self):
@@ -126,6 +127,8 @@ class RealtimeIngress:
     def _close_locked(self, reason):
         if self._reason is None:
             self._reason = reason
+            if self._loop is not None:
+                self._loop.call_soon_threadsafe(self._closing.set)
         self._queue.clear()
         self._samples_queued = 0
 
@@ -156,11 +159,7 @@ class RealtimeIngress:
             self._queue.append(CapturedAudio(audio, captured_ns))
             return True
 
-    async def pump(self, client):
-        with self._lock:
-            if self._pumping:
-                raise RuntimeError("single_consumer_required")
-            self._pumping = True
+    async def _consume(self, client):
         converter = None
         try:
             converter = Pcm24kStream(self.rate, self.channels)
@@ -186,6 +185,29 @@ class RealtimeIngress:
                     if not 0 <= self._clock() - block.captured_ns <= MAX_AGE_NS:
                         raise ValueError("stale_capture")
                     await client.feed(block.audio, block.captured_ns)
+        finally:
+            if converter is not None:
+                converter.close()
+
+    async def pump(self, client):
+        with self._lock:
+            if self._pumping:
+                raise RuntimeError("single_consumer_required")
+            self._pumping = True
+            self._loop = asyncio.get_running_loop()
+            self._closing = asyncio.Event()
+            if self._reason is not None:
+                self._closing.set()
+        worker = asyncio.create_task(self._consume(client))
+        closing = asyncio.create_task(self._closing.wait())
+        try:
+            done, _ = await asyncio.wait(
+                (worker, closing), return_when=asyncio.FIRST_COMPLETED
+            )
+            if worker in done:
+                await worker
+            elif self.error != "stopped":
+                raise ValueError(self.error)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -194,6 +216,13 @@ class RealtimeIngress:
             raise
         finally:
             self.close()
-            if converter is not None:
-                converter.close()
-            await client.stop()
+            try:
+                # Invalidates results before awaiting socket shutdown. Closing
+                # must not wait behind an in-flight feed on the consumer task.
+                await client.stop()
+            finally:
+                worker.cancel()
+                closing.cancel()
+                await asyncio.gather(worker, closing, return_exceptions=True)
+                with self._lock:
+                    self._loop = self._closing = None

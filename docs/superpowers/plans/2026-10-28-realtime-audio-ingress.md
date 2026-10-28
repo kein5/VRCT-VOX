@@ -39,7 +39,7 @@ Input5–100ms、queue20items/200ms、250msage。単一worker/consumer。nativep
 
 - [x] 既存live testを新境界へ接続し、真のnative48kHzを20ms間隔でfeedする。停止後input拒否とclient終了も確認。Expected: actualserver_vad partial/final/無音PASS。
 - [x] related/default失敗集合比較、性能境界とlicenseをreport/ledgerへ。Expected: 新規失敗なし、物理性能と混同しない。ローカルcommit。
-- [ ] 一回の独立review、Critical/Importantのみ1回RED→GREEN。Minor保留。全機能作業を継続。
+- [x] 一回の独立review、Critical/Importantのみ1回RED→GREEN。Minor保留。全機能作業を継続。
 
 ## Pre-flight
 

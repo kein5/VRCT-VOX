@@ -134,3 +134,11 @@ mic/speakerの2セッションで各7 partial・2 final、無音入力で更新�
 次はcaptureの明示format変換と有界queue、UI字幕、finalだけを既存翻訳へ接続する。
 P2品質についてユーザーは「今は試聴できない」と回答。未確認を残し、独立工程を継続する。
 41秒のVC継続試験は完了済みだが、30分混在負荷・実デバイス・Windows・聴感の代わりにはしない。
+
+
+### P3 連続PCM入力部品と実Realtime接続（2026-10-28）
+
+[入力報告](realtime-audio-ingress-report.md)。44.1/48k→24kmonoのanti-alias変換と有界queueを追加。
+元48k合成fixtureを実server_vadへ流し、mic/speaker各6partial/2final、無音で更新なし。
+独立レビューImportant1（send待ち中の停止）を修正し、実モデル込み56PASS・関連526PASS/11SKIP。
+物理capture/選択UI/partial表示/final統合は次工程。license配布条件とWindows実機は保留。

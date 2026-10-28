@@ -43,3 +43,18 @@ imozuruの原典6本・照合済み引用8件・検索2語30hitsは`tmp/voice-re
 次工程はOS captureとUI/既存final処理への接続。P3全体、P2聴感、P4翻訳発声、P5Windows/配布/混在負荷は引き続き未完了。
 
 既定suite1173 PASS / 16既知FAIL / 6 SKIP / 46 warnings。失敗名集合は直前と一致。
+
+
+## 独立レビュー後の停止修正
+
+Critical0/Important1/Minor0。送信が詰まるとclose/overflowが通信セッションまで届かない問題を、
+実producerと停止した模擬socketで2件RED→GREENにした。
+capture threadからthread-safe通知し、pumpはworkerと停止通知の先着を待つ。
+停止時は先にclientの状態と未配信結果を閉じ、その後worker/waiterをcancel/gatherする。
+実モデル込み **56 PASS（11.22秒）**、関連 **526 PASS / 11 opt-in SKIP / 7 warnings（17.27秒）**。
+独立レビューの追加実行はしていない。
+
+`close()`は入力を即座に拒否し、loopへ停止を予約する同期操作。停止完了境界は`await pump`。
+UI側は停止操作時にnamespaceを無効化し、予約から完了までの結果を公開しない必要がある。
+物理capture/Windows/UI/final routing/長時間負荷と最終binary license判断はレビュー対象外で、次工程のゲートに残す。
+固定原典と引用照合済み記録は`tmp/voice-resume/research/ingress-stop/`。
