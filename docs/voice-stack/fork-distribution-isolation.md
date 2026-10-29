@@ -40,6 +40,7 @@ ZIP作成では欠損入力とI/O失敗を成功扱いにしていた問題も�
 | Vite | PASS | bundleサイズ警告あり |
 | locked/offline Tauri build | PASS, `debug/vrct-tts`生成 | 開発sidecarなのでcheckout依存 |
 | 実Tauri GUI | **3 PASS**, 110.10s | DPMS guard、外部network隔離、モデル不要。描画/新名称/設定反復/保存再起動/ミュート |
+| 実source ZIP | **PASS**, 1,329 entries / 29,940,935 bytes | `bb154f47`からgit archiveで生成。OCR重みなし、CRC正常、元LICENSEとOCR通知のbyte一致。実行可能ZIP/installerではない |
 | Ruff（追加guard/tests） / diff check | PASS | 全体security scanではない |
 
 関連suite:
@@ -57,6 +58,7 @@ UV_CACHE_DIR=/tmp/vrct-uv-cache uv run --offline --no-project \
 旧版installerからfloating最新版へ戻る1テストは、forkの固定版方針に合わせて改訂した。
 
 生ログ、nativeスクリーンショット等: `tmp/voice-resume/fork-distribution/`。
+[ソースZIPのhash・検査結果](fork-source-archive-results.json)。このsnapshotはローカル検証用で未公開。
 imozuru原典・map/log: `tmp/voice-resume/research/fork-distribution/`。
 調査はAIT/subagentを使わず直接実施。
 
