@@ -108,6 +108,7 @@ def test_selection_caption_replacement_stop_and_stale_responses(tmp_path):
                 reply(
                     endpoint,
                     dict(
+                        server=settings["server"], configured_url=settings["base_url"], server_generation=None,
                         base_url=settings["base_url"],
                         models=[
                             dict(

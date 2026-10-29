@@ -132,6 +132,7 @@ def test_bundled_not_ready_never_calls_external_http_and_preserves_chat(app, pcm
         c.voice_events.router = AudioRouter(lambda *args: Sink())
         assert c.chatMessage(dict(id='missing', message='hello'))['status'] == 200
         until(lambda: c.voice_events.status()['errors'] == 1)
+        assert c.voice_events.status()['last_error'] == 'speech_server_not_ready'
         assert requests == []
         m.model.oscSendMessage.assert_called_once()
 
@@ -185,7 +186,7 @@ def test_bundled_asr_selection_models_start_and_no_external_fallback(app, owned,
     c.setSpeechServerSettings(owned[0])
     run_server(c, 'asr')
     result = c.getRealtimeASRModels()['result']
-    assert result == dict(server='bundled', configured_url=settings['base_url'], base_url='http://127.0.0.1:32123', models=[], error_code=None)
+    assert result == dict(server='bundled', configured_url=settings['base_url'], base_url='http://127.0.0.1:32123', server_generation=1, models=[], error_code=None)
     start(c)
     assert made[0].options.base_url == result['base_url']
     assert c.getRealtimeASRSettings()['result'] == settings

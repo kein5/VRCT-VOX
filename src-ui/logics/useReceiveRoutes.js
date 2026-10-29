@@ -4,12 +4,18 @@ import * as common from "@logics_common";
 import * as main from "@logics_main";
 import * as configs from "@logics_configs";
 import * as voice from "./voice/useVoice";
+import * as speech from "./voice/useSpeechServers";
 import { _useBackendErrorHandling } from "./_useBackendErrorHandling";
 import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { receiveLanguageMutation, resetLanguageMutations } from "./main/languageMutations";
 
 export const STATIC_ROUTE_META_LIST = [
+    { endpoint: "/get/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
+    { endpoint: "/set/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
+    { endpoint: "/get/data/speech_server_state", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
+    { endpoint: "/run/start_speech_server", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
+    { endpoint: "/run/stop_speech_server", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
     { endpoint: "/get/data/realtime_asr_settings", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateSettings" },
     { endpoint: "/set/data/realtime_asr_settings", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateSettings" },
     { endpoint: "/get/data/realtime_asr_endpoints", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateEndpoints" },
@@ -158,6 +164,13 @@ export const useReceiveRoutes = () => {
     const { showNotification_Error } = common.useNotificationStatus();
     const { errorHandling_Backend } = _useBackendErrorHandling();
     const { updateError: updateVoiceError, updateDirectError } = voice.useVoice();
+    const { state: speechState, pending: speechPending, send: sendSpeech, updateError: updateSpeechError, reset: resetSpeech } = speech.useSpeechServers();
+    const speechActive = Object.values(speechState).some(row => ["preparing", "ready", "stopping"].includes(row.state)) || Object.keys(speechPending).length > 0;
+    useEffect(() => {
+        if (!speechActive) return;
+        const timer = setInterval(() => sendSpeech("/get/data/speech_server_state"), 500);
+        return () => clearInterval(timer);
+    }, [speechActive, sendSpeech]);
     const { state: realtimeState, send: sendRealtime, updateError: updateRealtimeError, reset: resetRealtime } = realtime.useRealtimeASR();
     const realtimeActive = Object.values(realtimeState).some(value => value.requested);
     useEffect(() => {
@@ -203,6 +216,11 @@ export const useReceiveRoutes = () => {
 
     const receiveRoutes = (parsed_data) => {
         const { endpoint, status, result } = parsed_data;
+        if (status !== 200 && endpoint.includes("speech_server")) {
+            updateSpeechError(result?.error_code || "speech_server_request_failed");
+            if (endpoint !== "/get/data/speech_server_state") sendSpeech("/get/data/speech_server_state");
+            return;
+        }
         if (status !== 200 && endpoint.includes("realtime_asr")) {
             updateRealtimeError(result?.error_code || "realtime_request_failed");
             return;
@@ -217,6 +235,9 @@ export const useReceiveRoutes = () => {
         }
 
         if (endpoint === "/run/initialization_complete") {
+            resetSpeech();
+            sendSpeech("/get/data/speech_server_settings");
+            sendSpeech("/get/data/speech_server_state");
             resetRealtime();
             sendRealtime("/get/data/realtime_asr_settings");
             sendRealtime("/get/data/realtime_asr_state");

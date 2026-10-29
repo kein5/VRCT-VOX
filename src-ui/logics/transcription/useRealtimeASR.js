@@ -41,7 +41,7 @@ export const useRealtimeASR = () => {
         const previous = atoms.get(settingsAtom);
         if (previous) {
             const active = atoms.get(realtimeStateAtom), invalidated = {};
-            const shared = previous.base_url !== value.base_url || previous.model !== value.model;
+            const shared = previous.server !== value.server || previous.base_url !== value.base_url || previous.model !== value.model;
             for (const source of ["mic", "speaker"]) {
                 if (active[source] && (shared || JSON.stringify(previous[source]) !== JSON.stringify(value[source]))) {
                     invalidated[source] = { ...active[source], requested: false, state: "stopping" };

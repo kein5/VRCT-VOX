@@ -340,6 +340,7 @@ def test_explicit_model_and_endpoint_lists_and_safe_errors(app, monkeypatch):
     monkeypatch.setattr(m, "SpeechCppASR", MagicMock(return_value=service))
     assert c.getRealtimeASRModels()["result"] == {
         "server": "external",
+        "server_generation": None,
         "configured_url": "http://127.0.0.1:8080",
         "base_url": "http://127.0.0.1:8080",
         "models": [{"id": "asr", "languages": ("ja",), "accepts_language": False}],
@@ -361,6 +362,7 @@ def test_explicit_model_and_endpoint_lists_and_safe_errors(app, monkeypatch):
     service.recognizers.side_effect = RuntimeError("private response body")
     assert c.getRealtimeASRModels()["result"] == {
         "server": "external",
+        "server_generation": None,
         "configured_url": "http://127.0.0.1:8080",
         "base_url": "http://127.0.0.1:8080",
         "models": [],

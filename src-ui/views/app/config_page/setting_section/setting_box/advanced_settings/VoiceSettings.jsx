@@ -3,6 +3,7 @@ import { useI18n } from "@useI18n";
 import { useVoice } from "../../../../../../logics/voice/useVoice";
 import styles from "./VoiceSettings.module.scss";
 import { DirectVoiceSettings } from "./DirectVoiceSettings";
+import { SpeechServers } from "./SpeechServers";
 
 export const VoiceSettings = () => {
     const { t } = useI18n();
@@ -34,6 +35,11 @@ export const VoiceSettings = () => {
     const field = (key, value) => setDraft(previous => ({ ...previous, [key]: value }));
     const input = key => <label>{t(`voice.${key}`)}
         <input value={draft[key]} onChange={e => field(key, e.target.value)} maxLength={key.endsWith("voice") ? 128 : 512} />
+    </label>;
+    const server = role => <label>{t(`speech_servers.${role}_selection`)}
+        <select aria-label={t(`speech_servers.${role}_selection`)} value={draft[`${role}_server`] || "external"} onChange={e => field(`${role}_server`, e.target.value)}>
+            {["external", "bundled"].map(value => <option key={value} value={value}>{t(`speech_servers.${value}`)}</option>)}
+        </select>
     </label>;
     const deviceList = devices.devices || [];
     return <section className={styles.container} aria-label={t("voice.title")}>
@@ -84,12 +90,13 @@ export const VoiceSettings = () => {
             </label>
             {draft.routing === "managed" && <p>{t("voice.managed_hint")}</p>}
             <button type="button" onClick={() => send("/get/data/voice_output_devices")}>{t("voice.refresh")}</button>
-            {input("japanese_url")}{input("japanese_voice")}
-            {input("multilingual_url")}{input("multilingual_voice")}
+            {server("japanese")}{draft.japanese_server !== "bundled" && input("japanese_url")}{input("japanese_voice")}
+            {server("multilingual")}{draft.multilingual_server !== "bundled" && input("multilingual_url")}{input("multilingual_voice")}
             <p>{t("voice.routing_hint")}</p>
             <button type="submit" disabled={saving}>{t(saving ? "voice.saving" : "voice.save")}</button>
             <button type="button" onClick={() => send("/run/stop_voice")}>{t("voice.stop")}</button>
         </form>
+        <SpeechServers />
         <DirectVoiceSettings />
         <p>{t(route.managed ? "voice.mute_scope_managed" : "voice.mute_scope_external")}</p>
         <button type="button" onClick={() => send("/run/mute_voice")}>{t("voice.mute")}</button>

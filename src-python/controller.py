@@ -27,6 +27,7 @@ from models.transcription.speechcpp_asr import SpeechCppASR
 from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
+from models.tts.speechcpp_tts import SpeechError
 from models.speech_server.runtime import SpeechServers
 from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
 from models.tts.message_hook import chat_event, microphone_event
@@ -352,7 +353,7 @@ class Controller:
         self.speech_servers = SpeechServers(on_end=self._speechServerEnded)
         voice_settings = getattr(self._config, "VOICE_SETTINGS", {})
         self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings if isinstance(voice_settings, dict) else {}),
-                                          resolve_server=self.speech_servers.binding)
+                                          resolve_server=self._ttsSpeechServer)
         config_path = getattr(self._config, '_PATH_CONFIG', 'config.json')
         if not isinstance(config_path, (str, Path)):
             config_path = 'config.json'
@@ -402,6 +403,14 @@ class Controller:
 
     def getSpeechServerState(self, *args, **kwargs):
         return {"status": 200, "result": self.speech_servers.state()}
+
+    def _ttsSpeechServer(self, profile):
+        try:
+            return self.speech_servers.binding(profile)
+        except RuntimeError:
+            # Preserve the safe public code instead of reporting an output
+            # device error for a deliberately stopped inference server.
+            raise SpeechError("speech_server_not_ready") from None
 
     @staticmethod
     def _speechRequest(data, *, start=False):
@@ -524,8 +533,10 @@ class Controller:
     def getRealtimeASRModels(self, *args, **kwargs):
         settings = self.getRealtimeASRSettings()["result"]
         result = dict(server=settings["server"], configured_url=settings["base_url"],
-                      base_url=settings["base_url"], models=[], error_code=None)
+                      base_url=settings["base_url"], server_generation=None, models=[], error_code=None)
         if settings["server"] == "bundled":
+            # Identify the server incarnation even when the OS reuses a port.
+            result["server_generation"] = self.speech_servers.state()["asr"]["generation"]
             try:
                 result["base_url"] = self.speech_servers.binding("asr")
             except RuntimeError:

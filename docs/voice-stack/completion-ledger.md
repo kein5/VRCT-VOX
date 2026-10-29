@@ -22,6 +22,17 @@
 [静的解析の入口](https://github.com/trailofbits/skills/tree/main/plugins/static-analysis)を確認済み。
 実施時は版・ルール・対象範囲を記録し、導入や文書確認だけをスキャン完了として扱わない。
 
+### P5-B 同梱サーバーのGUI接続完了（2026-10-29）
+
+speech.cpp固定配布部品に続き、3枠の所有サーバーをGUIから保存・起動・停止できるよう実装。
+外部/同梱選択、停止の優先処理、古いStart/モデル一覧の世代検証、TTS取消・ASR final破棄を統合。
+音声881 PASS/15 SKIP、標準1,222 PASS/6 SKIP、最終GUI/Controller53 PASS。
+実Tauri＋同梱Vulkan版＋承認済みQwen/Reazon/Silero＋私有合成経路が1 PASS（76.24秒）。
+実発声、途中停止後無音、ASR字幕2件、外部サーバー維持、再起動で全枠/録音OFFを確認した。
+[報告・未検証範囲](owned-speech-servers-report.md)。物理音声・Windows・聴感・Linux配布物は完了扱いにしない。
+後続のユーザー希望に従い、次はAUR等のパッケージ方式・依存/更新/ライセンスを検討する。
+パッケージ登録・公開・上流連絡/PRは行わず、配布前Trail of Bits監査ゲートを保持する。
+
 ### 現在のPCで進める範囲（2026-10-28追加指示）
 
 ユーザーはWindows作業を後日、別のWindows PCで行う方針を指定した。

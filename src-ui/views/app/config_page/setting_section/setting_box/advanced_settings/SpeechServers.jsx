@@ -1,0 +1,59 @@
+import { useEffect, useState } from "react";
+import { useI18n } from "@useI18n";
+import { useSpeechServers } from "../../../../../../logics/voice/useSpeechServers";
+import styles from "./VoiceSettings.module.scss";
+
+export const SpeechServers = () => {
+    const { t } = useI18n();
+    const { settings, state, pending, error, send, updateError } = useSpeechServers();
+    const [draft, setDraft] = useState(null);
+    const [saving, setSaving] = useState(false);
+    const pendingKey = JSON.stringify(pending);
+    useEffect(() => {
+        send("/get/data/speech_server_settings");
+        send("/get/data/speech_server_state");
+    }, [send]);
+    useEffect(() => { setDraft(settings); setSaving(false); }, [settings]);
+    useEffect(() => { if (error) setSaving(false); }, [error]);
+    useEffect(() => {
+        if (!saving && !Object.keys(pending).length) return;
+        const timer = setTimeout(() => { setSaving(false); updateError("speech_server_request_unconfirmed"); }, 5000);
+        return () => clearTimeout(timer);
+    }, [saving, pendingKey, updateError]);
+    const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
+    const field = (name, key, value) => setDraft(previous => ({ ...previous,
+        profiles: { ...previous.profiles, [name]: { ...previous.profiles[name], [key]: value } } }));
+    return <section className={styles.container} aria-label={t("speech_servers.title")}>
+        <h3>{t("speech_servers.title")}</h3>
+        <p>{t("speech_servers.help")}</p>
+        {draft && <form onSubmit={event => {
+            event.preventDefault(); setSaving(true); send("/set/data/speech_server_settings", draft);
+        }}>
+            {["japanese", "multilingual", "asr"].map(name => {
+                const row = draft.profiles[name], owner = state[name];
+                const busy = saving || !!pending[name] || !owner || ["preparing", "ready", "stopping"].includes(owner.state);
+                const input = key => <label key={key}>{t(`speech_servers.${key}`)}
+                    <input value={row[key]} disabled={busy} maxLength={4096} spellCheck={false}
+                        onChange={event => field(name, key, event.target.value)} />
+                </label>;
+                return <fieldset key={name}>
+                    <legend>{t(`speech_servers.${name}`)}</legend>
+                    {input("model")}{input(name === "asr" ? "vad_model" : "voice_file")}
+                    <label>{t("speech_servers.device")}<select value={row.device} disabled={busy}
+                        onChange={event => field(name, "device", event.target.value)}>
+                        {["auto", "cpu", "gpu"].map(device => <option key={device} value={device}>{t(`speech_servers.${device}`)}</option>)}
+                    </select></label>
+                    <button type="button" disabled={dirty || saving || busy || !row.model.trim() ||
+                        (name === "asr" && !row.vad_model.trim()) || owner?.error_code === "speech_server_cleanup_unconfirmed"}
+                        onClick={() => send("/run/start_speech_server", { profile: name, generation: owner.generation })}>{t("speech_servers.start")}</button>
+                    <button type="button" onClick={() => send("/run/stop_speech_server", { profile: name })}>{t("speech_servers.stop")}</button>
+                    <p role="status">{t(`speech_servers.state_${pending[name] ? "pending" : owner?.state ?? "unknown"}`)}</p>
+                    {owner?.error_code && <p role="alert">{owner.error_code}</p>}
+                </fieldset>;
+            })}
+            <button type="submit" disabled={saving || !dirty}>{t(saving ? "voice.saving" : "speech_servers.save")}</button>
+        </form>}
+        <button type="button" onClick={() => { send("/get/data/speech_server_settings"); send("/get/data/speech_server_state"); }}>{t("speech_servers.reload")}</button>
+        {error && <p role="alert">{error}</p>}
+    </section>;
+};

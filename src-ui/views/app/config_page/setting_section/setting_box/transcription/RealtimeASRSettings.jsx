@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useRealtimeASR } from "../../../../../../logics/transcription/useRealtimeASR";
+import { useSpeechServers } from "../../../../../../logics/voice/useSpeechServers";
 import styles from "../advanced_settings/VoiceSettings.module.scss";
 
 const key = endpoint => endpoint ? JSON.stringify([endpoint.cookie, endpoint.serial, endpoint.name, endpoint.media_class]) : "";
@@ -8,6 +9,7 @@ const key = endpoint => endpoint ? JSON.stringify([endpoint.cookie, endpoint.ser
 export const RealtimeASRSettings = () => {
     const { t } = useI18n();
     const { settings, state, endpoints, models, error, send } = useRealtimeASR();
+    const { state: servers, send: sendSpeech } = useSpeechServers();
     const [draft, setDraft] = useState(null);
     useEffect(() => { setDraft(settings); }, [settings]);
     const refreshDevices = () => {
@@ -16,12 +18,16 @@ export const RealtimeASRSettings = () => {
     useEffect(() => {
         send("/get/data/realtime_asr_settings");
         send("/get/data/realtime_asr_state");
+        sendSpeech("/get/data/speech_server_state");
         refreshDevices();
-    }, [send]);
+    }, [send, sendSpeech]);
     useEffect(() => {
         if (settings?.base_url) send("/get/data/realtime_asr_models");
-    }, [settings?.base_url, send]);
-    const knownModels = models.base_url === settings?.base_url ? models.models ?? [] : [];
+    }, [settings?.base_url, settings?.server, servers.asr?.generation, servers.asr?.base_url, send]);
+    const modelsCurrent = models.server === settings?.server && models.configured_url === settings?.base_url &&
+        (settings?.server === "bundled" ? servers.asr?.state === "ready" && models.base_url === servers.asr.base_url &&
+            models.server_generation === servers.asr.generation : models.base_url === settings?.base_url);
+    const knownModels = modelsCurrent ? models.models ?? [] : [];
     const selectedModel = knownModels.find(row => row.id === draft?.model);
     const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
     const updateSource = (source, values) => setDraft(previous => ({ ...previous, [source]: { ...previous[source], ...values } }));
@@ -30,8 +36,12 @@ export const RealtimeASRSettings = () => {
         <p>{t("realtime.scope")}</p>
         <p>{t("realtime.server_help")}</p>
         {draft && <form onSubmit={event => { event.preventDefault(); send("/set/data/realtime_asr_settings", draft); }}>
-            <label>{t("realtime.url")}<input aria-label={t("realtime.url")} value={draft.base_url}
-                onChange={event => setDraft({ ...draft, base_url: event.target.value })} /></label>
+            <label>{t("speech_servers.asr_selection")}<select aria-label={t("speech_servers.asr_selection")} value={draft.server || "external"}
+                onChange={event => setDraft({ ...draft, server: event.target.value })}>
+                {["external", "bundled"].map(value => <option key={value} value={value}>{t(`speech_servers.${value}`)}</option>)}
+            </select></label>
+            {draft.server !== "bundled" && <label>{t("realtime.url")}<input aria-label={t("realtime.url")} value={draft.base_url}
+                onChange={event => setDraft({ ...draft, base_url: event.target.value })} /></label>}
             <label>{t("realtime.model")}<select aria-label={t("realtime.model")} value={draft.model}
                 onChange={event => setDraft({ ...draft, model: event.target.value })}>
                 <option value="">{t("realtime.select_model")}</option>
