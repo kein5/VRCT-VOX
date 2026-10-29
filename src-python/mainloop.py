@@ -604,6 +604,7 @@ mapping = {
     "/get/data/voice_settings": {"status": True, "variable":controller.getVoiceSettings},
     "/set/data/voice_settings": {"status": True, "variable":controller.setVoiceSettings},
     "/get/data/voice_status": {"status": True, "variable":controller.getVoiceStatus},
+    "/get/data/tts_model_options": {"status": True, "variable":controller.getTtsModelOptions},
     "/get/data/voice_output_devices": {"status": True, "variable":controller.getVoiceOutputDevices},
     "/run/stop_voice": {"status": True, "variable":controller.stopVoice},
     "/run/enable_tts": {"status": True, "variable":controller.enableTts},

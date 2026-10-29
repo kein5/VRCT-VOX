@@ -1,5 +1,6 @@
 """Validated speech settings. Chat and microphone speech are separately opt-in."""
 from dataclasses import asdict, dataclass
+import re
 from urllib.parse import urlsplit
 
 
@@ -47,6 +48,10 @@ class VoiceSettings:
     multilingual_url: str = ""
     multilingual_voice: str = "ryan"
     multilingual_server: str = "external"
+    japanese_seed: str = ""
+    multilingual_seed: str = ""
+    japanese_instructions: str = ""
+    multilingual_instructions: str = ""
     output_device: str = ""
     routing: str = "external"  # external | managed (Linux daemon-owned route)
 
@@ -61,6 +66,13 @@ class VoiceSettings:
         settings = cls(**value)
         if any(not isinstance(v, str) for v in asdict(settings).values()):
             raise ValueError("Voice settings must be strings")
+        for role in ('japanese', 'multilingual'):
+            seed = getattr(settings, role + '_seed')
+            if seed and (not re.fullmatch(r'[0-9]{1,16}', seed) or int(seed) > 9007199254740991):
+                raise ValueError('Invalid seed')
+            instruction = getattr(settings, role + '_instructions')
+            if len(instruction) > 4000 or any((ord(c) < 32 and c not in '\r\n\t') or ord(c) == 127 for c in instruction):
+                raise ValueError('Invalid instructions')
         if settings.mode not in ("off", "original", "translated") or settings.target_slot not in ("1", "2", "3"):
             raise ValueError("Invalid speech mode or translation slot")
         if settings.mic_mode not in ("off", "translated") or settings.direct_policy not in ("suppress", "mix"):
@@ -85,6 +97,17 @@ class VoiceSettings:
 
     def to_dict(self):
         return asdict(self)
+
+    def options_for(self, language):
+        role = 'japanese' if language_tag(language) == 'ja' else 'multilingual'
+        options = {}
+        seed = getattr(self, role + '_seed')
+        if seed != '':
+            options['seed'] = int(seed)
+        instruction = getattr(self, role + '_instructions')
+        if instruction.strip():
+            options['instructions'] = instruction
+        return options
 
     def request_for(self, event, *, resolve_server=None):
         if event.source == "mic":

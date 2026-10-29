@@ -1898,6 +1898,27 @@ class Controller:
     def getVoiceStatus(self, *args, **kwargs) -> dict:
         return {"status": 200, "result": self.voice_events.status()}
 
+    def getTtsModelOptions(self, data, *args, **kwargs) -> dict:
+        if not isinstance(data, dict) or set(data) != {'role'} or data['role'] not in ('japanese', 'multilingual'):
+            return {'status': 400, 'result': {'error_code': 'tts_role_invalid'}}
+        role = data['role']
+        with self._voice_settings_lock:
+            settings = self.voice_events.settings
+            server = getattr(settings, role + '_server')
+            configured_url = getattr(settings, role + '_url')
+            generation = self.speech_servers.state()[role]['generation'] if server == 'bundled' else None
+        result = dict(role=role, server=server, configured_url=configured_url, server_generation=generation,
+                      base_url=None, options=None, error_code=None)
+        try:
+            result['base_url'] = self._ttsSpeechServer(role) if server == 'bundled' else configured_url
+            result['options'] = SpeechCppTTS(result['base_url']).get_model_options()
+            if server == 'bundled' and self.speech_servers.state()[role]['generation'] != generation:
+                raise SpeechError('tts_state_changed')
+        except (ValueError, SpeechError) as exc:
+            result['options'] = None
+            result['error_code'] = str(exc) if isinstance(exc, SpeechError) else 'tts_model_options_unavailable'
+        return {'status': 200, 'result': result}
+
     def enableTts(self, data, *args, **kwargs) -> dict:
         if (not isinstance(data, dict) or set(data) != {'generation'}
                 or type(data.get('generation')) is not int or data['generation'] < 0):

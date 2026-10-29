@@ -2,12 +2,13 @@
 import http.client
 import json
 import socket
-from threading import Event, Lock, Thread
+from threading import Event, Lock, Thread, Timer
 from time import monotonic
 from urllib.parse import urlsplit
 
 from models.voice_events import AudioFrame
 from .settings import local_url
+from .model_options import parse_options, SAFE_SEED_MAX
 
 
 class SpeechError(Exception):
@@ -130,22 +131,77 @@ class SpeechCppTTS:
 
     def check_health(self):
         """Bounded, local-only readiness probe; never loads or synthesizes a model."""
+        if self._get_json('/health', 4096, CancelToken(), 'speech_server_not_ready') != {'status': 'ok'}:
+            raise SpeechError('speech_server_not_ready')
+
+    def _get_json(self, path, limit, token, error_code):
         url = urlsplit(self.base_url)
         conn = http.client.HTTPConnection(url.hostname, url.port, timeout=self.timeout)
+        expired = Event()
+        sock = None
+        def interrupt():
+            if sock is not None:
+                try:
+                    sock.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+        def expire():
+            expired.set()
+            interrupt()
+        timer = Timer(self.timeout, expire)
+        timer.daemon = True
+        timer.start()
         try:
-            conn.request('GET', '/health')
+            token.check()
+            conn.connect()
+            sock = conn.sock
+            token.register(interrupt)
+            token.check()
+            if expired.is_set():
+                raise SpeechError(error_code)
+            conn.request('GET', path)
             response = conn.getresponse()
-            body = response.read(4097)
-            if response.status != 200 or len(body) > 4096 or json.loads(body) != {'status': 'ok'}:
-                raise SpeechError('speech_server_not_ready')
+            body = response.read(limit + 1)
+            token.check()
+            if expired.is_set() or response.status != 200 or len(body) > limit:
+                raise SpeechError(error_code)
+            return json.loads(body)
         except (OSError, ValueError, http.client.HTTPException):
-            raise SpeechError('speech_server_not_ready') from None
+            token.check()
+            raise SpeechError(error_code) from None
         finally:
+            timer.cancel()
             conn.close()
 
-    def synthesize_stream(self, text, voice, language, cancel_token):
+    def get_model_options(self, cancel_token=None):
+        document = self._get_json('/v1/models', 65536, cancel_token or CancelToken(), 'tts_model_options_unavailable')
+        try:
+            return parse_options(document)
+        except ValueError:
+            raise SpeechError('tts_model_options_unavailable') from None
+
+    def synthesize_stream(self, text, voice, language, cancel_token, *, seed=None, instructions=''):
         if not isinstance(text, str) or not text.strip() or len(text) > 4000:
             raise SpeechError("invalid_text")
+        if seed is not None and (type(seed) is not int or not 0 <= seed <= SAFE_SEED_MAX):
+            raise SpeechError('invalid_seed')
+        if (not isinstance(instructions, str) or len(instructions) > 4000
+                or any((ord(c) < 32 and c not in '\r\n\t') or ord(c) == 127 for c in instructions)):
+            raise SpeechError('invalid_instructions')
+        options = {}
+        if seed is not None or instructions.strip():
+            capability = self.get_model_options(cancel_token)
+            if seed is not None:
+                limits = capability['seed']
+                if limits is None:
+                    raise SpeechError('tts_seed_unsupported')
+                if not limits['minimum'] <= seed <= limits['maximum']:
+                    raise SpeechError('tts_seed_out_of_range')
+                options['seed'] = seed
+            if instructions.strip():
+                if not capability['instructions']:
+                    raise SpeechError('tts_instructions_unsupported')
+                options['instructions'] = instructions
         url = urlsplit(self.base_url)
         conn = http.client.HTTPConnection(url.hostname, url.port, timeout=self.timeout)
         response = None
@@ -167,7 +223,7 @@ class SpeechCppTTS:
             cancel_token.register(interrupt)
             cancel_token.check()
             body = json.dumps({"input": text, "voice": voice,
-                               "language": language, "response_format": "pcm"}).encode()
+                               "language": language, "response_format": "pcm", **options}).encode()
             conn.request("POST", "/v1/audio/speech", body, {"Content-Type": "application/json"})
             # Initial model work can include cold Vulkan kernels. Keep connection
             # and subsequent chunk stalls short, but allow bounded first audio.

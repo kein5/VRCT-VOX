@@ -187,7 +187,8 @@ class VoiceEventBus:
             outcome = "error"
             try:
                 url, voice, language, text = settings.request_for(event, resolve_server=self.resolve_server)
-                frames = self.provider_factory(url).synthesize_stream(text, voice, language, token)
+                frames = self.provider_factory(url).synthesize_stream(text, voice, language, token,
+                                                                    **settings.options_for(language))
 
                 def first_audio(timestamp, rate):
                     nonlocal first_write

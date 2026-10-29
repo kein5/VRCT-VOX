@@ -12,18 +12,27 @@ def pcm_server():
     @contextmanager
     def start(*, chunks=(b"\x01", b"\x00\x02", b"\x00"), status=200,
               content_type="audio/pcm", rate="48000", before_chunk=None, before_headers=None,
-              headers=None, truncate=False, health_status=200, health_body=b'{"status":"ok"}'):
+              headers=None, truncate=False, health_status=200, health_body=b'{"status":"ok"}',
+              model_document=None, models_body=None, before_get=None):
         requests = []
 
         class Handler(BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"
 
             def do_GET(self):
-                self.send_response(health_status if self.path == '/health' else 404)
+                if before_get:
+                    before_get(self.path)
+                body = health_body
+                if self.path == '/v1/models':
+                    body = models_body if models_body is not None else json.dumps(model_document).encode()
+                self.send_response(health_status if self.path == '/health' else 200 if self.path == '/v1/models' else 404)
                 self.send_header('Content-Type', 'application/json')
-                self.send_header('Content-Length', str(len(health_body)))
+                self.send_header('Content-Length', str(len(body)))
                 self.end_headers()
-                self.wfile.write(health_body)
+                try:
+                    self.wfile.write(body)
+                except (ConnectionError, OSError):
+                    pass
 
             def do_POST(self):
                 requests.append((self.path, json.loads(self.rfile.read(int(self.headers["Content-Length"])))))

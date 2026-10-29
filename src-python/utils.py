@@ -623,7 +623,7 @@ def setupLogger(name: str, log_file: str, level: int = logging.INFO) -> logging.
 process_logger: Optional[logging.Logger] = None
 
 # エンドポイント名にこれらのいずれかが含まれる場合、ログに書き出す値をマスクする
-SENSITIVE_ENDPOINT_MARKERS = ("auth_key", "api_key", "password", "token", "secret")
+SENSITIVE_ENDPOINT_MARKERS = ("auth_key", "api_key", "password", "token", "secret", "voice_settings", "instructions")
 
 
 def _isSensitiveEndpoint(endpoint: Any) -> bool:
