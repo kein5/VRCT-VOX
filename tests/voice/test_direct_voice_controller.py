@@ -63,24 +63,33 @@ def test_default_off_explicit_start_and_tts_stop_are_independent(app):
     assert b.children[0].poll() is not None
 
 
-def test_tts_settings_continue_input_but_external_routing_stops_it(app):
+def test_tts_settings_continue_input_but_route_change_requires_explicit_stop(app):
     c, b, gate, _ = app
     managed(c)
     start(c)
     assert c.setVoiceSettings({'routing': 'managed', 'mode': 'translated', 'target_slot': '2'})['status'] == 200
     assert c.getDirectVoiceState()['result']['active'] and b.children[0].poll() is None
+    response = c.setVoiceSettings({'routing': 'external', 'mode': 'off'})
+    assert response == {'status': 409, 'result': {'error_code': 'direct_voice_stop_required'}}
+    assert c.getDirectVoiceState()['result']['requested']
+    assert c.voice_events.settings.routing == 'managed'
+    assert b.children[0].poll() is None
+    c.stopDirectVoice()
+    until(lambda: not c.direct_voice.health()['stopping'])
     assert c.setVoiceSettings({'routing': 'external', 'mode': 'off'})['status'] == 200
     assert not c.getDirectVoiceState()['result']['requested']
     assert b.children[0].poll() is not None
 
 
-def test_leaving_managed_routing_cancels_inflight_launch(app):
+def test_route_change_rejected_during_inflight_launch_until_explicit_stop(app):
     c, b, gate, _ = app
     managed(c)
     b.block_at = 'launch'
     assert c.startDirectVoice(request(c))['status'] == 200
     assert b.enter.wait(1)
-    assert c.setVoiceSettings({'routing': 'external'})['status'] == 200
+    assert c.setVoiceSettings({'routing': 'external'})['status'] == 409
+    assert c.voice_events.settings.routing == 'managed'
+    c.stopDirectVoice()
     b.release.set()
     assert c.direct_voice.close()
     assert not b.unmutes

@@ -130,10 +130,20 @@ config_page:
         transcription: "語音辨識"
         others: "其他"
         hotkeys: "快捷鍵"
+        tts: "TTS"
+        rvc: "RVC"
         advanced_settings: "進階設定"
         updater: "更新"
         ocr: "聊天讀取"
 
+    tts:
+        tts_settings:
+            label: "TTS"
+            desc: "朗讀聊天輸入和麥克風的最終翻譯。儲存後，請在主畫面開啟TTS。"
+    rvc:
+        rvc_settings:
+            label: "RVC"
+            desc: "變聲：模型、麥克風、音高和索引"
     device:
         section_label_mic: "麥克風"
         section_label_speaker: "揚聲器"
@@ -639,3 +649,22 @@ speech_servers:
 fork_distribution:
     update_policy: "已停用應用程式內更新。請透過安裝 VRCT-TTS 的發行管道更新。"
     releases: "VRCT-TTS 發行頁"
+
+voice_ui:
+    tts_description: "朗讀聊天輸入和麥克風的最終翻譯。儲存後，請在主畫面開啟TTS。"
+    output_hint: "本機試聽請選耳機，傳送至VRChat請選虛擬音訊線。託管路徑與直接語音共用輸出。"
+    edit_route: "變更音訊路徑"
+    route_hint: "TTS和直接語音共用此路徑。變更前請停止直接輸入。切換到外部音訊線會中斷託管輸入連線。"
+    save_route: "儲存音訊路徑"
+    discard: "放棄變更"
+    unsaved: "有未儲存的變更"
+    saved: "已儲存"
+    save_failed: "儲存失敗 — 已保留編輯內容"
+    saving: "儲存中…"
+    leave_title: "未儲存的語音設定"
+    leave_hint: "放棄未儲存的變更並離開此頁面？"
+    keep_editing: "繼續編輯"
+    discard_leave: "放棄並離開"
+    input_conflict: "另一個直接語音引擎正在執行。請先在其設定頁面停止。"
+    engine_settings: "引擎設定"
+    memory_error: "記憶體不足。請停止其他GPU應用程式，或選擇CPU並儲存，再重新啟動伺服器。"

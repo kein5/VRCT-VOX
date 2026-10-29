@@ -1884,6 +1884,10 @@ class Controller:
             return {"status": 400, "result": {"error_code": "VOICE_SETTINGS_INVALID",
                     "message": "Invalid voice settings; select an output and local server.", "data": None}}
         with self._voice_settings_lock:
+            if settings.routing != self.voice_events.settings.routing:
+                direct = self.direct_voice.health()
+                if direct['requested'] or direct['pending'] or direct.get('stopping'):
+                    return {'status': 409, 'result': {'error_code': 'direct_voice_stop_required'}}
             try:
                 if settings.routing != 'managed':
                     self.direct_voice.stop()

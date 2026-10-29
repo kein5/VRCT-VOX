@@ -10,3 +10,6 @@ export { AboutVrct } from "./about_vrct/AboutVrct";
 export { Supporters } from "./supporters/Supporters";
 export { Updater } from "./updater/Updater";
 export { Ocr } from "./ocr/Ocr";
+
+export { Tts } from "./tts/Tts";
+export { Rvc } from "./rvc/Rvc";

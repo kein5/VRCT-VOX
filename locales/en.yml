@@ -30,7 +30,7 @@ voice:
     input_source: "Input to forward"
     select_input: "Select an input"
     refresh_inputs: "Refresh inputs"
-    input_requires_managed: "Save the managed virtual microphone route above before starting."
+    input_requires_managed: "Save the managed virtual microphone route in Device settings before starting."
     input_start: "Start input forwarding"
     input_stop: "Stop input forwarding"
     input_unknown: "Input state not confirmed"
@@ -56,7 +56,7 @@ voice:
     title: "Text to voice (speech.cpp)"
     description: "Read sent text through a virtual microphone. Start your local speech.cpp server first."
     loading: "Loading voice settings…"
-    mode: "Read aloud"
+    mode: "Chat voice"
     mic_mode: "Realtime microphone speech"
     mic_translated: "Speak final translations"
     direct_policy: "Direct input while translating"
@@ -67,7 +67,7 @@ voice:
     original: "Original text"
     translated: "Translated text"
     target_slot: "Translation slot"
-    output_device: "Virtual cable playback device"
+    output_device: "Output device"
     select_output: "Select an output"
     disconnected: "Disconnected"
     refresh: "Refresh devices"
@@ -213,10 +213,20 @@ config_page:
         transcription: "Transcription"
         others: "Other"
         hotkeys: "Hotkeys"
+        tts: "TTS"
+        rvc: "RVC"
         advanced_settings: "Advanced"
         updater: "Updater"
         ocr: "Chat Transcribe"
 
+    tts:
+        tts_settings:
+            label: "TTS"
+            desc: "Read typed messages and final microphone translations. Turn TTS on from the main screen after saving."
+    rvc:
+        rvc_settings:
+            label: "RVC"
+            desc: "Voice conversion: model, microphone, pitch and index"
     device:
         section_label_mic: "Mic"
         section_label_speaker: "Speaker"
@@ -764,3 +774,22 @@ speech_servers:
 fork_distribution:
     update_policy: "Built-in updates are disabled. Update through the channel from which you installed VRCT-TTS."
     releases: "VRCT-TTS releases"
+
+voice_ui:
+    tts_description: "Read typed messages and final microphone translations. Turn TTS on from the main screen after saving."
+    output_hint: "Choose headphones to listen locally, or a virtual cable for VRChat. The managed route shares its output with direct voice."
+    edit_route: "Change audio route"
+    route_hint: "This route is shared by TTS and direct voice. Stop direct input before changing it. Switching to an external cable removes the managed input connection."
+    save_route: "Save audio route"
+    discard: "Discard changes"
+    unsaved: "Unsaved changes"
+    saved: "Saved"
+    save_failed: "Save failed — edits kept"
+    saving: "Saving…"
+    leave_title: "Unsaved voice settings"
+    leave_hint: "Discard unsaved changes and leave this page?"
+    keep_editing: "Keep editing"
+    discard_leave: "Discard and leave"
+    input_conflict: "Another direct input engine is running. Stop it on its settings page before switching."
+    engine_settings: "Engine settings"
+    memory_error: "Not enough memory. Stop other GPU applications or select CPU, save, and try Start server again."

@@ -163,7 +163,19 @@ export const STATIC_ROUTE_META_LIST = [
 export const useReceiveRoutes = () => {
     const { showNotification_Error } = common.useNotificationStatus();
     const { errorHandling_Backend } = _useBackendErrorHandling();
-    const { updateError: updateVoiceError, updateDirectError } = voice.useVoice();
+    const { settings: voiceSettings, send: sendVoice, reset: resetVoice, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
+    const voiceConnected = voiceSettings !== null;
+    useEffect(() => {
+        if (!voiceConnected) return;
+        const poll = () => {
+            sendVoice("/get/data/voice_status");
+            sendVoice("/get/data/voice_route");
+            sendVoice("/get/data/direct_voice_state");
+        };
+        poll();
+        const timer = setInterval(poll, 1000);
+        return () => clearInterval(timer);
+    }, [voiceConnected, sendVoice]);
     const { state: speechState, pending: speechPending, send: sendSpeech, updateError: updateSpeechError, reset: resetSpeech } = speech.useSpeechServers();
     const speechActive = Object.values(speechState).some(row => ["preparing", "ready", "stopping"].includes(row.state)) || Object.keys(speechPending).length > 0;
     useEffect(() => {
@@ -235,6 +247,9 @@ export const useReceiveRoutes = () => {
         }
 
         if (endpoint === "/run/initialization_complete") {
+            resetVoice();
+            sendVoice("/get/data/voice_settings");
+            sendVoice("/get/data/direct_voice_sources");
             resetSpeech();
             sendSpeech("/get/data/speech_server_settings");
             sendSpeech("/get/data/speech_server_state");

@@ -67,7 +67,7 @@ voice:
     original: "原文"
     translated: "翻訳文"
     target_slot: "読み上げる翻訳先の番号"
-    output_device: "仮想ケーブルの再生デバイス"
+    output_device: "出力デバイス"
     select_output: "出力先を選択"
     disconnected: "未接続"
     refresh: "デバイス一覧を更新"
@@ -213,10 +213,20 @@ config_page:
         transcription: "音声認識"
         others: "その他"
         hotkeys: "ホットキー"
+        tts: "TTS"
+        rvc: "RVC"
         advanced_settings: "高度な設定"
         updater: "アップデート"
         ocr: "チャット読み取り"
 
+    tts:
+        tts_settings:
+            label: "TTS"
+            desc: "チャット入力とマイク音声の確定した翻訳を読み上げます。保存後、トップ画面でTTSをオンにしてください。"
+    rvc:
+        rvc_settings:
+            label: "RVC"
+            desc: "ボイスチェンジャー：モデル・入力マイク・ピッチ・index"
     device:
         section_label_mic: "マイク"
         section_label_speaker: "スピーカー"
@@ -764,3 +774,22 @@ speech_servers:
 fork_distribution:
     update_policy: "アプリ内更新は無効です。VRCT-TTSを導入した配布元から更新してください。"
     releases: "VRCT-TTSの配布ページ"
+
+voice_ui:
+    tts_description: "チャット入力とマイク音声の確定した翻訳を読み上げます。保存後、トップ画面でTTSをオンにしてください。"
+    output_hint: "自分で聞く場合はイヤホン、VRChatへ送る場合は仮想ケーブルを選びます。管理された経路では直接音声と出力先を共有します。"
+    edit_route: "音声経路を変更"
+    route_hint: "TTSと直接音声で共有する経路です。変更前に直接入力を停止してください。外部ケーブルへ切り替えると、管理された入力接続を解除します。"
+    save_route: "音声経路を保存"
+    discard: "変更を破棄"
+    unsaved: "未保存の変更があります"
+    saved: "保存済み"
+    save_failed: "保存失敗 — 編集内容は保持されています"
+    saving: "保存中…"
+    leave_title: "未保存の音声設定"
+    leave_hint: "未保存の変更を破棄して、このページを離れますか？"
+    keep_editing: "編集を続ける"
+    discard_leave: "破棄して移動"
+    input_conflict: "別の直接音声エンジンが動作中です。切り替える前に、その設定ページで停止してください。"
+    engine_settings: "エンジン設定"
+    memory_error: "メモリーが不足しています。他のGPUアプリを停止するか、CPUを選択して保存し、サーバーを再起動してください。"

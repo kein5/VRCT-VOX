@@ -1,4 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
+import { VoiceRouteSummary } from "../device/VoiceRouteSettings";
+import { SectionLabelComponent } from "../_components/section_label_component/SectionLabelComponent";
+import styles from "./VoiceSettings.module.scss";
 import { useI18n } from "@useI18n";
 import { useVoice } from "../../../../../../logics/voice/useVoice";
 
@@ -7,30 +11,33 @@ const key = id => JSON.stringify([id.cookie, id.serial, id.name, id.media_class]
 const defaults = { mode: "passthrough", runtime: "", reference: "", engine: "seed-vc",
     rvc_runtime: "", rvc_model: "", rvc_index: "", rvc_pitch: 0, rvc_index_rate: 0 };
 
-export const DirectVoiceSettings = () => {
+export const DirectVoiceSettings = ({ variant = "all" }) => {
     const { t } = useI18n();
-    const { settings, directState, directSources, directError, send } = useVoice();
-    const [selected, setSelected] = useState("");
-    const [draft, setDraft] = useState(defaults);
-    const [saving, setSaving] = useState(false);
-    const savedKey = JSON.stringify({ ...defaults, ...directState.settings });
+    const { settings, directState, directSources, directError, updateDirectError, send,
+        selectedSource: selected, setSelectedSource: setSelected } = useVoice();
+    const saved = useMemo(() => {
+        if (!directState.settings) return null;
+        const value = { ...defaults, ...directState.settings };
+        if (variant === "rvc") return { ...value, mode: "converted", engine: "rvc" };
+        if (variant === "legacy" && value.engine === "rvc") return { ...value, mode: "passthrough", engine: "seed-vc" };
+        return value;
+    }, [directState.settings, variant]);
+    const form = useSettingsDraft(saved, directError, updateDirectError);
+    const { draft, setDraft, saving, dirty } = form;
     useEffect(() => {
-        setDraft(JSON.parse(savedKey));
-        setSaving(false);
-    }, [savedKey]);
-    useEffect(() => { if (directError) setSaving(false); }, [directError]);
-    useEffect(() => {
+        send("/get/data/voice_settings");
         send("/get/data/direct_voice_sources");
         send("/get/data/direct_voice_state");
-        const timer = setInterval(() => send("/get/data/direct_voice_state"), 1000);
-        return () => clearInterval(timer);
     }, [send]);
+    if (!draft) return <p role="status">{t("voice.input_unknown")}</p>;
+    const needsSelection = draft.mode !== directState.settings?.mode || draft.engine !== directState.settings?.engine;
+    const isRvc = directState.mode === "converted" && directState.settings?.engine === "rvc";
+    const ownsInput = variant === "all" || (variant === "rvc" ? isRvc : !isRvc);
     const sources = directSources.sources || [];
     const source = sources.find(item => key(item.id) === selected);
     const managed = settings?.routing === "managed";
     const unavailable = directSources.error || directError || directState.error;
-    const busy = directState.requested || directState.pending;
-    const dirty = JSON.stringify(draft) !== savedKey;
+    const busy = directState.requested || directState.pending || directState.stopping;
     const converted = draft.mode === "converted";
     const rvc = draft.engine === "rvc";
     const validNumbers = Number.isInteger(draft.rvc_pitch) && Math.abs(draft.rvc_pitch) <= 24 &&
@@ -48,22 +55,25 @@ export const DirectVoiceSettings = () => {
     else if (directState.active) status = directState.mode !== "converted" ? "voice.input_active" :
         directState.conversion_state === "idle" ? "voice.vc_idle" :
             directState.conversion_verified ? "voice.vc_active" : "voice.vc_ready";
-    return <section aria-label={t("voice.input_title")}>
-        <h3>{t("voice.input_title")}</h3>
-        <p>{t("voice.input_description")}</p>
-        <label>{t("voice.direct_mode")}
-            <select value={draft.mode} disabled={busy} onChange={e => setDraft({ ...draft, mode: e.target.value })}>
+    return <section className={styles.container} aria-label={variant === "rvc" ? "RVC" : t("voice.input_title")} data-setting-id={variant === "rvc" ? "rvc_settings" : "direct_voice_settings"}>
+        <SectionLabelComponent label={variant === "rvc" ? "RVC" : t("voice.input_title")} />
+        <VoiceRouteSummary />
+        <p>{t(variant === "rvc" ? "voice.vc_rvc_hint" : "voice.input_description")}</p>
+        {busy && !ownsInput && <p role="alert">{t("voice_ui.input_conflict")}</p>}
+        <fieldset className={styles.fields} disabled={saving}>
+        {variant !== "rvc" && <label>{t("voice.direct_mode")}
+            <select aria-label={t("voice.direct_mode")} value={draft.mode} disabled={busy} onChange={e => setDraft({ ...draft, mode: e.target.value })}>
                 <option value="passthrough">{t("voice.direct_passthrough")}</option>
                 <option value="converted">{t("voice.direct_converted")}</option>
             </select>
-        </label>
+        </label>}
         {converted && <>
-            <label>{t("voice.vc_engine")}
-                <select value={draft.engine} disabled={busy} onChange={e => setDraft({ ...draft, engine: e.target.value })}>
+            {variant === "all" && <label>{t("voice.vc_engine")}
+                <select aria-label={t("voice.vc_engine")} value={draft.engine} disabled={busy} onChange={e => setDraft({ ...draft, engine: e.target.value })}>
                     <option value="seed-vc">Seed-VC</option>
                     <option value="rvc">RVC</option>
                 </select>
-            </label>
+            </label>}
             <p>{t(rvc ? "voice.vc_rvc_hint" : "voice.vc_hint")}</p>
             {(rvc ? ["rvc_runtime", "rvc_model", "rvc_index"] : ["runtime", "reference"]).map(name => <label key={name}>{t(`voice.vc_${name}`)}
                 <input type="text" value={draft[name]} disabled={busy} maxLength={4096}
@@ -76,12 +86,16 @@ export const DirectVoiceSettings = () => {
                         onChange={e => setDraft({ ...draft, [name]: e.target.valueAsNumber })} />
                 </label>)}
         </>}
-        <button type="button" disabled={busy || !dirty || saving || !validNumbers} onClick={() => {
-            setSaving(true);
-            send("/set/data/direct_voice_settings", draft);
-        }}>{t(saving ? "voice.saving" : "voice.direct_save")}</button>
+        </fieldset>
+        <div className={styles.actions}>
+            <button className={styles.primary} type="button" disabled={busy || (!dirty && !needsSelection) || saving || !validNumbers}
+                onClick={() => form.submit(value => send("/set/data/direct_voice_settings", value))}>{t(saving ? "voice.saving" : "voice.direct_save")}</button>
+            <button type="button" disabled={!dirty || saving} onClick={form.discard}>{t("voice_ui.discard")}</button>
+            <span role="status">{t(`voice_ui.${form.saveState}`)}</span>
+        </div>
+        {form.navigationDialog}
         <label>{t("voice.input_source")}
-            <select value={selected} disabled={busy} onChange={e => setSelected(e.target.value)}>
+            <select aria-label={t("voice.input_source")} value={selected} disabled={busy} onChange={e => setSelected(e.target.value)}>
                 <option value="">{t("voice.select_input")}</option>
                 {selected && !source && <option value={selected}>{t("voice.disconnected")}</option>}
                 {sources.map(item => <option key={key(item.id)} value={key(item.id)}>{item.label}</option>)}
@@ -90,11 +104,11 @@ export const DirectVoiceSettings = () => {
         <button type="button" onClick={() => send("/get/data/direct_voice_sources")}>{t("voice.refresh_inputs")}</button>
         {!managed && <p>{t("voice.input_requires_managed")}</p>}
         <button type="button" disabled={!managed || !source || !!directSources.error || !complete || dirty || saving ||
-            !directState.observation_id || busy}
+            !directState.observation_id || busy || needsSelection}
             onClick={() => send("/run/start_direct_voice", converted ? {
                 source: source.id, mode: "converted", options,
             } : { source: source.id })}>{t("voice.input_start")}</button>
-        <button type="button" onClick={() => send("/run/stop_direct_voice")}>{t("voice.input_stop")}</button>
+        <button type="button" disabled={!ownsInput} onClick={() => send("/run/stop_direct_voice")}>{t("voice.input_stop")}</button>
         <p role="status">{t(status)}</p>
         <p>{t("voice.input_scope")}</p>
         {unavailable && <p role="alert">{t("voice.input_error")}: {unavailable}</p>}

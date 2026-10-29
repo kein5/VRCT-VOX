@@ -1,7 +1,7 @@
 import { useStore_SelectedConfigTabId } from "@store";
 
 import {
-    Device,
+    Device, Tts, Rvc,
     Appearance,
     Translation,
     Transcription,
@@ -18,6 +18,8 @@ import {
 export const SettingBox = () => {
     const { currentSelectedConfigTabId } = useStore_SelectedConfigTabId();
     switch (currentSelectedConfigTabId.data) {
+        case "tts": return <Tts />;
+        case "rvc": return <Rvc />;
         case "device":
             return <Device />;
         case "appearance":

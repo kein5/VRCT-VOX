@@ -50,6 +50,8 @@ export const SidebarSection = () => {
                         <Tab tab_id="vr" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="others" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="hotkeys" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
+                        <Tab tab_id="tts" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
+                        <Tab tab_id="rvc" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="advanced_settings" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="updater" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                     </div>
@@ -66,6 +68,8 @@ export const SidebarSection = () => {
 
 export const TabIcon = ({ tab_id, className }) => {
     switch (tab_id) {
+        case "tts": return <GraphicEqSvg className={className} />;
+        case "rvc": return <MicSvg className={className} />;
         case "device": return <MicSvg className={className} />;
         case "appearance": return <AppearanceSvg className={clsx(className, styles.mui_icon)} />;
         case "translation": return <TranslationSvg className={className} />;
@@ -107,7 +111,8 @@ const Tab = (props) => {
     };
 
     return (
-        <div className={tab_container_class_names} onClick={onclickFunction}>
+        <div className={tab_container_class_names} role="button" tabIndex={0} aria-label={getLabel()} aria-current={is_selected ? "page" : undefined}
+            onClick={onclickFunction} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onclickFunction(); } }}>
             <div className={styles.tab_icon_wrapper}>
                 <TabIcon tab_id={props.tab_id} className={styles.tab_icon} />
             </div>
