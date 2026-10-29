@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: MIT
  * Watch an inherited creator-thread pidfd throughout the OS audio lifetime.
- * No PCM processing or elevated privileges; only spawn the fixed optional VC worker module.
+ * No PCM processing or elevated privileges; spawn fixed VC or speech-server entry points.
  */
 #include <errno.h>
 #include <limits.h>
@@ -30,7 +30,11 @@ static bool owner_alive(int fd) {
 int main(int argc, char **argv) {
     bool rvc = argc == 12 && strcmp(argv[8], "rvc") == 0;
     bool router = argc == 5 && (strcmp(argv[4], "router") == 0 || strcmp(argv[4], "router-frozen") == 0);
-    if (!router && ((argc != 8 && !rvc) || argv[3][0] != '/' || argv[4][0] != '/' || argv[5][0] != '/' ||
+    bool speech = argc == 9 && strcmp(argv[4], "speech-server") == 0;
+    if (speech && (argv[5][0] != '/' || (argv[6][0] && argv[6][0] != '/') ||
+        (argv[7][0] && argv[7][0] != '/') || strlen(argv[7]) >= PATH_MAX ||
+        (strcmp(argv[8], "auto") && strcmp(argv[8], "cpu") && strcmp(argv[8], "gpu")))) return 2;
+    if (!router && !speech && ((argc != 8 && !rvc) || argv[3][0] != '/' || argv[4][0] != '/' || argv[5][0] != '/' ||
         argv[6][0] != '/' || strlen(argv[7]) != 32 ||
         strspn(argv[7], "0123456789abcdef") != 32)) return 2;
     if (argv[3][0] != '/') return 2;
@@ -58,6 +62,23 @@ int main(int argc, char **argv) {
             getppid() != supervisor) _exit(1);
         signal(SIGTERM, SIG_DFL);
         signal(SIGINT, SIG_DFL);
+        if (speech) {
+            char voice[PATH_MAX + 8];
+            char *args[16];
+            int n = 0;
+            args[n++] = argv[3]; args[n++] = "serve"; args[n++] = argv[5];
+            if (argv[6][0]) args[n++] = argv[6];
+            args[n++] = "--host"; args[n++] = "127.0.0.1";
+            args[n++] = "--port"; args[n++] = "0";
+            args[n++] = "--device"; args[n++] = argv[8];
+            if (argv[7][0]) {
+                snprintf(voice, sizeof(voice), "custom=%s", argv[7]);
+                args[n++] = "--add-voice"; args[n++] = voice;
+            }
+            args[n] = NULL;
+            execv(argv[3], args);
+            _exit(1);
+        }
         if (router) {
             char *module_args[] = {argv[3], "-u", "-m", "models.voice_conversion.router_worker", NULL};
             char *frozen_args[] = {argv[3], "--voice-router-worker", NULL};

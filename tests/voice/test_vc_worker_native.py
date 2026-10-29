@@ -56,7 +56,7 @@ def test_rvc_supervisor_passes_only_fixed_module_and_explicit_settings(tmp_path)
         os.close(owner)
 
 
-@pytest.mark.parametrize('engine', ['seed-vc', 'rvc', 'router', 'router-frozen'])
+@pytest.mark.parametrize('engine', ['seed-vc', 'rvc', 'router', 'router-frozen', 'speech-server'])
 @pytest.mark.parametrize('mode', ['normal', 'kill', 'thread', 'supervisor'])
 def test_worker_lifetime_is_bound_to_owner_and_supervisor(tmp_path, mode, engine):
     helper = compile_helper(tmp_path, 'native/vc-worker/main.c')
@@ -70,7 +70,8 @@ leave = threading.Event()
 def launch():
     fd = os.pidfd_open(threading.get_native_id(), os.O_EXCL)
     try:
-        args = ([engine] if engine.startswith('router') else
+        args = ([engine,'/model.gguf','','','auto'] if engine=='speech-server' else
+                [engine] if engine.startswith('router') else
                 ['/engine', '/assets', '/reference.wav', 'a'*32] + (['rvc', '', '0', '0'] if engine == 'rvc' else []))
         child = subprocess.Popen([helper, str(os.getpid()), str(fd), interpreter, *args], pass_fds=(fd,), stdout=subprocess.PIPE)
     finally:
@@ -122,3 +123,22 @@ else:
                     child.kill()
             except psutil.NoSuchProcess:
                 pass
+
+
+def test_speech_supervisor_fixes_host_port_and_limits_arguments(tmp_path):
+    import json
+    import os
+    import threading
+    helper=compile_helper(tmp_path,'native/vc-worker/main.c')
+    binary=tmp_path/'capture-args'
+    binary.write_text('#!'+sys.executable+'\nimport sys,json\nprint(json.dumps(sys.argv[1:]))\n')
+    binary.chmod(0o700)
+    fd=os.pidfd_open(threading.get_native_id(),os.O_EXCL)
+    try:
+        args=[str(helper),str(os.getpid()),str(fd),str(binary),'speech-server']
+        result=subprocess.run([*args,'/model.gguf','/vad.gguf','/voice.gguf','cpu'],pass_fds=(fd,),capture_output=True,timeout=3,check=True)
+        assert json.loads(result.stdout)==['serve','/model.gguf','/vad.gguf','--host','127.0.0.1','--port','0','--device','cpu','--add-voice','custom=/voice.gguf']
+        for values in [('named-model','','','auto'),('/model','','','--host'),('/model','vad','','auto'),('/model','','voice','auto')]:
+            denied=subprocess.run([*args,*values],pass_fds=(fd,),capture_output=True,timeout=3)
+            assert denied.returncode==2 and not denied.stdout
+    finally:os.close(fd)
