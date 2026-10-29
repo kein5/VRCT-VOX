@@ -1,10 +1,11 @@
-# 音声・TTSのUI調査（imozuru）
+# TTS・RVCのUI調査（imozuru）
 
 2026-10-29。設計とモックアップの根拠。製品のUI変更・音声性能の検証結果ではない。
 
 最初に見るもの:
 - [トップ画面のモック](main.html) / [画像](main-on.png)
-- [専用設定ページのモック](mockup.html) / [生成設定の画像](generation.png)
+- [TTS設定ページのモック](mockup.html) / [生成設定の画像](generation.png)
+- [RVC設定ページのモック](rvc.html)
 - [設計案](../../superpowers/specs/2026-10-29-tts-settings-ui-design.md) / [実装計画](../../superpowers/plans/2026-10-29-tts-settings-ui.md)
 - [詳細レポート](../../../tmp/voice-resume/research/tts-settings-ui/digest.html) / [原文の抜き書き](../../../tmp/voice-resume/research/tts-settings-ui/report.html)
 
@@ -18,7 +19,7 @@
 | 保存の見落とし | GOV.UKは主な操作を強調し、主操作を増やしすぎない方針 | formごとに保存対象を明示。未保存を文章でも表示 |
 | 長い設定 | GOV.UK Detailsは一部の利用者が必要な情報向けで、主要な情報を隠す用途は避ける | 普段の読み上げ/出力を先に置く。未設定・失敗時の準備手順は開いて見せる |
 | 保存/起動の状態 | W3CのStatus Messagesはフォーカスを奪わない通知を説明 | 保存中、確認済み、失敗、停止中を区別する |
-| 独立ページとトップスイッチ | ユーザーが明示希望。W3C APGはswitchのlabelを状態で変えないとする | メニュー「音声・TTS」、トップはTTSトグル1行だけ。詳細は専用設定、失敗時は既存通知 |
+| 独立ページとトップスイッチ | ユーザーが明示希望。W3C APGはswitchのlabelを状態で変えないとする | メニュー「TTS」「RVC」、トップは各トグル1行だけ。詳細は専用設定、失敗時は既存通知 |
 | TTSだけのOFF | 既存muteは管理ルート全体、schedulerの_mutedもルート所有 | 独立tts_enabledを追加し、原音・VC・OSCを変更しない |
 | seed/Instruction | 固定speech.cppのAPI/ADRと実機モデル宣言 | 日本語/多言語別に保存し、対応モデルへJSON項目として送る |
 
@@ -61,13 +62,13 @@ speech API→Instruction ADR→実機モデル宣言を追った。各論点に�
 過去のProviderエラーを踏まえて本セッション内で調査し、AITの子セッションは起動していない。
 
 モックは保存表示、別formの保存、CPUへの再試行表示、停止、TTSスイッチのSpace操作を確認した。
-12枚の表示を生成し、横はみ出しとJavaScript例外を検査した。[記録](mockup-checks.json)
+ページ分離後は16枚の表示を生成し、横はみ出しとJavaScript例外を検査した。[記録](mockup-checks.json)
 モックの初回検査でSVGとボタンのID重複を見つけ、接頭辞を分けて修正した。
 
 製品バックエンドとの接続、実際のOFF後の無音、固定seedのPCM一致、Instructionの聴感/遅延、
 スクリーンリーダーと全拡大率での適合、Windows実機は未検証。モックの成功をこれらの合格として扱わない。
 
-モックの多言語・ASR・直接VCの詳細は配置の見本で、一部の入力を省略している。
+モックの多言語詳細は配置の見本で、一部の入力を省略している。ASRと原音/Seed-VCは別の既存ページに置く案。
 実装時は既存項目と保存契約を維持する。例文やseed42はデモ値で、製品の既定値にはしない。
 
 ## 追加確認：HTML単体プレビューの表示崩れ
@@ -80,6 +81,19 @@ ERR_FILE_NOT_FOUNDになり、背景やアイコン寸法が崩れることを�
 CSSをHTML内へ含め、不要になった外部CSSを削除した。
 構造の原典は[HTML Standardのstyle要素](https://html.spec.whatwg.org/multipage/semantics.html#the-style-element)。
 トップ画面の状態選択欄が実際のTTSスイッチと食い違う点も修正した。
-各HTMLの単独表示2サイズと、OFFのまま専用設定へ移動して戻る操作が成功し、
+各HTMLの単独表示2サイズと、TTS/RVCのON/OFF全4組合せで両設定を往復する操作が成功し、
 JavaScript例外・リソース取得失敗は0件。[検証記録](standalone-checks.json)
 アプリ本体・音声出力への変更はない。
+
+## 追加確認：RVCとTTSのページ分離
+
+ユーザーの要望で独立ページへ変更。RVC項目は既存コードを原典にし、未対応の調整項目を足していない。
+
+- `src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/DirectVoiceSettings.jsx`:
+  入力完全ID、RVC用の5設定、保存/開始、managed前提。入力選択は現在コンポーネント内の一時状態。
+- `src-python/models/voice_conversion/settings.py`: pitch整数−24〜24、index率0〜1、正の率にindex必須。
+- `src-python/controller.py`の`setVoiceSettings`/`startDirectVoice`:
+  RVCはLinux＋managed前提。共通経路をexternalに変えると直接入力を止める。
+
+このため共通経路の設定はデバイスへ集約し、稼働中の変更を制限する提案とした。
+表示ページが独立しても出力やGPUまで独立するという意味ではない。モデルと音声はこの確認で起動していない。

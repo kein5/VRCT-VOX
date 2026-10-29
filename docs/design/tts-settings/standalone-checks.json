@@ -23,10 +23,44 @@
       "width": 870,
       "height": 654,
       "status": "passed"
+    },
+    {
+      "file": "rvc.html",
+      "width": 1120,
+      "height": 900,
+      "status": "passed"
+    },
+    {
+      "file": "rvc.html",
+      "width": 870,
+      "height": 654,
+      "status": "passed"
     }
   ],
-  "navigation": true,
+  "navigation": [
+    {
+      "tts": "on",
+      "rvc": "on",
+      "status": "passed"
+    },
+    {
+      "tts": "on",
+      "rvc": "off",
+      "status": "passed"
+    },
+    {
+      "tts": "off",
+      "rvc": "on",
+      "status": "passed"
+    },
+    {
+      "tts": "off",
+      "rvc": "off",
+      "status": "passed"
+    }
+  ],
   "errors": [],
   "failed_resources": [],
-  "audio": false
+  "audio": false,
+  "product_integration": false
 }

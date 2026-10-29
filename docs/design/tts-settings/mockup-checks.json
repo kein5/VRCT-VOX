@@ -3,78 +3,142 @@
   "javascript_errors": [],
   "screens": [
     {
-      "scenario": "dirty",
-      "viewport": 1120,
+      "name": "main-on",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
       "horizontal_overflow": false
     },
     {
-      "scenario": "saved",
-      "viewport": 1120,
+      "name": "main-off",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
       "horizontal_overflow": false
     },
     {
-      "scenario": "engine",
-      "viewport": 1120,
+      "name": "main-unready",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
       "horizontal_overflow": false
     },
     {
-      "scenario": "failure",
-      "viewport": 1120,
+      "name": "main-pending",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
       "horizontal_overflow": false
     },
     {
-      "scenario": "generation",
-      "viewport": 1120,
+      "name": "main-both",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
       "horizontal_overflow": false
     },
     {
-      "scenario": "dirty",
-      "viewport": 870,
+      "name": "main-rvc-only",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
       "horizontal_overflow": false
     },
     {
-      "scenario": "narrow",
-      "viewport": 870,
+      "name": "main-compact",
+      "viewport": {
+        "width": 870,
+        "height": 760
+      },
       "horizontal_overflow": false
     },
     {
-      "scenario": "main-on",
-      "viewport": 1120,
+      "name": "dirty",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
       "horizontal_overflow": false
     },
     {
-      "scenario": "main-off",
-      "viewport": 1120,
+      "name": "saved",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
       "horizontal_overflow": false
     },
     {
-      "scenario": "main-unready",
-      "viewport": 1120,
+      "name": "engine",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
       "horizontal_overflow": false
     },
     {
-      "scenario": "main-pending",
-      "viewport": 1120,
+      "name": "failure",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
       "horizontal_overflow": false
     },
     {
-      "scenario": "main-on",
-      "viewport": 870,
+      "name": "generation",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "compact",
+      "viewport": {
+        "width": 870,
+        "height": 760
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "narrow",
+      "viewport": {
+        "width": 870,
+        "height": 760
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "rvc-saved",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "rvc-compact",
+      "viewport": {
+        "width": 870,
+        "height": 654
+      },
       "horizontal_overflow": false
     }
   ],
   "checks": [
-    "draft/save feedback",
-    "independent engine settings save",
-    "CPU retry simulation",
-    "server stop simulation",
-    "TTS switch with Space",
-    "TTS OFF/ON simulation"
+    "independent TTS/RVC toggles in all four combinations, keyboard Space",
+    "readiness feedback and RVC startup cancellation without changing TTS",
+    "TTS draft/save, independent engine save, CPU retry and stop simulation",
+    "RVC pitch boundaries and fraction rejection, index required and rate boundaries, save without start",
+    "RVC settings locked while running",
+    "shared external route preserved across pages; RVC never enables or changes it silently"
   ],
   "audio": false,
-  "product_integration": false,
-  "notes": [
-    "main-compact.pngの横はみ出しは検査スクリプト末尾のassertで確認。",
-    "生成パラメータはUI見本。製品への送信と聴感は未検証。"
-  ]
+  "product_integration": false
 }
