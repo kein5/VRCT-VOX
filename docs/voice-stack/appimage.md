@@ -79,6 +79,15 @@ Other GPUs retain their default. An explicit `WEBKIT_DISABLE_DMABUF_RENDERER=0`
 requests the original path. This is unrelated to the earlier DPMS-off failure.
 See [Tauri's graphics guidance](https://v2.tauri.app/develop/debug/linux-graphics/).
 
+With the NVIDIA fallback active, the main window is also made opaque. The
+original transparent window lost its contents during ordinary startup/hover on
+this host, despite passing the initial WebDriver screenshot tests. Disabling
+transparency alone restored the display in a controlled comparison. Desktop
+transparency/transparent rounded corners are therefore unavailable in this mode;
+the opacity preference may fade content against the window background instead.
+Windows and other rendering paths retain their configured transparency. See the
+[reproduction and correction](appimage-rendering-report.md).
+
 ## Acceptance and limits
 
 ```sh
@@ -93,6 +102,10 @@ Supply `VRCT_TEST_DRIVER` for a different tauri-driver 2.1.0 location. The syste
 Python running the display guard needs Gio. Tests copy the actual image to a
 path with spaces and cover native drawing/shutdown plus private managed routing,
 settings persistence and restart muted, for both FUSE and extraction. The
+normal-launch test additionally needs ImageMagick and xdotool. It starts the app
+without WebDriver, idles for five seconds, then captures the actual X11 window
+before and after pointer movement. It checks painted interior coverage and
+restores the pointer on completion; no inference control is clicked. The
 routing case needs WirePlumber 0.5. It records no physical microphone and uses
 no inference models. The CI uses Xvfb and tests extraction; it does not claim
 FUSE, physical audio or private routing acceptance on Ubuntu 24.04.

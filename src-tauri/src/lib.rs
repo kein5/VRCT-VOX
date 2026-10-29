@@ -70,6 +70,24 @@ fn startup_log(message: &str) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     startup_log("VRCT startup began");
+    let context = tauri::generate_context!();
+    #[cfg(target_os = "linux")]
+    let context = {
+        let mut context = context;
+        // NVIDIA's WebKit shared-memory fallback can leave transparent X11
+        // surfaces unpainted until hovered. WebDriver screenshots missed this
+        // failure; ordinary-window capture reproduces it.
+        if std::env::var_os("APPIMAGE").is_some()
+            && Path::new("/sys/module/nvidia").is_dir()
+            && std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").as_deref() == Ok("1")
+        {
+            if let Some(main) = context.config_mut().app.windows.iter_mut().find(|w| w.label == "main") {
+                main.transparent = false;
+                startup_log("Opaque main window enabled for NVIDIA AppImage shared-memory rendering");
+            }
+        }
+        context
+    };
     let result = tauri::Builder::default()
         .setup(|app| {
             let main_window = app.get_webview_window("main").ok_or_else(|| {
@@ -99,7 +117,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![get_font_list, download_zip_asset, set_vr_panel_window])
-        .run(tauri::generate_context!());
+        .run(context);
     match result {
         Ok(()) => startup_log("VRCT event loop ended"),
         Err(error) => {
