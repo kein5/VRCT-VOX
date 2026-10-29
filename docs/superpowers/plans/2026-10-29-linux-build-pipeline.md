@@ -42,11 +42,11 @@ audio_routing/speech_server/voice_conversion/capture helper paths, Rust startup 
 **Interfaces:** builder CLI selects work/output, Python, speech variant/archive; stage resources, freeze, isolated Tauri build;
 package tool validates final tree/tar, emits inventory and SHA-256.
 
-- [ ] RED: bounded collector, forbidden models, source symlink escape, broken/cyclic links, tar traversal/duplicates, missing runtime components.
-- [ ] Compile Linux dependency lock using uv; include only fixed resource paths and metadata/notices in spec.
-- [ ] Implement pipeline with checked subprocess failures and isolated Tauri workspace; avoid Windows batch commands.
-- [ ] Build actual local candidate, inspect ELF/resources/tar, run relocated frozen stdio smoke. Investigate failures with imozuru.
-- [ ] GREEN: package tests and real build/smoke. Commit.
+- [x] RED: bounded collector, forbidden models, source symlink escape, broken/cyclic links, tar traversal/duplicates, missing runtime components.
+- [x] Compile Linux dependency lock using uv; include only fixed resource paths and metadata/notices in spec.
+- [x] Implement pipeline with checked subprocess failures and isolated Tauri workspace; avoid Windows batch commands.
+- [x] Build actual local candidate, inspect ELF/resources/tar, run relocated frozen stdio smoke. Investigate failures with imozuru.
+- [x] GREEN: package tests and real build/smoke. Commit.
 
 ### Task 3: CI and native acceptance
 

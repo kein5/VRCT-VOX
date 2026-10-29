@@ -17,8 +17,12 @@ fn check_fork_resources() {
     // Use the same policy for direct Tauri builds, ZIPs and PyInstaller hooks.
     let python = std::env::var("VRCT_BUILD_PYTHON")
         .unwrap_or_else(|_| if cfg!(windows) { "python" } else { "python3" }.into());
-    let status = std::process::Command::new(python)
-        .args(["../tools/check_voice_distribution.py", "bin/_internal"])
+    let mut command = std::process::Command::new(python);
+    command.args(["../tools/check_voice_distribution.py", "bin/_internal"]);
+    if cfg!(target_os = "linux") && std::env::var("VRCT_LINUX_BUNDLE").as_deref() == Ok("1") {
+        command.arg("--allow-internal-links");
+    }
+    let status = command
         .status()
         .expect("Python 3 is required for distribution inspection");
     assert!(status.success(), "Fork resource inspection failed; rebuild the sidecar without excluded assets");

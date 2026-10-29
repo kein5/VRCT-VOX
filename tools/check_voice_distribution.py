@@ -89,11 +89,18 @@ if __name__ == "__main__":
     parser.add_argument("paths", nargs="*")
     parser.add_argument("--nsis", nargs="+", default=[])
     parser.add_argument("--seven-zip", default="7z")
+    parser.add_argument("--allow-internal-links", action="store_true",
+                        help="Linux onedir trees only: allow links to regular files within each root")
     args = parser.parse_args()
     if not args.paths and not args.nsis:
         parser.error("at least one artifact is required")
     try:
-        check(args.paths)
+        if args.allow_internal_links:
+            from linux_package import check_tree
+            for path in args.paths:
+                check_tree(path)
+        else:
+            check(args.paths)
         check_nsis(args.nsis, args.seven_zip)
     except (ValueError, OSError) as exc:
         parser.exit(1, f"{exc}\n")
