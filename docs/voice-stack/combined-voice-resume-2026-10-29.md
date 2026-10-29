@@ -1,6 +1,7 @@
 # 再起動後の複合音声試験 — 2026-10-29
 
-`79044ab5`からユーザーの指示で再開。前回の間欠停止を解消済みとは扱わない。
+`79044ab5`からユーザーの指示で再開。その後、imozuru調査でも残るVC停止を解消できず、
+ユーザー指定の停止条件で中断した。最後の状態は本書末尾。間欠停止を解消済みとは扱わない。
 試験は合成入力・私有PipeWire・承認済みモデルに限定する。Mia2026は検証専用で非同梱。
 
 ## 環境の復元
@@ -79,9 +80,39 @@ RVCは生存し、ASRも後続の2件を認識したが、空文まで翻訳さ�
 通常のpw-catにバッファ時刻だけの診断を付けた次の試行は、初期混合照合を通過
 （相対誤差2.57×10⁻⁵、初期録音の時刻欠落なし）した後、`vc_block_expired`で失敗（35.13秒）。
 80msごとの入力に対し、変換応答が約80〜92msとなる区間を記録した。
-アプリ側GCと同一原因とは扱わず、RVC内の工程別CPU／経過時間を追加観測中。
+アプリ側GCと同一原因とは扱わず、RVC内の工程別CPU／経過時間を追加観測した。
 期限・バッファの拡大で合格させない。空文修正はローカルcommit `89b36dac`に保存した。
+
+## 工程別診断の結果と中断点
+
+imozuruで固定RVC GUIのスレッド設定からFaissとPyTorch 2.7の公式説明をたどり、
+転送分離後に子プロセスのスレッド数だけを変えて比較した。
+診断はRVCの80msブロックを受けてCPU PCMを返す`convert`の経過時間とプロセスCPU時間。
+ウォームアップ3ブロックを除外。途中工程はCUDA処理の投入を含み、GPU kernel単体の時間ではない。
+どちらも合成入力・固定翻訳・実ASR/VAD/TTSとの同時稼働で、制御したGPU負荷試験ではない。
+
+| 診断試行 | 結果 | 変換ブロック数 | convert経過時間 p50 / p95 / 最大 |
+|---|---|---:|---|
+| 既定（Torch/Faiss 12） | PASS、継続126.30秒、試験全体181.95秒、強制終了後も翻訳発声継続 | 1,775 | 20.89 / 36.67 / 48.29ms |
+| 子だけOMP4・MKL4・OpenBLAS1 | FAIL、試験全体30.86秒、`vc_capture_overrun` | 126 | 60.61 / 74.44 / 81.92ms |
+
+この比較でスレッド制限の有効性は確認できなかった。試行間の大きな変動原因も未確定のため、
+設定を本番へ採用していない。既定設定でも別試行に`vc_block_expired`が残る。
+最初の工程別プローブは終了時保存のため強制終了で記録が失われた。その試行の内訳は判断に使用せず、
+後続では各ブロックの時刻・CPU時間だけを逐次保存した。診断自身の負荷はゼロと仮定しない。
+
+原典: [固定RVC GUI](https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/blob/81eed5e8f68b6bed1789f682fe78cdd324495afc/realtime_gui.py)、
+[Faissのthreading](https://github.com/facebookresearch/faiss/wiki/Threads-and-asynchronous-calls)、
+[PyTorch 2.7のCPU threading](https://docs.pytorch.org/docs/2.7/notes/cpu_threading_torchscript_inference.html)。
+証拠は`resumed/{endurance-clock-observed,rvc-stages-default,rvc-stages-default-2,rvc-stages-threads4}.log`、
+各`probe-*`内のメタデータと`stage-summary.json`。音声・モデルは外部送信していない。
+
+**中断理由:** 調査と比較試験で安定した解決策を得られなかったため、ユーザー指定の停止条件を適用。
+再開時は80ms周期の処理で、推論・CPU/GPU待ち・経路identity確認のどこに変動が生じるかを
+同一負荷で切り分ける。別録音PCMの256サンプルのずれも原因未確定として残す。
+確認済みのGUI試験修正と途中記録は`45f1d63b`に保存。診断コードはgit管理外で、製品へ組み込んでいない。
 
 30分試験は未完了。speech.cpp同梱は原典確認のみで、実装は未着手。
 物理入力、VRChat/HMD、聴感、実翻訳品質、Windows受入れは引き続き未検証。
 ログ・再実行script・私有PCMは`tmp/voice-resume/combined-voice/resumed/`に保存する。
+実装完了後のTrail of Bits Skillsによるセキュリティ監査を公開前工程へ追加済み。まだ実施していない。
