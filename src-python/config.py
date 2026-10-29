@@ -813,6 +813,7 @@ class Config:
     # Read Only
     VERSION = ManagedProperty('VERSION', readonly=True, serialize=False)
     PATH_LOCAL = ManagedProperty('PATH_LOCAL', readonly=True, serialize=False)
+    PATH_DATA = ManagedProperty('PATH_DATA', readonly=True, serialize=False)
     PATH_CONFIG = ManagedProperty('PATH_CONFIG', readonly=True, serialize=False)
     PATH_LOGS = ManagedProperty('PATH_LOGS', readonly=True, serialize=False)
     GITHUB_URL = ManagedProperty('GITHUB_URL', readonly=True, serialize=False)
@@ -1084,6 +1085,8 @@ class Config:
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
             self._PATH_LOCAL = os_path.dirname(os_path.abspath(__file__))
+        from runtime_paths import data_root
+        self._PATH_DATA = str(data_root(self._PATH_LOCAL))
         # Override mutable state only; resources and existing weights keep their
         # original location. This also permits isolated native acceptance tests.
         state_dir = os_path.abspath(os_path.expanduser(environ.get("VRCT_CONFIG_DIR") or self._PATH_LOCAL))

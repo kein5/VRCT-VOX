@@ -31,6 +31,15 @@ fn create_vr_panel_window<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Resu
 }
 
 fn startup_log_path(executable_path: &Path) -> PathBuf {
+    if let Some(directory) = std::env::var_os("VRCT_CONFIG_DIR").filter(|v| !v.is_empty()) {
+        return PathBuf::from(directory).join("logs/startup.log");
+    }
+    if cfg!(target_os = "linux") && option_env!("VRCT_LINUX_BUNDLE") == Some("1") {
+        let base = std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from).filter(|p| p.is_absolute())
+            .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config"));
+        return base.join("vrct-tts/logs/startup.log");
+    }
     executable_path
         .parent()
         .unwrap_or(Path::new("."))
@@ -182,6 +191,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
+    #[cfg(windows)]
     fn startup_log_is_stored_next_to_the_application() {
         assert_eq!(
             startup_log_path(Path::new(r"C:\VRCT\VRCT.exe")),

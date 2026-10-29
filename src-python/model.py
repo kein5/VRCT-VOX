@@ -824,7 +824,7 @@ class MicSession(_AudioDeviceSession):
             phrase_timeout=phrase_timeout,
             max_phrases=config.MIC_MAX_PHRASES,
             transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
-            root=config.PATH_LOCAL,
+            root=config.PATH_DATA,
             whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
             device=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device"],
             device_index=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device_index"],
@@ -886,7 +886,7 @@ class SpeakerSession(_AudioDeviceSession):
             phrase_timeout=phrase_timeout,
             max_phrases=config.SPEAKER_MAX_PHRASES,
             transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
-            root=config.PATH_LOCAL,
+            root=config.PATH_DATA,
             whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
             device=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device"],
             device_index=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device_index"],
@@ -1061,15 +1061,15 @@ class Model:
                 errorLogging()
 
     def backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir(self):
-        return backwardCompatibleRenameWeightsDir(config.PATH_LOCAL)
+        return backwardCompatibleRenameWeightsDir(config.PATH_DATA)
         
     def checkTranslatorCTranslate2ModelWeight(self, weight_type:str):
-        return checkCTranslate2Weight(config.PATH_LOCAL, weight_type)
+        return checkCTranslate2Weight(config.PATH_DATA, weight_type)
 
     def changeTranslatorCTranslate2Model(self):
         self.ensure_initialized()
         self.translator.changeCTranslate2Model(
-            path=config.PATH_LOCAL,
+            path=config.PATH_DATA,
             model_type=config.CTRANSLATE2_WEIGHT_TYPE,
             device=config.SELECTED_TRANSLATION_COMPUTE_DEVICE["device"],
             device_index=config.SELECTED_TRANSLATION_COMPUTE_DEVICE["device_index"],
@@ -1077,10 +1077,10 @@ class Model:
             )
 
     def downloadCTranslate2ModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadCTranslate2Weight(config.PATH_LOCAL, weight_type, callback, end_callback)
+        return downloadCTranslate2Weight(config.PATH_DATA, weight_type, callback, end_callback)
 
     def downloadCTranslate2ModelTokenizer(self, weight_type):
-        return downloadCTranslate2Tokenizer(config.PATH_LOCAL, weight_type)
+        return downloadCTranslate2Tokenizer(config.PATH_DATA, weight_type)
 
     def isLoadedCTranslate2Model(self):
         self.ensure_initialized()
@@ -1095,10 +1095,10 @@ class Model:
         self.translator.setChangedTranslatorParameters(is_changed)
 
     def checkTranscriptionWhisperModelWeight(self, weight_type:str):
-        return checkWhisperWeight(config.PATH_LOCAL, weight_type)
+        return checkWhisperWeight(config.PATH_DATA, weight_type)
 
     def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadWhisperWeight(config.PATH_LOCAL, weight_type, callback, end_callback)
+        return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback)
 
     def authenticationTranscriptionApiKey(self, api_key: str, base_url: str) -> bool:
         return checkTranscriptionApiKey(api_key, base_url)
@@ -2820,7 +2820,7 @@ class Model:
         """Model 内で Telemetry を初期化"""
         if storage_path is None:
             try:
-                storage_path = os_path.join(config.PATH_LOCAL, "telemetry_state.json")
+                storage_path = os_path.join(config.PATH_DATA, "telemetry_state.json")
             except Exception:
                 storage_path = None
         self.telemetry.init(enabled=enabled, app_version=app_version, storage_path=storage_path)

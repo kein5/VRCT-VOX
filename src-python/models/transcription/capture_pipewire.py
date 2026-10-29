@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import select
 import subprocess
+from runtime_paths import resource_root, external_process_env
 import sys
 from threading import Event, Lock, Thread, current_thread, get_native_id
 import time
@@ -17,7 +18,7 @@ from uuid import uuid4
 from models.audio_routing.source_bridge import Endpoint, _endpoint, _node, _read_graph
 from .capture_packets import CapturePackets
 
-HELPER = Path(__file__).resolve().parents[3] / 'build' / 'vrct-asr-capture'
+HELPER = resource_root() / 'build' / 'vrct-asr-capture'
 EXCLUDED = ('vrct.managed.', 'vrct.source-bridge.', 'vrct.asr.capture.')
 _NATIVE_ERRORS = frozenset('asr_capture_' + code for code in (
     'owner_gone stalled core_changed core_error stream_disconnected clock_changed '
@@ -183,7 +184,7 @@ class PipeWireCapture:
                 self._process = subprocess.Popen([
                     str(self._helper), str(os.getpid()), str(fd), str(self.endpoint.cookie),
                     str(self.endpoint.serial), self.endpoint.name, self.source, uuid4().hex,
-                ], pass_fds=(fd,), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                ], env=external_process_env(), pass_fds=(fd,), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE, bufsize=0)
                 return self._process
         finally:

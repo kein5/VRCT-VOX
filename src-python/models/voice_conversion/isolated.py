@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import select
 import subprocess
+from runtime_paths import resource_root, external_process_env
 import sys
 from threading import Event, Lock, Thread, current_thread, get_native_id
 import time
@@ -12,13 +13,13 @@ from models.transcription.capture_pipewire import _validate
 from .router_protocol import BASE_STATE, Reader, encode, validate_health
 from .settings import start_options
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = resource_root()
 HELPER = ROOT / 'build/vrct-vc-worker'
 
 
 def _launch():
     owner = os.pidfd_open(get_native_id(), os.O_EXCL)
-    env = dict(os.environ)
+    env = external_process_env()
     frozen = bool(getattr(sys, 'frozen', False))
     if not frozen:
         # Fixed application code, independent of the shell's PYTHONPATH.

@@ -2,12 +2,13 @@
 import os
 from pathlib import Path
 import subprocess
+from runtime_paths import resource_root, external_process_env
 from threading import get_native_id
 
 from .process import VCProcess
 from .settings import start_options
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = resource_root()
 HELPER = ROOT / 'build/vrct-vc-worker'
 
 
@@ -17,7 +18,7 @@ def _launch(runtime, options, session):
         return subprocess.Popen([str(HELPER), str(os.getpid()), str(owner),
             str(runtime / 'venv/bin/python'), str(runtime / 'engine'),
             str(runtime / 'assets'), options['model'], session, 'rvc', options['index'],
-            str(options['pitch']), str(options['index_rate'])], cwd=ROOT, pass_fds=(owner,),
+            str(options['pitch']), str(options['index_rate'])], env=external_process_env(), cwd=ROOT, pass_fds=(owner,),
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
     finally:
         os.close(owner)

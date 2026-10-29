@@ -9,13 +9,13 @@ import select
 import socket
 import stat
 import subprocess
-import sys
+from runtime_paths import resource_root, external_process_env
 from threading import Event, Lock, Thread, Timer, current_thread, get_native_id
 import time
 
 from .settings import PROFILES
 
-ROOT=Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parents[3]))
+ROOT=resource_root()
 BUNDLE=ROOT/'build/speechcpp'
 HELPER=ROOT/'build/vrct-vc-worker'
 START_TIMEOUT=120.0
@@ -119,7 +119,7 @@ class SpeechServer:
                   row['model'],row['vad_model'],row['voice_file'],row['device']]
             return subprocess.Popen(args,pass_fds=(owner,),stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,bufsize=0,
-                env=dict(os.environ,NO_COLOR='1'))
+                env=dict(external_process_env(),NO_COLOR='1'))
         finally: os.close(owner)
 
     def _ready(self,port,deadline):

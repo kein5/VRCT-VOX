@@ -6,9 +6,9 @@ never touches the persistent virtual microphone or the independent TTS input.
 from dataclasses import dataclass, field
 import json
 import os
-from pathlib import Path
 import select
 import subprocess
+from runtime_paths import resource_root, external_process_env
 import sys
 from threading import Event, Lock, Thread, get_native_id
 import time
@@ -18,7 +18,7 @@ from .pipewire_gate import VC_SINK
 
 START_TIMEOUT = 3.0
 MONITOR_INTERVAL = .1
-BUILD = Path(__file__).resolve().parents[3] / 'build'
+BUILD = resource_root() / 'build'
 
 
 @dataclass(frozen=True)
@@ -115,7 +115,7 @@ def _sink(graph):
 
 def _read_graph():
     try:
-        result = subprocess.run(['pw-dump'], capture_output=True, check=True, timeout=1)
+        result = subprocess.run(['pw-dump'], env=external_process_env(), capture_output=True, check=True, timeout=1)
         return json.loads(result.stdout)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         raise RuntimeError('source_bridge_graph_unavailable') from exc
@@ -170,7 +170,7 @@ def _launch(source, sink, tag):
         '--playback-props', f'{common} node.name=vrct.source-bridge.{tag}.playback '
                             f'media.class=Stream/Output/Audio target.object={sink.serial} '
                             'node.param.Props={mute=true}',
-        ], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        ], env=external_process_env(), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
            pass_fds=(owner_fd,))
     finally:
         os.close(owner_fd)
@@ -186,7 +186,7 @@ def _launch(source, sink, tag):
 def _unmute(endpoint, tag):
     try:
         subprocess.run([str(BUILD / 'vrct-voice-gate'), str(endpoint.cookie),
-                        str(endpoint.serial), '0', tag],
+                        str(endpoint.serial), '0', tag], env=external_process_env(),
                        capture_output=True, check=True, timeout=2.5)
     except (OSError, subprocess.SubprocessError) as exc:
         raise RuntimeError('source_bridge_gate_failed') from exc

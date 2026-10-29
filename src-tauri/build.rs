@@ -1,4 +1,5 @@
 fn main() {
+    println!("cargo:rerun-if-env-changed=VRCT_LINUX_BUNDLE");
     // Guard stale sidecar resources too: a direct `cargo tauri build` must
     // not package the restricted upstream OCR model in a fork release.
     check_fork_resources();

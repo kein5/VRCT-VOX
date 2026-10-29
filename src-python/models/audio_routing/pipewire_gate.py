@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 import subprocess
+from runtime_paths import resource_root, external_process_env
 import sys
 
 SOURCE = 'vrct.managed.source'
@@ -39,7 +40,7 @@ def parse_graph(data, *, direct=False):
 
 class PipeWireGate:
     def __init__(self, helper=None):
-        self.helper = Path(helper) if helper else Path(__file__).resolve().parents[3] / 'build/vrct-voice-gate'
+        self.helper = Path(helper) if helper else resource_root() / 'build/vrct-voice-gate'
 
     def inspect(self):
         return parse_graph(self._snapshot())
@@ -52,7 +53,7 @@ class PipeWireGate:
         if not sys.platform.startswith('linux'):
             raise RuntimeError('managed_route_linux_only')
         try:
-            result = subprocess.run(['pw-dump'], capture_output=True, check=True, timeout=1)
+            result = subprocess.run(['pw-dump'], env=external_process_env(), capture_output=True, check=True, timeout=1)
             return json.loads(result.stdout)
         except (OSError, ValueError, subprocess.SubprocessError) as exc:
             raise RuntimeError('managed_graph_unavailable') from exc
@@ -70,7 +71,7 @@ class PipeWireGate:
             raise RuntimeError('direct_gate_identity_changed')
         try:
             subprocess.run([str(self.helper), *(str(x) for x in expected_identity),
-                '0', 'guard-direct', str(expected_direct_identity[1]), '1' if suppress_direct else '0'],
+                '0', 'guard-direct', str(expected_direct_identity[1]), '1' if suppress_direct else '0'], env=external_process_env(),
                 check=True, capture_output=True, timeout=2.5)
         except (OSError, subprocess.SubprocessError) as exc:
             raise RuntimeError('gate_identity_or_control_failed') from exc
@@ -87,7 +88,7 @@ class PipeWireGate:
             raise RuntimeError('voice_gate_helper_missing')
         try:
             subprocess.run([str(self.helper), *(str(x) for x in expected_identity), '1' if value else '0',
-                            *(['vc'] if direct else [])],
+                            *(['vc'] if direct else [])], env=external_process_env(),
                            check=True, capture_output=True, timeout=2.5)
         except (OSError, subprocess.SubprocessError) as exc:
             raise RuntimeError('gate_identity_or_control_failed') from exc

@@ -2,6 +2,9 @@ import atexit
 import os
 import sys
 
+from runtime_paths import bootstrap_linux_frozen
+bootstrap_linux_frozen()
+
 # The frozen sidecar doubles as the fixed lightweight transport entry. Dispatch
 # before importing Controller, UI services or their long-lived object graphs.
 if __name__ == '__main__' and sys.argv[1:] == ['--voice-router-worker']:

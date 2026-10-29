@@ -4,6 +4,7 @@ import fcntl
 import os
 import select
 import subprocess
+from runtime_paths import external_process_env
 import time
 
 from models.tts.speechcpp_tts import SpeechError
@@ -11,7 +12,7 @@ from models.tts.speechcpp_tts import SpeechError
 
 def enumerate_outputs():
     try:
-        result = subprocess.run(["pw-dump"], capture_output=True, timeout=3, check=True)
+        result = subprocess.run(["pw-dump"], env=external_process_env(), capture_output=True, timeout=3, check=True)
         nodes = json.loads(result.stdout)
         return [{"id": n["info"]["props"]["node.name"],
                  "label": n["info"]["props"].get("node.description", n["info"]["props"]["node.name"])}
@@ -35,7 +36,7 @@ class PipeWireOutput:
         self.process = subprocess.Popen(
             ["pw-cat", "--playback", "--raw", "--format", "s16", "--rate", str(rate),
              "--channels", str(channels), "--latency", "20ms", "--target", target,
-             "--properties", "{ node.name=vrct.tts node.dont-fallback=true node.dont-reconnect=true node.dont-move=true }", "-"],
+             "--properties", "{ node.name=vrct.tts node.dont-fallback=true node.dont-reconnect=true node.dont-move=true }", "-"], env=external_process_env(),
             stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, bufsize=0,
         )
         # Bound the kernel queue as well as the scheduler (about 85 ms at 24 kHz).
