@@ -111,7 +111,7 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
                 save("original")
                 ui.click_text("button", "Resume voice")
                 ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Voice enabled (confirmed)')")
-                ui.click_text("p", "Go Back")
+                ui.close_settings()
                 ui.evaluate("""
                     window.__voiceMeasurements = [];
                     document.addEventListener('click', event => {
@@ -181,7 +181,7 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
                     trial(f"warm-{i:03d}")
                 ui.open_voice_settings()
                 save("off")
-                ui.click_text("p", "Go Back")
+                ui.close_settings()
                 trial("off", off=True)
                 assert len({r["event_id"] for r in records()}) == count + 1
                 ui.close_app()

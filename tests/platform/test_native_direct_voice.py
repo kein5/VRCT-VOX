@@ -111,7 +111,7 @@ def test_native_input_controls_and_independent_audio_stops(tmp_path):
                 observe('resume_selected_input', lambda: ui.click_text('button', 'Resume voice'), present=(440,))
 
                 def send_tts():
-                    ui.click_text('p', 'Go Back')
+                    ui.close_settings()
                     field = ui.command('POST', '/element', {'using': 'css selector', 'value': 'textarea'})
                     ui.element_command(field, 'value', {'text': '入力と読み上げの独立停止テストです。'})
                     ui.click('[class*="message_send_button"]')

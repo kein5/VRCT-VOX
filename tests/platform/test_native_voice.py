@@ -90,7 +90,7 @@ def test_native_text_to_virtual_microphone_and_recovery(tmp_path):
                     wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("mode") == mode)
 
                 def home():
-                    ui.click_text("p", "Go Back")
+                    ui.close_settings()
 
                 def send(text):
                     field = ui.command("POST", "/element", {"using": "css selector", "value": "textarea"})

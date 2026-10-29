@@ -116,7 +116,7 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
                     wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("mode") == mode)
 
                 def home():
-                    ui.click_text("p", "Go Back")
+                    ui.close_settings()
 
                 def send(text):
                     native()

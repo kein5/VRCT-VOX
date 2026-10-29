@@ -120,14 +120,14 @@ def test_native_same_send_chatbox_and_voice_then_off(tmp_path):
                 save("original")
                 ui.click_text("button", "Resume voice")
                 ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Voice enabled (confirmed)')")
-                ui.click_text("p", "Go Back")
+                ui.close_settings()
 
                 for mode, marker in (("original", "VRCTCHECKA"), ("off", "VRCTCHECKB")):
                     row = {"mode": mode, "marker": marker, "status": "failed"}
                     report["cases"].append(row)
                     if mode == "off":
                         save("off")
-                        ui.click_text("p", "Go Back")
+                        ui.close_settings()
                     row["before"] = screenshot(mode + "-before")
                     assert marker not in row["before"]["ocr"], "stale_marker_before_send"
                     settled(monitor, time.monotonic_ns(), "before_send_not_silent", silent=True)

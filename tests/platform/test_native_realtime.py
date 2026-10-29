@@ -132,8 +132,7 @@ def open_captions(ui):
     notice = ui.evaluate("return [...document.querySelectorAll('.Toastify__toast')].find(e => e.textContent.startsWith('Network is not connected.'))?.querySelector('button svg')")
     if notice:
         ui.element_command(notice, "click")
-    ui.click('[class*="open_config_page_button"]')
-    ui.wait("return [...document.querySelectorAll('p')].some(e => e.textContent === 'Go Back' && getComputedStyle(e).visibility === 'visible')")
+    ui.open_settings()
     if not ui.evaluate("return !!document.querySelector('section[aria-label=\"Realtime captions\"]')"):
         tab = ui.evaluate("return [...document.querySelectorAll('p')].find(e => e.textContent === 'Transcription')?.parentElement")
         ui.element_command(tab, "click")
@@ -218,7 +217,7 @@ def test_real_asr_native_caption_translation_and_stop(tmp_path):
             ui.click_text("button", "Start microphone captions")
             ui.click_text("button", "Start game audio captions")
             ui.wait("return [...document.querySelectorAll('[role=status]')].filter(e => e.textContent === 'Captions running').length === 2")
-            ui.click_text("p", "Go Back")
+            ui.close_settings()
             ui.wait("return !!document.querySelector('#log_container')")
             instrument_rows(ui)
             finished = producer.play()

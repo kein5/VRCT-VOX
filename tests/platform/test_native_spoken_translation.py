@@ -55,7 +55,9 @@ def open_voice(ui):
 def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_policy, direct_backend):
     real_rvc = direct_backend.startswith('rvc')
     rvc_failure = direct_backend == 'rvc_exit'
-    sustained_seconds = float(os.environ.get('VRCT_COMBINED_RUN_SECONDS', '0')) if real_rvc and not rvc_failure else 0
+    # The worker-exit case can also run under sustained load before injecting
+    # the fault, so cleanup is exercised on the same long-lived worker.
+    sustained_seconds = float(os.environ.get('VRCT_COMBINED_RUN_SECONDS', '0')) if real_rvc else 0
     assert 0 <= sustained_seconds <= 1800
     binary = Path(os.environ['VRCT_SPEECH_BINARY']).resolve(strict=True)
     models = [Path(os.environ[name]).resolve(strict=True)
@@ -168,13 +170,13 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                 wait_for(lambda: not gate.inspect()['muted'])
                 if not real_rvc:
                     settled(capture, time.monotonic_ns(), 'direct_input_policy_mismatch', **direct)
-                ui.click_text('p', 'Go Back')
+                ui.close_settings()
                 open_captions(ui)
                 ui.click_text('button', 'Start microphone captions')
                 ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Captions running')")
                 # Existing configuration navigation pauses translation. Return
                 # to the main view and observe its restoration before input.
-                ui.click_text('p', 'Go Back')
+                ui.close_settings()
                 ui.wait("return [...document.querySelectorAll('[class*=switch_container]')].some(e => e.querySelector('p')?.textContent === 'Translation' && e.className.includes('is_active'))")
                 if real_rvc:
                     assert len([name for name in nodes() if name.startswith('vrct.asr.capture.')]) == 2
@@ -274,29 +276,37 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                         errors = ui.evaluate("return [...document.querySelectorAll('[role=alert]')].map(e => e.textContent.match(/(?:vc_|asr_capture_)[a-z_]+/g)).flat().filter(Boolean)")
                         report['rvc_failure_codes'] = errors
                         raise AssertionError(f'RVC failed during ASR/TTS: {errors}')
-                    require_worker()
-                    samples = []
-                    report['resource_samples'] = samples
-                    began = time.monotonic()
-                    while time.monotonic() - began < sustained_seconds:
+                    def complete_input(previous, *, keep_worker=True):
                         finished = producer.play()
                         # Real VAD/ASR may split the same input differently on
                         # later iterations. Count actual final translations,
                         # not a prescribed two-segment transcription.
-                        previous = completed
                         last_count, changed = len(translation.requests), time.monotonic()
                         deadline = time.monotonic() + 25
                         while True:
-                            require_worker()
+                            if keep_worker:
+                                require_worker()
                             count = len(translation.requests)
                             if count != last_count:
                                 last_count, changed = count, time.monotonic()
                             if (finished.is_set() and count > previous and len(traces()) == count
                                     and time.monotonic()-changed >= 3):
-                                completed = count
-                                break
-                            assert time.monotonic() < deadline, 'sustained finals did not settle'
+                                return count
+                            if time.monotonic() >= deadline:
+                                report['settle_timeout'] = dict(
+                                    previous=previous, translation_requests=count,
+                                    speech_outcomes=[row['outcome'] for row in traces()[previous:]],
+                                    input_finished=finished.is_set(),
+                                )
+                                raise AssertionError(f"sustained finals did not settle: {report['settle_timeout']}")
                             time.sleep(.1)
+                    require_worker()
+                    samples = []
+                    report['resource_samples'] = samples
+                    began = time.monotonic()
+                    while time.monotonic() - began < sustained_seconds:
+                        previous = completed
+                        completed = complete_input(previous)
                         assert len(traces()) == len(translation.requests) == completed
                         assert all(row['outcome'] == 'completed' for row in traces())
                         # Observe this app's own processes only. RSS sums count
@@ -333,10 +343,8 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                         settled(capture, time.monotonic_ns(), 'rvc_failure_not_silent', silent=True)
                         after_failure = Capture(SOURCE, tmp_path/'after-failure.pcm')
                         try:
-                            producer.play()
-                            completed += 2
-                            wait_for(lambda: len(traces()) >= completed, timeout=25,
-                                     code='rvc_failure_stopped_translation')
+                            previous = completed
+                            completed = complete_input(previous, keep_worker=False)
                             assert len(traces()) == len(translation.requests) == completed
                             assert all(row['outcome'] == 'completed' for row in traces())
                             settled(capture, time.monotonic_ns(), 'raw_fallback_after_rvc_failure', silent=True)
@@ -344,8 +352,28 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                             assert after_failure.close()['valid']
                         failure_matches = [compare_pcm(ref, (tmp_path/'after-failure.pcm').read_bytes(), 48000)
                                            for ref in references]
-                        assert all(m['verdict'] == 'pass' and m['occurrences'] == 1 for m in failure_matches)
-                        report.update(rvc_failure_keeps_translation=True, after_failure_matches=failure_matches)
+                        # The fixture alternates known translations for each
+                        # actual final, including after a long ASR session.
+                        expected_counts = [sum(n % len(references) == i for n in range(previous, completed))
+                                           for i in range(len(references))]
+                        report.update(after_failure_matches=failure_matches,
+                                      after_failure_expected_occurrences=expected_counts)
+                        # compare_pcm's verdict means exactly one occurrence.
+                        # Here a repeated fixture text can be correct for
+                        # distinct ASR finals: compare its thresholded matches
+                        # with the actual number of requests for that text.
+                        assert all(m.get('occurrences') == count
+                                   for m, count in zip(failure_matches, expected_counts)), failure_matches
+                        failure_osc = []
+                        while True:
+                            try:
+                                failure_osc.extend(t.message for t in OscPacket(osc.recv(65536)).messages)
+                            except BlockingIOError:
+                                break
+                        assert len([m for m in failure_osc if m.address == '/chatbox/input']) == completed-previous
+                        report.update(rvc_failure_keeps_translation=True, after_failure_matches=failure_matches,
+                                      after_failure_expected_occurrences=expected_counts,
+                                      after_failure_osc_messages=completed-previous)
                 if direct_policy == 'suppress':
                     translation.translations = ['This is a longer sentence for stopping the translated speech. ' * 12]
                     before = time.monotonic_ns()
@@ -404,4 +432,7 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                           asr_stop_keeps_rvc=direct_continues,
                           capture=capture.snapshot(), trace=traces())
     finally:
+        asr_log = tmp_path / 'asr-server.log'
+        if asr_log.exists():
+            report['asr_empty_results_observed'] = asr_log.read_text(errors='replace').count(', 0 bytes of text in ')
         (tmp_path / 'report.json').write_text(json.dumps(report, indent=2) + '\n')

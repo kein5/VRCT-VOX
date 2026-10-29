@@ -105,8 +105,7 @@ class NativeWebDriver:
         # the first coordinate-based navigation. Do not retry successful clicks.
         self.wait("return innerWidth >= 500 && innerHeight >= 300")
         self.assert_rendered()
-        self.click('[class*="open_config_page_button"]')
-        self.wait("return [...document.querySelectorAll('p')].some(e => e.textContent === 'Go Back' && getComputedStyle(e).visibility === 'visible')")
+        self.open_settings()
         if not self.evaluate("return document.querySelector('section[aria-label=\"Text to voice (speech.cpp)\"] select') !== null"):
             # Compact sidebars hide the label until hovered; the tab's icon and
             # hit area remain visible and are the real navigation control.
@@ -121,6 +120,18 @@ class NativeWebDriver:
         # The app has closed its own automation target; don't ask WebKit to close
         # it a second time. The owned driver group is still reaped by __exit__.
         self.session = None
+
+    def close_settings(self):
+        # The label moves on hover. Its parent bar is the actual click handler
+        # and its central hit point stays inside the bar while it expands.
+        self.click('[class*="show_config"] > [class*="_wrapper_"]')
+        self.wait("return document.querySelector('[class*=show_main]') !== null && [...document.querySelectorAll('[class*=go_back_text]')].every(e => getComputedStyle(e).visibility === 'hidden')")
+
+    def open_settings(self):
+        self.click('[class*="open_config_page_button"]')
+        # Visibility can remain true for 0.5s while the old page is closing.
+        # Observe the explicit open state and the end of its moving top bar.
+        self.wait("const bar = document.querySelector('[class*=show_config] > [class*=\"_wrapper_\"]')?.parentElement; return !!bar && getComputedStyle(bar).top === '0px';")
 
     def assert_rendered(self):
         """Observe real frame delivery and a nonblank native WebDriver image."""
