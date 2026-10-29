@@ -90,15 +90,19 @@ class RealtimeDelivery:
                 deadline = update.received_ns / 1e9 + 2.0
                 now = self._clock()
                 expired = not 0 < update.received_ns / 1e9 <= now or now >= deadline
+                # A completed ASR item may have no recognized text. Retire its
+                # provisional caption without asking a translator to invent a
+                # message or sending an empty original to OSC/history.
+                empty_final = update.is_final and not update.text.strip()
                 payload = self._payload(update)
-                if expired:
+                if expired or empty_final:
                     payload.update(state="discarded", text="")
                 if update.is_final or update.state == "discarded" or expired:
                     self._terminal[update.item_id] = None
                     if len(self._terminal) > 256:
                         self._terminal.popitem(last=False)
                 self._publish(payload)
-                if update.is_final and not expired and self._current(update):
+                if update.is_final and not expired and not empty_final and self._current(update):
                     try:
                         self._finals.put_nowait((update, deadline))
                     except Full:

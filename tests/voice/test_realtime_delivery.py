@@ -45,14 +45,14 @@ class Session:
             state="ready" if self.active else "closed",
         )
 
-    def emit(self, item="u", final=False, revision=1):
+    def emit(self, item="u", final=False, revision=1, text="text"):
         self.updates.put(
             TranscriptUpdate(
                 self.source,
                 self.namespace,
                 item,
                 revision,
-                "text",
+                text,
                 final,
                 "final" if final else "partial",
                 received_ns=int(self.clock() * 1e9),

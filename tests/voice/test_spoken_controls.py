@@ -47,6 +47,36 @@ def test_final_mic_speaks_enabled_target_order_once_with_chat_off(app, pcm_serve
         assert c.voice_events.status()['mode'] == 'off'
 
 
+@pytest.mark.parametrize('source', ['mic', 'speaker'])
+@pytest.mark.parametrize('text', ['', ' \t\n\u3000'])
+def test_empty_final_clears_partial_without_translation_osc_history_or_speech(app, pcm_server, source, text):
+    c, m, made = app
+    with pcm_server() as (url, requests):
+        sink = configure(c, m, url)
+        start(c, source)
+        session = made[0]
+        session.emit(text='provisional')
+        eventually(lambda: any(p['state'] == 'partial' for p in captions(c)))
+        session.emit(final=True, revision=2, text=text)
+        eventually(lambda: any(p['revision'] == 2 for p in captions(c)))
+        # Empty final must retire the partial, and cannot be resurrected by a
+        # later duplicate carrying text for that same server item.
+        session.emit(final=True, revision=3, text='late duplicate')
+        session.emit(item='next', final=True, text='next utterance')
+        eventually(lambda: any(p['item_id'] == 'next' and p['state'] == 'translated' for p in captions(c)))
+        retired = [p for p in captions(c) if p['item_id'] == 'u' and p['revision'] == 2]
+        assert len(retired) == 1 and retired[0]['state'] == 'discarded' and retired[0]['text'] == ''
+        translator = m.model.getInputTranslate if source == 'mic' else m.model.getOutputTranslate
+        assert translator.call_count == 1
+        assert m.model.addTranslationHistory.call_count == 1
+        assert m.model.oscSendMessage.call_count == int(source == 'mic')
+        if source == 'mic':
+            until(lambda: c.voice_events.status()['completed'] == 1)
+            assert len(requests) == 1
+        else:
+            assert not requests and not sink.data
+
+
 @pytest.mark.parametrize('excluded', ['partial', 'speaker', 'off', 'failed', 'disabled-target', 'translation-off'])
 def test_ineligible_transcript_never_becomes_audio(app, pcm_server, excluded):
     c, m, made = app
