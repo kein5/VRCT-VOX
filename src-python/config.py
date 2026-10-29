@@ -9,6 +9,7 @@ from os import environ
 from models.tts.settings import VoiceSettings, normalize_settings
 from models.voice_conversion.settings import DirectSettings, normalize_settings as normalize_direct_settings
 from models.transcription.realtime_settings import normalize_settings as normalize_realtime_settings
+from models.speech_server.settings import normalize_settings as normalize_speech_server_settings
 from typing import Optional, Dict, Any
 
 # Guard optional, potentially heavy or platform-specific imports so importing
@@ -975,6 +976,7 @@ class Config:
     VOICE_SETTINGS = ValidatedProperty('VOICE_SETTINGS', normalize_settings)
     DIRECT_VOICE_SETTINGS = ValidatedProperty('DIRECT_VOICE_SETTINGS', normalize_direct_settings)
     REALTIME_ASR_SETTINGS = ValidatedProperty('REALTIME_ASR_SETTINGS', lambda value, instance: normalize_realtime_settings(value))
+    SPEECH_SERVER_SETTINGS = ValidatedProperty('SPEECH_SERVER_SETTINGS', lambda value, instance: normalize_speech_server_settings(value))
     WEBSOCKET_SERVER = ManagedProperty('WEBSOCKET_SERVER', type_=bool)
     OSC_IP_ADDRESS = ManagedProperty('OSC_IP_ADDRESS', type_=str)
     OSC_PORT = ManagedProperty('OSC_PORT', type_=int)
@@ -1386,6 +1388,7 @@ class Config:
         self._VOICE_SETTINGS = VoiceSettings().to_dict()
         self._DIRECT_VOICE_SETTINGS = DirectSettings().to_dict()
         self._REALTIME_ASR_SETTINGS = normalize_realtime_settings({})
+        self._SPEECH_SERVER_SETTINGS = normalize_speech_server_settings({})
         self._WEBSOCKET_SERVER = False
         self._WEBSOCKET_HOST = "127.0.0.1"
         self._WEBSOCKET_PORT = 2231

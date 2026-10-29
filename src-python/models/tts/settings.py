@@ -41,10 +41,12 @@ class VoiceSettings:
     mic_mode: str = "off"  # off | translated (Realtime mic finals only)
     direct_policy: str = "suppress"  # suppress managed direct voice | mix explicitly
     target_slot: str = "1"
+    japanese_server: str = "external"  # external | bundled
     japanese_url: str = "http://127.0.0.1:8080"
     japanese_voice: str = "none"
     multilingual_url: str = ""
     multilingual_voice: str = "ryan"
+    multilingual_server: str = "external"
     output_device: str = ""
     routing: str = "external"  # external | managed (Linux daemon-owned route)
 
@@ -65,6 +67,8 @@ class VoiceSettings:
             raise ValueError("Invalid microphone speech mode or direct voice policy")
         if settings.routing not in ("external", "managed"):
             raise ValueError("Invalid routing mode")
+        if any(value not in ("external", "bundled") for value in (settings.japanese_server, settings.multilingual_server)):
+            raise ValueError("Invalid speech server selection")
         local_url(settings.japanese_url)
         if settings.multilingual_url:
             local_url(settings.multilingual_url)
@@ -82,7 +86,7 @@ class VoiceSettings:
     def to_dict(self):
         return asdict(self)
 
-    def request_for(self, event):
+    def request_for(self, event, *, resolve_server=None):
         if event.source == "mic":
             if self.mic_mode != "translated":
                 raise ValueError("Microphone speech is disabled")
@@ -94,11 +98,16 @@ class VoiceSettings:
         if not text or not text.strip():
             raise ValueError("No text in the selected speech mode")
         language = language_tag(language)
+        role = "japanese" if language == "ja" else "multilingual"
+        if getattr(self, role + "_server") == "bundled":
+            if resolve_server is None:
+                raise ValueError("speech_server_not_ready")
+            return local_url(resolve_server(role)), getattr(self, role + "_voice"), language, text
         if language == "ja":
             return self.japanese_url, self.japanese_voice, language, text
         if not self.multilingual_url:
             raise ValueError("Configure a separate Qwen3-TTS server for this language")
-        if local_url(self.multilingual_url) == local_url(self.japanese_url):
+        if self.japanese_server == "external" and local_url(self.multilingual_url) == local_url(self.japanese_url):
             raise ValueError("Japanese and multilingual TTS require separate servers")
         return self.multilingual_url, self.multilingual_voice, language, text
 

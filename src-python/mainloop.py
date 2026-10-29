@@ -586,6 +586,11 @@ mapping = {
     "/set/disable/send_received_message_to_vrc": {"status": True, "variable":controller.setDisableSendReceivedMessageToVrc},
 
     # WebSocket Settings
+    "/get/data/speech_server_settings": {"status": True, "variable":controller.getSpeechServerSettings},
+    "/set/data/speech_server_settings": {"status": True, "variable":controller.setSpeechServerSettings},
+    "/get/data/speech_server_state": {"status": True, "variable":controller.getSpeechServerState},
+    "/run/start_speech_server": {"status": True, "variable":controller.startSpeechServer},
+    "/run/stop_speech_server": {"status": True, "variable":controller.stopSpeechServer},
     "/get/data/realtime_asr_settings": {"status": True, "variable":controller.getRealtimeASRSettings},
     "/set/data/realtime_asr_settings": {"status": True, "variable":controller.setRealtimeASRSettings},
     "/get/data/realtime_asr_endpoints": {"status": True, "variable":controller.getRealtimeASREndpoints},
@@ -769,7 +774,7 @@ class Main:
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
                     printLog(endpoint, {"receive_data": data})
-                    if endpoint in {"/run/stop_voice", "/run/mute_voice", "/run/resume_voice", "/run/stop_direct_voice", "/run/stop_realtime_asr"}:
+                    if endpoint in {"/run/stop_voice", "/run/mute_voice", "/run/resume_voice", "/run/stop_direct_voice", "/run/stop_realtime_asr", "/run/stop_speech_server"}:
                         # These requests only signal workers; they do not
                         # join, infer, or close a driver here. Busy ordinary
                         # handlers must not delay this request.

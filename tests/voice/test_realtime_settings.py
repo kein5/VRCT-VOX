@@ -13,6 +13,7 @@ def test_default_settings_have_no_recording_intent_and_roundtrip():
     value = m.normalize_settings({})
     assert value == {
         "version": 1,
+        "server": "external",
         "base_url": "http://127.0.0.1:8080",
         "model": "",
         "mic": {"language": "ja", "endpoint": None},
@@ -30,6 +31,8 @@ def test_default_settings_have_no_recording_intent_and_roundtrip():
         ("version", 2),
         ("version", True),
         ("enabled", True),
+        ("server", "automatic"),
+        ("server", True),
         ("base_url", "https://example.com"),
         ("base_url", "http://127.0.0.1:8080/path"),
         ("model", "x" * 201),

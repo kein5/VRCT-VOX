@@ -12,9 +12,10 @@ from .voice_trace import write_voice_trace
 class VoiceEventBus:
     """Serialize final chat and opted-in microphone translations."""
     def __init__(self, settings=None, *, provider_factory=SpeechCppTTS, router=None,
-                 capacity=4, max_age=5.0, request_timeout=30.0):
+                 capacity=4, max_age=5.0, request_timeout=30.0, resolve_server=None):
         self.settings = settings or VoiceSettings()
         self.provider_factory = provider_factory
+        self.resolve_server = resolve_server
         self.router = router or AudioRouter()
         self.capacity = capacity
         self.max_age = max_age
@@ -164,7 +165,7 @@ class VoiceEventBus:
             first_write = None
             outcome = "error"
             try:
-                url, voice, language, text = settings.request_for(event)
+                url, voice, language, text = settings.request_for(event, resolve_server=self.resolve_server)
                 frames = self.provider_factory(url).synthesize_stream(text, voice, language, token)
 
                 def first_audio(timestamp, rate):

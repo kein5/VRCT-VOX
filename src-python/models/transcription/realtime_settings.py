@@ -80,6 +80,7 @@ def endpoint_dict(endpoint):
 def normalize_settings(value):
     if not isinstance(value, dict) or set(value) - {
         "version",
+        "server",
         "base_url",
         "model",
         "mic",
@@ -89,8 +90,12 @@ def normalize_settings(value):
     version = value.get("version", 1)
     if type(version) is not int or version != 1:
         raise ValueError("realtime_settings_version")
+    server = value.get("server", "external")
+    if server not in ("external", "bundled"):
+        raise ValueError("realtime_server_invalid")
     result = dict(
         version=1,
+        server=server,
         base_url=local_url(value.get("base_url", "http://127.0.0.1:8080")),
         model=_model(value.get("model", "")),
     )

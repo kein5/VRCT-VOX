@@ -3,7 +3,7 @@ from contextlib import nullcontext
 from subprocess import Popen
 from threading import Thread, Lock
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict
+from dataclasses import asdict, replace
 import copy
 import functools
 import re
@@ -27,6 +27,8 @@ from models.transcription.speechcpp_asr import SpeechCppASR
 from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
+from models.speech_server.runtime import SpeechServers
+from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
 from models.tts.message_hook import chat_event, microphone_event
 from models.audio_routing.audio_router import enumerate_outputs
 from models.audio_routing.managed_route import VoiceRoute
@@ -344,8 +346,13 @@ class Controller:
         """
         self._config = config_override if config_override is not None else config
         self._model = model_override if model_override is not None else model
+        saved_servers = getattr(self._config, "SPEECH_SERVER_SETTINGS", {})
+        self._speech_settings = normalize_speech_server_settings(saved_servers if isinstance(saved_servers, dict) else {})
+        self._speech_settings_lock = Lock()
+        self.speech_servers = SpeechServers(on_end=self._speechServerEnded)
         voice_settings = getattr(self._config, "VOICE_SETTINGS", {})
-        self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings if isinstance(voice_settings, dict) else {}))
+        self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings if isinstance(voice_settings, dict) else {}),
+                                          resolve_server=self.speech_servers.binding)
         config_path = getattr(self._config, '_PATH_CONFIG', 'config.json')
         if not isinstance(config_path, (str, Path)):
             config_path = 'config.json'
@@ -378,6 +385,71 @@ class Controller:
         # 取るため、start*Message の中から呼ぶとデッドロックする)。
         self.mic_lifecycle_lock: Lock = Lock()
         self.speaker_lifecycle_lock: Lock = Lock()
+
+    def getSpeechServerSettings(self, *args, **kwargs):
+        with self._speech_settings_lock:
+            return {"status": 200, "result": copy.deepcopy(self._speech_settings)}
+
+    def setSpeechServerSettings(self, data, *args, **kwargs):
+        try:
+            settings = normalize_speech_server_settings(data)
+        except ValueError:
+            return {"status": 400, "result": {"error_code": "speech_server_settings_invalid"}}
+        with self._speech_settings_lock:
+            self._config.SPEECH_SERVER_SETTINGS = settings
+            self._speech_settings = settings
+        return self.getSpeechServerSettings()
+
+    def getSpeechServerState(self, *args, **kwargs):
+        return {"status": 200, "result": self.speech_servers.state()}
+
+    @staticmethod
+    def _speechRequest(data, *, start=False):
+        keys = {"profile", "generation"} if start else {"profile"}
+        if not isinstance(data, dict) or set(data) != keys or data.get("profile") not in PROFILES:
+            raise ValueError("speech_server_request_invalid")
+        if start and (type(data["generation"]) is not int or data["generation"] < 0):
+            raise ValueError("speech_server_request_invalid")
+        return data["profile"]
+
+    def startSpeechServer(self, data, *args, **kwargs):
+        try:
+            profile = self._speechRequest(data, start=True)
+            # File validation runs outside the fast-stop locks. The hub checks
+            # the original generation after it, so Stop cannot be undone.
+            options = speech_start_options(self.getSpeechServerSettings()["result"], profile)
+        except ValueError as exc:
+            return {"status": 400, "result": {"error_code": str(exc)}}
+        try:
+            self.speech_servers.start(profile, options, data["generation"])
+        except RuntimeError as exc:
+            code = str(exc)
+            if code not in ("speech_server_closed", "speech_server_stale_start", "speech_server_busy"):
+                code = "speech_server_start_failed"
+            return {"status": 409, "result": {"error_code": code}}
+        return self.getSpeechServerState()
+
+    def _speechServerEnded(self, profile):
+        # Called after releasing hub locks, including on natural child failure.
+        # One shared TTS scheduler deliberately cancels all pending speech.
+        if profile in ("japanese", "multilingual"):
+            self.voice_events.cancel()
+        elif profile == "asr":
+            with self._realtime_lock:
+                if self._realtime_settings["server"] == "bundled":
+                    for source in ("mic", "speaker"):
+                        self._invalidateRealtimeLocked(source)
+
+    def stopSpeechServer(self, data, *args, **kwargs):
+        try:
+            profile = self._speechRequest(data)
+        except ValueError:
+            return {"status": 400, "result": {"error_code": "speech_server_request_invalid"}}
+        # Revoke endpoint availability first; new work cannot bind between
+        # invalidating clients and the Stop signal. Neither operation joins.
+        self.speech_servers.stop(profile)
+        self._speechServerEnded(profile)
+        return self.getSpeechServerState()
 
     def _initRealtimeASR(self, choices):
         self._realtime_settings = normalize_realtime_settings(choices)
@@ -426,7 +498,7 @@ class Controller:
         with self._realtime_settings_lock:
             with self._realtime_lock:
                 old = self._realtime_settings
-                shared_changed = any(settings[key] != old[key] for key in ("base_url", "model"))
+                shared_changed = any(settings[key] != old[key] for key in ("server", "base_url", "model"))
                 for source in ("mic", "speaker"):
                     if shared_changed or settings[source] != old[source]:
                         self._invalidateRealtimeLocked(source)
@@ -450,12 +522,21 @@ class Controller:
             return {"status": 200, "result": {"source": source, "endpoints": [], "error_code": "realtime_graph_unavailable"}}
 
     def getRealtimeASRModels(self, *args, **kwargs):
-        url = self.getRealtimeASRSettings()["result"]["base_url"]
+        settings = self.getRealtimeASRSettings()["result"]
+        result = dict(server=settings["server"], configured_url=settings["base_url"],
+                      base_url=settings["base_url"], models=[], error_code=None)
+        if settings["server"] == "bundled":
+            try:
+                result["base_url"] = self.speech_servers.binding("asr")
+            except RuntimeError:
+                result.update(base_url=None, error_code="speech_server_not_ready")
+                return {"status": 200, "result": result}
         try:
-            models = SpeechCppASR(url, timeout=5).recognizers()
-            return {"status": 200, "result": {"base_url": url, "models": [asdict(row) for row in models], "error_code": None}}
+            models = SpeechCppASR(result["base_url"], timeout=5).recognizers()
+            result["models"] = [asdict(row) for row in models]
         except Exception:
-            return {"status": 200, "result": {"base_url": url, "models": [], "error_code": "realtime_models_unavailable"}}
+            result["error_code"] = "realtime_models_unavailable"
+        return {"status": 200, "result": result}
 
     def getRealtimeASRState(self, *args, **kwargs):
         with self._realtime_lock:
@@ -528,7 +609,11 @@ class Controller:
                         return failure("realtime_already_started")
                 try:
                     options, endpoint = session_options(self._realtime_settings, source)
+                    if self._realtime_settings["server"] == "bundled":
+                        options = replace(options, base_url=self.speech_servers.binding("asr"))
                     language = self._realtimeLanguage(options.language)
+                except RuntimeError:
+                    return failure("speech_server_not_ready")
                 except ValueError as exc:
                     return failure(str(exc), 400)
                 if source == "mic":
@@ -719,6 +804,9 @@ class Controller:
                 printLog("[voice] input forwarding shutdown unconfirmed")
         if getattr(self, "voice_events", None) is not None:
             self._stopServiceForShutdown(self.voice_events.close, "TTS")
+        if getattr(self, "speech_servers", None) is not None:
+            if not self.speech_servers.close(timeout=3):
+                printLog("[speech] owned server shutdown unconfirmed")
         # デバイス監視・録音系スレッドを明示的に停止する。これを怠ると
         # PyAudio/WASAPI ストリームが open されたままプロセスが終了し、
         # デバイスハンドルがリークしたり、次回起動時の初期化に影響し得る。

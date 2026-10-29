@@ -58,11 +58,11 @@
 - Realtime settings add `server` external|bundled. Controller resolves selected ready URL at model listing/Start; retain configured external URL/model and tag model-list replies with server selection and URL for UI freshness.
 - Controller server-end callback cancels shared TTS on an owned TTS stop/fault; for owned ASR it invalidates both Realtime sources using existing fast Stop. Direct voice stays independent. Close servers after cancelling clients at application shutdown.
 
-- [ ] **Step 1: RED tests.** Real Controller/receiver with injectable owned-server factory: defaults/migration, valid settings roundtrip without start, stale start rejected after Stop, bundled not-ready never calls external fixture, language-specific server selection, ready server Stop cancels active/queued TTS, ASR Stop invalidates late finals and preserves direct voice, external mode requests unchanged, shutdown bounded and owns only its processes.
-- [ ] **Step 2: Verify RED.** Run selected new controls tests plus existing `test_spoken_controls.py`, `test_realtime_controls.py`, `test_realtime_settings.py`, scheduler/settings tests. Expected missing endpoints/fields and behavior failures, not unrelated import failures.
-- [ ] **Step 3: Implement minimal hooks.** Preserve existing locks/generations and avoid callbacks under hub locks. Endpoint selection change counts as a shared ASR setting change. Saved changes do not load models. A failing optional server cannot break legacy chat/OSC delivery.
-- [ ] **Step 4: GREEN and voice regression.** Run the selected tests then `uv run ... python -m pytest tests/voice -q`. Expected only documented opt-in skips; identify any unexpected failures.
-- [ ] **Step 5: Commit** `feat(speech): bind managed servers to TTS and realtime ASR`.
+- [x] **Step 1: RED tests.** Real Controller/receiver with injectable owned-server factory: defaults/migration, valid settings roundtrip without start, stale start rejected after Stop, bundled not-ready never calls external fixture, language-specific server selection, ready server Stop cancels active/queued TTS, ASR Stop invalidates late finals and preserves direct voice, external mode requests unchanged, shutdown bounded and owns only its processes.
+- [x] **Step 2: Verify RED.** Run selected new controls tests plus existing `test_spoken_controls.py`, `test_realtime_controls.py`, `test_realtime_settings.py`, scheduler/settings tests. Expected missing endpoints/fields and behavior failures, not unrelated import failures.
+- [x] **Step 3: Implement minimal hooks.** Preserve existing locks/generations and avoid callbacks under hub locks. Endpoint selection change counts as a shared ASR setting change. Saved changes do not load models. A failing optional server cannot break legacy chat/OSC delivery.
+- [x] **Step 4: GREEN and voice regression.** Run the selected tests then `uv run ... python -m pytest tests/voice -q`. Expected only documented opt-in skips; identify any unexpected failures.
+- [x] **Step 5: Commit** `feat(speech): bind managed servers to TTS and realtime ASR`.
 
 ### Task 3: GUI controls and actual bundled model acceptance
 
