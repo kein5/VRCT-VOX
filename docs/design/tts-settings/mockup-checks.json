@@ -1,0 +1,80 @@
+{
+  "status": "passed",
+  "javascript_errors": [],
+  "screens": [
+    {
+      "scenario": "dirty",
+      "viewport": 1120,
+      "horizontal_overflow": false
+    },
+    {
+      "scenario": "saved",
+      "viewport": 1120,
+      "horizontal_overflow": false
+    },
+    {
+      "scenario": "engine",
+      "viewport": 1120,
+      "horizontal_overflow": false
+    },
+    {
+      "scenario": "failure",
+      "viewport": 1120,
+      "horizontal_overflow": false
+    },
+    {
+      "scenario": "generation",
+      "viewport": 1120,
+      "horizontal_overflow": false
+    },
+    {
+      "scenario": "dirty",
+      "viewport": 870,
+      "horizontal_overflow": false
+    },
+    {
+      "scenario": "narrow",
+      "viewport": 870,
+      "horizontal_overflow": false
+    },
+    {
+      "scenario": "main-on",
+      "viewport": 1120,
+      "horizontal_overflow": false
+    },
+    {
+      "scenario": "main-off",
+      "viewport": 1120,
+      "horizontal_overflow": false
+    },
+    {
+      "scenario": "main-unready",
+      "viewport": 1120,
+      "horizontal_overflow": false
+    },
+    {
+      "scenario": "main-pending",
+      "viewport": 1120,
+      "horizontal_overflow": false
+    },
+    {
+      "scenario": "main-on",
+      "viewport": 870,
+      "horizontal_overflow": false
+    }
+  ],
+  "checks": [
+    "draft/save feedback",
+    "independent engine settings save",
+    "CPU retry simulation",
+    "server stop simulation",
+    "TTS switch with Space",
+    "TTS OFF/ON simulation"
+  ],
+  "audio": false,
+  "product_integration": false,
+  "notes": [
+    "main-compact.pngの横はみ出しは検査スクリプト末尾のassertで確認。",
+    "生成パラメータはUI見本。製品への送信と聴感は未検証。"
+  ]
+}
