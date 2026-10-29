@@ -12,13 +12,13 @@ speech.cppによるTTS、外部Seed-VC/RVCによる直接ボイスチェンジ�
 
 現在も開発中です。Linuxで自動試験と実モデル試験を進めていますが、完成した配布物の検証、Windows実機試験、聴感、物理的なエンドツーエンド遅延には未確認事項があります。[完了記録](/docs/voice-stack/completion-ledger.md)を参照してください。AURは[配布方式の検討段階](/docs/voice-stack/linux-distribution-proposal.md)で、この作業では登録・公開していません。
 
-本家向け自動公開、Aptabaseテレメトリー、アプリ内更新は無効化しています。ユーザーが選んだ翻訳サービスへの送信まで停止するものではありません。開発時のPython環境は`uv`を使います。現在の開発用sidecarはcheckout内の環境を使うため、そのまま単体のLinuxパッケージにはなりません。
+本家向け自動公開、Aptabaseテレメトリー、アプリ内更新は無効化しています。ユーザーが選んだ翻訳サービスへの送信まで停止するものではありません。Python環境は`uv`を使います。[Linuxビルドパイプライン](/docs/voice-stack/linux-build-pipeline.md)は開発用sidecarと別にバックエンドを凍結し、speech.cppを含むtar.gz候補を作ります。検証範囲と公開前の残条件は同ガイドを参照してください。
 
 ## モデルとライセンス
 
 配布物には制限付き吹き出し検出モデルを含む**すべてのOCR重みを入れません**。必要な重みがないOCR機能は利用できません。開発用ソース内の既存モデルとライセンスは保持するため、checkout全体を配布ZIPにしないでください。
 
-TTS/ASR/VCモデルと参照音声はユーザー管理です。検証用Mia2026は同梱しません。speech.cpp本体の同梱とモデルの同梱は別です。[ライセンス台帳](/docs/voice-stack/licensing.md)と[配布検査](/docs/voice-stack/fork-distribution-isolation.md)を参照してください。依存ライブラリを含む最終監査は公開前の必須条件です。
+speech.cpp/RVC/Seed-VCのモデルと参照音声はユーザー管理です。検証用Mia2026は同梱しません。既存faster-whisper依存に付属するSilero VAD資源は別途一覧化して監査します。speech.cpp本体の同梱とモデルの同梱は別です。[ライセンス台帳](/docs/voice-stack/licensing.md)と[配布検査](/docs/voice-stack/fork-distribution-isolation.md)を参照してください。依存ライブラリを含む最終監査は公開前の必須条件です。
 
 元の[MIT LICENSE](/LICENSE)、著作権表示、[NOTICE](/NOTICE.md)、OCRモデル固有の利用条件を維持しています。GPL表示のSeed-VC連携を含め、追加要素の条件をアプリ全体のMIT表示で置き換えません。
 

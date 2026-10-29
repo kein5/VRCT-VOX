@@ -20,10 +20,11 @@ Report fork-specific bugs or request support through **[VRCT-TTS Issues](https:/
 - [Voice licenses and distribution boundaries](/docs/voice-stack/licensing.md)
 - [Fork distribution checklist](/docs/voice-stack/fork-distribution-isolation.md)
 - [Linux package proposal](/docs/voice-stack/linux-distribution-proposal.md)
+- [Linux build pipeline and candidate validation](/docs/voice-stack/linux-build-pipeline.md)
 - [Publication and upstream contribution policy](/docs/voice-stack/publication-and-upstream.md)
 - [Original VRCT documentation](https://misyaguziya.github.io/VRCT-Docs/) — covers the upstream application, not fork-specific voice features.
 
-Python work uses `uv`. See the linked reports for reproducible test commands and opt-in native prerequisites. The current development sidecar still uses the checkout and its environment; it is not a standalone Linux package. Do not use the Windows batch build commands on Linux.
+Python work uses `uv`. The Linux pipeline freezes the backend and produces a tar.gz candidate with speech.cpp; the development sidecar remains separate. See the pipeline guide for build commands, validation and remaining release gates. Do not use the Windows batch build commands on Linux.
 
 ## Telemetry and models
 
@@ -31,7 +32,7 @@ VRCT-TTS disables Aptabase telemetry, including when an old upstream key file ex
 
 Built distributions exclude **all OCR weights**, including the upstream restricted chat-bubble detector and RapidOCR weights. OCR requiring those weights is unavailable without a separately permitted local setup. The repository retains the original model/license for the development uses its terms permit; a source checkout is not a model-free binary distribution. Do not package the checkout wholesale.
 
-No TTS/ASR/VC weights or reference recordings are implicitly downloaded or bundled by this fork's voice integration. Mia2026 was supplied for local testing only and must never be redistributed. The planned speech.cpp binary bundle includes its dependency notices; its license is distinct from each model's license.
+No speech.cpp/RVC/Seed-VC weights or reference recordings are implicitly downloaded or bundled by this fork's voice integration. The existing faster-whisper dependency includes Silero VAD resources, recorded separately for license review. Mia2026 was supplied for local testing only and must never be redistributed. The speech.cpp binary bundle includes its dependency notices; its license is distinct from each model's license.
 
 ## License and acknowledgements
 

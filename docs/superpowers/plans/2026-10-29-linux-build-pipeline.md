@@ -54,7 +54,7 @@ package tool validates final tree/tar, emits inventory and SHA-256.
 `docs/voice-stack/linux-build-pipeline.md`; update completion ledger/README/package proposal.
 **Interfaces:** workflow invokes same builder, verifies checksum/policy and headless/Xvfb smoke, uploads only successful candidates with contents:read.
 
-- [ ] Add model-free relocated frozen/GUI acceptance (explicit opt-in locally), synthetic graph and read-only installation.
-- [ ] Wire CI system dependencies, uv lock sync, npm ci, locked Cargo and artifact inspection; no publisher/secrets.
-- [ ] Run local native acceptance with DPMS guard, relevant full regression/build checks. Record CI not run unless actually observed.
-- [ ] Review complete diff, fix critical/important findings with RED→GREEN; document remaining license/security/OS gates. Commit report.
+- [x] Add model-free relocated frozen/GUI acceptance (explicit opt-in locally), synthetic graph and read-only installation.
+- [x] Wire CI system dependencies, uv lock sync, npm ci, locked Cargo and artifact inspection; no publisher/secrets.
+- [x] Run local native acceptance with DPMS guard, relevant full regression/build checks. Record CI not run unless actually observed.
+- [x] Review complete diff, fix critical/important findings with RED→GREEN; document remaining license/security/OS gates. Commit report.

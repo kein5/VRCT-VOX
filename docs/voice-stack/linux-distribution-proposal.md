@@ -26,11 +26,11 @@ speech.cpp単体のGLIBC_2.34確認から、アプリ全体の下限を推定し
   本家`vrct`を`provides/replaces/conflicts`へ入れて置換しない。
   source/bin相互の排他だけを将来のPKGBUILDで定義する。
 - 不変の本体・Python runtime・native helper・固定speech.cpp・通知を専用配置へ置く。
-  候補は`/usr/lib/vrct-tts`。現在の開発sidecarはcheckout/venv依存なので、そのまま梱包しない。
+  候補は`/usr/lib/vrct-tts`。開発sidecarと分けた[Linux凍結ビルド](linux-build-pipeline.md)を使用する。
 - 設定、ログ、cache、ユーザーモデルは専用の可変領域へ分離する。
   [XDG仕様](https://specifications.freedesktop.org/basedir/latest/)に沿う移行が必要。
-  今の`VRCT_CONFIG_DIR`は設定/logのみを分離し、全モデル保存先の移行は完了していない。
-- OCR/TTS/ASR/VC重みと参照音声を入れない。特にMia2026は検証専用。
+  凍結Linux版はXDGのconfig/data/cacheと`VRCT_*_DIR`を使用する。開発/Windowsの既存パスは保持する。
+- OCR、speech.cpp/RVC/Seed-VC重みと参照音声を入れない。既存faster-whisper依存のSilero VAD資源は別途一覧化して監査する。特にMia2026は検証専用。
   speech.cpp本体とモデルの配布許可を混同しない。
 - RVC/Seed-VCの大規模依存環境は初版では外部指定を継続する案。
   Seed連携のGPL、RVC環境のpraat-parselmouth GPL、soxrのLGPL、PyAV/FFmpeg等を別途監査する。
@@ -44,7 +44,7 @@ speech.cpp単体のGLIBC_2.34確認から、アプリ全体の下限を推定し
 ## 公開までの順番
 
 1. checkout不要のLinux runtimeを作り、上記の不変/可変パスを分離。
-2. source/binary ZIP、全同梱ライセンス、対応ソース・再リンク手順、SBOMを整備。
+2. source ZIP/binary tar.gz、全同梱ライセンス、対応ソース・再リンク手順、SBOMを整備。
 3. クリーン環境で起動、音声経路、停止、更新、削除後の設定保持、本家との共存を検証。
 4. Trail of Bits Skillsで依頼済みの監査を実施し、重要な未修正事項を解消。
 5. 実URL/hashを用いたPKGBUILDと`.SRCINFO`を作成し、clean chroot、namcap、インストール試験。

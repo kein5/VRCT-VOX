@@ -1,0 +1,71 @@
+{
+  "date": "2026-10-29",
+  "implementation_commit": "09e482dc",
+  "runtime_paths_commit": "7723accd",
+  "artifact": "build/linux/artifacts/VRCT-TTS-3.6.0-beta.1-linux-x64-vulkan-release.tar.gz",
+  "bytes": 528443579,
+  "sha256": "b758a31dfced504ee38241a172249ee1bdd815cbc466eb4b77f780175a0f7e33",
+  "build": {
+    "profile": "release",
+    "variant": "linux-x64-vulkan",
+    "host": "Linux-6.18.55-2-cachyos-lts-x86_64-with-glibc2.44",
+    "libc": [
+      "glibc",
+      "2.44"
+    ],
+    "manifest_commit": "7723accd8b44f317609344d6e1a2162677537677",
+    "manifest_dirty": true,
+    "note": "Built from the working tree before 09e482dc was committed."
+  },
+  "inventory_records": 2406,
+  "symlinks": 64,
+  "checks": {
+    "standard": {
+      "passed": 1222,
+      "skipped": 6
+    },
+    "voice": {
+      "passed": 941,
+      "skipped": 18,
+      "seconds": 62.7
+    },
+    "package_acceptance": {
+      "passed": 4,
+      "skipped": 0,
+      "seconds": 62.43,
+      "cases": [
+        "relocated readonly sidecar initialization/settings/restart",
+        "frozen router fail-closed entry and bundled speech --help",
+        "actual release GUI rendering and shutdown",
+        "private managed PipeWire mute/resume/restart muted"
+      ]
+    },
+    "original_license_byte_equal": true,
+    "ruff_changed_files": "pass",
+    "yaml_structure_no_publisher": "pass"
+  },
+  "python_environment": {
+    "packages": 115,
+    "missing_notice_files": [
+      "antlr4-python3-runtime==4.9.3",
+      "ctranslate2==4.6.0",
+      "flatbuffers==25.12.19",
+      "langchain-core==0.3.86",
+      "onnxruntime==1.31.1",
+      "PyOpenGL==3.1.7",
+      "sentencepiece==0.2.1",
+      "SudachiPy==0.6.10",
+      "tokenizers==0.19.1"
+    ],
+    "scope": "Build environment, not a complete runtime SBOM"
+  },
+  "unverified": [
+    "Hosted GitHub Actions/Ubuntu24.04/Xvfb",
+    "CPU variant full application package",
+    "Other Linux distributions and Windows",
+    "Real inference/listening/physical latency of this exact package",
+    "Final full dependency and native license clearance",
+    "Trail of Bits Skills security review"
+  ],
+  "publication": "No push, release, AUR submission or upstream contact/PR"
+}

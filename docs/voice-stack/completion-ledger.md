@@ -311,3 +311,28 @@ captureのみ40回開始停止PASS。根因調査中。P2コードの独立外�
 [調査経過・未検証境界](direct-vc-product-report.md)。全機能完了、公開、上流PR/連絡は実施していない。
 
 **現在の停止点（2026-10-28追記）:** 診断コード除去後の実Tauri本番VC＋既存原音転送は2 PASS（98.49s）。ただし初回の期限超過・再開始capture失敗の根因は未確定。imozuru調査で解決策未確定なら中断するユーザー指示に従い、次の機能追加を停止。P2独立外部レビューの明示承認も待機中。Task4/P2全体は未完了。未検証条件を試験成功で上書きしない。
+
+### P5 Linuxビルドパイプライン（2026-10-29）
+
+uv固定依存 → Linux PyInstaller onedir → C helper/speech.cpp → 隔離Tauri release →
+内部リンクを保持したtar.gz/ハッシュ/一覧、を単一コマンドで実装。
+開発用sidecarを上書きせず、凍結Linuxの設定・モデル・ログをXDG領域へ分離した。
+OCR/Mia2026除外、リンク逸脱・壊れたリンク・tar traversal/重複/特殊ファイルの検査を追加。
+元LICENSEのバイト一致を確認。ライセンス最終監査の完了とは扱わない。
+
+ローカルVulkan release候補 **528,443,579 bytes**。
+SHA-256 `b758a31dfced504ee38241a172249ee1bdd815cbc466eb4b77f780175a0f7e33`。
+ソース標準1222 PASS/6既存SKIP、音声941 PASS/18 opt-in SKIP。
+実アーカイブを空白を含む別パスに展開し、書込権限とDAC overrideを外して
+設定保存・再起動、router/同梱speech entry、GUI描画/終了、private graphのmute/resume/再起動を
+**4 PASS / 62.43秒**で確認。配置ファイルのハッシュ不変。物理録音・モデル取得なし。
+
+GitHub ActionsはUbuntu24.04、contents:read、候補アップロードのみ。
+作成したworkflowのhosted実行/Xvfb、Ubuntu互換性、CPU版の全体配布試験は未検証。
+このCachyOS候補はGLIBC_2.44参照を含み、Ubuntuへそのまま移せるとは主張しない。
+既存faster-whisper由来Silero VAD ONNX2ファイルは一覧化し、speech.cpp/VCモデルと区別した。
+Python環境115packageのうち9packageは収集可能なnoticeファイルなし。native/frontend/Rustを含む
+最終SBOM・再配布条件とTrail of Bits監査は公開前に残る。
+
+[手順と境界](linux-build-pipeline.md)、[実測結果](linux-build-results.json)。
+ローカルコミットのみ。公開・AUR登録・本家への連絡/PRは行っていない。

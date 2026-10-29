@@ -17,7 +17,18 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from tools.display_power_guard import check_displays_on  # noqa: E402
+from tools.display_power_guard import check_displays_on as check_physical_displays  # noqa: E402
+
+
+def check_displays_on():
+    # CI explicitly creates Xvfb; no DRM connector/DPMS state exists there.
+    # A live server and rendered screenshot are still mandatory.
+    if os.environ.get('VRCT_TEST_XVFB') == '1':
+        if not os.environ.get('DISPLAY'):
+            raise RuntimeError('Xvfb acceptance requires DISPLAY')
+        subprocess.run(['xdpyinfo'], check=True, capture_output=True, timeout=5)
+        return {'Xvfb': 'On'}
+    return check_physical_displays()
 
 
 class NativeWebDriver:
@@ -178,6 +189,8 @@ class NativeWebDriver:
                 ports.append(sock.getsockname()[1])
         self.base = f"http://127.0.0.1:{ports[0]}"
         env = dict(os.environ, VRCT_DEV_VENV=".venv_linux",
+                   XDG_CONFIG_HOME=str(self.output / "config"),
+                   XDG_DATA_HOME=str(self.output / "data"),
                    XDG_CACHE_HOME=str(self.output / "cache"),
                    HF_HOME=str(self.output / "hf"), HF_HUB_OFFLINE="1",
                    TRANSFORMERS_OFFLINE="1", **self.extra_env)

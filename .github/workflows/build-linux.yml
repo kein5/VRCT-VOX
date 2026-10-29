@@ -1,0 +1,112 @@
+name: Linux candidate (no publication)
+
+on:
+  workflow_dispatch:
+    inputs:
+      speech_variant:
+        description: Fixed speech.cpp engine (no models)
+        type: choice
+        options: [linux-x64-vulkan, linux-x64-cpu]
+        default: linux-x64-vulkan
+  pull_request:
+    paths:
+      - '.github/workflows/build-linux.yml'
+      - 'src-python/**'
+      - 'src-tauri/**'
+      - 'src-ui/**'
+      - 'native/**'
+      - 'config/pipewire/**'
+      - 'integrations/**'
+      - 'spec/backend_linux.spec'
+      - 'requirements*'
+      - 'package*.json'
+      - 'tools/**'
+      - 'tests/**'
+      - 'licenses/**'
+      - 'docs/voice-stack/speechcpp-bundle-artifacts.json'
+      - 'docs/voice-stack/linux-build-pipeline.md'
+      - 'docs/voice-stack/local-setup-linux.md'
+      - 'docs/voice-stack/licensing.md'
+      - 'LICENSE'
+      - 'NOTICE.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '4'
+      SPEECH_VARIANT: ${{ inputs.speech_variant || 'linux-x64-vulkan' }}
+      UV_PYTHON: '3.11'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.13.5'
+          enable-cache: true
+          cache-dependency-glob: requirements-linux-build.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.15.0'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: System build and runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config binutils libwebkit2gtk-4.1-dev libssl-dev \
+            libxdo-dev libayatana-appindicator3-dev librsvg2-dev libpipewire-0.3-dev \
+            pipewire-bin libvulkan1 libglfw3 libportaudio2 libasound2-dev \
+            webkit2gtk-driver xvfb xauth x11-utils dbus-x11 fonts-noto-cjk
+      - name: Build isolated candidate with pinned speech.cpp
+        run: |
+          uv run --no-project --python 3.11 python tools/build_linux.py \
+            --python 3.11 --variant "$SPEECH_VARIANT" --download-speech \
+            > linux-build.log 2>&1
+      - name: Contracts and archive integrity
+        run: |
+          uv run --no-project --python build/linux/venv/bin/python python -m pytest \
+            -c tests/voice/pytest.ini tests/voice/test_linux_package.py tests/voice/test_runtime_paths.py \
+            tests/voice/test_distribution_artifacts.py tests/voice/test_fork_distribution_identity.py -q
+          cd build/linux/artifacts
+          sha256sum -c ./*.tar.gz.sha256
+      - name: Install pinned GUI test driver
+        run: cargo install tauri-driver --version 2.1.0 --locked
+      - name: Relocated read-only package acceptance
+        env:
+          VRCT_TEST_NATIVE_GUI: '1'
+          VRCT_TEST_XVFB: '1'
+          GDK_BACKEND: x11
+        run: |
+          export VRCT_TEST_DRIVER="$HOME/.cargo/bin/tauri-driver"
+          export VRCT_TEST_LINUX_ARCHIVE="$(realpath build/linux/artifacts/*.tar.gz)"
+          dbus-run-session -- xvfb-run -a -s '-screen 0 1280x900x24' \
+            uv run --no-project --python build/linux/venv/bin/python python -m pytest \
+            -c tests/voice/pytest.ini tests/platform/test_linux_package.py -q \
+            --basetemp=build/linux/acceptance > linux-acceptance.log 2>&1
+      # Candidate storage only. No release creation, package registry, or secrets.
+      - name: Store inspected candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: VRCT-TTS-linux-x86_64-candidate
+          path: build/linux/artifacts/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+      - name: Store diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: VRCT-TTS-linux-build-logs
+          retention-days: 7
+          path: |
+            linux-build.log
+            linux-acceptance.log
+            build/linux/pyinstaller/backend_linux/warn-backend_linux.txt
+            build/linux/acceptance/**/*.log

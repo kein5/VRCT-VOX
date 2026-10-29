@@ -28,12 +28,15 @@ pytestmark = pytest.mark.skipif(
 @contextmanager
 def backend(state, attempt):
     env = dict(os.environ, VRCT_CONFIG_DIR=str(state),
+               XDG_DATA_HOME=str(state / "data"), XDG_CACHE_HOME=str(state / "cache"),
                HF_HOME=str(state / "hf"), HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1")
+    executable = os.environ.get("VRCT_TEST_SIDECAR")
+    command = [executable] if executable else [sys.executable, "-u", str(ROOT / "src-python/mainloop.py")]
     events = Queue()
     with (state / f"stderr-{attempt}.log").open("w") as stderr, \
             (state / f"stdout-{attempt}.log").open("w") as stdout:
         process = subprocess.Popen(
-            [sys.executable, "-u", str(ROOT / "src-python/mainloop.py")],
+            command,
             cwd=state, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=stderr, text=True, encoding="utf-8",
         )
