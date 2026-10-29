@@ -59,6 +59,12 @@ GPU919観測でComfyUI検出0、照会失敗0。過去の失敗原因をGPU競�
 物理/VRChat/HMD・聴感・制御した競合・過去のPCMずれ・RSSの長期推移は未検証。
 P5の[固定配布部品計画](../superpowers/plans/2026-10-29-speechcpp-bundle-artifact.md)へ進む。
 
+P5-A完了: speech.cpp0.9.0の公式CPU/Vulkan ZIPから実行ファイル＋通知だけを作るツールを実装
+（`bcd5c623`）。関連67 PASS、両実物のhash照合・移設起動・禁止資産検査が成功。
+[配布部品報告](speechcpp-bundle-report.md)。モデルは非同梱。GUI所有サーバーとLinuxアプリ配布は次工程。
+局所レビューでZIP検証後の差し替え・特殊metadataの待ちを2RED→GREENで修正したが、
+後日依頼されたTrail of Bits Skillsによる全体監査はまだ行っていない。
+
 ### P5の追加要件（2026-10-29ユーザー承認）
 
 speech.cpp本体をVRCT-TTSの配布物へ同梱する。検証した版・hashを固定し、OSごとの実行ファイルと

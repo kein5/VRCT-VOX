@@ -65,15 +65,15 @@
 
 **Interfaces:** Consumes Task 1 CLI and `verify_bundle`; records independent CPU/Vulkan results. No new runtime API.
 
-- [ ] **Step 1: Obtain the two fixed official archives through the CLI's explicit download mode.**
+- [x] **Step 1: Obtain the two fixed official archives through the CLI's explicit download mode.**
   Run each variant with a distinct empty output path under the ignored directory.
   Expected: exact expected archive size/hash and complete staged inventory, or a diagnosed failure. The user already approved binary bundling; this does not authorize new model acquisition.
-- [ ] **Step 2: Check relocation and dynamic dependencies.**
+- [x] **Step 2: Check relocation and dynamic dependencies.**
   Copy each complete component to a fresh temporary directory, verify its inventory, run `speech --version` with a fresh HOME and empty cwd/LD_LIBRARY_PATH, and inspect `readelf -d`/version requirements. Check no user/model cache was created. Run `tools/check_voice_distribution.py` against both component roots.
   Expected: speech version0.9.0; no dependence on bundled libspeech or checkout; Vulkan depends on OS loader, CPU does not. Keep unexpected RUNPATH recorded, and fail if relocation needs its absolute path.
-- [ ] **Step 3: Record results and limits.**
+- [x] **Step 3: Record results and limits.**
   Include actual hashes, files/bytes, original notices, command exits, tested OS and source links. Distinguish build-time component success from pending GUI ownership, complete app packaging, other distributions and Windows acceptance.
-- [ ] **Step 4: Review the entire increment against the spec and rerun affected checks only if corrections were needed.**
+- [x] **Step 4: Review the entire increment against the spec and rerun affected checks only if corrections were needed.**
   No P5 external-code review transmission is authorized by the earlier P2/P4 approvals; perform the local review inline. Security scanning with Trail of Bits remains a later pre-publication gate.
-- [ ] **Step 5: Commit evidence and update the parent plan/ledger.**
+- [x] **Step 5: Commit evidence and update the parent plan/ledger.**
   Commit `docs: record verified speech.cpp bundle component`; continue with a focused owned-server lifecycle design. Do not publish or contact upstream.

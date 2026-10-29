@@ -7,7 +7,7 @@
 |---|---|---|
 | VRCTコード | [LICENSE](../../LICENSE), [NOTICE](../../NOTICE.md) | MIT帰属を維持 |
 | upstream OCR検出重み | [モデルライセンス](../../src-python/models/ocr/onnx/LICENSE.txt) | fork成果物から除外。ソース内の開発用ファイルは保持 |
-| speech.cpp | [検証済みv0.9.0のMIT](https://github.com/nyosegawa/speech.cpp/blob/v0.9.0/LICENSE) | 現在は外部localhost HTTP。2026-10-29ユーザー承認によりP5で本体を同梱する方針。配布版・hash・依存物の条件と通知を確定してから同梱し、モデル条件は別に確認。未同梱 |
+| speech.cpp | [検証済みv0.9.0のMIT](https://github.com/nyosegawa/speech.cpp/blob/v0.9.0/LICENSE) | 2026-10-29承認後、固定CPU/Vulkan実行ファイルと依存通知の配布部品を作成・検証。GUI/アプリ全体への同梱は次工程、未公開。下記追記参照 |
 | Irodori v4.1 Small MF | [モデルカード](https://huggingface.co/Aratako/Irodori-TTS-v4.1-Small-MF) | 日本語のみ。MIT表示に加え、声の本人の明示同意・なりすまし/誤情報禁止の記載を確認。ユーザー管理のvoiceだけ利用 |
 | Irodori Large | [モデル説明](https://github.com/nyosegawa/speech.cpp/blob/main/docs/models/irodori-tts.md) | Smallと条件を混同しない。今回は同梱・検証なし |
 | Qwen3-TTS | [モデル説明](https://github.com/nyosegawa/speech.cpp/tree/main/docs/models) | ユーザーが選んだ重みの条件・hashを実機導入時に記録。モデル取得なし |
@@ -88,3 +88,13 @@ HuBERT/RMVPEの固定4ファイルは今回明示承認され、370,392,700 byte
 実際に導入した`praat-parselmouth==0.4.6`のwheel metadataはGPLv3。RVCソースのMITだけを
 実行環境全体へ一般化しない。Torch/torchaudio、FAISS、Transformers、NumPy/SciPy、
 librosa、libsndfile等を含む最終runtime配布条件の監査は引き続きP5で必要。
+
+## speech.cpp配布部品（2026-10-29）
+
+固定0.9.0の公式Linux CPU/Vulkan ZIPをサイズ・SHA256で照合し、実行ファイルと通知のみを抽出。
+[固定artifact台帳](speechcpp-bundle-artifacts.json)と[実物検証結果](speechcpp-bundle-report.md)。
+[通知一式](../../licenses/speech.cpp/NOTICE.md)にspeech.cpp/GGML/cpp-httplibのMIT、
+miniaudioの二重ライセンス、静的GCCランタイムのGPLv3＋Runtime Library Exception 3.1を保持する。
+実行ファイル全体をspeech.cppのMITだけで説明しない。OSのlibc/Vulkan loader/driverは部品外。
+モデル・参照音声・Mia2026・VC runtimeは含まない。ライセンス文の欠落/改ざんを自動検査する。
+この部品の確認をアプリ全体・別VCランタイムの配布監査完了とは扱わない。未公開。
