@@ -22,6 +22,7 @@ Report fork-specific bugs or request support through **[VRCT-TTS Issues](https:/
 - [Linux package proposal](/docs/voice-stack/linux-distribution-proposal.md)
 - [Linux build pipeline and candidate validation](/docs/voice-stack/linux-build-pipeline.md)
 - [AppImage build, launch and validation](/docs/voice-stack/appimage.md)
+- [GUI text-to-speech quick start (Japanese)](/docs/voice-stack/tts-quickstart-ja.md)
 - [Publication and upstream contribution policy](/docs/voice-stack/publication-and-upstream.md)
 - [Original VRCT documentation](https://misyaguziya.github.io/VRCT-Docs/) — covers the upstream application, not fork-specific voice features.
 
