@@ -24,10 +24,13 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/run/start_realtime_asr", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateState" },
     { endpoint: "/run/stop_realtime_asr", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateState" },
     { endpoint: "/run/realtime_caption", ns: common, hook_name: "useMessage", method_name: "updateRealtimeCaption" },
+    { endpoint: "/get/data/tts_model_options", ns: voice, hook_name: "useVoice", method_name: "updateModelOptions" },
     { endpoint: "/get/data/voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateSettings" },
     { endpoint: "/set/data/voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateSettings" },
     { endpoint: "/get/data/voice_status", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
     { endpoint: "/get/data/voice_output_devices", ns: voice, hook_name: "useVoice", method_name: "updateDevices" },
+    { endpoint: "/run/enable_tts", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
+    { endpoint: "/run/disable_tts", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
     { endpoint: "/run/stop_voice", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
     { endpoint: "/get/data/voice_route", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
     { endpoint: "/run/mute_voice", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
@@ -163,7 +166,7 @@ export const STATIC_ROUTE_META_LIST = [
 export const useReceiveRoutes = () => {
     const { showNotification_Error } = common.useNotificationStatus();
     const { errorHandling_Backend } = _useBackendErrorHandling();
-    const { settings: voiceSettings, send: sendVoice, reset: resetVoice, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
+    const { settings: voiceSettings, send: sendVoice, reset: resetVoice, updateTtsError, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
     const voiceConnected = voiceSettings !== null;
     useEffect(() => {
         if (!voiceConnected) return;
@@ -228,6 +231,11 @@ export const useReceiveRoutes = () => {
 
     const receiveRoutes = (parsed_data) => {
         const { endpoint, status, result } = parsed_data;
+        if (status !== 200 && ["/run/enable_tts", "/run/disable_tts"].includes(endpoint)) {
+            updateTtsError(result?.error_code || "voice_request_failed", endpoint);
+            sendVoice("/get/data/voice_status");
+            return;
+        }
         if (status !== 200 && endpoint.includes("speech_server")) {
             updateSpeechError(result?.error_code || "speech_server_request_failed");
             if (endpoint !== "/get/data/speech_server_state") sendSpeech("/get/data/speech_server_state");
@@ -238,7 +246,7 @@ export const useReceiveRoutes = () => {
             return;
         }
         if (status !== 200 && endpoint.includes("direct_voice")) {
-            updateDirectError(result?.error_code || "source_bridge_request_failed");
+            updateDirectError(result?.error_code || "source_bridge_request_failed", endpoint);
             return;
         }
         if (status !== 200 && (endpoint.includes("/voice_") || ["/run/stop_voice", "/run/mute_voice", "/run/resume_voice"].includes(endpoint))) {

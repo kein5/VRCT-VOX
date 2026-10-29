@@ -220,3 +220,19 @@ def test_instruction_is_kept_in_ipc_but_redacted_from_diagnostic_logs(monkeypatc
     assert 'PRIVATE STYLE' not in diagnostics and encoded not in diagnostics
     assert 'PRIVATE STYLE' not in lines[0] and encoded not in lines[0]
     assert json.loads(lines[1])['result'] == settings
+
+
+def test_catalog_request_id_is_echoed_without_changing_options(controller_module, pcm_server):
+    c = controller_module.Controller()
+    with pcm_server(model_document=card()) as (url, _):
+        try:
+            c.setVoiceSettings(dict(japanese_url=url))
+            response = c.getTtsModelOptions({'role': 'japanese', 'request_id': 'page-17'})
+            assert response['status'] == 200
+            assert response['result']['request_id'] == 'page-17'
+            assert response['result']['options']['seed']['minimum'] == 0
+            for invalid in ('', 'x'*65, 1, None, 'bad\nvalue'):
+                assert c.getTtsModelOptions({'role': 'japanese', 'request_id': invalid})['status'] == 400
+        finally:
+            c.voice_route.close()
+            c.voice_events.close()

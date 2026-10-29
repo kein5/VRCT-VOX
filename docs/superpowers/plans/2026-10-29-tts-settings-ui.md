@@ -1,6 +1,6 @@
 # TTS・RVC独立ページ Implementation Plan
 
-> **For agentic workers:** Use superpowers:executing-plans to implement this plan task-by-task. Keep work inline unless delegation is explicitly requested. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Use superpowers:executing-plans to implement this plan task-by-task. Keep work inline unless delegation is explicitly requested. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** TTSとRVCを別ページで設定し、トップ画面の独立トグルで操作する。TTSは対応モデルへ固定seedとInstructionを送れるようにする。
 
@@ -34,11 +34,11 @@
 
 ## 開始前の整理
 
-- [ ] `git status --short`を確認。今回の設計作成前からあるOOM分類の3ファイル差分を保存し、混ぜて完成扱いしない。
+- [x] `git status --short`を確認。今回の設計作成前からあるOOM分類の3ファイル差分を保存し、混ぜて完成扱いしない。
   `src-python/models/speech_server/runtime.py`, `tests/voice/test_speech_servers.py`, `tests/voice/test_speech_servers_ui.py`。
   プロセス/Controller試験54件は成功済み。UI案内は未実装で、ブラウザーfixtureの初期ロードtimeoutも未解消。
-- [ ] 別セッション担当の`docs/security/`、AIT連携ファイル、既存アーキテクチャ資料を変更しない。
-- [ ] 選択された設計と新しいユーザー指示を照合してから製品実装へ進む。
+- [x] 別セッション担当の`docs/security/`、AIT連携ファイル、既存アーキテクチャ資料を変更しない。
+- [x] 選択された設計と新しいユーザー指示を照合してから製品実装へ進む。
 
 ## Task 1: TTS専用の受付制御
 
@@ -53,13 +53,13 @@
 - `/run/disable_tts`は新しいONを無効化できるよう、すでにOFFでも世代を進める。Stop同様fast pathで処理する。
 - `/run/stop_voice`の既存契約は維持。`_muted`/ルートミュートとは別の判定にする。
 
-- [ ] テスト先行: chat/micの両方をONで受理、OFFで拒否、active+queue取消、原音VCへの呼出しゼロを確認する。
-- [ ] テスト先行: OFF→ON後のlate final、OFF中のroute unmute、遅いEnableの世代不一致、OFF連打を確認する。
-- [ ] 失敗を確認してから、受付条件と原子的キャンセルを追加。起動時OFFを提案どおり実装する。
-- [ ] Enabled変更とsettings変更の双方で古いキュー/確定結果が再生されないことを確認する。
-- [ ] 原音抑制など既存ポリシーを維持する。OFFにしただけでdirect mute解除もnative gate操作も行わない。
-- [ ] 応答喪失で成功表示せず、active終了未確認時はstoppingを保持する。
-- [ ] 関連試験を実行して、制御変更だけをコミットする。
+- [x] テスト先行: chat/micの両方をONで受理、OFFで拒否、active+queue取消、原音VCへの呼出しゼロを確認する。
+- [x] テスト先行: OFF→ON後のlate final、OFF中のroute unmute、遅いEnableの世代不一致、OFF連打を確認する。
+- [x] 失敗を確認してから、受付条件と原子的キャンセルを追加。起動時OFFを提案どおり実装する。
+- [x] Enabled変更とsettings変更の双方で古いキュー/確定結果が再生されないことを確認する。
+- [x] 原音抑制など既存ポリシーを維持する。OFFにしただけでdirect mute解除もnative gate操作も行わない。
+- [x] 応答喪失で成功表示せず、active終了未確認時はstoppingを保持する。
+- [x] 関連試験を実行して、制御変更だけをコミットする。
 
 ## Task 2: モデル能力とseed/Instructionの保存・送信
 
@@ -76,15 +76,15 @@
 - `/get/data/tts_model_options`: role/server/configured_url/server_generationと、上限付きのoptionsを返す。
   認識用ASRモデルAPIは流用しない。サーバー変更後の古い結果を採用しない。
 
-- [ ] 旧config、seed=0、最大値、負数、小数、指数表記、2^53以上、bool、4000文字境界/改行のテストを追加しREDを確認。
-- [ ] fake HTTP serverでPOST JSONを観測。指定時の数値seed、独立したinstructions、未指定時の省略を確認。
-- [ ] 日本語/多言語の分岐とmicの訳文言語、キュー後の設定編集で値が混ざらないことを確認。
-- [ ] capabilitiesの型・レスポンスサイズ・timeout・model/URL/世代変更を検証する。
+- [x] 旧config、seed=0、最大値、負数、小数、指数表記、2^53以上、bool、4000文字境界/改行のテストを追加しREDを確認。
+- [x] fake HTTP serverでPOST JSONを観測。指定時の数値seed、独立したinstructions、未指定時の省略を確認。
+- [x] 日本語/多言語の分岐とmicの訳文言語、キュー後の設定編集で値が混ざらないことを確認。
+- [x] capabilitiesの型・レスポンスサイズ・timeout・model/URL/世代変更を検証する。
   音声callbackでネットワーク照会しない。Instruction/seedを使う時だけ必要な能力を確認する。
-- [ ] 不明/非対応を区別し、追加指定がない場合の既存の外部HTTP経路を維持する。
+- [x] 不明/非対応を区別し、追加指定がない場合の既存の外部HTTP経路を維持する。
   非対応Instructionを空にせず送るときは明確に拒否する。保存値は保持する。
-- [ ] 本文とInstructionをOSC/翻訳へ混ぜない。ログ/例外にはInstruction本文を追加しない。
-- [ ] 回帰試験を実行して独立コミット。
+- [x] 本文とInstructionをOSC/翻訳へ混ぜない。ログ/例外にはInstruction本文を追加しない。
+- [x] 回帰試験を実行して独立コミット。
 
 ## Task 3: TTS・RVCページの分離と既存外観への統一
 
@@ -102,16 +102,16 @@ TTSフォーム/サーバーはTTSへ、RVCフォームはRVCへ、ASR管理は�
 原音/Seed-VCは既存の詳細設定に保持する。同じ直接入力制御を別々に起動しない。
 共通経路の選択はデバイスへ集約し、各ページは現在値を表示する。TTSの外部出力先はTTSに残す。
 
-- [ ] ナビゲーション/検索で「TTS」「RVC」それぞれへ到達し、詳細設定に重複表示しないテストを追加する。
-- [ ] ページ切替でも入力の完全ID・状態購読・音声を失わないよう、実行時状態を共通hookへ移す。
-- [ ] 経路変更がdirect stopを伴うことを表示し、稼働中は変更を拒否する。既存全体muteの操作も保持する。
-- [ ] ローカライズしたラベルと説明、入力、ボタンの区別を既存tokenで実装する。
+- [x] ナビゲーション/検索で「TTS」「RVC」それぞれへ到達し、詳細設定に重複表示しないテストを追加する。
+- [x] ページ切替でも入力の完全ID・状態購読・音声を失わないよう、実行時状態を共通hookへ移す。
+- [x] 経路変更がdirect stopを伴うことを表示し、稼働中は変更を拒否する。既存全体muteの操作も保持する。
+- [x] ローカライズしたラベルと説明、入力、ボタンの区別を既存tokenで実装する。
   新しい外部UIライブラリは追加しない。ネイティブselect/buttonのキーボード操作を維持する。
-- [ ] 未保存/保存中/保存済み/失敗、破棄、切替前の未保存確認を実装。
+- [x] 未保存/保存中/保存済み/失敗、破棄、切替前の未保存確認を実装。
   保存APIの応答前に成功と表示しない。global saveで別formまで保存済みにしない。
-- [ ] 初回/異常時はエンジン準備を隠さず、通常時のみ詳細を折りたたむ。
+- [x] 初回/異常時はエンジン準備を隠さず、通常時のみ詳細を折りたたむ。
   detailsを閉じてもイベント購読・サーバー監視・入力操作の寿命を変えない。
-- [ ] 関連ブラウザー試験とVite buildを通してコミットする。
+- [x] 関連ブラウザー試験とVite buildを通してコミットする。
 
 ## Task 4: トップ画面のTTSスイッチ
 
@@ -120,48 +120,48 @@ TTSフォーム/サーバーはTTSへ、RVCフォームはRVCへ、ASR管理は�
 `src-ui/logics/voice/useVoice.js`, `src-ui/logics/useReceiveRoutes.js`, locale各言語。
 **Test:** 新規`tests/voice/test_tts_controls_ui.py`、既存voice UI entryを使用。
 
-- [ ] 既存SwitchContainer/ToggleSwitchの表示を再利用する。TTSというlabelをON/OFFで変更しない。
+- [x] 既存SwitchContainer/ToggleSwitchの表示を再利用する。TTSというlabelをON/OFFで変更しない。
   role=switch/aria-checked、Space操作、pending、compact表示のnameを検証する。
-- [ ] 既存4スイッチは並び替えず、TTSを末尾へ1行追加し、その次にTask4bのRVCを置く。下に状態・停止・設定リンクを追加しない。
+- [x] 既存4スイッチは並び替えず、TTSを末尾へ1行追加し、その次にTask4bのRVCを置く。下に状態・停止・設定リンクを追加しない。
   MainSection、ログ、入力欄、右上の既存クイック設定を組み替えない。
-- [ ] 設定ページを一度も開かなくてもstatus/settings/server stateを取得できるよう購読を置く。
+- [x] 設定ページを一度も開かなくてもstatus/settings/server stateを取得できるよう購読を置く。
   ページ移動でタイマーが重複せず、遅いstateの順序逆転を世代で拒否する。
-- [ ] 通常ON/OFF、未設定、サーバー停止、管理経路ミュート、ネットワーク断のテストを先に追加。
-- [ ] トップのOFFで再生中TTSとキューを取り消す。詳細・停止操作は専用設定ページに残し、既存の設定入口を使う。
+- [x] 通常ON/OFF、未設定、サーバー停止、管理経路ミュート、ネットワーク断のテストを先に追加。
+- [x] トップのOFFで再生中TTSとキューを取り消す。詳細・停止操作は専用設定ページに残し、既存の設定入口を使う。
   切替中は既存スイッチの処理中表示とaria-busy等を使用。失敗時だけ既存通知で理由と設定先を案内する。
-- [ ] fake IPCでOFFはdisable_ttsだけ、mute_voice/stop_direct_voice/ASR Stopは呼ばれないことを確認。
-- [ ] 主画面を開いたままの連打/サーバー死活と2つの読み上げソースの競合を検証してコミットする。
+- [x] fake IPCでOFFはdisable_ttsだけ、mute_voice/stop_direct_voice/ASR Stopは呼ばれないことを確認。
+- [x] 主画面を開いたままの連打/サーバー死活と2つの読み上げソースの競合を検証してコミットする。
 
 ## Task 4b: RVC設定と独立トグル
 
 **Files:** Task3のRVCページ、`DirectVoiceSettings.jsx`、`useVoice.js`、`MainFunctionSwitch.jsx`、locale各言語。
 **Test:** 既存直接VCのUI/Controller試験と新規RVCトグルのfake IPC試験。
 
-- [ ] 既存RVC項目（runtime/model/index/pitch/index_rate）を専用formで編集・保存する。
+- [x] 既存RVC項目（runtime/model/index/pitch/index_rate）を専用formで編集・保存する。
   同じDirectSettingsのSeed-VC runtime/referenceを消さない。保存は停止中に限定する。
-- [ ] テスト先行でpitch −24/24・小数・範囲外、index_rate 0/1・NaN・index必須条件を確認。
+- [x] テスト先行でpitch −24/24・小数・範囲外、index_rate 0/1・NaN・index必須条件を確認。
   バックエンドの現在の検証規則を変えず、入力欄に理由を表示する。
-- [ ] 入力選択を実行時hookに保持。ページ往復で保持し、再接続で古いIDを採用しない試験を追加する。
-- [ ] ONはsourceと`mode=converted, engine=rvc`で既存start APIを呼ぶ。
+- [x] 入力選択を実行時hookに保持。ページ往復で保持し、再接続で古いIDを採用しない試験を追加する。
+- [x] ONはsourceと`mode=converted, engine=rvc`で既存start APIを呼ぶ。
   未設定/未保存/Windows/非managed/他のdirect engine稼働中では開始しない。
-- [ ] OFFはRVCの既存stop fast pathのみ。準備中もキャンセル可能にする。遅いStartで復活しないことを確認。
-- [ ] TTS ON/OFF×RVC ON/OFFの4組合せ、ページ移動、接続断、起動失敗をfake IPCで確認。
+- [x] OFFはRVCの既存stop fast pathのみ。準備中もキャンセル可能にする。遅いStartで復活しないことを確認。
+- [x] TTS ON/OFF×RVC ON/OFFの4組合せ、ページ移動、接続断、起動失敗をfake IPCで確認。
   RVCの停止でTTS/ASR/OSCが停止せず、TTS OFFでもRVCが継続することを確認する。
-- [ ] 原音/Seed-VC稼働中にRVCがONに見えたり、勝手にエンジンを入れ替えたりしない試験を追加する。
-- [ ] 関連試験とVite buildを通してコミット。GUIと実機の検証結果を区別する。
+- [x] 原音/Seed-VC稼働中にRVCがONに見えたり、勝手にエンジンを入れ替えたりしない試験を追加する。
+- [x] 関連試験とVite buildを通してコミット。GUIと実機の検証結果を区別する。
 
 ## Task 5: seed/InstructionのGUI
 
 **Files:** Task3のTTSフォーム、`useVoice.js`, 新規または既存のmodel options hook、locale各言語。
 **Test:** `tests/voice/test_speech_servers_ui.py`または専用のTTSフォーム試験。
 
-- [ ] 日本語/多言語の「ランダム（サーバー既定）／値を指定」、固定整数欄、複数行Instructionを実装。
+- [x] 日本語/多言語の「ランダム（サーバー既定）／値を指定」、固定整数欄、複数行Instructionを実装。
   0と空欄の差、上限超過、コピー＆ペースト、改行をテストする。
-- [ ] 対応/非対応/未確認を表示する。Qwen3-TTS0.6Bの非対応時は理由を表示し、既存値を黙って消さない。
-- [ ] モデル切替で古いcapabilityが採用されないこと、保存した値が再起動で戻ることを確認する。
-- [ ] モックの例文を製品の既定Instructionにしない。初期値は必ず空欄。
-- [ ] 同じvoice設定の保存に含め、サーバー再起動なしで次の発話へ適用。モデルロード/録音を誘発しない。
-- [ ] フォーム試験と送信JSON試験を通してコミットする。
+- [x] 対応/非対応/未確認を表示する。Qwen3-TTS0.6Bの非対応時は理由を表示し、既存値を黙って消さない。
+- [x] モデル切替で古いcapabilityが採用されないこと、保存した値が再起動で戻ることを確認する。
+- [x] モックの例文を製品の既定Instructionにしない。初期値は必ず空欄。
+- [x] 同じvoice設定の保存に含め、サーバー再起動なしで次の発話へ適用。モデルロード/録音を誘発しない。
+- [x] フォーム試験と送信JSON試験を通してコミットする。
 
 ## Task 6: 統合・配布物の確認
 

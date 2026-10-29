@@ -79,13 +79,26 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
                 voice_settings.clear()
                 voice_settings.update(saved)
                 reply(endpoint, saved)
+            elif endpoint in ('/run/start_direct_voice', '/run/stop_direct_voice'):
+                # The real DirectVoice advances generation on each accepted command.
+                state['generation'] += 1
         def read():
             result = list(replies)
             replies.clear()
             return result
         page.expose_function('sidecarWrite', write)
         page.expose_function('sidecarRead', read)
-        page.goto(f'http://127.0.0.1:{port}/tests/voice/ui-entry/')
+        pending_requests = set()
+        page.on('request', lambda request: pending_requests.add(request.url))
+        page.on('requestfinished', lambda request: pending_requests.discard(request.url))
+        page.on('requestfailed', lambda request: pending_requests.discard(request.url))
+        try:
+            page.goto(f'http://127.0.0.1:{port}/tests/voice/ui-entry/')
+        except Exception:
+            print('Unfinished navigation resources:', sorted(pending_requests))
+            print('Document state:', page.evaluate('document.readyState'))
+            raise
+        page.locator('summary').filter(has_text='Realtime microphone speech').click()
         mic_speech = page.get_by_role('combobox', name='Realtime microphone speech', exact=True)
         expect(mic_speech).to_have_value('off')
         mic_speech.select_option('translated')
@@ -93,10 +106,11 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         expect(policy).to_have_value('suppress')
         policy.select_option('mix')
         page.get_by_role('button', name='Save voice settings', exact=True).click()
-        expect(page.get_by_role('button', name='Save voice settings', exact=True)).to_be_enabled()
+        expect(page.get_by_role('button', name='Save voice settings', exact=True)).to_be_disabled()
         assert voice_settings['mic_mode'] == 'translated' and voice_settings['direct_policy'] == 'mix'
         assert not any(r['endpoint'].startswith('/run/start') for r in sent)
         page.reload()
+        page.locator('summary').filter(has_text='Realtime microphone speech').click()
         expect(mic_speech).to_have_value('translated')
         expect(policy).to_have_value('mix')
         assert not any(r['endpoint'].startswith('/run/start') for r in sent)

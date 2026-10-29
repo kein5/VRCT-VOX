@@ -442,7 +442,7 @@ class Controller:
         # Called after releasing hub locks, including on natural child failure.
         # One shared TTS scheduler deliberately cancels all pending speech.
         if profile in ("japanese", "multilingual"):
-            self.voice_events.cancel()
+            self.voice_events.set_enabled(False)
         elif profile == "asr":
             with self._realtime_lock:
                 if self._realtime_settings["server"] == "bundled":
@@ -1903,7 +1903,11 @@ class Controller:
         return {"status": 200, "result": self.voice_events.status()}
 
     def getTtsModelOptions(self, data, *args, **kwargs) -> dict:
-        if not isinstance(data, dict) or set(data) != {'role'} or data['role'] not in ('japanese', 'multilingual'):
+        if (not isinstance(data, dict) or set(data) not in ({'role'}, {'role', 'request_id'})
+                or data['role'] not in ('japanese', 'multilingual')
+                or ('request_id' in data and (not isinstance(data['request_id'], str)
+                    or not 1 <= len(data['request_id']) <= 64
+                    or not all(c in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_' for c in data['request_id'])))):
             return {'status': 400, 'result': {'error_code': 'tts_role_invalid'}}
         role = data['role']
         with self._voice_settings_lock:
@@ -1913,6 +1917,8 @@ class Controller:
             generation = self.speech_servers.state()[role]['generation'] if server == 'bundled' else None
         result = dict(role=role, server=server, configured_url=configured_url, server_generation=generation,
                       base_url=None, options=None, error_code=None)
+        if 'request_id' in data:
+            result['request_id'] = data['request_id']
         try:
             result['base_url'] = self._ttsSpeechServer(role) if server == 'bundled' else configured_url
             result['options'] = SpeechCppTTS(result['base_url']).get_model_options()

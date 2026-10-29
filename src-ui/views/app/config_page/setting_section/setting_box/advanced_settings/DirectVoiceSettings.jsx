@@ -13,7 +13,7 @@ const defaults = { mode: "passthrough", runtime: "", reference: "", engine: "see
 
 export const DirectVoiceSettings = ({ variant = "all" }) => {
     const { t } = useI18n();
-    const { settings, directState, directSources, directError, updateDirectError, send,
+    const { settings, directState, directOwner, directPending, directSources, directError, updateDirectError, send, setDirectDraftBlocked,
         selectedSource: selected, setSelectedSource: setSelected } = useVoice();
     const saved = useMemo(() => {
         if (!directState.settings) return null;
@@ -25,19 +25,23 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
     const form = useSettingsDraft(saved, directError, updateDirectError);
     const { draft, setDraft, saving, dirty } = form;
     useEffect(() => {
+        setDirectDraftBlocked(dirty || saving);
+        return () => setDirectDraftBlocked(false);
+    }, [dirty, saving, setDirectDraftBlocked]);
+    useEffect(() => {
         send("/get/data/voice_settings");
         send("/get/data/direct_voice_sources");
         send("/get/data/direct_voice_state");
     }, [send]);
     if (!draft) return <p role="status">{t("voice.input_unknown")}</p>;
     const needsSelection = draft.mode !== directState.settings?.mode || draft.engine !== directState.settings?.engine;
-    const isRvc = directState.mode === "converted" && directState.settings?.engine === "rvc";
-    const ownsInput = variant === "all" || (variant === "rvc" ? isRvc : !isRvc);
+    const isRvc = directOwner === "rvc";
+    const ownsInput = !!directOwner && (variant === "all" || (variant === "rvc" ? isRvc : !isRvc));
     const sources = directSources.sources || [];
     const source = sources.find(item => key(item.id) === selected);
     const managed = settings?.routing === "managed";
     const unavailable = directSources.error || directError || directState.error;
-    const busy = directState.requested || directState.pending || directState.stopping;
+    const busy = !!directPending || directState.requested || directState.pending || directState.stopping;
     const converted = draft.mode === "converted";
     const rvc = draft.engine === "rvc";
     const validNumbers = Number.isInteger(draft.rvc_pitch) && Math.abs(draft.rvc_pitch) <= 24 &&
@@ -51,7 +55,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
     let status = "voice.input_stopped";
     if (!directState.observation_id) status = "voice.input_unknown";
     else if (directState.error) status = "voice.input_failed";
-    else if (directState.pending) status = directState.mode === "converted" ? "voice.vc_preparing" : "voice.input_pending";
+    else if (directPending || directState.pending || directState.stopping) status = "voice.input_pending";
     else if (directState.active) status = directState.mode !== "converted" ? "voice.input_active" :
         directState.conversion_state === "idle" ? "voice.vc_idle" :
             directState.conversion_verified ? "voice.vc_active" : "voice.vc_ready";
@@ -82,9 +86,13 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
             {rvc && [["rvc_pitch", -24, 24, 1], ["rvc_index_rate", 0, 1, 0.05]].map(([name, min, max, step]) =>
                 <label key={name}>{t(`voice.vc_${name}`)}
                     <input type="number" min={min} max={max} step={step} disabled={busy}
+                        aria-invalid={name === "rvc_pitch" ? !Number.isInteger(draft[name]) || Math.abs(draft[name]) > 24 :
+                            !Number.isFinite(draft[name]) || draft[name] < 0 || draft[name] > 1}
                         value={Number.isFinite(draft[name]) ? draft[name] : ""}
                         onChange={e => setDraft({ ...draft, [name]: e.target.valueAsNumber })} />
                 </label>)}
+            {rvc && !validNumbers && <p role="alert">{t("voice_ui.invalid_rvc_numbers")}</p>}
+            {rvc && draft.rvc_index_rate > 0 && !draft.rvc_index && <p role="alert">{t("voice_ui.rvc_index_required")}</p>}
         </>}
         </fieldset>
         <div className={styles.actions}>
@@ -108,7 +116,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
             onClick={() => send("/run/start_direct_voice", converted ? {
                 source: source.id, mode: "converted", options,
             } : { source: source.id })}>{t("voice.input_start")}</button>
-        <button type="button" disabled={!ownsInput} onClick={() => send("/run/stop_direct_voice")}>{t("voice.input_stop")}</button>
+        <button type="button" disabled={!ownsInput || !busy} onClick={() => send("/run/stop_direct_voice")}>{t("voice.input_stop")}</button>
         <p role="status">{t(status)}</p>
         <p>{t("voice.input_scope")}</p>
         {unavailable && <p role="alert">{t("voice.input_error")}: {unavailable}</p>}

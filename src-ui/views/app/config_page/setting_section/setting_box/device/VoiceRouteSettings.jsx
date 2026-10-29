@@ -16,10 +16,10 @@ export const VoiceRouteSummary = () => {
 
 export const VoiceRouteSettings = () => {
     const { t } = useI18n();
-    const { settings, route, directState, error, updateError, send } = useVoice();
+    const { settings, route, directState, directPending, error, updateError, send } = useVoice();
     const form = useSettingsDraft(settings, error, updateError);
     useEffect(() => { send("/get/data/voice_settings"); }, [send]);
-    const busy = directState.requested || directState.pending || directState.stopping || !directState.observation_id;
+    const busy = !!directPending || directState.requested || directState.pending || directState.stopping || !directState.observation_id;
     return <section className={styles.container} aria-label={t("voice.routing")} data-setting-id="voice_route">
         <SectionLabelComponent label={t("voice.routing")} />
         <p>{t("voice_ui.route_hint")}</p>

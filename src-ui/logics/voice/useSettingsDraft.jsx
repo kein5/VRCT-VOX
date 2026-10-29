@@ -49,7 +49,7 @@ export function useSettingsDraft(saved, error, updateError) {
         navigationDialog: leaving && <dialog ref={dialog} onCancel={() => setLeaving(null)} aria-label={t("voice_ui.leave_title")}>
             <p>{t("voice_ui.leave_hint")}</p>
             <button type="button" autoFocus onClick={() => setLeaving(null)}>{t("voice_ui.keep_editing")}</button>
-            <button type="button" onClick={() => { const proceed = leaving; setLeaving(null); proceed(); }}>{t("voice_ui.discard_leave")}</button>
+            <button type="button" onClick={() => { const proceed = leaving; discard(); setLeaving(null); proceed(); }}>{t("voice_ui.discard_leave")}</button>
         </dialog>,
     };
 }

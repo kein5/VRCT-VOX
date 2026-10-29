@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useI18n } from "@useI18n";
 import { useVoice } from "../../../../../../logics/voice/useVoice";
 import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
+import { GenerationOptions, validGenerationOptions } from "../tts/GenerationOptions";
 import { VoiceRouteSummary } from "../device/VoiceRouteSettings";
 import { SectionLabelComponent } from "../_components/section_label_component/SectionLabelComponent";
 import styles from "./VoiceSettings.module.scss";
@@ -54,6 +55,7 @@ export const VoiceSettings = () => {
                 {["japanese", "multilingual"].map(role => <fieldset key={role} aria-label={`${t(`speech_servers.${role}`)} · ${t("voice.title")}`}>
                     <legend>{t(`speech_servers.${role}`)}</legend>
                     {server(role)}{draft[`${role}_server`] !== "bundled" && input(`${role}_url`)}{input(`${role}_voice`)}
+                    <GenerationOptions role={role} draft={draft} field={field} />
                 </fieldset>)}
                 <details><summary>{t("voice.mic_mode")}</summary>
                     <label>{t("voice.mic_mode")}<select aria-label={t("voice.mic_mode")} value={draft.mic_mode || "off"} onChange={e => field("mic_mode", e.target.value)}>
@@ -66,11 +68,12 @@ export const VoiceSettings = () => {
                 </details>
             </fieldset>
             <div className={styles.actions}>
-                <button className={styles.primary} type="submit" disabled={saving || !dirty}>{t(saving ? "voice.saving" : "voice.save")}</button>
+                <button className={styles.primary} type="submit" disabled={saving || !dirty || !validGenerationOptions(draft)}>{t(saving ? "voice.saving" : "voice.save")}</button>
                 <button type="button" disabled={saving || !dirty} onClick={form.discard}>{t("voice_ui.discard")}</button>
                 <span role="status">{t(`voice_ui.${form.saveState}`)}</span>
             </div>
         </form>
+        {!validGenerationOptions(draft) && <p role="alert">{t("voice_ui.invalid_options")}</p>}
         {form.navigationDialog}
         <div className={styles.actions}><button type="button" onClick={() => send("/run/stop_voice")}>{t("voice.stop")}</button>
             <span>{t(status.active ? "voice.playing" : "voice.idle")} · {t("voice.queued")}: {status.queued ?? 0}</span></div>

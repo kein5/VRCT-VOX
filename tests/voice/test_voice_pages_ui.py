@@ -12,15 +12,25 @@ pytestmark = pytest.mark.skipif(os.environ.get('VRCT_TEST_SPEECH_UI') != '1', re
 
 
 @pytest.fixture
-def pages(ui):
+def pages(ui, request):
     page, peer, reply = ui
+    original_url = page.url
+    page.goto("about:blank")
+    peer.sent.clear()
+    peer.replies.clear()
+    main_only = getattr(request, "param", None) == "main"
+    if main_only:
+        peer.voice.update(mode="original", output_device="headphones")
     peer.reject_voice = False
     peer.hold_voice = False
     peer.sequence = 0
     peer.tts = dict(tts_enabled=False, tts_generation=0, active=False, queued=0)
     peer.hold_tts = False
     peer.hold_direct = False
+    peer.drain_direct = False
     peer.reject_tts = None
+    peer.model_options = dict(model="test-tts", seed=dict(minimum=0, maximum=9007199254740991), instructions=True)
+    peer.hold_options = False
     peer.direct = dict(generation=0, requested=False, pending=False, active=False, mode='off', error=None,
                        settings=dict(mode='passthrough', engine='seed-vc', runtime='', reference='',
                                      rvc_runtime='', rvc_model='', rvc_index='', rvc_pitch=0, rvc_index_rate=0))
@@ -45,8 +55,17 @@ def pages(ui):
         elif ep in ('/run/start_direct_voice', '/run/stop_direct_voice'):
             if ep == '/run/stop_direct_voice' or not peer.hold_direct:
                 enabled = ep == '/run/start_direct_voice'
-                peer.direct.update(requested=enabled, active=enabled, pending=False, mode='converted' if enabled else 'off', generation=peer.direct['generation'] + 1)
+                peer.direct.update(requested=enabled, active=enabled, pending=False,
+                    stopping=not enabled and peer.drain_direct,
+                    mode=data.get('mode', 'passthrough') if enabled else 'off', generation=peer.direct['generation'] + 1)
                 reply(ep, dict(peer.direct, observation_id=observation))
+        elif ep == '/get/data/tts_model_options':
+            if not peer.hold_options:
+                role = data['role']
+                bundled = peer.voice[role + '_server'] == 'bundled'
+                reply(ep, dict(role=role, request_id=data.get('request_id'), server=peer.voice[role + '_server'],
+                    configured_url=peer.voice[role + '_url'], base_url=peer.state[role]['base_url'] if bundled else peer.voice[role + '_url'],
+                    server_generation=peer.state[role]['generation'] if bundled else None, options=peer.model_options, error_code=None))
         elif ep == '/get/data/voice_route':
             reply(ep, dict(observation_id=observation, managed=peer.voice['routing'] == 'managed', ready=True,
                            requested_muted=False, observed_muted=False))
@@ -73,8 +92,8 @@ def pages(ui):
 
     page.expose_function('voiceHandled', write)
     page.add_init_script('window.voiceWrite = async line => { if (!await window.voiceHandled(line)) await window.sidecarWrite(line); };')
-    base = urlsplit(page.url)
-    page.goto(f'{base.scheme}://{base.netloc}/tests/voice/voice-pages-entry/')
+    base = urlsplit(original_url)
+    page.goto(f'{base.scheme}://{base.netloc}/tests/voice/voice-pages-entry/' + ('?main=1' if main_only else ''))
     yield page, peer, reply
 
 
@@ -144,3 +163,20 @@ def test_input_identity_survives_pages_and_stale_state(pages):
     expect(source).to_be_disabled()
     page.get_by_role('button', name='Device', exact=True).click()
     expect(page.get_by_role('combobox', name='Audio route', exact=True)).to_be_disabled()
+
+
+def test_discard_before_closing_restores_mounted_form(pages):
+    from playwright.sync_api import expect
+    page, peer, _ = pages
+    mode = page.get_by_label('Chat voice', exact=True)
+    mode.select_option('original')
+    # ConfigPage stays mounted when hidden. Exercise its navigation guard without unmounting.
+    page.evaluate('''() => window.dispatchEvent(new CustomEvent('vrct:settings-leave', {
+        cancelable: true, detail: { proceed: () => { window.didLeave = true; } }
+    }))''')
+    page.get_by_role('button', name='Discard and leave', exact=True).click()
+    page.wait_for_function('window.didLeave === true')
+    expect(mode).to_have_value(peer.voice['mode'])
+    expect(page.get_by_role('button', name='Save voice settings', exact=True)).to_be_disabled()
+    page.get_by_role('button', name='RVC', exact=True).click()
+    expect(page.get_by_role('dialog')).to_have_count(0)

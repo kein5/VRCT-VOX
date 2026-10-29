@@ -170,6 +170,7 @@ def test_owned_tts_ending_cancels_active_and_queued_audio_only(app, owned, endin
         owned[1][0].fail()
     until(lambda: c.voice_events.status()['cancelled'] == 1)
     assert c.voice_events.status()['queued'] == 0
+    assert c.voice_events.status()['tts_enabled'] is False
     assert c.getRealtimeASRState()['result']['mic']['requested']
     c.direct_voice.stop.assert_not_called()
 
