@@ -43,17 +43,17 @@
 - `main(argv=None) -> None`: CLI `--variant {linux-x64-cpu,linux-x64-vulkan} (--archive PATH | --download) --output PATH`; no arbitrary URL/manifest option.
 - `bundle.json` uses schema 1 with component, version, source_commit, variant, archive `{name,size,sha256,url}`, and files `[{path,size,sha256}]` including notices, excluding itself. Paths are fixed relative names only.
 
-- [ ] **Step 1: Write failing tests with small in-memory ZIPs and injected download streams.**
+- [x] **Step 1: Write failing tests with small in-memory ZIPs and injected download streams.**
   Assert exactly one executable and all notices in successful output; hashes match actual output bytes; no model/header/shared library is copied. Assert bad hash, short/oversized/interrupted download, duplicate/symlink/missing speech, missing/changed notice, existing file/directory/symlink destination all fail without altering pre-existing data. Assert no network when `--archive` is selected and missing source choice fails before work. Add a subprocess `python -O` rejection check. Check committed release identity against the values in the design.
-- [ ] **Step 2: Run RED.**
+- [x] **Step 2: Run RED.**
   Run `UV_CACHE_DIR=/tmp/vrct-uv-cache uv run --offline --no-project --python .venv_linux/bin/python python -m pytest tests/voice/test_speechcpp_bundle.py -q`.
   Expected: import/function failures because the tool does not exist; inspect each failure before implementation.
-- [ ] **Step 3: Implement the tool and commit fixed metadata/notices.**
+- [x] **Step 3: Implement the tool and commit fixed metadata/notices.**
   Use streamed SHA256, explicit exceptions, exclusive output creation and cleanup scoped to files created by the current call. Read the single ZIP member; never call extractall or execute downloaded content during staging. Keep all production functions small and avoid a general package manager abstraction.
-- [ ] **Step 4: Run GREEN plus existing distribution tests.**
+- [x] **Step 4: Run GREEN plus existing distribution tests.**
   Run the Task 1 test command with `tests/voice/test_config_and_distribution.py tests/voice/test_seedvc_artifacts.py` also selected.
   Expected: all selected tests PASS, no acquisition or model execution.
-- [ ] **Step 5: Commit this independently testable build-time component.**
+- [x] **Step 5: Commit this independently testable build-time component.**
   Commit only the files named in Task 1, with message `feat(packaging): stage pinned speech.cpp with license notices`.
 
 ### Task 2: Real archive relocation and evidence
