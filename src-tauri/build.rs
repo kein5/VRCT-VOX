@@ -1,22 +1,24 @@
 fn main() {
     // Guard stale sidecar resources too: a direct `cargo tauri build` must
     // not package the restricted upstream OCR model in a fork release.
-    check_fork_resources(std::path::Path::new("bin/_internal"));
+    check_fork_resources();
     tauri_build::build()
 }
 
-fn check_fork_resources(path: &std::path::Path) {
-    println!("cargo:rerun-if-changed={}", path.display());
-    if !path.exists() {
+fn check_fork_resources() {
+    println!("cargo:rerun-if-changed=bin/_internal");
+    println!("cargo:rerun-if-changed=../tools/check_voice_distribution.py");
+    println!("cargo:rerun-if-changed=../tools/distribution_policy.py");
+    println!("cargo:rerun-if-env-changed=VRCT_BUILD_PYTHON");
+    if !std::path::Path::new("bin/_internal").exists() {
         return;
     }
-    if path.is_dir() {
-        for entry in std::fs::read_dir(path).expect("cannot inspect sidecar resources") {
-            check_fork_resources(&entry.expect("cannot inspect resource").path());
-        }
-    } else if path.file_name().is_some_and(|name| {
-        name.to_string_lossy().eq_ignore_ascii_case("chatbox_yolox_tiny.onnx")
-    }) {
-        panic!("Restricted OCR model in fork package: {}. Rebuild the sidecar without it.", path.display());
-    }
+    // Use the same policy for direct Tauri builds, ZIPs and PyInstaller hooks.
+    let python = std::env::var("VRCT_BUILD_PYTHON")
+        .unwrap_or_else(|_| if cfg!(windows) { "python" } else { "python3" }.into());
+    let status = std::process::Command::new(python)
+        .args(["../tools/check_voice_distribution.py", "bin/_internal"])
+        .status()
+        .expect("Python 3 is required for distribution inspection");
+    assert!(status.success(), "Fork resource inspection failed; rebuild the sidecar without excluded assets");
 }

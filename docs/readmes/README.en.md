@@ -1,133 +1,44 @@
 # VRCT-TTS
 
-[VRCT-TTS](https://github.com/kein5/VRCT-TTS) is a development fork of
-[VRCT](https://github.com/misyaguziya/VRCT), previously named `kein5/VRCT.cpp`.
-It adds low-latency speech.cpp text-to-speech and is developing external voice conversion,
-real-time speech recognition, translated speech, and Windows/Linux audio routing.
+[日本語](/docs/readmes/README.ja.md) · [한국어](/docs/readmes/README.ko.md) · [繁體中文](/docs/readmes/README.zh-Hant.md)
 
-The full feature set is still in development. See the [implementation and validation status](docs/voice-stack/completion-ledger.md)
-and [publication/upstream plan](docs/voice-stack/publication-and-upstream.md) for what works and what remains unverified.
-The upstream documentation below, including its downloads and support links, describes the original VRCT project.
+VRCT-TTS is an independent development fork of [VRCT](https://github.com/misyaguziya/VRCT), maintained by [kein5](https://github.com/kein5). It was previously named `kein5/VRCT.cpp`. **This is not an official VRCT release and is not endorsed by the upstream authors or VRChat.**
 
-<div align="center">
+The fork adds speech.cpp text-to-speech, optional external Seed-VC/RVC voice conversion, realtime ASR and translated speech. Voice output and OSC text are independently configurable: for example, original microphone audio can accompany translated TTS while original and translated text appear in VRChat chat. Local speech.cpp server profiles can be saved, started and stopped from the GUI. Models remain user supplied.
 
-<picture>
-    <source srcset="/docs/img/vrct_logo_white.png" media="(prefers-color-scheme: dark)" width="50%">
-    <source srcset="/docs/img/vrct_logo_black.png" media="(prefers-color-scheme: light)" width="50%">
-    <img src="/docs/img/vrct_logo.png" alt="VRCT Logo" width="50%">
-</picture>
+## Status and downloads
 
-<br>
-<br>
+This project is still under development. Linux native integration has automated and real-model validation; Windows packaging and hardware acceptance are deferred to a Windows PC. Listening quality and physical end-to-end latency are not fully verified. See the [completion ledger](/docs/voice-stack/completion-ledger.md) and [owned speech.cpp server report](/docs/voice-stack/owned-speech-servers-report.md) for precise scope.
 
-[![GitHub release](https://img.shields.io/github/v/release/misyaguziya/VRCT.svg)](https://github.com/misyaguziya/VRCT/releases)
-[![Downloads](https://img.shields.io/github/downloads/misyaguziya/VRCT/total)](https://github.com/misyaguziya/VRCT/releases)
-[![Licence](https://img.shields.io/github/license/misyaguziya/VRCT)](https://github.com/misyaguziya/VRCT/blob/master/LICENSE)
-[![Booth](https://img.shields.io/badge/Store-Booth.pm-red)](https://misyaguziya.booth.pm/items/5155325)
-[![Github Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-30363D?&logo=GitHub-Sponsors&logoColor=EA4AAA)](https://github.com/sponsors/misyaguziya)
+The fork's distribution destination is **[kein5/VRCT-TTS Releases](https://github.com/kein5/VRCT-TTS/releases)**. An installable, fully accepted release is not promised yet. AUR distribution is being planned; no AUR package has been submitted by this work. Upstream VRCT downloads do not contain these changes. The inherited automatic publisher and built-in updater are disabled while fork packages are validated.
 
-<h3>
-Become a VRCT Supporter on:
-</h3>
+Report fork-specific bugs or request support through **[VRCT-TTS Issues](https://github.com/kein5/VRCT-TTS/issues)**. Include OS, version, reproduction steps and redacted logs. Do not send private voice/model files, tokens or fork-specific support requests to the upstream maintainers.
 
-<a href="https://vrct-dev.fanbox.cc">
-    <picture>
-        <source srcset="/docs/img/pixiv_fanbox_white.png" media="(prefers-color-scheme: dark)" height="18px">
-        <source srcset="/docs/img/pixiv_fanbox_black.png" media="(prefers-color-scheme: light)" height="18px">
-        <img src="/docs/img/pixiv_fanbox_black.png" alt="PIXIV FANBOX" height="18px">
-    </picture>
-</a>&emsp;&nbsp;
+## Development and documentation
 
-<a href="https://patreon.com/vrct_dev">
-    <picture>
-        <source srcset="/docs/img/patreon_logo_white.png" media="(prefers-color-scheme: dark)" height="22px">
-        <source srcset="/docs/img/patreon_logo_black.png" media="(prefers-color-scheme: light)" height="22px">
-        <img src="/docs/img/patreon_logo_black.png" alt="Patreon" height="22px">
-    </picture>
-</a>&emsp;&nbsp;
+- [Implementation/validation ledger](/docs/voice-stack/completion-ledger.md)
+- [Voice licenses and distribution boundaries](/docs/voice-stack/licensing.md)
+- [Fork distribution checklist](/docs/voice-stack/fork-distribution-isolation.md)
+- [Linux package proposal](/docs/voice-stack/linux-distribution-proposal.md)
+- [Publication and upstream contribution policy](/docs/voice-stack/publication-and-upstream.md)
+- [Original VRCT documentation](https://misyaguziya.github.io/VRCT-Docs/) — covers the upstream application, not fork-specific voice features.
 
-<br>
+Python work uses `uv`. See the linked reports for reproducible test commands and opt-in native prerequisites. The current development sidecar still uses the checkout and its environment; it is not a standalone Linux package. Do not use the Windows batch build commands on Linux.
 
-<picture>
-    <source srcset="/docs/img/supporter_section_border_d.png" media="(prefers-color-scheme: dark)">
-    <source srcset="/docs/img/supporter_section_border_l.png" media="(prefers-color-scheme: light)">
-    <img src="/docs/img/supporter_section_border_d.png" alt="Supporter Section Border">
-</picture>
+## Telemetry and models
 
-<br>
-<br>
+VRCT-TTS disables Aptabase telemetry, including when an old upstream key file exists. User-requested translation services may still send text to their configured providers; disabling telemetry does not make all features offline.
 
-| **English** | [日本語](/docs/readmes/README.ja.md) | [한국어](/docs/readmes/README.ko.md) | [繁體中文](/docs/readmes/README.zh-Hant.md) |
+Built distributions exclude **all OCR weights**, including the upstream restricted chat-bubble detector and RapidOCR weights. OCR requiring those weights is unavailable without a separately permitted local setup. The repository retains the original model/license for the development uses its terms permit; a source checkout is not a model-free binary distribution. Do not package the checkout wholesale.
 
-<h3>
-VRCT is software that supports VRChat conversations with translation and transcription.
-</h3>
+No TTS/ASR/VC weights or reference recordings are implicitly downloaded or bundled by this fork's voice integration. Mia2026 was supplied for local testing only and must never be redistributed. The planned speech.cpp binary bundle includes its dependency notices; its license is distinct from each model's license.
 
-![](/docs/img/main_window.png)
+## License and acknowledgements
 
-<div align="left">
+Original VRCT code remains under the [MIT License](/LICENSE). Original copyright and attribution notices are retained. The restricted OCR model has its [own terms](/src-python/models/ocr/onnx/LICENSE.en.txt); see [NOTICE](/NOTICE.md). External engines, model weights, and the GPL-marked Seed-VC integration have their own terms. A final binary dependency/license audit remains a release requirement; the entire voice stack is not claimed to be MIT.
 
-# Download & Install
-Download from anywhere you like.
-- [Github.com](https://github.com/misyaguziya/VRCT/releases/)
-- [BOOTH.pm](https://misyaguziya.booth.pm/items/5155325)
+Thank you to the original VRCT team: **みしゃ / misyaguziya** (main development), **しいな / Shiina_12siy** (UI/UX and localization), **レラ / soumt-r** (technical advice), **どね / done_vrc** (logo), and [all upstream contributors](https://github.com/misyaguziya/VRCT/graphs/contributors). This fork builds on their work.
 
-Just download and run the exe.
+General bug fixes are being separated from TTS-specific changes for possible upstream contribution. No upstream contact or PR, including drafts, is sent without the repository owner's explicit instruction.
 
-# What is VRCT?
-VRCT is software that supports conversations between people who speak different languages by providing chat or voice translation.
-These features are designed for use within VRChat.
-*Although not supported, it is also used for other purposes such as watching movies.
-
-VRCT supports your conversations with
-- 💬 **Send chat to VRChat**
-- 🌐 **Translation**
-- 🎙 **Transcription of audio from microphone**
-- 🔈 **Transcription of audio from Speaker**
-
-# Documents
-Initial setup, basic functions, and other features are also described.
-- [Documents Link](https://misyaguziya.github.io/VRCT-Docs/)
-
-# How to Use (YouTube)
-<div align="center">
-
-[![](https://img.youtube.com/vi/rUTad037n8Q/0.jpg)](https://www.youtube.com/watch?v=rUTad037n8Q)
-
-<div align="left">
-
-## Author
-- [みしゃ(misyaguzi)](https://github.com/misyaguziya) (Main Development)
-- [しいな(Shiina_12siy)](https://twitter.com/Shiina_12siy) (UI/UX, UI multilingual support)
-- [レラ](https://github.com/soumt-r) (Technical Advisor)
-- [どね](https://twitter.com/done_vrc) (Logo Design)
-
-## Telemetry
-
-VRCT collects anonymous telemetry data via [Aptabase](https://aptabase.com) to help improve the app. The collected data includes app starts, session duration, and feature usage. No personally identifiable information is collected.
-
-You can opt out of telemetry in the app settings at any time. See the [Aptabase Privacy Policy](https://aptabase.com/legal/privacy) for more details.
-
-## License
-
-VRCT is released under the [MIT License](/LICENSE), with one exception: the
-chat-bubble detection model used by the OCR feature
-(`src-python/models/ocr/onnx/chatbox_yolox_tiny.onnx`) is covered by a
-**VRCT-only license**. You may run it as part of VRCT, and in a fork while
-you develop, test or contribute to VRCT — forking the repository with the
-model inside it is fine. You may not ship it in a fork's own release, use
-it in unrelated software, redistribute it on its own, or derive models from
-it. See [LICENSE.en.txt](/src-python/models/ocr/onnx/LICENSE.en.txt) for
-the terms and [NOTICE.md](/NOTICE.md) for the scope. VRCT builds and runs
-without the model; only chat-bubble detection becomes unavailable, and the
-training procedure is published in
-[docs/ocr_yolo_training.md](/docs/ocr_yolo_training.md).
-
-## Thanks to our contributors
-<a href="https://github.com/misyaguziya/VRCT/graphs/contributors" target="_blank">
-  <img src="https://contrib.rocks/image?repo=misyaguziya/VRCT" />
-</a>
-
----
-
-VRCT is not endorsed by VRChat and does not reflect the views or opinions of VRChat or anyone officially involved in producing or managing VRChat properties. VRChat and all associated properties are trademarks or registered trademarks of VRChat Inc. VRChat © VRChat Inc.
+VRChat and its associated properties are trademarks or registered trademarks of VRChat Inc. VRCT-TTS is not affiliated with VRChat Inc.

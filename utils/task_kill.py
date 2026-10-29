@@ -1,9 +1,9 @@
 import subprocess
 
-# VRCT-sidecar.exe を強制終了
+# vrct-tts-sidecar.exe を強制終了
 try:
     subprocess.run(
-        ["taskkill", "/IM", "VRCT-sidecar.exe", "/F"],
+        ["taskkill", "/IM", "vrct-tts-sidecar.exe", "/F"],
         check=False,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL

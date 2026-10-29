@@ -1773,6 +1773,8 @@ class Model:
 
     @staticmethod
     def checkSoftwareUpdated():
+        if not config.BUILTIN_UPDATER_ENABLED:
+            return {"is_update_available": False, "new_version": ""}
         # check update
         update_flag = False
         version = ""
@@ -1806,6 +1808,8 @@ class Model:
 
     @staticmethod
     def listAvailableReleases() -> list:
+        if not config.BUILTIN_UPDATER_ENABLED:
+            return []
         # Version picker data source: all supported (>= MIN_SUPPORTED_VERSION)
         # releases across both channels, newest first.
         result = []
@@ -1928,7 +1932,7 @@ class Model:
         # try to download at most 5 times
         # 戻り値: 成功なら None、失敗なら SETUP_DOWNLOAD_FAILED / SETUP_VERIFY_FAILED
         url = url or config.setupDownloadUrl()
-        program_name = "VRCT_setup.exe"
+        program_name = "VRCT-TTS_setup.exe"
         current_directory = config.PATH_LOCAL
         dest_path = os_path.join(current_directory, program_name)
         # minimum plausible size for a real NSIS installer; guards against
@@ -1980,7 +1984,7 @@ class Model:
         # ダウンロード & 検証する。updateSoftware()/updateCudaSoftware() の
         # 共通前処理。
         #
-        # 戻り値 None : VRCT_setup.exe がディスク上にあり起動して問題ない
+        # 戻り値 None : VRCT-TTS_setup.exe がディスク上にあり起動して問題ない
         # 戻り値 str  : 呼び出し側は何も起動せず中止すること。失敗の種類は
         #   - SETUP_VERIFY_FAILED   : ハッシュが一致しなかった、または ".sha256" が
         #     公開されているのに取得できなかった (SetupSha256Unavailable)。
@@ -2003,16 +2007,12 @@ class Model:
                 f"{target_version or 'the latest release'}); falling back to size-only validation"
             )
 
-        # 指定バージョンは、そのリリースの setup.exe (HF の同名タグ) を取る。main は常に
-        # 最新版なので、指定バージョンのハッシュで検証すると最新版以外では必ず不一致になる。
+        # 指定バージョンはforkの対応GitHub tagから取得する。
+        # 別版のfloating installerへはフォールバックしない。
         urls = [config.setupDownloadUrl()]
         if target_version:
             tag = release.get("tag_name") if isinstance(release, dict) else None
             urls = [config.setupDownloadUrl(target_version, tag=tag or f"v{target_version}")]
-            if expected_sha256 is None:
-                # 古いリリース (3.4.x など) は HF のタグに setup.exe が無い。インストーラは
-                # /VERSION で入れる版を決めるので、検証できない場合に限り最新のものを使う
-                urls.append(config.setupDownloadUrl(target_version))
         failure = SETUP_DOWNLOAD_FAILED
         for url in urls:
             failure = Model._downloadSetup(expected_sha256, url)
@@ -2022,6 +2022,8 @@ class Model:
 
     @staticmethod
     def _updateAndRestart(edition: str, target_version: Optional[str]) -> str:
+        if not config.BUILTIN_UPDATER_ENABLED:
+            return SETUP_DOWNLOAD_FAILED
         # 起動して終了する (_quitApp) ので、本番で戻るのは失敗したときだけ。
         # 呼び出し側 (Controller) が失敗の種類を UI へ知らせる。SETUP_LAUNCHED を
         # 返すのはテストなどで終了処理を差し替えたとき。
@@ -2039,7 +2041,7 @@ class Model:
         # The channel is not saved to config here: if the installer is cancelled,
         # VRCT keeps running on its current version and channel.
         channel = config._channelForVersion(target_version) if target_version else config.SELECTED_RELEASE_CHANNEL
-        args = ["VRCT_setup.exe", f"/EDITION={edition}", f"/UILANG={config.UI_LANGUAGE}", f"/CHANNEL={channel}"]
+        args = ["VRCT-TTS_setup.exe", f"/EDITION={edition}", f"/UILANG={config.UI_LANGUAGE}", f"/CHANNEL={channel}"]
         if target_version:
             args.append(f"/VERSION={target_version}")
         Popen(args, cwd=config.PATH_LOCAL)

@@ -725,10 +725,9 @@ class Config:
     _debounce_time: int = 2
     _file_lock: threading.Lock = threading.Lock()
 
-    # Hugging Face repos hosting the NSIS setup.exe per release channel; see
-    # docs/readme_build.md "β版リリース" and .github/workflows/release.yml.
-    _HF_REPO_STABLE = "ms-software/VRCT"
-    _HF_REPO_BETA = "ms-software/VRCT-beta"
+    # Fork packages are updated by their distribution channel. Re-enable only
+    # after verifying fork installers; never replace an AUR-managed install.
+    BUILTIN_UPDATER_ENABLED = False
 
     # VERSION に含まれていれば beta チャンネル扱いとする接尾辞。NSIS
     # インストーラの .onInit (template.nsi) が ${VERSION} に対して行って
@@ -753,16 +752,11 @@ class Config:
     OPENAI_WHISPER_BASE_URL = "https://api.openai.com/v1"
 
     def setupDownloadUrl(self, target_version: Optional[str] = None, tag: Optional[str] = None) -> str:
-        """setup.exe のダウンロード URL。
-
-        tag を指定すると、そのリリースのタグ (release.yml が Hugging Face のリポジトリへ
-        GitHub のタグと同じ名前で付ける) を指す。無ければ main (そのチャンネルの最新版)。
-        target_version を指定すると、リポジトリはそのバージョンのチャンネルで決める
-        (指定が無ければ現在のチャンネル)。
-        """
-        channel = self._channelForVersion(target_version) if target_version else self.SELECTED_RELEASE_CHANNEL
-        repo = self._HF_REPO_BETA if channel == "beta" else self._HF_REPO_STABLE
-        return f"https://huggingface.co/{repo}/resolve/{tag or 'main'}/VRCT_setup.exe"
+        """Reserved fork installer URL; built-in updates are disabled."""
+        revision = tag or (f"v{target_version}" if target_version else None)
+        base = "https://github.com/kein5/VRCT-TTS/releases"
+        route = f"download/{revision}" if revision else "latest/download"
+        return f"{base}/{route}/VRCT-TTS_setup.exe"
 
     def __new__(cls):
         if cls._instance is None:
@@ -1096,8 +1090,8 @@ class Config:
         self._PATH_CONFIG = os_path.join(state_dir, "config.json")
         self._PATH_LOGS = os_path.join(state_dir, "logs")
         os_makedirs(self._PATH_LOGS, exist_ok=True)
-        self._GITHUB_URL = "https://api.github.com/repos/misyaguziya/VRCT/releases/latest"
-        self._GITHUB_RELEASES_LIST_URL = "https://api.github.com/repos/misyaguziya/VRCT/releases"
+        self._GITHUB_URL = "https://api.github.com/repos/kein5/VRCT-TTS/releases/latest"
+        self._GITHUB_RELEASES_LIST_URL = "https://api.github.com/repos/kein5/VRCT-TTS/releases"
         # The version picker UI exists from 3.6.0; older releases are hidden so
         # users can't switch to a build they can't switch back from.
         # Prereleases of this version (3.6.0-beta.N) are included.
@@ -1407,7 +1401,7 @@ class Config:
         self._OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS = 3
         self._OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR = "#000000"
         self._ENABLE_CLIPBOARD = False
-        self._ENABLE_TELEMETRY = True
+        self._ENABLE_TELEMETRY = False
         # Existing weights remain usable; network downloads require opt-in.
         self._AUTO_DOWNLOAD_MODELS = False
 

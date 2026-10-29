@@ -37,3 +37,10 @@ GitHub連携には改名機能がなかったため、同じ所有者の認証�
 
 完成後の成果公開の指示は維持する。**上流への連絡・打診・PR作成の自動実行は取り消された**。
 現時点で上流へのメッセージ送信・PR作成は行っていない。
+
+## 2026-10-29 配布前の追加条件
+
+OCR全重みの除外、ZIP/NSIS検査、本家upload/telemetry排除、fork識別子、READMEと支援窓口の分離を優先。
+[実装・未検証](fork-distribution-isolation.md)、[AUR案](linux-distribution-proposal.md)、
+[上流への小さな差分候補とPR文案](upstream-contribution-candidates.md)をローカルで作成。
+PR文案とpatchの作成は送信許可ではない。上流への連絡・PRは引き続き未実施。

@@ -40,13 +40,13 @@
         {
             "identifier": "shell:allow-spawn",
             "allow": [
-                { "name": "bin/VRCT-sidecar", "sidecar": true, "args": true }
+                { "name": "bin/vrct-tts-sidecar", "sidecar": true, "args": true }
             ]
         },
         {
             "identifier": "shell:allow-execute",
             "allow": [
-                { "name": "bin/VRCT-sidecar", "sidecar": true, "args": true }
+                { "name": "bin/vrct-tts-sidecar", "sidecar": true, "args": true }
             ]
         }
     ]

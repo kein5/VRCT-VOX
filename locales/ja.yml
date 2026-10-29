@@ -760,3 +760,7 @@ speech_servers:
     japanese_selection: "日本語のサーバー"
     multilingual_selection: "その他の言語のサーバー"
     asr_selection: "ASRサーバー"
+
+fork_distribution:
+    update_policy: "アプリ内更新は無効です。VRCT-TTSを導入した配布元から更新してください。"
+    releases: "VRCT-TTSの配布ページ"

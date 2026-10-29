@@ -1,2 +1,11 @@
 # Force LF line endings for all text files
 * text=auto eol=lf
+
+# Keep licensed development assets in git, but never export OCR weights in
+# source release archives. Binary bundles also enforce distribution_policy.py.
+src-python/models/ocr/onnx/*.onnx export-ignore
+src-python/models/ocr/onnx/*.pth export-ignore
+src-python/models/ocr/onnx/*.pt export-ignore
+src-python/models/ocr/onnx/*.gguf export-ignore
+src-python/models/ocr/onnx/*.safetensors export-ignore
+src-python/models/ocr/onnx/*.bin export-ignore

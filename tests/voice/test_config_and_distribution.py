@@ -47,21 +47,33 @@ def test_old_config_migrates_silently_and_settings_roundtrip(tmp_path):
 @pytest.mark.parametrize("spec_name", ["backend.spec", "backend_cuda.spec"])
 def test_pyinstaller_filters_restricted_weight_from_expanded_toc(spec_name):
     root = Path(__file__).resolve().parents[2]
-    analysis = SimpleNamespace(pure=[], scripts=[], binaries=[], datas=[
+    analysis = SimpleNamespace(pure=[], scripts=[], binaries=[
+        ("rapidocr/models/model.onnx", "hook/source.onnx", "BINARY"),
+        ("runtime.dll", "dependency/runtime.dll", "BINARY"),
+    ], datas=[
         ("ocr_onnx/chatbox_yolox_tiny.onnx", "some/source", "DATA"),
         ("other\\CHATBOX_YOLOX_TINY.ONNX", "source", "DATA"),
         ("ocr_onnx/LICENSE.txt", "license", "DATA"),
-        ("ocr_onnx/ppocr.onnx", "permitted-model", "DATA"),
+        ("ocr_onnx/ppocr.onnx", "excluded-model", "DATA"),
+        ("rapidocr/models/text_rec.onnx", "dependency-model", "DATA"),
+        ("renamed/model.onnx", "src-python/models/ocr/onnx/renamed.onnx", "DATA"),
+        ("faster_whisper/assets/silero_vad_v6.onnx", "vad-model", "DATA"),
         ("voice/Mia2026.pth", "private-checkpoint", "DATA"),
         ("voice/Mia2026.index", "private-index", "DATA"),
         ("voice/Mia2026.zip", "private-package", "DATA"),
         ("voice/Mia2026.png", "private-image", "DATA"),
     ])
     collect = MagicMock()
-    scope = {"Analysis": lambda *args, **kwargs: analysis, "PYZ": MagicMock(), "EXE": MagicMock(), "COLLECT": collect}
+    analyze = MagicMock(return_value=analysis)
+    scope = {"SPECPATH": str(root / "spec"), "Analysis": analyze, "PYZ": MagicMock(), "EXE": MagicMock(), "COLLECT": collect}
     exec(compile((root / "spec" / spec_name).read_text(encoding="utf-8"), spec_name, "exec"), scope)
-    assert [entry[0] for entry in analysis.datas] == ["ocr_onnx/LICENSE.txt", "ocr_onnx/ppocr.onnx"]
+    assert [entry[0] for entry in analysis.datas] == ["ocr_onnx/LICENSE.txt", "faster_whisper/assets/silero_vad_v6.onnx"]
     assert collect.call_args.args[2] == analysis.datas
+    assert collect.call_args.args[1] == [("runtime.dll", "dependency/runtime.dll", "BINARY")]
+    assert ("./../LICENSE", "licenses/VRCT/") in analyze.call_args.kwargs["datas"]
+    for source, _ in analyze.call_args.kwargs["datas"]:
+        assert not source.rstrip("/\\").endswith(("ocr/onnx", "site-packages/rapidocr"))
+    assert "telemetry_keys" not in analyze.call_args.kwargs["hiddenimports"]
 
 
 def test_distribution_guard_catches_stale_trees_and_zips(tmp_path):

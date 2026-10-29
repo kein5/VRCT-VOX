@@ -35,6 +35,9 @@ class FetchGithubReleasesTimeoutTests(unittest.TestCase):
 
 class CheckSoftwareUpdatedTimeoutTests(unittest.TestCase):
     def setUp(self) -> None:
+        gate = patch.object(type(model_module.config), "BUILTIN_UPDATER_ENABLED", True)
+        gate.start()
+        self.addCleanup(gate.stop)
         import config as config_module
         self._original_channel = config_module.config.SELECTED_RELEASE_CHANNEL
         config_module.config.SELECTED_RELEASE_CHANNEL = "stable"

@@ -1,8 +1,6 @@
 name: Bug Report
 description: File a bug report
 title: "[Bug]: (Please note that the title must be in English.)"
-assignees:
-  - misyaguziya
 body:
   - type: markdown
     attributes:
@@ -12,7 +10,7 @@ body:
     id: debug-tips
     attributes:
       label: Debug Tips
-      description: To improve debug efficiency, please read [Issues of README](https://github.com/misyaguziya/VRCT/issues) first.
+      description: To improve debug efficiency, please read [Issues of README](https://github.com/kein5/VRCT-TTS/issues) first.
       options:
         - label: I'm sure I've read this project's Issues of README.
           required: true
@@ -57,7 +55,7 @@ body:
     id: logs
     attributes:
       label: Relevant log output
-      description: Please copy and paste the relevant log output. Error logs are generated in the folder where VRCT.exe is stored.
+      description: Please copy and paste the relevant log output. Error logs are generated in the folder where vrct-tts.exe is stored.
       render: sh
     validations:
       required: false
@@ -74,8 +72,8 @@ body:
   - type: checkboxes
     id: terms
     attributes:
-      label: Code of Conduct
-      description: By submitting this issue, you agree to follow our [Code of Conduct](https://github.com/misyaguziya/VRCT/blob/master/LICENSE)
+      label: Fork support guidelines
+      description: By submitting this issue, you agree to follow the [fork support guidance](https://github.com/kein5/VRCT-TTS#status-and-downloads)
       options:
-        - label: I agree to follow this project's Code of Conduct
+        - label: I have read the fork support guidelines and will remove secrets from attached logs
           required: true

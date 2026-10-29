@@ -1,39 +1,25 @@
-name: Release VRCT
+# Build candidates only. Publication is a separate, currently disabled gate.
+name: Validate VRCT-TTS distribution
 
 on:
-  push:
-    tags:
-      - 'v*' # タグが 'v' で始まる場合にトリガー (例: v1.0.0)
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  release:
-    name: Build VRCT
+  validate:
+    name: Windows candidate (not a release)
     runs-on: windows-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Get version from tag
-        id: get_version
+      - name: Read candidate version
         shell: pwsh
         run: |
-          $TAG_WITH_V = $env:GITHUB_REF -replace "^refs/tags/", ""
-          $VERSION_NUM = $TAG_WITH_V -replace "^v", ""
-          echo "VERSION=$VERSION_NUM" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-      - name: Determine release channel
-        id: channel
-        shell: pwsh
-        run: |
-          if ("${{ github.ref_name }}" -match "-(beta|rc)") {
-            echo "is_beta=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            echo "hf_repo=ms-software/VRCT-beta" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          } else {
-            echo "is_beta=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            echo "hf_repo=ms-software/VRCT" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Verify version numbers match the tag
         shell: pwsh
@@ -67,40 +53,15 @@ jobs:
             exit 1
           }
 
-      - name: Verify build channel matches the tag
-        shell: pwsh
-        run: |
-          $isBeta = "${{ steps.channel.outputs.is_beta }}" -eq "true"
-          $expectedChannel = if ($isBeta) { "beta" } else { "stable" }
-
-          $content = Get-Content src-python/build_channel.py -Raw
-          if ($content -notmatch 'BUILD_CHANNEL\s*=\s*"([^"]+)"') {
-            Write-Host "::error::could not find BUILD_CHANNEL in src-python/build_channel.py"
-            exit 1
-          }
-          $actualChannel = $Matches[1]
-
-          if ($actualChannel -ne $expectedChannel) {
-            Write-Host "::error::BUILD_CHANNEL is '$actualChannel' but tag '${{ github.ref_name }}' implies '$expectedChannel'. Fix src-python/build_channel.py before tagging."
-            exit 1
-          }
-
-      - name: Generate telemetry keys
-        env:
-          TELEMETRY_KEY_STABLE: ${{ secrets.TELEMETRY_KEY_STABLE }}
-          TELEMETRY_KEY_BETA: ${{ secrets.TELEMETRY_KEY_BETA }}
-        shell: pwsh
-        run: |
-          if (-not $env:TELEMETRY_KEY_STABLE -or -not $env:TELEMETRY_KEY_BETA) {
-            Write-Host "::error::TELEMETRY_KEY_STABLE / TELEMETRY_KEY_BETA secrets are not set."
-            exit 1
-          }
-          Set-Content -Path src-python/telemetry_keys.py -Encoding utf8 -Value "APP_KEYS = {'stable': '$env:TELEMETRY_KEY_STABLE', 'beta': '$env:TELEMETRY_KEY_BETA'}"
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22.15.0'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -108,93 +69,46 @@ jobs:
           python-version: '3.11'
 
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Setup Python environment
+      - name: Setup Python environments
         run: npm run setup-python
 
-      - name: Install Python script dependencies
-        run: pip install tqdm
+      - name: Install packaging helper
+        run: uv pip install --system tqdm
 
-      - name: Build and package
+      - name: Inspect source archive without OCR weights
+        shell: pwsh
+        run: |
+          git archive --format=zip --output=VRCT-TTS-source.zip HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/check_voice_distribution.py VRCT-TTS-source.zip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build and package candidates
         run: npm run release-all
 
-      - name: Compute SHA-256 of the installer
-        id: sha256
+      - name: Inspect CPU and CUDA ZIPs and completed NSIS installer
         shell: pwsh
         run: |
-          $exePath = "./src-tauri/target/release/bundle/nsis/VRCT_${{ env.VERSION }}_x64-setup.exe"
-          $shaPath = "./src-tauri/target/release/bundle/nsis/VRCT_${{ env.VERSION }}_x64-setup.exe.sha256"
-          $hash = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash.ToLower()
-          Set-Content -Path $shaPath -Value $hash -NoNewline -Encoding ascii
-          $cpuZipShaPath = "./VRCT.zip.sha256"
-          $gpuZipShaPath = "./VRCT_cuda.zip.sha256"
-          $cpuZipHash = (Get-FileHash -Path "./VRCT.zip" -Algorithm SHA256).Hash.ToLower()
-          $gpuZipHash = (Get-FileHash -Path "./VRCT_cuda.zip" -Algorithm SHA256).Hash.ToLower()
-          Set-Content -Path $cpuZipShaPath -Value $cpuZipHash -NoNewline -Encoding ascii
-          Set-Content -Path $gpuZipShaPath -Value $gpuZipHash -NoNewline -Encoding ascii
-          echo "sha_path=$shaPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          echo "cpu_zip_sha_path=$cpuZipShaPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          echo "gpu_zip_sha_path=$gpuZipShaPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          python tools/check_voice_distribution.py VRCT-TTS.zip VRCT-TTS_cuda.zip src-tauri/bin/_internal --nsis "src-tauri/target/release/bundle/nsis/VRCT-TTS_${{ env.VERSION }}_x64-setup.exe"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $paths = @("VRCT-TTS.zip", "VRCT-TTS_cuda.zip", "src-tauri/target/release/bundle/nsis/VRCT-TTS_${{ env.VERSION }}_x64-setup.exe")
+          foreach ($path in $paths) {
+            (Get-FileHash -Path $path -Algorithm SHA256).Hash.ToLower() | Set-Content "$path.sha256" -Encoding ascii
+          }
 
-      - name: Reject restricted upstream model in fork artifacts
-        run: python tools/check_voice_distribution.py VRCT.zip VRCT_cuda.zip src-tauri/bin/_internal
-
-      - name: Upload to Hugging Face Hub
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        shell: pwsh
-        run: |
-          pip install huggingface_hub==0.34.4
-
-          $UPLOAD_DIR = "./hf_upload_temp"
-          New-Item -ItemType Directory -Force -Path $UPLOAD_DIR
-          Copy-Item -Path ./VRCT.zip -Destination "$UPLOAD_DIR/VRCT.zip"
-          Copy-Item -Path ./VRCT_cuda.zip -Destination "$UPLOAD_DIR/VRCT_cuda.zip"
-          Copy-Item -Path ${{ steps.sha256.outputs.cpu_zip_sha_path }} -Destination "$UPLOAD_DIR/VRCT.zip.sha256"
-          Copy-Item -Path ${{ steps.sha256.outputs.gpu_zip_sha_path }} -Destination "$UPLOAD_DIR/VRCT_cuda.zip.sha256"
-          Copy-Item -Path "./src-tauri/target/release/bundle/nsis/VRCT_${{ env.VERSION }}_x64-setup.exe" -Destination "$UPLOAD_DIR/VRCT_setup.exe"
-
-          hf upload --repo-type model --commit-message "👍️[Update] ${{ env.VERSION }} Release" ${{ steps.channel.outputs.hf_repo }} $UPLOAD_DIR
-
-          hf repo tag create ${{ steps.channel.outputs.hf_repo }} ${{ github.ref_name }} --repo-type model --message "Release ${{ github.ref_name }}"
-
-          Remove-Item -Recurse -Force $UPLOAD_DIR
-
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # No Hugging Face upload, telemetry secrets, GitHub Release or publication.
+      # Download candidate artifacts from this workflow for Windows acceptance.
+      - name: Preserve inspected candidates for review
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ env.VERSION }}
-          draft: false
-          prerelease: ${{ steps.channel.outputs.is_beta }}
-
-      - name: Upload Release Asset (NSIS Installer)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./src-tauri/target/release/bundle/nsis/VRCT_${{ env.VERSION }}_x64-setup.exe
-          asset_name: VRCT_${{ env.VERSION }}_x64-setup.exe
-          asset_content_type: application/octet-stream
-
-      - name: Upload Release Asset (SHA-256 checksum)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ steps.sha256.outputs.sha_path }}
-          asset_name: VRCT_${{ env.VERSION }}_x64-setup.exe.sha256
-          asset_content_type: text/plain
+          name: VRCT-TTS-windows-candidate
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            VRCT-TTS*.zip*
+            src-tauri/target/release/bundle/nsis/VRCT-TTS_*x64-setup.exe*

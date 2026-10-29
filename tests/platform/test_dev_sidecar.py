@@ -43,7 +43,7 @@ if request.get("wait"):
 raise SystemExit(request.get("exit", 0))
 ''', encoding="utf-8")
     # The wrapper must find the project when Tauri copies it under target/debug.
-    binary = root / "src-tauri/target/debug/VRCT-sidecar"
+    binary = root / "src-tauri/target/debug/vrct-tts-sidecar"
     binary.parent.mkdir(parents=True)
     shutil.copy2(compiled_launcher, binary)
     return root, binary

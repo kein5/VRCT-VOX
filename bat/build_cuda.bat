@@ -13,3 +13,7 @@ if "%VRCT_PYINSTALLER_CLEAN%"=="1" (
 ) else (
     pyinstaller spec/backend_cuda.spec --distpath src-tauri/bin --noconfirm --log-level ERROR
 )
+
+if errorlevel 1 exit /b 1
+python tools/check_voice_distribution.py src-tauri/bin/_internal
+if errorlevel 1 exit /b 1

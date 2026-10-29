@@ -1,6 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(SPECPATH).resolve().parent / "tools"))
+from distribution_policy import filter_toc
 
 # UPX compression roughly doubles the PyInstaller collect step and adds
 # a few seconds to sidecar startup. Default to disabled so ordinary
@@ -14,18 +19,21 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
+        ("./../LICENSE", "licenses/VRCT/"),
+        ("./../NOTICE.md", "licenses/VRCT/"),
         ('./../src-python/models/overlay/fonts', 'fonts/'),
         ('./../src-python/models/translation/translation_settings/prompt', 'translation_settings/prompt/'),
         ('./../src-python/models/translation/translation_settings/languages', 'translation_settings/languages/'),
-        ('./../src-python/models/ocr/onnx', 'ocr_onnx/'),
+        ('./../src-python/models/ocr/onnx/LICENSE.txt', 'ocr_onnx/'),
+        ('./../src-python/models/ocr/onnx/LICENSE.en.txt', 'ocr_onnx/'),
+        ('./../src-python/models/ocr/onnx/NOTICE.txt', 'ocr_onnx/'),
         ('./../.venv/Lib/site-packages/zeroconf', 'zeroconf/'),
         ('./../.venv/Lib/site-packages/openvr', 'openvr/'),
         ('./../.venv/Lib/site-packages/glfw', 'glfw/'),  # glfw3.dll (VR UI overlay texture) is loaded via ctypes, not found by analysis
         ('./../.venv/Lib/site-packages/faster_whisper', 'faster_whisper/'),
         ('./../.venv/Lib/site-packages/hf_xet', 'hf_xet/'),
-        ('./../.venv/Lib/site-packages/rapidocr', 'rapidocr/'),
         ],
-    hiddenimports=['telemetry_keys', 'faster_whisper.vad', 'models.transcription.audio_pipeline', 'rapidocr', 'cv2', 'models.ocr', 'windows_capture'],
+    hiddenimports=['faster_whisper.vad', 'models.transcription.audio_pipeline', 'rapidocr', 'cv2', 'models.ocr', 'windows_capture'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -33,11 +41,10 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
-# Fork distributions must not include the restricted VRCT detector. Filter
-# the expanded TOC, including any copy discovered by a dependency hook.
-a.datas = [entry for entry in a.datas
-           if os.path.basename(entry[0].replace('\\', '/')).lower() not in {
-               'chatbox_yolox_tiny.onnx', 'mia2026.pth', 'mia2026.index', 'mia2026.zip', 'mia2026.png'}]
+# Exclude all OCR weights (including RapidOCR hooks), retain attribution.
+# Inspect both source and destination names in the expanded TOC.
+a.datas = filter_toc(a.datas)
+a.binaries = filter_toc(a.binaries)
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -45,7 +52,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='VRCT-sidecar-x86_64-pc-windows-msvc',
+    name='vrct-tts-sidecar-x86_64-pc-windows-msvc',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

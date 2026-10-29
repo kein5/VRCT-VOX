@@ -196,7 +196,7 @@ class NativeWebDriver:
                     if self.process.poll() is not None:
                         raise RuntimeError("tauri-driver exited before startup")
                     time.sleep(.1)
-            binary = os.environ.get("VRCT_TEST_APP", str(ROOT / "src-tauri/build/native-cargo/debug/VRCT"))
+            binary = os.environ.get("VRCT_TEST_APP", str(ROOT / "src-tauri/build/native-cargo/debug/vrct-tts"))
             result = self.request("POST", "/session", {"capabilities": {"alwaysMatch": {
                 "browserName": "wry", "tauri:options": {"application": binary}}}})
             self.session = result["sessionId"]

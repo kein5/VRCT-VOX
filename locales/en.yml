@@ -760,3 +760,7 @@ speech_servers:
     japanese_selection: "Japanese server"
     multilingual_selection: "Other languages server"
     asr_selection: "ASR server"
+
+fork_distribution:
+    update_policy: "Built-in updates are disabled. Update through the channel from which you installed VRCT-TTS."
+    releases: "VRCT-TTS releases"

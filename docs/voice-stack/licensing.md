@@ -23,6 +23,15 @@ Forkの製品名/publisher/更新配布先はP5の未完了ゲート。現行公
 forkの公開に使える状態とは主張しない。この作業ではタグ・push・公開を行わない。
 ライセンス台帳は同梱許可を与えるものではない。追加モデルは個別に確認する。
 
+## 2026-10-29 fork配布境界の追加検証
+
+冒頭の「P5未完了」記述のうちfork identity/公開先分離は今回実装。
+[配布境界報告](fork-distribution-isolation.md)参照。CPU/CUDA specのOCR/rapidocr全体収集を廃止し、
+OCR重みを展開済みdatas/binariesのsource/destination両方で除外する。
+元LICENSE/NOTICE、OCRモデル通知を明示収集。ZIP/NSIS検査は失敗時に配布処理を止める。
+Windows最終実物、Linux製品package、全同梱依存の最終ライセンス監査は未完了。
+モデル取得承認を再配布承認へ読み替えない。speech.cpp GUI管理はP5-Bで実装済み、未公開。
+
 ## Managed route追加分（2026-10-27）
 
 制御helper `native/voice-gate/main.c` はMITの新規コード。system `libpipewire-0.3` に動的リンクし、

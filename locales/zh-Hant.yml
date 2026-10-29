@@ -635,3 +635,7 @@ speech_servers:
     japanese_selection: "日語伺服器"
     multilingual_selection: "其他語言伺服器"
     asr_selection: "ASR 伺服器"
+
+fork_distribution:
+    update_policy: "已停用應用程式內更新。請透過安裝 VRCT-TTS 的發行管道更新。"
+    releases: "VRCT-TTS 發行頁"

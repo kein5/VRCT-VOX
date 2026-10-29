@@ -56,7 +56,6 @@ export const Others = () => {
             </div>
             <div>
                 <AutoDownloadModelsContainer />
-                <TelemetryContainer />
             </div>
         </div>
     );
@@ -275,23 +274,6 @@ const AutoDownloadModelsContainer = () => {
             desc={t("config_page.others.auto_download_models.desc")}
             variable={currentAutoDownloadModels}
             toggleFunction={toggleAutoDownloadModels}
-        />
-    );
-};
-
-const TelemetryContainer = () => {
-    const { t } = useI18n();
-    const { currentTelemetry, toggleTelemetry } = useOthers();
-
-    return (
-        <CheckboxContainer
-            setting_id="telemetry"
-            label={t("config_page.others.telemetry.label")}
-            webpage_url="https://aptabase.com/legal/privacy"
-            open_webpage_label={t("config_page.others.telemetry.aptabase_privacy_policy_label")}
-            desc={t("config_page.others.telemetry.desc")}
-            variable={currentTelemetry}
-            toggleFunction={toggleTelemetry}
         />
     );
 };
