@@ -27,7 +27,7 @@ from models.transcription.speechcpp_asr import SpeechCppASR
 from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
-from models.tts.speechcpp_tts import SpeechError
+from models.tts.speechcpp_tts import SpeechError, SpeechCppTTS
 from models.speech_server.runtime import SpeechServers
 from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
 from models.tts.message_hook import chat_event, microphone_event
@@ -353,7 +353,7 @@ class Controller:
         self.speech_servers = SpeechServers(on_end=self._speechServerEnded)
         voice_settings = getattr(self._config, "VOICE_SETTINGS", {})
         self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings if isinstance(voice_settings, dict) else {}),
-                                          resolve_server=self._ttsSpeechServer)
+                                          resolve_server=self._ttsSpeechServer, enabled=False)
         config_path = getattr(self._config, '_PATH_CONFIG', 'config.json')
         if not isinstance(config_path, (str, Path)):
             config_path = 'config.json'
@@ -1897,6 +1897,53 @@ class Controller:
 
     def getVoiceStatus(self, *args, **kwargs) -> dict:
         return {"status": 200, "result": self.voice_events.status()}
+
+    def enableTts(self, data, *args, **kwargs) -> dict:
+        if (not isinstance(data, dict) or set(data) != {'generation'}
+                or type(data.get('generation')) is not int or data['generation'] < 0):
+            return {'status': 400, 'result': {'error_code': 'invalid_tts_toggle'}}
+        with self._voice_settings_lock:
+            state = self.voice_events.status()
+            if data['generation'] != state['tts_generation']:
+                return {'status': 409, 'result': {'error_code': 'tts_state_changed'}}
+            if state['muted'] or state['closed']:
+                return {'status': 409, 'result': {'error_code': 'voice_route_not_ready'}}
+            settings = self.voice_events.settings
+            if settings.mode == 'off' and settings.mic_mode == 'off':
+                return {'status': 409, 'result': {'error_code': 'tts_source_not_selected'}}
+            try:
+                # Resolve only the selected sources/languages; do not require an
+                # unused multilingual model to enable Japanese-only speech.
+                languages = []
+                cfg = self._config
+                if settings.mode == 'original':
+                    languages.append(cfg.SELECTED_YOUR_LANGUAGES[cfg.SELECTED_TAB_NO]['1']['language'])
+                if settings.mode == 'translated' or settings.mic_mode == 'translated':
+                    target = cfg.SELECTED_TARGET_LANGUAGES[cfg.SELECTED_TAB_NO][settings.target_slot]
+                    if not cfg.ENABLE_TRANSLATION or target.get('enable') is not True:
+                        raise ValueError('translation_not_ready')
+                    languages.append(target['language'])
+                from models.tts.settings import language_tag
+                urls = set()
+                for language in languages:
+                    role = 'japanese' if language_tag(language) == 'ja' else 'multilingual'
+                    url = (self._ttsSpeechServer(role) if getattr(settings, role + '_server') == 'bundled'
+                           else getattr(settings, role + '_url'))
+                    urls.add(url)
+                if not settings.playback_device.strip():
+                    raise ValueError('output_missing')
+                for url in urls:
+                    SpeechCppTTS(url).check_health()
+            except (ValueError, KeyError, TypeError, SpeechError):
+                return {'status': 409, 'result': {'error_code': 'speech_server_or_settings_not_ready'}}
+            # OFF bypasses this lock; the epoch must be rechecked after probing.
+            if not self.voice_events.set_enabled(True, expected_generation=data['generation']):
+                return {'status': 409, 'result': {'error_code': 'tts_state_changed'}}
+        return self.getVoiceStatus()
+
+    def disableTts(self, *args, **kwargs) -> dict:
+        self.voice_events.set_enabled(False)
+        return self.getVoiceStatus()
 
     def getDirectVoiceSources(self, *args, **kwargs) -> dict:
         try:

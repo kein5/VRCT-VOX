@@ -606,6 +606,8 @@ mapping = {
     "/get/data/voice_status": {"status": True, "variable":controller.getVoiceStatus},
     "/get/data/voice_output_devices": {"status": True, "variable":controller.getVoiceOutputDevices},
     "/run/stop_voice": {"status": True, "variable":controller.stopVoice},
+    "/run/enable_tts": {"status": True, "variable":controller.enableTts},
+    "/run/disable_tts": {"status": True, "variable":controller.disableTts},
     "/get/data/voice_route": {"status": True, "variable":controller.getVoiceRoute},
     "/run/mute_voice": {"status": True, "variable":controller.muteVoice},
     "/run/resume_voice": {"status": True, "variable":controller.resumeVoice},
@@ -777,7 +779,7 @@ class Main:
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
                     printLog(endpoint, {"receive_data": data})
-                    if endpoint in {"/run/stop_voice", "/run/mute_voice", "/run/resume_voice", "/run/stop_direct_voice", "/run/stop_realtime_asr", "/run/stop_speech_server"}:
+                    if endpoint in {"/run/stop_voice", "/run/disable_tts", "/run/mute_voice", "/run/resume_voice", "/run/stop_direct_voice", "/run/stop_realtime_asr", "/run/stop_speech_server"}:
                         # These requests only signal workers; they do not
                         # join, infer, or close a driver here. Busy ordinary
                         # handlers must not delay this request.

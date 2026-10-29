@@ -12,7 +12,7 @@ from .voice_trace import write_voice_trace
 class VoiceEventBus:
     """Serialize final chat and opted-in microphone translations."""
     def __init__(self, settings=None, *, provider_factory=SpeechCppTTS, router=None,
-                 capacity=4, max_age=5.0, request_timeout=30.0, resolve_server=None):
+                 capacity=4, max_age=5.0, request_timeout=30.0, resolve_server=None, enabled=True):
         self.settings = settings or VoiceSettings()
         self.provider_factory = provider_factory
         self.resolve_server = resolve_server
@@ -28,6 +28,8 @@ class VoiceEventBus:
         self._active_source = None
         self._closed = False
         self._muted = False
+        self._tts_enabled = bool(enabled)
+        self._observation_id = 0
         self._epoch = 0
         self._source_epochs = {}
         self._stats = {"accepted": 0, "completed": 0, "dropped": 0, "duplicates": 0,
@@ -51,6 +53,21 @@ class VoiceEventBus:
     def cancel(self):
         with self._condition:
             self._cancel_locked()
+
+    def set_enabled(self, enabled, expected_generation=None):
+        if type(enabled) is not bool:
+            raise ValueError('invalid_tts_toggle')
+        with self._condition:
+            if self._closed or (expected_generation is not None and
+                                (type(expected_generation) is not int or expected_generation != self._epoch)):
+                return False
+            if enabled and self._muted:
+                return False
+            if not enabled or self._tts_enabled != enabled:
+                self._tts_enabled = enabled
+                # The same epoch invalidates pending finals, saves and late enables.
+                self._cancel_locked()
+            return True
 
     def set_muted(self, muted):
         with self._condition:
@@ -93,7 +110,7 @@ class VoiceEventBus:
             if (expected_source_generation is not None and
                     expected_source_generation != self._source_epochs.get(event.source, 0)):
                 return False
-            if self._closed or self._muted or not event.is_final:
+            if self._closed or self._muted or not self._tts_enabled or not event.is_final:
                 return False
             if event.source == "chat":
                 if self.settings.mode == "off":
@@ -135,8 +152,12 @@ class VoiceEventBus:
 
     def status(self):
         with self._condition:
+            self._observation_id = max(monotonic_ns(), self._observation_id + 1)
             return {**self._stats, "queued": len(self._queue), "active": self._active is not None,
-                    "mode": self.settings.mode, "closed": self._closed, "muted": self._muted}
+                    "mode": self.settings.mode, "closed": self._closed, "muted": self._muted,
+                    "tts_enabled": self._tts_enabled, "tts_generation": self._epoch,
+                    "tts_stopping": not self._tts_enabled and self._active is not None,
+                    "observation_id": str(self._observation_id)}
 
     def _work(self):
         while True:

@@ -8,7 +8,7 @@
 
 **Tech Stack:** React、Jotai、SCSS、Tauri、Python3.11、speech.cpp0.9.0。依存追加なし。Python作業はuv。
 
-**Spec:** [設計案](../specs/2026-10-29-tts-settings-ui-design.md)。本計画はレビュー用の未着手案。モックを製品コードとして取り込まない。
+**Spec:** [設計案](../specs/2026-10-29-tts-settings-ui-design.md)。2026-10-29にユーザーが構成を承認。実装中。モックを製品コードとして取り込まない。
 
 ## Global Constraints
 
@@ -181,6 +181,22 @@ TTSフォーム/サーバーはTTSへ、RVCフォームはRVCへ、ASR管理は�
   ログ/入力欄比率、言語選択、送信ボタンの表示設定、compact操作を変更前後で照合する。
 - [ ] Linux build＋AppImage再検査、OCR/モデル非同梱検査を実行。合格するまでインストール済み成果物を置換しない。
 - [ ] 変更と検証結果をまとめてローカルコミット。Windows/VRChat/聴感など未実施項目を明記する。
+
+## Task 7: ショートカットで小さなチャット入力ウィンドウを開く（追加要望）
+
+ユーザーは既存本体の前面化ではなく、入力欄だけの小さなウィンドウを選択した。
+TTS/RVC実装の後に対応する。呼び出しキーを設定可能とし、Yの横取りは既定動作にしない。
+
+**Files:** `src-ui/logics/configs/config_page_setter/hotkeys/useHotkeys.js`、既存チャット送信hook、
+`src-tauri/src/lib.rs`、Tauri capability、ミニ入力用Reactビュー・設定locale、対応テスト。
+
+- [ ] 既存送信hookとウィンドウ生成/イベント経路を確認し、二重のsidecarを起動しない設計を記録する。
+- [ ] キーで表示→入力へfocus、Escで閉じる、IME変換中のEnterで誤送信しない試験を先に作る。
+- [ ] 本体と同じ翻訳・OSC・TTSパイプラインに一度だけ送信する。空入力・長すぎる入力は既存規則を使う。
+- [ ] 独立ウィンドウの送信イベントは送信元labelと内容を検証する。広いTauri権限を追加しない。
+- [ ] Windows/X11の既存登録を再利用する。WaylandはGlobalShortcuts portalとactivationの原典を調べ、
+  対応状況を検出して登録失敗を表示する。KDEでキー→表示→入力の実機試験を行う。
+- [ ] 任意キーのVRChatへの抑止・Yオーバーライド、VR空間への入力パネル表示は別機能として扱う。
 
 ## 実行コマンドの基本形
 

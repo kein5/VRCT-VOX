@@ -129,6 +129,8 @@ def test_bundled_not_ready_never_calls_external_http_and_preserves_chat(app, pcm
     c, m, _ = app
     with pcm_server() as (url, requests):
         assert c.setVoiceSettings(dict(mode='original', output_device='cable', japanese_url=url, japanese_server='bundled'))['status'] == 200
+        # Simulate a previously enabled route whose inference server is gone.
+        assert c.voice_events.set_enabled(True)
         c.voice_events.router = AudioRouter(lambda *args: Sink())
         assert c.chatMessage(dict(id='missing', message='hello'))['status'] == 200
         until(lambda: c.voice_events.status()['errors'] == 1)
@@ -143,6 +145,7 @@ def test_owned_tts_ending_cancels_active_and_queued_audio_only(app, owned, endin
     c.setSpeechServerSettings(owned[0])
     run_server(c, 'japanese')
     assert c.setVoiceSettings(dict(mode='original', output_device='cable', japanese_server='bundled'))['status'] == 200
+    assert c.voice_events.set_enabled(True)
     started = Event()
 
     class Provider:

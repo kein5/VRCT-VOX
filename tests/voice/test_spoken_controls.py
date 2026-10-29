@@ -21,6 +21,9 @@ def configure(c, m, url, **overrides):
                     multilingual_url=url)
     settings.update(overrides)
     assert c.setVoiceSettings(settings)['status'] == 200
+    # These delivery tests begin after explicit TTS opt-in. Startup and
+    # server-readiness checks are covered by test_tts_toggle.
+    assert c.voice_events.set_enabled(True)
     sink = Sink()
     c.voice_events.router = AudioRouter(lambda *args: sink)
     return sink

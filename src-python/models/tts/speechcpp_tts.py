@@ -128,6 +128,21 @@ class SpeechCppTTS:
         self.timeout = timeout
         self.first_audio_timeout = first_audio_timeout
 
+    def check_health(self):
+        """Bounded, local-only readiness probe; never loads or synthesizes a model."""
+        url = urlsplit(self.base_url)
+        conn = http.client.HTTPConnection(url.hostname, url.port, timeout=self.timeout)
+        try:
+            conn.request('GET', '/health')
+            response = conn.getresponse()
+            body = response.read(4097)
+            if response.status != 200 or len(body) > 4096 or json.loads(body) != {'status': 'ok'}:
+                raise SpeechError('speech_server_not_ready')
+        except (OSError, ValueError, http.client.HTTPException):
+            raise SpeechError('speech_server_not_ready') from None
+        finally:
+            conn.close()
+
     def synthesize_stream(self, text, voice, language, cancel_token):
         if not isinstance(text, str) or not text.strip() or len(text) > 4000:
             raise SpeechError("invalid_text")
