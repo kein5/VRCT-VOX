@@ -69,3 +69,17 @@ speech API→Instruction ADR→実機モデル宣言を追った。各論点に�
 
 モックの多言語・ASR・直接VCの詳細は配置の見本で、一部の入力を省略している。
 実装時は既存項目と保存契約を維持する。例文やseed42はデモ値で、製品の既定値にはしない。
+
+## 追加確認：HTML単体プレビューの表示崩れ
+
+ユーザーの報告後、トップ画面のHTMLだけを別フォルダーにコピーすると、外部のmockup.cssが
+ERR_FILE_NOT_FOUNDになり、背景やアイコン寸法が崩れることを再現した。
+前回の検証は同じフォルダーにCSSが存在する場合だけで、この渡し方を検査できていなかった。
+ユーザーの実際のプレビュー環境自体は未確認。
+
+CSSをHTML内へ含め、不要になった外部CSSを削除した。
+構造の原典は[HTML Standardのstyle要素](https://html.spec.whatwg.org/multipage/semantics.html#the-style-element)。
+トップ画面の状態選択欄が実際のTTSスイッチと食い違う点も修正した。
+各HTMLの単独表示2サイズと、OFFのまま専用設定へ移動して戻る操作が成功し、
+JavaScript例外・リソース取得失敗は0件。[検証記録](standalone-checks.json)
+アプリ本体・音声出力への変更はない。

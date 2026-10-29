@@ -1,0 +1,32 @@
+{
+  "standalone": [
+    {
+      "file": "main.html",
+      "width": 1120,
+      "height": 900,
+      "status": "passed"
+    },
+    {
+      "file": "main.html",
+      "width": 870,
+      "height": 654,
+      "status": "passed"
+    },
+    {
+      "file": "mockup.html",
+      "width": 1120,
+      "height": 900,
+      "status": "passed"
+    },
+    {
+      "file": "mockup.html",
+      "width": 870,
+      "height": 654,
+      "status": "passed"
+    }
+  ],
+  "navigation": true,
+  "errors": [],
+  "failed_resources": [],
+  "audio": false
+}

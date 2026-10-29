@@ -2,6 +2,8 @@
 
 ブラウザーで[トップ画面](main.html)または[専用設定ページ](mockup.html)を開く。
 ローカルHTTPサーバーや追加依存は不要。音声・録音・OSC・製品設定への接続は一切ない。
+両方のHTMLはCSSとアイコンを内蔵しており、HTML単体でも表示できる。
+ページ間の移動も試す場合は`main.html`と`mockup.html`を同じフォルダーへ置く。
 
 - トップ画面: 左のTTSスイッチをクリックまたはSpaceで操作。右上でON/OFF・準備不足・応答待ちを切替。
 - 専用ページ: 右上で未保存・保存済み・エンジン・GPUメモリ不足・seed/Instructionを切替。
@@ -14,3 +16,6 @@
 画像はHTMLのブラウザー描画結果。実装済みアプリのスクリーンショットではない。
 
 検証: [mockup-checks.json](mockup-checks.json)。製品の実音声・Windows・スクリーンリーダーの合格を示すものではない。
+
+追加検証: [standalone-checks.json](standalone-checks.json)。各HTMLを単独のフォルダーへコピーし、
+1120×900・870×654で表示と操作を確認。2ファイルを同じフォルダーに置いたページ移動でもTTS OFFを維持。
