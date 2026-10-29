@@ -38,7 +38,8 @@ a = Analysis(
     optimize=0,
 )
 a.datas = [entry for entry in a.datas
-           if os.path.basename(entry[0].replace('\\', '/')).lower() != 'chatbox_yolox_tiny.onnx']
+           if os.path.basename(entry[0].replace('\\', '/')).lower() not in {
+               'chatbox_yolox_tiny.onnx', 'mia2026.pth', 'mia2026.index', 'mia2026.zip', 'mia2026.png'}]
 pyz = PYZ(a.pure)
 
 exe = EXE(

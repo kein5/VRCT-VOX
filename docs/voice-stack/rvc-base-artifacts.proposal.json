@@ -1,5 +1,5 @@
 {
-  "status": "proposal_not_approved_not_downloaded",
+  "status": "approved_and_verified_for_local_poc",
   "metadata_only": true,
   "total_bytes": 370392700,
   "files": [
@@ -42,5 +42,6 @@
       }
     }
   ],
-  "note": "Base assets only; no permitted speaker model selected. Repository card declares MIT; no blanket permission for third-party speaker models."
+  "note": "Downloaded and hash-verified for local Mia2026 validation; speaker model is separately supplied by user and must never be bundled.",
+  "consent": "2026-10-29 explicit user consent for these four fixed files. No redistribution approval."
 }

@@ -36,7 +36,8 @@ a = Analysis(
 # Fork distributions must not include the restricted VRCT detector. Filter
 # the expanded TOC, including any copy discovered by a dependency hook.
 a.datas = [entry for entry in a.datas
-           if os.path.basename(entry[0].replace('\\', '/')).lower() != 'chatbox_yolox_tiny.onnx']
+           if os.path.basename(entry[0].replace('\\', '/')).lower() not in {
+               'chatbox_yolox_tiny.onnx', 'mia2026.pth', 'mia2026.index', 'mia2026.zip', 'mia2026.png'}]
 pyz = PYZ(a.pure)
 
 exe = EXE(

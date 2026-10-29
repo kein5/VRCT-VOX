@@ -35,7 +35,7 @@ GUIから同梱サーバーの起動・状態確認・終了を管理し、既�
 
 **現在: ユーザー指示でP2 RVCのモデル不要実装を再開（2026-10-29）。**
 Seed-VCの間欠停止原因は未特定のまま保持し、独立したRVC統合を進めた。
-GUI・共通経路・固定RVC worker・モデル不要試験を実装。[RVC報告](rvc-integration-2026-10-29.md)。
+GUI・共通経路・固定RVC workerを実装。その後ユーザー提供Mia2026と承認済み基礎モデルで実変換・私有PipeWire・60秒連続・実Tauri GUI試験が成功。[実RVC報告](rvc-mia-validation-2026-10-29.md)。Mia2026は検証専用で同梱禁止。
 独立レビューの3指摘は`c8d3c399`で修正。標準1,222件、音声721件、実TauriのVC/原音試験2件が成功したが、
 過去の`vc_block_expired`とキャプチャ開始失敗を解消した証拠にはしない。
 [最新レビュー・残課題](direct-vc-review-2026-10-28.md)。今回のP5追加要件は記録のみで、同梱実装は開始していない。
@@ -60,7 +60,7 @@ Windows・混在負荷等の残条件を全機能完了として扱わない。
 |---|---|---|
 | P0 | baseline・ADR・測定器・ライセンス台帳 | 新しい構成ごとの差分検証を継続 |
 | P1 | TTS provider、scheduler、UI、OSC契約、Linux/Windows出力adapter。部品UI試験16件、実Tauri/全Modelの描画・保存復元・安全な再起動、本番UI→実TTS→独立仮想マイク9件とホスト/VRChat9件。本人Chatbox実表示＋発話1回/OFF無音2件、UI→PCM write30回で目標内 | Windows実機、VRChat併用の性能・混在負荷 |
-| P2 | Linuxの原音/Seed-VC/RVC選択、外部変換worker、入力選択・設定保存・開始停止を本番Controller/UIへ接続。実Seedと合成入力で変換→私有仮想マイク、発話途中停止、同名入力再作成時の自動再接続なし、再起動OFFを確認。最新native VC/原音2試験PASS（[報告](direct-vc-review-2026-10-28.md)） | 過去の間欠停止原因、同じ入力によるVC/ASR/TTS併用、物理マイク→VRChat、聴感・長時間遅延・負荷、Windows、最終ライセンス比較。RVCはGUI/workerと模擬推論試験まで実装。実RVC環境・モデル導入、実変換・品質・遅延は未検証 |
+| P2 | Linuxの原音/Seed-VC/RVC選択、外部変換worker、入力選択・設定保存・開始停止を本番Controller/UIへ接続。実Seedと合成入力で変換→私有仮想マイク、発話途中停止、同名入力再作成時の自動再接続なし、再起動OFFを確認。最新native VC/原音2試験PASS（[報告](direct-vc-review-2026-10-28.md)） | 過去の間欠停止原因、同じ入力によるVC/ASR/TTS併用、物理マイク→VRChat、聴感・長時間遅延・負荷、Windows、最終ライセンス比較。RVCはMia2026で実変換・私有仮想マイク・60秒連続・本番GUIを検証。実マイク/VRChat・聴感・長時間・制御したGPU負荷比較は未検証 |
 | P3 | legacyを維持し、speech.cpp REST/Realtime、mic/speaker別session、VAD、Linux capture/resample、有界queue、字幕置換・確定翻訳・大きいoverlayを接続。実Tauri/private音声/実ASR/VADで表示・停止・再起動OFFを確認（[報告](realtime-captions-report.md)） | 実翻訳モデルの品質/速度、物理発話終端からの遅延、HMD表示、native legacy録音への切替、Windows、混在負荷 |
 | P4 | テキストの原文/訳文TTS、mic finalの選択訳文発声、共有queueの優先度・期限・取消、managed直接音声の抑制/明示mix、Controller/UI接続、Mainからの入力別停止を実装。実ASR/VAD/Qwen・私有音声経路で原音＋TTS＋原文/訳文OSCのnative試験3件PASS（[報告](spoken-translation-report.md)） | 実翻訳品質/速度、多言語全体の受入、動的ducking、VC統合・混在負荷。P4全体は未完了 |
 | P5 | Linux専用graphと一部host試験、禁止OCR重み除外検査。speech.cpp本体同梱をユーザー承認済み | speech.cpp同梱・GUIからのサーバー管理、配布・fork識別、両OS障害復旧、30分混在負荷、回帰、実artifact台帳 |

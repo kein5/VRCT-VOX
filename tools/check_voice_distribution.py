@@ -1,9 +1,10 @@
-"""Fail a fork package containing the restricted upstream OCR model."""
+"""Reject restricted OCR and private, non-redistributable validation assets."""
 import argparse
 from pathlib import Path
 import zipfile
 
 RESTRICTED_NAME = "chatbox_yolox_tiny.onnx"
+PRIVATE_VOICE_NAMES = frozenset('mia2026' + suffix for suffix in ('.pth', '.index', '.zip', '.png'))
 
 
 def check(paths):
@@ -12,11 +13,14 @@ def check(paths):
             raise ValueError(f"Artifact does not exist: {path}")
         if path.is_file() and zipfile.is_zipfile(path):
             with zipfile.ZipFile(path) as archive:
-                names = archive.namelist()
+                names = [str(path), *archive.namelist()]
         else:
             names = [str(p) for p in path.rglob("*")] if path.is_dir() else [str(path)]
-        if any(name.replace("\\", "/").split("/")[-1].lower() == RESTRICTED_NAME for name in names):
+        basenames = {name.replace("\\", "/").split("/")[-1].lower() for name in names}
+        if RESTRICTED_NAME in basenames:
             raise ValueError(f"Restricted OCR model in fork distribution: {path}")
+        if PRIVATE_VOICE_NAMES & basenames:
+            raise ValueError(f"Private voice asset in fork distribution: {path}")
 
 
 if __name__ == "__main__":

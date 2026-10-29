@@ -44,6 +44,10 @@ def test_pyinstaller_filters_restricted_weight_from_expanded_toc(spec_name):
         ("other\\CHATBOX_YOLOX_TINY.ONNX", "source", "DATA"),
         ("ocr_onnx/LICENSE.txt", "license", "DATA"),
         ("ocr_onnx/ppocr.onnx", "permitted-model", "DATA"),
+        ("voice/Mia2026.pth", "private-checkpoint", "DATA"),
+        ("voice/Mia2026.index", "private-index", "DATA"),
+        ("voice/Mia2026.zip", "private-package", "DATA"),
+        ("voice/Mia2026.png", "private-image", "DATA"),
     ])
     collect = MagicMock()
     scope = {"Analysis": lambda *args, **kwargs: analysis, "PYZ": MagicMock(), "EXE": MagicMock(), "COLLECT": collect}
@@ -64,4 +68,20 @@ def test_distribution_guard_catches_stale_trees_and_zips(tmp_path):
         archive.write(model, "_internal/ocr_onnx/chatbox_yolox_tiny.onnx")
     model.unlink()
     with pytest.raises(ValueError, match="Restricted OCR"):
+        check([archive_path])
+
+
+@pytest.mark.parametrize('name', ['Mia2026.pth', 'Mia2026.index', 'Mia2026.zip', 'Mia2026.png'])
+def test_user_supplied_rvc_assets_cannot_enter_distribution(tmp_path, name):
+    model = tmp_path / name
+    model.write_bytes(b'FAKE PRIVATE ASSET')
+    with pytest.raises(ValueError, match='Private voice'):
+        check([tmp_path])
+    with pytest.raises(ValueError, match='Private voice'):
+        check([model])
+    archive_path = tmp_path / 'fork.zip'
+    with zipfile.ZipFile(archive_path, 'w') as archive:
+        archive.write(model, 'assets/' + name.upper())
+    model.unlink()
+    with pytest.raises(ValueError, match='Private voice'):
         check([archive_path])

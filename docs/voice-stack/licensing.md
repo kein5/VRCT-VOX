@@ -68,8 +68,23 @@ RVC-Project/Retrieval-based-Voice-Conversion-WebUI固定commit
 基礎モデル候補は公式READMEが指す `lj1995/VoiceConversionWebUI` のHuBERT/RMVPE。
 [モデルカード](https://huggingface.co/lj1995/VoiceConversionWebUI)はMITを表示するが本文は空である。
 固定版・サイズ・hashは[rvc-base-artifacts.proposal.json](rvc-base-artifacts.proposal.json)に記録。
-これは未承認・未取得の候補で、実モデル互換性や第三者の声の利用許諾を証明しない。
+当初は未承認・未取得の候補。その後の承認・取得は下のMia2026追記を参照。
+基礎モデルの情報だけで第三者の声の利用許諾を証明しない。
 話者モデル・indexは別途利用条件を確認し、同意後に取得する。無断同梱しない。
 
-独立したuv実行環境の依存lockと各wheelの再配布条件は未監査。RVCモデル・エンジンバイナリを
+独立したuv実行環境の依存lockはMia2026検証で作成。各wheelの最終再配布条件は未監査。RVCモデル・エンジンバイナリを
 配布物へ同梱したとは主張しない。Seed workerのGPL-3.0-only境界はRVC追加で変わらない。
+
+## Mia2026ローカル検証（2026-10-29）
+
+ユーザー提供Mia2026のZIP同梱規約（RVC girls共通利用規約v1.0、2026-09-04）と、
+ユーザーの明示指示により**モデル・index・同梱データを製品へバンドルしない**。
+モデル等はGit管理外のprivate検証領域だけで使用。CPU/CUDAの両specと配布guardに
+Mia2026.pth/.index/.zip/.pngの除外・拒否を追加した。試験は偽データで実施。
+
+HuBERT/RMVPEの固定4ファイルは今回明示承認され、370,392,700 bytesを取得してhash照合した。
+[実機結果と利用境界](rvc-mia-validation-2026-10-29.md)。新しい録音・モデル/音声の公開は行っていない。
+
+実際に導入した`praat-parselmouth==0.4.6`のwheel metadataはGPLv3。RVCソースのMITだけを
+実行環境全体へ一般化しない。Torch/torchaudio、FAISS、Transformers、NumPy/SciPy、
+librosa、libsndfile等を含む最終runtime配布条件の監査は引き続きP5で必要。

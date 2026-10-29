@@ -1,0 +1,8 @@
+# RVC optional inference only. Torch CUDA pair is installed separately.
+numpy==1.26.4
+scipy==1.13.1
+librosa==0.10.2.post1
+transformers==4.49.0
+faiss-cpu==1.13.0
+praat-parselmouth==0.4.6
+soundfile==0.13.1

@@ -1,0 +1,4 @@
+# Qualified Linux Python 3.12 / RTX 4080 SUPER runtime.
+# Resolve/install from https://download.pytorch.org/whl/cu118.
+torch==2.7.1+cu118
+torchaudio==2.7.1+cu118
