@@ -1,6 +1,13 @@
 import atexit
 import os
 import sys
+
+# The frozen sidecar doubles as the fixed lightweight transport entry. Dispatch
+# before importing Controller, UI services or their long-lived object graphs.
+if __name__ == '__main__' and sys.argv[1:] == ['--voice-router-worker']:
+    from models.voice_conversion.router_worker import main as voice_router_main
+    raise SystemExit(voice_router_main())
+
 import json
 import time
 import faulthandler

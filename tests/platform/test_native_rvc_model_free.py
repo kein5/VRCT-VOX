@@ -21,9 +21,10 @@ pytestmark = pytest.mark.skipif(sys.platform != 'linux' or os.environ.get('VRCT_
                                reason='opt-in private PipeWire RVC contract test')
 
 
-@pytest.mark.parametrize('end', ['stop', 'worker_death'])
+@pytest.mark.parametrize('end', ['stop', 'worker_death', 'parent_pause'])
 def test_rvc_contract_worker_to_private_mic_and_silence(tmp_path, end):
     from models.voice_conversion.rvc_process import RVCProcess
+    from models.voice_conversion.direct_voice import create_converted_process
     from test_native_realtime import SyntheticProducer
     runtime = tmp_path / 'runtime'
     for name in ('venv/bin', 'engine', 'assets'):
@@ -56,7 +57,8 @@ while True:
             capture = ToneCapture(stack, SOURCE)
             gate = PipeWireGate()
             gate.set_muted(False, gate.inspect()['identity'])
-            vc = RVCProcess(dict(engine='rvc', runtime=str(runtime), model=str(model),
+            factory = create_converted_process if end == 'parent_pause' else RVCProcess
+            vc = factory(dict(engine='rvc', runtime=str(runtime), model=str(model),
                                  index='', pitch=0, index_rate=0.0))
             stack.callback(vc.close)
             vc.start(source=select_source(graph_snapshot(), 'vrct.native.caption.source'))
@@ -67,7 +69,19 @@ while True:
             wait_for(lambda: capture.snapshot()['nonzero_frames'] > 5 or vc.health()['error'], timeout=5)
             assert vc.health()['conversion_verified'] and not vc.health()['error'], vc.health()
             assert capture.snapshot()['nonzero_frames'] > 5
-            if end == 'stop':
+            if end == 'parent_pause':
+                import ctypes
+                # PyDLL retains this process's GIL throughout the native call,
+                # simulating a long collection without depending on heap size.
+                pause = ctypes.PyDLL(None).usleep
+                pause.argtypes, pause.restype = [ctypes.c_uint], ctypes.c_int
+                assert pause(350_000) == 0
+                time.sleep(.1)  # Allow health delivery after the imposed pause.
+                assert vc.health()['active'] and not vc.health()['error'], vc.health()
+                baseline = capture.snapshot()['nonzero_frames']
+                wait_for(lambda: capture.snapshot()['nonzero_frames'] > baseline+10, timeout=3)
+                vc.stop()
+            elif end == 'stop':
                 vc.stop()
             else:
                 vc._child.kill()

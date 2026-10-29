@@ -29,9 +29,11 @@ static bool owner_alive(int fd) {
 }
 int main(int argc, char **argv) {
     bool rvc = argc == 12 && strcmp(argv[8], "rvc") == 0;
-    if ((argc != 8 && !rvc) || argv[3][0] != '/' || argv[4][0] != '/' || argv[5][0] != '/' ||
+    bool router = argc == 5 && (strcmp(argv[4], "router") == 0 || strcmp(argv[4], "router-frozen") == 0);
+    if (!router && ((argc != 8 && !rvc) || argv[3][0] != '/' || argv[4][0] != '/' || argv[5][0] != '/' ||
         argv[6][0] != '/' || strlen(argv[7]) != 32 ||
-        strspn(argv[7], "0123456789abcdef") != 32) return 2;
+        strspn(argv[7], "0123456789abcdef") != 32)) return 2;
+    if (argv[3][0] != '/') return 2;
     if (rvc && argv[9][0] && argv[9][0] != '/') return 2;
     long expected_parent = number(argv[1]), descriptor = number(argv[2]);
     if (expected_parent <= 1 || descriptor < 3) return 2;
@@ -56,6 +58,12 @@ int main(int argc, char **argv) {
             getppid() != supervisor) _exit(1);
         signal(SIGTERM, SIG_DFL);
         signal(SIGINT, SIG_DFL);
+        if (router) {
+            char *module_args[] = {argv[3], "-u", "-m", "models.voice_conversion.router_worker", NULL};
+            char *frozen_args[] = {argv[3], "--voice-router-worker", NULL};
+            execv(argv[3], strcmp(argv[4], "router-frozen") == 0 ? frozen_args : module_args);
+            _exit(1);
+        }
         char *args[] = {argv[3], "-u", "-m", "integrations.seed_vc.live_worker",
             "--engine", argv[4], "--assets", argv[5], "--reference", argv[6],
             "--session", argv[7], NULL};

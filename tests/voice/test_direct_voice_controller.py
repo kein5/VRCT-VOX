@@ -172,11 +172,10 @@ class ConvertedBackend:
 
 @pytest.mark.parametrize("engine", ["seed-vc", "rvc"])
 def test_converted_choice_is_independent_and_failure_has_no_raw_fallback(app, monkeypatch, engine):
-    from models.voice_conversion import seed_process, rvc_process
+    from models.voice_conversion import isolated
     c, raw, gate, _ = app
     converted, options = ConvertedBackend(), []
-    monkeypatch.setattr(seed_process if engine == 'seed-vc' else rvc_process,
-                        'SeedProcess' if engine == 'seed-vc' else 'RVCProcess',
+    monkeypatch.setattr(isolated, 'IsolatedVCProcess',
                         lambda value: options.append(value) or converted)
     managed(c)
     choice = ({'runtime': '/permitted/runtime', 'reference': '/permitted/reference.wav'}

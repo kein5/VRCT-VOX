@@ -12,6 +12,11 @@ from models.audio_routing.source_bridge import Endpoint, SourceBridge, _source_i
 
 
 def create_converted_process(options):
+    from .isolated import IsolatedVCProcess
+    return IsolatedVCProcess(options)
+
+
+def create_worker_process(options):
     # Linux-only optional backend is loaded only after an explicit converted Start.
     from .settings import start_options
     options = start_options('converted', options)

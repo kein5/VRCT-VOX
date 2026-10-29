@@ -50,11 +50,13 @@ def test_ready_handshake_binds_engine_to_session():
 @pytest.mark.skipif(sys.platform != 'linux', reason='Linux worker')
 def test_factory_selects_rvc_without_loading_seed(monkeypatch):
     from models.voice_conversion import rvc_process
+    from models.voice_conversion.isolated import IsolatedVCProcess
     received = []
     marker = object()
     monkeypatch.setattr(rvc_process, 'RVCProcess', lambda options: received.append(options) or marker)
-    assert direct_voice.create_converted_process(OPTIONS) is marker
+    assert isinstance(direct_voice.create_converted_process(OPTIONS), IsolatedVCProcess)
     assert received == [OPTIONS]
+    assert direct_voice.create_worker_process(OPTIONS) is marker
 
 
 @pytest.mark.skipif(sys.platform != 'linux', reason='Linux worker')

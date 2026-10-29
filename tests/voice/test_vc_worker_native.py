@@ -13,6 +13,29 @@ from tools.voice_acceptance import wait_for
 pytestmark = pytest.mark.skipif(sys.platform != 'linux', reason='Linux worker supervisor')
 
 
+@pytest.mark.parametrize('mode, expected', [
+    ('router', ['-u', '-m', 'models.voice_conversion.router_worker']),
+    ('router-frozen', ['--voice-router-worker']),
+])
+def test_router_supervisor_has_only_fixed_entry_points(tmp_path, mode, expected):
+    import json
+    import os
+    import threading
+    helper = compile_helper(tmp_path, 'native/vc-worker/main.c')
+    interpreter = tmp_path/'capture-args'
+    interpreter.write_text('#!'+sys.executable+'\nimport sys,json\nprint(json.dumps(sys.argv[1:]))\n')
+    interpreter.chmod(0o700)
+    owner = os.pidfd_open(threading.get_native_id(), os.O_EXCL)
+    try:
+        args = [str(helper), str(os.getpid()), str(owner), str(interpreter)]
+        result = subprocess.run([*args, mode], pass_fds=(owner,), capture_output=True, timeout=3, check=True)
+        assert json.loads(result.stdout) == expected
+        invalid = subprocess.run([*args, 'arbitrary-module'], pass_fds=(owner,), capture_output=True, timeout=3)
+        assert invalid.returncode == 2 and not invalid.stdout
+    finally:
+        os.close(owner)
+
+
 def test_rvc_supervisor_passes_only_fixed_module_and_explicit_settings(tmp_path):
     import json
     import os
@@ -33,7 +56,7 @@ def test_rvc_supervisor_passes_only_fixed_module_and_explicit_settings(tmp_path)
         os.close(owner)
 
 
-@pytest.mark.parametrize('engine', ['seed-vc', 'rvc'])
+@pytest.mark.parametrize('engine', ['seed-vc', 'rvc', 'router', 'router-frozen'])
 @pytest.mark.parametrize('mode', ['normal', 'kill', 'thread', 'supervisor'])
 def test_worker_lifetime_is_bound_to_owner_and_supervisor(tmp_path, mode, engine):
     helper = compile_helper(tmp_path, 'native/vc-worker/main.c')
@@ -47,8 +70,9 @@ leave = threading.Event()
 def launch():
     fd = os.pidfd_open(threading.get_native_id(), os.O_EXCL)
     try:
-        child = subprocess.Popen([helper, str(os.getpid()), str(fd), interpreter,
-            '/engine', '/assets', '/reference.wav', 'a'*32] + (['rvc', '', '0', '0'] if engine == 'rvc' else []), pass_fds=(fd,), stdout=subprocess.PIPE)
+        args = ([engine] if engine.startswith('router') else
+                ['/engine', '/assets', '/reference.wav', 'a'*32] + (['rvc', '', '0', '0'] if engine == 'rvc' else []))
+        child = subprocess.Popen([helper, str(os.getpid()), str(fd), interpreter, *args], pass_fds=(fd,), stdout=subprocess.PIPE)
     finally:
         os.close(fd)
     print(child.stdout.readline().decode().strip(), flush=True)
