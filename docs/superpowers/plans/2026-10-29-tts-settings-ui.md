@@ -13,6 +13,7 @@
 ## Global Constraints
 
 - 既存MainPage/SidebarSection/MainSectionの配置・既存スイッチの順序を維持し、TTSを末尾へ追加する。
+- トップはTTSトグル1行のみ。OFFで再生とキューを止め、下に停止・状態・設定リンクを追加しない。
 - 言語設定、右上のクイック設定、ログ/入力欄のリサイズ比率、送信ボタン設定、拡大率・compact modeを維持する。
 - モックの非TTS領域は概略。既存部品をモックのHTML/CSSで置換せず、会話欄に大きなTTS帯を追加しない。
 - TTSスイッチはchat/mic翻訳の読み上げだけに作用し、原音・直接VC・ASR・翻訳・OSCの設定を変更しない。
@@ -106,21 +107,22 @@
   detailsを閉じてもイベント購読・サーバー監視・入力操作の寿命を変えない。
 - [ ] 関連ブラウザー試験とVite buildを通してコミットする。
 
-## Task 4: トップ画面のスイッチと状態表示
+## Task 4: トップ画面のTTSスイッチ
 
 **Files:** `src-ui/views/app/main_page/sidebar_section/main_function_switch/MainFunctionSwitch.jsx`,
-必要なら同じディレクトリへ小さな`TTSControls.jsx`とSCSS、
+同ディレクトリの既存SCSS（必要な場合のみ）、
 `src-ui/logics/voice/useVoice.js`, `src-ui/logics/useReceiveRoutes.js`, locale各言語。
 **Test:** 新規`tests/voice/test_tts_controls_ui.py`、既存voice UI entryを使用。
 
 - [ ] 既存SwitchContainer/ToggleSwitchの表示を再利用する。TTSというlabelをON/OFFで変更しない。
   role=switch/aria-checked、Space操作、pending、compact表示のnameを検証する。
-- [ ] 既存4スイッチは並び替えず、TTSを末尾へ追加。状態・停止・設定リンクはTTS行の近くに収める。
+- [ ] 既存4スイッチは並び替えず、TTSを末尾へ1行追加。下に状態・停止・設定リンクを追加しない。
   MainSection、ログ、入力欄、右上の既存クイック設定を組み替えない。
 - [ ] 設定ページを一度も開かなくてもstatus/settings/server stateを取得できるよう購読を置く。
   ページ移動でタイマーが重複せず、遅いstateの順序逆転を世代で拒否する。
 - [ ] 通常ON/OFF、未設定、サーバー停止、管理経路ミュート、ネットワーク断のテストを先に追加。
-- [ ] ON/OFFと「現在の音声を停止」を区別して表示し、専用設定に直接遷移できるようにする。
+- [ ] トップのOFFで再生中TTSとキューを取り消す。詳細・停止操作は専用設定ページに残し、既存の設定入口を使う。
+  切替中は既存スイッチの処理中表示とaria-busy等を使用。失敗時だけ既存通知で理由と設定先を案内する。
 - [ ] fake IPCでOFFはdisable_ttsだけ、mute_voice/stop_direct_voice/ASR Stopは呼ばれないことを確認。
 - [ ] 主画面を開いたままの連打/サーバー死活と2つの読み上げソースの競合を検証してコミットする。
 
