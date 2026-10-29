@@ -12,6 +12,9 @@
 
 ## Global Constraints
 
+- 既存MainPage/SidebarSection/MainSectionの配置・既存スイッチの順序を維持し、TTSを末尾へ追加する。
+- 言語設定、右上のクイック設定、ログ/入力欄のリサイズ比率、送信ボタン設定、拡大率・compact modeを維持する。
+- モックの非TTS領域は概略。既存部品をモックのHTML/CSSで置換せず、会話欄に大きなTTS帯を追加しない。
 - TTSスイッチはchat/mic翻訳の読み上げだけに作用し、原音・直接VC・ASR・翻訳・OSCの設定を変更しない。
 - 保存だけでモデル・マイク・発声を開始しない。TTS ONでもルートの安全ミュートを解除しない。
 - シードの既定は空文字＝サーバー既定、同梱サーバーではランダム。固定は検証後に整数で送信し、0を保持する。
@@ -106,12 +109,14 @@
 ## Task 4: トップ画面のスイッチと状態表示
 
 **Files:** `src-ui/views/app/main_page/sidebar_section/main_function_switch/MainFunctionSwitch.jsx`,
-`src-ui/views/app/main_page/main_section/MainSection.jsx`, 新規`main_section/tts_controls/TTSControls.jsx`とSCSS、
+必要なら同じディレクトリへ小さな`TTSControls.jsx`とSCSS、
 `src-ui/logics/voice/useVoice.js`, `src-ui/logics/useReceiveRoutes.js`, locale各言語。
 **Test:** 新規`tests/voice/test_tts_controls_ui.py`、既存voice UI entryを使用。
 
 - [ ] 既存SwitchContainer/ToggleSwitchの表示を再利用する。TTSというlabelをON/OFFで変更しない。
   role=switch/aria-checked、Space操作、pending、compact表示のnameを検証する。
+- [ ] 既存4スイッチは並び替えず、TTSを末尾へ追加。状態・停止・設定リンクはTTS行の近くに収める。
+  MainSection、ログ、入力欄、右上の既存クイック設定を組み替えない。
 - [ ] 設定ページを一度も開かなくてもstatus/settings/server stateを取得できるよう購読を置く。
   ページ移動でタイマーが重複せず、遅いstateの順序逆転を世代で拒否する。
 - [ ] 通常ON/OFF、未設定、サーバー停止、管理経路ミュート、ネットワーク断のテストを先に追加。
@@ -146,6 +151,8 @@
   OFFクリック→最後のTTS PCM、first audioを計測し、モデル単体時間と分離して記録する。
 - [ ] DPMSガード下でAppImage通常起動、専用ページ、トップ切替、保存復元、870×654/拡大/長いパスを確認。
   色のコントラスト、tab順、focus、stickyバーによる遮蔽も点検する。
+- [ ] 同じウィンドウ寸法・拡大率の既存画面と比較し、変更範囲をTTS追加部分に限定して確認。
+  ログ/入力欄比率、言語選択、送信ボタンの表示設定、compact操作を変更前後で照合する。
 - [ ] Linux build＋AppImage再検査、OCR/モデル非同梱検査を実行。合格するまでインストール済み成果物を置換しない。
 - [ ] 変更と検証結果をまとめてローカルコミット。Windows/VRChat/聴感など未実施項目を明記する。
 
