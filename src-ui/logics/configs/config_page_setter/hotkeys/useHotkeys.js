@@ -2,7 +2,8 @@ import { store, useStore_Hotkeys } from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useNotificationStatus } from "@logics_common";
 import { useMainFunction } from "@logics_main";
-import { register, unregister, unregisterAll, isRegistered } from "@tauri-apps/plugin-global-shortcut";
+import { register, unregister, unregisterAll } from "@tauri-apps/plugin-global-shortcut";
+import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "@useI18n";
 
 export const useHotkeys = () => {
@@ -23,6 +24,25 @@ export const useHotkeys = () => {
     };
     const { showNotification_SaveSuccess, showNotification_Error, closeNotification } = useNotificationStatus();
 
+    const openQuickChat = async () => {
+        try { await invoke("quick_chat_show"); }
+        catch (error) {
+            console.warn("Quick chat window could not be focused", error);
+            showNotification_Error(t("quick_chat.open_failed"));
+        }
+    };
+
+    const canRegisterQuickChat = async () => {
+        try {
+            const platform = await invoke("quick_chat_shortcut_platform");
+            if (platform !== "wayland") return true;
+            showNotification_Error(t("quick_chat.wayland_unavailable"), { hide_duration: 8000 });
+        } catch {
+            showNotification_Error(t("quick_chat.platform_unknown"));
+        }
+        return false;
+    };
+
     const setHotkeys = async (hotkeys) => {
         const [targetActionKey, targetHotkey] = Object.entries(hotkeys)[0];
 
@@ -35,6 +55,8 @@ export const useHotkeys = () => {
             closeNotification();
             return true;
         }
+
+        if (targetActionKey === "open_quick_chat" && !await canRegisterQuickChat()) return false;
 
         const targetShortcut = parseHotkey(targetHotkey);
         const targetDisplay = targetHotkey.join(" + ");
@@ -93,12 +115,17 @@ export const useHotkeys = () => {
 
             for (const [actionKey, hotkeyRaw] of hotkeyEntries) {
                 if (!hotkeyRaw) continue;
+                if (actionKey === "open_quick_chat" && !await canRegisterQuickChat()) continue;
 
                 const shortcut = parseHotkey(hotkeyRaw);
                 try {
                     await register(shortcut, async (event) => {
                         if (event.state !== "Pressed") return;
                         switch (actionKey) {
+                            case "open_quick_chat": {
+                                await openQuickChat();
+                                break;
+                            }
                             case "toggle_vrct_visibility": {
                                 const minimized = await appWindow.isMinimized();
                                 if (minimized) {
@@ -168,6 +195,7 @@ export const useHotkeys = () => {
         setSuccessHotkeys,
         registerShortcuts,
         unregisterAll,
+        openQuickChat,
     };
 };
 
@@ -189,6 +217,8 @@ const parseHotkey = (hotkeyString) => {
 // アクション名（多言語対応）を取得する関数
 const getHotkeyActionLabel = (actionKey, t) => {
     switch (actionKey) {
+        case "open_quick_chat":
+            return t("quick_chat.label");
         case "toggle_vrct_visibility":
             return t("config_page.hotkeys.toggle_vrct_visibility.label");
         case "toggle_translation":

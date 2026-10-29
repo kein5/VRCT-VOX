@@ -1,0 +1,6 @@
+{
+    "identifier": "quick-chat",
+    "description": "The input window receives its acknowledgements; native commands validate its label.",
+    "windows": ["quick_chat"],
+    "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}

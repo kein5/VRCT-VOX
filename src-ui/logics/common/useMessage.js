@@ -19,13 +19,13 @@ export const useMessage = () => {
     const { asyncStdoutToPython } = useStdoutToPython();
     const atoms = useStore();
 
-    const sendMessage = (message) => {
-        const uuid = crypto.randomUUID();
+    const sendMessage = (message, uuid = crypto.randomUUID()) => {
+        if (typeof message !== "string" || !message.trim()) return Promise.resolve(false);
         const send_message_object = {
             id: uuid,
             message: message,
         };
-        asyncStdoutToPython("/run/send_message_box", send_message_object);
+        const sent = asyncStdoutToPython("/run/send_message_box", send_message_object);
 
         addMessageLogs({
             id: uuid,
@@ -37,6 +37,7 @@ export const useMessage = () => {
                 translations: [],
             },
         });
+        return sent;
     };
 
     const addSystemMessageLog = (message) => {

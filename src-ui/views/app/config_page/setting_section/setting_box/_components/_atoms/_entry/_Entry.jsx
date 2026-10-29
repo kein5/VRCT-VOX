@@ -39,6 +39,7 @@ const _Entry = forwardRef((props, ref) => {
         >
             <div className={input_wrapper_class_names}>
                 <input
+                    aria-label={props["aria-label"]}
                     type={props.type || "text"}
                     inputMode={props.inputMode}
                     ref={inputRef}

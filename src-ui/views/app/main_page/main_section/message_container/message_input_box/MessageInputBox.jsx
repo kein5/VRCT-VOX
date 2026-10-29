@@ -61,6 +61,7 @@ export const MessageInputBox = () => {
     };
 
     const onKeyDownFunction = (e) => {
+        if (e.nativeEvent.isComposing || e.keyCode === 229) return;
         if (e.key === "ArrowUp" && e.shiftKey) {
             e.preventDefault();
 

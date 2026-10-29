@@ -3,6 +3,7 @@ use std::fs::{create_dir_all, OpenOptions};
 use std::io::{Error, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+mod quick_chat;
 
 // WebView2は同じプロセス内の全ウィンドウで起動引数が一致している必要があるため、
 // tauri.conf.json の main ウィンドウと同じ値にする。Tauri既定の --disable-features に加えて、
@@ -107,6 +108,12 @@ pub fn run() {
         // 画面外の vr_panel ウィンドウが残ることがあるため「最後のウィンドウが閉じたら終了」に頼れない。
         // main が閉じたらアプリを終了する。
         .on_window_event(|window, event| {
+            if window.label() == "quick_chat" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
             if window.label() == "main" && matches!(event, WindowEvent::Destroyed) {
                 window.app_handle().exit(0);
             }
@@ -116,7 +123,11 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_font_list, download_zip_asset, set_vr_panel_window])
+        .manage(quick_chat::QuickChatState::default())
+        .invoke_handler(tauri::generate_handler![get_font_list, download_zip_asset, set_vr_panel_window,
+            quick_chat::quick_chat_context, quick_chat::quick_chat_configure, quick_chat::quick_chat_submit,
+            quick_chat::quick_chat_take, quick_chat::quick_chat_finish, quick_chat::quick_chat_hide,
+            quick_chat::quick_chat_show, quick_chat::quick_chat_shortcut_platform])
         .run(context);
     match result {
         Ok(()) => startup_log("VRCT event loop ended"),

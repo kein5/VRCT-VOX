@@ -43,3 +43,40 @@ TTS ON→OFF→ONで翻訳3件・OSC3件に対してTTS2件となり、OFF中も
 証跡は`.superpowers/sdd/2026-10-29-tts-settings-ui/recovery-*.log`と`tmp/tts-settings-recovery/`。
 配布候補は`build/tts-settings-artifacts/`。モデル・OCR重みの非同梱検査を通過し、外部公開・pushはしていない。
 Windows実機、VRChat/HMD、物理マイク、聴感は未検証。
+
+## Task 7: 小さなチャット入力ウィンドウ
+
+設定したキーから480×160の入力窓を開き、本体を最小化したまま入力できる。
+既定キーなし、Escと閉じる操作で下書きを保持、IME変換中Enterと送信待ち中の再送を抑止する。
+詳細は[設計記録](quick-chat-design.md)。本体と小窓の送信元labelをRustで検証し、
+本体が既存sidecarへ一度だけ渡す。小窓にshell/fs権限を追加していない。
+
+| 確認 | 結果 |
+|---|---|
+| 従来4項目のHOTKEYS移行・新しいキーの保存 | 1成功 |
+| Rustの送信元・空入力・長文・重複要求・受け渡し確認 | 2成功 |
+| 小窓ブラウザのIMEイベント・空白・長文・連打・Esc・未確認 | 3成功。送信ボタンへTab移動後のEscもREDから修正 |
+| TTS/RVC・音声サーバー・小窓のブラウザ回帰 | 20成功、直接VCのopt-in未指定で1スキップ |
+| 設定ページ・直接VCの別実行 | 5成功。上のスキップ対象も成功 |
+| 音声全体回帰 | 1,023成功、39スキップ、既存警告6（その時点の他担当の追加テストも含む） |
+| KDE/XWayland、最終AppImage | 1成功。設定欄でキーを登録→最小化した本体を戻さず小窓へfocus |
+| ネイティブWayland、最終tar候補 | 1成功。未対応理由の表示、ボタンでの起動と入力、Tab後のEsc |
+| 最終Vite・Linux候補・AppImage・モデル非同梱検査 | 成功 |
+
+最終AppImageではCtrl+Alt+Shift+Jのキー送出開始から小窓のnative focus確認まで71.47ms。
+一回の試行値であり、VRChat操作中やHMD環境の遅延を示すものではない。
+本体が最小化されたままで、同じsidecarのPIDを保持し、翻訳1件・OSC1件・TTS1件を確認した。
+サーバーはローカル固定応答、出力は私有PipeWireであり、物理マイクや実モデルは使っていない。
+
+途中の「本体まで戻る」判定は、xdotoolのPID・title検索が既定OR条件だったための試験誤りだった。
+`--all`によるAND条件へ直した試験で、同じアプリ候補の本体最小化維持を確認した。
+通常のX11起動でGBM描画エラーを起こした試験も合格に含めず、既存のNVIDIA対応AppImageを使用した。
+ネイティブWaylandでのGlobalShortcuts portalは実装していない。Windows実機、物理IME、
+VRChat起動中のキー・フォーカス、ゲーム側への任意キー抑止は確認範囲に含まない。
+
+最終候補は既存OOM差分と、並行するセキュリティ担当のcontroller.py/utils.py変更を含む。
+ソースハッシュをビルド前後で比較し、ビルド中の変更が0件であることを記録した。
+セキュリティ是正のソースや記録はこのTask 7コミットに含めない。
+最終AppImage SHA-256は `fcfbb770c0479bb86cf0c5890579a2fed0c7acab54abe76443deeaac5ebf671a`。
+証跡は`.superpowers/sdd/2026-10-29-tts-settings-ui/task7-*.log`と
+`tmp/tts-settings-recovery/quick-chat-packaged-final/`。インストール済みアプリは置換していない。

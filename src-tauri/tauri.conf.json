@@ -29,6 +29,7 @@
             "csp": null,
             "capabilities": [
                 "default",
+                "quick-chat",
                 "vrct-capability"
             ]
         }

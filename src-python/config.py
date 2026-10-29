@@ -898,8 +898,8 @@ class Config:
     MIC_NO_REPEAT_NGRAM_SIZE = ManagedProperty('MIC_NO_REPEAT_NGRAM_SIZE', type_=int)
     HOTKEYS = ValidatedProperty('HOTKEYS',
         validator=lambda val, inst: (
-            {k: (v if (isinstance(v, list) or v is None) else inst.HOTKEYS.get(k))
-            for k, v in val.items()} if isinstance(val, dict) and set(val.keys()) == set(inst.HOTKEYS.keys()) else None
+            {**inst.HOTKEYS, **{k: (v if (isinstance(v, list) or v is None) else inst.HOTKEYS.get(k))
+            for k, v in val.items()}} if isinstance(val, dict) and set(val.keys()) <= set(inst.HOTKEYS.keys()) else None
         ),
         immediate_save=True
     )
@@ -1231,6 +1231,7 @@ class Config:
         self._MIC_MAX_PHRASES = 10
         self._MIC_WORD_FILTER = []
         self._HOTKEYS = {
+            "open_quick_chat": None,
             "toggle_vrct_visibility": None,
             "toggle_translation": None,
             "toggle_transcription_send": None,

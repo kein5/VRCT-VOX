@@ -114,6 +114,7 @@ export const HotkeysEntry = (props) => {
         <div className={styles.container}>
             {is_pending && <span className={styles.loader}></span>}
             <_Entry
+                aria-label={props.label}
                 ref={entryRef}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
@@ -126,7 +127,7 @@ export const HotkeysEntry = (props) => {
                 is_disabled={is_pending}
                 readOnly
             />
-            <button className={clsx(styles.delete_button, { [styles.is_pending]: is_pending })} onClick={handleDelete}>
+            <button aria-label={t("quick_chat.clear_shortcut", { action: props.label })} disabled={is_pending} className={clsx(styles.delete_button, { [styles.is_pending]: is_pending })} onClick={handleDelete}>
                 <DeleteSvg className={styles.delete_svg}/>
             </button>
         </div>

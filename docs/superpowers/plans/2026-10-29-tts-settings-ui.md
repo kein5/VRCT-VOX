@@ -190,13 +190,17 @@ TTS/RVC実装の後に対応する。呼び出しキーを設定可能とし、Y
 **Files:** `src-ui/logics/configs/config_page_setter/hotkeys/useHotkeys.js`、既存チャット送信hook、
 `src-tauri/src/lib.rs`、Tauri capability、ミニ入力用Reactビュー・設定locale、対応テスト。
 
-- [ ] 既存送信hookとウィンドウ生成/イベント経路を確認し、二重のsidecarを起動しない設計を記録する。
-- [ ] キーで表示→入力へfocus、Escで閉じる、IME変換中のEnterで誤送信しない試験を先に作る。
-- [ ] 本体と同じ翻訳・OSC・TTSパイプラインに一度だけ送信する。空入力・長すぎる入力は既存規則を使う。
-- [ ] 独立ウィンドウの送信イベントは送信元labelと内容を検証する。広いTauri権限を追加しない。
-- [ ] Windows/X11の既存登録を再利用する。WaylandはGlobalShortcuts portalとactivationの原典を調べ、
+- [x] 既存送信hookとウィンドウ生成/イベント経路を確認し、二重のsidecarを起動しない設計を記録する。
+- [x] キーで表示→入力へfocus、Escで閉じる、IME変換中のEnterで誤送信しない試験を先に作る。
+- [x] 本体と同じ翻訳・OSC・TTSパイプラインに一度だけ送信する。空入力・長すぎる入力は既存規則を使う。
+- [x] 独立ウィンドウの送信イベントは送信元labelと内容を検証する。広いTauri権限を追加しない。
+- [x] Windows/X11の既存登録を再利用する。WaylandはGlobalShortcuts portalとactivationの原典を調べ、
   対応状況を検出して登録失敗を表示する。KDEでキー→表示→入力の実機試験を行う。
-- [ ] 任意キーのVRChatへの抑止・Yオーバーライド、VR空間への入力パネル表示は別機能として扱う。
+- [x] 任意キーのVRChatへの抑止・Yオーバーライド、VR空間への入力パネル表示は別機能として扱う。
+
+結果と未確認範囲は `docs/voice-stack/tts-settings-acceptance-2026-10-29.md`、
+小窓の設計・portalの判断は `docs/voice-stack/quick-chat-design.md` に記録。
+ネイティブWaylandのキー登録自体は未対応。物理IME・Windows・VRChatの実機確認とは区別する。
 
 ## 実行コマンドの基本形
 

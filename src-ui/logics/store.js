@@ -243,6 +243,7 @@ export const { atomInstance: Atom_MessageFormat_ExampleViewFilter, useHook: useS
 
 // Hotkeys
 export const { atomInstance: Atom_Hotkeys, useHook: useStore_Hotkeys } = createAtomWithHook({
+    open_quick_chat: null,
     toggle_vrct_visibility: null,
     toggle_translation: null,
     toggle_transcription_send: null,

@@ -56,6 +56,7 @@ export default defineConfig(() => {
                 input: {
                     main: path.resolve(__dirname, "index.html"),
                     vr: path.resolve(__dirname, "vr.html"),
+                    quick_chat: path.resolve(__dirname, "quick-chat.html"),
                 },
             },
             sourcemap: true,
