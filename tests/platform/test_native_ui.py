@@ -70,13 +70,20 @@ def test_native_voice_settings_survive_restart_with_managed_route_muted(tmp_path
         gate = PipeWireGate()
         with NativeWebDriver(tmp_path / "first", {"VRCT_CONFIG_DIR": str(state)}) as ui:
             ui.wait("return document.querySelector('textarea') !== null")
-            ui.open_voice_settings()
+            ui.open_route_settings()
             ui.select("Audio route", "managed")
-            ui.select("Read aloud", "original")
+            ui.click_text("button", "Save audio route")
+            wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("routing") == "managed")
+            ui.open_voice_settings()
+            ui.select("Chat voice", "translated")
             ui.select("Translation slot", "2")
+            ui.select("Chat voice", "original")
+            ui.select("Seed mode", "fixed")
+            ui.fill("Instruction", "設定復元の試験")
             ui.fill("Japanese voice name", "保存テスト")
             ui.click_text("button", "Save voice settings")
             wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("japanese_voice") == "保存テスト")
+            ui.open_route_settings()
             ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Muted (confirmed)')")
             assert gate.inspect()["muted"] is True
             ui.click_text("button", "Resume voice")
@@ -88,9 +95,10 @@ def test_native_voice_settings_survive_restart_with_managed_route_muted(tmp_path
         with NativeWebDriver(tmp_path / "second", {"VRCT_CONFIG_DIR": str(state)}) as ui:
             ui.wait("return document.querySelector('textarea') !== null")
             ui.open_voice_settings()
-            for label, value in [("Read aloud", "original"), ("Audio route", "managed"),
-                                 ("Translation slot", "2"), ("Japanese voice name", "保存テスト")]:
+            for label, value in [("Chat voice", "original"), ("Translation slot", "2"), ("Japanese voice name", "保存テスト"),
+                                 ("Seed value", "0"), ("Instruction", "設定復元の試験")]:
                 assert ui.evaluate("return arguments[0].value", ui.control(label)) == value
+            ui.open_route_settings()
             ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Muted (confirmed)')")
             assert gate.inspect()["muted"] is True
             ui.assert_rendered()

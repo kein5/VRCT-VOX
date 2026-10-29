@@ -45,6 +45,14 @@ class FixtureServer:
         class Handler(BaseHTTPRequestHandler):
             protocol_version = 'HTTP/1.1'
 
+            def do_GET(self):
+                body = b'{"status":"ok"}' if self.path == '/health' else b'{"data":[]}'
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
             def do_POST(self):
                 data = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
                 if self.path != '/v1/audio/speech' or data.get('response_format') != 'pcm':

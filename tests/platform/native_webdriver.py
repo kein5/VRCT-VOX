@@ -109,31 +109,40 @@ class NativeWebDriver:
         return self.element_command(element, "click")
 
     def control(self, label):
-        return self.evaluate("return [...document.querySelectorAll('label')].find(e => e.firstChild.textContent.trim() === arguments[0])?.querySelector('input,select');", label)
+        return self.evaluate("return [...document.querySelectorAll('input,select,textarea')].find(e => e.getAttribute('aria-label') === arguments[0]) || [...document.querySelectorAll('label')].find(e => e.firstChild?.textContent.trim() === arguments[0])?.querySelector('input,select,textarea');", label)
 
     def fill(self, label, value):
         control = self.control(label)
         self.element_command(control, "clear")
+        if self.evaluate('return arguments[0].tagName', control) == 'TEXTAREA':
+            value = value.replace('\n', '\ue007')  # WebDriver Enter; raw LF is ignored by WebKitGTK.
         self.element_command(control, "value", {"text": value})
 
     def select(self, label, value):
         option = self.evaluate("return [...arguments[0].options].find(e => e.value === arguments[1]);", self.control(label), value)
         self.element_command(option, "click")
 
-    def open_voice_settings(self):
-        # The text input can mount while the native window is still the 450x220
-        # splash. These isolated tests expect the normal main-window geometry
-        # (also asserted by assert_rendered); wait for it and actual frames before
-        # the first coordinate-based navigation. Do not retry successful clicks.
+    def open_voice_page(self, tab, selector):
         self.wait("return innerWidth >= 500 && innerHeight >= 300")
         self.assert_rendered()
-        self.open_settings()
-        if not self.evaluate("return document.querySelector('section[aria-label=\"Text to voice (speech.cpp)\"] select') !== null"):
-            # Compact sidebars hide the label until hovered; the tab's icon and
-            # hit area remain visible and are the real navigation control.
-            tab = self.evaluate("return [...document.querySelectorAll('p')].find(e => e.textContent === 'Advanced')?.parentElement;")
-            self.element_command(tab, "click")
-        self.wait("return document.querySelector('section[aria-label=\"Text to voice (speech.cpp)\"] select') !== null")
+        if not self.evaluate("return document.querySelector('[class*=show_config]') !== null"):
+            self.open_settings()
+        if not self.evaluate(f"return document.querySelector({json.dumps(selector)}) !== null"):
+            element = self.evaluate("return [...document.querySelectorAll('[role=button]')].find(e => e.getAttribute('aria-label') === arguments[0]);", tab)
+            self.element_command(element, "click")
+        self.wait(f"return document.querySelector({json.dumps(selector)}) !== null")
+
+    def open_voice_settings(self):
+        self.open_voice_page("TTS", '[data-setting-id="tts_settings"] select')
+
+    def open_route_settings(self):
+        self.open_voice_page("Device", '[data-setting-id="voice_route"] select')
+
+    def open_rvc_settings(self):
+        self.open_voice_page("RVC", '[data-setting-id="rvc_settings"] input')
+
+    def open_original_voice_settings(self):
+        self.open_voice_page("Advanced", '[data-setting-id="direct_voice_settings"] select')
 
     def close_app(self):
         """Use the app's real shutdown action and verify exit before driver cleanup."""

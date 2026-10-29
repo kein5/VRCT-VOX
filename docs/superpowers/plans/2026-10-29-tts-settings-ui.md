@@ -168,19 +168,19 @@ TTSフォーム/サーバーはTTSへ、RVCフォームはRVCへ、ASR管理は�
 **Files:** `tests/platform/native_webdriver.py`の設定遷移ヘルパー、関連native UI試験、
 `tests/platform/test_appimage.py`、`docs/voice-stack/`の操作案内と結果記録。
 
-- [ ] まずモデル不要でvoice回帰を実行。既存ブラウザーfixtureのpage.goto初期timeoutは原因を切り分け、
+- [x] まずモデル不要でvoice回帰を実行。既存ブラウザーfixtureのpage.goto初期timeoutは原因を切り分け、
   assertionや音声停止期限を緩めて通さない。
-- [ ] 専用ページへの移動に合わせ、`open_voice_settings`とRVC/ASRへの遷移・設定検索のヘルパーを更新。
-- [ ] 既存Irodoriでseed=42/同一Instruction/同一CPUの短文n>=2を私有出力へ生成し、PCM一致を検証。
+- [x] 専用ページへの移動に合わせ、`open_voice_settings`とRVC/ASRへの遷移・設定検索のヘルパーを更新。
+- [x] 既存Irodoriでseed=42/同一Instruction/同一CPUの短文n>=2を私有出力へ生成し、PCM一致を検証。
   異なるseedで必ず違うという確率的assertionはしない。Instructionの聴感とCPU/GPU間一致は別項目。
-- [ ] private PipeWireでTTS OFF後の無音、同時に動作中のdirect音声継続、ASR→訳文→OSC継続を確認。
+- [x] private PipeWireでTTS OFF後の無音、同時に動作中のdirect音声継続、ASR→訳文→OSC継続を確認。
   OFFクリック→最後のTTS PCM、first audioを計測し、モデル単体時間と分離して記録する。
-- [ ] DPMSガード下でAppImage通常起動、専用ページ、トップ切替、保存復元、870×654/拡大/長いパスを確認。
+- [x] DPMSガード下でAppImage通常起動、専用ページ、トップ切替、保存復元、870×654/拡大/長いパスを確認。
   色のコントラスト、tab順、focus、stickyバーによる遮蔽も点検する。
-- [ ] 同じウィンドウ寸法・拡大率の既存画面と比較し、変更範囲をTTS/RVC追加部分に限定して確認。
+- [x] 同じウィンドウ寸法・拡大率の既存画面と比較し、変更範囲をTTS/RVC追加部分に限定して確認。
   ログ/入力欄比率、言語選択、送信ボタンの表示設定、compact操作を変更前後で照合する。
-- [ ] Linux build＋AppImage再検査、OCR/モデル非同梱検査を実行。合格するまでインストール済み成果物を置換しない。
-- [ ] 変更と検証結果をまとめてローカルコミット。Windows/VRChat/聴感など未実施項目を明記する。
+- [x] Linux build＋AppImage再検査、OCR/モデル非同梱検査を実行。合格するまでインストール済み成果物を置換しない。
+- [x] 変更と検証結果をまとめてローカルコミット。Windows/VRChat/聴感など未実施項目を明記する。
 
 ## Task 7: ショートカットで小さなチャット入力ウィンドウを開く（追加要望）
 
