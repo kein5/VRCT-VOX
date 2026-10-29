@@ -31,6 +31,17 @@ def check_displays_on():
     return check_physical_displays()
 
 
+def matches_launched_app(executable, environment, launcher, *, appimage=False):
+    expected = Path(launcher).resolve()
+    if not appimage:
+        return executable == str(expected)
+    # An AppImage runtime executes a different ELF in its private mount/extract
+    # directory. Match both launcher identity and exact payload within that root.
+    return (environment.get('APPIMAGE') == str(expected)
+            and bool(environment.get('APPDIR'))
+            and executable == str(Path(environment['APPDIR']) / 'usr/bin/vrct-tts'))
+
+
 class NativeWebDriver:
     def __init__(self, output, env=None):
         self.output = output
@@ -214,8 +225,14 @@ class NativeWebDriver:
                 "browserName": "wry", "tauri:options": {"application": binary}}}})
             self.session = result["sessionId"]
             import psutil
-            apps = [child for child in psutil.Process(self.process.pid).children(recursive=True)
-                    if child.exe() == str(Path(binary).resolve())]
+            apps = []
+            for child in psutil.Process(self.process.pid).children(recursive=True):
+                try:
+                    if matches_launched_app(child.exe(), child.environ(), binary,
+                                            appimage=bool(os.environ.get('VRCT_TEST_APPIMAGE'))):
+                        apps.append(child)
+                except psutil.NoSuchProcess:
+                    pass  # A transient launcher/helper may finish during discovery.
             assert len(apps) == 1, "could not identify the owned Tauri process"
             self.app_process = apps[0]
             return self

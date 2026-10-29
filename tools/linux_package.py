@@ -27,7 +27,7 @@ RUNTIME = ('vrct-tts', 'vrct-tts-sidecar', '_internal/base_library.zip',
            '_internal/licenses/VRCT/LICENSE', '_internal/licenses/VRCT/NOTICE.md')
 
 
-def check_tree(root, *, require_runtime=False):
+def check_tree(root, *, require_runtime=False, allow_directory_links=False):
     root = Path(root)
     if root.is_symlink() or not root.is_dir():
         raise ValueError(f'Expected a real installation directory: {root}')
@@ -38,7 +38,8 @@ def check_tree(root, *, require_runtime=False):
         if stat.S_ISLNK(mode):
             try:
                 target = path.resolve(strict=True)
-                valid = not Path(os.readlink(path)).is_absolute() and target.is_relative_to(root) and target.is_file()
+                valid = (not Path(os.readlink(path)).is_absolute() and target.is_relative_to(root)
+                         and (target.is_file() or (allow_directory_links and target.is_dir())))
             except (OSError, RuntimeError):
                 valid = False
             if not valid:

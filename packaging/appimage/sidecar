@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd -P)
+# The GUI's bundled libraries must not override Python/PipeWire/VC libraries.
+for name in LD_LIBRARY_PATH PATH GIO_EXTRA_MODULES GSETTINGS_SCHEMA_DIR GTK_PATH GTK_EXE_PREFIX GTK_DATA_PREFIX GTK_IM_MODULE_FILE GTK_THEME GDK_PIXBUF_MODULE_FILE GI_TYPELIB_PATH XDG_DATA_DIRS GDK_BACKEND WEBKIT_DISABLE_DMABUF_RENDERER; do
+    eval 'present=${VRCT_APPIMAGE_HOST_'"$name"'_SET-}'
+    if [ "$present" = x ]; then
+        eval 'value=${VRCT_APPIMAGE_HOST_'"$name"'-}'
+        export "$name=$value"
+    else
+        unset "$name"
+    fi
+    unset "VRCT_APPIMAGE_HOST_${name}_SET" "VRCT_APPIMAGE_HOST_${name}"
+done
+unset LD_LIBRARY_PATH_ORIG
+exec "$root/usr/lib/vrct-tts/vrct-tts-sidecar" "$@"

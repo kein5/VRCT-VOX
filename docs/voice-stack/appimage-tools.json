@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "architecture": "x86_64",
+  "tools": [
+    {
+      "name": "patchelf-0.19.1-x86_64.tar.gz",
+      "url": "https://github.com/NixOS/patchelf/releases/download/0.19.1/patchelf-0.19.1-x86_64.tar.gz",
+      "asset_id": 468524917,
+      "size": 568926,
+      "sha256": "a6818fef80128fb354423234ecacdcca3e993913d774e5d8346bc63f70fed4cf",
+      "source": "https://github.com/NixOS/patchelf",
+      "release": "0.19.1",
+      "extract": {
+        "name": "patchelf",
+        "member": "./bin/patchelf",
+        "size": 1477296,
+        "sha256": "6526398feccd54ab150e49ef643376c6ae37445fdc28b3320baf4aea59f9d536"
+      }
+    },
+    {
+      "name": "linuxdeploy-x86_64.AppImage",
+      "url": "https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage",
+      "asset_id": 313839329,
+      "size": 19421688,
+      "sha256": "c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d",
+      "source": "https://github.com/linuxdeploy/linuxdeploy",
+      "release": "1-alpha-20251107-1"
+    },
+    {
+      "name": "appimagetool-x86_64.AppImage",
+      "url": "https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage",
+      "asset_id": 324406736,
+      "size": 15092216,
+      "sha256": "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0",
+      "source": "https://github.com/AppImage/appimagetool",
+      "release": "1.9.1"
+    },
+    {
+      "name": "runtime-x86_64",
+      "url": "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64",
+      "asset_id": 657374641,
+      "size": 944632,
+      "sha256": "617aa77314d57c8b8e4fae9c3f0b35af7b30d5529cb69e98f64f92510ed98a46",
+      "source": "https://github.com/AppImage/type2-runtime",
+      "release": "continuous"
+    },
+    {
+      "name": "linuxdeploy-plugin-gtk.sh",
+      "url": "https://raw.githubusercontent.com/tauri-apps/linuxdeploy-plugin-gtk/dda522bce37387f1b853d9095713bfaa924c8423/linuxdeploy-plugin-gtk.sh",
+      "size": 14622,
+      "sha256": "7804c9eef13e59bf2783aad9882ef9db8f3f3f9e8d631874b1d348d550a3693f",
+      "source": "https://github.com/tauri-apps/linuxdeploy-plugin-gtk",
+      "commit": "dda522bce37387f1b853d9095713bfaa924c8423"
+    }
+  ],
+  "runtime_digest_md5": {
+    "offset": 932096,
+    "size": 16
+  }
+}

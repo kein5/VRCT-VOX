@@ -336,3 +336,30 @@ Python環境115packageのうち9packageは収集可能なnoticeファイルな�
 
 [手順と境界](linux-build-pipeline.md)、[実測結果](linux-build-results.json)。
 ローカルコミットのみ。公開・AUR登録・本家への連絡/PRは行っていない。
+
+### P5 AppImage候補（2026-10-29）
+
+既存Linux候補からGTK/WebKitを含むAppImageを生成し、実ファイルまで検証した。
+GUIを先に配置してから凍結sidecarを加え、元候補のbackend 2,406 file/link記録の
+内容・モード・リンク先が保持されることを照合。同梱speech.cppの固定ハッシュと
+元LICENSE一致、OCR/Mia2026除外方針、最終展開ツリーの一致も確認した。
+
+候補 **567,630,328 bytes**、SHA-256
+`fdb32cfad2908843ad70ecc77c238bf35ca1ed302d72eb8da959d4bfd1d3a872`。
+関連契約 **78 PASS**、音声suite **959 PASS / 18 opt-in SKIP / 62.42秒**。
+FUSE/展開起動それぞれのGUI描画・終了、設定保存・private routingのmute/resume・
+再起動後muteを **4 PASS / 42.33秒**で確認。試験後のAppImage SHA-256も不変。
+最初の音声suiteはsandbox内のprivate PipeWire起動で失敗し中断した。
+必要なローカルソケット権限で再実行した上記結果と区別する。
+
+WebKitの探索位置をAppImageKitと同じ`APPDIR/usr`に揃え、GTK hookの二重実行を除去。
+patchelf 0.19.1を固定取得して使用。旧ローダークラッシュの厳密な根因は未確定。
+実機のNVIDIA GBM失敗は公式のDMA-BUF回避設定で改善を確認し、NVIDIA moduleが
+ある場合だけ既定適用。明示された設定は尊重し、sidecarへGUI環境を持ち込まない。
+
+Ubuntu24.04 hosted CI、他GPU/旧Linux、CPU配布候補、物理音声・聴感の検証は未実施。
+CachyOS/glibc2.44のこの候補をUbuntu互換とは扱わない。
+GTK/WebKit等を含む最終ライセンス/SBOM・セキュリティ監査は公開前に残る。
+CIは検証後の候補保管だけで、公開・AUR登録・本家への連絡/PRは実行していない。
+
+[手順・調査上の副作用・残条件](appimage.md)、[実測結果](appimage-results.json)。

@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-29",
+  "packaging_base_commit": "abd8ec5d",
+  "artifact": "build/linux/artifacts/VRCT-TTS-3.6.0-beta.1-linux-x64-vulkan-release.AppImage",
+  "sha256": "fdb32cfad2908843ad70ecc77c238bf35ca1ed302d72eb8da959d4bfd1d3a872",
+  "bytes": 567630328,
+  "inventory_records": 2954,
+  "symlinks": 89,
+  "unchanged_backend_records": 2406,
+  "checks": {
+    "contracts": {
+      "passed": 78
+    },
+    "voice": {
+      "passed": 959,
+      "skipped": 18,
+      "seconds": 62.42
+    },
+    "native_acceptance": {
+      "passed": 4,
+      "seconds": 42.33,
+      "modes": [
+        "FUSE",
+        "APPIMAGE_EXTRACT_AND_RUN"
+      ],
+      "cases": [
+        "GUI frames/screenshot/shutdown",
+        "private routing settings/mute/resume/restart muted"
+      ]
+    },
+    "original_license_byte_equal": true,
+    "fixed_runtime_and_extracted_inventory": "pass",
+    "post_acceptance_image_sha256": "pass",
+    "ruff_changed_files": "pass"
+  },
+  "host": "Linux-6.18.55-2-cachyos-lts-x86_64-with-glibc2.44",
+  "libc": [
+    "glibc",
+    "2.44"
+  ],
+  "limits": [
+    "Local CachyOS/glibc2.44 candidate; Ubuntu hosted CI not executed.",
+    "NVIDIA WebKit fallback verified here; other GPUs/older Linux unverified.",
+    "CPU variant whole package not tested.",
+    "No inference models, physical microphone or VRChat tested by packaging acceptance.",
+    "Existing faster-whisper Silero v5 ONNX assets remain listed.",
+    "Final native/frontend/Rust/static-runtime license/SBOM and security review remain publication gates.",
+    "Unpublished; no AUR registration, upstream contact or PR."
+  ]
+}

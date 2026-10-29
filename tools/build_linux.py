@@ -123,6 +123,8 @@ def main():
     parser.add_argument('--profile', choices=('debug', 'release'), default='release')
     parser.add_argument('--backend-only', action='store_true', help='freeze and inspect only; no distributable is produced')
     parser.add_argument('--offline', action='store_true', help='use cached uv/npm/Cargo dependencies')
+    parser.add_argument('--appimage', action='store_true', help='also package/inspect an AppImage candidate')
+    parser.add_argument('--download-appimage-tools', action='store_true', help='fetch pinned build tools for --appimage')
     parser.add_argument('--collect-environment', type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if args.collect_environment:
@@ -201,6 +203,11 @@ def main():
     pack(candidate, output)
     shutil.copyfile(candidate / 'build-manifest.json', output.with_suffix('').with_suffix('.manifest.json'))
     print(f'Unpublished candidate: {output.resolve()}')
+    if args.appimage:
+        run([python, ROOT / 'tools/build_appimage.py', '--candidate', candidate,
+             '--work-dir', work / 'appimage', '--tools-dir', work / 'appimage-tools',
+             '--output-dir', args.output_dir,
+             *(['--download-tools'] if args.download_appimage_tools else [])])
 
 
 if __name__ == '__main__':

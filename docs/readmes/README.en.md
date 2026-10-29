@@ -21,10 +21,11 @@ Report fork-specific bugs or request support through **[VRCT-TTS Issues](https:/
 - [Fork distribution checklist](/docs/voice-stack/fork-distribution-isolation.md)
 - [Linux package proposal](/docs/voice-stack/linux-distribution-proposal.md)
 - [Linux build pipeline and candidate validation](/docs/voice-stack/linux-build-pipeline.md)
+- [AppImage build, launch and validation](/docs/voice-stack/appimage.md)
 - [Publication and upstream contribution policy](/docs/voice-stack/publication-and-upstream.md)
 - [Original VRCT documentation](https://misyaguziya.github.io/VRCT-Docs/) — covers the upstream application, not fork-specific voice features.
 
-Python work uses `uv`. The Linux pipeline freezes the backend and produces a tar.gz candidate with speech.cpp; the development sidecar remains separate. See the pipeline guide for build commands, validation and remaining release gates. Do not use the Windows batch build commands on Linux.
+Python work uses `uv`. The Linux pipeline freezes the backend and produces tar.gz and optional AppImage candidates with speech.cpp; the development sidecar remains separate. See the pipeline guides for build commands, validation and remaining release gates. Do not use the Windows batch build commands on Linux.
 
 ## Telemetry and models
 

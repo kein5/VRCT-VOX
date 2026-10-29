@@ -20,10 +20,13 @@ on:
       - 'spec/backend_linux.spec'
       - 'requirements*'
       - 'package*.json'
+      - 'packaging/appimage/**'
       - 'tools/**'
       - 'tests/**'
       - 'licenses/**'
       - 'docs/voice-stack/speechcpp-bundle-artifacts.json'
+      - 'docs/voice-stack/appimage-tools.json'
+      - 'docs/voice-stack/appimage.md'
       - 'docs/voice-stack/linux-build-pipeline.md'
       - 'docs/voice-stack/local-setup-linux.md'
       - 'docs/voice-stack/licensing.md'
@@ -63,19 +66,23 @@ jobs:
           sudo apt-get install -y build-essential pkg-config binutils libwebkit2gtk-4.1-dev libssl-dev \
             libxdo-dev libayatana-appindicator3-dev librsvg2-dev libpipewire-0.3-dev \
             pipewire-bin libvulkan1 libglfw3 libportaudio2 libasound2-dev \
-            webkit2gtk-driver xvfb xauth x11-utils dbus-x11 fonts-noto-cjk
+            webkit2gtk-driver xvfb xauth x11-utils dbus-x11 fonts-noto-cjk \
+            desktop-file-utils libgtk-3-dev libgdk-pixbuf-2.0-dev glib-networking
       - name: Build isolated candidate with pinned speech.cpp
         run: |
           uv run --no-project --python 3.11 python tools/build_linux.py \
             --python 3.11 --variant "$SPEECH_VARIANT" --download-speech \
+            --appimage --download-appimage-tools \
             > linux-build.log 2>&1
       - name: Contracts and archive integrity
         run: |
           uv run --no-project --python build/linux/venv/bin/python python -m pytest \
             -c tests/voice/pytest.ini tests/voice/test_linux_package.py tests/voice/test_runtime_paths.py \
-            tests/voice/test_distribution_artifacts.py tests/voice/test_fork_distribution_identity.py -q
+            tests/voice/test_distribution_artifacts.py tests/voice/test_fork_distribution_identity.py \
+            tests/voice/test_appimage.py -q
           cd build/linux/artifacts
           sha256sum -c ./*.tar.gz.sha256
+          sha256sum -c ./*.AppImage.sha256
       - name: Install pinned GUI test driver
         run: cargo install tauri-driver --version 2.1.0 --locked
       - name: Relocated read-only package acceptance
@@ -90,6 +97,18 @@ jobs:
             uv run --no-project --python build/linux/venv/bin/python python -m pytest \
             -c tests/voice/pytest.ini tests/platform/test_linux_package.py -q \
             --basetemp=build/linux/acceptance > linux-acceptance.log 2>&1
+      - name: AppImage extract-and-run acceptance
+        env:
+          VRCT_TEST_NATIVE_GUI: '1'
+          VRCT_TEST_XVFB: '1'
+          GDK_BACKEND: x11
+        run: |
+          export VRCT_TEST_DRIVER="$HOME/.cargo/bin/tauri-driver"
+          export VRCT_TEST_APPIMAGE="$(realpath build/linux/artifacts/*.AppImage)"
+          dbus-run-session -- xvfb-run -a -s '-screen 0 1280x900x24' \
+            uv run --no-project --python build/linux/venv/bin/python python -m pytest \
+            -c tests/voice/pytest.ini tests/platform/test_appimage.py -q \
+            --basetemp=build/linux/appimage-acceptance > appimage-acceptance.log 2>&1
       # Candidate storage only. No release creation, package registry, or secrets.
       - name: Store inspected candidate
         uses: actions/upload-artifact@v4
@@ -108,5 +127,7 @@ jobs:
           path: |
             linux-build.log
             linux-acceptance.log
+            appimage-acceptance.log
             build/linux/pyinstaller/backend_linux/warn-backend_linux.txt
             build/linux/acceptance/**/*.log
+            build/linux/appimage-acceptance/**/*.log

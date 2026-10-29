@@ -2,12 +2,14 @@
 
 `tools/build_linux.py` builds an **unpublished x86_64 candidate**: frozen Python sidecar,
 Tauri frontend, four C audio helpers and pinned speech.cpp 0.9.0 CPU or Vulkan.
-The output is a `tar.gz`, SHA-256 sidecar and JSON file inventory. Use tar with symlink
+The default output is a `tar.gz`, SHA-256 sidecar and JSON file inventory. Use tar with symlink
 preservation; copying only the executable or flattening `_internal` is unsupported.
+Add `--appimage --download-appimage-tools` for an additional inspected AppImage;
+see [AppImage build and acceptance](appimage.md). The CI builds both formats.
 
 The GitHub Actions workflow `Linux candidate (no publication)` targets Ubuntu 24.04.
 It runs on relevant pull requests or manual dispatch, tests the relocated package,
-then retains successful candidates for seven days. It has `contents: read`, no
+and the AppImage extraction fallback, then retains successful candidates for seven days. It has `contents: read`, no
 publishing credentials and no release/AUR/upstream actions. Creating the workflow
 does not mean a hosted run has already passed.
 
