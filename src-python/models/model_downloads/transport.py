@@ -2,6 +2,7 @@
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 import socket
+from models.http_stream import InterruptibleSocket
 
 HOSTS = frozenset(('huggingface.co', 'cdn-lfs.huggingface.co', 'cdn-lfs-us-1.hf.co',
                    'cdn-lfs-eu-1.hf.co', 'cas-bridge.xethub.hf.co', 'us.aws.cdn.hf.co'))
@@ -29,6 +30,9 @@ class PublicResponse:
     def __init__(self, response):
         self.response = response
         self.socket = getattr(getattr(getattr(response, 'fp', None), 'raw', None), '_sock', None)
+        if self.socket is not None:
+            self.socket = InterruptibleSocket(self.socket)
+            response.fp.raw._sock = self.socket
 
     def read(self, size):
         # read1 returns available bytes; a slow trickle cannot trap a whole MiB read.

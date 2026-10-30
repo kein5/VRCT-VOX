@@ -1,14 +1,34 @@
 # SPDX-License-Identifier: GPL-3.0-only
 import importlib
+import importlib.util
 import io
+import sys
 from threading import Event
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
 
-def test_worker_spawn_failure_releases_output_and_bridge(tmp_path, monkeypatch):
-    module = importlib.import_module('integrations.seed_vc.acceptance')
+@pytest.fixture
+def supervisor(monkeypatch):
+    # Load the real supervisor logic, replacing only the Linux output boundary.
+    # Do not leave an import containing a fake dependency in sys.modules.
+    output = ModuleType('models.audio_routing.devices_pipewire')
+
+    def unexpected_output(*args, **kwargs):
+        pytest.fail('test must supply an output; no real PipeWire is permitted')
+
+    output.PipeWireOutput = unexpected_output
+    spec = importlib.util.find_spec('integrations.seed_vc.acceptance')
+    module = importlib.util.module_from_spec(spec)
+    with monkeypatch.context() as imports:
+        imports.setitem(sys.modules, output.__name__, output)
+        spec.loader.exec_module(module)
+    return module
+
+
+def test_worker_spawn_failure_releases_output_and_bridge(tmp_path, monkeypatch, supervisor):
+    module = supervisor
     closed = []
 
     class Bridge:
@@ -40,8 +60,8 @@ def test_worker_spawn_failure_releases_output_and_bridge(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('delay_at', ['receive', 'prepare', 'write'])
-def test_stale_packet_never_reaches_output_after_a_stall(monkeypatch, delay_at):
-    module = importlib.import_module('integrations.seed_vc.acceptance')
+def test_stale_packet_never_reaches_output_after_a_stall(monkeypatch, delay_at, supervisor):
+    module = supervisor
     clock = [10_000_000_000]
     due = clock[0] - (2_000_000_000 if delay_at == 'receive' else 0)
     sent, closed = [], []
@@ -80,6 +100,7 @@ def test_stale_packet_never_reaches_output_after_a_stall(monkeypatch, delay_at):
     assert set(closed) == {'bridge', 'output', 'worker'}
 
 
+@pytest.mark.skipif(not sys.platform.startswith('linux'), reason='Linux PipeWire pipe output uses fcntl')
 def test_pipewire_rechecks_cancellation_after_writable_wait(monkeypatch):
     module = importlib.import_module('models.audio_routing.devices_pipewire')
     writable = [False]

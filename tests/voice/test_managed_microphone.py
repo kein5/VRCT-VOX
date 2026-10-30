@@ -1,7 +1,9 @@
 """Provisioning changes the OS: replace only subprocess/tool discovery boundaries."""
 
 import copy
+import os
 import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -19,6 +21,21 @@ def complete_graph():
 @pytest.fixture
 def machine(tmp_path, monkeypatch):
     from models.audio_routing import managed_microphone as module
+
+    # Only this module sees a Linux host; do not change Python's global platform.
+    monkeypatch.setattr(module, "sys", SimpleNamespace(platform="linux"))
+    if sys.platform == "win32":
+        # These cases test provisioning decisions with fake systemctl/graph IO.
+        # Real flock serialization remains covered by the Linux-only case below.
+        def flock(fd, flags):
+            assert flags == 2 | 4
+            assert os.fstat(fd.fileno()).st_size == 0
+
+        monkeypatch.setitem(sys.modules, "fcntl", SimpleNamespace(LOCK_EX=2, LOCK_NB=4, flock=flock))
+        monkeypatch.setattr(module, "os", SimpleNamespace(
+            open=os.open, fdopen=os.fdopen, fsync=os.fsync,
+            O_CREAT=os.O_CREAT, O_RDWR=os.O_RDWR, O_NOFOLLOW=0,
+        ))
 
     state = SimpleNamespace(
         graph=[],
@@ -202,6 +219,7 @@ def test_saved_manual_route_is_not_duplicated_before_daemon_loads_it(machine):
     assert manual.read_text() == "existing daemon configuration"
 
 
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Concurrent provisioning verifies Linux flock serialization")
 def test_concurrent_preparation_installs_only_one_route(machine):
     from concurrent.futures import ThreadPoolExecutor
 

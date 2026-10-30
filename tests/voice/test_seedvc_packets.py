@@ -27,6 +27,7 @@ def test_eof_or_invalid_packet_is_a_failure_not_silence(body):
         api().read_packet(io.BytesIO(body))
 
 
+@pytest.mark.skipif(os.name != 'posix', reason='select on worker pipes requires POSIX file descriptors')
 def test_partial_packet_from_stalled_worker_times_out():
     read, write = os.pipe()
     with os.fdopen(read, 'rb', buffering=0) as source, os.fdopen(write, 'wb', buffering=0) as sink:

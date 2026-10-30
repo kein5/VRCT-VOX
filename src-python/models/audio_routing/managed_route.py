@@ -1,6 +1,17 @@
 """Control only: OS gate and durable intent; never processes audio samples."""
-from threading import Condition, Event, Thread
+from threading import Condition, Event, Lock, Thread
 import time
+
+_observation_lock = Lock()
+_last_observation = 0
+
+
+def _next_observation():
+    # A coarse Windows clock may tick once for several controller instances.
+    global _last_observation
+    with _observation_lock:
+        _last_observation = max(time.monotonic_ns(), _last_observation + 1)
+        return _last_observation
 
 
 class VoiceRoute:
@@ -17,7 +28,6 @@ class VoiceRoute:
         self._suppress_direct = False
         self._direct_observed = None
         self._revision = 0
-        self._observation_id = 0
         self._pending = False
         self._error = None
         self._ready = True
@@ -35,8 +45,7 @@ class VoiceRoute:
     def status(self):
         with self._condition:
             # Strings preserve nanosecond ordering across JS's integer precision limit.
-            # The OS monotonic clock also orders a replacement controller's snapshots.
-            self._observation_id = max(time.monotonic_ns(), self._observation_id + 1)
+            observation_id = _next_observation()
             return {'managed': self._managed, 'requested_muted': self._desired,
                     'observed_muted': self._observed, 'ready': self._ready,
                     'pending': self._pending, 'error': self._error,
@@ -44,7 +53,7 @@ class VoiceRoute:
                     'generation': self._revision, 'closed': self._closed,
                     'requested_direct_suppressed': self._suppress_direct,
                     'observed_direct_suppressed': self._direct_observed,
-                    'observation_id': str(self._observation_id)}
+                    'observation_id': str(observation_id)}
 
     def _request_locked(self, muted):
         if self._closed:

@@ -86,14 +86,23 @@ def wait_done(probe):
     raise AssertionError(probe.state())
 
 
-def executable(tmp_path, body):
+def executable(tmp_path, body, monkeypatch):
+    from models.model_downloads import hardware
+
     path = tmp_path / "speech-fake"
-    path.write_text("#!" + sys.executable + "\n" + body)
-    path.chmod(0o700)
+    path.write_text(body, encoding="utf-8")
+    popen = hardware.subprocess.Popen
+
+    def launch(command, **kwargs):
+        assert command == [str(path), "devices", "--json"]
+        # Keep a real child/pipe, without relying on POSIX shebang execution.
+        return popen([sys.executable, str(path), *command[1:]], **kwargs)
+
+    monkeypatch.setattr(hardware.subprocess, "Popen", launch)
     return path
 
 
-def test_refresh_is_async_fixed_command_and_never_loads_model(tmp_path):
+def test_refresh_is_async_fixed_command_and_never_loads_model(tmp_path, monkeypatch):
     from models.model_downloads.hardware import HardwareProbe
 
     path = executable(
@@ -101,6 +110,7 @@ def test_refresh_is_async_fixed_command_and_never_loads_model(tmp_path):
         'import sys,os,json,time\nassert sys.argv[1:]==["devices","--json"]\nassert os.environ["SPEECH_NO_UPDATE_CHECK"]=="1"\ntime.sleep(.1)\nprint('
         + repr(json.dumps(devices()))
         + ")\n",
+        monkeypatch,
     )
     calls = []
     probe = HardwareProbe(binary=lambda: (calls.append(1) or path))
@@ -128,11 +138,13 @@ def test_refresh_is_async_fixed_command_and_never_loads_model(tmp_path):
         ("import sys;sys.exit(1)", "hardware_failed"),
     ],
 )
-def test_bad_or_stalled_probe_is_not_cpu_only_or_ready(tmp_path, body, error):
+def test_bad_or_stalled_probe_is_not_cpu_only_or_ready(tmp_path, monkeypatch, body, error):
     from models.model_downloads.hardware import HardwareProbe
 
-    path = executable(tmp_path, body)
-    probe = HardwareProbe(binary=lambda: path, timeout=0.1)
+    path = executable(tmp_path, body, monkeypatch)
+    # Only the stalled-child case measures the deadline. Invalid output/exit
+    # cases allow interpreter startup on Windows before asserting their error.
+    probe = HardwareProbe(binary=lambda: path, timeout=0.1 if error == "hardware_timeout" else 1)
     try:
         probe.refresh()
         state = wait_done(probe)
@@ -145,10 +157,10 @@ def test_bad_or_stalled_probe_is_not_cpu_only_or_ready(tmp_path, body, error):
         assert probe.close()
 
 
-def test_close_reaps_only_owned_probe_and_cannot_restart(tmp_path):
+def test_close_reaps_only_owned_probe_and_cannot_restart(tmp_path, monkeypatch):
     from models.model_downloads.hardware import HardwareProbe
 
-    path = executable(tmp_path, "import time;time.sleep(30)")
+    path = executable(tmp_path, "import time;time.sleep(30)", monkeypatch)
     probe = HardwareProbe(binary=lambda: path)
     probe.refresh()
     end = time.monotonic() + 2
@@ -162,7 +174,8 @@ def test_close_reaps_only_owned_probe_and_cannot_restart(tmp_path):
         probe.refresh()
 
 
-def test_shutdown_escalates_if_owned_probe_ignores_termination(tmp_path):
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows terminate bypasses Python SIGTERM handlers")
+def test_shutdown_escalates_if_owned_probe_ignores_termination(tmp_path, monkeypatch):
     from models.model_downloads.hardware import HardwareProbe
 
     ready = tmp_path / "ready"
@@ -171,6 +184,7 @@ def test_shutdown_escalates_if_owned_probe_ignores_termination(tmp_path):
         "import signal,time\nfrom pathlib import Path\nsignal.signal(signal.SIGTERM,signal.SIG_IGN)\nPath("
         + repr(str(ready))
         + ').write_text("ready")\ntime.sleep(30)',
+        monkeypatch,
     )
     probe = HardwareProbe(binary=lambda: path, timeout=3)
     try:

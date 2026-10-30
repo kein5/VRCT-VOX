@@ -43,6 +43,7 @@ def test_pair_reports_direct_branch_identity_and_mute_from_one_snapshot(monkeypa
     import json
     from types import SimpleNamespace
     from models.audio_routing import pipewire_gate as module
+    monkeypatch.setattr(module, 'sys', SimpleNamespace(platform='linux'))
     data = graph()
     direct = data[-1]['info']
     direct['props']['object.serial'] = 20

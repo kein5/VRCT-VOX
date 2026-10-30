@@ -126,7 +126,7 @@ def test_malformed_download_requests_fail_without_side_effects(
 
 def test_download_routes_are_stdio_only_and_registered():
     root = Path(__file__).resolve().parents[2]
-    tree = ast.parse((root / "src-python/mainloop.py").read_text())
+    tree = ast.parse((root / "src-python/mainloop.py").read_text(encoding="utf-8"))
     paths = {
         n.value
         for n in ast.walk(tree)

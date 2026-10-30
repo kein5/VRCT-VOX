@@ -201,3 +201,29 @@ def test_request_end_releases_monitor_and_prevents_late_cancellation(ending):
             assert not [t for t in threads() if t not in before and t.name == 'vrct-tts-listener']
         finally:
             stream.close()
+
+
+@pytest.mark.parametrize('host,listener_ip', [('127.0.0.1', '127.0.0.1'),
+    ('127.0.0.1', '0.0.0.0'), ('127.0.0.1', '::'), ('::1', '::1'), ('::1', '::'),
+    ('localhost', '127.0.0.1'), ('localhost', '::1')])
+def test_windows_listener_table_requires_exact_port_and_listen_state(monkeypatch, host, listener_ip):
+    import psutil
+    from types import SimpleNamespace
+    from models.tts.speechcpp_tts import _windows_listener_missing
+    rows = [SimpleNamespace(status=psutil.CONN_LISTEN, laddr=(listener_ip, 1234))]
+    monkeypatch.setattr(psutil, 'net_connections', lambda kind: rows)
+    assert not _windows_listener_missing((host, 1234))
+    assert _windows_listener_missing((host, 1235))
+    rows[0].status = psutil.CONN_ESTABLISHED
+    assert _windows_listener_missing((host, 1234))
+    rows[0].status, rows[0].laddr = psutil.CONN_LISTEN, ('192.0.2.1', 1234)
+    assert _windows_listener_missing((host, 1234))
+
+
+def test_windows_listener_query_failure_is_inconclusive(monkeypatch):
+    import psutil
+    from models.tts.speechcpp_tts import _windows_listener_missing
+    def unavailable(**kwargs):
+        raise psutil.AccessDenied()
+    monkeypatch.setattr(psutil, 'net_connections', unavailable)
+    assert not _windows_listener_missing(('127.0.0.1', 1234))

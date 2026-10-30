@@ -190,6 +190,7 @@ while True: time.sleep(.05)
     return watch
 
 
+@pytest.mark.skipif(sys.platform == 'win32', reason='Final monitor output is emitted by a POSIX SIGTERM handler')
 def test_finish_drains_normal_monitor_and_returns_final_evidence(monkeypatch, tmp_path):
     watch = monitor_process(monkeypatch, tmp_path)
     assert watch.check()['valid']
@@ -203,6 +204,7 @@ def test_finish_drains_normal_monitor_and_returns_final_evidence(monkeypatch, tm
     (b'[{"id":', 'incomplete_document'),
     (b'\xff', 'decode'),
 ])
+@pytest.mark.skipif(sys.platform == 'win32', reason='Final monitor output is emitted by a POSIX SIGTERM handler')
 def test_finish_rejects_bad_output_arriving_after_last_check(monkeypatch, tmp_path, final, reason):
     watch = monitor_process(monkeypatch, tmp_path, final)
     assert watch.check()['valid']

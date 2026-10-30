@@ -1,5 +1,6 @@
 """Linux distribution policy: preserve valid links, fail on unsafe payloads."""
 import io
+import os
 import tarfile
 
 import pytest
@@ -104,6 +105,7 @@ def test_default_distribution_guard_still_rejects_links(tmp_path):
         check([tmp_path])
 
 
+@pytest.mark.skipif(os.name != 'posix', reason='Linux package executable/read permissions require POSIX modes')
 def test_packaged_modes_are_readable_by_installing_user(tmp_path):
     (tmp_path / 'dir').mkdir(mode=0o700)
     data = tmp_path / 'dir/data'

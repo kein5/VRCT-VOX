@@ -30,7 +30,7 @@ OWNER_FILE = ".vrct-vox-dev-env"
 OWNER = "VRCT-VOX developer environment v1\n"
 LINT_PATHS = [
     "src-python/models/tts", "src-python/models/audio_routing",
-    "src-python/models/voice_events.py", "tests/voice", "tools/voice_cli.py",
+    "src-python/models/voice_events.py", "src-python/models/http_stream.py", "tests/voice", "tools/voice_cli.py",
     "tools/voice_latency.py", "tools/voice_acceptance.py", "tools/voice_b_poc.py",
     "tools/voice_route.py", "tools/voice_route_acceptance.py", "tools/build_voice_gate.py",
     "tools/check_voice_distribution.py", "tools/release_candidate.py",

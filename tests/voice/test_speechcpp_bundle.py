@@ -49,6 +49,7 @@ def archive(tmp_path, *, entries=None):
     return target, asset
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Valid Linux bundle staging requires POSIX executable mode")
 def test_staged_inventory_has_only_executable_and_all_pinned_notices(tmp_path):
     m = module()
     source, asset = archive(tmp_path)
@@ -151,6 +152,7 @@ def test_bad_notices_reject_staging(tmp_path, fault):
 @pytest.mark.parametrize(
     "member", ["speech", "notices/NOTICE.md", "notices/GCC-COPYING3"]
 )
+@pytest.mark.skipif(os.name != "posix", reason="Valid Linux bundle staging requires POSIX executable mode")
 def test_verify_rejects_tampering_after_staging(tmp_path, member):
     m = module()
     source, asset = archive(tmp_path)
@@ -161,6 +163,7 @@ def test_verify_rejects_tampering_after_staging(tmp_path, member):
         m.verify_bundle(output)
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Valid Linux bundle staging requires POSIX executable mode")
 def test_verify_rejects_unlisted_private_file(tmp_path):
     m = module()
     source, asset = archive(tmp_path)
@@ -219,6 +222,7 @@ def test_interrupted_download_and_existing_destination_are_preserved(tmp_path):
     assert dest.read_bytes() == b"keep"
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Valid Linux bundle staging requires POSIX executable mode")
 def test_cli_local_archive_does_not_access_network(tmp_path, monkeypatch):
     m = module()
     source, asset = archive(tmp_path)
@@ -314,6 +318,7 @@ def test_download_refuses_unreviewed_url_before_network(tmp_path):
     assert not list(tmp_path.iterdir())
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Valid Linux bundle staging requires POSIX executable mode")
 def test_archive_replacement_after_validation_cannot_change_staged_bytes(
     tmp_path, monkeypatch
 ):

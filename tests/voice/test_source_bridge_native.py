@@ -132,13 +132,23 @@ else:
             assert parent.poll() is None
         else:
             parent.wait(timeout=3)
-        wait_for(lambda: not child.is_running() or child.status() == psutil.STATUS_ZOMBIE, timeout=3)
+        def ended():
+            try:
+                return not child.is_running() or child.status() == psutil.STATUS_ZOMBIE
+            except psutil.NoSuchProcess:
+                # Reaping can happen between is_running() and status().
+                return True
+        wait_for(ended, timeout=3)
     finally:
         if parent.poll() is None:
             parent.kill()
         parent.communicate(timeout=3)
-        if child and child.is_running() and child.status() != psutil.STATUS_ZOMBIE:
-            child.kill()
+        if child:
+            try:
+                if child.is_running() and child.status() != psutil.STATUS_ZOMBIE:
+                    child.kill()
+            except psutil.NoSuchProcess:
+                pass
 
 
 def test_creator_death_before_launcher_main_cannot_leave_audio_child(tmp_path):

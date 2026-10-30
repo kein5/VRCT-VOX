@@ -16,6 +16,7 @@ import wave
 from models.tts.settings import local_url
 from models.tts.speechcpp_tts import CancelToken
 from models.voice_events import AudioFrame
+from models.http_stream import InterruptibleSocket
 
 MAX_RESPONSE = 1024 * 1024
 
@@ -99,6 +100,7 @@ class SpeechCppASR:
                 raise OSError(error, 'connect_failed')
             check()
             sock.settimeout(max(.001, deadline - monotonic()))
+            sock = conn.sock = InterruptibleSocket(sock)
             conn.request(method, path, body=body, headers=headers or {})
             response = conn.getresponse()
             check()

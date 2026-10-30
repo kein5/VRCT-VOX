@@ -382,3 +382,19 @@ def test_direct_fault_revokes_resume_and_mutes_main_before_repair(route, fault):
     gate.direct_fail = gate.direct_missing = False
     ready(control)
     assert gate.direct_muted and gate.muted and store.value
+
+
+def test_status_order_survives_recreation_with_coarse_clock(monkeypatch):
+    from models.audio_routing import managed_route
+    monkeypatch.setattr(managed_route.time, 'monotonic_ns', lambda: 100)
+    bus = VoiceEventBus()
+    first = managed_route.VoiceRoute(bus, gate=Gate(), store=Store())
+    replacement = managed_route.VoiceRoute(bus, gate=Gate(), store=Store())
+    try:
+        ids = [int(first.status()['observation_id']), int(first.status()['observation_id']),
+               int(replacement.status()['observation_id']), int(first.status()['observation_id'])]
+        assert ids == sorted(set(ids))
+    finally:
+        first.close()
+        replacement.close()
+        bus.close()

@@ -2,11 +2,13 @@
 import http.client
 import json
 import socket
+import sys
 from threading import Event, Lock, Thread, Timer
 from time import monotonic
 from urllib.parse import urlsplit
 
 from models.voice_events import AudioFrame
+from models.http_stream import InterruptibleSocket
 from .settings import local_url
 from .model_options import parse_options, SAFE_SEED_MAX
 
@@ -103,6 +105,26 @@ class CancelToken:
                 pass
 
 
+def _windows_listener_missing(address):
+    """Winsock may retry refused connects beyond the short probe timeout.
+
+    A successful Windows TCP table query can establish listener absence without
+    consuming response PCM. Failure to read the table remains inconclusive.
+    No connection addresses or process details are retained or published.
+    """
+    import psutil
+    host, port = address
+    addresses = {'::1', '::'} if host == '::1' else {'127.0.0.1', '0.0.0.0', '::'}
+    if host == 'localhost':
+        addresses.add('::1')
+    try:
+        rows = psutil.net_connections(kind='tcp')
+    except (psutil.Error, OSError):
+        return False
+    return not any(row.status == psutil.CONN_LISTEN and row.laddr
+                   and row.laddr[0] in addresses and row.laddr[1] == port for row in rows)
+
+
 def _watch_listener(address, token, stopped):
     """Detect a refused localhost listener independently of playback-paced reads.
 
@@ -111,6 +133,10 @@ def _watch_listener(address, token, stopped):
     No PCM is read or queued here, and only this request's token is cancelled.
     """
     while not stopped.wait(.02) and not token.is_set():
+        if sys.platform == 'win32' and _windows_listener_missing(address):
+            if not stopped.is_set():
+                token.cancel("server_unavailable")
+            return
         try:
             with socket.create_connection(address, timeout=.1):
                 pass
@@ -154,7 +180,7 @@ class SpeechCppTTS:
         try:
             token.check()
             conn.connect()
-            sock = conn.sock
+            sock = conn.sock = InterruptibleSocket(conn.sock)
             token.register(interrupt)
             token.check()
             if expired.is_set():
@@ -210,7 +236,7 @@ class SpeechCppTTS:
         try:
             cancel_token.check()
             conn.connect()
-            sock = conn.sock
+            sock = conn.sock = InterruptibleSocket(conn.sock)
 
             def interrupt():
                 # shutdown wakes read1/getresponse without closing a file object

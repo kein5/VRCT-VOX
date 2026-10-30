@@ -94,6 +94,7 @@ def test_declared_pcm_is_bounded_before_reading_payload():
         p.read_packet(io.BytesIO(b'VVC1' + struct.pack('<I', len(data)) + data), timeout=None)
 
 
+@pytest.mark.skipif(os.name != 'posix', reason='select on worker pipes requires POSIX file descriptors')
 def test_partial_pipe_packet_times_out_and_can_be_cancelled():
     read, write = os.pipe()
     with os.fdopen(read, 'rb', buffering=0) as source, os.fdopen(write, 'wb', buffering=0) as sink:

@@ -128,7 +128,8 @@ def test_rechecks_model_task_after_previous_success():
         assert len(state.posts) == 1
 
 
-@pytest.mark.parametrize('payload', [b'not json', b'{"text":4}', b'[]', b'{"other":"private"}', b' ' * (1024 * 1024 + 1)])
+@pytest.mark.parametrize('payload', [b'not json', b'{"text":4}', b'[]', b'{"other":"private"}', b' ' * (1024 * 1024 + 1)],
+                         ids=['invalid-json', 'non-text', 'array', 'missing-text', 'oversize'])
 def test_bad_or_large_response_never_becomes_transcript(payload):
     with server() as (url, state):
         state.payload = payload

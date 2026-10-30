@@ -44,7 +44,7 @@ def test_control_encoding_is_bounded_and_has_one_frame():
         encode({'padding': 'a'*32768})
 
 
-@pytest.mark.parametrize('wire', [b'x'*32768, b'{bad}\n', b''])
+@pytest.mark.parametrize('wire', [b'x'*32768, b'{bad}\n', b''], ids=['oversize', 'malformed', 'eof'])
 def test_reader_rejects_oversize_malformed_and_eof(wire, tmp_path):
     from models.voice_conversion.router_protocol import Reader
     path = tmp_path/'wire'
