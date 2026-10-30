@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import psutil
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'platform'))
-from test_native_quick_chat import sidecars
+from native_processes import sidecars
 
 
 def test_vanished_child_is_ignored_while_owned_sidecar_is_retained():

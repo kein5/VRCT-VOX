@@ -17,6 +17,7 @@ import time
 import pytest
 
 from native_webdriver import NativeWebDriver, ROOT
+from native_processes import sidecars
 from test_native_ui import initial_state
 from test_native_realtime import TranslationFixture
 from tools.voice_acceptance import private_graph, wait_for
@@ -32,21 +33,6 @@ def window_for(pid, title):
     found = subprocess.run(['xdotool', 'search', '--all', '--onlyvisible', '--pid', str(pid), '--name', f'^{title}$'],
                            capture_output=True, text=True, timeout=5)
     return found.stdout.strip().splitlines() if found.returncode == 0 else []
-
-
-def sidecars(ui):
-    import psutil
-
-    found = []
-    for child in ui.app_process.children(recursive=True):
-        try:
-            if Path(child.exe()).name in ('main', 'vrct-vox-sidecar', 'vrct-vox-sidecar.bin'):
-                found.append(child.pid)
-        except psutil.NoSuchProcess:
-            # Gate inspection and playback helpers can exit during enumeration.
-            # The caller still compares the live sidecar set with its baseline.
-            continue
-    return sorted(found)
 
 
 def stacking_order():

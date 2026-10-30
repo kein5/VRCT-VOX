@@ -55,11 +55,15 @@ def test_old_runtime_or_daemon_cannot_start_capture(tmp_path):
 #define main capture_main
 #define pw_get_library_version fixture_version
 #define pw_main_loop_quit fixture_quit
+#define pw_stream_new fixture_stream_new
 #include "''' + str(ROOT / 'native/asr-capture/main.c') + '''"
 #undef main
-static int quits;
+static int quits, streams;
 const char *fixture_version(void) { return "1.0.5"; }
 int fixture_quit(struct pw_main_loop *loop) { (void)loop; quits++; return 0; }
+struct pw_stream *fixture_stream_new(struct pw_core *core, const char *name, struct pw_properties *props) {
+    (void)core; (void)name; streams++; pw_properties_free(props); return NULL;
+}
 int main(void) {
     const char *bad[] = {NULL,"","1.0.5","1.6.9","0.3.99","1.6","1.6.10-rc1",
         "-1.6.10","1.-6.10","1.6.10extra","4294967296.0.0"," 1.6.10"};
@@ -68,7 +72,7 @@ int main(void) {
     assert(supported_version("1.7.0") && supported_version("2.0.0"));
     /* The old linked library is rejected before CLI parsing/pw_init/connection. */
     assert(capture_main(0,NULL)==1);
-    struct state s={.cookie=42,.sync=7};
+    struct state s={.cookie=42,.sync=7,.target_ok=true,.names=1,.serial=7,.kind="mic"};
     struct pw_core_info info={.cookie=42,.version="1.6.10"};
     core_info(&s,&info);
     assert(s.cookie_ok && !s.stopping);
@@ -76,7 +80,7 @@ int main(void) {
     core_info(&s,&info);
     assert(s.stopping && s.result==1 && quits==1);
     core_done(&s,PW_ID_CORE,7);
-    assert(!s.stream); /* No stream after a rejected daemon, even with a valid cookie. */
+    assert(!s.stream && streams==0); /* All other connection preconditions are satisfied. */
     return 0;
 }
 ''')

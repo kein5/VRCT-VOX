@@ -16,8 +16,6 @@ import wave
 import numpy as np
 import pytest
 
-from models.audio_routing.devices_pipewire import PipeWireOutput
-from models.transcription.capture_pipewire import PipeWireCapture, enumerate_endpoints
 from models.transcription.realtime_audio import RealtimeIngress
 from models.transcription.speechcpp_asr import ASRError, SpeechCppASR
 from models.transcription.speechcpp_realtime import RealtimeError, SpeechCppRealtime
@@ -30,6 +28,9 @@ from tools.voice_acceptance import private_graph, loopback, nodes, stop_process
     reason="consented local Silero and Linux capture required",
 )
 def test_private_os_capture_two_sources_to_real_server_vad(tmp_path):
+    from models.audio_routing.devices_pipewire import PipeWireOutput
+    from models.transcription.capture_pipewire import PipeWireCapture, enumerate_endpoints
+
     binary = Path(os.environ["VRCT_SPEECH_BINARY"]).resolve(strict=True)
     asr = Path(os.environ["VRCT_SPEECH_ASR_MODEL"]).resolve(strict=True)
     vad = Path(os.environ["VRCT_SPEECH_VAD_MODEL"]).resolve(strict=True)
