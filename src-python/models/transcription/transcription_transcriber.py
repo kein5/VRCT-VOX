@@ -31,7 +31,6 @@ from typing import Any, Dict, List, Optional
 from speech_recognition import Recognizer, AudioData, AudioFile
 from speech_recognition.exceptions import UnknownValueError
 from datetime import datetime, timedelta
-from pyaudiowpatch import get_sample_size, paInt16
 from .transcription_whisper import getWhisperModel, checkWhisperWeight
 from .transcription_providers import (
     GoogleProvider,
@@ -641,7 +640,9 @@ class AudioTranscriber:
         temp_file = BytesIO()
         with wave.open(temp_file, 'wb') as wf:
             wf.setnchannels(self.audio_sources["channels"])
-            wf.setsampwidth(get_sample_size(paInt16))
+            # Recorder/normalizer output is signed 16-bit PCM on both OSes.
+            # Serializing it must not import a Windows-only device driver.
+            wf.setsampwidth(2)
             wf.setframerate(self.audio_sources["sample_rate"])
             wf.writeframes(self.audio_sources["last_sample"])
         temp_file.seek(0)

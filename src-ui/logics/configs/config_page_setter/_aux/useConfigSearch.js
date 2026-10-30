@@ -13,6 +13,7 @@ const VALID_TABS = [
     // "vr",
     "others",
     // "hotkeys",
+    "tts", "rvc",
     "advanced_settings",
 ];
 
@@ -25,6 +26,8 @@ const TAB_LABEL_KEYS = {
     others: "config_page.side_menu_labels.others",
     // vr: "config_page.side_menu_labels.vr",
     // hotkeys: "config_page.side_menu_labels.hotkeys",
+    tts: "config_page.side_menu_labels.tts",
+    rvc: "config_page.side_menu_labels.rvc",
     advanced_settings: "config_page.side_menu_labels.advanced_settings",
 };
 

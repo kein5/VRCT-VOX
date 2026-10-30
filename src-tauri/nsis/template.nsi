@@ -39,8 +39,10 @@ ${StrLoc}
 !define WEBVIEW2INSTALLERARGS "{{webview2_installer_args}}"
 !define WEBVIEW2BOOTSTRAPPERPATH "{{webview2_bootstrapper_path}}"
 !define WEBVIEW2INSTALLERPATH "{{webview2_installer_path}}"
-!define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCTNAME}"
-!define MANUPRODUCTKEY "Software\${MANUFACTURER}\${PRODUCTNAME}"
+; Stable registry identity preserves VRCT-TTS upgrades and stored install locations.
+!define INSTALLREGNAME "VRCT-TTS"
+!define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${INSTALLREGNAME}"
+!define MANUPRODUCTKEY "Software\${MANUFACTURER}\${INSTALLREGNAME}"
 !define UNINSTALLERSIGNCOMMAND "{{uninstaller_sign_cmd}}"
 !define ESTIMATEDSIZE "{{estimated_size}}"
 
@@ -134,7 +136,7 @@ Var SelectedLangage
 Var DialogChooseLanguage
 Page custom PageChooseLanguage PageLeaveChooseLanguage
 Function PageChooseLanguage
-    !insertmacro MUI_HEADER_TEXT "Initial Settings" "Set the language of the VRCT UI (can be changed later)."
+    !insertmacro MUI_HEADER_TEXT "Initial Settings" "Set the language of the VRCT-VOX UI (can be changed later)."
     nsDialogs::Create 1018
     Pop $DialogChooseLanguage
 
@@ -203,7 +205,7 @@ Var DialogChooseEdition
 Var SelectedEdition
 Page custom PageChooseEdition PageLeaveChooseEdition
 Function PageChooseEdition
-    !insertmacro MUI_HEADER_TEXT "Initial Settings" "Choose the version of VRCT to install (can be changed later by reinstalling)."
+    !insertmacro MUI_HEADER_TEXT "Initial Settings" "Choose the version of VRCT-VOX to install (can be changed later by reinstalling)."
     nsDialogs::Create 1018
     Pop $DialogChooseEdition
 
@@ -364,6 +366,23 @@ Function PageReinstallUpdateSelection
     StrCpy $ReinstallPageCheck 2
   ${EndIf}
 FunctionEnd
+; A renamed installation reuses the old directory. Never replace shared runtime
+; files while the legacy GUI or sidecar is still using them.
+!macro RequireLegacyProcessClosed DIRECTORY EXECUTABLE
+  ${If} ${FileExists} "${DIRECTORY}\${EXECUTABLE}"
+    !if "${INSTALLMODE}" == "currentUser"
+      nsis_tauri_utils::FindProcessCurrentUser "${EXECUTABLE}"
+    !else
+      nsis_tauri_utils::FindProcess "${EXECUTABLE}"
+    !endif
+    Pop $R0
+    ${If} $R0 = 0
+      BringToFront
+      Abort "Close VRCT-TTS and its background processes before installing VRCT-VOX."
+    ${EndIf}
+  ${EndIf}
+!macroend
+
 Function PageLeaveReinstall
   ${NSD_GetState} $R2 $R1
 
@@ -385,6 +404,8 @@ Function PageLeaveReinstall
       ExecWait '$R1' $0
     ${Else}
       ReadRegStr $4 SHCTX "${MANUPRODUCTKEY}" ""
+      !insertmacro RequireLegacyProcessClosed "$4" "vrct-tts.exe"
+      !insertmacro RequireLegacyProcessClosed "$4" "vrct-tts-sidecar.exe"
       ReadRegStr $R1 SHCTX "${UNINSTKEY}" "UninstallString"
       ExecWait '$R1 /P _?=$4' $0
     ${EndIf}
@@ -717,6 +738,7 @@ SectionEnd
 
 Var /GLOBAL existing_install
 
+
 Section Install
   ; Remember whether this is an update before SetOutPath can create the
   ; directory.  A failed update must not remove an existing installation or
@@ -728,14 +750,14 @@ Section Install
     StrCpy $existing_install "1"
   ${EndIf}
 
+  !insertmacro RequireLegacyProcessClosed "$INSTDIR" "vrct-tts.exe"
+  !insertmacro RequireLegacyProcessClosed "$INSTDIR" "vrct-tts-sidecar.exe"
   !insertmacro CheckIfAppIsRunning
 
   !addplugindir "..\..\..\..\nsis\plugins\x86-unicode"
   ; 指定のURLからファイルをダウンロード
-  !define SOFTWARE_RELEASE_REPO "ms-software/VRCT"
-  !define SOFTWARE_RELEASE_REPO_BETA "ms-software/VRCT-beta"
-  !define SOFTWARE_DOWNLOAD_FILENAME "VRCT.zip"
-  !define SOFTWARE_DOWNLOAD_FILENAME_GPU "VRCT_cuda.zip"
+  !define SOFTWARE_DOWNLOAD_FILENAME "VRCT-VOX.zip"
+  !define SOFTWARE_DOWNLOAD_FILENAME_GPU "VRCT-VOX_cuda.zip"
 
   ; Free-space budget (MiB) per edition. The compressed archive is written to
   ; %TEMP%, the extracted tree to $INSTDIR, and both exist at once during
@@ -818,38 +840,15 @@ Section Install
     ${EndIf}
   ${EndIf}
 
-  ; Pin to a specific released version's HF tag (e.g. "/VERSION=3.4.2" -> tag
-  ; "v3.4.2", or typed into the release-channel page) when requested for
-  ; rollback; otherwise fetch the latest from the selected channel's "main".
+  ; A fork installer uses its own version unless /VERSION explicitly pins
+  ; another fork tag. Never fetch a floating upstream payload.
   ${If} $TargetVersion != ""
-    StrCpy $release_revision "v$TargetVersion"
     StrCpy $effective_version $TargetVersion
-
-    ; Beta versions (e.g. "3.5.0-beta.1") are published to a separate HF repo,
-    ; not the production one -- an explicit pinned version routes by its own
-    ; string, regardless of which channel radio button is selected, since a
-    ; given tag only ever exists in one of the two repos.
-    ${StrLoc} $beta_marker_pos $effective_version "-beta" ">"
-    ${If} $beta_marker_pos == ""
-      ${StrLoc} $beta_marker_pos $effective_version "-rc" ">"
-    ${EndIf}
-    ${If} $beta_marker_pos == ""
-      StrCpy $release_repo "${SOFTWARE_RELEASE_REPO}"
-    ${Else}
-      StrCpy $release_repo "${SOFTWARE_RELEASE_REPO_BETA}"
-    ${EndIf}
   ${Else}
-    ; No specific version pinned -- fetch the latest from whichever channel
-    ; the user picked on the release-channel page.
-    StrCpy $release_revision "main"
-    ${If} $SelectedChannel == "beta"
-      StrCpy $release_repo "${SOFTWARE_RELEASE_REPO_BETA}"
-    ${Else}
-      StrCpy $release_repo "${SOFTWARE_RELEASE_REPO}"
-    ${EndIf}
+    StrCpy $effective_version "${VERSION}"
   ${EndIf}
-
-  StrCpy $cmder_dl "https://huggingface.co/$release_repo/resolve/$release_revision/$file_name"
+  StrCpy $release_revision "v$effective_version"
+  StrCpy $cmder_dl "https://github.com/kein5/VRCT-VOX/releases/download/$release_revision/$file_name"
   DetailPrint "Got URL : $cmder_dl"
 
   ; New releases publish a SHA-256 sidecar next to each package. Download it
@@ -1187,6 +1186,12 @@ Section Install
     Abort
 
   install_ready:
+  ; Retire only legacy executables after the new payload passed extraction.
+  ; config.json, models and the stable installation registry keys stay intact.
+  Delete "$INSTDIR\vrct-tts.exe"
+  Delete "$INSTDIR\vrct-tts-sidecar.exe"
+  Delete "$DESKTOP\vrct-tts.lnk"
+  Delete "$SMPROGRAMS\$AppStartMenuFolder\vrct-tts.lnk"
   ; The archive is no longer needed once it is unpacked; reclaim the space.
   Delete "$TEMP\$file_name"
 

@@ -1,0 +1,144 @@
+{
+  "status": "passed",
+  "javascript_errors": [],
+  "screens": [
+    {
+      "name": "main-on",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "main-off",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "main-unready",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "main-pending",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "main-both",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "main-rvc-only",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "main-compact",
+      "viewport": {
+        "width": 870,
+        "height": 760
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "dirty",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "saved",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "engine",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "failure",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "generation",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "compact",
+      "viewport": {
+        "width": 870,
+        "height": 760
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "narrow",
+      "viewport": {
+        "width": 870,
+        "height": 760
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "rvc-saved",
+      "viewport": {
+        "width": 1120,
+        "height": 900
+      },
+      "horizontal_overflow": false
+    },
+    {
+      "name": "rvc-compact",
+      "viewport": {
+        "width": 870,
+        "height": 654
+      },
+      "horizontal_overflow": false
+    }
+  ],
+  "checks": [
+    "independent TTS/RVC toggles in all four combinations, keyboard Space",
+    "readiness feedback and RVC startup cancellation without changing TTS",
+    "TTS draft/save, independent engine save, CPU retry and stop simulation",
+    "RVC pitch boundaries and fraction rejection, index required and rate boundaries, save without start",
+    "RVC settings locked while running",
+    "shared external route preserved across pages; RVC never enables or changes it silently"
+  ],
+  "audio": false,
+  "product_integration": false
+}

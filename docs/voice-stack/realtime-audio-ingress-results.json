@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-28",
+  "physical_capture": false,
+  "production_ingress": true,
+  "silence_no_updates": true,
+  "results": [
+    {
+      "source": "mic",
+      "input_rate": 48000,
+      "finals": 2,
+      "partial_updates": 6,
+      "characters": [
+        3,
+        11
+      ],
+      "max_scheduled_capture_to_feed_ms": 62.730547
+    },
+    {
+      "source": "speaker",
+      "input_rate": 48000,
+      "finals": 2,
+      "partial_updates": 6,
+      "characters": [
+        3,
+        11
+      ],
+      "max_scheduled_capture_to_feed_ms": 62.696443
+    }
+  ],
+  "raw_report": "tmp/voice-resume/realtime-ingress-live/test_real_server_vad_two_sourc0/report.json"
+}

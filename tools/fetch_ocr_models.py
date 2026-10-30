@@ -1,12 +1,9 @@
-"""OCRのONNXモデルを配布物へ同梱できるよう、あらかじめ取得する。
+"""Explicit local OCR development helper; never run by fork packaging.
 
 python tools/fetch_ocr_models.py
 
-RapidOCRは未取得のモデルを初回使用時にダウンロードする。実行時にネットワークへ
-出る経路を作りたくないので、ビルド前にこのスクリプトで全部を rapidocr パッケージ内へ
-落としておき、spec の datas でそのまま同梱する (install.bat から呼ばれる)。
-
-取得するのは ocr_languages.py が使う組み合わせだけ。全モデルではない。
+This downloads RapidOCR models into the local environment. VRCT-VOX excludes
+these weights from distributions. Use only with the user's acquisition consent.
 """
 
 from __future__ import annotations

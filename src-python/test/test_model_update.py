@@ -27,8 +27,17 @@ def _make_text_response(text: str) -> Mock:
     return response
 
 
-class TestModelUpdate(unittest.TestCase):
+class _EnabledUpdaterTests(unittest.TestCase):
+    """Exercise inherited updater mechanics, independently of fork policy."""
+    def setUp(self):
+        gate = patch.object(type(config), "BUILTIN_UPDATER_ENABLED", True)
+        gate.start()
+        self.addCleanup(gate.stop)
+
+
+class TestModelUpdate(_EnabledUpdaterTests):
     def setUp(self) -> None:
+        super().setUp()
         # _downloadSetup() rejects downloads under 1MB as a likely non-installer
         # payload (e.g. an HTML error page), so every mocked download in this
         # file must clear that threshold.
@@ -280,7 +289,7 @@ class TestModelUpdate(unittest.TestCase):
 
         popen.assert_called_once_with(
             [
-                "VRCT_setup.exe",
+                "VRCT-VOX_setup.exe",
                 "/EDITION=gpu",
                 f"/UILANG={config.UI_LANGUAGE}",
                 f"/CHANNEL={config.SELECTED_RELEASE_CHANNEL}",
@@ -291,7 +300,7 @@ class TestModelUpdate(unittest.TestCase):
         os_exit.assert_called_once_with(0)
 
 
-class TestPinnedVersionDownload(unittest.TestCase):
+class TestPinnedVersionDownload(_EnabledUpdaterTests):
     """バージョンを指定した更新 (旧版への戻しなど) は、その版の setup.exe を取る。
 
     main は常に最新版なので、そこから取った setup.exe を指定版の .sha256 で
@@ -299,10 +308,11 @@ class TestPinnedVersionDownload(unittest.TestCase):
     beta.2 から beta.1 を選んだとき)。
     """
 
-    BETA_MAIN = "https://huggingface.co/ms-software/VRCT-beta/resolve/main/VRCT_setup.exe"
-    STABLE_MAIN = "https://huggingface.co/ms-software/VRCT/resolve/main/VRCT_setup.exe"
+    BETA_MAIN = "https://github.com/kein5/VRCT-VOX/releases/latest/download/VRCT-VOX_setup.exe"
+    STABLE_MAIN = "https://github.com/kein5/VRCT-VOX/releases/latest/download/VRCT-VOX_setup.exe"
 
     def setUp(self) -> None:
+        super().setUp()
         self.payload = b"data" * 300_000
         self.sha256 = hashlib.sha256(self.payload).hexdigest()
         # 現在のチャンネル (stable) と、指定する版 (beta) が違う場合を使う
@@ -336,17 +346,17 @@ class TestPinnedVersionDownload(unittest.TestCase):
     def test_setup_download_url_follows_the_target_version(self) -> None:
         self.assertEqual(
             config.setupDownloadUrl("3.5.1-beta.1", tag="v3.5.1-beta.1"),
-            "https://huggingface.co/ms-software/VRCT-beta/resolve/v3.5.1-beta.1/VRCT_setup.exe",
+            "https://github.com/kein5/VRCT-VOX/releases/download/v3.5.1-beta.1/VRCT-VOX_setup.exe",
         )
         self.assertEqual(
             config.setupDownloadUrl("3.5.0", tag="v3.5.0"),
-            "https://huggingface.co/ms-software/VRCT/resolve/v3.5.0/VRCT_setup.exe",
+            "https://github.com/kein5/VRCT-VOX/releases/download/v3.5.0/VRCT-VOX_setup.exe",
         )
 
-    def test_setup_download_url_without_tag_is_main_of_the_versions_channel(self) -> None:
+    def test_setup_download_url_pins_target_version_even_without_explicit_tag(self) -> None:
         self.assertEqual(config.setupDownloadUrl(), self.STABLE_MAIN)
-        self.assertEqual(config.setupDownloadUrl("3.5.1-beta.1"), self.BETA_MAIN)
-        self.assertEqual(config.setupDownloadUrl("3.5.1-rc.1"), self.BETA_MAIN)
+        self.assertIn("/download/v3.5.1-beta.1/", config.setupDownloadUrl("3.5.1-beta.1"))
+        self.assertIn("/download/v3.5.1-rc.1/", config.setupDownloadUrl("3.5.1-rc.1"))
 
     @patch("model.os_exit")
     @patch("model.psutil_Process")
@@ -385,11 +395,10 @@ class TestPinnedVersionDownload(unittest.TestCase):
     @patch("model.psutil_Process")
     @patch("model.Popen")
     @patch("model.requests_get")
-    def test_legacy_release_without_tagged_setup_falls_back_to_latest_installer(
+    def test_fork_without_tagged_setup_does_not_fall_back_to_latest(
         self, requests_get: Mock, popen: Mock, psutil_process: Mock, os_exit: Mock
     ) -> None:
-        # .sha256 も HF のタグ上の setup.exe も無い版 (3.4.3 などの旧版がそうだった)。
-        # インストーラは /VERSION で入れる版を決めるので、main のものを (サイズ検証だけで) 使う
+        # Fork does not inherit upstream releases or fall back to another version.
         target = "3.6.0"
         requested: list = []
         requests_get.side_effect = self._fake_get(
@@ -399,11 +408,11 @@ class TestPinnedVersionDownload(unittest.TestCase):
         )
 
         with patch("model.errorLogging"):
-            self.assertEqual(Model.updateSoftware(target), SETUP_LAUNCHED)
+            self.assertEqual(Model.updateSoftware(target), SETUP_DOWNLOAD_FAILED)
 
         self.assertIn(config.setupDownloadUrl(target, tag="v3.6.0"), requested)
-        self.assertIn(self.STABLE_MAIN, requested)
-        self.assertIn(f"/VERSION={target}", popen.call_args.args[0])
+        self.assertNotIn(self.STABLE_MAIN, requested)
+        popen.assert_not_called()
 
     @patch("model.Popen")
     @patch("model.requests_get")
@@ -491,7 +500,7 @@ class TestPinnedVersionDownload(unittest.TestCase):
         popen.assert_not_called()
 
 
-class TestCheckSoftwareUpdatedBetaChannel(unittest.TestCase):
+class TestCheckSoftwareUpdatedBetaChannel(_EnabledUpdaterTests):
     """Beta-channel latest-version detection must stay within beta releases.
 
     GitHub's releases-list API is ordered by creation date, not by channel or
@@ -500,6 +509,7 @@ class TestCheckSoftwareUpdatedBetaChannel(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        super().setUp()
         channel_patcher = patch.object(type(config), "SELECTED_RELEASE_CHANNEL", "beta")
         channel_patcher.start()
         self.addCleanup(channel_patcher.stop)
@@ -546,7 +556,7 @@ class TestCheckSoftwareUpdatedBetaChannel(unittest.TestCase):
         error_logging.assert_not_called()
 
 
-class ListAvailableReleasesTests(unittest.TestCase):
+class ListAvailableReleasesTests(_EnabledUpdaterTests):
     """The version picker only offers releases that have the picker UI (>= 3.6.0)."""
 
     @patch("model.errorLogging")
@@ -569,3 +579,17 @@ class ListAvailableReleasesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# Runtime policy belongs in the backend suite, which imports the real Model.
+def test_fork_updater_makes_no_request_and_never_starts_installer(monkeypatch):
+    import model
+    request, spawn = Mock(), Mock()
+    monkeypatch.setattr(model, "requests_get", request)
+    monkeypatch.setattr(model, "Popen", spawn)
+    assert model.Model.checkSoftwareUpdated()["is_update_available"] is False
+    assert model.Model.listAvailableReleases() == []
+    assert model.Model.updateSoftware() == model.SETUP_DOWNLOAD_FAILED
+    assert model.Model.updateCudaSoftware("3.6.0") == model.SETUP_DOWNLOAD_FAILED
+    request.assert_not_called()
+    spawn.assert_not_called()

@@ -1,6 +1,16 @@
 import atexit
 import os
 import sys
+
+from runtime_paths import bootstrap_linux_frozen
+bootstrap_linux_frozen()
+
+# The frozen sidecar doubles as the fixed lightweight transport entry. Dispatch
+# before importing Controller, UI services or their long-lived object graphs.
+if __name__ == '__main__' and sys.argv[1:] == ['--voice-router-worker']:
+    from models.voice_conversion.router_worker import main as voice_router_main
+    raise SystemExit(voice_router_main())
+
 import json
 import time
 import faulthandler
@@ -9,6 +19,11 @@ from threading import Thread, Event, Lock, Timer
 from queue import Queue, Empty
 import logging
 import warnings
+from sidecar_warnings import format_warning
+
+# Tauri emits stderr one line at a time. Python's default warning formatter
+# includes source lines, which would otherwise appear to be unrelated errors.
+warnings.formatwarning = format_warning
 
 # torch を同梱しないので transformers が import 時に「PyTorch/TensorFlow/Flax が
 # ありません」という助言警告を stderr に出す。UI は stderr の非 Warning 行を
@@ -30,7 +45,7 @@ warnings.filterwarnings(
 )
 
 from controller import Controller  # noqa: E402
-from utils import printLog, printResponse, errorLogging, encodeBase64 # noqa: E402
+from utils import printLog, printResponse, errorLogging, encodeBase64, diagnosticLogPath # noqa: E402
 
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
@@ -44,7 +59,7 @@ logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 # faulthandler は enable() 時点で fd を掴むため遅延 open できず、
 # クラッシュ無しの通常終了でも 0 バイトのファイルが残る。運用上のゴミ
 # 化を避けるため、atexit で「書き込みが無ければ削除」する。
-_crash_trace_path = "crash_trace.log"
+_crash_trace_path = diagnosticLogPath("crash_trace.log")
 _crash_trace_file = open(_crash_trace_path, "a", encoding="utf-8")
 faulthandler.enable(file=_crash_trace_file, all_threads=True)
 
@@ -253,6 +268,9 @@ mapping = {
     "/run/send_text_overlay": {"status": True, "variable":controller.sendTextOverlay},
 
     "/get/data/telemetry" : {"status": True, "variable":controller.getTelemetry},
+    "/get/data/auto_download_models" : {"status": True, "variable":controller.getAutoDownloadModels},
+    "/set/enable/auto_download_models" : {"status": True, "variable":controller.setEnableAutoDownloadModels},
+    "/set/disable/auto_download_models" : {"status": True, "variable":controller.setDisableAutoDownloadModels},
     "/set/enable/telemetry" : {"status": True, "variable":controller.setEnableTelemetry},
     "/set/disable/telemetry" : {"status": True, "variable":controller.setDisableTelemetry},
     "/run/shutdown": {"status": True, "variable":controller.shutdown},
@@ -571,6 +589,42 @@ mapping = {
     "/set/disable/send_received_message_to_vrc": {"status": True, "variable":controller.setDisableSendReceivedMessageToVrc},
 
     # WebSocket Settings
+    "/get/data/model_download_catalog": {"status": True, "variable":controller.getModelDownloadCatalog},
+    "/get/data/model_download_hardware": {"status": True, "variable":controller.getModelDownloadHardware},
+    "/run/refresh_model_download_hardware": {"status": True, "variable":controller.refreshModelDownloadHardware},
+    "/get/data/model_download_state": {"status": True, "variable":controller.getModelDownloadState},
+    "/run/start_model_download": {"status": True, "variable":controller.startModelDownload},
+    "/run/cancel_model_download": {"status": True, "variable":controller.cancelModelDownload},
+    "/run/apply_model_download": {"status": True, "variable":controller.applyModelDownload},
+    "/get/data/speech_server_settings": {"status": True, "variable":controller.getSpeechServerSettings},
+    "/set/data/speech_server_settings": {"status": True, "variable":controller.setSpeechServerSettings},
+    "/get/data/speech_server_state": {"status": True, "variable":controller.getSpeechServerState},
+    "/run/start_speech_server": {"status": True, "variable":controller.startSpeechServer},
+    "/run/stop_speech_server": {"status": True, "variable":controller.stopSpeechServer},
+    "/get/data/realtime_asr_settings": {"status": True, "variable":controller.getRealtimeASRSettings},
+    "/set/data/realtime_asr_settings": {"status": True, "variable":controller.setRealtimeASRSettings},
+    "/get/data/realtime_asr_endpoints": {"status": True, "variable":controller.getRealtimeASREndpoints},
+    "/get/data/realtime_asr_models": {"status": True, "variable":controller.getRealtimeASRModels},
+    "/get/data/realtime_asr_state": {"status": True, "variable":controller.getRealtimeASRState},
+    "/run/start_realtime_asr": {"status": True, "variable":controller.startRealtimeASR},
+    "/run/stop_realtime_asr": {"status": True, "variable":controller.stopRealtimeASR},
+    "/get/data/voice_settings": {"status": True, "variable":controller.getVoiceSettings},
+    "/set/data/voice_settings": {"status": True, "variable":controller.setVoiceSettings},
+    "/get/data/voice_status": {"status": True, "variable":controller.getVoiceStatus},
+    "/get/data/tts_model_options": {"status": True, "variable":controller.getTtsModelOptions},
+    "/get/data/voice_output_devices": {"status": True, "variable":controller.getVoiceOutputDevices},
+    "/run/stop_voice": {"status": True, "variable":controller.stopVoice},
+    "/run/enable_tts": {"status": True, "variable":controller.enableTts},
+    "/run/disable_tts": {"status": True, "variable":controller.disableTts},
+    "/get/data/voice_route": {"status": True, "variable":controller.getVoiceRoute},
+    "/run/mute_voice": {"status": True, "variable":controller.muteVoice},
+    "/run/resume_voice": {"status": True, "variable":controller.resumeVoice},
+    "/get/data/direct_voice_sources": {"status": True, "variable":controller.getDirectVoiceSources},
+    "/set/data/direct_voice_settings": {"status": True, "variable":controller.setDirectVoiceSettings},
+    "/get/data/direct_voice_state": {"status": True, "variable":controller.getDirectVoiceState},
+    "/run/start_direct_voice": {"status": True, "variable":controller.startDirectVoice},
+    "/run/stop_direct_voice": {"status": True, "variable":controller.stopDirectVoice},
+
     "/get/data/websocket_host": {"status": True, "variable":controller.getWebSocketHost},
     "/set/data/websocket_host": {"status": True, "variable":controller.setWebSocketHost},
     "/get/data/websocket_port": {"status": True, "variable":controller.getWebSocketPort},
@@ -733,6 +787,24 @@ class Main:
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
                     printLog(endpoint, {"receive_data": data})
+                    if endpoint in {"/run/stop_voice", "/run/disable_tts", "/run/mute_voice", "/run/resume_voice", "/run/stop_direct_voice", "/run/stop_realtime_asr", "/run/stop_speech_server"}:
+                        # These requests only signal workers; they do not
+                        # join, infer, or close a driver here. Busy ordinary
+                        # handlers must not delay this request.
+                        result, status = self._call_handler(endpoint, data)
+                        printResponse(status, endpoint, result)
+                        continue
+                    if endpoint == "/run/send_message_box" and isinstance(data, dict):
+                        # Backend-owned stamp, never trust a value from stdin.
+                        # Queued text still reaches OSC/history after a stop,
+                        # but its old speech intent must not start later.
+                        data["_voice_generation"] = self.controller.voice_events.generation()
+                    if endpoint == "/run/start_direct_voice" and isinstance(data, dict):
+                        data['_direct_generation'] = self.controller.direct_voice.health()['generation']
+                    if endpoint == "/run/start_realtime_asr" and isinstance(data, dict):
+                        state = self.controller.getRealtimeASRState()["result"]
+                        source = data.get("source")
+                        data["_realtime_generation"] = state[source]["generation"] if source in ("mic", "speaker") else None
                     self.queue.put((endpoint, data, 0))
             except json.JSONDecodeError:
                 # malformed input; log and continue

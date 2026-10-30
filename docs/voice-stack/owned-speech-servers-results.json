@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "bundled_version": "0.9.0",
+  "native_gui": true,
+  "private_audio": true,
+  "physical_capture": false,
+  "vrchat": false,
+  "perceptual_quality": false,
+  "tts_gui_start_to_ready_s": 10.635543295000389,
+  "asr_gui_start_to_ready_s": 3.0348437020002166,
+  "tts_click_to_private_audio_ms": 560.267605,
+  "tts_completed_requests": 1,
+  "tts_stop_call_to_private_silence_ms": 89.304429,
+  "silence_confirmation_ms": 2000,
+  "new_caption_rows": 2,
+  "external_server_preserved": true,
+  "restart_servers_and_capture_off": true,
+  "trace_outcomes": [
+    "completed",
+    "cancelled",
+    "error"
+  ],
+  "measurement_boundary": "WebDriver click call to private PipeWire source read; n=1 each, not physical mic/VRChat/HMD latency",
+  "native_duration_s": 76.24,
+  "binary_sha256": "800e9bae0057a7ce2b63dde01a71bf83653ffbd70eb83f8bea3e8fd944f678e7"
+}

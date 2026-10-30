@@ -5,6 +5,11 @@ from json import load as json_load
 from json import dump as json_dump
 from secrets import token_urlsafe as secrets_token_urlsafe
 import threading
+from os import environ
+from models.tts.settings import VoiceSettings, normalize_settings
+from models.voice_conversion.settings import DirectSettings, normalize_settings as normalize_direct_settings
+from models.transcription.realtime_settings import normalize_settings as normalize_realtime_settings
+from models.speech_server.settings import normalize_settings as normalize_speech_server_settings
 from typing import Optional, Dict, Any
 
 # Guard optional, potentially heavy or platform-specific imports so importing
@@ -720,10 +725,9 @@ class Config:
     _debounce_time: int = 2
     _file_lock: threading.Lock = threading.Lock()
 
-    # Hugging Face repos hosting the NSIS setup.exe per release channel; see
-    # docs/readme_build.md "β版リリース" and .github/workflows/release.yml.
-    _HF_REPO_STABLE = "ms-software/VRCT"
-    _HF_REPO_BETA = "ms-software/VRCT-beta"
+    # Fork packages are updated by their distribution channel. Re-enable only
+    # after verifying fork installers; never replace an AUR-managed install.
+    BUILTIN_UPDATER_ENABLED = False
 
     # VERSION に含まれていれば beta チャンネル扱いとする接尾辞。NSIS
     # インストーラの .onInit (template.nsi) が ${VERSION} に対して行って
@@ -748,16 +752,11 @@ class Config:
     OPENAI_WHISPER_BASE_URL = "https://api.openai.com/v1"
 
     def setupDownloadUrl(self, target_version: Optional[str] = None, tag: Optional[str] = None) -> str:
-        """setup.exe のダウンロード URL。
-
-        tag を指定すると、そのリリースのタグ (release.yml が Hugging Face のリポジトリへ
-        GitHub のタグと同じ名前で付ける) を指す。無ければ main (そのチャンネルの最新版)。
-        target_version を指定すると、リポジトリはそのバージョンのチャンネルで決める
-        (指定が無ければ現在のチャンネル)。
-        """
-        channel = self._channelForVersion(target_version) if target_version else self.SELECTED_RELEASE_CHANNEL
-        repo = self._HF_REPO_BETA if channel == "beta" else self._HF_REPO_STABLE
-        return f"https://huggingface.co/{repo}/resolve/{tag or 'main'}/VRCT_setup.exe"
+        """Reserved fork installer URL; built-in updates are disabled."""
+        revision = tag or (f"v{target_version}" if target_version else None)
+        base = "https://github.com/kein5/VRCT-VOX/releases"
+        route = f"download/{revision}" if revision else "latest/download"
+        return f"{base}/{route}/VRCT-VOX_setup.exe"
 
     def __new__(cls):
         if cls._instance is None:
@@ -814,6 +813,7 @@ class Config:
     # Read Only
     VERSION = ManagedProperty('VERSION', readonly=True, serialize=False)
     PATH_LOCAL = ManagedProperty('PATH_LOCAL', readonly=True, serialize=False)
+    PATH_DATA = ManagedProperty('PATH_DATA', readonly=True, serialize=False)
     PATH_CONFIG = ManagedProperty('PATH_CONFIG', readonly=True, serialize=False)
     PATH_LOGS = ManagedProperty('PATH_LOGS', readonly=True, serialize=False)
     GITHUB_URL = ManagedProperty('GITHUB_URL', readonly=True, serialize=False)
@@ -898,8 +898,8 @@ class Config:
     MIC_NO_REPEAT_NGRAM_SIZE = ManagedProperty('MIC_NO_REPEAT_NGRAM_SIZE', type_=int)
     HOTKEYS = ValidatedProperty('HOTKEYS',
         validator=lambda val, inst: (
-            {k: (v if (isinstance(v, list) or v is None) else inst.HOTKEYS.get(k))
-            for k, v in val.items()} if isinstance(val, dict) and set(val.keys()) == set(inst.HOTKEYS.keys()) else None
+            {**inst.HOTKEYS, **{k: (v if (isinstance(v, list) or v is None) else inst.HOTKEYS.get(k))
+            for k, v in val.items()}} if isinstance(val, dict) and set(val.keys()) <= set(inst.HOTKEYS.keys()) else None
         ),
         immediate_save=True
     )
@@ -968,6 +968,10 @@ class Config:
     RECEIVED_MESSAGE_FORMAT_PARTS = ValidatedProperty('RECEIVED_MESSAGE_FORMAT_PARTS', _format_validator_received)
 
     # Convert remaining simple properties to ManagedProperty to reduce repetition
+    VOICE_SETTINGS = ValidatedProperty('VOICE_SETTINGS', normalize_settings)
+    DIRECT_VOICE_SETTINGS = ValidatedProperty('DIRECT_VOICE_SETTINGS', normalize_direct_settings)
+    REALTIME_ASR_SETTINGS = ValidatedProperty('REALTIME_ASR_SETTINGS', lambda value, instance: normalize_realtime_settings(value))
+    SPEECH_SERVER_SETTINGS = ValidatedProperty('SPEECH_SERVER_SETTINGS', lambda value, instance: normalize_speech_server_settings(value))
     WEBSOCKET_SERVER = ManagedProperty('WEBSOCKET_SERVER', type_=bool)
     OSC_IP_ADDRESS = ManagedProperty('OSC_IP_ADDRESS', type_=str)
     OSC_PORT = ManagedProperty('OSC_PORT', type_=int)
@@ -1025,6 +1029,7 @@ class Config:
 
     # --- Telemetry Settings ---
     ENABLE_TELEMETRY = ManagedProperty('ENABLE_TELEMETRY', type_=bool)
+    AUTO_DOWNLOAD_MODELS = ManagedProperty('AUTO_DOWNLOAD_MODELS', type_=bool)
 
     # --- Selection properties with validation (ManagedProperty) ---
     SELECTED_TAB_NO = ManagedProperty('SELECTED_TAB_NO', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TAB_NO_LIST)
@@ -1080,11 +1085,16 @@ class Config:
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
             self._PATH_LOCAL = os_path.dirname(os_path.abspath(__file__))
-        self._PATH_CONFIG = os_path.join(self._PATH_LOCAL, "config.json")
-        self._PATH_LOGS = os_path.join(self._PATH_LOCAL, "logs")
+        from runtime_paths import data_root
+        self._PATH_DATA = str(data_root(self._PATH_LOCAL))
+        # Override mutable state only; resources and existing weights keep their
+        # original location. This also permits isolated native acceptance tests.
+        state_dir = os_path.abspath(os_path.expanduser(environ.get("VRCT_CONFIG_DIR") or self._PATH_LOCAL))
+        self._PATH_CONFIG = os_path.join(state_dir, "config.json")
+        self._PATH_LOGS = os_path.join(state_dir, "logs")
         os_makedirs(self._PATH_LOGS, exist_ok=True)
-        self._GITHUB_URL = "https://api.github.com/repos/misyaguziya/VRCT/releases/latest"
-        self._GITHUB_RELEASES_LIST_URL = "https://api.github.com/repos/misyaguziya/VRCT/releases"
+        self._GITHUB_URL = "https://api.github.com/repos/kein5/VRCT-VOX/releases/latest"
+        self._GITHUB_RELEASES_LIST_URL = "https://api.github.com/repos/kein5/VRCT-VOX/releases"
         # The version picker UI exists from 3.6.0; older releases are hidden so
         # users can't switch to a build they can't switch back from.
         # Prereleases of this version (3.6.0-beta.N) are included.
@@ -1221,6 +1231,7 @@ class Config:
         self._MIC_MAX_PHRASES = 10
         self._MIC_WORD_FILTER = []
         self._HOTKEYS = {
+            "open_quick_chat": None,
             "toggle_vrct_visibility": None,
             "toggle_translation": None,
             "toggle_transcription_send": None,
@@ -1372,6 +1383,10 @@ class Config:
             },
             "translation_first": False,
         }
+        self._VOICE_SETTINGS = VoiceSettings().to_dict()
+        self._DIRECT_VOICE_SETTINGS = DirectSettings().to_dict()
+        self._REALTIME_ASR_SETTINGS = normalize_realtime_settings({})
+        self._SPEECH_SERVER_SETTINGS = normalize_speech_server_settings({})
         self._WEBSOCKET_SERVER = False
         self._WEBSOCKET_HOST = "127.0.0.1"
         self._WEBSOCKET_PORT = 2231
@@ -1390,7 +1405,9 @@ class Config:
         self._OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS = 3
         self._OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR = "#000000"
         self._ENABLE_CLIPBOARD = False
-        self._ENABLE_TELEMETRY = True
+        self._ENABLE_TELEMETRY = False
+        # Existing weights remain usable; network downloads require opt-in.
+        self._AUTO_DOWNLOAD_MODELS = False
 
         # OCR defaults (VRChat chat-bubble text capture)
         # PP-OCRv6 small が日英中＋ラテン文字系を1モデルで読むので "auto" が既定。

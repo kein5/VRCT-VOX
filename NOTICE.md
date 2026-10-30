@@ -1,9 +1,19 @@
 # NOTICE
 
-VRCT is distributed under the MIT License (see [`LICENSE`](LICENSE)), **with
-the one exception listed below**. The exception applies both to this
-repository and to the built application published on GitHub Releases and
-BOOTH.
+## Optional voice integration in this fork
+
+VRCT-VOX is an independent fork of VRCT. Original VRCT copyright and MIT
+license notices are retained in `LICENSE`. The model exception below describes
+the retained upstream source asset; **fork binary distributions exclude all OCR
+weights** while retaining their attribution documents.
+
+The fork supports external engines and a fixed speech.cpp binary bundle with
+separate third-party notices. Voice recordings and additional TTS/ASR/VC model
+weights are not bundled. Mia2026 is validation-only. The Seed-VC integration
+contains files marked GPL-3.0-only; engine dependencies and weights have their
+own licenses. See [voice licensing](docs/voice-stack/licensing.md) for component
+boundaries, original sources, and unresolved binary distribution obligations.
+Do not infer the complete stack's license from the main MIT license alone.
 
 ## Exception: the chat-bubble detection model
 
@@ -14,8 +24,8 @@ BOOTH.
 | Copyright | Copyright (c) 2026 misyaguziya. All rights reserved. |
 | License | VRCT Chat-Bubble Detection Model License Agreement — [`LICENSE.txt`](src-python/models/ocr/onnx/LICENSE.txt) (Japanese, authoritative) / [`LICENSE.en.txt`](src-python/models/ocr/onnx/LICENSE.en.txt) (English translation) |
 
-This file is **not** covered by the MIT License in `LICENSE`. Every other
-file in this repository is.
+This file is **not** covered by the MIT License in `LICENSE`. The original VRCT application code is MIT-licensed; the fork additions and
+third-party components described above retain their respective notices.
 
 ### What you may and may not do
 

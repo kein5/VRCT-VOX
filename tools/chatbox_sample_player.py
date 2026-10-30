@@ -2,6 +2,7 @@
 
 Default: press Enter to start, shuffled samples, 6 seconds between messages,
 repeat until Q/Ctrl+C. P=pause/resume, R=status (console focused).
+On Linux/POSIX, press Enter after a command; terminal modes are not changed.
 --dry-run never opens a socket. UDP submission does not confirm display.
 """
 
@@ -158,6 +159,17 @@ def parse_args(argv=None):
 def read_key() -> str:
     if not sys.stdin.isatty():
         return ""
+    if sys.platform != "win32":
+        import os
+        import select
+
+        fd = sys.stdin.fileno()
+        if not select.select([fd], [], [], 0)[0]:
+            return ""
+        # Read from the descriptor directly: TextIOWrapper may prefetch another
+        # command into its buffer, making a later select() miss the queued input.
+        key = os.read(fd, 1)
+        return key.decode("ascii", errors="ignore").strip().lower() if key else "q"
     import msvcrt
 
     if not msvcrt.kbhit():
@@ -186,10 +198,9 @@ def main(argv=None) -> int:
     print(f"Lengths (UTF-16 units): {dict(sorted(Counter(s.length for s in samples).items()))}")
     if args.list:
         return 0
-    if sys.platform != "win32":
-        raise RuntimeError("Interactive playback requires Windows")
     print(f"{'DRY RUN (no network)' if args.dry_run else 'OSC -> 127.0.0.1:' + str(args.port)}, interval={args.interval}s")
-    print("P=pause/resume  Q=quit  R=status (console focused, no Enter required)")
+    controls = "no Enter required" if sys.platform == "win32" else "press Enter after each command"
+    print(f"P=pause/resume  Q=quit  R=status (console focused, {controls})")
     if not args.dry_run and not args.start:
         if not sys.stdin.isatty():
             raise ValueError("Use --start to send from a non-interactive terminal, or --dry-run to preview")

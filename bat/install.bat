@@ -16,7 +16,7 @@ REM dependencies (the dependencies are listed explicitly in requirements).
 pip install --no-cache-dir --force-reinstall --no-deps rapidocr==3.9.2
 REM windows-capture (VR UI capture) also requires opencv-python: same as rapidocr.
 pip install --no-cache-dir --force-reinstall --no-deps windows-capture==2.0.1
-python -X utf8 tools\fetch_ocr_models.py
+REM VRCT-VOX packages exclude OCR models; no build-time model download.
 
 REM if .venv_cuda exists
 if exist .venv_cuda (
@@ -36,4 +36,4 @@ REM dependencies (the dependencies are listed explicitly in requirements).
 pip install --no-cache-dir --force-reinstall --no-deps rapidocr==3.9.2
 REM windows-capture (VR UI capture) also requires opencv-python: same as rapidocr.
 pip install --no-cache-dir --force-reinstall --no-deps windows-capture==2.0.1
-python -X utf8 tools\fetch_ocr_models.py
+REM VRCT-VOX packages exclude OCR models; no build-time model download.

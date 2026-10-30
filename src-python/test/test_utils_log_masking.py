@@ -131,6 +131,34 @@ class PrintResponseMaskingTests(unittest.TestCase):
         utils.process_logger = logger
         self.addCleanup(setattr, utils, "process_logger", self._original_logger)
 
+    def test_realtime_captions_reach_ui_without_implicit_disk_transcripts(self):
+        logged, written = [], []
+        utils.process_logger.info = logged.append
+        with patch.object(utils, "_enqueueResponseLine", written.append):
+            for state in ("partial", "final", "translated", "discarded"):
+                utils.printResponse(200, "/run/realtime_caption", {
+                    "state": state, "text": "private transcript", "translations": ["private translation"]})
+        self.assertEqual(logged, [])
+        self.assertEqual(len(written), 4)
+        self.assertTrue(all(json.loads(line)["result"]["text"] == "private transcript" for line in written))
+
+    def test_filtered_realtime_final_not_persisted_by_actual_response_path(self):
+        import controller as controller_module
+        from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
+
+        logged, written = [], []
+        utils.process_logger.info = logged.append
+        app = controller_module.Controller.__new__(controller_module.Controller)
+        app.run_mapping = {"word_filter": "/run/word_filter"}
+        app.run = utils.printResponse
+        with patch.object(controller_module.model, "checkKeywords", return_value=True), \
+                patch.object(utils, "_enqueueResponseLine", written.append):
+            for spec in (REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC):
+                app._processMessage(spec, "private filtered transcript", "Japanese")
+        self.assertNotIn("private filtered transcript", str(logged))
+        self.assertEqual(len(written), 2)
+        self.assertTrue(all("private filtered transcript" in line for line in written))
+
     def test_direct_sensitive_endpoint_masks_whole_result(self):
         captured = {}
         utils.process_logger.info = lambda response: captured.update(response)

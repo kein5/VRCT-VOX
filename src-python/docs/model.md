@@ -961,17 +961,9 @@ return {
 }
 ```
 
-##### `updateSoftware() -> None`
+##### `updateSoftware()` / `updateCudaSoftware()`
 
-**責務:** CPU版へのアップデート/切替実行
-
-**処理:**
-1. Hugging Faceから `VRCT_setup.exe`（NSISインストーラー）をダウンロード（最大5回リトライ）
-2. `Popen(["VRCT_setup.exe", "/EDITION=cpu"])` でセットアップウィザードを起動（CPU版が初期選択された状態で表示される）
-3. 実行中のVRCT本体の終了確認・再起動は起動されたセットアップウィザード側が行う
-
-##### `updateCudaSoftware() -> None`
-GPU版へのアップデート/切替実行。`updateSoftware()`と同様だが `/EDITION=gpu` 付きでセットアップウィザードを起動し、GPU版が初期選択された状態で表示される。
+VRCT-VOXではアプリ内更新を無効にしています。これらの互換用メソッドは`SETUP_DOWNLOAD_FAILED`を返し、ダウンロードやインストーラーの起動は行いません。更新は導入した配布元から行います。
 
 ---
 

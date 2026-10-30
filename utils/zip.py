@@ -2,52 +2,59 @@ import zipfile
 import argparse
 from pathlib import Path
 import time
+import os
+import tempfile
+import sys
 from tqdm import tqdm # tqdmをインポート
 
-def zip_files_and_directory(zip_name, file_paths, dir_paths, verbose=False):
-    zip_file_path = Path(zip_name)
-    # ZIPファイルを作成
-    try:
-        with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # ファイルを追加
-            for file_path_str in tqdm(file_paths, desc="Adding files", unit="file"):
-                file_path = Path(file_path_str)
-                if file_path.is_file():
-                    zipf.write(file_path, file_path.name)
-                    if verbose:
-                        print(f"Add file: {file_path}")
-                else:
-                    print(f"Warning: File not found or is not a file: {file_path}")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+from check_voice_distribution import check
 
-            # ディレクトリを追加
-            for dir_path_str in dir_paths:
-                dir_path = Path(dir_path_str)
-                if dir_path.is_dir():
-                    all_files_in_dir = [item for item in dir_path.rglob("*") if item.is_file()]
-                    for item in tqdm(all_files_in_dir, desc=f"Adding files from {dir_path.name}", unit="file"):
-                        # ディレクトリ構造を保持しつつ、ルートに配置
-                        arcname = Path(dir_path.name) / item.relative_to(dir_path)
-                        zipf.write(item, arcname)
-                        if verbose:
-                            print(f"Add file: {item}")
-                else:
-                    print(f"Warning: Directory not found or is not a directory: {dir_path}")
-        print(f"Successfully created zip file: {zip_file_path}")
-    except IOError as e:
-        print(f"Error: Could not create zip file {zip_file_path}. Reason: {e}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+def zip_files_and_directory(zip_name, file_paths, dir_paths, verbose=False):
+    # Reject missing inputs and stale forbidden resources before touching a
+    # previous candidate. A partial ZIP must never masquerade as a release.
+    check([*file_paths, *dir_paths])
+    output = Path(zip_name)
+    entries = []
+    for value in file_paths:
+        path = Path(value)
+        if not path.is_file():
+            raise ValueError(f"Not an input file: {path}")
+        entries.append((path, path.name))
+    for value in dir_paths:
+        path = Path(value)
+        if not path.is_dir():
+            raise ValueError(f"Not an input directory: {path}")
+        entries.extend((item, Path(path.name) / item.relative_to(path))
+                       for item in path.rglob("*") if item.is_file())
+    if not entries:
+        raise ValueError("No package inputs")
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=output.parent, suffix=".zip", delete=False) as stream:
+            temporary = Path(stream.name)
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+            for path, name in tqdm(entries, desc="Packaging", unit="file"):
+                archive.write(path, name)
+                if verbose:
+                    print(f"Add: {name}")
+        check([temporary])
+        os.replace(temporary, output)
+        print(f"Created and inspected: {output}")
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
     start_time = time.time()
     parser = argparse.ArgumentParser(description="Create a zip file from specified files and directories.")
-    parser.add_argument("--zip_name", type=str, default="VRCT.zip", help="Name of the output zip file.")
+    parser.add_argument("--zip_name", type=str, default="VRCT-VOX.zip", help="Name of the output zip file.")
     parser.add_argument(
         "--file_paths",
         type=str,
         nargs="*",
-        default=["src-tauri/target/release/VRCT.exe", "src-tauri/target/release/VRCT-sidecar.exe"],
+        default=["src-tauri/target/release/vrct-vox.exe", "src-tauri/target/release/vrct-vox-sidecar.exe"],
         help="List of file paths to include in the zip."
     )
     parser.add_argument(

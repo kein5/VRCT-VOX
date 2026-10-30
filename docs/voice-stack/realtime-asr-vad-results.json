@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-28",
+  "speech_cpp": "0.9.0",
+  "vad_model_sha256": "2fc312514e5fc4fa4ffd02b25c76a4853fa4130e8fb9777d01502183b01238cb",
+  "asr_model": "reazonspeech-nemo-v2",
+  "asr_device": "gpu",
+  "vad_device": "cpu",
+  "input": "existing synthetic PCM; file-fed 20ms chunks; no new recording",
+  "physical_capture": false,
+  "two_simultaneous_sessions": true,
+  "offline_fixture_regions": [
+    {
+      "start": 0,
+      "end": 1.836
+    },
+    {
+      "start": 2.132,
+      "end": 4.396
+    }
+  ],
+  "silence_no_updates": true,
+  "results": [
+    {
+      "source": "mic",
+      "finals": 2,
+      "partial_updates": 7,
+      "characters": [
+        3,
+        11
+      ],
+      "committed_received_to_completed_received_ms": [
+        18.106,
+        55.578
+      ],
+      "scheduled_file_start_to_first_delta_ms": 1599.98
+    },
+    {
+      "source": "speaker",
+      "finals": 2,
+      "partial_updates": 7,
+      "characters": [
+        3,
+        11
+      ],
+      "committed_received_to_completed_received_ms": [
+        36.705,
+        106.078
+      ],
+      "scheduled_file_start_to_first_delta_ms": 1617.792
+    }
+  ],
+  "limitations": [
+    "Not physical end-of-speech latency or p95",
+    "No transcript accuracy or perceptual quality claim",
+    "Capture/resampler/UI integration not yet implemented"
+  ],
+  "raw_report": "tmp/voice-resume/realtime-reviewed-live/test_real_server_vad_two_sourc0/report.json"
+}

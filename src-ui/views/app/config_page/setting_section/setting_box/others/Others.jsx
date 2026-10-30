@@ -55,7 +55,7 @@ export const Others = () => {
                 <ConvertMessageToHiraganaContainer />
             </div>
             <div>
-                <TelemetryContainer />
+                <AutoDownloadModelsContainer />
             </div>
         </div>
     );
@@ -264,19 +264,16 @@ const ConvertMessageToHiraganaContainer = () => {
     );
 };
 
-const TelemetryContainer = () => {
+const AutoDownloadModelsContainer = () => {
     const { t } = useI18n();
-    const { currentTelemetry, toggleTelemetry } = useOthers();
-
+    const { currentAutoDownloadModels, toggleAutoDownloadModels } = useOthers();
     return (
         <CheckboxContainer
-            setting_id="telemetry"
-            label={t("config_page.others.telemetry.label")}
-            webpage_url="https://aptabase.com/legal/privacy"
-            open_webpage_label={t("config_page.others.telemetry.aptabase_privacy_policy_label")}
-            desc={t("config_page.others.telemetry.desc")}
-            variable={currentTelemetry}
-            toggleFunction={toggleTelemetry}
+            setting_id="auto_download_models"
+            label={t("config_page.others.auto_download_models.label")}
+            desc={t("config_page.others.auto_download_models.desc")}
+            variable={currentAutoDownloadModels}
+            toggleFunction={toggleAutoDownloadModels}
         />
     );
 };

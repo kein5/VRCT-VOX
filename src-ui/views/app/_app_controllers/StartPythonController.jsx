@@ -6,6 +6,7 @@ import { useStdoutToPython } from "@useStdoutToPython";
 import { useReceiveRoutes } from "@useReceiveRoutes";
 import { store, useStore_SelectableFontFamilyList } from "@store";
 import { arrayToObject } from "@utils";
+import { isSidecarWarning } from "../../../logics/common/sidecarDiagnostics";
 
 import {
     useNotificationStatus,
@@ -61,7 +62,7 @@ const useStartPython = () => {
     const { showNotification_Success, showNotification_Error } = useNotificationStatus();
 
     const asyncStartPython = async () => {
-        const command = Command.sidecar("bin/VRCT-sidecar");
+        const command = Command.sidecar("bin/vrct-vox-sidecar");
         command.on("error", error => console.error(`error: "${error}"`));
         command.stdout.on("data", (line) => {
             // Windows上のPython(CRLF)とTauriのread_line(\rまたは\nで区切る仕様)により、
@@ -85,12 +86,12 @@ const useStartPython = () => {
             // (FutureWarning 等: 依存ライブラリの将来非互換の予告など) まで致命的な
             // エラー通知に昇格させると、実際にはクラッシュしていないのに
             // 「An error occurred」ダイアログが出てしまう。警告行はログに残すだけにする。
-            if (typeof line === "string" && /\b[A-Za-z]*Warning: /.test(line)) {
+            if (isSidecarWarning(line)) {
                 console.warn("stderr (warning, ignored)", line);
                 return;
             }
             showNotification_Error(
-                `An error occurred. Please restart VRCT or contact the developers. The last line:${JSON.stringify(line)}`, { hide_duration: null }
+                `An error occurred. Please restart VRCT-VOX or contact the developers. The last line:${JSON.stringify(line)}`, { hide_duration: null }
             );
             console.error("stderr", line);
         });

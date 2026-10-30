@@ -1,0 +1,23 @@
+#!/bin/bash
+set -eu
+APPDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+export APPDIR
+# Keep the host environment before linuxdeploy's GUI hooks modify it.
+for name in LD_LIBRARY_PATH PATH GIO_EXTRA_MODULES GSETTINGS_SCHEMA_DIR GTK_PATH GTK_EXE_PREFIX GTK_DATA_PREFIX GTK_IM_MODULE_FILE GTK_THEME GDK_PIXBUF_MODULE_FILE GI_TYPELIB_PATH XDG_DATA_DIRS GDK_BACKEND WEBKIT_DISABLE_DMABUF_RENDERER; do
+    eval 'present=${'"$name"'+x}'
+    eval 'value=${'"$name"'-}'
+    export "VRCT_APPIMAGE_HOST_${name}_SET=$present"
+    export "VRCT_APPIMAGE_HOST_${name}=$value"
+done
+# Verified NVIDIA GBM allocation failure on this AppImage. Keep other GPUs and
+# explicit user choices unchanged; this affects WebKit rendering, not inference.
+if [ -d /sys/module/nvidia ] && [ "${WEBKIT_DISABLE_DMABUF_RENDERER+x}" != x ]; then
+    export WEBKIT_DISABLE_DMABUF_RENDERER=1
+fi
+# Isolate GUI libraries from the frozen sidecar's loader environment.
+export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export PATH="$APPDIR/usr/bin:$PATH"
+# The GTK plugin relocates WebKit's /usr paths to ././. Match AppImageKit's
+# working directory and let linuxdeploy's generated wrapper source hooks once.
+cd "$APPDIR/usr"
+exec "$APPDIR/AppRun.gui" "$@"

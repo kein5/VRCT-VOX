@@ -2,9 +2,14 @@
     height: 100%;
     width: 100%;
     flex: 1;
-    background-color: var(--dark_900_color);
+    background-color: var(--vox_canvas);
     overflow: auto;
     border-radius: 0.8rem;
-    padding: 1rem;
+    padding: 1.6rem;
     font-size: 1rem; // This is the standard font size for message logs, and is controlled by JavaScript. All child elements this are generally expressed in "em" and are affected by the font size setting here.
 }
+.empty { min-height: 100%; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1rem; padding: 3.2rem; }
+.empty h1 { font-size: 2.4rem; font-weight: 650; color: var(--dark_200_color); }
+.empty p { max-width: 42rem; font-size: 1.4rem; line-height: 1.8; color: var(--dark_450_color); }
+
+@media (max-width: 800px) { .empty { padding: 1rem; } .empty h1 { font-size: 1.8rem; } .empty p { font-size: 1.3rem; } }

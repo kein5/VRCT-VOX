@@ -15,7 +15,7 @@ from psutil import Process as psutil_Process
 from datetime import datetime
 from time import sleep
 from queue import Queue, Empty
-from threading import Thread, Lock, current_thread
+from threading import Thread, Lock, Event, current_thread
 from concurrent.futures import ThreadPoolExecutor
 from requests import get as requests_get
 from typing import Callable, Optional, cast
@@ -57,7 +57,7 @@ from models.clipboard.clipboard import Clipboard
 from models.ocr import OcrPipeline
 from models.ocr.ocr_languages import isSupported as isSupportedOcrLanguage
 from models.telemetry import Telemetry
-from utils import errorLogging, setupLogger, printLog
+from utils import errorLogging, setupLogger, printLog, diagnosticLogPath
 from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, OcrStartError
 
 TRANSCRIPT_STOP_JOIN_TIMEOUT = 15
@@ -83,7 +83,7 @@ _HTTP_TIMEOUT = (10, 60)
 # faulthandler は enable/dump_traceback_later 時点で fd を掴むため
 # 遅延 open できず、フリーズ無しの通常終了でも 0 バイトのファイルが
 # 残る。運用上のゴミ化を避けるため atexit で「書き込みが無ければ削除」する。
-_freeze_trace_path = "freeze_trace.log"
+_freeze_trace_path = diagnosticLogPath("freeze_trace.log")
 _freeze_trace_file = open(_freeze_trace_path, "a", encoding="utf-8")
 _FREEZE_DUMP_MARGIN_SEC = 15
 # watchdog スレッドの join 上限。Watchdog.start() 末尾の
@@ -347,6 +347,8 @@ class _AudioDeviceSession:
         self.transcript_fnc: Optional[Callable[[dict], None]] = None
         self.energy_fnc: Callable[[float], None] = lambda v: None
         self._stop_lock = Lock()
+        self._cleanup_workers = []
+        self._cleanup_failed = Event()
         self._pipeline_error_lock = Lock()
         self._pipeline_error_started = False
         self._pipeline_error_notified = False
@@ -699,6 +701,7 @@ class _AudioDeviceSession:
         """停止とリソース解放を行い、完了できなければ True を返す。"""
         cleanup_timed_out = False
         with self._stop_lock:
+            self._cleanup_workers = [worker for worker in self._cleanup_workers if worker.is_alive()]
             transcript_thread = self._print_transcript
             if isinstance(transcript_thread, threadFnc):
                 transcript_thread.stop()
@@ -709,6 +712,8 @@ class _AudioDeviceSession:
                         printLog(
                             f"{self._kind.capitalize()} transcription thread did not terminate within timeout"
                         )
+                if transcript_thread.is_alive():
+                    self._cleanup_workers.append(transcript_thread)
                 self._print_transcript = None
 
             energy_thread = self._energy_progressbar
@@ -721,6 +726,8 @@ class _AudioDeviceSession:
                         printLog(
                             f"{self._kind.capitalize()} energy thread did not terminate within timeout"
                         )
+                if energy_thread.is_alive():
+                    self._cleanup_workers.append(energy_thread)
                 self._energy_progressbar = None
 
             recorder = self._recorder
@@ -734,9 +741,16 @@ class _AudioDeviceSession:
                     errorLogging()
 
                 if callable(recorder.stop):
+                    def stop_recorder():
+                        try:
+                            recorder.stop(wait_for_stop=True)
+                        except Exception:
+                            # A dead cleanup thread is not proof that the device
+                            # was released. Keep handoff blocked until restart.
+                            self._cleanup_failed.set()
+
                     stop_thread = Thread(
-                        target=recorder.stop,
-                        kwargs={"wait_for_stop": True},
+                        target=stop_recorder,
                         daemon=True,
                         name=f"{self._kind}-recorder-stop",
                     )
@@ -744,6 +758,7 @@ class _AudioDeviceSession:
                     stop_thread.join(timeout=TRANSCRIPT_STOP_JOIN_TIMEOUT)
                     if stop_thread.is_alive():
                         cleanup_timed_out = True
+                        self._cleanup_workers.append(stop_thread)
                         printLog(
                             f"{self._kind.capitalize()} recorder did not stop within timeout"
                         )
@@ -760,6 +775,13 @@ class _AudioDeviceSession:
             self._active_device = None
             self.features = set()
         return cleanup_timed_out
+
+    def stop_for_handoff(self) -> bool:
+        """Stop all legacy features, retaining incomplete cleanup across retries."""
+        self._stop()
+        with self._stop_lock:
+            self._cleanup_workers = [worker for worker in self._cleanup_workers if worker.is_alive()]
+            return not self._cleanup_workers and not self._cleanup_failed.is_set()
 
 
 class MicSession(_AudioDeviceSession):
@@ -802,7 +824,7 @@ class MicSession(_AudioDeviceSession):
             phrase_timeout=phrase_timeout,
             max_phrases=config.MIC_MAX_PHRASES,
             transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
-            root=config.PATH_LOCAL,
+            root=config.PATH_DATA,
             whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
             device=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device"],
             device_index=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device_index"],
@@ -864,7 +886,7 @@ class SpeakerSession(_AudioDeviceSession):
             phrase_timeout=phrase_timeout,
             max_phrases=config.SPEAKER_MAX_PHRASES,
             transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
-            root=config.PATH_LOCAL,
+            root=config.PATH_DATA,
             whisper_weight_type=config.WHISPER_WEIGHT_TYPE,
             device=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device"],
             device_index=config.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE["device_index"],
@@ -1039,15 +1061,15 @@ class Model:
                 errorLogging()
 
     def backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir(self):
-        return backwardCompatibleRenameWeightsDir(config.PATH_LOCAL)
+        return backwardCompatibleRenameWeightsDir(config.PATH_DATA)
         
     def checkTranslatorCTranslate2ModelWeight(self, weight_type:str):
-        return checkCTranslate2Weight(config.PATH_LOCAL, weight_type)
+        return checkCTranslate2Weight(config.PATH_DATA, weight_type)
 
     def changeTranslatorCTranslate2Model(self):
         self.ensure_initialized()
         self.translator.changeCTranslate2Model(
-            path=config.PATH_LOCAL,
+            path=config.PATH_DATA,
             model_type=config.CTRANSLATE2_WEIGHT_TYPE,
             device=config.SELECTED_TRANSLATION_COMPUTE_DEVICE["device"],
             device_index=config.SELECTED_TRANSLATION_COMPUTE_DEVICE["device_index"],
@@ -1055,10 +1077,10 @@ class Model:
             )
 
     def downloadCTranslate2ModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadCTranslate2Weight(config.PATH_LOCAL, weight_type, callback, end_callback)
+        return downloadCTranslate2Weight(config.PATH_DATA, weight_type, callback, end_callback)
 
     def downloadCTranslate2ModelTokenizer(self, weight_type):
-        return downloadCTranslate2Tokenizer(config.PATH_LOCAL, weight_type)
+        return downloadCTranslate2Tokenizer(config.PATH_DATA, weight_type)
 
     def isLoadedCTranslate2Model(self):
         self.ensure_initialized()
@@ -1073,10 +1095,10 @@ class Model:
         self.translator.setChangedTranslatorParameters(is_changed)
 
     def checkTranscriptionWhisperModelWeight(self, weight_type:str):
-        return checkWhisperWeight(config.PATH_LOCAL, weight_type)
+        return checkWhisperWeight(config.PATH_DATA, weight_type)
 
     def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadWhisperWeight(config.PATH_LOCAL, weight_type, callback, end_callback)
+        return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback)
 
     def authenticationTranscriptionApiKey(self, api_key: str, base_url: str) -> bool:
         return checkTranscriptionApiKey(api_key, base_url)
@@ -1751,6 +1773,8 @@ class Model:
 
     @staticmethod
     def checkSoftwareUpdated():
+        if not config.BUILTIN_UPDATER_ENABLED:
+            return {"is_update_available": False, "new_version": ""}
         # check update
         update_flag = False
         version = ""
@@ -1784,6 +1808,8 @@ class Model:
 
     @staticmethod
     def listAvailableReleases() -> list:
+        if not config.BUILTIN_UPDATER_ENABLED:
+            return []
         # Version picker data source: all supported (>= MIN_SUPPORTED_VERSION)
         # releases across both channels, newest first.
         result = []
@@ -1906,7 +1932,7 @@ class Model:
         # try to download at most 5 times
         # 戻り値: 成功なら None、失敗なら SETUP_DOWNLOAD_FAILED / SETUP_VERIFY_FAILED
         url = url or config.setupDownloadUrl()
-        program_name = "VRCT_setup.exe"
+        program_name = "VRCT-VOX_setup.exe"
         current_directory = config.PATH_LOCAL
         dest_path = os_path.join(current_directory, program_name)
         # minimum plausible size for a real NSIS installer; guards against
@@ -1958,7 +1984,7 @@ class Model:
         # ダウンロード & 検証する。updateSoftware()/updateCudaSoftware() の
         # 共通前処理。
         #
-        # 戻り値 None : VRCT_setup.exe がディスク上にあり起動して問題ない
+        # 戻り値 None : VRCT-VOX_setup.exe がディスク上にあり起動して問題ない
         # 戻り値 str  : 呼び出し側は何も起動せず中止すること。失敗の種類は
         #   - SETUP_VERIFY_FAILED   : ハッシュが一致しなかった、または ".sha256" が
         #     公開されているのに取得できなかった (SetupSha256Unavailable)。
@@ -1981,16 +2007,12 @@ class Model:
                 f"{target_version or 'the latest release'}); falling back to size-only validation"
             )
 
-        # 指定バージョンは、そのリリースの setup.exe (HF の同名タグ) を取る。main は常に
-        # 最新版なので、指定バージョンのハッシュで検証すると最新版以外では必ず不一致になる。
+        # 指定バージョンはforkの対応GitHub tagから取得する。
+        # 別版のfloating installerへはフォールバックしない。
         urls = [config.setupDownloadUrl()]
         if target_version:
             tag = release.get("tag_name") if isinstance(release, dict) else None
             urls = [config.setupDownloadUrl(target_version, tag=tag or f"v{target_version}")]
-            if expected_sha256 is None:
-                # 古いリリース (3.4.x など) は HF のタグに setup.exe が無い。インストーラは
-                # /VERSION で入れる版を決めるので、検証できない場合に限り最新のものを使う
-                urls.append(config.setupDownloadUrl(target_version))
         failure = SETUP_DOWNLOAD_FAILED
         for url in urls:
             failure = Model._downloadSetup(expected_sha256, url)
@@ -2000,6 +2022,8 @@ class Model:
 
     @staticmethod
     def _updateAndRestart(edition: str, target_version: Optional[str]) -> str:
+        if not config.BUILTIN_UPDATER_ENABLED:
+            return SETUP_DOWNLOAD_FAILED
         # 起動して終了する (_quitApp) ので、本番で戻るのは失敗したときだけ。
         # 呼び出し側 (Controller) が失敗の種類を UI へ知らせる。SETUP_LAUNCHED を
         # 返すのはテストなどで終了処理を差し替えたとき。
@@ -2017,7 +2041,7 @@ class Model:
         # The channel is not saved to config here: if the installer is cancelled,
         # VRCT keeps running on its current version and channel.
         channel = config._channelForVersion(target_version) if target_version else config.SELECTED_RELEASE_CHANNEL
-        args = ["VRCT_setup.exe", f"/EDITION={edition}", f"/UILANG={config.UI_LANGUAGE}", f"/CHANNEL={channel}"]
+        args = ["VRCT-VOX_setup.exe", f"/EDITION={edition}", f"/UILANG={config.UI_LANGUAGE}", f"/CHANNEL={channel}"]
         if target_version:
             args.append(f"/VERSION={target_version}")
         Popen(args, cwd=config.PATH_LOCAL)
@@ -2129,6 +2153,12 @@ class Model:
     def stopMicTranscript(self):
         self.ensure_initialized()
         self._mic_session.reconfigure(transcript=False)
+
+    def stopCaptureForRealtime(self, source: str) -> bool:
+        self.ensure_initialized()
+        if source not in ("mic", "speaker"):
+            raise ValueError("realtime_source_invalid")
+        return getattr(self, "_" + source + "_session").stop_for_handoff()
 
     def startCheckMicEnergy(self, fnc:Optional[Callable[[float], None]]=None) -> None:
         self.ensure_initialized()
@@ -2377,7 +2407,47 @@ class Model:
 
     def updateOverlayLargeLog(self, img):
         self.ensure_initialized()
-        self.overlay.updateImage(img, "large")
+        with self.overlay_image.log_lock:
+            if self.overlay_image.isCurrentLargeLog(img):
+                self.overlay.updateImage(img, "large")
+
+    def publishRealtimeCaptionOverlay(self, payload, language, target_languages, current, *, only_translated=False):
+        """Serialize history/render/publication; caller runs outside the WS loop."""
+        if not current():
+            return
+        self.ensure_initialized()
+        with self.overlay_image.log_lock:
+            if not current():
+                return
+            translation = [row["message"] for row in payload.get("translations", [])]
+            if only_translated and not translation and payload["state"] != "discarded":
+                return
+            original = payload.get("original", {"message": payload["text"], "transliteration": []})
+            identity = (payload["source"], payload["namespace"], payload["item_id"])
+            checkpoint = self.overlay_image.checkpointCaptionState()
+            committed = False
+            try:
+                image = self.overlay_image.createOverlayImageLargeLog(
+                    "send" if payload["source"] == "mic" else "receive",
+                    None if only_translated else original["message"], language,
+                    translation, [row["language"] for row in target_languages.values() if row.get("enable")],
+                    original.get("transliteration", []), [row.get("transliteration", []) for row in payload.get("translations", [])],
+                    caption_id=identity,
+                    caption_state=payload["state"], caption_revision=payload["revision"])
+                if image is None:
+                    committed = True  # An old/terminal revision changed nothing.
+                elif current():
+                    self.updateOverlayLargeLog(image)
+                    committed = True
+            finally:
+                if not committed:
+                    self.overlay_image.rejectCaptionUpdate(checkpoint, identity, payload["revision"])
+
+    def clearRealtimeCaptionOverlay(self, source, namespace):
+        self.ensure_initialized()
+        with self.overlay_image.log_lock:
+            image = self.overlay_image.discardCaptionNamespace(source, namespace)
+            self.updateOverlayLargeLog(image)
 
     def updateOverlayLargeLogSettings(self):
         self.ensure_initialized()
@@ -2750,7 +2820,7 @@ class Model:
         """Model 内で Telemetry を初期化"""
         if storage_path is None:
             try:
-                storage_path = os_path.join(config.PATH_LOCAL, "telemetry_state.json")
+                storage_path = os_path.join(config.PATH_DATA, "telemetry_state.json")
             except Exception:
                 storage_path = None
         self.telemetry.init(enabled=enabled, app_version=app_version, storage_path=storage_path)

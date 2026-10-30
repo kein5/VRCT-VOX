@@ -1,0 +1,2622 @@
+{
+  "date": "2026-10-27",
+  "production_commit": "98017be81fb17017c17e338219a3529db5475cbf",
+  "scope": "Recheck request-scoped TTS listener-failure cancellation on host PipeWire and VRChat desktop local microphone-test replay.",
+  "scoped_acceptance_passed": true,
+  "full_product_acceptance": false,
+  "production_changes_in_this_followup": false,
+  "prior_reports": [
+    "2026-10-27-live-tts-vrchat.json",
+    "2026-10-27-tts-listener-fix.json"
+  ],
+  "model_and_binary": {
+    "model_name": "Irodori-TTS-866M-MF-v4.1-F16.gguf",
+    "model_bytes": 1920321792,
+    "model_sha256": "e237dc3eefe469b8bba87872beacf12fb7fe00dbdf85767edca8ec04ab910d13",
+    "binary_version": "speech.cpp 0.9.0, C API 3.4",
+    "binary_sha256": "800e9bae0057a7ce2b63dde01a71bf83653ffbd70eb83f8bea3e8fd944f678e7",
+    "voice": "none",
+    "new_models_downloaded": false,
+    "hashes_rechecked_after_run": true
+  },
+  "provenance": {
+    "production_commit": "98017be81fb17017c17e338219a3529db5475cbf",
+    "source_sha256": {
+      "config/pipewire/90-vrct-managed.conf": "4e6cb51b147529d31be25bc535e2792fb3c2c2a38ab649365b4897b20ff4784b",
+      "src-python/models/audio_routing/audio_router.py": "e53e2fb3da5e9fc84b5f9c86d7cca183fb53ddba05976613259b881823357dfb",
+      "src-python/models/audio_routing/devices_pipewire.py": "5367d8b4281dd8d6ea0ee611a807891961a7a01f1f50f814f0242bb62e3fb146",
+      "src-python/models/audio_routing/managed_route.py": "a88c3f15591a19fcef233863921d151f89fc7f8a3df899b4b43e161ca6a6bf73",
+      "src-python/models/audio_routing/pipewire_gate.py": "6b01a944ae0f955834924c1838f4087cf1b480bd0aca4f25519bed6dcb39d0f9",
+      "src-python/models/tts/speechcpp_tts.py": "6a93faae0107af747593ac05257786c4da802b0247374adf84aa90c32e061fcf",
+      "src-python/models/tts/tts_scheduler.py": "8dc06a2a5d1d846a403b9267d4b84968a77816c3e8b2d66e678a721bd0de2f6b",
+      "tests/voice/listener_mix_poc.py": "8744a95553816332075ccd114f97c9d15c01e14ead08324e41c845bf48e59569",
+      "tests/voice/test_live_tts_acceptance.py": "81d49ba28a2d4452c71260bd54bfdf95780193a33d244c39c94549bbd0d04a00",
+      "tests/voice/test_tts_listener_failure.py": "a61a7bc70d01f7cef47ca679035a3071316a2579a074eaa8588017daf595efe7",
+      "tools/live_tts_acceptance.py": "0458d092c8fa9a160a6cd6d5b4b76bb508c7c34ab239d309f73882e275eb4150",
+      "tools/managed_vrchat_probe.py": "b8516fb81a6ec0d7fcfe4c1a2f439e856517da4ae5ff38399f7e5efdacce51ba",
+      "tools/voice_acceptance.py": "95cf8e17be307b9af27cedaf3215e850bf56981b9a9047095c68f874ceeaf35a",
+      "tools/voice_b_poc.py": "a09e76930d6e31c38741cfd8ebaed3d9061d9160e549898b11736170951c98a1",
+      "tools/voice_route_acceptance.py": "05ec668e91f07afcd368737d8433444127e7a9338cb69e518c3d77e81cd24ac8",
+      "tools/vrchat_audio_probe.py": "a32f54cc7d06735fdd4c3b757ae2f623380689af4d044219a1024edbbec5ac05",
+      "tools/vrchat_gui_probe.py": "24e3e6cb5f9f6a5974420eecbe901273da6395acad0317dfa1f2ee27bd022802",
+      "src-python/models/voice_events.py": "d495d27f0a828ac85900458bf5d269198f8c5fe5c8626e3397cd3b8ca2f49a4c",
+      "src-python/models/tts/settings.py": "cbbbd3dea5d9df92277d0f2a311dcd0e3f3f63fae1031f08cf092a882acf78bc",
+      "src-python/models/audio_routing/mute_state.py": "09275fe40ef6c0213825033a7d050958d96a1c6878a108b88681d505f1ae4aec"
+    },
+    "native_gate_sha256": "3addad9389c6c0420e06554f53e6decd2246a180d926dea8dfb390c1dbe4660b"
+  },
+  "server": {
+    "command": [
+      "speech",
+      "serve",
+      "<existing local model file>",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "0",
+      "--device",
+      "Vulkan0"
+    ],
+    "warmup_enabled": true,
+    "restart_port": "reuse the assigned localhost port",
+    "health_check": "GET /health returns 200",
+    "sample_rate_hz": 48000,
+    "channels": 1,
+    "pcm": "signed 16-bit little endian",
+    "seed": "default random"
+  },
+  "environment": {
+    "os_audio": {
+      "pw-loopback": "pw-loopback\nCompiled with libpipewire 1.6.10\nLinked with libpipewire 1.6.10",
+      "wireplumber": "wireplumber\nCompiled with libwireplumber 0.5.18\nLinked with libwireplumber 0.5.18"
+    },
+    "gpu": "RTX 4080 SUPER, Vulkan0",
+    "vrchat": "Desktop --no-vr; Japanese UI; noise suppression OFF; microphone volume75%, threshold10%",
+    "physical_microphone_captured": false,
+    "wivrn": "Existing server left running; HMD audio not tested",
+    "background_load_controlled": false,
+    "continuous_cpu_gpu_vram_fps_xrun_measured": false
+  },
+  "boundaries": {
+    "first_audio": "SpeechMessageEvent creation to first HTTP PCM / first nonzero PCM write / virtual source20ms read with peak>64/32768; common monotonic clock",
+    "first_audio_excludes": [
+      "VRCT GUI input",
+      "general dispatch",
+      "translation",
+      "physical ADC/DAC",
+      "VRChat network",
+      "remote player"
+    ],
+    "silence": "Just before cancel/mute/server kill to first read of a >=2s continuously silent interval; common monotonic clock",
+    "silence_case_observation": "Cancellation and server-crash latencies are virtual-source measurements while VRChat stays connected; those partial utterances are not separately recorded via the VRChat replay test.",
+    "replay": "Normal3 and recovery3: each request actual HTTP PCM compared to source capture and isolated VRChat microphone-test digital replay; exactly one envelope match expected.",
+    "mute": "Source all samples zero during23.989s capture; rejected new TTS does not invoke inference; known replay occurrences0. The raw exactly-once comparator verdict=fail is expected for zero occurrences and is retained unchanged.",
+    "precision": "20ms frames, peak threshold, generated leading silence and OS scheduling apply; decimal digits are not physical accuracy. HTTP PCM may be zero; column differences are not pure OS latency.",
+    "sample_counts": {
+      "normal": 3,
+      "cancel": 1,
+      "held_mute": 1,
+      "server_crash": 3,
+      "recovery": 3
+    },
+    "fault_budget": "Each observed fault<=250ms; n3 is not used to claim p95<=100ms or an upper bound.",
+    "group_comparability": "Do not pool with prior independent PipeWire n30 or pre-fix host run. Seed/background load not controlled; no paired speedup claim."
+  },
+  "host_preparation": {
+    "prepared_route": {
+      "core": [
+        636532002
+      ],
+      "nodes": {
+        "vrct.managed.source": 44,
+        "vrct.fixed.replay": 98
+      },
+      "edges": [
+        [
+          "VRChat.exe",
+          "vrct.fixed.replay"
+        ],
+        [
+          "vrct.managed.source",
+          "VRChat.exe"
+        ]
+      ],
+      "source_mute": "Mute: yes"
+    },
+    "template_calibration": {
+      "template_pair_correlation": 0.3008371359139349
+    },
+    "temporary_config_name": "99-vrct-tts-fixed-20261027.conf",
+    "temporary_config_sha256": "c74ee30f6fb374b365c73d504895d30d6a0f6347e472ed2c8e01009e7ed35e53",
+    "setup_observations": [
+      "KWin active VRChat window did not match XWayland keyboard focus. Focused the PID-verified VRChat X11 window; no test audio had been sent.",
+      "One preparation click aborted with pointer_did_not_converge before clicking. Minimize/reactivate of the same verified window restored observed cursor movement; original guards retained.",
+      "Inspected microphone list and selected managed source; verified graph and initial native mute before inference.",
+      "Obtained current ready/recording templates using a silent warmup. After manual visual preparation, the existing runner executed the complete sequence automatically."
+    ]
+  },
+  "trials": [
+    {
+      "name": "host-1",
+      "runner_exit_code": 0,
+      "report": {
+        "status": "passed",
+        "cases": [
+          {
+            "name": "positive-1",
+            "status": "passed",
+            "captures": {
+              "mic": {
+                "valid": true,
+                "samples": 1151488,
+                "elapsed_seconds": 24.001116295003158,
+                "last_read_seconds": 24.001957608998055,
+                "max_read_gap_seconds": 0.04765989600127796,
+                "early_exit": false,
+                "reader_error": null
+              },
+              "replay": {
+                "valid": true,
+                "samples": 1151744,
+                "elapsed_seconds": 24.00165716400079,
+                "last_read_seconds": 24.002450387000863,
+                "max_read_gap_seconds": 0.047749313998792786,
+                "early_exit": false,
+                "reader_error": null
+              }
+            },
+            "audio": {
+              "mic": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9765192379100645,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 3.16,
+                    "score": 0.9765192379100645
+                  }
+                ],
+                "observed_seconds": 23.989333333333335,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              },
+              "replay": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9951749908927618,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 12.98,
+                    "score": 0.9951749908927618
+                  }
+                ],
+                "observed_seconds": 23.994666666666667,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              }
+            },
+            "timing": {
+              "event_ns": 43591646029478,
+              "first_http_pcm_ns": 43591715382296,
+              "first_write_ns": 43591727581695,
+              "first_source_read_ns": 43591792194619
+            },
+            "milliseconds": {
+              "first_http_pcm_ns": 69.352818,
+              "first_write_ns": 81.552217,
+              "first_source_read_ns": 146.165141
+            },
+            "bus_after": {
+              "accepted": 1,
+              "completed": 1,
+              "dropped": 0,
+              "duplicates": 0,
+              "cancelled": 0,
+              "errors": 0,
+              "last_error": null,
+              "last_first_write_ms": 81.552,
+              "sample_rate": 48000,
+              "queued": 0,
+              "active": false,
+              "mode": "original",
+              "closed": false,
+              "muted": false
+            },
+            "vrchat_route": {
+              "core": [
+                636532002
+              ],
+              "nodes": {
+                "vrct.managed.source": 44,
+                "vrct.fixed.replay": 98
+              },
+              "edges": [
+                [
+                  "VRChat.exe",
+                  "vrct.fixed.replay"
+                ],
+                [
+                  "vrct.managed.source",
+                  "VRChat.exe"
+                ]
+              ]
+            }
+          },
+          {
+            "name": "positive-2",
+            "status": "passed",
+            "captures": {
+              "mic": {
+                "valid": true,
+                "samples": 1151488,
+                "elapsed_seconds": 24.001111542995204,
+                "last_read_seconds": 24.001786032997188,
+                "max_read_gap_seconds": 0.04692872099985834,
+                "early_exit": false,
+                "reader_error": null
+              },
+              "replay": {
+                "valid": true,
+                "samples": 1151488,
+                "elapsed_seconds": 24.00163143199461,
+                "last_read_seconds": 24.00213879799412,
+                "max_read_gap_seconds": 0.04530543500004569,
+                "early_exit": false,
+                "reader_error": null
+              }
+            },
+            "audio": {
+              "mic": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9990869928824594,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 3.22,
+                    "score": 0.9990869928824594
+                  }
+                ],
+                "observed_seconds": 23.989333333333335,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              },
+              "replay": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9680759335371955,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 13.02,
+                    "score": 0.9680759335371955
+                  }
+                ],
+                "observed_seconds": 23.989333333333335,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              }
+            },
+            "timing": {
+              "event_ns": 43618266835826,
+              "first_http_pcm_ns": 43618326721052,
+              "first_write_ns": 43618338496172,
+              "first_source_read_ns": 43618415983761
+            },
+            "milliseconds": {
+              "first_http_pcm_ns": 59.885226,
+              "first_write_ns": 71.660346,
+              "first_source_read_ns": 149.147935
+            },
+            "bus_after": {
+              "accepted": 2,
+              "completed": 2,
+              "dropped": 0,
+              "duplicates": 0,
+              "cancelled": 0,
+              "errors": 0,
+              "last_error": null,
+              "last_first_write_ms": 71.66,
+              "sample_rate": 48000,
+              "queued": 0,
+              "active": false,
+              "mode": "original",
+              "closed": false,
+              "muted": false
+            },
+            "vrchat_route": {
+              "core": [
+                636532002
+              ],
+              "nodes": {
+                "vrct.managed.source": 44,
+                "vrct.fixed.replay": 98
+              },
+              "edges": [
+                [
+                  "VRChat.exe",
+                  "vrct.fixed.replay"
+                ],
+                [
+                  "vrct.managed.source",
+                  "VRChat.exe"
+                ]
+              ]
+            }
+          },
+          {
+            "name": "positive-3",
+            "status": "passed",
+            "captures": {
+              "mic": {
+                "valid": true,
+                "samples": 1151488,
+                "elapsed_seconds": 24.000993809000647,
+                "last_read_seconds": 24.00168978000147,
+                "max_read_gap_seconds": 0.044350046999170445,
+                "early_exit": false,
+                "reader_error": null
+              },
+              "replay": {
+                "valid": true,
+                "samples": 1151488,
+                "elapsed_seconds": 24.00161817499611,
+                "last_read_seconds": 24.002169262996176,
+                "max_read_gap_seconds": 0.04462791900004959,
+                "early_exit": false,
+                "reader_error": null
+              }
+            },
+            "audio": {
+              "mic": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9976631344659809,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 3.22,
+                    "score": 0.9976631344659809
+                  }
+                ],
+                "observed_seconds": 23.989333333333335,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              },
+              "replay": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9969147450371851,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 13.02,
+                    "score": 0.9969147450371851
+                  }
+                ],
+                "observed_seconds": 23.989333333333335,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              }
+            },
+            "timing": {
+              "event_ns": 43644850025548,
+              "first_http_pcm_ns": 43644909867263,
+              "first_write_ns": 43644921038518,
+              "first_source_read_ns": 43645168208784
+            },
+            "milliseconds": {
+              "first_http_pcm_ns": 59.841715,
+              "first_write_ns": 71.01297,
+              "first_source_read_ns": 318.183236
+            },
+            "bus_after": {
+              "accepted": 3,
+              "completed": 3,
+              "dropped": 0,
+              "duplicates": 0,
+              "cancelled": 0,
+              "errors": 0,
+              "last_error": null,
+              "last_first_write_ms": 71.013,
+              "sample_rate": 48000,
+              "queued": 0,
+              "active": false,
+              "mode": "original",
+              "closed": false,
+              "muted": false
+            },
+            "vrchat_route": {
+              "core": [
+                636532002
+              ],
+              "nodes": {
+                "vrct.managed.source": 44,
+                "vrct.fixed.replay": 98
+              },
+              "edges": [
+                [
+                  "VRChat.exe",
+                  "vrct.fixed.replay"
+                ],
+                [
+                  "vrct.managed.source",
+                  "VRChat.exe"
+                ]
+              ]
+            }
+          },
+          {
+            "name": "cancel",
+            "status": "passed",
+            "event_ns": 43667868425299,
+            "command_ns": 43668342451879,
+            "first_silent_read_ns": 43668421294634,
+            "command_to_silence_ms": 78.842755,
+            "bus_after": {
+              "accepted": 4,
+              "completed": 3,
+              "dropped": 0,
+              "duplicates": 0,
+              "cancelled": 1,
+              "errors": 0,
+              "last_error": null,
+              "last_first_write_ms": 91.627,
+              "sample_rate": 48000,
+              "queued": 0,
+              "active": false,
+              "mode": "original",
+              "closed": false,
+              "muted": false
+            },
+            "silent_hold_frames": 102,
+            "vrchat_route": {
+              "core": [
+                636532002
+              ],
+              "nodes": {
+                "vrct.managed.source": 44,
+                "vrct.fixed.replay": 98
+              },
+              "edges": [
+                [
+                  "VRChat.exe",
+                  "vrct.fixed.replay"
+                ],
+                [
+                  "vrct.managed.source",
+                  "VRChat.exe"
+                ]
+              ]
+            }
+          },
+          {
+            "name": "held-mute",
+            "status": "passed",
+            "event_ns": 43674524619742,
+            "command_ns": 43674996036201,
+            "first_silent_read_ns": 43675077302620,
+            "command_to_silence_ms": 81.266419,
+            "bus_after": {
+              "accepted": 5,
+              "completed": 3,
+              "dropped": 0,
+              "duplicates": 0,
+              "cancelled": 2,
+              "errors": 0,
+              "last_error": null,
+              "last_first_write_ms": 102.093,
+              "sample_rate": 48000,
+              "queued": 0,
+              "active": false,
+              "mode": "original",
+              "closed": false,
+              "muted": true
+            },
+            "captures": {
+              "mic": {
+                "valid": true,
+                "samples": 1151488,
+                "elapsed_seconds": 24.00112094200449,
+                "last_read_seconds": 24.00181908700324,
+                "max_read_gap_seconds": 0.046296224994875956,
+                "early_exit": false,
+                "reader_error": null
+              },
+              "replay": {
+                "valid": true,
+                "samples": 1151488,
+                "elapsed_seconds": 24.001600896001037,
+                "last_read_seconds": 24.002264766000735,
+                "max_read_gap_seconds": 0.046228678002080414,
+                "early_exit": false,
+                "reader_error": null
+              }
+            },
+            "microphone": {
+              "verdict": "pass",
+              "peak_s16": 0,
+              "observed_seconds": 23.989333333333335,
+              "peak_limit_s16": 8
+            },
+            "replay": {
+              "verdict": "fail",
+              "occurrences": 0,
+              "best_envelope_correlation": 0.340949296651451,
+              "threshold": 0.8,
+              "matches": [],
+              "observed_seconds": 23.989333333333335,
+              "boundary": "saved_pcm_envelope_only",
+              "perceptual_quality_measured": false
+            },
+            "silent_hold_frames": 1224,
+            "vrchat_route": {
+              "core": [
+                636532002
+              ],
+              "nodes": {
+                "vrct.managed.source": 44,
+                "vrct.fixed.replay": 98
+              },
+              "edges": [
+                [
+                  "VRChat.exe",
+                  "vrct.fixed.replay"
+                ],
+                [
+                  "vrct.managed.source",
+                  "VRChat.exe"
+                ]
+              ]
+            }
+          },
+          {
+            "name": "server-crash-1",
+            "status": "passed",
+            "http_bytes_at_kill": 40954,
+            "tcp_after_kill": "State Recv-Q Send-Q Local Address:Port Peer Address:Port\n",
+            "initial_idle_window_seconds": 12,
+            "within_initial_idle_window": true,
+            "idle_observed_ns": 43704219117009,
+            "event_ns": 43703664481562,
+            "killed_pid": 1953725,
+            "command_ns": 43704139226827,
+            "first_silent_read_ns": 43704218626075,
+            "command_to_silence_ms": 79.399248,
+            "bus_after": {
+              "accepted": 6,
+              "completed": 3,
+              "dropped": 0,
+              "duplicates": 0,
+              "cancelled": 2,
+              "errors": 1,
+              "last_error": "server_unavailable",
+              "last_first_write_ms": 93.17,
+              "sample_rate": 48000,
+              "queued": 0,
+              "active": false,
+              "mode": "original",
+              "closed": false,
+              "muted": false
+            },
+            "silence_budget_ms": 250,
+            "within_silence_budget": true,
+            "unavailable_error": "transport_error",
+            "vrchat_route": {
+              "core": [
+                636532002
+              ],
+              "nodes": {
+                "vrct.managed.source": 44,
+                "vrct.fixed.replay": 98
+              },
+              "edges": [
+                [
+                  "VRChat.exe",
+                  "vrct.fixed.replay"
+                ],
+                [
+                  "vrct.managed.source",
+                  "VRChat.exe"
+                ]
+              ]
+            }
+          },
+          {
+            "name": "recovery-1",
+            "status": "passed",
+            "captures": {
+              "mic": {
+                "valid": true,
+                "samples": 1151488,
+                "elapsed_seconds": 24.001088995995815,
+                "last_read_seconds": 24.001750953000737,
+                "max_read_gap_seconds": 0.047098256000026595,
+                "early_exit": false,
+                "reader_error": null
+              },
+              "replay": {
+                "valid": true,
+                "samples": 1151744,
+                "elapsed_seconds": 24.001745302004565,
+                "last_read_seconds": 24.002488752004865,
+                "max_read_gap_seconds": 0.0461147140013054,
+                "early_exit": false,
+                "reader_error": null
+              }
+            },
+            "audio": {
+              "mic": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9989486608406498,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 3.22,
+                    "score": 0.9989486608406498
+                  }
+                ],
+                "observed_seconds": 23.989333333333335,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              },
+              "replay": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9990151066308846,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 13.04,
+                    "score": 0.9990151066308846
+                  }
+                ],
+                "observed_seconds": 23.994666666666667,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              }
+            },
+            "timing": {
+              "event_ns": 43714609823496,
+              "first_http_pcm_ns": 43714672492642,
+              "first_write_ns": 43714684995584,
+              "first_source_read_ns": 43714971904202
+            },
+            "milliseconds": {
+              "first_http_pcm_ns": 62.669146,
+              "first_write_ns": 75.172088,
+              "first_source_read_ns": 362.080706
+            },
+            "bus_after": {
+              "accepted": 8,
+              "completed": 4,
+              "dropped": 0,
+              "duplicates": 0,
+              "cancelled": 2,
+              "errors": 2,
+              "last_error": null,
+              "last_first_write_ms": 75.172,
+              "sample_rate": 48000,
+              "queued": 0,
+              "active": false,
+              "mode": "original",
+              "closed": false,
+              "muted": false
+            },
+            "vrchat_route": {
+              "core": [
+                636532002
+              ],
+              "nodes": {
+                "vrct.managed.source": 44,
+                "vrct.fixed.replay": 98
+              },
+              "edges": [
+                [
+                  "VRChat.exe",
+                  "vrct.fixed.replay"
+                ],
+                [
+                  "vrct.managed.source",
+                  "VRChat.exe"
+                ]
+              ]
+            }
+          },
+          {
+            "name": "server-crash-2",
+            "status": "passed",
+            "http_bytes_at_kill": 36858,
+            "tcp_after_kill": "State Recv-Q Send-Q Local Address:Port Peer Address:Port\n",
+            "initial_idle_window_seconds": 12,
+            "within_initial_idle_window": true,
+            "idle_observed_ns": 43738221191855,
+            "event_ns": 43737670763375,
+            "killed_pid": 1963100,
+            "command_ns": 43738140712110,
+            "first_silent_read_ns": 43738224344481,
+            "command_to_silence_ms": 83.632371,
+            "bus_after": {
+              "accepted": 9,
+              "completed": 4,
+              "dropped": 0,
+              "duplicates": 0,
+              "cancelled": 2,
+              "errors": 3,
+              "last_error": "server_unavailable",
+              "last_first_write_ms": 103.229,
+              "sample_rate": 48000,
+              "queued": 0,
+              "active": false,
+              "mode": "original",
+              "closed": false,
+              "muted": false
+            },
+            "silence_budget_ms": 250,
+            "within_silence_budget": true,
+            "unavailable_error": "transport_error",
+            "vrchat_route": {
+              "core": [
+                636532002
+              ],
+              "nodes": {
+                "vrct.managed.source": 44,
+                "vrct.fixed.replay": 98
+              },
+              "edges": [
+                [
+                  "VRChat.exe",
+                  "vrct.fixed.replay"
+                ],
+                [
+                  "vrct.managed.source",
+                  "VRChat.exe"
+                ]
+              ]
+            }
+          },
+          {
+            "name": "recovery-2",
+            "status": "passed",
+            "captures": {
+              "mic": {
+                "valid": true,
+                "samples": 1151744,
+                "elapsed_seconds": 24.001005006000923,
+                "last_read_seconds": 24.00165541100432,
+                "max_read_gap_seconds": 0.045464702998287976,
+                "early_exit": false,
+                "reader_error": null
+              },
+              "replay": {
+                "valid": true,
+                "samples": 1151488,
+                "elapsed_seconds": 24.00166341700242,
+                "last_read_seconds": 24.002327147005417,
+                "max_read_gap_seconds": 0.045603412996570114,
+                "early_exit": false,
+                "reader_error": null
+              }
+            },
+            "audio": {
+              "mic": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9823054297194778,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 3.32,
+                    "score": 0.9823054297194778
+                  }
+                ],
+                "observed_seconds": 23.994666666666667,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              },
+              "replay": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9822182654069751,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 13.16,
+                    "score": 0.9822182654069751
+                  }
+                ],
+                "observed_seconds": 23.989333333333335,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              }
+            },
+            "timing": {
+              "event_ns": 43748739274053,
+              "first_http_pcm_ns": 43748798760909,
+              "first_write_ns": 43748811521938,
+              "first_source_read_ns": 43748848187070
+            },
+            "milliseconds": {
+              "first_http_pcm_ns": 59.486856,
+              "first_write_ns": 72.247885,
+              "first_source_read_ns": 108.913017
+            },
+            "bus_after": {
+              "accepted": 11,
+              "completed": 5,
+              "dropped": 0,
+              "duplicates": 0,
+              "cancelled": 2,
+              "errors": 4,
+              "last_error": null,
+              "last_first_write_ms": 72.248,
+              "sample_rate": 48000,
+              "queued": 0,
+              "active": false,
+              "mode": "original",
+              "closed": false,
+              "muted": false
+            },
+            "vrchat_route": {
+              "core": [
+                636532002
+              ],
+              "nodes": {
+                "vrct.managed.source": 44,
+                "vrct.fixed.replay": 98
+              },
+              "edges": [
+                [
+                  "VRChat.exe",
+                  "vrct.fixed.replay"
+                ],
+                [
+                  "vrct.managed.source",
+                  "VRChat.exe"
+                ]
+              ]
+            }
+          },
+          {
+            "name": "server-crash-3",
+            "status": "passed",
+            "http_bytes_at_kill": 82934,
+            "tcp_after_kill": "State Recv-Q Send-Q Local Address:Port Peer Address:Port\n",
+            "initial_idle_window_seconds": 12,
+            "within_initial_idle_window": true,
+            "idle_observed_ns": 43772694080356,
+            "event_ns": 43771677802119,
+            "killed_pid": 1965406,
+            "command_ns": 43772614622532,
+            "first_silent_read_ns": 43772698659118,
+            "command_to_silence_ms": 84.036586,
+            "bus_after": {
+              "accepted": 12,
+              "completed": 5,
+              "dropped": 0,
+              "duplicates": 0,
+              "cancelled": 2,
+              "errors": 5,
+              "last_error": "server_unavailable",
+              "last_first_write_ms": 99.788,
+              "sample_rate": 48000,
+              "queued": 0,
+              "active": false,
+              "mode": "original",
+              "closed": false,
+              "muted": false
+            },
+            "silence_budget_ms": 250,
+            "within_silence_budget": true,
+            "unavailable_error": "transport_error",
+            "vrchat_route": {
+              "core": [
+                636532002
+              ],
+              "nodes": {
+                "vrct.managed.source": 44,
+                "vrct.fixed.replay": 98
+              },
+              "edges": [
+                [
+                  "VRChat.exe",
+                  "vrct.fixed.replay"
+                ],
+                [
+                  "vrct.managed.source",
+                  "VRChat.exe"
+                ]
+              ]
+            }
+          },
+          {
+            "name": "recovery-3",
+            "status": "passed",
+            "captures": {
+              "mic": {
+                "valid": true,
+                "samples": 1151744,
+                "elapsed_seconds": 24.000915413998882,
+                "last_read_seconds": 24.00162522100436,
+                "max_read_gap_seconds": 0.04495750900241546,
+                "early_exit": false,
+                "reader_error": null
+              },
+              "replay": {
+                "valid": true,
+                "samples": 1151488,
+                "elapsed_seconds": 24.001512889000878,
+                "last_read_seconds": 24.00221810700168,
+                "max_read_gap_seconds": 0.0451215580033022,
+                "early_exit": false,
+                "reader_error": null
+              }
+            },
+            "audio": {
+              "mic": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9923329576255832,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 3.34,
+                    "score": 0.9923329576255832
+                  }
+                ],
+                "observed_seconds": 23.994666666666667,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              },
+              "replay": {
+                "verdict": "pass",
+                "occurrences": 1,
+                "best_envelope_correlation": 0.9985838610198404,
+                "threshold": 0.8,
+                "matches": [
+                  {
+                    "offset_seconds": 13.16,
+                    "score": 0.9985838610198404
+                  }
+                ],
+                "observed_seconds": 23.989333333333335,
+                "boundary": "saved_pcm_envelope_only",
+                "perceptual_quality_measured": false
+              }
+            },
+            "timing": {
+              "event_ns": 43783298622064,
+              "first_http_pcm_ns": 43783365697812,
+              "first_write_ns": 43783378235071,
+              "first_source_read_ns": 43783621505498
+            },
+            "milliseconds": {
+              "first_http_pcm_ns": 67.075748,
+              "first_write_ns": 79.613007,
+              "first_source_read_ns": 322.883434
+            },
+            "bus_after": {
+              "accepted": 14,
+              "completed": 6,
+              "dropped": 0,
+              "duplicates": 0,
+              "cancelled": 2,
+              "errors": 6,
+              "last_error": null,
+              "last_first_write_ms": 79.613,
+              "sample_rate": 48000,
+              "queued": 0,
+              "active": false,
+              "mode": "original",
+              "closed": false,
+              "muted": false
+            },
+            "vrchat_route": {
+              "core": [
+                636532002
+              ],
+              "nodes": {
+                "vrct.managed.source": 44,
+                "vrct.fixed.replay": 98
+              },
+              "edges": [
+                [
+                  "VRChat.exe",
+                  "vrct.fixed.replay"
+                ],
+                [
+                  "vrct.managed.source",
+                  "VRChat.exe"
+                ]
+              ]
+            }
+          }
+        ],
+        "real_tts": true,
+        "real_vc": false,
+        "full_vrct_gui_tested": false,
+        "physical_headphone_tested": false,
+        "environment": "host_pipewire_vrchat_desktop",
+        "noise_suppression": "off",
+        "measurement_boundary": "event creation to source 20ms read frame with peak >64/32768",
+        "server_warmup_enabled": true,
+        "requested_crash_repeats": 3,
+        "initial_gate": {
+          "identity": [
+            636532002,
+            44
+          ],
+          "muted": true
+        },
+        "server_runs": [
+          {
+            "pid": 1953725,
+            "log": "server-00.log",
+            "warmup_enabled": true,
+            "port": 55729,
+            "ready": true,
+            "exit_code": -9
+          },
+          {
+            "pid": 1963100,
+            "log": "server-01.log",
+            "warmup_enabled": true,
+            "port": 55729,
+            "ready": true,
+            "exit_code": -9
+          },
+          {
+            "pid": 1965406,
+            "log": "server-02.log",
+            "warmup_enabled": true,
+            "port": 55729,
+            "ready": true,
+            "exit_code": -9
+          },
+          {
+            "pid": 1969201,
+            "log": "server-03.log",
+            "warmup_enabled": true,
+            "port": 55729,
+            "ready": true,
+            "exit_code": -15
+          }
+        ],
+        "http_pcm_records": [
+          {
+            "started_ns": 43591646456452,
+            "first_pcm_ns": 43591715382296,
+            "received_bytes": 484100,
+            "complete": true,
+            "error": null,
+            "wav": "generated-000.wav",
+            "finished_ns": 43596768093060,
+            "samples": 242050,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 43618267155558,
+            "first_pcm_ns": 43618326721052,
+            "received_bytes": 550022,
+            "complete": true,
+            "error": null,
+            "wav": "generated-001.wav",
+            "finished_ns": 43624069453138,
+            "samples": 275011,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 43644850344328,
+            "first_pcm_ns": 43644909867263,
+            "received_bytes": 497108,
+            "complete": true,
+            "error": null,
+            "wav": "generated-002.wav",
+            "finished_ns": 43650101520892,
+            "samples": 248554,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 43667868766802,
+            "first_pcm_ns": 43667949716525,
+            "received_bytes": 40954,
+            "complete": false,
+            "error": null,
+            "wav": "generated-003.wav",
+            "finished_ns": 43668347998693,
+            "samples": 20477,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 43674524881915,
+            "first_pcm_ns": 43674615548635,
+            "received_bytes": 36858,
+            "complete": false,
+            "error": null,
+            "wav": "generated-004.wav",
+            "finished_ns": 43674998585892,
+            "samples": 18429,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 43703664774824,
+            "first_pcm_ns": 43703746313870,
+            "received_bytes": 40954,
+            "complete": false,
+            "error": null,
+            "wav": "generated-005.wav",
+            "finished_ns": 43704155852914,
+            "samples": 20477,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 43706227800964,
+            "first_pcm_ns": null,
+            "received_bytes": 0,
+            "complete": false,
+            "error": "transport_error",
+            "wav": "generated-006.wav",
+            "finished_ns": 43706227959904,
+            "samples": 0,
+            "sample_rate": null
+          },
+          {
+            "started_ns": 43714610155180,
+            "first_pcm_ns": 43714672492642,
+            "received_bytes": 492122,
+            "complete": true,
+            "error": null,
+            "wav": "generated-007.wav",
+            "finished_ns": 43719797420467,
+            "samples": 246061,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 43737671042250,
+            "first_pcm_ns": 43737762683904,
+            "received_bytes": 40954,
+            "complete": false,
+            "error": null,
+            "wav": "generated-008.wav",
+            "finished_ns": 43738177160202,
+            "samples": 20477,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 43740231204780,
+            "first_pcm_ns": null,
+            "received_bytes": 0,
+            "complete": false,
+            "error": "transport_error",
+            "wav": "generated-009.wav",
+            "finished_ns": 43740231397823,
+            "samples": 0,
+            "sample_rate": null
+          },
+          {
+            "started_ns": 43748739723679,
+            "first_pcm_ns": 43748798760909,
+            "received_bytes": 550720,
+            "complete": true,
+            "error": null,
+            "wav": "generated-010.wav",
+            "finished_ns": 43754544175806,
+            "samples": 275360,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 43771678107394,
+            "first_pcm_ns": 43771767151920,
+            "received_bytes": 87030,
+            "complete": false,
+            "error": null,
+            "wav": "generated-011.wav",
+            "finished_ns": 43772647872073,
+            "samples": 43515,
+            "sample_rate": 48000
+          },
+          {
+            "started_ns": 43774706559708,
+            "first_pcm_ns": null,
+            "received_bytes": 0,
+            "complete": false,
+            "error": "transport_error",
+            "wav": "generated-012.wav",
+            "finished_ns": 43774706718928,
+            "samples": 0,
+            "sample_rate": null
+          },
+          {
+            "started_ns": 43783298942147,
+            "first_pcm_ns": 43783365697812,
+            "received_bytes": 542270,
+            "complete": true,
+            "error": null,
+            "wav": "generated-013.wav",
+            "finished_ns": 43789013537300,
+            "samples": 271135,
+            "sample_rate": 48000
+          }
+        ],
+        "route_before": {
+          "core": [
+            636532002
+          ],
+          "nodes": {
+            "vrct.managed.source": 44,
+            "vrct.fixed.replay": 98
+          },
+          "edges": [
+            [
+              "VRChat.exe",
+              "vrct.fixed.replay"
+            ],
+            [
+              "vrct.managed.source",
+              "VRChat.exe"
+            ]
+          ]
+        },
+        "final_capture": {
+          "frames": 11118,
+          "sample_count": 10673280,
+          "last_read_ns": 43806234865498,
+          "capture_gaps_over_100ms": 0,
+          "max_read_gap_ms": 61.273111,
+          "nonzero_frames": 1160,
+          "detected_frames": {
+            "440": 488,
+            "880": 266,
+            "1760": 83
+          },
+          "reader_eof": false,
+          "reader_error": null
+        },
+        "gui_observations": [
+          {
+            "image": "screen-001.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-002.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-003.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-004.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-005.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-006.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-007.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-008.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-009.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-010.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-011.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-012.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-013.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-014.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-015.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-016.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-017.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-018.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-019.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-020.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-021.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-022.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-023.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-024.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-025.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-026.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-027.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-028.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-029.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-030.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-031.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-032.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-033.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-034.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-035.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-036.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-037.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-038.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-039.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-040.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-041.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-042.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-043.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-044.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-045.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-046.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-047.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-048.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-049.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-050.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-051.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-052.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-053.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-054.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-055.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-056.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-057.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-058.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-059.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-060.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-061.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-062.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-063.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-064.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-065.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-066.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-067.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-068.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-069.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-070.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-071.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-072.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-073.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-074.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-075.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-076.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-077.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-078.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-079.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-080.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-081.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-082.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-083.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-084.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-085.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-086.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-087.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-088.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-089.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-090.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-091.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-092.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-093.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-094.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-095.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-096.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-097.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-098.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-099.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-100.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-101.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-102.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-103.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-104.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-105.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-106.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-107.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-108.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-109.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-110.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-111.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-112.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-113.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-114.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          },
+          {
+            "image": "screen-115.png",
+            "scores": {
+              "ready": 0.3008371359139349,
+              "recording": 1.0
+            }
+          },
+          {
+            "image": "screen-116.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-117.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-118.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-119.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-120.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-121.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-122.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-123.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-124.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-125.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-126.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-127.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-128.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-129.png",
+            "scores": {
+              "ready": 0.3200323171053355,
+              "recording": 0.5699871204222093
+            }
+          },
+          {
+            "image": "screen-130.png",
+            "scores": {
+              "ready": 1.0,
+              "recording": 0.3008371359139349
+            }
+          }
+        ],
+        "crash_budget": {
+          "count": 3,
+          "p95_ms": null,
+          "max_ms": 84.036586,
+          "p95_target_ms": 100,
+          "max_target_ms": 250,
+          "met": true
+        }
+      }
+    }
+  ],
+  "checks": {
+    "sandbox_voice": {
+      "passed": 141,
+      "failed": 39,
+      "exit_code": 1,
+      "all_failures_socket_permission_error": true
+    },
+    "general_pytest": {
+      "exit_code": 2,
+      "collection_errors": [
+        "test_audio_pipeline_failure.py",
+        "test_audio_vad.py",
+        "test_chatbox_sample_player.py",
+        "test_clipboard_focus_and_paste.py",
+        "test_controller_audio.py",
+        "test_controller_change_to_ctranslate2.py",
+        "test_controller_config_validation_decorator.py",
+        "test_controller_di_constructor.py",
+        "test_controller_init_config_settings.py",
+        "test_controller_init_watchdog_and_join_timeout.py",
+        "test_controller_message_pipeline.py",
+        "test_controller_ocr_enable.py",
+        "test_controller_ocr_settings.py",
+        "test_controller_overlay_running.py",
+        "test_controller_shutdown_lock.py",
+        "test_controller_simple_config_getters.py",
+        "test_controller_transcription_api_endpoints.py",
+        "test_controller_transcription_engine_status.py",
+        "test_controller_transcription_language_fallback.py",
+        "test_controller_translation_connection_endpoints.py",
+        "test_controller_translation_engine_language_fallback.py",
+        "test_controller_translation_gemini_endpoint.py",
+        "test_controller_translation_registry_endpoints.py",
+        "test_controller_update_software_failure.py",
+        "test_controller_update_transcription_engine.py",
+        "test_controller_vr_panel_opacity.py",
+        "test_controller_vr_panel_toolbar.py",
+        "test_controller_vrc_mic_mute_sync_init.py",
+        "test_dead_code_removed.py",
+        "test_gemini_bbox_labeler.py",
+        "test_mainloop_retry_limit.py",
+        "test_mainloop_watchdog_escalation.py",
+        "test_model_api_transcription_wiring.py",
+        "test_model_audio_lifecycle_worker.py",
+        "test_model_audio_queue_bounded.py",
+        "test_model_get_translate_unsupported_language.py",
+        "test_model_http_timeouts.py",
+        "test_model_init_failure_no_retry.py",
+        "test_model_input_translate_parallel.py",
+        "test_model_language_engine_compatibility.py",
+        "test_model_osc_mute_sync.py",
+        "test_model_session_reconfigure.py",
+        "test_model_session_resume_drain.py",
+        "test_model_session_start_failure_rollback.py",
+        "test_model_stop_receive_osc.py",
+        "test_model_stop_watchdog.py",
+        "test_model_transcript_stop.py",
+        "test_model_transcript_wiring.py",
+        "test_model_transcription_language_support.py",
+        "test_model_translate_fallback_no_wait.py",
+        "test_model_update.py",
+        "test_model_vad_recorder_selection.py",
+        "test_model_watchdog_available_during_init.py",
+        "test_ocr_bubble_detector.py",
+        "test_ocr_capture.py",
+        "test_ocr_dataset_collector.py",
+        "test_ocr_languages.py",
+        "test_ocr_onnx_threads.py",
+        "test_ocr_pipeline.py",
+        "test_openvr_session.py",
+        "test_osc_receive_single_thread.py",
+        "test_osc_server_shutdown_responsiveness.py",
+        "test_overlay_grab_move.py",
+        "test_overlay_shutdown_timeout.py",
+        "test_overlay_tooltip.py",
+        "test_phase4_low_risk_cleanup.py",
+        "test_transcription_openai_compatible.py",
+        "test_transcription_providers.py",
+        "test_transcription_recorder.py",
+        "test_transcription_transcriber.py",
+        "test_translation_ctranslate2_lock.py",
+        "test_translation_providers.py",
+        "test_translation_translator_ctranslate2.py",
+        "test_translation_translator_registry.py",
+        "test_translation_unsupported_language.py",
+        "test_ui_endpoint_contract.py",
+        "test_vr_panel_capture_recovery.py",
+        "test_vrct_transcription_integration.py",
+        "test_websocket_auth_and_bind_guard.py",
+        "test_whisper_eval.py"
+      ],
+      "same_error_files_as_previous": true,
+      "missing_modules": [
+        "PIL",
+        "deepl",
+        "google",
+        "httpx",
+        "numpy",
+        "openai",
+        "openvr",
+        "psutil",
+        "pythonosc",
+        "speech_recognition",
+        "translation_gemini"
+      ],
+      "command": "UV_CACHE_DIR=/tmp/vrct-uv-cache uv run --no-project python -m pytest -q"
+    },
+    "voice": {
+      "command": "UV_CACHE_DIR=/tmp/vrct-uv-cache uv run --no-project python -m pytest -q tests/voice --junitxml=tmp/tts-fixed-vrchat/voice-tests-host.xml",
+      "passed": 180,
+      "exit_code": 0,
+      "seconds": 6.361,
+      "localhost_sockets_enabled": true
+    },
+    "ruff": "Not rerun: this change contains documentation and measurements only; production and test sources are unchanged."
+  },
+  "cleanup": {
+    "config_removed": true,
+    "managed_nodes_removed": true,
+    "replay_sink_removed": true,
+    "legacy_p1_nodes_once": true,
+    "default_sink": "vrct.p1.sink",
+    "default_source": "vrct.p1.source",
+    "audio_services": [
+      "active",
+      "active",
+      "active"
+    ],
+    "sink_inputs": "",
+    "source_outputs": "",
+    "owned_servers_exited": true,
+    "owned_server_count": 4,
+    "input_socket_removed": true,
+    "vrchat_closed": true,
+    "restored_p1_unit": "vrct-p1-restored-1793102109",
+    "wivrn_same_process_running": true,
+    "gpu_after": "NVIDIA GeForce RTX 4080 SUPER, 2363 MiB, 16376 MiB, 42 %",
+    "versions": {
+      "pw-loopback": "pw-loopback\nCompiled with libpipewire 1.6.10\nLinked with libpipewire 1.6.10",
+      "wireplumber": "wireplumber\nCompiled with libwireplumber 0.5.18\nLinked with libwireplumber 0.5.18"
+    },
+    "cleanup_metadata_observation": "First metadata collection stopped on ydotool --version exit1 after restoration completed; retried read-only verification without unsupported version flag."
+  },
+  "gui_cleanup": {
+    "restored_vrchat_route": {
+      "core": [
+        636532002
+      ],
+      "nodes": {
+        "vrct.p1.source": 53,
+        "vrct.fixed.replay": 98
+      },
+      "edges": [
+        [
+          "VRChat.exe",
+          "vrct.fixed.replay"
+        ],
+        [
+          "vrct.p1.source",
+          "VRChat.exe"
+        ]
+      ]
+    },
+    "noise_suppression_restored_visually": true,
+    "microphone_volume_percent": 75,
+    "threshold_percent": 10,
+    "test_started_vrchat_closed": true,
+    "input_socket_removed": true,
+    "owned_ydotool_unit_state": "inactive",
+    "replay_module_removed": true,
+    "streams_before_restore": [
+      {
+        "name": "vrct.managed.tts.output",
+        "class": "Stream/Output/Audio",
+        "application": null
+      },
+      {
+        "name": "vrct.managed.vc.output",
+        "class": "Stream/Output/Audio",
+        "application": null
+      }
+    ],
+    "cleanup_observation": "pactl JSON module entries lacked index; first cleanup stopped before unloading, then matched owned module ID/name/arguments using pactl short modules"
+  },
+  "raw_evidence_sha256": {
+    "tmp/tts-fixed-vrchat/actions.jsonl": "2b609263ee29881819fa85cfb5cb641a24473c063ff0e664c2818ea1c59a0687",
+    "tmp/tts-fixed-vrchat/assemble_measurement.py": "e54c50ba7ae42243ce3b750099e128fb717b37d7e51f8268e3a15382dc7a64e3",
+    "tmp/tts-fixed-vrchat/checks-partial.json": "ab7028eba1598384626893920552df9d0342a659e5ae468915ebb674ef6fb960",
+    "tmp/tts-fixed-vrchat/cleanup.json": "dfc0b206cff335c4e3ab8a573062991ed3aca63e3a95d2c79c3e6b11fb8b65b9",
+    "tmp/tts-fixed-vrchat/control.py": "0254135dca4decc8d3cd4ad2c89d54df3644f331407f2654b309ae75c6be4f90",
+    "tmp/tts-fixed-vrchat/focus-pointer-diagnostic.json": "e6ff3c552a0c7f670e60d63f39535f42029708d5b212407e7b1e77ca47340609",
+    "tmp/tts-fixed-vrchat/focused-menu/screen-001.png": "c599caf25492c7ffee4a5f3d4577441f647a41ebdd9cad09c0deaba88f798581",
+    "tmp/tts-fixed-vrchat/full-settings/screen-001.png": "a4b359494781868b08f08d698cf59c61466c3e3633b4315b7f22e3b96a5795fa",
+    "tmp/tts-fixed-vrchat/general-pytest.log": "00c7126d45621cea3d81694c940f7b1441c2505e9a247e4a808ce2f3a5e49fa9",
+    "tmp/tts-fixed-vrchat/gui-cleanup.json": "7de5ce8fa7c79a5c6dc62d897fbb49a220129b57de892d298829c75865723f3b",
+    "tmp/tts-fixed-vrchat/host-1/generated-000.wav": "04cd5643b8eee0b5b9cc364c6ba34463aee1a7b1babfbf3078484f3b4b23b7ac",
+    "tmp/tts-fixed-vrchat/host-1/generated-001.wav": "af1d36691514e8a4f7902bcb3d973be0943bbee4d6fd44e3ac217a5f81dc4819",
+    "tmp/tts-fixed-vrchat/host-1/generated-002.wav": "4a538e692610f1ff9cc5d165956d461a03a890410a4ba20d7086ce8d594eaf3c",
+    "tmp/tts-fixed-vrchat/host-1/generated-003.wav": "5e32a3ccf22a867ca7f3ac0e05e59856b974643aaf07e90abb0767fe976cdd3b",
+    "tmp/tts-fixed-vrchat/host-1/generated-004.wav": "5ef591a5885bc280cb213b1fd55576ce2fbc1d6e6373c33a53c9b543bdbcfaea",
+    "tmp/tts-fixed-vrchat/host-1/generated-005.wav": "15e563af464d03f172eaf754ada1e1964e78117e63ef997c249f0c1a6ac32486",
+    "tmp/tts-fixed-vrchat/host-1/generated-007.wav": "316821e1561ea11ce6963b693f9b7060c455e92131b4e970bde452f4abe6ae63",
+    "tmp/tts-fixed-vrchat/host-1/generated-008.wav": "a6b8086e9216ca49bc45a2ace049943a7f01e3fb5415f14534b352d5e7ae9a1b",
+    "tmp/tts-fixed-vrchat/host-1/generated-010.wav": "eddfa05e082e36cf66dc559b366f9b0849da60951f210139658444d1775c38d1",
+    "tmp/tts-fixed-vrchat/host-1/generated-011.wav": "c28b36568054a040ca56688ef8a26dbf203fdcef208cc85ee5af6c89ffba52f4",
+    "tmp/tts-fixed-vrchat/host-1/generated-013.wav": "1bda025ef4b147be56955125987f74a1c48a0e6d3863eb93cb7c58dd5ce1da10",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/mic.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/mic.pcm": "2fc1ac934890b3495589f9060b3d757eabcd95fe97282cd1ea284b2e63c58a09",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/replay.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/replay.pcm": "86c86e925c61e9015d36ce71822b0933080e45ce5ca0f76e9206325228f53216",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-053.png": "101ea8ddf154f3fda8e7de62cd0ded667d8eb7551c5ed46fe410c9815c03838a",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-054.png": "ea782c60fa9845f4f3e2a67de7eb890b1285c4aee32e5126ea20886becf4e9ba",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-055.png": "f50cc1724cf4ff26a6bf366e2901ce6b4842b7867d7c1f139905319a8fb7e381",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-056.png": "83cac509ed2b5acd0b10813d44fa3cd7f25975217ee3b7edb13d5f3de67f454b",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-057.png": "808bb1c18bbbd0af5f819f458cdd605307713d38a8505f9af9f201b8c03e4b48",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-058.png": "8a306ecc6f76832064951e43a43fc88462e9a55132feded50b61a79b3c8f5881",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-059.png": "2b8201439b89e636aed63477ac1583f369244a72b776652b1d489f6fc86caa32",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-060.png": "be34ff91921d86fce55f07d60e54ce21667d598ebfe6dcf73c5f58893500580e",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-061.png": "edf2c1851b09b3a69517188a843e517a91c659c8e708205ccbf0e0eaac2e47a9",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-062.png": "ae161fbf15719e42224bd3c7d68b164f3529f1b584ec22cfaca0f09aaa1ec9e2",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-063.png": "f9318d2906ba13a0b3ccfbbe82ed242ee53617d854030cf6acd27e83cdc9c5ed",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-064.png": "4fbf5956015ccfeb9e6a1c2a347bc762e3d258d31648f78f2d70b95864cefc87",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-065.png": "7164551765e57e3dd3988577dbcd52e15211242359119184d168abebebb71ad9",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-066.png": "f8da221504b9e51b0ffa508a1c54bec0cadae710c857c3c0811ff93430f179ae",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-067.png": "0b50d0caf3589930d8530a33251c7ca3c92dece576244638f3bf103bbca3d36f",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-068.png": "9753d28cd6593b86b656295b4a74569c76a952d2de422f6ce995bcf012049cfc",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-069.png": "76b60bafecf0b63db582d44095c6bef63ad2eaa383cfb72b86b4a987e05aa161",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-070.png": "419ec81ea7a5d9ad44b80d349af4ecc9d160a4b1fa6a03bf55f868b73b573e7b",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-071.png": "8bf5c3ec127904d0b1685e48ba27e40191e1fae07102170421557299f00bfc15",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-072.png": "d29f17059bc094d18c50a9c14af65dd085811e6ef7fc2edef0dfc84c5f44419a",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-073.png": "2ef7b3e287b9dab8afaffdf1d02dab7725c496691645693f8bb7fdf40fa38d36",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-074.png": "cc0b7987279b23fa52ac9adb107917c913c95f3d1fb4470a9f47ae3b3d04c52e",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-075.png": "8fd3e4c88a7572eda65218a86fd5d5c83b4126c68d39e0e81f6463f0e6551b28",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-076.png": "f65507071e8706ac63de2478f348771674fa0c7973021216d3b61b3bb9fb1fe2",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-077.png": "86f360f75db2abbbf7c334908340a898f4b6fb4c67b907445d1a95aeeaaee70d",
+    "tmp/tts-fixed-vrchat/host-1/muted-recording/screen-078.png": "69c30ec9c429a3738bc1818fcc294c42223ee883bfe68f392d5ef2c11e7d7f48",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/mic.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/mic.pcm": "8250c6a6fdd5f28bcd364d7df501f3230bf6080c4b1a026c56bd5090f1385d46",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/replay.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/replay.pcm": "26e226278f77b1b0dc8e16c1429c69c5e182ab21c117b6544b195857012288c2",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-001.png": "63ed6fe198bfc68fd896cc7bdcf2e8f5f0818dcd992667798b1e4af8a7d9f4d0",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-002.png": "3cb7a39b18dee2fbcf646e99b29ad1e24485df5d9adcd9644caeb44955226c55",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-003.png": "031960029b599e6f1e9747f1563a8768bc4fd72e49841e66fa58af7fd0492c8d",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-004.png": "1bed4c2e0ab4368d1350367450b0990cdb2062ef4090317bbad7304deb86b96f",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-005.png": "ac1fdad1cba345f9ac5be211738803c7d5d8196c9a3b87020b2bc2fd2c7443eb",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-006.png": "2f1837bdf08a7d3e66b2d5b3da0f05a55da3bbfbc98d8aa9da554d4e40610616",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-007.png": "7652b6ab83ac4993030ce9342e197d927f7bc75a2ca74b1b03118b6563b509e7",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-008.png": "0b4a31b5e448bd4c7736f3d73c2903f4716c0057c6eda4324c53db722b1f4a4d",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-009.png": "b17ebc85c16c170c5dd83d14511917b27b676b6d30cee40f931382a7f9a34922",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-010.png": "ff11b1e6fdf465f1b3c384e4e662a5609f2e7ce87c0e0fbb3103b99b3a871be2",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-011.png": "de4bb75aff6ad344e178681e175c102843819c2f0aeeea3e1305d280bf4bb666",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-012.png": "24d36039770976821c9925568dbcab44ffbf9eed085cb26c871337d66f6cd6f2",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-013.png": "4ce536c504a9d2686f29c8d171c92fac472230c82ee530132c74493fd9ff1317",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-014.png": "678eeed8fba74097ed0d940539cc7662be641cd22c6469609c14ecff83c18a47",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-015.png": "9131dda553fa49e6dfefb85361622165a35f337b27feb93ff41450076495db2c",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-016.png": "f07ea4443b73115df9e118b5f79bccf0cfec0feb097baccdb9559d0a9dab79d8",
+    "tmp/tts-fixed-vrchat/host-1/positive-1/screen-017.png": "e7cb43b10d71825782368f2addc408b002777ba9731fad7c33b1fc8290fcbd2f",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/mic.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/mic.pcm": "486af49c59edf34dfe0d5549b2e9f686175111253f55331cabdf70fc4fcc9d2c",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/replay.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/replay.pcm": "0ca514d270e870df235eb90c2ca315f8b069ecaa9af1054d5b5ed7bb81a128e2",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-018.png": "4315b5ccb57d7f772dc9904fb37e134602241eeb10f71871f407a32a98d08b1e",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-019.png": "bee1f3de7d53da1458ceca950ba2e06cdce59d124bf948ece6ac2cdcd58b646d",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-020.png": "448b87a8c38b7fb66156325e9762692ca4082e9c5c1d3636103741c7a005b932",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-021.png": "9bc7ae8146f3e3fff8e52983b27c36412380c3633e2b74589cf4b34d0804a384",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-022.png": "0ca173361d4c39a6ed7f59f2c1516ccd8c666dfcaff81f3eaf6e523b70ae5512",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-023.png": "7cd9576040f8898b444c70941ab04fa80599db091275e018e4ea6e4ce3ff12d8",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-024.png": "ad05f275ed5ec6c94d9cf395ec0c880393d5ccbb97cdd0327292d31b1193bee7",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-025.png": "c6da502cf3d9f39048689ee89ed3b09ff926bc83dacc0c40641244ac167dba36",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-026.png": "69b9340120bc789461df364d6506e2ae0dbd5d489d91128ce9f6647569b18236",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-027.png": "54c8ba6ff72217f1c3950d9286c88c300c791830962f348d15875c23265f0f01",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-028.png": "9c0040c75a29755d20c478eff0a9d0934d64b2fb24255575eb1695fa1bdf40a2",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-029.png": "8358dc83cc96f112822f9569f96d58fab4e354f7d0b061e5965b355d512c7cd0",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-030.png": "105e17f1f1a1373ceecc011a25bed150b2394f35e48d4c9f81416c475bbb7e49",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-031.png": "1e5a38e251bbace41a14810ef538739dc1614f8f18c048c51d2d5a5fd70a12a5",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-032.png": "d7b95d666ad0df68a3fc8273cc780b5b3f0567394a414f7e2f286791a9f5c15b",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-033.png": "116171a8c703b82599ab0e099d7e19c8106766983b98a958b2a365f6fe4388a5",
+    "tmp/tts-fixed-vrchat/host-1/positive-2/screen-034.png": "02c4d8b94bb1dd17cab7deb092b5f8d57ebe98755563b97237fb06f2180b3e0a",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/mic.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/mic.pcm": "5b49fbf01df855b22f4be98bb4f2e8186ecadf162fe025fe6ed6a0e99d3a91c2",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/replay.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/replay.pcm": "0819c2f4da4593d5685dd5cdf530427144ad72bc591e64f57be43978f956c809",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-035.png": "01d6004f971c1763d4b83942054c93dac99bcc67e10401a6a07f75c8bc75c8d6",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-036.png": "1e88a01a058b4928b1094a22ce4c0eb221c621bf301bc50fb46997392daf9945",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-037.png": "51772055c21c66cda788c3d6d12f657f87fe0e89bcba979d6599c4a834f957f4",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-038.png": "d9120060937a1fc0dc4c067588eadd85b994938e526092dd4dfc8b7a73010ff3",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-039.png": "d30e329b68ec93fa94c20801d87bcdce21ad9c9bbfa35b632967dcd10b6e8152",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-040.png": "5c70dc2ee5e5d56cbdb02ff2fec92593a63fff4da9a612d680f0902321a20940",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-041.png": "82d0ed987d98b1f95a9394a15c44d153bad8ce629ed3b1661ed141aa5aee5cd1",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-042.png": "b761da9408836f22de5d1d771eae0570b513a3ff338f88aa0f2dbf43a5e7493f",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-043.png": "c0f012a2735f8ae95aa873cd65a2d3439cce64340c53037a3271295ca9587dfe",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-044.png": "3f0c32e9beec58289e6ea1572b96b3b755b3cfc6d66b2897b1051aec1af26ece",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-045.png": "15a47bd686dc325a41ef7d8dcc575df5ee2dd7b232367727b50f8eda6a5ab2ae",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-046.png": "c381ae2635852b2a5c89df9b07b919aeda745d9aadd7bebdca084940fbe4d94a",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-047.png": "d82cff543f6460c676e567c1e7ddc3bc9c0d9fda5217b0bff2da3c3349dbfc9f",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-048.png": "77165d706b361db09189e118bc4627e6e5a4a40f92fa8c67f3c1d753f67d4a3c",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-049.png": "bb6822ad07ccf4ab1c7a95a6ad5ffb56143c4da1bf5bff2d598f4dfbeff9c225",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-050.png": "4e722b361737cc4d1ca48f4fbc7cc61cf7dcdedec84e317ffd4932c33093c7ad",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-051.png": "1307612155f17393e686cb09260f04f83f51dba89bb3f072b17618187a9a99e6",
+    "tmp/tts-fixed-vrchat/host-1/positive-3/screen-052.png": "c65f9535099849db4db5920dda415a190f1a7a2e01a7c4f5c9e10c5255d4ca2e",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/mic.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/mic.pcm": "714022dcbc35d02ef292b36862832fd0e6c03399d1c9a455948090daff8bb144",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/replay.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/replay.pcm": "e08365ae989a042390d045eff83a34c08911053dc03c88acf61097a096e26471",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-079.png": "95ce5d14d64bc2bb57d0f5ecdd2a3a1eb76c3c943f29f4186905dde5a5e2b178",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-080.png": "a03cc6fe85cdb93a551af8bdef989184dde4447e04f0207729c311f5db04f6fd",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-081.png": "d2232a3b34f19ab7d26ca908ef31301864243e8d593ee0d2102b6af89299ef78",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-082.png": "b934fa46850c7a0d86da9424d7686450b842ae6a816a3d06da9d4362eff64bef",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-083.png": "f2c1317a89c0c6d568e3ad2ac963cebb8211ef1e6ff31bc83194480d874cdded",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-084.png": "80ee265c2fa19a10caff8f4e31dcd7e5922d0e61a5ae4d3c03a92bc711480683",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-085.png": "facc8d8d48ca61d29de1c1447e827aa64d599eea80316b46afc3c8c5924042fb",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-086.png": "e89f402421b039668c4d84d3ef8aabcd9b245b6de7db4f2b4a885990ca2dab22",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-087.png": "d444f60ba1f57a90cbb86ae50f9db4120ab7292e2388710b393fdb2688a038f9",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-088.png": "d0ed49ddd4091bbde89a18689fd3e3bb29232383100ba8a6672862ba61477dae",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-089.png": "2be50df10dfe7ab62b89acffb6abc9bfe1dcc1105403e051ee3f47ce0dbf3c80",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-090.png": "4aeace798f133f53a3444ad1e1934d4d83eea9af53084dbbf8b853b9242fbc9b",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-091.png": "939d860977de2640fffdd6a5e728c469eff0ae1a80dbeea36b17837a00662139",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-092.png": "79b445763871a40e6e27603b0081d9c33a7d41401e5a0fc7755959771c92c30f",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-093.png": "9743382c4ef3895cb9c6bd1548866389358be3f625dcf0a3a5e588d6d3b8c0d0",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-094.png": "427ce66909780119e9437756ca03c1bc97ff80fc4f4c6a240684153afe70a24b",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-095.png": "2909dfd0df5d55168d5ec235d813b824082c907b49179ac5c361e1c97c78aa19",
+    "tmp/tts-fixed-vrchat/host-1/recovery-1/screen-096.png": "7f77c7126c1369569e1a66d6fcb7b71dbb8e86057fec8e5e049d2f1f534a2200",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/mic.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/mic.pcm": "cdd0a332c0de339f0b1ec9003e9a683c55eb08a8caf811e1b2eab167aa3d2b8a",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/replay.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/replay.pcm": "20a98f38e3b678b10e38606e7eb68ed172c3693924832b2c0d02f5f7348a3bce",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-097.png": "5a1d4ead88103b67927fcc21766643b2dbd6ab66a838391baf50e45ce51dc862",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-098.png": "13aee82183d3aa076d689a642b8cd15748d74ddff42d2db3428333d9b2611d21",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-099.png": "fa47df757ca60d2dd2c9b9ed1238b988d3413a5c71fa47ecd5640f79c7ec9e51",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-100.png": "8f383fe2dd5ad5cfa3fb1cad043908e30e32652c41ae4caa530f7aff0d3c555c",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-101.png": "e43097459ecf1dada2c7f04bdede952fadd606df7fdb6c0c5d81699e07a9ef02",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-102.png": "1cdd441e06210dd91406e1fb9770c1989699a285bcb1329d47fbf45d3e9182f1",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-103.png": "832a7f1fc6ee436a390d7c546c16bc1f7f5aee72f85339fbb148ec2d52148971",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-104.png": "61178e32f29fe952f0fd3c34ba2585c2bba3457a2ae7a621cd9a95ae07dee8c4",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-105.png": "3442fe07cf68c64bc29648834ab3c0cd3cd09fe0f12e1e9eed3536b6405a1f50",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-106.png": "6824503282932337f94a68f1f90ea9139f7ebedd5c569e3149cb4daef5b3eb07",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-107.png": "c6401ee6cedd97a485857d877bc003de22e530b2929516c8d7b20081cb49f9a9",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-108.png": "4dcb7366c01c0057f3a36f6100c775155a0c25ac1eb1b61246e42de422c7be88",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-109.png": "d5d4eb0bf6ed50a3a341eae0006c6825d81c26e4faf03244708ed7d5ae4fc9d3",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-110.png": "1834285903b5a451c21c2455a017545da7b1f6727d7ff91428ee13dcd0ff574b",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-111.png": "da4754837b7579b47c7de60f6a05d79f957aecc728d6e56d03c376d133757b04",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-112.png": "78fd68b1d3472eb5a290d3671c492a80159128369f9d9c4b4165728a6d0bf5df",
+    "tmp/tts-fixed-vrchat/host-1/recovery-2/screen-113.png": "75d523d06aa7ccdcba5a37d50fafb45e44bf5de9be490a1f6144a9d44d31b920",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/mic.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/mic.pcm": "08e0a058eb96d0157550875ac6a216529172fb380594c4f147076c6cdbe097ca",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/replay.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/replay.pcm": "b0c25865c25dc1abd0298438fbeddd39c7612973ca6d350528fab219d5098f94",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-114.png": "755dc60afe8f8eca58b40fc7211d0681258377c81f20595a8367aaff96c8a422",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-115.png": "e16b9394a7680375eff55528446e9b5c7638dcb05e8fae8231f7421c5f003d11",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-116.png": "719918f84c2ea1dbdf3b6b537b23cf98e25bfc12d1afd8c5405ecfea18c4b87b",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-117.png": "6239d4dab5828bb25dbbf24d1b89d49561e94e97ec2f3498d2ec7c21ce1a0c5b",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-118.png": "b11e25b0a8a1c70606cf247eca3d53b32853287e2bd109cc62ec010a5ff5706b",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-119.png": "17dcb315d8d1b0b0402e8660427d6279860df484c6fd70a234d868f87cc3a15c",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-120.png": "02cd5cc9b580aa88e5d28cd90fadd41a753f210086fdb2cd7f029ec01f3f2d02",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-121.png": "9f15f0c2b2a8efc679cf15488dc0dc5ed33e0e1f9b285faee1993b73642f080f",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-122.png": "61a62042c1687cef1e7cf05d2e6593feacfe3af1a486c84bf5d0b135724c0d83",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-123.png": "5970585e6488f651ac431f0f48542e97b1d06b11dc9741b4c058782b2038c8f8",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-124.png": "07126ed9e94e3dfdf3da46965885b5457bd4c4554c9e4676c8e8a4ab75468e43",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-125.png": "9961da2de0e7655175b3039f12522ce306490240d4c68f73aeba95f4c88e44cc",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-126.png": "a7f2af2e7851268b68be213e0e49602e68fba1f95ade604c0eac2dcf4b63009c",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-127.png": "b63c7319e62732a792fd0c2cac4dc0d7a068804143cfab2ce76e8f4ec630489e",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-128.png": "cbf6a65e57e5d61f1e00809c7450c38cb867283563690dc283c3242cb62a6165",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-129.png": "f8239e7fc634c11b07203c097aeefb5e6c2eb6028f3e27ef8caaf13da2ad7b0d",
+    "tmp/tts-fixed-vrchat/host-1/recovery-3/screen-130.png": "a243e0ff759eff8a71d7ebf7804692eeebc3a3fe49bb5efda15dbfd64a5ab46a",
+    "tmp/tts-fixed-vrchat/host-1/report.json": "f2c892b2cfaf42af9f7ef3dab93b49093acff44ea1a4c0ec86526594bbbbbd67",
+    "tmp/tts-fixed-vrchat/host-1/server-00.log": "b79a6f124019d5b7ee8c5147b01abd5b0fa81b50ade57c6af7ed7a6b6cc3d883",
+    "tmp/tts-fixed-vrchat/host-1/server-01.log": "7faf0448cc87260ab31519cefe0331667d574e491749942ce8444db01290baaf",
+    "tmp/tts-fixed-vrchat/host-1/server-02.log": "ab0c37762cbe93a70955b5a716b20d05666cd5d73d09cfe55ae822b8d0b994f0",
+    "tmp/tts-fixed-vrchat/host-1/server-03.log": "f57ec7bed8125467ee5479078fa9b2b560d8060fea9f824ed4688ce749de50ab",
+    "tmp/tts-fixed-vrchat/host-1/voice-state.json": "749172f3d7333cf7e8876cebf4b5aebaf48dd1a4fb6a87526b4535109ecd80be",
+    "tmp/tts-fixed-vrchat/host-config.conf": "c74ee30f6fb374b365c73d504895d30d6a0f6347e472ed2c8e01009e7ed35e53",
+    "tmp/tts-fixed-vrchat/host-transaction.json": "2f89d4e14df407c489bf2789f21e5b98ef2a33fb77ccef62c16fd0483c8b1322",
+    "tmp/tts-fixed-vrchat/host_route.py": "5c93bf76ee51e4f7b43288669175f64863737add6c4856d5a72350a0ac44cb3b",
+    "tmp/tts-fixed-vrchat/initial-graph.json": "b40de8503811e5989bb7559c9202c6d2eea5c7577c61039a0b42a687017beb27",
+    "tmp/tts-fixed-vrchat/launch.png": "dda2a5410910b6dfafffd7c0eb8699325329ad90098c8feae26eeb79ff7e6d2d",
+    "tmp/tts-fixed-vrchat/legacy-p1-process.json": "979877e8b0c96e65f03af675e7e0df9bcdb29693982b44ccd90db7e90f011de3",
+    "tmp/tts-fixed-vrchat/loaded/screen-001.png": "dda2a5410910b6dfafffd7c0eb8699325329ad90098c8feae26eeb79ff7e6d2d",
+    "tmp/tts-fixed-vrchat/loaded2/screen-001.png": "dda2a5410910b6dfafffd7c0eb8699325329ad90098c8feae26eeb79ff7e6d2d",
+    "tmp/tts-fixed-vrchat/menu/screen-001.png": "f23f6aec8fed688bc6a0a5867baf6688e74b7a87cbe1fe335f1b90a7bc5c0188",
+    "tmp/tts-fixed-vrchat/menu-click/screen-001.png": "04b5a1e66b75415b831fa7499cc974012d02bcf76deee21cf2d907fc53129aa6",
+    "tmp/tts-fixed-vrchat/menu-key-separated.png": "f68b9468e3fc137cc934d9cde0d321d67c062c1322f38135ff9a2904eb27d837",
+    "tmp/tts-fixed-vrchat/mic-list/screen-001.png": "dce74667048f9f0f0a94667e538c4cec35ad5186e965ef683d1fa762cc213a2e",
+    "tmp/tts-fixed-vrchat/model-provenance.json": "01b87ea621ee3159f2eb139a52e56b7439bdddd4b0351e8f7848fe0a09dde4f2",
+    "tmp/tts-fixed-vrchat/pointer-current.png": "a5bfba8f12ff0e9bcdcace31c962067fbf25fcdd2ca749dcd93942927fd2f4d3",
+    "tmp/tts-fixed-vrchat/pre-restore-graph.json": "95cc4995c58296090e72bc338cdf4c5c1c45c4349becd0abf5b6fc0b34ce5266",
+    "tmp/tts-fixed-vrchat/preflight.json": "e0c7c70b0238c01de45d1017fbfb62611c8580188ca85f6d73c2e933b2bc7f29",
+    "tmp/tts-fixed-vrchat/prepared-graph.json": "b94810f2bd92eeef4a0f1d63f417d5ae85923a6e8569e816216d99b1b8099e96",
+    "tmp/tts-fixed-vrchat/prepared-host.json": "ab63c2b9f507cad39c69cf1b5322273992c1fa4b38788e9a9ba1c1ec883c89ee",
+    "tmp/tts-fixed-vrchat/quick-menu/screen-001.png": "41c7f75227bc22df106640a2b974ee3ebad93c8e342504d22e5dfacdc1c87415",
+    "tmp/tts-fixed-vrchat/restore-mic-list/screen-001.png": "461fdcd55e8f7e6ad9fad2e1e564f781460c08eff6ea975214305effb273a914",
+    "tmp/tts-fixed-vrchat/restored-graph.json": "4fe99e7a434d15ca703264c3502e6e242a2a236d8bc329f3f40267b8b2c1a704",
+    "tmp/tts-fixed-vrchat/restored-p1/screen-001.png": "2fa2abdf06b8ed4ba3e37965ba5fc05088f4d26b07462b6cceda828a854bc13d",
+    "tmp/tts-fixed-vrchat/restored-suppression/screen-001.png": "bb35e63f5a87bc8d7ccd2d58290e2fb767ec37f2507dd731a7f62e4a0e5dae8f",
+    "tmp/tts-fixed-vrchat/runner.log": "a97c91d65d6c1bf40fc5b5abe293cb5d3f0504bb59eafab418e454232dd63ae4",
+    "tmp/tts-fixed-vrchat/runtime-state.json": "782ea3e79e07bed46434d073fa4375ef7a9dc8befc57987fbc6f4785b84b3bcd",
+    "tmp/tts-fixed-vrchat/selected-managed/screen-001.png": "bb09080b41bdfbf2545d2b10e7fcb177c3cdec7980ea8ddf7a01fb698154b14d",
+    "tmp/tts-fixed-vrchat/settings-ok/screen-001.png": "73ce464544440b9fba3c4af4b3483eb07a087319893fe89d76addf7d08111d6c",
+    "tmp/tts-fixed-vrchat/source-provenance.json": "cd4b426e6f1d8acdfb41369859e8967bab51274a9f692f673061515a24b81505",
+    "tmp/tts-fixed-vrchat/steam-launch.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tmp/tts-fixed-vrchat/suppression-off/screen-001.png": "81b37daf14183f27f941e721447b8e2e9ad67b44b745222fa400aeb005e396c1",
+    "tmp/tts-fixed-vrchat/templates/calibration.json": "4241f176aa0ab9dfd65c68fe4e68315946f8d3f9ea66e879f00a8a133b5d3b9f",
+    "tmp/tts-fixed-vrchat/templates/ready.png": "d55fd092d764bb787a1523df6d415ff4028c49b156123151be33a622d0a6c09b",
+    "tmp/tts-fixed-vrchat/templates/recording.png": "4c796ce6340e1b278cdc9ec06873f446ec663968e772175c6cf6b1fedd4f87d5",
+    "tmp/tts-fixed-vrchat/voice-tests-host.log": "96734918034b57d6ab0d46eefb4c132737db8bca207ee925e8872a493aa97218",
+    "tmp/tts-fixed-vrchat/voice-tests-host.xml": "fec2d100dbe3e735da6a7891d9590106bbfa0ec1c8ab971afeb34305e84c3df2",
+    "tmp/tts-fixed-vrchat/voice-tests.log": "2431efba0d508581a01b6c317d29af9dd004cf94ff36a6a94e131f0fc9359658",
+    "tmp/tts-fixed-vrchat/voice-tests.xml": "551f0725ef7ab12151ace9a541d91d93ab3acb4d0638a394cc6aae8bb0cb19ac",
+    "tmp/tts-fixed-vrchat/warmup-ready/screen-001.png": "d55fd092d764bb787a1523df6d415ff4028c49b156123151be33a622d0a6c09b",
+    "tmp/tts-fixed-vrchat/warmup-recording/screen-001.png": "4c796ce6340e1b278cdc9ec06873f446ec663968e772175c6cf6b1fedd4f87d5",
+    "tmp/tts-fixed-vrchat/window.txt": "efbe4b2adff230e8d090d1dc66f51852e0402364db79c2cb9daf632796edac41"
+  },
+  "remaining": [
+    "Full VRCT GUI/API entry point, original text/translation coexistence and UI-origin stop latency",
+    "Listener stays open, per-connection transport failure, model stall, immediate port reuse",
+    "Real VC model, ASR/translation concurrency and shared GPU long-run/FPS/xrun/resource budgets",
+    "Windows audio routing and stop latency",
+    "Noise suppression ON acceptance, WiVRn/HMD, physical headphones and remote-player reception",
+    "All legacy tests with required dependencies and release artifact/license inventory"
+  ],
+  "next_validation": "Exercise original-text send and stop through the real VRCT UI/API and existing dispatch; verify OSC/history/translation compatibility, mode OFF and no stale replay after cancel, mute or server recovery.",
+  "artifact_policy": "Raw generated WAV/PCM, screenshots and full logs stay in ignored tmp/tts-fixed-vrchat. No new models, dependencies, external source code or binary redistribution."
+}

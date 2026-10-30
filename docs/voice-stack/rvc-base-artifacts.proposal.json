@@ -1,0 +1,47 @@
+{
+  "status": "approved_and_verified_for_local_poc",
+  "metadata_only": true,
+  "total_bytes": 370392700,
+  "files": [
+    {
+      "repo": "lj1995/VoiceConversionWebUI",
+      "revision": "e6d0c1a17da07c33557852f9dfa2bd44cc75737d",
+      "rfilename": "hubert_base/config.json",
+      "blobId": "6f40f9bd2481c05c03d59f2b36f016fedc386187",
+      "size": 1492
+    },
+    {
+      "repo": "lj1995/VoiceConversionWebUI",
+      "revision": "e6d0c1a17da07c33557852f9dfa2bd44cc75737d",
+      "rfilename": "hubert_base/preprocessor_config.json",
+      "blobId": "3cb012fae1b439d92a815fec1c09fa0ce19fd6bf",
+      "size": 225
+    },
+    {
+      "repo": "lj1995/VoiceConversionWebUI",
+      "revision": "e6d0c1a17da07c33557852f9dfa2bd44cc75737d",
+      "rfilename": "hubert_base/pytorch_model.bin",
+      "blobId": "fb3a5fe04eb3c9d151df50b9b91b8b142714f348",
+      "size": 189206711,
+      "lfs": {
+        "sha256": "cc8c20f4b90a520757260197a3ff2505705a7adbd20ad9eeaa4e1a9b38442ef5",
+        "size": 189206711,
+        "pointerSize": 134
+      }
+    },
+    {
+      "repo": "lj1995/VoiceConversionWebUI",
+      "revision": "e6d0c1a17da07c33557852f9dfa2bd44cc75737d",
+      "rfilename": "rmvpe.pt",
+      "blobId": "6362f060846875c3b5d7012adea5f97e47305e7e",
+      "size": 181184272,
+      "lfs": {
+        "sha256": "6d62215f4306e3ca278246188607209f09af3dc77ed4232efdd069798c4ec193",
+        "size": 181184272,
+        "pointerSize": 134
+      }
+    }
+  ],
+  "note": "Downloaded and hash-verified for local Mia2026 validation; speaker model is separately supplied by user and must never be bundled.",
+  "consent": "2026-10-29 explicit user consent for these four fixed files. No redistribution approval."
+}

@@ -4,6 +4,7 @@
 :root {
     font-size: 62.5%;
     color: var(--dark_basic_text_color);
+    color-scheme: dark;
 }
 
 * {
@@ -23,7 +24,7 @@
 
 html, body {
     height: 100%;
-    font-family: var(--font_family); /* If not found the font family where 'root:' that is selected by user*/
+    font-family: var(--font_family), "Noto Sans", system-ui, sans-serif; /* If not found the font family where 'root:' that is selected by user*/
     border-radius: 10px; /* fixed by px */
     overflow: hidden;
 }
@@ -65,21 +66,21 @@ input[type="number"] {
 /* 設定検索ヒット時のハイライトアニメーション */
 @keyframes search_target_pulse {
     0% {
-        box-shadow: 0 0 0 0 rgba(72, 164, 149, 0);
+        box-shadow: 0 0 0 0 rgba(91, 146, 255, 0);
         background-color: transparent;
     }
     15% {
-        box-shadow: 0 0 0 0.3rem rgba(72, 164, 149, 0.7), 0 0 1.6rem rgba(72, 164, 149, 0.35);
-        background-color: rgba(72, 164, 149, 0.16);
+        box-shadow: 0 0 0 0.3rem rgba(91, 146, 255, 0.7), 0 0 1.6rem rgba(91, 146, 255, 0.35);
+        background-color: rgba(91, 146, 255, 0.16);
         border-radius: 0.6rem;
     }
     45% {
-        box-shadow: 0 0 0 0.5rem rgba(72, 164, 149, 0.45), 0 0 1.2rem rgba(72, 164, 149, 0.25);
-        background-color: rgba(72, 164, 149, 0.12);
+        box-shadow: 0 0 0 0.5rem rgba(91, 146, 255, 0.45), 0 0 1.2rem rgba(91, 146, 255, 0.25);
+        background-color: rgba(91, 146, 255, 0.12);
         border-radius: 0.6rem;
     }
     100% {
-        box-shadow: 0 0 0 0 rgba(72, 164, 149, 0);
+        box-shadow: 0 0 0 0 rgba(91, 146, 255, 0);
         background-color: transparent;
         border-radius: 0.6rem;
     }
@@ -88,4 +89,16 @@ input[type="number"] {
 .search_target_highlight {
     animation: search_target_pulse 2.2s cubic-bezier(0.22, 1, 0.36, 1);
     transition: background-color 0.5s ease;
+}
+/* Shared studio affordances apply to settings, chat and auxiliary windows. */
+body { font-size: 1.4rem; line-height: 1.5; background: var(--vox_canvas); }
+button, [role="button"], input, select, textarea { touch-action: manipulation; }
+button, [role="button"] { transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease; }
+:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .3rem; }
+input, textarea { caret-color: var(--primary_200_color); user-select: text; }
+::selection { color: var(--dark_100_color); background: var(--primary_700_color); }
+a { text-underline-offset: .25em; }
+button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

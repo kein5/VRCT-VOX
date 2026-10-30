@@ -1,0 +1,28 @@
+{
+  "boundary": "one resampler.process call; no OS capture/queue/network/ASR/UI",
+  "quality": "soxr1.1.0 HQ float32 then s16le",
+  "results": [
+    {
+      "input_rate": 44100,
+      "input_seconds": 60,
+      "paced": false,
+      "chunks": 3000,
+      "first_output_after_input_ms": 40,
+      "max_native_delay_ms": 38.333333333333336,
+      "processing_ms_p50": 0.013426,
+      "processing_ms_p95": 0.021741499999999997,
+      "output_samples_before_discarding_tail": 1439100
+    },
+    {
+      "input_rate": 48000,
+      "input_seconds": 60,
+      "paced": false,
+      "chunks": 3000,
+      "first_output_after_input_ms": 40,
+      "max_native_delay_ms": 38.333333333333336,
+      "processing_ms_p50": 0.012243,
+      "processing_ms_p95": 0.012664449999999997,
+      "output_samples_before_discarding_tail": 1439220
+    }
+  ]
+}

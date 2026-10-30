@@ -1,0 +1,161 @@
+{
+  "checked_at_utc": "2026-10-28 11:26:14 UTC",
+  "repository": "ait-app/ait",
+  "main_commit": "7113431099355c59170bef9b825c92bd9b5d3f23",
+  "releases": [
+    {
+      "tag": "nightly",
+      "draft": false,
+      "prerelease": true,
+      "published_at": "2026-10-28T11:19:59Z",
+      "url": "https://github.com/ait-app/ait/releases/tag/nightly",
+      "source_commit": "7113431099355c59170bef9b825c92bd9b5d3f23"
+    },
+    {
+      "tag": "v0.1.20",
+      "draft": false,
+      "prerelease": false,
+      "published_at": "2026-10-27T15:52:07Z",
+      "url": "https://github.com/ait-app/ait/releases/tag/v0.1.20",
+      "source_commit": "bca1f98b8338f2bd6dbdd7f4e733337a564ce466"
+    },
+    {
+      "tag": "v0.1.19",
+      "draft": false,
+      "prerelease": false,
+      "published_at": "2026-10-26T14:20:57Z",
+      "url": "https://github.com/ait-app/ait/releases/tag/v0.1.19",
+      "source_commit": "a8db46db3874002e34741ba1bd66426d1382f0f0"
+    }
+  ],
+  "release_v0_1_21_public_lookup": {
+    "status": 404,
+    "url": "https://api.github.com/repos/ait-app/ait/releases/tags/v0.1.21",
+    "note": "No accessible published release at this check; this does not rule out an unpublished draft."
+  },
+  "pull_requests": [
+    {
+      "number": 509,
+      "title": "fix(codex): 允许子 Agent 向父会话回传消息",
+      "url": "https://github.com/ait-app/ait/pull/509",
+      "state": "closed",
+      "merged": true,
+      "merged_at": "2026-10-28T05:32:54Z",
+      "merge_commit_sha": "89ea11dd3724c1b08d33508c15d4531a1176d52d"
+    },
+    {
+      "number": 510,
+      "title": "chore(release): prepare 0.1.21",
+      "url": "https://github.com/ait-app/ait/pull/510",
+      "state": "closed",
+      "merged": true,
+      "merged_at": "2026-10-28T05:47:47Z",
+      "merge_commit_sha": "52f1d058838585b4e083b703cb846d9acc1b7e41"
+    },
+    {
+      "number": 497,
+      "title": "fix(codex): 修复原生协议兼容并对齐 Paseo",
+      "url": "https://github.com/ait-app/ait/pull/497",
+      "state": "closed",
+      "merged": true,
+      "merged_at": "2026-10-27T00:14:58Z",
+      "merge_commit_sha": "ac84f2ed00e40b644942466685b18d0d7e1fe3bd"
+    },
+    {
+      "number": 492,
+      "title": "fix(codex): 按页投影大历史并保留加载错误",
+      "url": "https://github.com/ait-app/ait/pull/492",
+      "state": "closed",
+      "merged": true,
+      "merged_at": "2026-10-26T11:55:26Z",
+      "merge_commit_sha": "c4666b8048a60f4b104efaa78f663832b8b3521e"
+    }
+  ],
+  "comparisons": [
+    {
+      "base": "89ea11dd3724c1b08d33508c15d4531a1176d52d",
+      "head": "bca1f98b8338f2bd6dbdd7f4e733337a564ce466",
+      "status": "behind",
+      "ahead_by": 0,
+      "behind_by": 4,
+      "merge_base_commit": "bca1f98b8338f2bd6dbdd7f4e733337a564ce466"
+    },
+    {
+      "base": "89ea11dd3724c1b08d33508c15d4531a1176d52d",
+      "head": "7113431099355c59170bef9b825c92bd9b5d3f23",
+      "status": "ahead",
+      "ahead_by": 5,
+      "behind_by": 0,
+      "merge_base_commit": "89ea11dd3724c1b08d33508c15d4531a1176d52d"
+    }
+  ],
+  "queries": [
+    {
+      "query": "repo:ait-app/ait \"Provider execution failed\"",
+      "matched_numbers": [
+        373,
+        491
+      ],
+      "note": "Open and closed results; keyword search is not proof of absence."
+    },
+    {
+      "query": "repo:ait-app/ait is:issue subagent",
+      "matched_numbers": [],
+      "note": "Open and closed results; keyword search is not proof of absence."
+    },
+    {
+      "query": "repo:ait-app/ait is:issue \"subAgentActivity\"",
+      "matched_numbers": [],
+      "note": "Open and closed results; keyword search is not proof of absence."
+    },
+    {
+      "query": "repo:ait-app/ait is:issue codex",
+      "matched_numbers": [
+        491,
+        373
+      ],
+      "note": "Open and closed results; keyword search is not proof of absence."
+    },
+    {
+      "query": "repo:ait-app/ait is:pr \"Provider execution failed\"",
+      "matched_numbers": [
+        509,
+        377,
+        443,
+        361,
+        300,
+        429,
+        463,
+        173,
+        256,
+        504,
+        428,
+        414
+      ],
+      "note": "Open and closed results; keyword search is not proof of absence."
+    },
+    {
+      "query": "repo:ait-app/ait is:pr subagent",
+      "matched_numbers": [
+        509,
+        500,
+        497,
+        455,
+        448,
+        116,
+        272,
+        92,
+        243,
+        294
+      ],
+      "note": "Open and closed results; keyword search is not proof of absence."
+    }
+  ],
+  "scope": {
+    "modified_installation": false,
+    "restarted": false,
+    "live_reproduction": false,
+    "published_issue": false,
+    "upstream_tests_run_locally": false
+  }
+}

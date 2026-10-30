@@ -1,5 +1,8 @@
 from os import path as os_path
 from datetime import datetime
+from collections import OrderedDict
+from copy import deepcopy
+from threading import RLock
 from typing import Tuple, List, Optional
 from PIL import Image, ImageDraw, ImageFont
 try:
@@ -26,6 +29,11 @@ class OverlayImage:
                 defaults to repository `fonts` directory.
         """
         self.message_log: List[dict] = []
+        self.caption_pending = OrderedDict()
+        self._caption_latest = OrderedDict()
+        self.log_lock = RLock()
+        self._large_revision = 0
+        self._large_owner = object()
         # PyInstallerでビルドされた場合のパス
         if  root_path and os_path.exists(os_path.join(root_path, "_internal", "fonts")):
             self.root_path = os_path.join(root_path, "_internal", "fonts")
@@ -549,7 +557,89 @@ class OverlayImage:
 
         return combined_img
 
-    def createOverlayImageLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4) -> Image:
+    def _rememberCaption(self, identity, revision, state):
+        self._caption_latest[identity] = (revision, state)
+        self._caption_latest.move_to_end(identity)
+        while len(self._caption_latest) > 256:
+            self._caption_latest.popitem(last=False)
+
+    def isCurrentLargeLog(self, image):
+        return (image.info.get("vrct_overlay_owner") is not self._large_owner
+                or image.info.get("vrct_overlay_revision") == self._large_revision)
+
+    def _renderLargeLogVersion(self, **kwargs):
+        image = self._renderLargeLog(**kwargs)
+        self._large_revision += 1
+        image.info["vrct_overlay_revision"] = self._large_revision
+        image.info["vrct_overlay_owner"] = self._large_owner
+        return image
+
+    def discardCaptionNamespace(self, source, namespace):
+        with self.log_lock:
+            for identity in tuple(self.caption_pending):
+                if identity[:2] == (source, namespace):
+                    self.caption_pending.pop(identity)
+                    self._rememberCaption(identity, self._caption_latest[identity][0], "discarded")
+            return self._renderLargeLogVersion()
+
+    def checkpointCaptionState(self):
+        """Caller holds log_lock across render and the publication decision."""
+        return deepcopy((self.message_log, self.caption_pending, self._caption_latest))
+
+    def rejectCaptionUpdate(self, checkpoint, identity, revision):
+        self.message_log, self.caption_pending, self._caption_latest = checkpoint
+        # Preserve any earlier published final, but never leave an expired
+        # partial available for an unrelated source's later render.
+        self.caption_pending.pop(identity, None)
+        previous = self._caption_latest.get(identity, (0, None))
+        self._rememberCaption(identity, max(revision, previous[0]), "discarded")
+        self._large_revision += 1  # Invalidate the rejected image as well.
+
+    def createOverlayImageLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, *, caption_id=None, caption_state="final", caption_revision=0) -> Image:
+        with self.log_lock:
+            record = {
+                "message_type": message_type, "message": message, "your_language": your_language,
+                "translation": translation, "target_language": target_language,
+                "transliteration_message": transliteration_message,
+                "transliteration_translation": transliteration_translation,
+                "datetime": datetime.now().strftime("%H:%M"),
+            }
+            if caption_id is None:
+                self.message_log.append(record)
+            else:
+                if (not isinstance(caption_id, tuple) or len(caption_id) != 3
+                        or caption_id[0] not in ("mic", "speaker")
+                        or not all(isinstance(value, str) and value for value in caption_id)
+                        or caption_state not in ("partial", "final", "translated", "discarded")
+                        or type(caption_revision) is not int or caption_revision < 1):
+                    raise ValueError("invalid_overlay_caption")
+                previous = self._caption_latest.get(caption_id)
+                existing = next((row for row in self.message_log if row.get("caption_id") == caption_id), None)
+                if previous and (caption_revision <= previous[0] or previous[1] in ("discarded", "translated")
+                                 or (previous[1] == "final" and (caption_state != "translated" or existing is None))):
+                    return None
+                record["caption_id"] = caption_id
+                pending = self.caption_pending.get(caption_id)
+                if existing is not None or pending is not None:
+                    record["datetime"] = (existing if existing is not None else pending)["datetime"]
+                self._rememberCaption(caption_id, caption_revision, caption_state)
+                if caption_state == "partial":
+                    if caption_id not in self.caption_pending and len(self.caption_pending) >= 16:
+                        oldest, _ = self.caption_pending.popitem(last=False)
+                        self._rememberCaption(oldest, self._caption_latest[oldest][0], "discarded")
+                    self.caption_pending[caption_id] = record
+                else:
+                    self.caption_pending.pop(caption_id, None)
+                    if caption_state != "discarded":
+                        if existing is not None:
+                            existing.update(record)
+                        else:
+                            self.message_log.append(record)
+            self.message_log = self.message_log[-5:]
+            return self._renderLargeLogVersion(ruby_font_scale=ruby_font_scale, ruby_line_spacing=ruby_line_spacing)
+
+    def _renderLargeLog(self, ruby_font_scale=0.5, ruby_line_spacing=4):
+        logs = self.message_log + list(self.caption_pending.values())
         ui_color = self.getUiColorLargeLog()
         background_color = ui_color["background_color"]
         background_outline_color = ui_color["background_outline_color"]
@@ -558,20 +648,6 @@ class OverlayImage:
         ui_margin = ui_size["margin"]
         ui_radius = ui_size["radius"]
         ui_clause_margin = ui_size["clause_margin"]
-
-        self.message_log.append({
-            "message_type": message_type,
-            "message": message,
-            "your_language": your_language,
-            "translation": translation,
-            "target_language": target_language,
-            "transliteration_message": transliteration_message,
-            "transliteration_translation": transliteration_translation,
-            "datetime": datetime.now().strftime("%H:%M")
-        })
-
-        if len(self.message_log) > 5:
-            self.message_log = self.message_log[-5:]
 
         imgs = [
             self.createTextboxLargeLog(
@@ -585,9 +661,11 @@ class OverlayImage:
                 transliteration_translation=log.get("transliteration_translation", [{}]),
                 ruby_font_scale=ruby_font_scale,
                 ruby_line_spacing=ruby_line_spacing,
-            ) for log in self.message_log
+            ) for log in logs
             ]
 
+        if not imgs:
+            return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
         img = imgs[0]
         for i in imgs[1:]:
             img = self.concatenateImagesVertically(img, i, ui_clause_margin)

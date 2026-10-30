@@ -33,7 +33,7 @@ config属性名は文字列で保持して呼び出し側が`getattr`/`setattr`�
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Optional
 
 from errors import ErrorCode
@@ -76,6 +76,7 @@ class MessageDirectionSpec:
     # 配信ペイロードに載せる source。UIはこれでOCR由来のメッセージにバッジを出す
     # (src-ui の MessageContainer.jsx)。mic/speaker/chat は付けない (None)。
     payload_source: Optional[str] = None
+    render_overlay: bool = True
 
 
 MIC_MESSAGE_SPEC = MessageDirectionSpec(
@@ -123,6 +124,15 @@ SPEAKER_MESSAGE_SPEC = MessageDirectionSpec(
     delivery="push",
     run_mapping_key="transcription_speaker",
 )
+
+# Realtime deduplicates utterance IDs and updates an existing caption row.
+# Speaker rebroadcast is prohibited independently of the legacy receive option.
+REALTIME_MIC_SPEC = replace(MIC_MESSAGE_SPEC, repeat_detector_attr=None,
+    own_transliteration_source="detected_language", feature_gate_attr=None,
+    delivery="return", run_mapping_key=None, ws_type="REALTIME_MIC", render_overlay=False)
+REALTIME_SPEAKER_SPEC = replace(SPEAKER_MESSAGE_SPEC, repeat_detector_attr=None,
+    feature_gate_attr=None, osc_send_gate_attr=None, delivery="return",
+    run_mapping_key=None, ws_type="REALTIME_SPEAKER", render_overlay=False)
 
 OCR_MESSAGE_SPEC = MessageDirectionSpec(
     kind="ocr",

@@ -1,0 +1,32 @@
+{
+  "boundary": "resume call to first qualifying private 20ms read; 2s hold",
+  "rows": [
+    {
+      "suppress_direct": true,
+      "resume_call_ns": 110617233533994,
+      "first_qualifying_private_read_ns": 110617271526364
+    },
+    {
+      "suppress_direct": false,
+      "resume_call_ns": 110621369991462,
+      "first_qualifying_private_read_ns": 110621410259389
+    }
+  ],
+  "capture": {
+    "frames": 522,
+    "sample_count": 501120,
+    "last_read_ns": 110625591524626,
+    "capture_gaps_over_100ms": 0,
+    "max_read_gap_ms": 43.030502,
+    "nonzero_frames": 212,
+    "detected_frames": {
+      "440": 103,
+      "880": 211,
+      "1760": 0
+    },
+    "reader_eof": false,
+    "reader_error": null
+  },
+  "physical_microphone_captured": false,
+  "vrchat_verified": false
+}

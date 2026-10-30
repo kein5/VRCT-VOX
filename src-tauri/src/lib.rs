@@ -3,6 +3,7 @@ use std::fs::{create_dir_all, OpenOptions};
 use std::io::{Error, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+mod quick_chat;
 
 // WebView2は同じプロセス内の全ウィンドウで起動引数が一致している必要があるため、
 // tauri.conf.json の main ウィンドウと同じ値にする。Tauri既定の --disable-features に加えて、
@@ -13,7 +14,7 @@ const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreen
 // VR UI が ON の間だけ作る (set_vr_panel_window)。OFF の間も動かしておくと、使わない人にも負荷がかかる
 fn create_vr_panel_window<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Result<()> {
     let window = WebviewWindowBuilder::new(manager, "vr_panel", WebviewUrl::App("vr.html".into()))
-        .title("VRCT VR Panel")
+        .title("VRCT-VOX VR Panel")
         // 既定の並び (src-ui/views/vr/vr_layout.json の atlas)。ログの大きさを変えると Python が合わせて変える
         .inner_size(1690.0, 880.0)
         .decorations(false)
@@ -31,6 +32,15 @@ fn create_vr_panel_window<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Resu
 }
 
 fn startup_log_path(executable_path: &Path) -> PathBuf {
+    if let Some(directory) = std::env::var_os("VRCT_CONFIG_DIR").filter(|v| !v.is_empty()) {
+        return PathBuf::from(directory).join("logs/startup.log");
+    }
+    if cfg!(target_os = "linux") && option_env!("VRCT_LINUX_BUNDLE") == Some("1") {
+        let base = std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from).filter(|p| p.is_absolute())
+            .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config"));
+        return base.join("vrct-tts/logs/startup.log");
+    }
     executable_path
         .parent()
         .unwrap_or(Path::new("."))
@@ -61,6 +71,24 @@ fn startup_log(message: &str) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     startup_log("VRCT startup began");
+    let context = tauri::generate_context!();
+    #[cfg(target_os = "linux")]
+    let context = {
+        let mut context = context;
+        // NVIDIA's WebKit shared-memory fallback can leave transparent X11
+        // surfaces unpainted until hovered. WebDriver screenshots missed this
+        // failure; ordinary-window capture reproduces it.
+        if std::env::var_os("APPIMAGE").is_some()
+            && Path::new("/sys/module/nvidia").is_dir()
+            && std::env::var("WEBKIT_DISABLE_DMABUF_RENDERER").as_deref() == Ok("1")
+        {
+            if let Some(main) = context.config_mut().app.windows.iter_mut().find(|w| w.label == "main") {
+                main.transparent = false;
+                startup_log("Opaque main window enabled for NVIDIA AppImage shared-memory rendering");
+            }
+        }
+        context
+    };
     let result = tauri::Builder::default()
         .setup(|app| {
             let main_window = app.get_webview_window("main").ok_or_else(|| {
@@ -80,6 +108,12 @@ pub fn run() {
         // 画面外の vr_panel ウィンドウが残ることがあるため「最後のウィンドウが閉じたら終了」に頼れない。
         // main が閉じたらアプリを終了する。
         .on_window_event(|window, event| {
+            if window.label() == "quick_chat" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
             if window.label() == "main" && matches!(event, WindowEvent::Destroyed) {
                 window.app_handle().exit(0);
             }
@@ -89,8 +123,12 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_font_list, download_zip_asset, set_vr_panel_window])
-        .run(tauri::generate_context!());
+        .manage(quick_chat::QuickChatState::default())
+        .invoke_handler(tauri::generate_handler![get_font_list, download_zip_asset, set_vr_panel_window,
+            quick_chat::quick_chat_context, quick_chat::quick_chat_configure, quick_chat::quick_chat_submit,
+            quick_chat::quick_chat_take, quick_chat::quick_chat_finish, quick_chat::quick_chat_hide,
+            quick_chat::quick_chat_show, quick_chat::quick_chat_shortcut_platform])
+        .run(context);
     match result {
         Ok(()) => startup_log("VRCT event loop ended"),
         Err(error) => {
@@ -182,6 +220,7 @@ mod tests {
     use std::path::Path;
 
     #[test]
+    #[cfg(windows)]
     fn startup_log_is_stored_next_to_the_application() {
         assert_eq!(
             startup_log_path(Path::new(r"C:\VRCT\VRCT.exe")),

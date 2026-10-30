@@ -1,0 +1,66 @@
+{
+  "standalone": [
+    {
+      "file": "main.html",
+      "width": 1120,
+      "height": 900,
+      "status": "passed"
+    },
+    {
+      "file": "main.html",
+      "width": 870,
+      "height": 654,
+      "status": "passed"
+    },
+    {
+      "file": "mockup.html",
+      "width": 1120,
+      "height": 900,
+      "status": "passed"
+    },
+    {
+      "file": "mockup.html",
+      "width": 870,
+      "height": 654,
+      "status": "passed"
+    },
+    {
+      "file": "rvc.html",
+      "width": 1120,
+      "height": 900,
+      "status": "passed"
+    },
+    {
+      "file": "rvc.html",
+      "width": 870,
+      "height": 654,
+      "status": "passed"
+    }
+  ],
+  "navigation": [
+    {
+      "tts": "on",
+      "rvc": "on",
+      "status": "passed"
+    },
+    {
+      "tts": "on",
+      "rvc": "off",
+      "status": "passed"
+    },
+    {
+      "tts": "off",
+      "rvc": "on",
+      "status": "passed"
+    },
+    {
+      "tts": "off",
+      "rvc": "off",
+      "status": "passed"
+    }
+  ],
+  "errors": [],
+  "failed_resources": [],
+  "audio": false,
+  "product_integration": false
+}

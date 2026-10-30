@@ -1,0 +1,48 @@
+name: VRCT-VOX voice contracts (no models)
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  headless:
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+      - run: uv venv --python 3.11
+      - run: uv pip install -r requirements-voice-test.txt
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libpipewire-0.3-dev pkg-config gcc
+      - if: runner.os == 'Linux'
+        run: uv run --no-project python tools/build_voice_gate.py
+      - run: uv run --no-project python tools/dev.py check --scope tooling
+      - run: uv run --no-project python tools/dev.py check --scope voice
+      - run: uv run --no-project python tools/dev.py check --scope lint
+      - run: uv run --no-project python tools/voice_cli.py --help
+      - run: uv run --no-project python tools/voice_route.py --help
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.15.0'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: uv run --no-project python tools/dev.py check --scope ui
+  commit-conventions:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install pinned commit validator
+        run: cargo install cocogitto --version 7.0.0 --locked
+      - name: Check new commits only
+        env:
+          COMMIT_BASE: ${{ github.event.pull_request.base.sha }}
+        run: python tools/dev.py check --scope commits --base "$COMMIT_BASE"

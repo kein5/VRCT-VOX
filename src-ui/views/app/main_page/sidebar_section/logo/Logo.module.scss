@@ -1,19 +1,4 @@
-.container {
-    height: var(--main_page_topbar_height);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-shrink: 0;
-}
-
-.logo {
-    width: 12rem;
-    height: auto;
-    margin: auto;
-}
-
-.logo_chato {
-    width: 2rem;
-    height: auto;
-    margin: auto;
-}
+.container { height: var(--main_page_topbar_height); display: flex; align-items: center; padding: 0 2rem; flex-shrink: 0; }
+.wordmark { display: flex; align-items: baseline; gap: .65rem; white-space: nowrap; }
+.prefix { color: var(--dark_450_color); font-size: 1.3rem; font-weight: 500; letter-spacing: .06em; }
+.name { color: var(--dark_100_color); font-size: 2.1rem; font-weight: 750; letter-spacing: -.025em; }

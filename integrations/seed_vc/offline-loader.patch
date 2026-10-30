@@ -1,0 +1,149 @@
+--- a/realtime_vc_engine.py
++++ b/realtime_vc_engine.py
+@@ -14,7 +14,6 @@
+ import torchaudio
+ import torchaudio.compliance.kaldi as kaldi
+ import torchaudio.transforms as tat
+-import sounddevice as sd
+ import librosa
+ from audio_modules.commons import str2bool, recursive_munch, build_model, load_checkpoint
+ 
+@@ -81,11 +80,12 @@
+         self.function = "vc"  # "vc" for voice conversion, "im" for input monitoring (passthrough)
+ 
+ class RealtimeVCEngine:
+-    def __init__(self, args):
++    def __init__(self, args, model_loader=None, enumerate_devices=True):
+         self.args = args
+         self.config = RealtimeVCConfig()
+         self.device = self._get_device(args.gpu)
+         self.fp16 = args.fp16
++        self.last_block_status = "idle"
+         
+         # Runtime state
+         self.flag_vc = False
+@@ -120,8 +120,12 @@
+         
+         # Load models
+         print(f"Loading models on {self.device}...")
+-        self.model_set = self._load_models(args)
+-        self.vad_model = AutoModel(model="fsmn-vad", model_revision="v2.0.4", disable_pbar=True, log_level="ERROR", disable_update=True)
++        if model_loader is None:
++            self.model_set = self._load_models(args)
++            self.vad_model = AutoModel(model="fsmn-vad", model_revision="v2.0.4", disable_pbar=True, log_level="ERROR", disable_update=True)
++        else:
++            self.model_set = model_loader.load_models(self, args)
++            self.vad_model = model_loader.load_vad(self)
+         
+         # Devices
+         self.hostapis = []
+@@ -129,7 +133,8 @@
+         self.output_devices = []
+         self.input_devices_indices = []
+         self.output_devices_indices = []
+-        self.update_devices()
++        if enumerate_devices:
++            self.update_devices()
+         
+         # Callbacks
+         # Reporting hook only: the engine never applies A/V sync policy itself, it
+@@ -320,6 +325,7 @@
+         )
+ 
+     def update_devices(self, hostapi_name=None):
++        import sounddevice as sd
+         self.stop_stream()
+         sd._terminate()
+         sd._initialize()
+@@ -381,9 +387,11 @@
+         return pool[0] if pool else ""
+ 
+     def get_device_samplerate(self):
++        import sounddevice as sd
+         return int(sd.query_devices(device=sd.default.device[0])["default_samplerate"])
+ 
+     def get_device_channels(self):
++        import sounddevice as sd
+         max_input_channels = sd.query_devices(device=sd.default.device[0])["max_input_channels"]
+         max_output_channels = sd.query_devices(device=sd.default.device[1])["max_output_channels"]
+         return min(max_input_channels, max_output_channels, 2)
+@@ -399,7 +407,7 @@
+              self.config.sr_model = (self.config.sr_type == "sr_model")
+              self.config.sr_device = (self.config.sr_type == "sr_device")
+ 
+-    def _prepare_buffers(self):
++    def _prepare_buffers(self, channels=None):
+         # Initialize variables based on current config
+         if self.device.type == "mps":
+             torch.mps.empty_cache()
+@@ -415,7 +423,7 @@
+             if self.config.sr_type == "sr_model"
+             else self.get_device_samplerate()
+         )
+-        self.config.channels = self.get_device_channels()
++        self.config.channels = self.get_device_channels() if channels is None else channels
+         self.zc = self.config.samplerate // 50
+         self.block_frame = int(np.round(self.config.block_time * self.config.samplerate / self.zc)) * self.zc
+         self.block_frame_16k = 320 * self.block_frame // self.zc
+@@ -503,6 +511,7 @@
+         self.last_vad_reset_time = time.time()
+ 
+     def start_stream(self):
++        import sounddevice as sd
+         if not self.flag_vc:
+             # Select the devices BEFORE preparing buffers: _prepare_buffers sizes
+             # everything from get_device_samplerate()/get_device_channels(), which
+@@ -873,6 +882,7 @@
+         sola_buffer and the VAD caches are touched from this thread only, which is
+         why no snapshot or lock is needed around them.
+         """
++        self.last_block_status = "processing"
+         # Synchronization setup
+         if self.device.type == "mps":
+              torch.mps.synchronize()
+@@ -920,11 +930,9 @@
+             if self.vad_speech_detected and (time.time() - self.last_vad_end_time > 0.5):
+                 self.vad_speech_detected = False
+ 
+-        if not self.vad_pos_start and not self.vad_speech_detected:
+-            self.vad_cache = {}
+-            # The cache is already fresh, so hold off the periodic reset above -
+-            # otherwise its timer keeps ageing through silence and fires for nothing.
+-            self.last_vad_reset_time = time.time()
++        # Keep the streaming onset history across silent/undecided blocks.
++        # FSMN needs >150ms evidence; resetting every 80/180ms hop can prevent
++        # onset forever. The existing periodic reset above bounds cache lifetime.
+ 
+         # Preprocessing
+         self.input_wav[: -self.block_frame] = self.input_wav[self.block_frame :].clone()
+@@ -941,9 +949,11 @@
+         
+         # Check if we're in input monitoring mode (passthrough)
+         if self.config.function == "im":
++            self.last_block_status = "bypass"
+             # Input monitoring mode: directly pass through the input audio
+             infer_wav = self.input_wav[self.extra_frame : self.extra_frame + self.block_frame + self.sola_buffer_frame + self.sola_search_frame].clone()
+         elif self.active_extra_time_ce - self.active_extra_time < 0:
++             self.last_block_status = "invalid_context"
+              if time.time() - self.last_error_print_time > 1.0:
+                  print("Error: Content encoder extra context must be greater than DiT extra context!")
+                  self.last_error_print_time = time.time()
+@@ -953,7 +963,9 @@
+                  infer_wav = self._custom_infer(self.input_wav_res)
+                  if self.resampler2 is not None:
+                      infer_wav = self.resampler2(infer_wav)
++                 self.last_block_status = "converted"
+              except Exception as e:
++                 self.last_block_status = "inference_failed"
+                  if time.time() - self.last_error_print_time > 1.0:
+                      print(f"Inference error: {e}")
+                      self.last_error_print_time = time.time()
+@@ -961,6 +973,8 @@
+ 
+         # Only apply VAD muting during voice conversion mode
+         if self.config.function == "vc" and not self.vad_speech_detected:
++             if self.last_block_status == "converted":
++                 self.last_block_status = "vad_silence"
+              infer_wav = torch.zeros_like(self.input_wav[self.extra_frame :])
+ 
+         # SOLA

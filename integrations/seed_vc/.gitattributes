@@ -1,0 +1,2 @@
+# Preserve verbatim upstream context so the fixed-revision patch applies exactly.
+offline-loader.patch whitespace=-blank-at-eol

@@ -12,6 +12,7 @@ class TestMicTranslationEngineLimitContract(unittest.TestCase):
 
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller._initRealtimeASR({})
         self.controller.run_mapping = {"error_translation_engine": "error_translation_engine"}
         self.controller.changeToCTranslate2Process = lambda: None
         self.calls = []
@@ -49,6 +50,7 @@ class TestRecognitionErrorVisibility(unittest.TestCase):
 
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller._initRealtimeASR({})
         self.controller.run_mapping = {"transcription_recognition_error": "transcription_recognition_error"}
         self.calls = []
         self.controller.run = lambda status, endpoint, result: self.calls.append((status, endpoint, result))
@@ -144,6 +146,7 @@ class TestRecognitionErrorVisibility(unittest.TestCase):
 class TestTranscriptionEnableFailureState(unittest.TestCase):
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller._initRealtimeASR({})
         self.controller.mic_lifecycle_lock = Lock()
         self.controller.speaker_lifecycle_lock = Lock()
         self._original_send = config.ENABLE_TRANSCRIPTION_SEND
@@ -177,6 +180,7 @@ class TestTranscriptionVramStartFailureState(unittest.TestCase):
 
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller._initRealtimeASR({})
         self.controller.mic_lifecycle_lock = Lock()
         self.controller.speaker_lifecycle_lock = Lock()
         self.controller.run_mapping = {
@@ -235,6 +239,7 @@ class TestDeviceSelectionRecovery(unittest.TestCase):
 
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller._initRealtimeASR({})
         self.controller.mic_lifecycle_lock = Lock()
         self.controller.speaker_lifecycle_lock = Lock()
         self.controller.run_mapping = {
@@ -419,6 +424,7 @@ class TestDeviceSelectionRecovery(unittest.TestCase):
 class TestAudioDeviceAccessLock(unittest.TestCase):
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller._initRealtimeASR({})
         self.controller.mic_lifecycle_lock = Lock()
         self.controller.speaker_lifecycle_lock = Lock()
         self.controller.progressBarMicEnergy = lambda _: None
@@ -450,6 +456,7 @@ class TestShutdownStopsAutoSelectTrackers(unittest.TestCase):
 
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller._initRealtimeASR({})
         # shutdown() は mic/speaker_lifecycle_lock を取得してから
         # 停止関数を呼ぶ (ロードマップ項目 5)。__init__ をバイパスしている
         # ためここで明示的にシードする。

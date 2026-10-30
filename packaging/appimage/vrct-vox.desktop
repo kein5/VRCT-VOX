@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=VRCT-VOX
+Comment=Speech, voice conversion and translated chat
+Exec=vrct-vox
+Icon=vrct-vox
+Terminal=false
+Categories=AudioVideo;Audio;
+StartupWMClass=vrct-vox

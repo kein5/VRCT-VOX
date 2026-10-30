@@ -1,0 +1,20 @@
+{
+  "status": "approved_for_local_poc",
+  "approval": "2026-10-28 user: 取得してRealtime試験を進める",
+  "license": "MIT",
+  "files": [
+    {
+      "repo": "sakasegawa/silero-vad-GGUF",
+      "revision": "7fcb7aa2a70c312f8579fc987b3e1cdecf9321ca",
+      "rfilename": "silero-vad-309K-v6.2-F32.gguf",
+      "blobId": "b1b1740a4e96ecb08e17c556c2976d789ff7cc60",
+      "size": 1238624,
+      "lfs": {
+        "sha256": "2fc312514e5fc4fa4ffd02b25c76a4853fa4130e8fb9777d01502183b01238cb",
+        "size": 1238624,
+        "pointerSize": 132
+      }
+    }
+  ],
+  "total_bytes": 1238624
+}

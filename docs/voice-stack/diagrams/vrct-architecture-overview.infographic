@@ -1,0 +1,45 @@
+infographic relation-dagre-flow-lr-badge-card
+data
+  title VRCT-TTS｜4つの責務に分ける
+  desc UI・アプリ制御・外部推論・OS音声経路
+  nodes
+    - id ui
+      label React / Tauri
+      desc 入力・設定・字幕
+      icon screen
+    - id py
+      label Python sidecar
+      desc Main → Controller
+      icon code
+    - id text
+      label 既存の文字処理
+      desc 翻訳・履歴・overlay
+      icon text
+    - id engine
+      label speech.cpp
+      desc TTS / ASR / VAD
+      icon chip
+    - id os
+      label OS音声経路
+      desc Linux：PipeWire
+      icon route
+    - id chat
+      label VRChat Chatbox
+      desc 文字の表示
+      icon text
+    - id voice
+      label VRChat マイク
+      desc 音声の入力
+      icon mic
+  relations
+    ui - JSON -> py
+    py - 文字 -> text
+    py - HTTP / WS -> engine
+    engine - TTS音声 -> os
+    text - OSC -> chat
+    os - 仮想マイク -> voice
+theme
+  palette #176b80 #42659b #665fa4 #217d65 #a46e20
+  base
+    text
+      font-family Noto Sans CJK JP, Yu Gothic, sans-serif

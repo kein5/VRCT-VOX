@@ -1,0 +1,64 @@
+{
+  "model_ready": true,
+  "converted": false,
+  "checkpoints": {
+    "seed": {
+      "cfm": {
+        "required": 143,
+        "unused": 0
+      },
+      "length_regulator": {
+        "required": 22,
+        "unused": 2
+      },
+      "regenerated_buffers": {
+        "estimator.t_embedder.freqs": "canonical float32 formula",
+        "estimator.input_pos": "validated int64 arange(8192) -> arange(16384)"
+      }
+    },
+    "campplus": {
+      "required": 937,
+      "unused": 0
+    },
+    "hift": {
+      "required": 227,
+      "unused": 0
+    },
+    "xlsr": {
+      "missing": 0,
+      "unused": 7
+    },
+    "vad": {
+      "required": 24,
+      "unused": 0
+    }
+  },
+  "reference": {
+    "duration_s": 14.52,
+    "sample_rate": 48000,
+    "channels": 1,
+    "sample_width": 2,
+    "sha256": "09a0087732d01500b74a79350deee83337f6df509089979233cf3336ed16db61"
+  },
+  "vad_chunks": 73,
+  "vad_segments": 12,
+  "load_s": 5.519213699997636,
+  "vad_test_s": 7.595340649000718,
+  "torch": "2.10.0+cu128",
+  "torchaudio": "2.10.0+cu128",
+  "cuda": "12.8",
+  "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+  "audio_device_module_loaded": false,
+  "peak_allocated_bytes": 964513792,
+  "scope": "Linux CUDA offline model load and VAD only; no conversion/OS audio acceptance",
+  "network": {
+    "namespace": "unshare --user --map-current-user --net",
+    "external_connects": 0,
+    "host_audio_socket_references": 0,
+    "trace_sha256": "fa20f17513e24c4722917afca63ae2e5db954b8c3b933bab9dc02ed6f9b48542"
+  },
+  "engine_commit": "58d0ca372cc76f60a798d9f84611f053f9029f3a",
+  "patch_sha256": "45efd7e792069128c0eba89607d10b26793d1167b6d06f50d0b3e9544d713b8a",
+  "dependency_lock_sha256": "fffa091dbf5ebc920bed63dc30a4f4e7d91369b7bbc4d26105baa50cada2561c",
+  "note": "Timings include strace overhead, one run; not latency benchmarks."
+}

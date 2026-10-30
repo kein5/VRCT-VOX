@@ -1,0 +1,320 @@
+{
+  "date": "2026-10-28",
+  "runs": {
+    "fixture": {
+      "status": "passed",
+      "native_tauri": true,
+      "full_model_runtime": true,
+      "real_inference": false,
+      "vrchat": false,
+      "physical_input": false,
+      "host_audio_changed": false,
+      "cases": [
+        {
+          "name": "normal_exactly_once",
+          "status": "passed",
+          "click_to_source_ms": 241.950687,
+          "match": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9832249547241001,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.4,
+                "score": 0.9832249547241001
+              }
+            ],
+            "observed_seconds": 5.456,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 261888,
+            "elapsed_seconds": 5.461562530006631,
+            "last_read_seconds": 5.462092638001195,
+            "max_read_gap_seconds": 0.04268810400390066,
+            "early_exit": false,
+            "reader_error": null
+          }
+        },
+        {
+          "name": "stop",
+          "status": "passed",
+          "click_to_silence_ms": 284.568218,
+          "silence_confirmation_ms": 2000
+        },
+        {
+          "name": "mute",
+          "status": "passed",
+          "click_to_silence_ms": 272.373963,
+          "silence_confirmation_ms": 2000
+        },
+        {
+          "name": "held_mute_stays_silent",
+          "status": "passed"
+        },
+        {
+          "name": "off_keeps_text_silent",
+          "status": "passed"
+        },
+        {
+          "name": "off_to_original_exactly_once",
+          "status": "passed",
+          "click_to_source_ms": 241.913126,
+          "match": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 1.0,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.4,
+                "score": 1.0
+              }
+            ],
+            "observed_seconds": 5.456,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 261888,
+            "elapsed_seconds": 5.460419430004549,
+            "last_read_seconds": 5.461009581005783,
+            "max_read_gap_seconds": 0.04270231099508237,
+            "early_exit": false,
+            "reader_error": null
+          }
+        },
+        {
+          "name": "server_failure_visible_and_silent",
+          "status": "passed",
+          "crash_to_silence_ms": 84.733699
+        },
+        {
+          "name": "fresh_after_server_restart",
+          "status": "passed",
+          "click_to_source_ms": 235.302327,
+          "match": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.955062323867674,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.42,
+                "score": 0.955062323867674
+              }
+            ],
+            "observed_seconds": 5.498666666666667,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 263936,
+            "elapsed_seconds": 5.504364118998637,
+            "last_read_seconds": 5.504859942011535,
+            "max_read_gap_seconds": 0.04289582499768585,
+            "early_exit": false,
+            "reader_error": null
+          }
+        },
+        {
+          "name": "app_exit_mutes_source",
+          "status": "passed"
+        }
+      ],
+      "timing_boundary": "WebDriver click call to first qualifying private source read",
+      "latency_percentiles": null,
+      "reference_samples": 144000,
+      "capture": {
+        "frames": 2760,
+        "sample_count": 2649600,
+        "last_read_ns": 73554247035473,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 66.452861,
+        "nonzero_frames": 430,
+        "detected_frames": {
+          "440": 423,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "raw_report_sha256": "aa2628fff5a2a6b2f209945413be438fd7e8b405699f149a8b40c61aeb20d484"
+    },
+    "irodori": {
+      "status": "passed",
+      "native_tauri": true,
+      "full_model_runtime": true,
+      "real_inference": true,
+      "vrchat": false,
+      "physical_input": false,
+      "host_audio_changed": false,
+      "cases": [
+        {
+          "name": "normal_exactly_once",
+          "status": "passed",
+          "click_to_source_ms": 241.695757,
+          "match": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9989411940801054,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.54,
+                "score": 0.9989411940801054
+              }
+            ],
+            "observed_seconds": 8.314666666666668,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 399104,
+            "elapsed_seconds": 8.321344072013744,
+            "last_read_seconds": 8.321986922004726,
+            "max_read_gap_seconds": 0.04270428398740478,
+            "early_exit": false,
+            "reader_error": null
+          }
+        },
+        {
+          "name": "stop",
+          "status": "passed",
+          "click_to_silence_ms": 272.483699,
+          "silence_confirmation_ms": 2000
+        },
+        {
+          "name": "mute",
+          "status": "passed",
+          "click_to_silence_ms": 296.298881,
+          "silence_confirmation_ms": 2000
+        },
+        {
+          "name": "held_mute_stays_silent",
+          "status": "passed"
+        },
+        {
+          "name": "off_keeps_text_silent",
+          "status": "passed"
+        },
+        {
+          "name": "off_to_original_exactly_once",
+          "status": "passed",
+          "click_to_source_ms": 282.379638,
+          "match": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9831209369517139,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.62,
+                "score": 0.9831209369517139
+              }
+            ],
+            "observed_seconds": 8.357333333333333,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 401152,
+            "elapsed_seconds": 8.361232330003986,
+            "last_read_seconds": 8.361790641007246,
+            "max_read_gap_seconds": 0.04269764499622397,
+            "early_exit": false,
+            "reader_error": null
+          }
+        },
+        {
+          "name": "server_failure_visible_and_silent",
+          "status": "passed",
+          "crash_to_silence_ms": 82.007938
+        },
+        {
+          "name": "fresh_after_server_restart",
+          "status": "passed",
+          "click_to_source_ms": 239.052715,
+          "match": {
+            "verdict": "pass",
+            "occurrences": 1,
+            "best_envelope_correlation": 0.9865221848996724,
+            "threshold": 0.8,
+            "matches": [
+              {
+                "offset_seconds": 0.56,
+                "score": 0.9865221848996724
+              }
+            ],
+            "observed_seconds": 8.314666666666668,
+            "boundary": "saved_pcm_envelope_only",
+            "perceptual_quality_measured": false
+          },
+          "capture": {
+            "valid": true,
+            "samples": 399104,
+            "elapsed_seconds": 8.319116462997044,
+            "last_read_seconds": 8.31967868200445,
+            "max_read_gap_seconds": 0.042693372000940144,
+            "early_exit": false,
+            "reader_error": null
+          }
+        },
+        {
+          "name": "app_exit_mutes_source",
+          "status": "passed"
+        }
+      ],
+      "timing_boundary": "WebDriver click call to first qualifying private source read",
+      "latency_percentiles": null,
+      "model_sha256": "e237dc3eefe469b8bba87872beacf12fb7fe00dbdf85767edca8ec04ab910d13",
+      "binary_sha256": "800e9bae0057a7ce2b63dde01a71bf83653ffbd70eb83f8bea3e8fd944f678e7",
+      "seed": 42,
+      "reference_samples": 276257,
+      "capture": {
+        "frames": 3338,
+        "sample_count": 3204480,
+        "last_read_ns": 73790954220245,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.577947,
+        "nonzero_frames": 739,
+        "detected_frames": {
+          "440": 200,
+          "880": 156,
+          "1760": 19
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "raw_report_sha256": "39092e5ae5ccd9be06dd3d4614b9761564112295e9d388a1f152d3014c6a41de"
+    }
+  },
+  "speech_cpp_version": "0.9.0",
+  "device": "Vulkan0",
+  "voice": "none",
+  "warmup_enabled": true,
+  "source_hashes": {
+    "tools/display_power_guard.py": "f8196ac8b7e037fcbe1172e4686e31bb9061a8254c63f55b27167684d8e11859",
+    "tests/platform/native_webdriver.py": "1a4141a2beb972eec60ebb6a0619091f0c32844c24b29b5acfb63d7abd7fc14f",
+    "tests/platform/test_native_ui.py": "7135c5f2a598c0e8bd56c4c1e69b9358a7aa070f12242145ec659a7fa323bc66",
+    "tests/platform/test_native_voice.py": "909ef24adec96e3282758bafa94e323dbd6a159301447a0844a98936b209f6da",
+    "tools/live_tts_acceptance.py": "71d1bcc320d4380c12d94c8f45257b46b6a071c9e963765a4b9cc8551b9cf650"
+  },
+  "native_binary_sha256": "38e4e0d40c6744183d3db7c99c69330e6fbe6e92bce9252ce7ae025c3082e3c1",
+  "regression": "276 passed, 1 native-voice opt-in skipped, 5 warnings",
+  "limitations": [
+    "No VRChat, HMD, physical playback or Windows acceptance in these runs.",
+    "No UI-event-to-PCM-write measurement; no p50/p95/p99 claims.",
+    "Three positive scenarios each sampled once; background load not controlled.",
+    "Exactly-once uses known deterministic PCM envelopes, not perceptual quality.",
+    "Guard polls DPMS at 1 second intervals; shorter power changes may be missed."
+  ]
+}

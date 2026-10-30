@@ -1,0 +1,258 @@
+{
+  "run_exit_code": 0,
+  "wall_seconds": 1862.505828705,
+  "sampler_stopped": true,
+  "report": {
+    "status": "passed",
+    "native_ui": true,
+    "real_asr_vad_tts": true,
+    "real_translation_model": false,
+    "translation": "fixed local HTTP via production LMStudio adapter",
+    "physical_capture": false,
+    "vrchat": false,
+    "gpu_contention_measured": false,
+    "direct_policy": "mix",
+    "direct_input": "same synthetic source as ASR",
+    "real_rvc": true,
+    "case": "rvc_exit",
+    "sustained_seconds_requested": 1800.0,
+    "shared_physical_capture_verified": false,
+    "matches_boundary": "TTS sink monitor",
+    "branch_alignment": [
+      {
+        "branch": "tts",
+        "lag_samples": 256,
+        "compared_samples": 415744
+      },
+      {
+        "branch": "vc",
+        "lag_samples": 0,
+        "compared_samples": 416000
+      }
+    ],
+    "mixed_pcm_relative_error": 2.8518475160159597e-06,
+    "sustained_seconds_observed": 1806.3198726869996,
+    "after_failure_matches": [
+      {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.9952286125878494,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 2.82,
+            "score": 0.9952286125878494
+          }
+        ],
+        "observed_seconds": 10.746666666666666,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      },
+      {
+        "verdict": "pass",
+        "occurrences": 1,
+        "best_envelope_correlation": 0.9953682656263851,
+        "threshold": 0.8,
+        "matches": [
+          {
+            "offset_seconds": 5.4,
+            "score": 0.9953682656263851
+          }
+        ],
+        "observed_seconds": 10.746666666666666,
+        "boundary": "saved_pcm_envelope_only",
+        "perceptual_quality_measured": false
+      }
+    ],
+    "after_failure_expected_occurrences": [
+      1,
+      1
+    ],
+    "rvc_failure_keeps_translation": true,
+    "after_failure_osc_messages": 2,
+    "warm": true,
+    "measurements": [
+      {
+        "final_receipt_to_first_write_ms": 35.108031
+      },
+      {
+        "final_receipt_to_first_write_ms": 28.202856
+      }
+    ],
+    "stop_call_to_silent_private_read_ms": null,
+    "stop_during_speech": false,
+    "original_and_translated_osc_once": true,
+    "osc_messages": 2,
+    "direct_tone_coverage_during_speech": [],
+    "route_confirmation_ms": 2000,
+    "silence_confirmation_ms": null,
+    "restart_capture_off_and_muted": true,
+    "same_synthetic_source_fanout_verified": true,
+    "asr_stop_keeps_rvc": false,
+    "capture": {
+      "frames": 93085,
+      "sample_count": 89361600,
+      "last_read_ns": 7316750611159,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 49.40974,
+      "nonzero_frames": 55865,
+      "detected_frames": {
+        "440": 24025,
+        "880": 9662,
+        "1760": 2597
+      },
+      "reader_eof": false,
+      "reader_error": null
+    },
+    "asr_empty_results_observed": 13
+  },
+  "tts_count": 464,
+  "tts_outcomes": {
+    "completed": 464
+  },
+  "events_with_uuid_id_in_trace": 0,
+  "duplicate_nonnull_uuid_ids": 0,
+  "identity_limit": "Composite ASR event IDs are intentionally omitted from the safe trace; do not infer duplication from null. Acceptance compares per-input final/TTS/OSC counts.",
+  "duplicate_started_timestamps": 0,
+  "tts_first_write_boundary": "ASR final receipt to first successful non-silent TTS OS write; fixed HTTP translation; excludes physical capture/VAD-before-final and VRChat",
+  "tts_first_write_ms": {
+    "min": 25.815,
+    "p50": 51.542,
+    "p95": 2767.858,
+    "p99": 2801.939,
+    "max": 2878.21
+  },
+  "percentile_method": "nearest rank, inclusive minimum/maximum",
+  "gpu_samples": 919,
+  "gpu_query_errors": 0,
+  "comfy_observed_samples": 0,
+  "gpu_util_percent": {
+    "min": 7.0,
+    "p50": 29.0,
+    "p95": 96.0,
+    "p99": 97.0,
+    "max": 98.0
+  },
+  "gpu_memory_mib": {
+    "min": 2869.0,
+    "p50": 6820.0,
+    "p95": 6956.0,
+    "p99": 7107.0,
+    "max": 7167.0
+  },
+  "gpu_temperature_c": {
+    "min": 42.0,
+    "p50": 45.0,
+    "p95": 52.0,
+    "p99": 56.0,
+    "max": 60.0
+  },
+  "resources": {
+    "samples": 190,
+    "first": {
+      "elapsed_s": 8.719521250999605,
+      "completed": 4,
+      "app_tree_rss_sum_bytes": 4552712192,
+      "app_tree_fds_sum": 428,
+      "app_tree_processes": 13,
+      "resource_samples_incomplete": 0
+    },
+    "last": {
+      "elapsed_s": 1806.3196973559998,
+      "completed": 462,
+      "app_tree_rss_sum_bytes": 5048172544,
+      "app_tree_fds_sum": 428,
+      "app_tree_processes": 13,
+      "resource_samples_incomplete": 0
+    },
+    "rss_sum_mib": {
+      "min": 4341.805,
+      "p50": 4601.398,
+      "p95": 4787.066,
+      "p99": 4852.828,
+      "max": 4856.203
+    },
+    "fds_sum": {
+      "min": 428,
+      "p50": 428,
+      "p95": 441,
+      "p99": 447,
+      "max": 454
+    },
+    "process_count": {
+      "min": 13,
+      "p50": 13,
+      "p95": 14,
+      "p99": 16,
+      "max": 16
+    },
+    "incomplete_samples": 0
+  },
+  "failure_probes": 1,
+  "failure_probe_interpretation": "One probe occurred at the intentional worker kill after the sustained run; see probe events. No natural failure during 1806.32 seconds.",
+  "trial": "2026-10-29 after user stopped ComfyUI generation",
+  "clock_observation": {
+    "observed": {
+      "buffers": 1625,
+      "gaps": [],
+      "first": [
+        0,
+        256,
+        5472457062500,
+        5472457062500,
+        256,
+        256
+      ]
+    },
+    "tts": {
+      "buffers": 1624,
+      "gaps": [],
+      "first": [
+        0,
+        256,
+        5472462395833,
+        5472462395833,
+        256,
+        256
+      ]
+    },
+    "vc": {
+      "buffers": 1626,
+      "gaps": [],
+      "first": [
+        0,
+        256,
+        5472457062500,
+        5472457062500,
+        256,
+        256
+      ]
+    },
+    "report": {
+      "status": "passed",
+      "mixed_pcm_relative_error": 2.8518475160159597e-06,
+      "branch_alignment": [
+        {
+          "branch": "tts",
+          "lag_samples": 256,
+          "compared_samples": 415744
+        },
+        {
+          "branch": "vc",
+          "lag_samples": 0,
+          "compared_samples": 416000
+        }
+      ],
+      "failure_expected_counts": null,
+      "settle_timeout": null
+    }
+  },
+  "limits": [
+    "Private PipeWire and synthetic input; no physical microphone, VRChat or HMD.",
+    "Fixed HTTP translation, not a real translation model.",
+    "GPU sampled every 2 seconds, not a controlled competing-workload experiment.",
+    "One successful run does not identify causes of past failures.",
+    "RSS is summed across child processes and double-counts shared memory; no leak-free claim.",
+    "Initial PCM clock analysis covers the initial recording, not all 30 minutes."
+  ]
+}

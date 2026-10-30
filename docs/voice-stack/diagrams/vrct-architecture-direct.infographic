@@ -1,0 +1,44 @@
+infographic relation-dagre-flow-lr-badge-card
+data
+  title 直接音声は翻訳を待たない
+  desc 実線は本体の経路｜孤立したSeed-VCは未接続のPoC
+  nodes
+    - id source
+      label 選択source
+      desc 物理入力 / 外部VC出力等
+      icon mic
+    - id bridge
+      label SourceBridge
+      desc 変換状態は保証しない
+      icon route
+    - id branch
+      label 直接音声gate
+      desc vrct.managed.vc
+      icon route
+    - id tts
+      label TTS枝
+      desc vrct.managed.tts
+      icon chip
+    - id mix
+      label 合流と全体gate
+      desc 仮想endpointを保持
+      icon queue
+    - id vrc
+      label VRChat
+      desc 仮想マイクを選択
+      icon mic
+    - id poc
+      label Seed-VC：別PoC
+      desc GPL / 本体統合は未完
+      icon experiment
+  relations
+    source - 音声 -> bridge
+    bridge - 転送 -> branch
+    branch - 直接枝 -> mix
+    tts - TTS枝 -> mix
+    mix - 音声 -> vrc
+theme
+  palette #176b80 #42659b #665fa4 #217d65 #a46e20
+  base
+    text
+      font-family Noto Sans CJK JP, Yu Gothic, sans-serif

@@ -352,7 +352,7 @@ def validateDictStructure(data: dict, structure: dict) -> bool:
                 return False
     return True
 
-def isConnectedNetwork(url="http://www.google.com", timeout=3) -> bool:
+def isConnectedNetwork(url="https://www.google.com", timeout=3) -> bool:
     """Quick network connectivity check by requesting `url`.
 
     Returns True when a 200 response is returned within `timeout` seconds.
@@ -555,10 +555,20 @@ def encodeBase64(data: str) -> Dict[str, Any]:
         errorLogging()
         return {}
 
+def diagnosticLogPath(filename: str) -> str:
+    """Honor explicit state isolation without changing legacy default paths."""
+    directory = os.environ.get("VRCT_CONFIG_DIR")
+    if not directory or os.path.dirname(filename):
+        return filename
+    logs = os.path.join(os.path.abspath(os.path.expanduser(directory)), "logs")
+    os.makedirs(logs, exist_ok=True)
+    return os.path.join(logs, filename)
+
+
 def removeLog() -> None:
     """Truncate the process log file (process.log) if present."""
     try:
-        with open('process.log', 'w', encoding="utf-8") as f:
+        with open(diagnosticLogPath('process.log'), 'w', encoding="utf-8") as f:
             f.write("")
     except Exception:
         errorLogging()
@@ -592,7 +602,7 @@ def setupLogger(name: str, log_file: str, level: int = logging.INFO) -> logging.
 
     # ハンドラーを作成
     file_handler = TruncatingFileHandler(
-        log_file,
+        diagnosticLogPath(log_file),
         maxBytes=max_log_size,
         backupCount=0,
         encoding="utf-8",
@@ -613,7 +623,7 @@ def setupLogger(name: str, log_file: str, level: int = logging.INFO) -> logging.
 process_logger: Optional[logging.Logger] = None
 
 # エンドポイント名にこれらのいずれかが含まれる場合、ログに書き出す値をマスクする
-SENSITIVE_ENDPOINT_MARKERS = ("auth_key", "api_key", "password", "token", "secret")
+SENSITIVE_ENDPOINT_MARKERS = ("auth_key", "api_key", "password", "token", "secret", "voice_settings", "instructions")
 
 
 def _isSensitiveEndpoint(endpoint: Any) -> bool:
@@ -667,8 +677,10 @@ def printLog(log: str, data: Any = None) -> None:
     serialized = json.dumps(response)
     _enqueueLogLine(serialized)
 
-# 頻繁に送るため process.log に残さないエンドポイント (VR UIのポインタ位置は1秒に十数回送る)
-_UNLOGGED_ENDPOINTS = {"/run/vr_panel_pointer"}
+# High-rate pointer data and private captions are IPC only. Final transcript
+# persistence is handled by the explicitly enabled message logger, not this
+# always-on process diagnostic log.
+_UNLOGGED_ENDPOINTS = {"/run/vr_panel_pointer", "/run/realtime_caption", "/run/word_filter"}
 
 
 def printResponse(status: int, endpoint: str, result: Any = None) -> None:

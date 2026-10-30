@@ -29,6 +29,7 @@
 $pending_label_color: var(--dark_500_color);
 .button_label {
     font-size: 1.2rem;
+    white-space: nowrap;
     &.is_pending {
         color: $pending_label_color;
         opacity: 0.25;

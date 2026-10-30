@@ -1,0 +1,126 @@
+# GUIから日本語テキストを読み上げる
+
+AppImageにはspeech.cppの実行ファイルを同梱している。音声モデルは設定画面から取得するか、既存ファイルを指定する。
+まずイヤホンへの出力で確認し、その後VRChat用の仮想マイクへ切り替えられる。
+以下は現在の英語GUIの項目名。
+
+1. メイン画面の歯車から **TTS** を開く。RVCは隣の専用ページ、共通の音声経路は **Device** にある。
+2. **Bundled speech.cpp servers → Japanese TTS** の **Model GGUF path** に
+   既存のIrodori GGUFモデルのフルパスを入力する。`~`も利用できる。
+   **Voice GGUF path (optional)** は空欄、**Inference device** は **Automatic** にする。
+3. **Save server settings** を押した後、Japanese TTSの **Start server** を押す。
+   **Ready** になるまで待つ。保存だけではモデルを起動しない。
+4. 上側の読み上げ設定を次の値にして **Save voice settings** を押す。
+
+| 項目 | イヤホンで試すときの値 |
+|---|---|
+| Chat voice | Original text |
+| Japanese server | Bundled server |
+| Japanese voice name | none（Irodoriの標準音声） |
+| Audio route（Deviceページ） | Existing external cable |
+| Output device | 使用中のイヤホン／スピーカー |
+
+Linuxでは通常の再生デバイスも選べる。
+出力先がなければ **Refresh devices** で更新する。
+
+5. ミュート中なら **Device → Resume voice** を押し、**Voice enabled (confirmed)** を確認する。
+6. メイン画面に戻り、**Your Language = Japanese (Japan)** を選んで **TTS** をONにする。
+   下部の入力欄へ日本語を入れて送信すると読み上げる。
+
+トップの **TTS OFF** は読み上げ受付・再生・待ち行列を止める。直接入力・RVC・翻訳・OSCは継続する。
+TTSページの **Stop playback and clear queue** は現在の発声と待ち行列だけを止める。
+Deviceページの **Mute until resumed** は共通経路全体のミュートなので、TTS OFFとは用途が異なる。
+アプリ再起動後はTTS受付と同梱サーバーがOFFに戻る。必要な枠を起動してからTTSをONにする。
+
+各言語枠の **Seed mode** は既定でランダム。**Specify a value** では0を含む整数を指定できる。
+**Instruction** は声の出し方の指示で、読み上げ本文とは別に送信する。モデルの対応状況を確認し、
+非対応の場合は値を空にして通常のTTSを使う。保存だけではモデル・マイク・発声を開始しない。
+
+## モデルを持っていない場合
+
+TTSページの日本語枠にはIrodori、多言語枠にはQwen、RVCページにはSaisho Utaneの既定モデルを用意した。
+「既定モデルのダウンロード」→「取得内容を確認」で、提供元・利用条件・容量・保存先を確認する。
+同意にチェックして「同意してダウンロード」を押し、取得と検証が完了したら「モデルパスを適用」を押す。
+取得中は取消可能。適用は編集中の設定を保存または破棄し、対象のサーバー／入力を停止してから行う。
+モデルパス以外の設定は維持し、取得・適用だけではサーバー・発声・マイクを開始しない。
+
+Irodoriは約1.92 GB、Qwenは約1.21 GB、RVCのモデルとindexは合計約336 MB。
+軽量版としてIrodori Q8（約1.21 GB）、Qwen Q5（約874 MB）も選べる。
+TTSの取得欄ではGPU名・総容量・現在の空きVRAMを表示し、モデルの使用量目安と余裕を含めて候補を案内する。
+「モデルの種類」で標準／軽量を手動で変更できる。VRChat等と併用する2 GiBの余裕が既定で、
+TTS単独用の0.5 GiBへ変更できるが、これはメモリの予約や動作保証ではない。
+GPU情報を取得できない場合も手動で選択できる。共有メモリやCPUは専用VRAMの推奨とは区別する。
+複数GPUの容量は合算せず、案内はエンジンが既定で使う先頭GPUに対するもの。実行GPUを選択するUIではない。
+RVCはモデル以外にランタイム・Python環境・HuBERT・RMVPEが必要。これらの自動取得は含まない。
+Saishoモデルの公開利用時はCC BY 4.0のクレジット表示が必要。詳細は[取得機能の仕様と利用条件](model-downloads.md)を参照。
+
+## 日本語TTSの低遅延待機
+
+日本語サーバーを停止してから、推論デバイスをGPUにし、「低遅延待機（Irodori・GPU）」を選んで
+「サーバー設定を保存」→「サーバーを起動」。準備完了と低遅延待機中の表示を確認する。
+既定はOFF。ONの間はGPUで短い準備計算を繰り返すため、消費電力が増え、ゲームと競合する場合がある。
+待機計算の音声は破棄し、出力へは流さない。トップのTTSをOFFにしても待機は続く。
+待機を止めるには日本語サーバーを停止するかVRCTを終了する。
+
+RTX 4080 SUPER／固定短文／読込済みIrodori F16で、GUI送信から最初のPCM書込みまでの
+最終AppImageで30回のp95は50.1 msだった。任意の文章・機器・ゲーム併用や、耳に届くまで100 msを保証するものではない。
+条件と音声完全性の検証は[低遅延の実測記録](tts-low-latency-report.md)に記載する。
+
+RVCは **RVC** ページでモデルとランタイムを保存し、**仮想マイクを準備して使用** を押す。
+PipeWireとsystemdのユーザーサービスを利用できるLinuxでは、必要な仮想マイクを自動で作成する。
+既存の正常な管理対象経路は再利用する。音声サービスの再起動、モデル取得、録音は準備操作では行わない。
+準備完了後に **音声を再開** を押し、**転送する入力** で自分が話す実マイクを選び、トップの **RVC** をONにする。
+RVCページの入力一覧は変換前の入力用で、VRCT自身の仮想マイクは循環を避けるため表示しない。
+VRChatの入力には **VRCT Managed Virtual Microphone** を選ぶ。
+デバイスページ先頭の **音声経路** でも設定できる。下方の従来のマイク/スピーカー選択は既存ASR用で、LinuxのNoHost/NoDevice解消とは別の機能。
+開始待ちもOFFで取り消せる。原音やSeed-VCが動作中なら、その設定ページで先に停止する。
+入力の選択はページ移動では保持するが、再起動やデバイス再接続後は明示的に選び直す。
+
+このPCで取得済みの日本語モデルは次の場所にある（2026-10-29確認）。新規取得は不要。
+
+```text
+~/.cache/speech.cpp/models/sakasegawa--Irodori-TTS-v4.1-Small-MF-GGUF/e237dc3eefe469b8bba87872beacf12fb7fe00dbdf85767edca8ec04ab910d13/Irodori-TTS-866M-MF-v4.1-F16.gguf
+```
+
+## VRChatへ送る場合
+
+**Device → Audio route** を **Managed virtual microphone (Linux)** にして保存すると自動準備が始まる。
+準備状態を確認し、完了後に **Resume voice** を押す。RVCページからも同じ準備を開始できる。
+準備はユーザーサービス3件を作成・有効化する。VRCT終了後も仮想マイクを残し、次回ログイン時はミュートで生成する。
+管理者権限は不要。systemdのない環境では[従来の手動導入](local-setup-linux.md#常駐する管理対象の仮想マイクb検証後の追加)を使う。
+
+- VRCTの **Device → Audio route** を **Managed virtual microphone (Linux)** にして保存し、**Resume voice**。
+- VRChatの入力を **VRCT Managed Virtual Microphone** にする。
+
+自動作成のサービスは `~/.config/systemd/user/vrct-managed-{source,tts,vc}.service`
+（XDG_CONFIG_HOME指定時はその下）に保存される。AppImageの一時マウントには依存しない。
+削除時は先にVRCTを停止し、VRChat等の入力を安全な別入力へ切り替えた上で、この3サービスだけを停止・無効化する。
+実行中の利用アプリから仮想マイクを突然削除すると、別マイクへ切り替わる可能性があるため、VRCT終了時には自動削除しない。
+
+翻訳結果を読む場合は **Chat voice = Translated text** と対象の **Translation slot** を選ぶ。
+発声する言語に対応するサーバーも必要で、日本語以外は多言語枠（Qwen3-TTS等）を使用する。
+TTSエンジンと翻訳エンジンの設定は別。
+
+## チャット入力の小窓
+
+設定の「ホットキー」から「チャット入力の小窓を開く」にキーを割り当てます。
+初期状態では未割り当てです。「入力の小窓を開く」ボタンでも開けます。
+本体が最小化されていても、本体を戻さずに小窓へ入力できます。
+小窓は表示中、最前面に保たれます。入力を終えたらEscで閉じられます。
+ホットキーはキーを離すと開きます。
+
+Enterで送信、Shift+Enterで改行、Escで閉じます。Escや閉じるボタンでは下書きが残ります。
+本体のEnter送信無効・自動クリア設定を引き継ぎ、翻訳・OSC・TTSも同じ送信経路を使います。
+送信の確認を待っている間は連打できません。未確認時は下書きを保持して理由を表示します。
+
+ネイティブWaylandのグローバルショートカットは未対応です。ボタンから開いてください。
+XWaylandでも、別のWaylandアプリを操作中のキーとフォーカスはデスクトップの制限を受ける場合があります。
+VRChatのキー入力を抑止する機能やVR空間のパネルは含みません。
+技術上の範囲と検証方法は[小窓の設計記録](quick-chat-design.md)に記載しています。
+
+## AppImageでRVCがすぐ停止する旧候補について
+
+2026-10-30の実機試験で、外部RVC/Seed-VC workerが読む軽量プロトコルファイルの同梱漏れを確認した。
+旧候補で `vc_worker_eof` になる場合があり、仮想マイクやモデルパスの変更では直らない。
+`auto-microphone-rvc-fix-2026-10-30-artifacts` の候補には、この同梱修正を含める。
+モデル自体は引き続き同梱しない。

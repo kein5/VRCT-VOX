@@ -1,119 +1,51 @@
-<div align="center">
+# VRCT-VOX
 
-<picture>
-    <source srcset="/docs/img/vrct_logo_white.png" media="(prefers-color-scheme: dark)" width="50%">
-    <source srcset="/docs/img/vrct_logo_black.png" media="(prefers-color-scheme: light)" width="50%">
-    <img src="/docs/img/vrct_logo.png" alt="VRCT Logo" width="50%">
-</picture>
+[English](/docs/readmes/README.en.md)
 
-<br>
-<br>
+[VRCT-VOX](https://github.com/kein5/VRCT-VOX)は、[VRCT](https://github.com/misyaguziya/VRCT)を基にkein5が開発する独立したforkです。旧名は`kein5/VRCT.cpp`、`kein5/VRCT-TTS`です。本家の公式版ではなく、本家開発者やVRChatによる承認・公式サポートを示すものではありません。
 
-[![GitHub release](https://img.shields.io/github/v/release/misyaguziya/VRCT.svg)](https://github.com/misyaguziya/VRCT/releases)
-[![Downloads](https://img.shields.io/github/downloads/misyaguziya/VRCT/total)](https://github.com/misyaguziya/VRCT/releases)
-[![Licence](https://img.shields.io/github/license/misyaguziya/VRCT)](https://github.com/misyaguziya/VRCT/blob/master/LICENSE)
-[![Booth](https://img.shields.io/badge/Store-Booth.pm-red)](https://misyaguziya.booth.pm/items/5155325)
-[![Github Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-30363D?&logo=GitHub-Sponsors&logoColor=EA4AAA)](https://github.com/sponsors/misyaguziya)
+speech.cppによるTTS、外部Seed-VC/RVCによる直接ボイスチェンジ、リアルタイムASR、翻訳発声を追加しています。音声出力とOSC文字出力は独立して組み合わせられます。speech.cppのローカルサーバーはGUIから保存・起動・停止できます。設定画面からIrodori、Qwen3-TTS、RVCの既定モデルを取得することもできます。
 
-<h3>
-Become a VRCT Supporter on:
-</h3>
+## 配布とサポート
 
-<a href="https://vrct-dev.fanbox.cc">
-    <picture>
-        <source srcset="/docs/img/pixiv_fanbox_white.png" media="(prefers-color-scheme: dark)" height="18px">
-        <source srcset="/docs/img/pixiv_fanbox_black.png" media="(prefers-color-scheme: light)" height="18px">
-        <img src="/docs/img/pixiv_fanbox_black.png" alt="PIXIV FANBOX" height="18px">
-    </picture>
-</a>&emsp;&nbsp;
+独自の配布先は[VRCT-VOX Releases](https://github.com/kein5/VRCT-VOX/releases)、不具合報告・相談先は[VRCT-VOX Issues](https://github.com/kein5/VRCT-VOX/issues)です。本家の配布物にはこのforkの追加機能は含まれません。本家へfork固有の問い合わせを送らないでください。
 
-<a href="https://patreon.com/vrct_dev">
-    <picture>
-        <source srcset="/docs/img/patreon_logo_white.png" media="(prefers-color-scheme: dark)" height="22px">
-        <source srcset="/docs/img/patreon_logo_black.png" media="(prefers-color-scheme: light)" height="22px">
-        <img src="/docs/img/patreon_logo_black.png" alt="Patreon" height="22px">
-    </picture>
-</a>&emsp;&nbsp;
+現在も開発中です。Linuxでは実際のAppImageとモデルを使って試験しています。Windows実機、聴感、物理的なエンドツーエンド遅延には未確認事項が残ります。試験した環境と範囲は、[モデル取得・GPU案内の試験記録](/docs/voice-stack/model-downloads-integration-report.md)、[TTS遅延の計測記録](/docs/voice-stack/tts-low-latency-report.md)、[RVCの試験記録](/docs/voice-stack/rvc-index-search-report.md)を参照してください。AURは[配布方式の検討段階](/docs/voice-stack/linux-distribution-proposal.md)で、この作業では登録・公開していません。
 
-<br>
+本家向け自動公開、Aptabaseテレメトリー、アプリ内更新は無効化しています。ユーザーが選んだ翻訳サービスへの送信まで停止するものではありません。Python環境は`uv`を使います。[Linuxビルドパイプライン](/docs/voice-stack/linux-build-pipeline.md)は開発用sidecarと別にバックエンドを凍結し、speech.cppを含むtar.gz候補を作ります。検証範囲と公開前の残条件は同ガイドを参照してください。
 
-<picture>
-    <source srcset="/docs/img/supporter_section_border_d.png" media="(prefers-color-scheme: dark)">
-    <source srcset="/docs/img/supporter_section_border_l.png" media="(prefers-color-scheme: light)">
-    <img src="/docs/img/supporter_section_border_d.png" alt="Supporter Section Border">
-</picture>
+## 使い始めるには
 
-<br>
-<br>
+日本語の読み上げは[TTS設定ガイド](/docs/voice-stack/tts-quickstart-ja.md)に沿って設定します。モデルを持っていない場合は、設定画面で提供元・容量・利用条件・保存先を確認し、同意してからダウンロードします。サイズとSHA-256の検証が終わった後、別の操作で設定へ適用します。取得だけで発声やマイク転送が始まることはありません。
 
-| [English](/docs/readmes/README.en.md) | **日本語** | [한국어](/docs/readmes/README.ko.md) | [繁體中文](/docs/readmes/README.zh-Hant.md) |
+GPUとVRAMに応じて標準・軽量モデルの目安を表示します。メモリの確保や動作を保証するものではありません。RVCには音声モデルのほかに実行環境、HuBERT、RMVPEが必要です。[モデル取得の仕様](/docs/voice-stack/model-downloads.md)を参照してください。
 
-<h3>
-VRCTは翻訳や文字起こしでVRChatの会話をサポートするソフトウェアです。
-</h3>
+日本語TTSの低遅延モードは選択式で、初期設定はオフです。有効にすると待機中の消費電力が増え、ゲームとGPU処理が競合する場合があります。すべての環境で100ms以内になるとは保証していません。
 
-![](/docs/img/main_window.png)
+## 旧版からの引き継ぎ
 
-<div align="left">
+新しい配布物と実行ファイルはVRCT-VOXの名称になります。既存設定を引き継ぐため、アプリID、Linuxの`vrct-tts`設定・データ・キャッシュ保存先、`VRCT_*`環境変数、管理対象の仮想マイクの識別子は維持します。設定や取得済みモデルを手作業で移す必要はありません。[改名と互換性](/docs/voice-stack/project-rename.md)に対象をまとめています。
 
-# ダウンロード＆インストール
-好きな場所からダウンロードしてください。
-- [Github.com](https://github.com/misyaguziya/VRCT/releases/)
-- [BOOTH.pm](https://misyaguziya.booth.pm/items/5155325)
+過去の試験記録では、実際に使った配布物名とハッシュ値を残しています。開発手順は[ビルドとCIのガイド](/docs/readme_build.md)を参照してください。
 
-ダウンロードしてexeを起動するだけです。
+## モデルとライセンス
 
-# VRCTってなに？
-VRCTは話す言語の異なる人同士が会話を行うためにチャットもしくは音声の翻訳を行うことで会話をサポートするソフトウェアです。
-これらの機能はVRChat内で使用するために設計されています。
-※サポート対象外ですがその他の用途として映画鑑賞等でも使用されています。
+配布物には制限付き吹き出し検出モデルを含むすべてのOCR重みを入れません。必要な重みがないOCR機能は利用できません。開発用ソース内の既存モデルとライセンスは保持するため、checkout全体を配布ZIPにしないでください。
 
-VRCTはあなたの会話を以下でサポートをします。
-- 💬 **VRChatへのチャット送信機能**
-- 🌐 **翻訳機能**
-- 🎙 **マイクの文字起こし機能**
-- 🔈 **スピーカーの文字起こし機能**
+speech.cpp/RVC/Seed-VCのモデルと参照音声はユーザー管理です。検証用Mia2026は同梱しません。既存faster-whisper依存に付属するSilero VAD資源は別途一覧化して監査します。speech.cpp本体の同梱とモデルの同梱は別です。[ライセンス台帳](/docs/voice-stack/licensing.md)と[配布検査](/docs/voice-stack/fork-distribution-isolation.md)を参照してください。依存ライブラリを含む最終監査は公開前の必須条件です。
 
-# ドキュメント
-初期設定や基本機能、その他の機能についても記載してあります。
-- [Documents Link](https://misyaguziya.github.io/VRCT-Docs/)
+元の[MIT LICENSE](/LICENSE)、著作権表示、[NOTICE](/NOTICE.md)、OCRモデル固有の利用条件を維持しています。GPL表示のSeed-VC連携を含め、追加要素の条件をアプリ全体のMIT表示で置き換えません。
 
-# 使い方(Youtube)
-<div align="center">
+## 謝辞と上流への還元
 
-[![](https://img.youtube.com/vi/rUTad037n8Q/0.jpg)](https://www.youtube.com/watch?v=rUTad037n8Q)
+原作者のみしゃ（misyaguziya）さん、しいな（Shiina_12siy）さん、レラ（soumt-r）さん、どね（done_vrc）さん、および本家の全コントリビューターに感謝します。
 
-<div align="left">
+共通の修正はTTS固有機能と分けて提案できる形に整理します。[公開・上流提案方針](/docs/voice-stack/publication-and-upstream.md)に従い、明示的な指示なしに本家へ連絡したり、draftを含むPRを送ったりしません。
 
-## Author
-- [みしゃ(misyaguzi)](https://github.com/misyaguziya) (メイン開発)
-- [しいな(Shiina_12siy)](https://twitter.com/Shiina_12siy) (UI/UX, UI多言語対応)
-- [レラ](https://github.com/soumt-r) (テクニカルサポート)
-- [どね](https://twitter.com/done_vrc) (ロゴデザイン)
+## 開発と配布
 
-## テレメトリー（利用統計情報）
+`npm run doctor`で開発環境を確認します。検査用の依存は`npm run setup:headless`、UIの依存は`python tools/dev.py setup --scope ui`で導入できます。`npm run check`で開発ツール・Nodeテスト・Ruffを実行します。音声・バックエンド・Rustの検査とCocogittoの使い方は[開発ガイド](../development.md)を参照してください。
 
-VRCTは[Aptabase](https://aptabase.com)を通じて、アプリの改善のために匿名のテレメトリーデータを収集しています。収集されるデータは、起動回数、起動時間、使用機能です。個人を特定できる情報は一切収集されません。
+配布候補は[検証と下書き作成の手順](../voice-stack/release-candidates.md)に従って作成します。公開前に成果物と実機試験の結果を確認してください。
 
-テレメトリーはアプリの設定からいつでも無効化できます。詳細は[Aptabaseプライバシーポリシー](https://aptabase.com/legal/privacy)をご確認ください。
-
-## ライセンス
-
-VRCT は [MIT License](/LICENSE) で公開しています。ただし OCR 機能が使うチャットボックス
-検出モデル（`src-python/models/ocr/onnx/chatbox_yolox_tiny.onnx`）は例外で、**VRCT 専用の
-利用許諾**が適用されます。VRCT として、また **VRCT の開発・修正・検証のためのフォークとして**
-実行することは自由で、リポジトリをフォークしてモデルを含んだまま持っていて構いません。
-できないのは、フォーク独自のリリース版にモデルを同梱すること、VRCT 以外のソフトウェアへ
-持ち出すこと、単体での再配布、派生モデルの作成です。
-条文は [LICENSE.txt](/src-python/models/ocr/onnx/LICENSE.txt)、範囲は [NOTICE.md](/NOTICE.md) を
-確認してください。モデルを持たない状態でもビルド・実行でき、その場合は吹き出し検出だけが
-無効になります（自前で学習する手順は [docs/ocr_yolo_training.md](/docs/ocr_yolo_training.md)）。
-
-## Thanks to our contributors
-<a href="https://github.com/misyaguziya/VRCT/graphs/contributors" target="_blank">
-  <img src="https://contrib.rocks/image?repo=misyaguziya/VRCT" />
-</a>
-
----
-
-VRCT は VRChat によって承認されておらず、VRChat または VRChat の開発もしくは管理に公式に関与する者の見解や意見が反映されたものではありません。VRChat および関連するすべての財産は 米国VRChat, Incの商標または登録商標です。
+- [改名・UI・開発環境の統合記録](../voice-stack/vox-integration-report.md)

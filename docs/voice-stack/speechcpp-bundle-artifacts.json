@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "component": "speech.cpp",
+  "version": "0.9.0",
+  "source_commit": "49f022a48bc1c7e797aa64dd08d2d9655baf299e",
+  "assets": {
+    "linux-x64-cpu": {
+      "id": "linux-x64-cpu",
+      "name": "speech-0.9.0-linux-x64-cpu.zip",
+      "url": "https://github.com/nyosegawa/speech.cpp/releases/download/v0.9.0/speech-0.9.0-linux-x64-cpu.zip",
+      "size": 5471367,
+      "sha256": "e2e9a260fde6242e43f7fa57c658321c798d4f1f855b1adf973dd50361b5805b"
+    },
+    "linux-x64-vulkan": {
+      "id": "linux-x64-vulkan",
+      "name": "speech-0.9.0-linux-x64-vulkan.zip",
+      "url": "https://github.com/nyosegawa/speech.cpp/releases/download/v0.9.0/speech-0.9.0-linux-x64-vulkan.zip",
+      "size": 31684675,
+      "sha256": "b435fd101a68d9c54d1d41ccc10ab87cce4a012a8564639568e914b67aa7d69c"
+    }
+  },
+  "notices": [
+    {
+      "path": "speech.cpp-LICENSE",
+      "size": 1067,
+      "sha256": "688f8aca0abe167966d277ed00bd594a5a51b028a4fbc1516ff9de7ef05c521a",
+      "source_url": "https://github.com/nyosegawa/speech.cpp/blob/49f022a48bc1c7e797aa64dd08d2d9655baf299e/LICENSE"
+    },
+    {
+      "path": "ggml-LICENSE",
+      "size": 1078,
+      "sha256": "94f29bbed6a22c35b992c5c6ebf0e7c92f13b836b90f36f461c9cf2f0f1d010d",
+      "source_url": "https://github.com/ggml-org/ggml/blob/cbdeccfd49ec9c702c175c273d36c47520cf4710/LICENSE"
+    },
+    {
+      "path": "cpp-httplib-LICENSE",
+      "size": 1075,
+      "sha256": "4b45cbe16d7b71b89ae6127e26e0d90a029198ca5e958ad8e3d0b8bbed364d8b",
+      "source_url": "https://github.com/nyosegawa/speech.cpp/blob/49f022a48bc1c7e797aa64dd08d2d9655baf299e/vendor/cpp-httplib/LICENSE"
+    },
+    {
+      "path": "miniaudio-LICENSE",
+      "size": 2598,
+      "sha256": "bde09ed161fef45da2194cba70601aab33ca6fdfe6eed2e3d95efd15b48561f9",
+      "source_url": "https://github.com/nyosegawa/speech.cpp/blob/49f022a48bc1c7e797aa64dd08d2d9655baf299e/vendor/miniaudio/LICENSE"
+    },
+    {
+      "path": "GCC-COPYING3",
+      "size": 35148,
+      "sha256": "0ae0485a5bd37a63e63603596417e4eb0e653334fa6c7f932ca3a0e85d4af227",
+      "source_url": "https://github.com/gcc-mirror/gcc/blob/releases/gcc-11.4.0/COPYING3"
+    },
+    {
+      "path": "GCC-COPYING.RUNTIME",
+      "size": 3325,
+      "sha256": "e9e847889787f1c0a2f735a0d7571163e4ca2ea64cf0a1a519d26c2afdac96bc",
+      "source_url": "https://github.com/gcc-mirror/gcc/blob/releases/gcc-11.4.0/COPYING.RUNTIME"
+    },
+    {
+      "path": "NOTICE.md",
+      "size": 2014,
+      "sha256": "1642c3c8666e08f71dc5d03ad8572f83b516cdaa73ee87c12b2a36f7a63d8139",
+      "source_url": "local packaging attribution"
+    }
+  ]
+}

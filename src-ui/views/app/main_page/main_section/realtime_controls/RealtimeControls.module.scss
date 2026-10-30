@@ -1,0 +1,25 @@
+.container {
+    display: flex;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    gap: .8rem;
+    padding: .8rem 1.6rem;
+    p { margin: 0; }
+    button {
+        font: inherit;
+        color: inherit;
+        background: transparent;
+        border: 1px solid currentColor;
+        border-radius: .4rem;
+        padding: .6rem;
+        cursor: pointer;
+    }
+    button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+}
+
+.source {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .8rem;
+}

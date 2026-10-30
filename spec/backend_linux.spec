@@ -1,0 +1,46 @@
+# -*- mode: python ; coding: utf-8 -*-
+"""Linux onedir; resources are explicitly selected, never copy the OCR directory."""
+import os
+from pathlib import Path
+import sys
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, copy_metadata
+
+root = Path(SPECPATH).resolve().parent
+sys.path.insert(0, str(root / 'tools'))
+from distribution_policy import filter_toc
+
+resources = Path(os.environ['VRCT_LINUX_RESOURCES'])
+datas = [(str(resources), '.')]
+for source, destination in (
+    ('LICENSE', 'licenses/VRCT'), ('NOTICE.md', 'licenses/VRCT'),
+    ('src-python/models/overlay/fonts', 'fonts'),
+    ('src-python/models/translation/translation_settings/prompt', 'translation_settings/prompt'),
+    ('src-python/models/translation/translation_settings/languages', 'translation_settings/languages'),
+    ('src-python/models/ocr/onnx/LICENSE.txt', 'ocr_onnx'),
+    ('src-python/models/ocr/onnx/LICENSE.en.txt', 'ocr_onnx'),
+    ('src-python/models/ocr/onnx/NOTICE.txt', 'ocr_onnx'),
+):
+    datas.append((str(root / source), destination))
+
+# These packages load data/native libraries dynamically, outside static imports.
+for package in ('faster_whisper', 'openvr', 'glfw', 'sudachipy', 'sudachidict_core', 'sudachidict_full'):
+    datas += collect_data_files(package)
+binaries = collect_dynamic_libs('openvr') + collect_dynamic_libs('glfw')
+for package in ('ctranslate2', 'transformers', 'faster-whisper', 'huggingface-hub',
+                'tokenizers', 'safetensors', 'regex', 'requests', 'numpy',
+                'packaging', 'filelock', 'tqdm', 'pyyaml'):
+    datas += copy_metadata(package)
+
+a = Analysis([str(root / 'src-python/mainloop.py')], pathex=[str(root / 'src-python')],
+    binaries=binaries, datas=datas,
+    hiddenimports=['models.voice_conversion.router_worker',
+                   'faster_whisper.vad', 'cv2', 'models.ocr'],
+    hookspath=[], hooksconfig={}, runtime_hooks=[],
+    excludes=['pandas', 'matplotlib', 'PyQt5', 'torch', 'tensorflow', 'rapidocr',
+              'windows_capture', 'pytest', 'ruff'], noarchive=False, optimize=0)
+a.datas = filter_toc(a.datas)
+a.binaries = filter_toc(a.binaries)
+pyz = PYZ(a.pure)
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='vrct-vox-sidecar',
+          debug=False, bootloader_ignore_signals=False, strip=False, upx=False, console=True)
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='backend')

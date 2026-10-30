@@ -1,0 +1,24 @@
+{
+  "execution_git_head": "04a221e7f30ccb8158599550f16ddf0915b57138",
+  "uncommitted_review_fixes_at_execution": true,
+  "command": "UV_CACHE_DIR=/tmp/vrct-uv-cache uv run --no-project python tools/voice_route_acceptance.py --output /tmp/vrct-managed-reviewed-30 --runs 30 --soak-seconds 60",
+  "files_sha256": {
+    "tools/voice_route_acceptance.py": "05ec668e91f07afcd368737d8433444127e7a9338cb69e518c3d77e81cd24ac8",
+    "tools/voice_acceptance.py": "95cf8e17be307b9af27cedaf3215e850bf56981b9a9047095c68f874ceeaf35a",
+    "tools/voice_b_poc.py": "a09e76930d6e31c38741cfd8ebaed3d9061d9160e549898b11736170951c98a1",
+    "tools/voice_latency.py": "1861be3f2b32111d87876177622086a738204a139fdde36739ed2894078d011a",
+    "tools/build_voice_gate.py": "f4baafe20a67070621ec7a772a4df85c8b0bf56c6c2b004b3085946953fe7858",
+    "native/voice-gate/main.c": "92a3cfe3e8c345a38db6b138169e58a6654275cdcf38a5be0ce05c9d94f9cb7d",
+    "build/vrct-voice-gate": "3addad9389c6c0420e06554f53e6decd2246a180d926dea8dfb390c1dbe4660b",
+    "config/pipewire/90-vrct-managed.conf": "4e6cb51b147529d31be25bc535e2792fb3c2c2a38ab649365b4897b20ff4784b",
+    "src-python/models/audio_routing/managed_route.py": "a88c3f15591a19fcef233863921d151f89fc7f8a3df899b4b43e161ca6a6bf73",
+    "src-python/models/audio_routing/mute_state.py": "09275fe40ef6c0213825033a7d050958d96a1c6878a108b88681d505f1ae4aec",
+    "src-python/models/audio_routing/pipewire_gate.py": "6b01a944ae0f955834924c1838f4087cf1b480bd0aca4f25519bed6dcb39d0f9",
+    "src-python/models/tts/tts_scheduler.py": "8dc06a2a5d1d846a403b9267d4b84968a77816c3e8b2d66e678a721bd0de2f6b",
+    "src-python/models/tts/settings.py": "cbbbd3dea5d9df92277d0f2a311dcd0e3f3f63fae1031f08cf092a882acf78bc",
+    "src-python/controller.py": "756434c9b603fd2565ec0457994f93bd79e6bc0b5ae718abc64fa312f89be31a",
+    "src-ui/logics/voice/routeState.js": "b028b5bb437469c36a4519491ed2cbf793ee538ac3af3d7f17ee589e2a5b7008",
+    "src-ui/logics/voice/useVoice.js": "f7489e1c676bdc52f925f5f446bdaab746a627f12eabe035b3bb46deb2b97c70"
+  },
+  "report_sha256": "65c29fb40fb00c653a62aba22b6f0b9d13804e9b53783ea2feaa3f54954a29da"
+}

@@ -1,12 +1,53 @@
+import { useEffect } from "react";
+import * as realtime from "./transcription/useRealtimeASR";
 import * as common from "@logics_common";
 import * as main from "@logics_main";
 import * as configs from "@logics_configs";
+import * as voice from "./voice/useVoice";
+import * as speech from "./voice/useSpeechServers";
+import * as downloads from "./voice/useModelDownloads";
 import { _useBackendErrorHandling } from "./_useBackendErrorHandling";
 import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { receiveLanguageMutation, resetLanguageMutations } from "./main/languageMutations";
 
 export const STATIC_ROUTE_META_LIST = [
+    { endpoint: "/get/data/model_download_catalog", ns: downloads, hook_name: "useModelDownloads", method_name: "updateCatalog" },
+    { endpoint: "/get/data/model_download_hardware", ns: downloads, hook_name: "useModelDownloads", method_name: "updateHardware" },
+    { endpoint: "/run/refresh_model_download_hardware", ns: downloads, hook_name: "useModelDownloads", method_name: "updateHardware" },
+    { endpoint: "/get/data/model_download_state", ns: downloads, hook_name: "useModelDownloads", method_name: "updateState" },
+    { endpoint: "/run/start_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
+    { endpoint: "/run/cancel_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
+    { endpoint: "/run/apply_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
+    { endpoint: "/get/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
+    { endpoint: "/set/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
+    { endpoint: "/get/data/speech_server_state", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
+    { endpoint: "/run/start_speech_server", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
+    { endpoint: "/run/stop_speech_server", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
+    { endpoint: "/get/data/realtime_asr_settings", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateSettings" },
+    { endpoint: "/set/data/realtime_asr_settings", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateSettings" },
+    { endpoint: "/get/data/realtime_asr_endpoints", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateEndpoints" },
+    { endpoint: "/get/data/realtime_asr_models", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateModels" },
+    { endpoint: "/get/data/realtime_asr_state", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateState" },
+    { endpoint: "/run/start_realtime_asr", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateState" },
+    { endpoint: "/run/stop_realtime_asr", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateState" },
+    { endpoint: "/run/realtime_caption", ns: common, hook_name: "useMessage", method_name: "updateRealtimeCaption" },
+    { endpoint: "/get/data/tts_model_options", ns: voice, hook_name: "useVoice", method_name: "updateModelOptions" },
+    { endpoint: "/get/data/voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateSettings" },
+    { endpoint: "/set/data/voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateSettings" },
+    { endpoint: "/get/data/voice_status", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
+    { endpoint: "/get/data/voice_output_devices", ns: voice, hook_name: "useVoice", method_name: "updateDevices" },
+    { endpoint: "/run/enable_tts", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
+    { endpoint: "/run/disable_tts", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
+    { endpoint: "/run/stop_voice", ns: voice, hook_name: "useVoice", method_name: "updateStatus" },
+    { endpoint: "/get/data/voice_route", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
+    { endpoint: "/run/mute_voice", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
+    { endpoint: "/run/resume_voice", ns: voice, hook_name: "useVoice", method_name: "updateRoute" },
+    { endpoint: "/get/data/direct_voice_sources", ns: voice, hook_name: "useVoice", method_name: "updateDirectSources" },
+    { endpoint: "/set/data/direct_voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateDirectState" },
+    { endpoint: "/get/data/direct_voice_state", ns: voice, hook_name: "useVoice", method_name: "updateDirectState" },
+    { endpoint: "/run/start_direct_voice", ns: voice, hook_name: "useVoice", method_name: "updateDirectState" },
+    { endpoint: "/run/stop_direct_voice", ns: voice, hook_name: "useVoice", method_name: "updateDirectState" },
     // Common
     { endpoint: "/run/feed_watchdog", ns: null, hook_name: null, method_name: null },
     { endpoint: "/run/initialization_progress", ns: common, hook_name: "useInitProgress", method_name: "updateInitProgress" },
@@ -133,6 +174,50 @@ export const STATIC_ROUTE_META_LIST = [
 export const useReceiveRoutes = () => {
     const { showNotification_Error } = common.useNotificationStatus();
     const { errorHandling_Backend } = _useBackendErrorHandling();
+    const { settings: voiceSettings, send: sendVoice, reset: resetVoice, updateTtsError, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
+    const voiceConnected = voiceSettings !== null;
+    useEffect(() => {
+        if (!voiceConnected) return;
+        const poll = () => {
+            sendVoice("/get/data/voice_status");
+            sendVoice("/get/data/voice_route");
+            sendVoice("/get/data/direct_voice_state");
+        };
+        poll();
+        const timer = setInterval(poll, 1000);
+        return () => clearInterval(timer);
+    }, [voiceConnected, sendVoice]);
+    const { state: speechState, pending: speechPending, send: sendSpeech, updateError: updateSpeechError, reset: resetSpeech } = speech.useSpeechServers();
+    const speechActive = Object.values(speechState).some(row => ["preparing", "ready", "stopping"].includes(row.state)) || Object.keys(speechPending).length > 0;
+    useEffect(() => {
+        if (!speechActive) return;
+        const timer = setInterval(() => sendSpeech("/get/data/speech_server_state"), 500);
+        return () => clearInterval(timer);
+    }, [speechActive, sendSpeech]);
+    const { state: downloadState, hardware: modelHardware, pending: downloadPending, send: sendDownload, updateError: updateDownloadError, reset: resetDownloads } = downloads.useModelDownloads();
+    useEffect(() => {
+        if (modelHardware.phase !== 'probing') return;
+        const timer = setInterval(() => sendDownload('/get/data/model_download_hardware'), 500);
+        return () => clearInterval(timer);
+    }, [modelHardware.phase, sendDownload]);
+    const downloadActive = !!downloadPending || Object.values(downloadState.jobs).some(job => ["queued", "downloading", "verifying", "cancelling"].includes(job.phase));
+    useEffect(() => {
+        if (!downloadActive) return;
+        const timer = setInterval(() => sendDownload("/get/data/model_download_state"), 750);
+        return () => clearInterval(timer);
+    }, [downloadActive, sendDownload]);
+    useEffect(() => {
+        if (!downloadPending) return;
+        const timer = setTimeout(() => updateDownloadError("request_unconfirmed"), 10000);
+        return () => clearTimeout(timer);
+    }, [downloadPending, updateDownloadError]);
+    const { state: realtimeState, send: sendRealtime, updateError: updateRealtimeError, reset: resetRealtime } = realtime.useRealtimeASR();
+    const realtimeActive = Object.values(realtimeState).some(value => value.requested);
+    useEffect(() => {
+        if (!realtimeActive) return;
+        const timer = setInterval(() => sendRealtime("/get/data/realtime_asr_state"), 500);
+        return () => clearInterval(timer);
+    }, [realtimeActive, sendRealtime]);
     const { updateIsBackendReady } = common.useIsBackendReady();
     const { asyncStdoutToPython } = useStdoutToPython();
 
@@ -171,8 +256,51 @@ export const useReceiveRoutes = () => {
 
     const receiveRoutes = (parsed_data) => {
         const { endpoint, status, result } = parsed_data;
+        if (status !== 200 && endpoint.includes("model_download")) {
+            updateDownloadError(result?.error_code || "download_failed");
+            return;
+        }
+        if (status === 200 && endpoint === "/run/apply_model_download") {
+            sendSpeech("/get/data/speech_server_settings");
+            sendVoice("/get/data/direct_voice_state");
+        }
+        if (status !== 200 && ["/run/enable_tts", "/run/disable_tts"].includes(endpoint)) {
+            updateTtsError(result?.error_code || "voice_request_failed", endpoint);
+            sendVoice("/get/data/voice_status");
+            return;
+        }
+        if (status !== 200 && endpoint.includes("speech_server")) {
+            updateSpeechError(result?.error_code || "speech_server_request_failed");
+            if (endpoint !== "/get/data/speech_server_state") sendSpeech("/get/data/speech_server_state");
+            return;
+        }
+        if (status !== 200 && endpoint.includes("realtime_asr")) {
+            updateRealtimeError(result?.error_code || "realtime_request_failed");
+            return;
+        }
+        if (status !== 200 && endpoint.includes("direct_voice")) {
+            updateDirectError(result?.error_code || "source_bridge_request_failed", endpoint);
+            return;
+        }
+        if (status !== 200 && (endpoint.includes("/voice_") || ["/run/stop_voice", "/run/mute_voice", "/run/resume_voice"].includes(endpoint))) {
+            updateVoiceError(result?.error_code || "voice_request_failed");
+            return;
+        }
 
         if (endpoint === "/run/initialization_complete") {
+            resetDownloads();
+            sendDownload("/get/data/model_download_catalog");
+            sendDownload("/get/data/model_download_state");
+            resetVoice();
+            sendVoice("/get/data/voice_settings");
+            sendVoice("/get/data/direct_voice_sources");
+            resetSpeech();
+            sendSpeech("/get/data/speech_server_settings");
+            sendSpeech("/get/data/speech_server_state");
+            resetRealtime();
+            sendRealtime("/get/data/realtime_asr_settings");
+            sendRealtime("/get/data/realtime_asr_state");
+            for (const source of ["mic", "speaker"]) sendRealtime("/get/data/realtime_asr_endpoints", { source });
             Object.entries(result).forEach(([ep, value]) => {
                 if (ep in routes) {
                     routes[ep](value);

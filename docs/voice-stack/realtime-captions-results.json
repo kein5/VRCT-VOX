@@ -1,0 +1,356 @@
+{
+  "actual_native_ui": true,
+  "actual_speechcpp_vad": true,
+  "private_os_capture": true,
+  "physical_capture": false,
+  "translation_engine": "production LMStudio HTTP adapter with deterministic fixture",
+  "real_translation_model": false,
+  "final_rows": [
+    {
+      "translated": true,
+      "category": "Received",
+      "characters": 41,
+      "node": 1
+    },
+    {
+      "translated": true,
+      "category": "Sent",
+      "characters": 37,
+      "node": 2
+    },
+    {
+      "translated": true,
+      "category": "Received",
+      "characters": 49,
+      "node": 3
+    },
+    {
+      "translated": true,
+      "category": "Sent",
+      "characters": 45,
+      "node": 4
+    }
+  ],
+  "ui_snapshots": [
+    {
+      "ms": 2965,
+      "rows": []
+    },
+    {
+      "ms": 5130,
+      "rows": [
+        {
+          "translated": false,
+          "category": "Received",
+          "characters": 14,
+          "node": 1
+        }
+      ]
+    },
+    {
+      "ms": 5209,
+      "rows": [
+        {
+          "translated": false,
+          "category": "Received",
+          "characters": 14,
+          "node": 1
+        },
+        {
+          "translated": false,
+          "category": "Sent",
+          "characters": 10,
+          "node": 2
+        }
+      ]
+    },
+    {
+      "ms": 5709,
+      "rows": [
+        {
+          "translated": false,
+          "category": "Received",
+          "characters": 14,
+          "node": 1
+        },
+        {
+          "translated": false,
+          "category": "Sent",
+          "characters": 12,
+          "node": 2
+        }
+      ]
+    },
+    {
+      "ms": 5715,
+      "rows": [
+        {
+          "translated": false,
+          "category": "Received",
+          "characters": 14,
+          "node": 1
+        },
+        {
+          "translated": true,
+          "category": "Sent",
+          "characters": 37,
+          "node": 2
+        }
+      ]
+    },
+    {
+      "ms": 5746,
+      "rows": [
+        {
+          "translated": true,
+          "category": "Received",
+          "characters": 41,
+          "node": 1
+        },
+        {
+          "translated": true,
+          "category": "Sent",
+          "characters": 37,
+          "node": 2
+        }
+      ]
+    },
+    {
+      "ms": 6698,
+      "rows": [
+        {
+          "translated": true,
+          "category": "Received",
+          "characters": 41,
+          "node": 1
+        },
+        {
+          "translated": true,
+          "category": "Sent",
+          "characters": 37,
+          "node": 2
+        },
+        {
+          "translated": false,
+          "category": "Received",
+          "characters": 15,
+          "node": 3
+        }
+      ]
+    },
+    {
+      "ms": 6716,
+      "rows": [
+        {
+          "translated": true,
+          "category": "Received",
+          "characters": 41,
+          "node": 1
+        },
+        {
+          "translated": true,
+          "category": "Sent",
+          "characters": 37,
+          "node": 2
+        },
+        {
+          "translated": false,
+          "category": "Received",
+          "characters": 15,
+          "node": 3
+        },
+        {
+          "translated": false,
+          "category": "Sent",
+          "characters": 12,
+          "node": 4
+        }
+      ]
+    },
+    {
+      "ms": 6880,
+      "rows": [
+        {
+          "translated": true,
+          "category": "Received",
+          "characters": 41,
+          "node": 1
+        },
+        {
+          "translated": true,
+          "category": "Sent",
+          "characters": 37,
+          "node": 2
+        },
+        {
+          "translated": false,
+          "category": "Received",
+          "characters": 16,
+          "node": 3
+        },
+        {
+          "translated": false,
+          "category": "Sent",
+          "characters": 12,
+          "node": 4
+        }
+      ]
+    },
+    {
+      "ms": 7101,
+      "rows": [
+        {
+          "translated": true,
+          "category": "Received",
+          "characters": 41,
+          "node": 1
+        },
+        {
+          "translated": true,
+          "category": "Sent",
+          "characters": 37,
+          "node": 2
+        },
+        {
+          "translated": false,
+          "category": "Received",
+          "characters": 18,
+          "node": 3
+        },
+        {
+          "translated": false,
+          "category": "Sent",
+          "characters": 12,
+          "node": 4
+        }
+      ]
+    },
+    {
+      "ms": 7140,
+      "rows": [
+        {
+          "translated": true,
+          "category": "Received",
+          "characters": 41,
+          "node": 1
+        },
+        {
+          "translated": true,
+          "category": "Sent",
+          "characters": 37,
+          "node": 2
+        },
+        {
+          "translated": false,
+          "category": "Received",
+          "characters": 18,
+          "node": 3
+        },
+        {
+          "translated": false,
+          "category": "Sent",
+          "characters": 14,
+          "node": 4
+        }
+      ]
+    },
+    {
+      "ms": 8309,
+      "rows": [
+        {
+          "translated": true,
+          "category": "Received",
+          "characters": 41,
+          "node": 1
+        },
+        {
+          "translated": true,
+          "category": "Sent",
+          "characters": 37,
+          "node": 2
+        },
+        {
+          "translated": true,
+          "category": "Received",
+          "characters": 49,
+          "node": 3
+        },
+        {
+          "translated": false,
+          "category": "Sent",
+          "characters": 14,
+          "node": 4
+        }
+      ]
+    },
+    {
+      "ms": 8344,
+      "rows": [
+        {
+          "translated": true,
+          "category": "Received",
+          "characters": 41,
+          "node": 1
+        },
+        {
+          "translated": true,
+          "category": "Sent",
+          "characters": 37,
+          "node": 2
+        },
+        {
+          "translated": true,
+          "category": "Received",
+          "characters": 49,
+          "node": 3
+        },
+        {
+          "translated": true,
+          "category": "Sent",
+          "characters": 45,
+          "node": 4
+        }
+      ]
+    }
+  ],
+  "translation_requests": 4,
+  "mic_osc_messages": 2,
+  "speaker_osc_messages": 0,
+  "osc_matched_microphone_translations": true,
+  "captions_in_implicit_process_log": false,
+  "stopped_input_replay_no_results": true,
+  "restart_capture_off": true,
+  "date": "2026-10-28",
+  "platform": "Linux / PipeWire 1.6.10 / RTX 4080 SUPER",
+  "speech_cpp_version": "0.9.0",
+  "fixture_seconds": 4.88,
+  "native_pytest": {
+    "passed": 1,
+    "duration_seconds": 25.15
+  },
+  "ui_time_boundary": "performance.now() observations only; not audio capture, utterance-end, or physical latency",
+  "actual_vrchat": false,
+  "actual_hmd_overlay": false,
+  "language": {
+    "asr": "ja",
+    "your": "English",
+    "target": "German"
+  },
+  "unverified": [
+    "physical capture/utterance-end latency",
+    "real translation model quality and latency",
+    "HMD overlay pixels",
+    "native legacy recorder switch-back",
+    "Windows capture",
+    "30-minute mixed GPU load"
+  ],
+  "review_fix_validation": {
+    "related_passed": 55,
+    "voice_passed": 568,
+    "voice_skipped": 7,
+    "default_passed": 1194,
+    "default_known_failed": 16,
+    "default_skipped": 6,
+    "default_failure_names_unchanged": true
+  }
+}

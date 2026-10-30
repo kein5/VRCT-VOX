@@ -1,0 +1,68 @@
+[
+  {
+    "real_rvc": false,
+    "physical_capture": false,
+    "vrchat": false,
+    "case": "stop",
+    "status": "passed",
+    "after": {
+      "requested": false,
+      "active": false,
+      "pending": false,
+      "stopping": false,
+      "conversion_verified": false,
+      "error": null,
+      "state": "stopped",
+      "converted_blocks": 35
+    },
+    "silence_hold_ms": 2000,
+    "capture": {
+      "frames": 249,
+      "sample_count": 239040,
+      "last_read_ns": 157261813933033,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 51.47318,
+      "nonzero_frames": 8,
+      "detected_frames": {
+        "440": 7,
+        "880": 0,
+        "1760": 0
+      },
+      "reader_eof": false,
+      "reader_error": null
+    }
+  },
+  {
+    "real_rvc": false,
+    "physical_capture": false,
+    "vrchat": false,
+    "case": "worker_death",
+    "status": "passed",
+    "after": {
+      "requested": false,
+      "active": false,
+      "pending": false,
+      "stopping": false,
+      "conversion_verified": false,
+      "error": "vc_worker_eof",
+      "state": "failed",
+      "converted_blocks": 35
+    },
+    "silence_hold_ms": 2000,
+    "capture": {
+      "frames": 249,
+      "sample_count": 239040,
+      "last_read_ns": 157268991220986,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 42.904511,
+      "nonzero_frames": 8,
+      "detected_frames": {
+        "440": 7,
+        "880": 0,
+        "1760": 0
+      },
+      "reader_eof": false,
+      "reader_error": null
+    }
+  }
+]

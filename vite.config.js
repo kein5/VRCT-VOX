@@ -39,6 +39,7 @@ export default defineConfig(() => {
                     "**/tmp/**",
                     "**/.venv/**",
                     "**/.venv_cuda/**",
+                    "**/.venv_linux/**",
                     // OCR検出モデルの学習まわり (dataset_annotatedは数百MB規模)
                     "**/.venv-yolo/**",
                     "**/dataset_annotated/**",
@@ -55,6 +56,7 @@ export default defineConfig(() => {
                 input: {
                     main: path.resolve(__dirname, "index.html"),
                     vr: path.resolve(__dirname, "vr.html"),
+                    quick_chat: path.resolve(__dirname, "quick-chat.html"),
                 },
             },
             sourcemap: true,

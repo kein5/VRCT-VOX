@@ -1,7 +1,23 @@
+import ctypes.wintypes
+import sys
+from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 
-from models.clipboard import clipboard
+from models.clipboard import clipboard as native_clipboard
+from platform_test_support import load_with_imports
+
+
+# Only this separately loaded application module sees win32. No real DLL,
+# keyboard, clipboard, SteamVR monitor, or process-wide platform change.
+clipboard = load_with_imports(native_clipboard, {
+    "sys": SimpleNamespace(platform="win32"),
+    "ctypes": SimpleNamespace(
+        WinDLL=lambda name, **kwargs: MagicMock(name=name),
+        wintypes=ctypes.wintypes,
+    ),
+    "ctypes.wintypes": ctypes.wintypes,
+})
 
 
 class FocusWindowUsesAttachThreadInputTests(unittest.TestCase):
@@ -14,8 +30,8 @@ class FocusWindowUsesAttachThreadInputTests(unittest.TestCase):
     is present).
     """
 
-    @patch("models.clipboard.clipboard.user32")
-    @patch("models.clipboard.clipboard.kernel32")
+    @patch.object(clipboard, "user32")
+    @patch.object(clipboard, "kernel32")
     def test_attaches_to_the_foreground_threads_input_before_stealing_focus(
         self, kernel32: MagicMock, user32: MagicMock,
     ) -> None:
@@ -37,16 +53,15 @@ class FocusWindowUsesAttachThreadInputTests(unittest.TestCase):
         user32.AttachThreadInput.assert_any_call(current_thread_id, fore_thread_id, False)
         user32.SetForegroundWindow.assert_called_once_with(target_hwnd)
         # detach must happen after the SetForegroundWindow attempt, not before
-        attach_call_index = [c[0] for c in user32.AttachThreadInput.call_args_list].index(
-            (current_thread_id, fore_thread_id, True)
-        )
-        detach_call_index = [c[0] for c in user32.AttachThreadInput.call_args_list].index(
-            (current_thread_id, fore_thread_id, False)
-        )
-        self.assertLess(attach_call_index, detach_call_index)
+        calls = user32.method_calls
+        attach = calls.index(unittest.mock.call.AttachThreadInput(current_thread_id, fore_thread_id, True))
+        focus = calls.index(unittest.mock.call.SetForegroundWindow(target_hwnd))
+        detach = calls.index(unittest.mock.call.AttachThreadInput(current_thread_id, fore_thread_id, False))
+        self.assertLess(attach, focus)
+        self.assertLess(focus, detach)
 
-    @patch("models.clipboard.clipboard.user32")
-    @patch("models.clipboard.clipboard.kernel32")
+    @patch.object(clipboard, "user32")
+    @patch.object(clipboard, "kernel32")
     def test_skips_attach_when_target_thread_is_already_the_foreground_thread(
         self, kernel32: MagicMock, user32: MagicMock,
     ) -> None:
@@ -65,8 +80,8 @@ class FocusWindowUsesAttachThreadInputTests(unittest.TestCase):
         self.assertTrue(result)
         user32.AttachThreadInput.assert_not_called()
 
-    @patch("models.clipboard.clipboard.user32")
-    @patch("models.clipboard.clipboard.kernel32")
+    @patch.object(clipboard, "user32")
+    @patch.object(clipboard, "kernel32")
     def test_detaches_even_if_set_foreground_window_raises(
         self, kernel32: MagicMock, user32: MagicMock,
     ) -> None:
@@ -99,10 +114,10 @@ class CopyAndPasteAlwaysCopiesTests(unittest.TestCase):
         instance.app_name = None
         return instance
 
-    @patch("models.clipboard.clipboard.paste_via_ctrl_v")
-    @patch("models.clipboard.clipboard.copy_to_clipboard")
-    @patch("models.clipboard.clipboard.find_windows_by_process_name", return_value=[])
-    @patch("models.clipboard.clipboard.find_windows_by_title_substring", return_value=[])
+    @patch.object(clipboard, "paste_via_ctrl_v")
+    @patch.object(clipboard, "copy_to_clipboard")
+    @patch.object(clipboard, "find_windows_by_process_name", return_value=[])
+    @patch.object(clipboard, "find_windows_by_title_substring", return_value=[])
     def test_copies_even_when_no_window_can_be_focused(
         self,
         find_by_title: MagicMock,
@@ -119,10 +134,10 @@ class CopyAndPasteAlwaysCopiesTests(unittest.TestCase):
         paste_via_ctrl_v.assert_not_called()
         self.assertFalse(result)
 
-    @patch("models.clipboard.clipboard.paste_via_ctrl_v")
-    @patch("models.clipboard.clipboard.copy_to_clipboard")
-    @patch("models.clipboard.clipboard.focus_window")
-    @patch("models.clipboard.clipboard.find_windows_by_title_substring")
+    @patch.object(clipboard, "paste_via_ctrl_v")
+    @patch.object(clipboard, "copy_to_clipboard")
+    @patch.object(clipboard, "focus_window")
+    @patch.object(clipboard, "find_windows_by_title_substring")
     def test_copies_and_pastes_when_focus_succeeds(
         self,
         find_by_title: MagicMock,
@@ -151,8 +166,7 @@ class PasteViaCtrlVTests(unittest.TestCase):
     VK_V = 0x56
     KEYEVENTF_KEYUP = 0x0002
 
-    @patch("models.clipboard.clipboard.sys.platform", "win32")
-    @patch("models.clipboard.clipboard.user32")
+    @patch.object(clipboard, "user32")
     def test_sends_ctrl_v_and_releases_both_keys(self, user32: MagicMock) -> None:
         self.assertTrue(clipboard.paste_via_ctrl_v())
 
@@ -166,8 +180,7 @@ class PasteViaCtrlVTests(unittest.TestCase):
             ],
         )
 
-    @patch("models.clipboard.clipboard.sys.platform", "win32")
-    @patch("models.clipboard.clipboard.user32")
+    @patch.object(clipboard, "user32")
     def test_ctrl_is_released_even_if_sending_v_fails(self, user32: MagicMock) -> None:
         """Ctrl を押しっぱなしのまま抜けると、以後ユーザーの操作が全て
         Ctrl 付きになり VRChat の操作不能を招く。"""
@@ -182,6 +195,29 @@ class PasteViaCtrlVTests(unittest.TestCase):
             unittest.mock.call(self.VK_CONTROL, 0, self.KEYEVENTF_KEYUP, 0),
             user32.keybd_event.call_args_list,
         )
+
+
+class NativeClipboardFallbackTests(unittest.TestCase):
+    def test_non_windows_copies_without_attempting_focus_or_keys(self):
+        instance = native_clipboard.Clipboard.__new__(native_clipboard.Clipboard)
+        instance.app_name = None
+        # Replace the module reference, not the shared sys.platform attribute.
+        with patch.object(native_clipboard, "sys", SimpleNamespace(platform="linux")), \
+             patch.object(native_clipboard, "copy_to_clipboard", return_value=True) as copy, \
+             patch.object(native_clipboard, "paste_via_ctrl_v") as paste:
+            self.assertFalse(instance.copy_and_paste("こんにちは", window_name="VRChat"))
+        copy.assert_called_once_with("こんにちは")
+        paste.assert_not_called()
+
+    def test_non_windows_direct_paste_is_unsupported(self):
+        with patch.object(native_clipboard, "sys", SimpleNamespace(platform="linux")):
+            self.assertFalse(native_clipboard.paste_via_ctrl_v())
+
+    def test_windows_test_module_does_not_replace_native_module_or_host_platform(self):
+        from models.clipboard import clipboard as imported_again
+        self.assertIs(imported_again, native_clipboard)
+        self.assertIs(native_clipboard.sys, sys)
+        self.assertIsNot(clipboard.sys, sys)
 
 
 if __name__ == "__main__":

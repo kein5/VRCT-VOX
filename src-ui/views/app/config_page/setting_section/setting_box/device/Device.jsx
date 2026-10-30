@@ -1,3 +1,4 @@
+import { VoiceRouteSettings } from "./VoiceRouteSettings";
 import { useI18n } from "@useI18n";
 import styles from "./Device.module.scss";
 import clsx from "clsx";
@@ -23,6 +24,7 @@ import {
 export const Device = () => {
     return (
         <div className={styles.container}>
+            <VoiceRouteSettings />
             <MicContainer />
             <SpeakerContainer />
         </div>

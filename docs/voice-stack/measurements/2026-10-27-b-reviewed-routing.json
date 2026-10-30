@@ -1,0 +1,3949 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "os": "Linux-6.18.55-2-cachyos-lts-x86_64-with-glibc2.44",
+  "python": "3.13.17",
+  "graph": "private_pipewire_policy_only",
+  "sample_rate": 48000,
+  "channels": 1,
+  "observation_frame_ms": 20,
+  "tone_threshold_s16": 400,
+  "silence_peak_threshold_s16": 64,
+  "raw_audio_saved": false,
+  "real_vc_verified": false,
+  "vrchat_verified": false,
+  "ui_verified": false,
+  "windows_verified": false,
+  "physical_microphone_captured": false,
+  "requested_trials": 30,
+  "rows": [
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19375949158321,
+      "end_ns": 19376032121164
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19378255401671,
+      "end_ns": 19378293634844
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19380512736847,
+      "end_ns": 19380597459024
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19384825987915,
+      "end_ns": 19384864324174
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19387212812829,
+      "end_ns": 19387253719700
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19389476074813,
+      "end_ns": 19389514953704
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19391691401404,
+      "end_ns": 19391776106742
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19396003025486,
+      "end_ns": 19396043046979
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19398436890665,
+      "end_ns": 19398474964680
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19400695336477,
+      "end_ns": 19400736372291
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19402912640352,
+      "end_ns": 19402997442913
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19407224204768,
+      "end_ns": 19407264351106
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19409654119177,
+      "end_ns": 19409696335024
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19411918905301,
+      "end_ns": 19412000110197
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19414220521574,
+      "end_ns": 19414304098187
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19418532141480,
+      "end_ns": 19418571154354
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19421006710140,
+      "end_ns": 19421088108230
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19423310018093,
+      "end_ns": 19423392103678
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19425568477605,
+      "end_ns": 19425611158298
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19429879912136,
+      "end_ns": 19429920333825
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19432356336744,
+      "end_ns": 19432394984932
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19434614077024,
+      "end_ns": 19434656328950
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19436836276595,
+      "end_ns": 19436917457157
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19441146219100,
+      "end_ns": 19441226784343
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19443618704257,
+      "end_ns": 19443658991282
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19445881959623,
+      "end_ns": 19445962793964
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19448141078753,
+      "end_ns": 19448224107758
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19452452085765,
+      "end_ns": 19452491205071
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19454923505646,
+      "end_ns": 19455008134324
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19457230152111,
+      "end_ns": 19457312108326
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19459492037529,
+      "end_ns": 19459531142679
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19463799163782,
+      "end_ns": 19463840474737
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19466274748216,
+      "end_ns": 19466315025674
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19468533783747,
+      "end_ns": 19468576336321
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19470797330581,
+      "end_ns": 19470880106321
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19475107883799,
+      "end_ns": 19475147026691
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19477583213382,
+      "end_ns": 19477621668458
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19479844738288,
+      "end_ns": 19479925446975
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19482105518316,
+      "end_ns": 19482186790765
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19486457207699,
+      "end_ns": 19486496366351
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19488930185580,
+      "end_ns": 19488971278325
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19491192821023,
+      "end_ns": 19491232494465
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19493412660238,
+      "end_ns": 19493493442875
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19497763559201,
+      "end_ns": 19497803084253
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19500194083390,
+      "end_ns": 19500234964757
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19502455523356,
+      "end_ns": 19502538793189
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19504760323303,
+      "end_ns": 19504842780435
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19509071161652,
+      "end_ns": 19509152109712
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19511587590364,
+      "end_ns": 19511669433360
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19513892922153,
+      "end_ns": 19513931258205
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19516111371627,
+      "end_ns": 19516192311232
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19520462692238,
+      "end_ns": 19520501707090
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19522895019455,
+      "end_ns": 19522933671374
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19525153984718,
+      "end_ns": 19525195004176
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19527415082272,
+      "end_ns": 19527498796444
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19531723482599,
+      "end_ns": 19531765682861
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19534156936193,
+      "end_ns": 19534197683599
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19536416887786,
+      "end_ns": 19536501432323
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19538723889744,
+      "end_ns": 19538805442184
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19543029836923,
+      "end_ns": 19543072467347
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19545506389788,
+      "end_ns": 19545589442957
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19547812153813,
+      "end_ns": 19547851161632
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19550028999214,
+      "end_ns": 19550112304216
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19554380077270,
+      "end_ns": 19554421666001
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19556857800464,
+      "end_ns": 19556896355952
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19559117567044,
+      "end_ns": 19559157678503
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19561338402643,
+      "end_ns": 19561418795111
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19565645565848,
+      "end_ns": 19565685645547
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19568076464472,
+      "end_ns": 19568117736267
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19570336601511,
+      "end_ns": 19570421442990
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19572640791870,
+      "end_ns": 19572725456946
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19576995473126,
+      "end_ns": 19577035066720
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19579469480999,
+      "end_ns": 19579552124749
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19581772658447,
+      "end_ns": 19581814258521
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19584035466163,
+      "end_ns": 19584117450440
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19588343084907,
+      "end_ns": 19588384343788
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19590820254058,
+      "end_ns": 19590859046383
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19593079012503,
+      "end_ns": 19593162777545
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19595339222175,
+      "end_ns": 19595424119341
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19599652155930,
+      "end_ns": 19599691306060
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19602083463281,
+      "end_ns": 19602165459192
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19604343146689,
+      "end_ns": 19604426771668
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19606604648405,
+      "end_ns": 19606688115668
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19610914350811,
+      "end_ns": 19610955089173
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19613387374027,
+      "end_ns": 19613472113627
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19615694621814,
+      "end_ns": 19615776111883
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19617997481750,
+      "end_ns": 19618080123929
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19622304755329,
+      "end_ns": 19622347024334
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19624783288495,
+      "end_ns": 19624821679685
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19627042985337,
+      "end_ns": 19627125452386
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19629303079531,
+      "end_ns": 19629386786527
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19633613464728,
+      "end_ns": 19633653750768
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19636085958679,
+      "end_ns": 19636170782498
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19638392344231,
+      "end_ns": 19638432526235
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19640610498909,
+      "end_ns": 19640693448779
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19644961752049,
+      "end_ns": 19645002990423
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19647438639005,
+      "end_ns": 19647477684929
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19649700901668,
+      "end_ns": 19649781449774
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19652003527861,
+      "end_ns": 19652085459484
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19656311313462,
+      "end_ns": 19656352520167
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19658787589107,
+      "end_ns": 19658869442973
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19661089206114,
+      "end_ns": 19661131235800
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19663308703167,
+      "end_ns": 19663392365581
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19667660719104,
+      "end_ns": 19667701696698
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19670094667202,
+      "end_ns": 19670133818034
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19672352988365,
+      "end_ns": 19672437447601
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19674658625458,
+      "end_ns": 19674741441066
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19678966093207,
+      "end_ns": 19679008341185
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19681401227318,
+      "end_ns": 19681482789656
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19683660401076,
+      "end_ns": 19683744118414
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19685922790595,
+      "end_ns": 19686005440462
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19690272835785,
+      "end_ns": 19690314949210
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19692751290022,
+      "end_ns": 19692832469480
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19695052522257,
+      "end_ns": 19695093656697
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19697314123198,
+      "end_ns": 19697397655187
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19701623075589,
+      "end_ns": 19701664340435
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19704100082417,
+      "end_ns": 19704138990023
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19706360770452,
+      "end_ns": 19706442775525
+    },
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19708623403312,
+      "end_ns": 19708704106073
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "start_ns": 19712930523464,
+      "end_ns": 19712971280293
+    }
+  ],
+  "trials": [
+    {
+      "index": 0,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19375949158321,
+        "first_qualifying_frame_ns": 19376032121164,
+        "confirmation_ns": 19378037649787
+      },
+      "vc_gate": {
+        "command_ns": 19378255401671,
+        "first_qualifying_frame_ns": 19378293634844,
+        "confirmation_ns": 19380299056802
+      },
+      "global_mute": {
+        "command_ns": 19380512736847,
+        "first_qualifying_frame_ns": 19380597459024,
+        "confirmation_ns": 19382603087818
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19384825987915,
+        "first_qualifying_frame_ns": 19384864324174,
+        "confirmation_ns": 19386869653042
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 1,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19387212812829,
+        "first_qualifying_frame_ns": 19387253719700,
+        "confirmation_ns": 19389258973282
+      },
+      "vc_gate": {
+        "command_ns": 19389476074813,
+        "first_qualifying_frame_ns": 19389514953704,
+        "confirmation_ns": 19391520302821
+      },
+      "global_mute": {
+        "command_ns": 19391691401404,
+        "first_qualifying_frame_ns": 19391776106742,
+        "confirmation_ns": 19393781604975
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19396003025486,
+        "first_qualifying_frame_ns": 19396043046979,
+        "confirmation_ns": 19398048313436
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 2,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19398436890665,
+        "first_qualifying_frame_ns": 19398474964680,
+        "confirmation_ns": 19400480330520
+      },
+      "vc_gate": {
+        "command_ns": 19400695336477,
+        "first_qualifying_frame_ns": 19400736372291,
+        "confirmation_ns": 19402741673816
+      },
+      "global_mute": {
+        "command_ns": 19402912640352,
+        "first_qualifying_frame_ns": 19402997442913,
+        "confirmation_ns": 19405003075547
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19407224204768,
+        "first_qualifying_frame_ns": 19407264351106,
+        "confirmation_ns": 19409269651714
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 3,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19409654119177,
+        "first_qualifying_frame_ns": 19409696335024,
+        "confirmation_ns": 19411701633453
+      },
+      "vc_gate": {
+        "command_ns": 19411918905301,
+        "first_qualifying_frame_ns": 19412000110197,
+        "confirmation_ns": 19414005639126
+      },
+      "global_mute": {
+        "command_ns": 19414220521574,
+        "first_qualifying_frame_ns": 19414304098187,
+        "confirmation_ns": 19416309599479
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19418532141480,
+        "first_qualifying_frame_ns": 19418571154354,
+        "confirmation_ns": 19420576310215
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 4,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19421006710140,
+        "first_qualifying_frame_ns": 19421088108230,
+        "confirmation_ns": 19423093630507
+      },
+      "vc_gate": {
+        "command_ns": 19423310018093,
+        "first_qualifying_frame_ns": 19423392103678,
+        "confirmation_ns": 19425397626401
+      },
+      "global_mute": {
+        "command_ns": 19425568477605,
+        "first_qualifying_frame_ns": 19425611158298,
+        "confirmation_ns": 19427616406499
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19429879912136,
+        "first_qualifying_frame_ns": 19429920333825,
+        "confirmation_ns": 19431925700298
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 5,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19432356336744,
+        "first_qualifying_frame_ns": 19432394984932,
+        "confirmation_ns": 19434400296106
+      },
+      "vc_gate": {
+        "command_ns": 19434614077024,
+        "first_qualifying_frame_ns": 19434656328950,
+        "confirmation_ns": 19436661683771
+      },
+      "global_mute": {
+        "command_ns": 19436836276595,
+        "first_qualifying_frame_ns": 19436917457157,
+        "confirmation_ns": 19438922944533
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19441146219100,
+        "first_qualifying_frame_ns": 19441226784343,
+        "confirmation_ns": 19443232467317
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 6,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19443618704257,
+        "first_qualifying_frame_ns": 19443658991282,
+        "confirmation_ns": 19445664388232
+      },
+      "vc_gate": {
+        "command_ns": 19445881959623,
+        "first_qualifying_frame_ns": 19445962793964,
+        "confirmation_ns": 19447968279706
+      },
+      "global_mute": {
+        "command_ns": 19448141078753,
+        "first_qualifying_frame_ns": 19448224107758,
+        "confirmation_ns": 19450229657356
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19452452085765,
+        "first_qualifying_frame_ns": 19452491205071,
+        "confirmation_ns": 19454496336129
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 7,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19454923505646,
+        "first_qualifying_frame_ns": 19455008134324,
+        "confirmation_ns": 19457013696079
+      },
+      "vc_gate": {
+        "command_ns": 19457230152111,
+        "first_qualifying_frame_ns": 19457312108326,
+        "confirmation_ns": 19459317622997
+      },
+      "global_mute": {
+        "command_ns": 19459492037529,
+        "first_qualifying_frame_ns": 19459531142679,
+        "confirmation_ns": 19461536268722
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19463799163782,
+        "first_qualifying_frame_ns": 19463840474737,
+        "confirmation_ns": 19465845648900
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 8,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19466274748216,
+        "first_qualifying_frame_ns": 19466315025674,
+        "confirmation_ns": 19468320532609
+      },
+      "vc_gate": {
+        "command_ns": 19468533783747,
+        "first_qualifying_frame_ns": 19468576336321,
+        "confirmation_ns": 19470581623497
+      },
+      "global_mute": {
+        "command_ns": 19470797330581,
+        "first_qualifying_frame_ns": 19470880106321,
+        "confirmation_ns": 19472885639214
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19475107883799,
+        "first_qualifying_frame_ns": 19475147026691,
+        "confirmation_ns": 19477152540537
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 9,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19477583213382,
+        "first_qualifying_frame_ns": 19477621668458,
+        "confirmation_ns": 19479627054168
+      },
+      "vc_gate": {
+        "command_ns": 19479844738288,
+        "first_qualifying_frame_ns": 19479925446975,
+        "confirmation_ns": 19481931168031
+      },
+      "global_mute": {
+        "command_ns": 19482105518316,
+        "first_qualifying_frame_ns": 19482186790765,
+        "confirmation_ns": 19484192430272
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19486457207699,
+        "first_qualifying_frame_ns": 19486496366351,
+        "confirmation_ns": 19488501738552
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 10,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19488930185580,
+        "first_qualifying_frame_ns": 19488971278325,
+        "confirmation_ns": 19490976305351
+      },
+      "vc_gate": {
+        "command_ns": 19491192821023,
+        "first_qualifying_frame_ns": 19491232494465,
+        "confirmation_ns": 19493237675425
+      },
+      "global_mute": {
+        "command_ns": 19493412660238,
+        "first_qualifying_frame_ns": 19493493442875,
+        "confirmation_ns": 19495498945897
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19497763559201,
+        "first_qualifying_frame_ns": 19497803084253,
+        "confirmation_ns": 19499808416451
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 11,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19500194083390,
+        "first_qualifying_frame_ns": 19500234964757,
+        "confirmation_ns": 19502240344570
+      },
+      "vc_gate": {
+        "command_ns": 19502455523356,
+        "first_qualifying_frame_ns": 19502538793189,
+        "confirmation_ns": 19504544301679
+      },
+      "global_mute": {
+        "command_ns": 19504760323303,
+        "first_qualifying_frame_ns": 19504842780435,
+        "confirmation_ns": 19506848305190
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19509071161652,
+        "first_qualifying_frame_ns": 19509152109712,
+        "confirmation_ns": 19511157630407
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 12,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19511587590364,
+        "first_qualifying_frame_ns": 19511669433360,
+        "confirmation_ns": 19513674995127
+      },
+      "vc_gate": {
+        "command_ns": 19513892922153,
+        "first_qualifying_frame_ns": 19513931258205,
+        "confirmation_ns": 19515936358067
+      },
+      "global_mute": {
+        "command_ns": 19516111371627,
+        "first_qualifying_frame_ns": 19516192311232,
+        "confirmation_ns": 19518198564861
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19520462692238,
+        "first_qualifying_frame_ns": 19520501707090,
+        "confirmation_ns": 19522507161231
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 13,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19522895019455,
+        "first_qualifying_frame_ns": 19522933671374,
+        "confirmation_ns": 19524939106033
+      },
+      "vc_gate": {
+        "command_ns": 19525153984718,
+        "first_qualifying_frame_ns": 19525195004176,
+        "confirmation_ns": 19527200352868
+      },
+      "global_mute": {
+        "command_ns": 19527415082272,
+        "first_qualifying_frame_ns": 19527498796444,
+        "confirmation_ns": 19529504260016
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19531723482599,
+        "first_qualifying_frame_ns": 19531765682861,
+        "confirmation_ns": 19533771131883
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 14,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19534156936193,
+        "first_qualifying_frame_ns": 19534197683599,
+        "confirmation_ns": 19536202973746
+      },
+      "vc_gate": {
+        "command_ns": 19536416887786,
+        "first_qualifying_frame_ns": 19536501432323,
+        "confirmation_ns": 19538506965202
+      },
+      "global_mute": {
+        "command_ns": 19538723889744,
+        "first_qualifying_frame_ns": 19538805442184,
+        "confirmation_ns": 19540811104050
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19543029836923,
+        "first_qualifying_frame_ns": 19543072467347,
+        "confirmation_ns": 19545077671487
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 15,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19545506389788,
+        "first_qualifying_frame_ns": 19545589442957,
+        "confirmation_ns": 19547595155209
+      },
+      "vc_gate": {
+        "command_ns": 19547812153813,
+        "first_qualifying_frame_ns": 19547851161632,
+        "confirmation_ns": 19549856338731
+      },
+      "global_mute": {
+        "command_ns": 19550028999214,
+        "first_qualifying_frame_ns": 19550112304216,
+        "confirmation_ns": 19552117679022
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19554380077270,
+        "first_qualifying_frame_ns": 19554421666001,
+        "confirmation_ns": 19556427008923
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 16,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19556857800464,
+        "first_qualifying_frame_ns": 19556896355952,
+        "confirmation_ns": 19558901618788
+      },
+      "vc_gate": {
+        "command_ns": 19559117567044,
+        "first_qualifying_frame_ns": 19559157678503,
+        "confirmation_ns": 19561162974395
+      },
+      "global_mute": {
+        "command_ns": 19561338402643,
+        "first_qualifying_frame_ns": 19561418795111,
+        "confirmation_ns": 19563424266367
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19565645565848,
+        "first_qualifying_frame_ns": 19565685645547,
+        "confirmation_ns": 19567691243570
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 17,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19568076464472,
+        "first_qualifying_frame_ns": 19568117736267,
+        "confirmation_ns": 19570123010543
+      },
+      "vc_gate": {
+        "command_ns": 19570336601511,
+        "first_qualifying_frame_ns": 19570421442990,
+        "confirmation_ns": 19572427032073
+      },
+      "global_mute": {
+        "command_ns": 19572640791870,
+        "first_qualifying_frame_ns": 19572725456946,
+        "confirmation_ns": 19574731193260
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19576995473126,
+        "first_qualifying_frame_ns": 19577035066720,
+        "confirmation_ns": 19579040350530
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 18,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19579469480999,
+        "first_qualifying_frame_ns": 19579552124749,
+        "confirmation_ns": 19581557672519
+      },
+      "vc_gate": {
+        "command_ns": 19581772658447,
+        "first_qualifying_frame_ns": 19581814258521,
+        "confirmation_ns": 19583819110685
+      },
+      "global_mute": {
+        "command_ns": 19584035466163,
+        "first_qualifying_frame_ns": 19584117450440,
+        "confirmation_ns": 19586122997588
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19588343084907,
+        "first_qualifying_frame_ns": 19588384343788,
+        "confirmation_ns": 19590389661881
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 19,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19590820254058,
+        "first_qualifying_frame_ns": 19590859046383,
+        "confirmation_ns": 19592864338601
+      },
+      "vc_gate": {
+        "command_ns": 19593079012503,
+        "first_qualifying_frame_ns": 19593162777545,
+        "confirmation_ns": 19595168355645
+      },
+      "global_mute": {
+        "command_ns": 19595339222175,
+        "first_qualifying_frame_ns": 19595424119341,
+        "confirmation_ns": 19597429668379
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19599652155930,
+        "first_qualifying_frame_ns": 19599691306060,
+        "confirmation_ns": 19601696312333
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 20,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19602083463281,
+        "first_qualifying_frame_ns": 19602165459192,
+        "confirmation_ns": 19604171118599
+      },
+      "vc_gate": {
+        "command_ns": 19604343146689,
+        "first_qualifying_frame_ns": 19604426771668,
+        "confirmation_ns": 19606432458811
+      },
+      "global_mute": {
+        "command_ns": 19606604648405,
+        "first_qualifying_frame_ns": 19606688115668,
+        "confirmation_ns": 19608693619329
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19610914350811,
+        "first_qualifying_frame_ns": 19610955089173,
+        "confirmation_ns": 19612960307113
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 21,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19613387374027,
+        "first_qualifying_frame_ns": 19613472113627,
+        "confirmation_ns": 19615477664417
+      },
+      "vc_gate": {
+        "command_ns": 19615694621814,
+        "first_qualifying_frame_ns": 19615776111883,
+        "confirmation_ns": 19617781672044
+      },
+      "global_mute": {
+        "command_ns": 19617997481750,
+        "first_qualifying_frame_ns": 19618080123929,
+        "confirmation_ns": 19620085611407
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19622304755329,
+        "first_qualifying_frame_ns": 19622347024334,
+        "confirmation_ns": 19624352641513
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 22,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19624783288495,
+        "first_qualifying_frame_ns": 19624821679685,
+        "confirmation_ns": 19626827010689
+      },
+      "vc_gate": {
+        "command_ns": 19627042985337,
+        "first_qualifying_frame_ns": 19627125452386,
+        "confirmation_ns": 19629131139535
+      },
+      "global_mute": {
+        "command_ns": 19629303079531,
+        "first_qualifying_frame_ns": 19629386786527,
+        "confirmation_ns": 19631392442870
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19633613464728,
+        "first_qualifying_frame_ns": 19633653750768,
+        "confirmation_ns": 19635659006553
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 23,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19636085958679,
+        "first_qualifying_frame_ns": 19636170782498,
+        "confirmation_ns": 19638176324466
+      },
+      "vc_gate": {
+        "command_ns": 19638392344231,
+        "first_qualifying_frame_ns": 19638432526235,
+        "confirmation_ns": 19640437661801
+      },
+      "global_mute": {
+        "command_ns": 19640610498909,
+        "first_qualifying_frame_ns": 19640693448779,
+        "confirmation_ns": 19642699019839
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19644961752049,
+        "first_qualifying_frame_ns": 19645002990423,
+        "confirmation_ns": 19647008539137
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 24,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19647438639005,
+        "first_qualifying_frame_ns": 19647477684929,
+        "confirmation_ns": 19649483025695
+      },
+      "vc_gate": {
+        "command_ns": 19649700901668,
+        "first_qualifying_frame_ns": 19649781449774,
+        "confirmation_ns": 19651786995509
+      },
+      "global_mute": {
+        "command_ns": 19652003527861,
+        "first_qualifying_frame_ns": 19652085459484,
+        "confirmation_ns": 19654091141579
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19656311313462,
+        "first_qualifying_frame_ns": 19656352520167,
+        "confirmation_ns": 19658357842330
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 25,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19658787589107,
+        "first_qualifying_frame_ns": 19658869442973,
+        "confirmation_ns": 19660875294798
+      },
+      "vc_gate": {
+        "command_ns": 19661089206114,
+        "first_qualifying_frame_ns": 19661131235800,
+        "confirmation_ns": 19663136353855
+      },
+      "global_mute": {
+        "command_ns": 19663308703167,
+        "first_qualifying_frame_ns": 19663392365581,
+        "confirmation_ns": 19665397595731
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19667660719104,
+        "first_qualifying_frame_ns": 19667701696698,
+        "confirmation_ns": 19669707040117
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 26,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19670094667202,
+        "first_qualifying_frame_ns": 19670133818034,
+        "confirmation_ns": 19672139029328
+      },
+      "vc_gate": {
+        "command_ns": 19672352988365,
+        "first_qualifying_frame_ns": 19672437447601,
+        "confirmation_ns": 19674443020188
+      },
+      "global_mute": {
+        "command_ns": 19674658625458,
+        "first_qualifying_frame_ns": 19674741441066,
+        "confirmation_ns": 19676746973541
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19678966093207,
+        "first_qualifying_frame_ns": 19679008341185,
+        "confirmation_ns": 19681013676745
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 27,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19681401227318,
+        "first_qualifying_frame_ns": 19681482789656,
+        "confirmation_ns": 19683488381632
+      },
+      "vc_gate": {
+        "command_ns": 19683660401076,
+        "first_qualifying_frame_ns": 19683744118414,
+        "confirmation_ns": 19685749686127
+      },
+      "global_mute": {
+        "command_ns": 19685922790595,
+        "first_qualifying_frame_ns": 19686005440462,
+        "confirmation_ns": 19688011179661
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19690272835785,
+        "first_qualifying_frame_ns": 19690314949210,
+        "confirmation_ns": 19692320344637
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 28,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19692751290022,
+        "first_qualifying_frame_ns": 19692832469480,
+        "confirmation_ns": 19694837654003
+      },
+      "vc_gate": {
+        "command_ns": 19695052522257,
+        "first_qualifying_frame_ns": 19695093656697,
+        "confirmation_ns": 19697098954828
+      },
+      "global_mute": {
+        "command_ns": 19697314123198,
+        "first_qualifying_frame_ns": 19697397655187,
+        "confirmation_ns": 19699402942280
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19701623075589,
+        "first_qualifying_frame_ns": 19701664340435,
+        "confirmation_ns": 19703669674151
+      },
+      "endpoint_survived_vc_crash": true
+    },
+    {
+      "index": 29,
+      "status": "passed",
+      "tts_cancel": {
+        "command_ns": 19704100082417,
+        "first_qualifying_frame_ns": 19704138990023,
+        "confirmation_ns": 19706144388334
+      },
+      "vc_gate": {
+        "command_ns": 19706360770452,
+        "first_qualifying_frame_ns": 19706442775525,
+        "confirmation_ns": 19708448332378
+      },
+      "global_mute": {
+        "command_ns": 19708623403312,
+        "first_qualifying_frame_ns": 19708704106073,
+        "confirmation_ns": 19710709620699
+      },
+      "mute_held_after_producer_recreation": true,
+      "vc_crash": {
+        "command_ns": 19712930523464,
+        "first_qualifying_frame_ns": 19712971280293,
+        "confirmation_ns": 19714976330169
+      },
+      "endpoint_survived_vc_crash": true
+    }
+  ],
+  "versions": {
+    "pipewire": "pipewire\nCompiled with libpipewire 1.6.10\nLinked with libpipewire 1.6.10",
+    "wireplumber": "wireplumber\nCompiled with libwireplumber 0.5.18\nLinked with libwireplumber 0.5.18"
+  },
+  "soak": {
+    "requested_seconds": 60.0,
+    "elapsed_seconds": 60.00050441500207,
+    "checkpoints": 300,
+    "before": {
+      "frames": 16985,
+      "sample_count": 16305600,
+      "last_read_ns": 19715403061802,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 43.752073,
+      "nonzero_frames": 10806,
+      "detected_frames": {
+        "440": 4589,
+        "880": 7654,
+        "1760": 0
+      },
+      "reader_eof": false,
+      "reader_error": null
+    },
+    "after": {
+      "frames": 19985,
+      "sample_count": 19185600,
+      "last_read_ns": 19775392567667,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 43.752073,
+      "nonzero_frames": 13806,
+      "detected_frames": {
+        "440": 7589,
+        "880": 10654,
+        "1760": 0
+      },
+      "reader_eof": false,
+      "reader_error": null
+    },
+    "physical_clock_drift_measured": false,
+    "gpu_contention_measured": false
+  },
+  "main_capture": {
+    "frames": 19993,
+    "sample_count": 19193280,
+    "last_read_ns": 19775563017994,
+    "capture_gaps_over_100ms": 0,
+    "max_read_gap_ms": 43.752073,
+    "nonzero_frames": 13814,
+    "detected_frames": {
+      "440": 7597,
+      "880": 10656,
+      "1760": 0
+    },
+    "reader_eof": false,
+    "reader_error": null
+  },
+  "consumer_faults": [
+    {
+      "index": 0,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19776250998632,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.60363,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19776275724533,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.60363,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19776261874992,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.081019,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19778779436201,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.081019,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19776262081241,
+      "observed_ns": 19778783078673,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 1,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19779206368348,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.861636,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19779248805464,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.861636,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19779222020705,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.488483,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19781738989211,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.506627,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19779223106150,
+      "observed_ns": 19781756452410,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 2,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19782170959159,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.520142,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19782196029258,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.520142,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19782181948432,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.487071,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 140,
+        "sample_count": 134400,
+        "last_read_ns": 19784656318362,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.743804,
+        "nonzero_frames": 140,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 122
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19782182180529,
+      "observed_ns": 19784698306472,
+      "permissive_forbidden_frames": 122,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 3,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19785120330284,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.881603,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19785160234128,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.881603,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19785136530242,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.881804,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19787654140286,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.125123,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19785139889280,
+      "observed_ns": 19787662444820,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 4,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19788080721113,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.844344,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19788101914669,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.844344,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19788091118119,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.505705,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 140,
+        "sample_count": 134400,
+        "last_read_ns": 19790565641777,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.506648,
+        "nonzero_frames": 140,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 122
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19788091300112,
+      "observed_ns": 19790605429943,
+      "permissive_forbidden_frames": 122,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 5,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19791018959694,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.793368,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19791058569775,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.793368,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19791029886579,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.490147,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19793552291133,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.559106,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19791032906939,
+      "observed_ns": 19793561718843,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 6,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19793973615048,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.509133,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19793999272042,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.509133,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19793984442465,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.497039,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19796501665491,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.505535,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19793988980254,
+      "observed_ns": 19796501939969,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 7,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19796917707627,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.471942,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19796961868711,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.910923,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19796928504357,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.498923,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19799445660731,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.513761,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19796928789845,
+      "observed_ns": 19799461680821,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 8,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19799877786868,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.495687,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19799903776800,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.495687,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19799888544063,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.480989,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19802405693990,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.802816,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19799891939820,
+      "observed_ns": 19802407356201,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 9,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19802821656166,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.449761,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19802864354054,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.455782,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19802838390281,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.083054,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19805355506518,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.083054,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19802841142416,
+      "observed_ns": 19805370174701,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 10,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19805787488144,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.871766,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19805816592984,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.871766,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19805797836990,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.514363,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19808315297529,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.807745,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19805800830299,
+      "observed_ns": 19808316670295,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 11,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19808741760148,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.460441,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19808785083795,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.95869,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19808752952844,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.455531,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19811269923084,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.006579,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19808756637786,
+      "observed_ns": 19811290600748,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 12,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19811712721599,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.543401,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19811755027118,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.543401,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19811728720118,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.454089,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19814245702004,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.663633,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19811729149146,
+      "observed_ns": 19814261198768,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 13,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19814683072844,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.475539,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19814719988038,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.475539,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19814699606692,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.866326,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19817216803697,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.97468,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19814704912237,
+      "observed_ns": 19817219782068,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 14,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19817643350627,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.535633,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19817682992087,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.535633,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19817653828065,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.483033,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19820176462187,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.626423,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19817654024295,
+      "observed_ns": 19820186038187,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 15,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19820608330111,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.499625,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19820636412436,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.499625,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19820619499754,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.872547,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19823136402853,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.872547,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19820620757884,
+      "observed_ns": 19823136626454,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 16,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19823552377447,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.466443,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19823581833399,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.466443,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19823568461567,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.52879,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19826085681828,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.52879,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19823568642308,
+      "observed_ns": 19826085872908,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 17,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19826501742755,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.490508,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19826545703031,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.613533,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19826512757966,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.493584,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19829034944516,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.733505,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19826513821079,
+      "observed_ns": 19829043924243,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 18,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19829456529100,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.631594,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19829482984069,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.631594,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19829467342431,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.920368,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19831984719274,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.211877,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19829468941033,
+      "observed_ns": 19831985939202,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 19,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19832405738032,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.146704,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19832450649431,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 44.584223,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19832421924817,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.492141,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19834944352338,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.499865,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19832424826373,
+      "observed_ns": 19834953820455,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 20,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19835370948835,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.495568,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19835396420832,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.495568,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19835381790309,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.09113,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19837899105764,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.09113,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19835383558260,
+      "observed_ns": 19837901418992,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 21,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19838320351171,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.445212,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19838359407940,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.445212,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19838331188477,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.524663,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19840854098625,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.575107,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19838334629710,
+      "observed_ns": 19840862788035,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 22,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19841280637264,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.800692,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19841305634547,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.800692,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19841291171770,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.470941,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19843808295280,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.499755,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19841293042685,
+      "observed_ns": 19843808497020,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 23,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19844229624015,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.220384,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19844254669128,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.220384,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19844240556131,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.499044,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19846757843763,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.540192,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19844243614762,
+      "observed_ns": 19846758088043,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 24,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19847174071068,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.828425,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19847198768025,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.828425,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19847184593251,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.456615,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 140,
+        "sample_count": 134400,
+        "last_read_ns": 19849658988442,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.705974,
+        "nonzero_frames": 140,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 122
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19847185679267,
+      "observed_ns": 19849701397086,
+      "permissive_forbidden_frames": 122,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 25,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19850128295676,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.471954,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19850167158780,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.471954,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19850139255553,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.486361,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19852661620208,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.512189,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19850143321673,
+      "observed_ns": 19852672868549,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 26,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19853088350280,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.518231,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19853130961356,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.518231,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19853104587239,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.945465,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19855622372821,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.937544,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19853104791715,
+      "observed_ns": 19855636916350,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 27,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19856059170852,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.507771,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 21,
+        "sample_count": 20160,
+        "last_read_ns": 19856098192495,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.507771,
+        "nonzero_frames": 21,
+        "detected_frames": {
+          "440": 21,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19856075264110,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.48086,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19858592362110,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.117179,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 123
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19856075965451,
+      "observed_ns": 19858601925657,
+      "permissive_forbidden_frames": 123,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 28,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19859019676354,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.875805,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19859045192765,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.875805,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19859029801088,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.67183,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 142,
+        "sample_count": 136320,
+        "last_read_ns": 19861547548095,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.051395,
+        "nonzero_frames": 142,
+        "detected_frames": {
+          "440": 18,
+          "880": 0,
+          "1760": 124
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19859031037367,
+      "observed_ns": 19861549118082,
+      "permissive_forbidden_frames": 124,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    },
+    {
+      "index": 29,
+      "strict_forbidden_frames": 0,
+      "strict_process_exit": 1,
+      "strict_observation": "disconnected",
+      "strict_before": {
+        "frames": 19,
+        "sample_count": 18240,
+        "last_read_ns": 19861968382311,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.457857,
+        "nonzero_frames": 19,
+        "detected_frames": {
+          "440": 19,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "strict_after": {
+        "frames": 20,
+        "sample_count": 19200,
+        "last_read_ns": 19861993789466,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.457857,
+        "nonzero_frames": 20,
+        "detected_frames": {
+          "440": 20,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": true,
+        "reader_error": null
+      },
+      "permissive_observation": "live",
+      "permissive_before": {
+        "frames": 17,
+        "sample_count": 16320,
+        "last_read_ns": 19861984525434,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.467506,
+        "nonzero_frames": 17,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "permissive_after": {
+        "frames": 140,
+        "sample_count": 134400,
+        "last_read_ns": 19864459185992,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.526877,
+        "nonzero_frames": 140,
+        "detected_frames": {
+          "440": 17,
+          "880": 0,
+          "1760": 122
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "fault_ns": 19861984819919,
+      "observed_ns": 19864498538439,
+      "permissive_forbidden_frames": 122,
+      "permissive_process_exit": null,
+      "alternate_source_verified": true,
+      "vrchat_consumer_tested": false
+    }
+  ],
+  "output_guard": {
+    "frames": 24546,
+    "sample_count": 23564160,
+    "last_read_ns": 19866538972021,
+    "capture_gaps_over_100ms": 0,
+    "max_read_gap_ms": 44.738984,
+    "nonzero_frames": 0,
+    "detected_frames": {
+      "440": 0,
+      "880": 0,
+      "1760": 0
+    },
+    "reader_eof": false,
+    "reader_error": null
+  },
+  "summary": [
+    {
+      "metric": "global_mute_to_silence",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "count": 30,
+      "p50_ms": 82.77574,
+      "p95_ms": 84.802561,
+      "p99_ms": 84.897166
+    },
+    {
+      "metric": "tts_cancel_to_tts_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "count": 30,
+      "p50_ms": 40.906871,
+      "p95_ms": 84.7396,
+      "p99_ms": 84.823819
+    },
+    {
+      "metric": "vc_crash_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "count": 30,
+      "p50_ms": 40.738362,
+      "p95_ms": 80.565243,
+      "p99_ms": 80.94806
+    },
+    {
+      "metric": "vc_gate_to_vc_absent",
+      "environment": "linux_private_pipewire_synthetic",
+      "warm": "yes",
+      "count": 30,
+      "p50_ms": 80.548106,
+      "p95_ms": 84.544537,
+      "p99_ms": 84.841479
+    }
+  ],
+  "stop_budget": {
+    "p95_target_ms": 100,
+    "worst_target_ms": 250,
+    "all_measured_groups_meet": true
+  }
+}

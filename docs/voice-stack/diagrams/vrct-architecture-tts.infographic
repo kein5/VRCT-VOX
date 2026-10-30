@@ -1,0 +1,46 @@
+infographic relation-dagre-flow-lr-badge-card
+data
+  title テキストを声にする
+  desc 原文か選択した訳文を、ひとつのTTS workerへ
+  nodes
+    - id input
+      label テキスト入力
+      desc メッセージIDを確定
+      icon text
+    - id orig
+      label 原文を選択
+      desc 翻訳完了を待たない
+      icon text
+    - id trans
+      label 訳文を選択
+      desc 既存翻訳provider
+      icon code
+    - id queue
+      label VoiceEventBus
+      desc 重複排除・期限・取消
+      icon queue
+    - id tts
+      label speech.cpp TTS
+      desc localhost HTTP → PCM
+      icon chip
+    - id sink
+      label 仮想マイク
+      desc TTS枝 → 合流 → 全体gate
+      icon route
+    - id vrc
+      label VRChat
+      desc 選択したマイクから取得
+      icon mic
+  relations
+    input - 原文モード -> orig
+    input - 訳文モード -> trans
+    orig - 確定文 -> queue
+    trans - 選択訳 -> queue
+    queue - 要求 -> tts
+    tts - 音声 -> sink
+    sink - OS入力 -> vrc
+theme
+  palette #176b80 #42659b #665fa4 #217d65 #a46e20
+  base
+    text
+      font-family Noto Sans CJK JP, Yu Gothic, sans-serif

@@ -1,0 +1,386 @@
+{
+  "date": "2026-10-29",
+  "model": "Mia2026",
+  "model_bundled": false,
+  "physical_capture": false,
+  "vrchat": false,
+  "perceptual_quality": false,
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+    "driver": "615.78.08",
+    "python": "3.12.14",
+    "torch": "2.7.1+cu118",
+    "torchaudio": "2.7.1+cu118"
+  },
+  "independent_gpu_load_controlled": false,
+  "engine_trials": [
+    {
+      "status": "passed",
+      "index_rate": 0.0,
+      "real_rvc": true,
+      "physical_capture": false,
+      "boundary": "BlockSession.convert wall time with GPU synchronization; excludes capture/OS/VRChat",
+      "load_seconds": 10.652098402002594,
+      "device": "cuda:0",
+      "half": true,
+      "sample_rate": 48000,
+      "version": "v2",
+      "blocks": 61,
+      "duration_seconds": 4.88,
+      "cold_first_block_ms": 226.570980012184,
+      "warm_block_p50_ms": 17.36377750057727,
+      "warm_block_p95_ms": 19.31574615300633,
+      "warm_block_max_ms": 20.459564024349675,
+      "output_nonzero": true,
+      "finite": true,
+      "cuda_max_allocated_mib": 467.47119140625,
+      "warm_blocks": 58,
+      "warm_block_p99_ms": 20.246582367108203,
+      "measurement": "wall time, CUDA synchronization, history/resampling/inference/SOLA; excludes capture and OS route"
+    },
+    {
+      "status": "passed",
+      "index_rate": 0.5,
+      "real_rvc": true,
+      "physical_capture": false,
+      "boundary": "BlockSession.convert wall time with GPU synchronization; excludes capture/OS/VRChat",
+      "load_seconds": 2.259128990001045,
+      "device": "cuda:0",
+      "half": true,
+      "sample_rate": 48000,
+      "version": "v2",
+      "blocks": 61,
+      "duration_seconds": 4.88,
+      "cold_first_block_ms": 297.7536109974608,
+      "warm_block_p50_ms": 16.89844799693674,
+      "warm_block_p95_ms": 33.99228493217378,
+      "warm_block_max_ms": 42.270851001376286,
+      "output_nonzero": true,
+      "finite": true,
+      "cuda_max_allocated_mib": 467.47119140625,
+      "warm_blocks": 58,
+      "warm_block_p99_ms": 41.450634679349605,
+      "measurement": "wall time, CUDA synchronization, history/resampling/inference/SOLA; excludes capture and OS route"
+    }
+  ],
+  "native_trials": [
+    {
+      "status": "passed",
+      "real_rvc": true,
+      "physical_capture": false,
+      "vrchat": false,
+      "perceptual_quality": false,
+      "index_rate": 0.0,
+      "case": "stop",
+      "boundary": "capture block end to accepted OS write; excludes ADC and VRChat",
+      "stop_samples_are_percentiles": false,
+      "start_to_active_ms": 3356.472398,
+      "after": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": null,
+        "state": "stopped",
+        "converted_blocks": 11
+      },
+      "capture": {
+        "frames": 422,
+        "sample_count": 405120,
+        "last_read_ns": 173883130108911,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 44.331307,
+        "nonzero_frames": 13,
+        "detected_frames": {
+          "440": 4,
+          "880": 6,
+          "1760": 1
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "silence_hold_ms": 2000,
+      "stop_to_silent_read_ms": 38.073018,
+      "last_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": null,
+        "state": "stopped",
+        "converted_blocks": 11
+      },
+      "group": "native-acceptance",
+      "write_summary": {
+        "blocks": 11,
+        "p50_ms": 32.249043,
+        "p95_ms": 36.677523,
+        "p99_ms": 38.479162200000005,
+        "max_ms": 38.929572,
+        "quantile_method": "numpy.percentile linear"
+      }
+    },
+    {
+      "status": "passed",
+      "real_rvc": true,
+      "physical_capture": false,
+      "vrchat": false,
+      "perceptual_quality": false,
+      "index_rate": 0.5,
+      "case": "stop",
+      "boundary": "capture block end to accepted OS write; excludes ADC and VRChat",
+      "stop_samples_are_percentiles": false,
+      "start_to_active_ms": 3459.88646,
+      "after": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": null,
+        "state": "stopped",
+        "converted_blocks": 11
+      },
+      "capture": {
+        "frames": 428,
+        "sample_count": 410880,
+        "last_read_ns": 173893913818756,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 42.528737,
+        "nonzero_frames": 13,
+        "detected_frames": {
+          "440": 8,
+          "880": 8,
+          "1760": 1
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "silence_hold_ms": 2000,
+      "stop_to_silent_read_ms": 83.444722,
+      "last_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": null,
+        "state": "stopped",
+        "converted_blocks": 11
+      },
+      "group": "native-acceptance",
+      "write_summary": {
+        "blocks": 11,
+        "p50_ms": 33.935478,
+        "p95_ms": 40.214999000000006,
+        "p99_ms": 41.239844600000005,
+        "max_ms": 41.496056,
+        "quantile_method": "numpy.percentile linear"
+      }
+    },
+    {
+      "status": "passed",
+      "real_rvc": true,
+      "physical_capture": false,
+      "vrchat": false,
+      "perceptual_quality": false,
+      "index_rate": 0.0,
+      "case": "worker_death",
+      "boundary": "capture block end to accepted OS write; excludes ADC and VRChat",
+      "stop_samples_are_percentiles": false,
+      "start_to_active_ms": 3863.336395,
+      "after": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": "vc_worker_eof",
+        "state": "failed",
+        "converted_blocks": 12
+      },
+      "capture": {
+        "frames": 450,
+        "sample_count": 432000,
+        "last_read_ns": 173905112954250,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 45.231991,
+        "nonzero_frames": 15,
+        "detected_frames": {
+          "440": 9,
+          "880": 6,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "silence_hold_ms": 2000,
+      "stop_to_silent_read_ms": 84.139619,
+      "last_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": "vc_worker_eof",
+        "state": "failed",
+        "converted_blocks": 12
+      },
+      "group": "native-acceptance",
+      "write_summary": {
+        "blocks": 12,
+        "p50_ms": 34.302098,
+        "p95_ms": 38.59060705,
+        "p99_ms": 39.93934301,
+        "max_ms": 40.276527,
+        "quantile_method": "numpy.percentile linear"
+      }
+    },
+    {
+      "status": "passed",
+      "real_rvc": true,
+      "physical_capture": false,
+      "vrchat": false,
+      "perceptual_quality": false,
+      "index_rate": 0.5,
+      "case": "worker_death",
+      "boundary": "capture block end to accepted OS write; excludes ADC and VRChat",
+      "stop_samples_are_percentiles": false,
+      "start_to_active_ms": 3248.840557,
+      "after": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": "vc_worker_eof",
+        "state": "failed",
+        "converted_blocks": 11
+      },
+      "capture": {
+        "frames": 418,
+        "sample_count": 401280,
+        "last_read_ns": 173915679667556,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 43.511145,
+        "nonzero_frames": 13,
+        "detected_frames": {
+          "440": 8,
+          "880": 7,
+          "1760": 1
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "silence_hold_ms": 2000,
+      "stop_to_silent_read_ms": 80.883576,
+      "last_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": "vc_worker_eof",
+        "state": "failed",
+        "converted_blocks": 11
+      },
+      "group": "native-acceptance",
+      "write_summary": {
+        "blocks": 11,
+        "p50_ms": 36.515184,
+        "p95_ms": 38.249889,
+        "p99_ms": 38.3579738,
+        "max_ms": 38.384995,
+        "quantile_method": "numpy.percentile linear"
+      }
+    },
+    {
+      "status": "passed",
+      "real_rvc": true,
+      "physical_capture": false,
+      "vrchat": false,
+      "perceptual_quality": false,
+      "index_rate": 0.5,
+      "case": "stop",
+      "boundary": "capture block end to accepted OS write; excludes ADC and VRChat",
+      "stop_samples_are_percentiles": false,
+      "sustained_seconds": 60.0,
+      "start_to_active_ms": 3311.667231,
+      "after": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": null,
+        "state": "stopped",
+        "converted_blocks": 761
+      },
+      "capture": {
+        "frames": 3419,
+        "sample_count": 3282240,
+        "last_read_ns": 174054409746000,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 53.825232,
+        "nonzero_frames": 1619,
+        "detected_frames": {
+          "440": 508,
+          "880": 291,
+          "1760": 108
+        },
+        "reader_eof": false,
+        "reader_error": null
+      },
+      "silence_hold_ms": 2000,
+      "stop_to_silent_read_ms": 19.613474,
+      "last_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "stopping": false,
+        "conversion_verified": false,
+        "error": null,
+        "state": "stopped",
+        "converted_blocks": 761
+      },
+      "group": "native-sustained",
+      "write_summary": {
+        "blocks": 761,
+        "p50_ms": 69.383924,
+        "p95_ms": 69.836638,
+        "p99_ms": 70.04075,
+        "max_ms": 75.040808,
+        "quantile_method": "numpy.percentile linear"
+      }
+    }
+  ],
+  "native_ui": {
+    "status": "passed",
+    "native_tauri": true,
+    "real_rvc": true,
+    "physical_capture": false,
+    "vrchat": false,
+    "perceptual_quality": false,
+    "index_rate": 0.5,
+    "stop_to_silent_read_ms": 81.386443,
+    "capture": {
+      "frames": 1147,
+      "sample_count": 1101120,
+      "last_read_ns": 174100760199302,
+      "capture_gaps_over_100ms": 0,
+      "max_read_gap_ms": 42.597468,
+      "nonzero_frames": 15,
+      "detected_frames": {
+        "440": 8,
+        "880": 4,
+        "1760": 3
+      },
+      "reader_eof": false,
+      "reader_error": null
+    },
+    "restart_off": true,
+    "silence_hold_ms": 2000
+  }
+}

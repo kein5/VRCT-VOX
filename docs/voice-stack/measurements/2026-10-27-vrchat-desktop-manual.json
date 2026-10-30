@@ -1,0 +1,114 @@
+{
+  "date": "2026-10-27",
+  "platform": "CachyOS Linux / VRChat desktop / Bluetooth earphones",
+  "speech_version": "0.9.0",
+  "model": "Irodori-TTS-866M-MF-v4.1-F16.gguf",
+  "reference_voice": "none",
+  "environment_reference": "2026-10-27-linux-irodori-090-repeat.json",
+  "audio_format": "s16le mono 48000 Hz",
+  "playback_target": "vrct.p1.sink",
+  "capture_source": "vrct.p1.source",
+  "graph_verified": {
+    "voice_path": "vrct.p1.source -> VRChat.exe:input_MONO",
+    "game_output": "VRChat.exe outputs -> Bluetooth earphones",
+    "game_output_to_virtual_mic": false
+  },
+  "observations": [
+    {
+      "attempt": 1,
+      "event": "short_speech",
+      "completed": 1,
+      "errors": 0,
+      "first_pcm_write_ms": 65.869,
+      "user_report": "Input meter moved but test playback was not heard.",
+      "audible_confirmed": false
+    },
+    {
+      "attempt": 2,
+      "event": "long_speech_before_fix",
+      "completed": 0,
+      "errors": 1,
+      "error": "transport_error",
+      "first_pcm_write_ms": null,
+      "server_log_elapsed_s": 4.309,
+      "server_log_stopped_after_disconnect_s": 2.306,
+      "user_report": "Test silent; VRChat menu audio audible.",
+      "audible_confirmed": false
+    },
+    {
+      "attempt": 3,
+      "event": "long_speech_after_fix",
+      "completed": 1,
+      "errors": 0,
+      "first_pcm_write_ms": 93.598,
+      "user_report": "Voice was heard in VRChat microphone test.",
+      "audible_confirmed": true
+    }
+  ],
+  "ui_submit_verified": false,
+  "osc_chatbox_verified": false,
+  "vrchat_network_peer_verified": false,
+  "vrchat_latency_measured": false,
+  "physical_microphone_captured_by_harness": false,
+  "audio_saved_by_harness": false,
+  "vrchat_local_test_recording": "User explicitly started VRChat built-in short recording/playback; harness did not access or export it.",
+  "limitations": [
+    "CLI entry, not VRCT GUI submit.",
+    "Input reached VRChat and user heard local microphone test; peer transmission and exact latency were not measured.",
+    "No HMD/Windows acceptance.",
+    "One successful listening and one stop observation, not a repeated perceptual quality trial."
+  ],
+  "stop_test": {
+    "boundary": "backend_stop_to_worker_idle",
+    "user_observation_pending": false,
+    "vrchat_latency_measured": false,
+    "before_cancel": {
+      "accepted": 3,
+      "completed": 0,
+      "dropped": 0,
+      "duplicates": 0,
+      "cancelled": 0,
+      "errors": 0,
+      "last_error": null,
+      "last_first_write_ms": 104.396,
+      "sample_rate": 48000,
+      "queued": 2,
+      "active": true,
+      "mode": "original",
+      "closed": false
+    },
+    "cancel_to_idle_ms": 5.152492,
+    "after_cancel": {
+      "accepted": 3,
+      "completed": 0,
+      "dropped": 2,
+      "duplicates": 0,
+      "cancelled": 1,
+      "errors": 0,
+      "last_error": null,
+      "last_first_write_ms": 104.396,
+      "sample_rate": 48000,
+      "queued": 0,
+      "active": false,
+      "mode": "original",
+      "closed": false
+    },
+    "after_two_seconds": {
+      "accepted": 3,
+      "completed": 0,
+      "dropped": 2,
+      "duplicates": 0,
+      "cancelled": 1,
+      "errors": 0,
+      "last_error": null,
+      "last_first_write_ms": 104.396,
+      "sample_rate": 48000,
+      "queued": 0,
+      "active": false,
+      "mode": "original",
+      "closed": false
+    },
+    "worker_closed": true,
+    "user_report": "Input meter stopped and did not restart."
+  }
+}

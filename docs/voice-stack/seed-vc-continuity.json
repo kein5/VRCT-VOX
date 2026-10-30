@@ -1,0 +1,27 @@
+{
+  "scope": "41s file released in real time; no OS capture/output or physical microphone",
+  "profile": "low",
+  "source_repetitions": 6,
+  "resets": 4,
+  "completed": true,
+  "over_two_blocks": 0,
+  "processing_p50_ms": 39.042834,
+  "processing_p95_ms": 42.7663974,
+  "final_two_seconds_nonzero": 0,
+  "allocation_min_bytes": 725371392,
+  "allocation_max_bytes": 733497856,
+  "cycle_converted_blocks": [
+    66,
+    66,
+    66,
+    66,
+    66,
+    66
+  ],
+  "limitations": [
+    "Not 30 minutes or mixed GPU load",
+    "No physical or OS audio",
+    "ASR on 41s input and output each returned one phrase; cannot infer per-cycle content retention",
+    "Perceptual feedback pending"
+  ]
+}

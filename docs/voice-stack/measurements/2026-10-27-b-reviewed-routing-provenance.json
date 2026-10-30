@@ -1,0 +1,20 @@
+{
+  "base_commit": "81e54f18a97f4bb42391daa998bf489de7ff615d",
+  "source_sha256": {
+    "tools/voice_b_poc.py": "a09e76930d6e31c38741cfd8ebaed3d9061d9160e549898b11736170951c98a1",
+    "tools/voice_acceptance.py": "1ad5fffaa150a1514468e527a781b6941ec7a9fc8c4183b094be1cdb3258041a",
+    "tools/voice_latency.py": "1861be3f2b32111d87876177622086a738204a139fdde36739ed2894078d011a",
+    "src-python/models/audio_routing/devices_pipewire.py": "5367d8b4281dd8d6ea0ee611a807891961a7a01f1f50f814f0242bb62e3fb146",
+    "src-python/models/tts/tts_scheduler.py": "7444e4b559b4d509667f76e1c8b3c3eeb1008cfc36aaf4d4316790c3969fd041"
+  },
+  "models_used": false,
+  "engine_downloaded": false,
+  "configured_graph_rate": 48000,
+  "configured_quantum": 256,
+  "physical_devices": false,
+  "gpu_load_controlled": false,
+  "concurrent_workload": "Separate private graph runs a two-tone 1800 s soak. Other desktop load is uncontrolled.",
+  "script_clock": "time.monotonic_ns, one observing Python process",
+  "note": "Source includes review fixes beyond base_commit; source hashes identify exact content.",
+  "commit_containing_exact_sources": "9dc6973c02d2889a61299aed11d50cc9686f2758"
+}

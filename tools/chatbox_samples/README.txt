@@ -1,8 +1,9 @@
-VRCT Chatbox Sample Player — Windows x64
+VRCT Chatbox Sample Player — Windows x64 / Linux (Python)
 =======================================
 
 チャットボックス検出モデルの学習画像を作るための、多言語サンプル送信ツールです。
-PythonやVRCT本体は不要です。サンプル本文はこの用途向けに作成した架空の会話です。
+Windows配布exeにはPythonやVRCT本体は不要です。LinuxではリポジトリのPython環境を使います。
+サンプル本文はこの用途向けに作成した架空の会話です。
 
 【別PCでの使い方】
 1. ZIPを全部展開し、書き込み可能なフォルダに置きます。
@@ -20,7 +21,8 @@ PythonやVRCT本体は不要です。サンプル本文はこの用途向けに�
 OSC送信ツールが複数動いていると表示を上書きし合うため、他の送信を止めてください。
 
 【キー操作】
-コンソールにフォーカスを置いて操作します。開始後はEnter不要です。
+コンソールにフォーカスを置いて操作します。Windowsは開始後Enter不要です。
+LinuxはP/Q/Rを入力した後にEnterを押します。端末の入力モードは変更しません。
 P: 一時停止／再開、QまたはCtrl+C: 終了、R: 送信件数・状態。
 開始前の取り消しはQを入力してEnter。終了後はEnterで画面を閉じます。
 停止しても最後のチャットは表示時間が終わるまで残る場合があります。
@@ -52,6 +54,12 @@ samples.txt/jsonlはビルド時の一覧なので、JSONを編集しても自�
   .\VRCT-Chatbox-Sample-Player.exe --port 9000 --max-messages 50
   .\VRCT-Chatbox-Sample-Player.exe --list
   .\VRCT-Chatbox-Sample-Player.exe --dry-run --max-messages 3
+
+【Linux：リポジトリのルートからuvで実行】
+  uv run --no-project --python .venv_linux/bin/python python tools/chatbox_sample_player.py --dry-run --max-messages 3
+  uv run --no-project --python .venv_linux/bin/python python tools/chatbox_sample_player.py --languages ja --once
+前者はプレビューのみです。後者はEnterで確認後にローカルVRChatへ送信します。
+標準入力が端末ではない場合、送信には--startの明示が必要です。
 
 通常は開始時にEnter待ちです。--startを明示するとEnterを待たず送信します。
 --onceは全サンプルを1周して終了、--max-messagesは送信件数で終了します。

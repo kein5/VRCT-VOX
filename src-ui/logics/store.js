@@ -12,6 +12,7 @@ import {
     translator_status,
 } from "@ui_configs";
 import { keepNewestVrLayout } from "./common/vrPanelTooltip";
+import { requestSettingsNavigation } from "./voice/settingsNavigation";
 
 export const store = {
     backend_subprocess: null,
@@ -52,6 +53,13 @@ export const createAtomWithHook = (initialValue, base_name, options) => {
 
         const updateAtom = (payload, options = {}) => {
             const { remain_state = false, set_state, lock_state } = options;
+
+            if (!options.voice_navigation_confirmed &&
+                ((base_name === "SelectedConfigTabId" && payload !== currentAtom.data) ||
+                 (base_name === "IsOpenedConfigPage" && payload === false))) {
+                requestSettingsNavigation(() => updateAtom(payload, { ...options, voice_navigation_confirmed: true }));
+                return;
+            }
 
             setAtom((currentValue) => {
                 let new_state;
@@ -235,6 +243,7 @@ export const { atomInstance: Atom_MessageFormat_ExampleViewFilter, useHook: useS
 
 // Hotkeys
 export const { atomInstance: Atom_Hotkeys, useHook: useStore_Hotkeys } = createAtomWithHook({
+    open_quick_chat: null,
     toggle_vrct_visibility: null,
     toggle_translation: null,
     toggle_transcription_send: null,

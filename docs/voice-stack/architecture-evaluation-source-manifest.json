@@ -1,0 +1,358 @@
+{
+  "review_date": "2026-10-27",
+  "code_commit": "1f7900efb705965c32e5dcae1880913763c2ad40",
+  "notes": [
+    "Public sources saved for local reading only; not copied into repository.",
+    "Remote main/master pages are mutable; hashes identify saved representations, not release pinning.",
+    "Original sources under /tmp are temporary.",
+    "Source index and assessment remain in repository."
+  ],
+  "sources": [
+    {
+      "name": "speech-readme",
+      "url": "https://raw.githubusercontent.com/nyosegawa/speech.cpp/main/README.md",
+      "round": 0,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/speech-readme.md",
+      "sha256": "fb05b287db5073c21221db90b0e0618484f3875274a7a8459ac532799a9537d1",
+      "saved_at_utc": "2026-10-27T04:09:48.783588+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "speech-server",
+      "url": "https://raw.githubusercontent.com/nyosegawa/speech.cpp/main/docs/server.md",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/speech-server.md",
+      "sha256": "4a628bf8bc27c746562c6cbbd5d994bca484608f69f99d5a87c01b0f75cbd524",
+      "saved_at_utc": "2026-10-27T04:09:48.828620+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "speech-c-api",
+      "url": "https://raw.githubusercontent.com/nyosegawa/speech.cpp/main/docs/c-api.md",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/speech-c-api.md",
+      "sha256": "452e82af4a574bc04a9a94801406f6ff035f48d1e0916a21245e44b95860a1c2",
+      "saved_at_utc": "2026-10-27T04:09:48.837162+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "speech-qwen",
+      "url": "https://raw.githubusercontent.com/nyosegawa/speech.cpp/main/docs/models/qwen3-tts.md",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/speech-qwen.md",
+      "sha256": "7216df5e25bd65996a460cfef2ed55a0aea1157141e096c26d51079cf47a507b",
+      "saved_at_utc": "2026-10-27T04:09:48.780754+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "speech-irodori",
+      "url": "https://raw.githubusercontent.com/nyosegawa/speech.cpp/main/docs/models/irodori-tts.md",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/speech-irodori.md",
+      "sha256": "90bd01890f688152b7eec869a4028dfe44784f3bca433ed4b9faffbb295c1568",
+      "saved_at_utc": "2026-10-27T04:09:49.108769+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "speech-license",
+      "url": "https://raw.githubusercontent.com/nyosegawa/speech.cpp/main/LICENSE",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/speech-license.md",
+      "sha256": "688f8aca0abe167966d277ed00bd594a5a51b028a4fbc1516ff9de7ef05c521a",
+      "saved_at_utc": "2026-10-27T04:09:49.095466+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "vcclient-readme",
+      "url": "https://raw.githubusercontent.com/w-okada/voice-changer/master/README.md",
+      "round": 0,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/vcclient-readme.md",
+      "sha256": "62514c222657e557bc574d59c78db3eda3bce61928793b58f71ff11fb46fb7f0",
+      "saved_at_utc": "2026-10-27T04:09:49.123451+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "vcclient-notice",
+      "url": "https://raw.githubusercontent.com/w-okada/voice-changer/master/LICENSE-NOTICE",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/vcclient-notice.md",
+      "sha256": "329f27feab0e3a9ab3a45d39ddd5f73982537e8f825713cb097bb12fa9fbae47",
+      "saved_at_utc": "2026-10-27T04:11:58.776324+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "vcclient-legacy-api",
+      "url": "https://raw.githubusercontent.com/w-okada/voice-changer/master/server/restapi/MMVC_Rest_VoiceChanger.py",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/vcclient-legacy-api.md",
+      "sha256": "6251ed642058695fc6c55d0a2f0b5024875874721cbd1a9bae0bf4bb62e3ad64",
+      "saved_at_utc": "2026-10-27T04:09:49.373959+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "seed-readme",
+      "url": "https://raw.githubusercontent.com/jiaheguo521/seed-vc-realtime/main/README.md",
+      "round": 0,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/seed-readme.md",
+      "sha256": "9e2cce49372aaa7ae2422590f85243c37badf50df8ab482f1e6994ac22ad3f36",
+      "saved_at_utc": "2026-10-27T04:09:49.440670+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "seed-engine",
+      "url": "https://raw.githubusercontent.com/jiaheguo521/seed-vc-realtime/main/realtime_vc_engine.py",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/seed-engine.md",
+      "sha256": "9d09e4689593c8e2135ee3017cb2a9f67b5e6cc9894080b34dbd0ad8b767423c",
+      "saved_at_utc": "2026-10-27T04:09:49.460143+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "seed-license",
+      "url": "https://raw.githubusercontent.com/jiaheguo521/seed-vc-realtime/main/LICENSE",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/seed-license.md",
+      "sha256": "8b1ba204bb69a0ade2bfcf65ef294a920f6bb361b317dba43c7ef29d96332b9b",
+      "saved_at_utc": "2026-10-27T04:09:49.470283+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "seed-model",
+      "url": "https://huggingface.co/Plachta/Seed-VC/raw/main/README.md",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/seed-model.md",
+      "sha256": "a79f0b84971e7383032ef525691ecda81aa76f6ec1070ce1e072ac2956d4593e",
+      "saved_at_utc": "2026-10-27T04:11:59.025914+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "irodori-card",
+      "url": "https://huggingface.co/Aratako/Irodori-TTS-v4.1-Small-MF/raw/main/README.md",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/irodori-card.md",
+      "sha256": "a0ce54c3fb6b19a3af8f41d38e127162c04ae4217d036c16774bb749dd2a20bb",
+      "saved_at_utc": "2026-10-27T04:09:49.750425+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "qwen-card",
+      "url": "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice/raw/main/README.md",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/qwen-card.md",
+      "sha256": "1e3adeecc7a72d6756fdb77c2847f8e994195e105b51206a7a5c049b0dfa48a8",
+      "saved_at_utc": "2026-10-27T04:09:49.739244+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "wireplumber-linking",
+      "url": "https://pipewire.pages.freedesktop.org/wireplumber/policies/linking.html",
+      "round": 0,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/wireplumber-linking.md",
+      "sha256": "ff0e9fa1b14eef458fb01dc0a2e83c5e95bb9479694d6399a8c6a7dc6577ce35",
+      "saved_at_utc": "2026-10-27T04:09:51.601271+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "wireplumber-priorities",
+      "url": "https://pipewire.pages.freedesktop.org/wireplumber/daemon/configuration/priorities.html",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/wireplumber-priorities.md",
+      "sha256": "bc13b042787fe66c442f941916a7004ef43faa76c7b83ac4249cd6d8bd8e1c39",
+      "saved_at_utc": "2026-10-27T04:09:51.686671+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "pipewire-loopback",
+      "url": "https://docs.pipewire.org/page_module_loopback.html",
+      "round": 0,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/pipewire-loopback.md",
+      "sha256": "e1b395061af80d0c0a33e2e702a24cd660be0d98d67310bccf916492ebe06984",
+      "saved_at_utc": "2026-10-27T04:09:52.125687+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "pipewire-properties",
+      "url": "https://docs.pipewire.org/page_man_pipewire-props_7.html",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/pipewire-properties.md",
+      "sha256": "b2a8d1d491cbd8c1c5e15dda3f0f72def43351f45661c7a504ef7f1d2ba7cb0d",
+      "saved_at_utc": "2026-10-27T04:09:53.190561+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "pipewire-latency",
+      "url": "https://docs.pipewire.org/page_latency.html",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/pipewire-latency.md",
+      "sha256": "218fab3ce173a4cd9f419c2688ea1ea1f02b45eb32d44fc18c47a6883eea0879",
+      "saved_at_utc": "2026-10-27T04:09:53.121611+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "portaudio-callback",
+      "url": "https://www.portaudio.com/docs/v19-doxydocs/writing_a_callback.html",
+      "round": 0,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/portaudio-callback.md",
+      "sha256": "23f5110b4a1fb062169938cabd1314321b39ba9c826c295feceb321937d22b76",
+      "saved_at_utc": "2026-10-27T04:09:53.716413+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "windows-exclusive",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/coreaudio/exclusive-mode-streams",
+      "round": 0,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/windows-exclusive.md",
+      "sha256": "9f970ffecaff33dc6e77cbde6c6f9b356a4bccf8fd589adef12bc924f5b156a1",
+      "saved_at_utc": "2026-10-27T04:09:52.501338+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "windows-low-latency",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/audio/low-latency-audio",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/windows-low-latency.md",
+      "sha256": "ca7d81977b6ebbc83f1de98f74a7f564787b891ff0e0af4728c92cb54415f215",
+      "saved_at_utc": "2026-10-27T04:09:52.990430+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "windows-process-loopback",
+      "url": "https://learn.microsoft.com/en-us/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample/",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/windows-process-loopback.md",
+      "sha256": "f20afa2ce440ca2e78b6cca575dd81a7ba24c366517264a6b46ae0ecfdadbb0f",
+      "saved_at_utc": "2026-10-27T04:09:53.355389+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "atam-original",
+      "url": "https://www.sei.cmu.edu/documents/629/2000_005_001_13706.pdf",
+      "round": 0,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/atam-original.pdf",
+      "sha256": "f3d40302402a9f075615b2bf431e4ed84397cb4072fca6d842432191e9bdf324",
+      "saved_at_utc": "2026-10-27T04:09:55.569979+00:00",
+      "representation": "PDF original",
+      "pinned_commit": null
+    },
+    {
+      "name": "atam-original",
+      "url": "https://www.sei.cmu.edu/documents/629/2000_005_001_13706.pdf",
+      "round": 0,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/atam-original.txt",
+      "sha256": "adbaad5525b01c20c2f6fe233d51498f3e1e4a603ba9e3bc907d1bda2e587bb3",
+      "saved_at_utc": "2026-10-27T04:09:55.606248+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "qaw-original",
+      "url": "https://www.sei.cmu.edu/documents/716/2003_005_001_14249.pdf",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/qaw-original.pdf",
+      "sha256": "5b8cc63ac6f39a112c3a247522a7049c3c5d268b537e71261c0ea42389786356",
+      "saved_at_utc": "2026-10-27T04:09:55.120049+00:00",
+      "representation": "PDF original",
+      "pinned_commit": null
+    },
+    {
+      "name": "qaw-original",
+      "url": "https://www.sei.cmu.edu/documents/716/2003_005_001_14249.pdf",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/qaw-original.txt",
+      "sha256": "de3ae43b687f34ec6f91d62a25898dff36b6ad9f0cd5e832b660cd23ae20e6a2",
+      "saved_at_utc": "2026-10-27T04:09:55.140242+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "gpl-faq",
+      "url": "https://www.gnu.org/licenses/gpl-faq.html",
+      "round": 1,
+      "local_file": "/tmp/vrct-architecture-review/research/sources/gpl-faq.md",
+      "sha256": "05456aa025fa4e7ede1747d07c142b3e9581b8658318717bf3c07f3e5b51a2b4",
+      "saved_at_utc": "2026-10-27T04:09:55.014091+00:00",
+      "representation": "saved plaintext; HTML sources converted by fetch.py",
+      "pinned_commit": null
+    },
+    {
+      "name": "VRCT_cpp_CODEX_START",
+      "origin": "/data/projects/VRCT.cpp/VRCT_cpp_CODEX_START.md",
+      "local_file": "/tmp/vrct-architecture-review/research/sources/VRCT_cpp_CODEX_START.md",
+      "sha256": "d16273d8b35a15d2a066ccaa0ffb8cf96b4b51bdcd61d225c508c9be89e3a7d2"
+    },
+    {
+      "name": "VRCT_cpp_Codex_Implementation_Spec",
+      "origin": "/data/projects/VRCT.cpp/VRCT_cpp_Codex_Implementation_Spec.md",
+      "local_file": "/tmp/vrct-architecture-review/research/sources/VRCT_cpp_Codex_Implementation_Spec.md",
+      "sha256": "3a00ee4fd8d2c0d5f0424bb41bb7a94330012384d934fb2878daa703c11a2f64"
+    },
+    {
+      "name": "VRCT_cpp_imozuru_evidence_map",
+      "origin": "/data/projects/VRCT.cpp/VRCT_cpp_imozuru_evidence_map.md",
+      "local_file": "/tmp/vrct-architecture-review/research/sources/VRCT_cpp_imozuru_evidence_map.md",
+      "sha256": "28345f05c1135217cd9b944f978972877a8ba3349194e94558650892b9e646e6"
+    },
+    {
+      "name": "vrct-controller",
+      "commit": "1f7900efb705965c32e5dcae1880913763c2ad40",
+      "local_file": "/tmp/vrct-architecture-review/research/sources/vrct-controller.txt",
+      "sha256": "b944f87bad3829371c75b2d542340f0202177ee630afcaec95ce411043f713a2"
+    },
+    {
+      "name": "vrct-mainloop",
+      "commit": "1f7900efb705965c32e5dcae1880913763c2ad40",
+      "local_file": "/tmp/vrct-architecture-review/research/sources/vrct-mainloop.txt",
+      "sha256": "2b422c65f22593b0e5e04cbd2dec3397ad4b16d7b7db8a1f7d289797f9f0c2ca"
+    }
+  ],
+  "skills": [
+    {
+      "file": "/tmp/vrct-architecture-review/skills/adr-authoring/SKILL.md",
+      "sha256": "08292bc9ef80b9faa32e5e1b499a194b135dbeed7e500e1c66e8ed06e7e3670e"
+    },
+    {
+      "file": "/tmp/vrct-architecture-review/skills/software-architecture/SKILL.md",
+      "sha256": "a38b4b7996b99a7283aff4bc9312f12a026588c70a5d0682b0f79bb12f19d688"
+    },
+    {
+      "file": "/tmp/vrct-architecture-review/skills/software-architecture-analysis/SKILL.md",
+      "sha256": "a79da8aa287d0f858ca865d98ddb24aac0c9ad823303d6c311543e979ddd4077"
+    },
+    {
+      "file": "/tmp/vrct-architecture-review/skills/voice-latency-audit/SKILL.md",
+      "sha256": "04be80d826c061f3c955710c7da1e432912655d8ebe341b217fbe9bbaed9bb96"
+    },
+    {
+      "file": "/home/kei/Documents/projects/it-duo/.agents/skills/imozuru/SKILL.md",
+      "sha256": "d1cfff8d8e04e3c10e353b9efe899bb0ee927f3d51c7a018627caf35871d4223"
+    },
+    {
+      "file": "/home/kei/.codex/plugins/cache/openai-curated-remote/superpowers/7.0.1/skills/brainstorming/SKILL.md",
+      "sha256": "61a7ef918652108c76a3fd01e02dd92d39996c6b46d4cb2819cbd03f6c45e46a"
+    }
+  ]
+}

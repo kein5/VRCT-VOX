@@ -1,9 +1,11 @@
 """No VRChat traffic: only in-memory playback and an ephemeral loopback receiver."""
 
 import json
+import os
 from pathlib import Path
 import socket
 import sys
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -14,6 +16,41 @@ from tools import chatbox_sample_player as player  # noqa: E402
 
 
 CATALOG = Path(__file__).resolve().parents[2] / "tools/chatbox_samples"
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Uses a real POSIX pseudo-terminal")
+def test_posix_console_commands_are_nonblocking_and_preserve_queued_keys(monkeypatch):
+    import pty
+
+    master, slave = pty.openpty()
+    try:
+        with os.fdopen(slave, "r", encoding="utf-8") as terminal:
+            monkeypatch.setattr(player, "sys", SimpleNamespace(platform="linux", stdin=terminal))
+            assert player.read_key() == ""  # no input: playback must keep running
+            os.write(master, b"P\nR\nQ\n")
+            assert [player.read_key() for _ in range(6)] == ["p", "", "r", "", "q", ""]
+            assert player.read_key() == ""
+    finally:
+        os.close(master)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Uses POSIX file descriptor readiness")
+def test_posix_console_eof_stops_playback(monkeypatch):
+    read_fd, write_fd = os.pipe()
+    os.close(write_fd)
+    with os.fdopen(read_fd, "r") as pipe:
+        terminal = SimpleNamespace(isatty=lambda: True, fileno=pipe.fileno)
+        monkeypatch.setattr(player, "sys", SimpleNamespace(platform="linux", stdin=terminal))
+        assert player.read_key() == "q"
+
+
+@pytest.mark.parametrize("keys, expected", [(["P"], "p"), (["Q"], "q"), (["R"], "r"), (["\xe0", "K"], ""), ([], "")])
+def test_windows_console_keys_keep_msvcrt_behavior(monkeypatch, keys, expected):
+    read = Mock(side_effect=keys)
+    monkeypatch.setitem(sys.modules, "msvcrt", SimpleNamespace(kbhit=lambda: bool(keys), getwch=read))
+    monkeypatch.setattr(player, "sys", SimpleNamespace(platform="win32", stdin=SimpleNamespace(isatty=lambda: True)))
+    assert player.read_key() == expected
+    assert read.call_count == len(keys)
 
 
 def test_catalog_coverage_and_limits():

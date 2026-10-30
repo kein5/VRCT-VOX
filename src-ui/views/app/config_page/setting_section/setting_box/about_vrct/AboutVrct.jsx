@@ -28,6 +28,9 @@ export const AboutVrct = () => {
     const { currentUiLanguage } = useAppearance();
     return (
         <div className={styles.container}>
+            <p>VRCT-VOX — independent fork by kein5. Not an official VRCT release.</p>
+            <p><a href="https://github.com/kein5/VRCT-VOX" target="_blank" rel="noreferrer">VRCT-VOX</a></p>
+            <p>Original VRCT authors, contributors and project links:</p>
             <div className={styles.dev_section}>
                 <img src={dev_section_title} className={clsx(styles.section_title, styles.the_developers)} />
                 <div className={styles.dev_section_wrapper}>

@@ -1,0 +1,13 @@
+# Separate Python 3.11 environment; install the official CUDA trio first.
+# torch==2.10.0+cu128, torchaudio==2.10.0+cu128, torchvision==0.25.0+cu128
+scipy==1.13.1
+librosa==0.10.2
+huggingface-hub==0.28.1
+munch==4.0.0
+einops==0.8.0
+transformers==4.46.3
+soundfile==0.12.1
+sounddevice==0.5.0
+funasr==1.2.7
+numpy==1.26.4
+PyYAML==6.0.2

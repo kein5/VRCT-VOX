@@ -1,0 +1,557 @@
+{
+  "schema": 1,
+  "status": "passed",
+  "trials": [
+    {
+      "index": 0,
+      "status": "passed",
+      "cases": [
+        {
+          "case": "configured_closed",
+          "operation_ns": 82964656328842,
+          "first_qualifying_read_ns": 82964711035543,
+          "confirmed_ns": 82966716536035,
+          "operation_to_read_ms": 54.706701,
+          "continuous_confirmation_ms": 2005.500492
+        },
+        {
+          "case": "start",
+          "operation_ns": 82966720032018,
+          "first_qualifying_read_ns": 82966892393452,
+          "confirmed_ns": 82968897944415,
+          "operation_to_read_ms": 172.361434,
+          "continuous_confirmation_ms": 2005.550963
+        },
+        {
+          "case": "stop",
+          "operation_ns": 82968901820673,
+          "first_qualifying_read_ns": 82968940626394,
+          "confirmed_ns": 82970946211637,
+          "operation_to_read_ms": 38.805721,
+          "continuous_confirmation_ms": 2005.585243
+        },
+        {
+          "case": "restart",
+          "operation_ns": 82970948829466,
+          "first_qualifying_read_ns": 82971116402705,
+          "confirmed_ns": 82973121918984,
+          "operation_to_read_ms": 167.573239,
+          "continuous_confirmation_ms": 2005.516279
+        },
+        {
+          "case": "source_loss",
+          "operation_ns": 82973122180406,
+          "first_qualifying_read_ns": 82973164532525,
+          "confirmed_ns": 82975170090168,
+          "operation_to_read_ms": 42.352119,
+          "continuous_confirmation_ms": 2005.557643
+        },
+        {
+          "case": "same_name_stays_closed",
+          "operation_ns": 82975188155054,
+          "first_qualifying_read_ns": 82975212372154,
+          "confirmed_ns": 82977217988733,
+          "operation_to_read_ms": 24.2171,
+          "continuous_confirmation_ms": 2005.616579
+        },
+        {
+          "case": "explicit_reselect",
+          "operation_ns": 82977238536084,
+          "first_qualifying_read_ns": 82977388599714,
+          "confirmed_ns": 82979393928457,
+          "operation_to_read_ms": 150.06363,
+          "continuous_confirmation_ms": 2005.328743
+        },
+        {
+          "case": "closed_before_lifetime",
+          "operation_ns": 82979396245440,
+          "first_qualifying_read_ns": 82979436624884,
+          "confirmed_ns": 82981441934497,
+          "operation_to_read_ms": 40.379444,
+          "continuous_confirmation_ms": 2005.309613
+        },
+        {
+          "case": "parent_ready",
+          "operation_ns": 82981597221383,
+          "first_qualifying_read_ns": 82981612637622,
+          "confirmed_ns": 82983617886436,
+          "operation_to_read_ms": 15.416239,
+          "continuous_confirmation_ms": 2005.248814
+        },
+        {
+          "case": "parent_death",
+          "operation_ns": 82983622028806,
+          "first_qualifying_read_ns": 82983660665760,
+          "confirmed_ns": 82985666041108,
+          "operation_to_read_ms": 38.636954,
+          "continuous_confirmation_ms": 2005.375348
+        },
+        {
+          "case": "thread_ready",
+          "operation_ns": 82985833240196,
+          "first_qualifying_read_ns": 82985879054164,
+          "confirmed_ns": 82987884611711,
+          "operation_to_read_ms": 45.813968,
+          "continuous_confirmation_ms": 2005.557547
+        },
+        {
+          "case": "thread_death",
+          "operation_ns": 82987888298423,
+          "first_qualifying_read_ns": 82988012638587,
+          "confirmed_ns": 82990017913368,
+          "operation_to_read_ms": 124.340164,
+          "continuous_confirmation_ms": 2005.274781
+        },
+        {
+          "case": "before_sink_loss",
+          "operation_ns": 82990034713753,
+          "first_qualifying_read_ns": 82990188630731,
+          "confirmed_ns": 82992194079194,
+          "operation_to_read_ms": 153.916978,
+          "continuous_confirmation_ms": 2005.448463
+        },
+        {
+          "case": "sink_loss",
+          "operation_ns": 82992196391639,
+          "first_qualifying_read_ns": 82992279043374,
+          "confirmed_ns": 82994284576913,
+          "operation_to_read_ms": 82.651735,
+          "continuous_confirmation_ms": 2005.533539
+        }
+      ],
+      "source": {
+        "cookie": 1596738203,
+        "serial": 74,
+        "name": "vrct.bridge.input.source",
+        "media_class": "Audio/Source"
+      },
+      "sink_serial": 28,
+      "source_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_endpoint_missing_or_ambiguous",
+        "generation": 5,
+        "conversion_verified": false
+      },
+      "stale_selection_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_source_changed",
+        "generation": 7,
+        "conversion_verified": false
+      },
+      "lifetime": [
+        {
+          "mode": "parent",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        },
+        {
+          "mode": "thread",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        }
+      ],
+      "sink_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_process_exited",
+        "generation": 12,
+        "conversion_verified": false
+      },
+      "capture": {
+        "frames": 1486,
+        "sample_count": 1426560,
+        "last_read_ns": 82994284576913,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.831246,
+        "nonzero_frames": 1480,
+        "detected_frames": {
+          "440": 621,
+          "880": 1480,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      }
+    },
+    {
+      "index": 1,
+      "status": "passed",
+      "cases": [
+        {
+          "case": "configured_closed",
+          "operation_ns": 82994479191246,
+          "first_qualifying_read_ns": 82994500532442,
+          "confirmed_ns": 82996505914672,
+          "operation_to_read_ms": 21.341196,
+          "continuous_confirmation_ms": 2005.38223
+        },
+        {
+          "case": "start",
+          "operation_ns": 82996506567701,
+          "first_qualifying_read_ns": 82996676348603,
+          "confirmed_ns": 82998681831499,
+          "operation_to_read_ms": 169.780902,
+          "continuous_confirmation_ms": 2005.482896
+        },
+        {
+          "case": "stop",
+          "operation_ns": 82998685973138,
+          "first_qualifying_read_ns": 82998724488012,
+          "confirmed_ns": 83000729825840,
+          "operation_to_read_ms": 38.514874,
+          "continuous_confirmation_ms": 2005.337828
+        },
+        {
+          "case": "restart",
+          "operation_ns": 83000731278685,
+          "first_qualifying_read_ns": 83000900329894,
+          "confirmed_ns": 83002905823952,
+          "operation_to_read_ms": 169.051209,
+          "continuous_confirmation_ms": 2005.494058
+        },
+        {
+          "case": "source_loss",
+          "operation_ns": 83002910132695,
+          "first_qualifying_read_ns": 83002948475276,
+          "confirmed_ns": 83004954060971,
+          "operation_to_read_ms": 38.342581,
+          "continuous_confirmation_ms": 2005.585695
+        },
+        {
+          "case": "same_name_stays_closed",
+          "operation_ns": 83004971475694,
+          "first_qualifying_read_ns": 83004996337289,
+          "confirmed_ns": 83007001871733,
+          "operation_to_read_ms": 24.861595,
+          "continuous_confirmation_ms": 2005.534444
+        },
+        {
+          "case": "explicit_reselect",
+          "operation_ns": 83007020365387,
+          "first_qualifying_read_ns": 83007172687896,
+          "confirmed_ns": 83009177891463,
+          "operation_to_read_ms": 152.322509,
+          "continuous_confirmation_ms": 2005.203567
+        },
+        {
+          "case": "closed_before_lifetime",
+          "operation_ns": 83009182668910,
+          "first_qualifying_read_ns": 83009220488786,
+          "confirmed_ns": 83011225874572,
+          "operation_to_read_ms": 37.819876,
+          "continuous_confirmation_ms": 2005.385786
+        },
+        {
+          "case": "parent_ready",
+          "operation_ns": 83011385365329,
+          "first_qualifying_read_ns": 83011401946893,
+          "confirmed_ns": 83013407217327,
+          "operation_to_read_ms": 16.581564,
+          "continuous_confirmation_ms": 2005.270434
+        },
+        {
+          "case": "parent_death",
+          "operation_ns": 83013409723005,
+          "first_qualifying_read_ns": 83013449866127,
+          "confirmed_ns": 83015455213190,
+          "operation_to_read_ms": 40.143122,
+          "continuous_confirmation_ms": 2005.347063
+        },
+        {
+          "case": "thread_ready",
+          "operation_ns": 83015619297188,
+          "first_qualifying_read_ns": 83015668344857,
+          "confirmed_ns": 83017673867928,
+          "operation_to_read_ms": 49.047669,
+          "continuous_confirmation_ms": 2005.523071
+        },
+        {
+          "case": "thread_death",
+          "operation_ns": 83017675367101,
+          "first_qualifying_read_ns": 83017801867498,
+          "confirmed_ns": 83019807212759,
+          "operation_to_read_ms": 126.500397,
+          "continuous_confirmation_ms": 2005.345261
+        },
+        {
+          "case": "before_sink_loss",
+          "operation_ns": 83019826914669,
+          "first_qualifying_read_ns": 83019978153900,
+          "confirmed_ns": 83021983393197,
+          "operation_to_read_ms": 151.239231,
+          "continuous_confirmation_ms": 2005.239297
+        },
+        {
+          "case": "sink_loss",
+          "operation_ns": 83021986852551,
+          "first_qualifying_read_ns": 83022068336440,
+          "confirmed_ns": 83024073882550,
+          "operation_to_read_ms": 81.483889,
+          "continuous_confirmation_ms": 2005.54611
+        }
+      ],
+      "source": {
+        "cookie": 1155796516,
+        "serial": 74,
+        "name": "vrct.bridge.input.source",
+        "media_class": "Audio/Source"
+      },
+      "sink_serial": 28,
+      "source_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_process_exited",
+        "generation": 5,
+        "conversion_verified": false
+      },
+      "stale_selection_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_source_changed",
+        "generation": 7,
+        "conversion_verified": false
+      },
+      "lifetime": [
+        {
+          "mode": "parent",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        },
+        {
+          "mode": "thread",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        }
+      ],
+      "sink_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_process_exited",
+        "generation": 12,
+        "conversion_verified": false
+      },
+      "capture": {
+        "frames": 1484,
+        "sample_count": 1424640,
+        "last_read_ns": 83024073882550,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.801682,
+        "nonzero_frames": 1479,
+        "detected_frames": {
+          "440": 621,
+          "880": 1479,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      }
+    },
+    {
+      "index": 2,
+      "status": "passed",
+      "cases": [
+        {
+          "case": "configured_closed",
+          "operation_ns": 83024276816276,
+          "first_qualifying_read_ns": 83024330186917,
+          "confirmed_ns": 83026335775592,
+          "operation_to_read_ms": 53.370641,
+          "continuous_confirmation_ms": 2005.588675
+        },
+        {
+          "case": "start",
+          "operation_ns": 83026339346176,
+          "first_qualifying_read_ns": 83026511513057,
+          "confirmed_ns": 83028517062645,
+          "operation_to_read_ms": 172.166881,
+          "continuous_confirmation_ms": 2005.549588
+        },
+        {
+          "case": "stop",
+          "operation_ns": 83028521057397,
+          "first_qualifying_read_ns": 83028559695195,
+          "confirmed_ns": 83030565398527,
+          "operation_to_read_ms": 38.637798,
+          "continuous_confirmation_ms": 2005.703332
+        },
+        {
+          "case": "restart",
+          "operation_ns": 83030568624802,
+          "first_qualifying_read_ns": 83030735725835,
+          "confirmed_ns": 83032741898517,
+          "operation_to_read_ms": 167.101033,
+          "continuous_confirmation_ms": 2006.172682
+        },
+        {
+          "case": "source_loss",
+          "operation_ns": 83032742127117,
+          "first_qualifying_read_ns": 83032783650789,
+          "confirmed_ns": 83034789056471,
+          "operation_to_read_ms": 41.523672,
+          "continuous_confirmation_ms": 2005.405682
+        },
+        {
+          "case": "same_name_stays_closed",
+          "operation_ns": 83034807982771,
+          "first_qualifying_read_ns": 83034831488955,
+          "confirmed_ns": 83036837043302,
+          "operation_to_read_ms": 23.506184,
+          "continuous_confirmation_ms": 2005.554347
+        },
+        {
+          "case": "explicit_reselect",
+          "operation_ns": 83036853452813,
+          "first_qualifying_read_ns": 83037007731351,
+          "confirmed_ns": 83039013089594,
+          "operation_to_read_ms": 154.278538,
+          "continuous_confirmation_ms": 2005.358243
+        },
+        {
+          "case": "closed_before_lifetime",
+          "operation_ns": 83039017399820,
+          "first_qualifying_read_ns": 83039055659376,
+          "confirmed_ns": 83041061120949,
+          "operation_to_read_ms": 38.259556,
+          "continuous_confirmation_ms": 2005.461573
+        },
+        {
+          "case": "parent_ready",
+          "operation_ns": 83041220171183,
+          "first_qualifying_read_ns": 83041274199293,
+          "confirmed_ns": 83043279664538,
+          "operation_to_read_ms": 54.02811,
+          "continuous_confirmation_ms": 2005.465245
+        },
+        {
+          "case": "parent_death",
+          "operation_ns": 83043280155743,
+          "first_qualifying_read_ns": 83043322333678,
+          "confirmed_ns": 83045327705862,
+          "operation_to_read_ms": 42.177935,
+          "continuous_confirmation_ms": 2005.372184
+        },
+        {
+          "case": "thread_ready",
+          "operation_ns": 83045495132120,
+          "first_qualifying_read_ns": 83045540849640,
+          "confirmed_ns": 83047546620101,
+          "operation_to_read_ms": 45.71752,
+          "continuous_confirmation_ms": 2005.770461
+        },
+        {
+          "case": "thread_death",
+          "operation_ns": 83047549820958,
+          "first_qualifying_read_ns": 83047716823038,
+          "confirmed_ns": 83049722326150,
+          "operation_to_read_ms": 167.00208,
+          "continuous_confirmation_ms": 2005.503112
+        },
+        {
+          "case": "before_sink_loss",
+          "operation_ns": 83049738407132,
+          "first_qualifying_read_ns": 83049898336664,
+          "confirmed_ns": 83051903746085,
+          "operation_to_read_ms": 159.929532,
+          "continuous_confirmation_ms": 2005.409421
+        },
+        {
+          "case": "sink_loss",
+          "operation_ns": 83051904555769,
+          "first_qualifying_read_ns": 83051988852628,
+          "confirmed_ns": 83053994378624,
+          "operation_to_read_ms": 84.296859,
+          "continuous_confirmation_ms": 2005.525996
+        }
+      ],
+      "source": {
+        "cookie": 1476306475,
+        "serial": 74,
+        "name": "vrct.bridge.input.source",
+        "media_class": "Audio/Source"
+      },
+      "sink_serial": 28,
+      "source_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_process_exited",
+        "generation": 5,
+        "conversion_verified": false
+      },
+      "stale_selection_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_source_changed",
+        "generation": 7,
+        "conversion_verified": false
+      },
+      "lifetime": [
+        {
+          "mode": "parent",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        },
+        {
+          "mode": "thread",
+          "child_stream_removed": true,
+          "python_cleanup_bypassed": true
+        }
+      ],
+      "sink_loss_health": {
+        "requested": false,
+        "active": false,
+        "pending": false,
+        "error": "source_bridge_process_exited",
+        "generation": 12,
+        "conversion_verified": false
+      },
+      "capture": {
+        "frames": 1491,
+        "sample_count": 1431360,
+        "last_read_ns": 83053994378624,
+        "capture_gaps_over_100ms": 0,
+        "max_read_gap_ms": 47.832413,
+        "nonzero_frames": 1485,
+        "detected_frames": {
+          "440": 622,
+          "880": 1485,
+          "1760": 0
+        },
+        "reader_eof": false,
+        "reader_error": null
+      }
+    }
+  ],
+  "os": "Linux-6.18.55-2-cachyos-lts-x86_64-with-glibc2.44",
+  "real_vc_verified": false,
+  "host_audio_changed": false,
+  "raw_pcm_saved": false,
+  "physical_microphone_captured": false,
+  "vrchat_verified": false,
+  "boundary": "operation_to_private_source_read_20ms_frames_2s_continuity",
+  "scope": "Linux >=6.9 thread-pidfd source-forwarding foundation only; no real conversion, Windows or UI acceptance",
+  "tests": {
+    "native_control_acceptance_and_gate_passed": 69,
+    "selected_passed": 319,
+    "selected_skipped": 7,
+    "default_passed": 1173,
+    "default_failed_known": 16,
+    "default_skipped": 6
+  },
+  "review": {
+    "critical": 0,
+    "important_fixed": 1,
+    "minor_deferred": 1,
+    "fix": "creator thread exit before prctl: pre-spawn thread pidfd + native supervisor",
+    "red_reproduced": true
+  }
+}

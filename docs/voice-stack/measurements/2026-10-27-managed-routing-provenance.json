@@ -1,0 +1,21 @@
+{
+  "execution_git_head": "e25a7dbb2271ed42d13c430ec965df6a871c4f9e",
+  "uncommitted_harness_at_execution": true,
+  "command": "UV_CACHE_DIR=/tmp/vrct-uv-cache uv run --no-project python tools/voice_route_acceptance.py --output /tmp/vrct-managed-30-1 --runs 30 --soak-seconds 60",
+  "files_sha256": {
+    "tools/voice_route_acceptance.py": "05ec668e91f07afcd368737d8433444127e7a9338cb69e518c3d77e81cd24ac8",
+    "tools/voice_acceptance.py": "95cf8e17be307b9af27cedaf3215e850bf56981b9a9047095c68f874ceeaf35a",
+    "tools/voice_b_poc.py": "a09e76930d6e31c38741cfd8ebaed3d9061d9160e549898b11736170951c98a1",
+    "tools/voice_latency.py": "1861be3f2b32111d87876177622086a738204a139fdde36739ed2894078d011a",
+    "tools/build_voice_gate.py": "f4baafe20a67070621ec7a772a4df85c8b0bf56c6c2b004b3085946953fe7858",
+    "native/voice-gate/main.c": "92a3cfe3e8c345a38db6b138169e58a6654275cdcf38a5be0ce05c9d94f9cb7d",
+    "build/vrct-voice-gate": "3addad9389c6c0420e06554f53e6decd2246a180d926dea8dfb390c1dbe4660b",
+    "config/pipewire/90-vrct-managed.conf": "4e6cb51b147529d31be25bc535e2792fb3c2c2a38ab649365b4897b20ff4784b",
+    "src-python/models/audio_routing/managed_route.py": "1ff3458bfa5c62d991ddcbba7ae3b20d6739bc87b674b766bc71460421017e29",
+    "src-python/models/audio_routing/mute_state.py": "09275fe40ef6c0213825033a7d050958d96a1c6878a108b88681d505f1ae4aec",
+    "src-python/models/audio_routing/pipewire_gate.py": "6b01a944ae0f955834924c1838f4087cf1b480bd0aca4f25519bed6dcb39d0f9",
+    "src-python/models/tts/tts_scheduler.py": "8dc06a2a5d1d846a403b9267d4b84968a77816c3e8b2d66e678a721bd0de2f6b",
+    "src-python/models/tts/settings.py": "cbbbd3dea5d9df92277d0f2a311dcd0e3f3f63fae1031f08cf092a882acf78bc"
+  },
+  "report_sha256": "eae0cccfa5ca07c8e800ff70006a072d021b64c30f9745b6897c8c93da7a5aa7"
+}

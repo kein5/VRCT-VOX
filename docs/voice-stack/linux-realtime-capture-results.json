@@ -1,0 +1,47 @@
+{
+  "private_os_capture": true,
+  "physical_capture": false,
+  "raw_capture_saved": false,
+  "results": [
+    {
+      "source": "mic",
+      "finals": 2,
+      "partials": 7,
+      "characters": [
+        3,
+        11
+      ],
+      "nonzero_frames": 245,
+      "capture_bound_to_callback_ms": {
+        "p50": 33.358577499999996,
+        "p95": 34.73758125,
+        "max": 34.764589
+      },
+      "capture_bound_to_feed_ms": {
+        "p50": 54.4639795,
+        "p95": 72.2404432,
+        "max": 75.916365
+      }
+    },
+    {
+      "source": "speaker",
+      "finals": 2,
+      "partials": 7,
+      "characters": [
+        3,
+        11
+      ],
+      "nonzero_frames": 245,
+      "capture_bound_to_callback_ms": {
+        "p50": 26.760737,
+        "p95": 29.398739000000003,
+        "max": 29.508078
+      },
+      "capture_bound_to_feed_ms": {
+        "p50": 48.754197500000004,
+        "p95": 67.24642730000001,
+        "max": 71.860697
+      }
+    }
+  ]
+}

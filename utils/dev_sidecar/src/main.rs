@@ -1,13 +1,13 @@
 // Dev-time sidecar wrapper.
 //
 // Tauri's externalBin requires a real executable at
-// src-tauri/bin/VRCT-sidecar-<triple>.exe. In release builds that slot is
+// src-tauri/bin/vrct-vox-sidecar-<triple>.exe. In release builds that slot is
 // filled by the PyInstaller-frozen backend. During development, packaging
 // the Python backend every iteration costs minutes; instead this wrapper
 // is dropped into that slot and launches the venv Python interpreter
 // against src-python/mainloop.py directly, so a Python edit only costs a
 // process restart.
-// VRCT_DEV_VENV selects .venv (default) or .venv_cuda at runtime.
+// VRCT_DEV_VENV selects .venv (default), .venv_cuda or .venv_linux at runtime.
 //
 // Behaviour parity with the frozen backend:
 //   - stdin/stdout/stderr are inherited so the Tauri <-> sidecar JSON
@@ -22,6 +22,8 @@
 // KILL_ON_JOB_CLOSE. When Tauri terminates the sidecar process, the Job
 // closes and the child Python process is killed with it, preventing
 // orphaned interpreters after a dev restart.
+// On Unix exec replaces this wrapper with Python, preserving its PID and the
+// inherited pipes. Terminating the sidecar therefore terminates Python too.
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -31,8 +33,10 @@ fn main() {
     let venv = match env::var("VRCT_DEV_VENV").as_deref() {
         Ok(".venv") | Err(env::VarError::NotPresent) => ".venv",
         Ok(".venv_cuda") => ".venv_cuda",
+        #[cfg(target_os = "linux")]
+        Ok(".venv_linux") => ".venv_linux",
         _ => {
-            eprintln!("dev-sidecar: VRCT_DEV_VENV must be .venv or .venv_cuda");
+            eprintln!("dev-sidecar: VRCT_DEV_VENV must be .venv, .venv_cuda or (on Linux) .venv_linux");
             std::process::exit(127);
         }
     };
@@ -51,9 +55,9 @@ fn main() {
     };
 
     // The exe may be executed from any of:
-    //   <root>/src-tauri/bin/VRCT-sidecar-<triple>.exe   (npm run sidecar-dev drop-in)
-    //   <root>/src-tauri/target/debug/VRCT-sidecar-<triple>.exe   (tauri dev copies it)
-    //   <root>/src-tauri/target/release/VRCT-sidecar-<triple>.exe
+    //   <root>/src-tauri/bin/vrct-vox-sidecar-<triple>.exe   (npm run sidecar-dev drop-in)
+    //   <root>/src-tauri/target/debug/vrct-vox-sidecar-<triple>.exe   (tauri dev copies it)
+    //   <root>/src-tauri/target/release/vrct-vox-sidecar-<triple>.exe
     // Walk upward until we find a directory that looks like the project root
     // (contains src-python/mainloop.py). Check the selected venv separately
     // so CUDA-only checkouts work and missing interpreters get a clear error.
@@ -68,7 +72,10 @@ fn main() {
         }
     };
 
+    #[cfg(windows)]
     let python = root.join(venv).join("Scripts").join("python.exe");
+    #[cfg(not(windows))]
+    let python = root.join(venv).join("bin").join("python");
     let cwd: PathBuf = root.join("src-python");
     let script = cwd.join("mainloop.py");
 
@@ -96,20 +103,37 @@ fn main() {
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
 
-    let status = match cmd.status() {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!(
-                "dev-sidecar: failed to launch {} {}: {}",
-                python.display(),
-                script.display(),
-                e
-            );
-            std::process::exit(127);
-        }
-    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        let error = cmd.exec();
+        // exec only returns on failure; never fall back to another Python.
+        eprintln!(
+            "dev-sidecar: failed to launch {} {}: {}",
+            python.display(),
+            script.display(),
+            error
+        );
+        std::process::exit(127);
+    }
 
-    std::process::exit(status.code().unwrap_or(1));
+    #[cfg(not(unix))]
+    {
+        let status = match cmd.status() {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!(
+                    "dev-sidecar: failed to launch {} {}: {}",
+                    python.display(),
+                    script.display(),
+                    e
+                );
+                std::process::exit(127);
+            }
+        };
+
+        std::process::exit(status.code().unwrap_or(1));
+    }
 }
 
 fn find_project_root(start: &Path) -> Option<PathBuf> {
