@@ -26,7 +26,7 @@ pytestmark = pytest.mark.skipif(
 def appimage(request, tmp_path, monkeypatch):
     root = tmp_path / 'AppImage with spaces'
     root.mkdir()
-    image = root / 'VRCT-TTS.AppImage'
+    image = root / 'VRCT-VOX.AppImage'
     shutil.copyfile(Path(os.environ['VRCT_TEST_APPIMAGE']), image)
     image.chmod(0o755)
     monkeypatch.setenv('VRCT_TEST_APP', str(image))
@@ -79,7 +79,7 @@ def test_normal_launch_keeps_window_painted_after_idle_and_hover(appimage, tmp_p
                         if not matches_launched_app(child.exe(), child.environ(), appimage, appimage=True):
                             continue
                         found = subprocess.run(['xdotool', 'search', '--all', '--onlyvisible',
-                                                '--pid', str(child.pid), '--name', '^VRCT-TTS$'],
+                                                '--pid', str(child.pid), '--name', '^VRCT-VOX$'],
                                                capture_output=True, text=True, timeout=3)
                         ids = found.stdout.split()
                         if len(ids) == 1:

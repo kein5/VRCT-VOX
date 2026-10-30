@@ -754,9 +754,9 @@ class Config:
     def setupDownloadUrl(self, target_version: Optional[str] = None, tag: Optional[str] = None) -> str:
         """Reserved fork installer URL; built-in updates are disabled."""
         revision = tag or (f"v{target_version}" if target_version else None)
-        base = "https://github.com/kein5/VRCT-TTS/releases"
+        base = "https://github.com/kein5/VRCT-VOX/releases"
         route = f"download/{revision}" if revision else "latest/download"
-        return f"{base}/{route}/VRCT-TTS_setup.exe"
+        return f"{base}/{route}/VRCT-VOX_setup.exe"
 
     def __new__(cls):
         if cls._instance is None:
@@ -1093,8 +1093,8 @@ class Config:
         self._PATH_CONFIG = os_path.join(state_dir, "config.json")
         self._PATH_LOGS = os_path.join(state_dir, "logs")
         os_makedirs(self._PATH_LOGS, exist_ok=True)
-        self._GITHUB_URL = "https://api.github.com/repos/kein5/VRCT-TTS/releases/latest"
-        self._GITHUB_RELEASES_LIST_URL = "https://api.github.com/repos/kein5/VRCT-TTS/releases"
+        self._GITHUB_URL = "https://api.github.com/repos/kein5/VRCT-VOX/releases/latest"
+        self._GITHUB_RELEASES_LIST_URL = "https://api.github.com/repos/kein5/VRCT-VOX/releases"
         # The version picker UI exists from 3.6.0; older releases are hidden so
         # users can't switch to a build they can't switch back from.
         # Prereleases of this version (3.6.0-beta.N) are included.

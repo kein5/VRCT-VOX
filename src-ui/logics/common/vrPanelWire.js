@@ -28,4 +28,5 @@ export const isRelayAllowed = (path) => typeof path === "string"
     && /^\/(get|set|run)\//.test(path)
     && !BLOCKED_RELAY_PATHS.includes(path)
     && !path.startsWith("/run/download_")
+    && !path.includes("model_download")
     && !/auth_key|auth_token/.test(path);

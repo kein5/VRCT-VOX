@@ -19,7 +19,7 @@ export const OpenQuickSettingButton = (props) => {
 
     return (
         <div className={styles.container}>
-            <div
+            <button type="button" disabled={is_pending || !is_available} aria-label={props.label}
                 className={clsx(styles.button_wrapper, is_pending && styles.is_pending)}
                 onClick={is_pending ? undefined : props.onClickFunction}
             >
@@ -39,7 +39,7 @@ export const OpenQuickSettingButton = (props) => {
                         </p>
                     )
                 )}
-            </div>
+            </button>
         </div>
     );
 };

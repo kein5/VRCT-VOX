@@ -2,7 +2,7 @@
 
 python tools/fetch_ocr_models.py
 
-This downloads RapidOCR models into the local environment. VRCT-TTS excludes
+This downloads RapidOCR models into the local environment. VRCT-VOX excludes
 these weights from distributions. Use only with the user's acquisition consent.
 """
 

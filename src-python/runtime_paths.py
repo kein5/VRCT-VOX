@@ -22,6 +22,7 @@ def linux_directories(env=None, home=None):
             result[kind] = Path(override).expanduser().resolve()
         else:
             base = Path(env.get(xdg) or "")
+            # Stable storage identity: VRCT-VOX reuses existing settings and models.
             result[kind] = (base if base.is_absolute() else home / fallback) / "vrct-tts"
     return result
 

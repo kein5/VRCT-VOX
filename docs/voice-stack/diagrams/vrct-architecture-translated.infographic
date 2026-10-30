@@ -1,0 +1,45 @@
+infographic relation-dagre-flow-lr-badge-card
+data
+  title 確定したマイクの訳文を発声する
+  desc Linux managed経路｜実ASR/TTSの受入試験は進行中
+  nodes
+    - id mic
+      label 選択したマイク
+      desc 明示的に取得を開始
+      icon mic
+    - id capture
+      label Linux capture
+      desc 48k → 24k mono
+      icon route
+    - id asr
+      label speech.cpp ASR
+      desc Silero VAD / 別セッション
+      icon chip
+    - id partial
+      label 字幕を更新
+      desc partialを同じ行へ
+      icon screen
+    - id translate
+      label 既存翻訳
+      desc mic finalの成功訳だけ
+      icon code
+    - id tts
+      label TTS worker
+      desc 重複・世代・期限を確認
+      icon queue
+    - id out
+      label 仮想マイク
+      desc speech.cpp TTS → OS出力
+      icon mic
+  relations
+    mic - PCM -> capture
+    capture - WebSocket -> asr
+    asr - partial -> partial
+    asr - final -> translate
+    translate - 選択訳 -> tts
+    tts - 音声生成 -> out
+theme
+  palette #176b80 #42659b #665fa4 #217d65 #a46e20
+  base
+    text
+      font-family Noto Sans CJK JP, Yu Gothic, sans-serif

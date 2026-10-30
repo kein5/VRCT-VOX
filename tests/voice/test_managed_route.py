@@ -126,6 +126,38 @@ def ready(control):
     until(lambda: control.status()['ready'] and not control.status()['pending'])
 
 
+def test_managed_attachment_prepares_without_blocking_or_auto_resume(route):
+    control, bus, gate, store = route
+    entered, release = Event(), Event()
+    gate.missing = True
+    def prepare():
+        entered.set()
+        assert release.wait(1)
+        gate.missing = False
+    gate.prepare = prepare
+    control.configure(True)
+    try:
+        assert entered.wait(.5)
+        assert control.status()['preparing']
+        assert not control.status()['ready'] and bus.status()['muted']
+    finally:
+        release.set()
+    ready(control)
+    assert not control.status()['preparing']
+    assert gate.muted and store.value
+
+
+def test_external_and_closed_route_never_prepare(route):
+    control, _, gate, _ = route
+    def unexpected():
+        pytest.fail('external/closed route must not create host resources')
+    gate.prepare = unexpected
+    control.configure(False)
+    control.close()
+    with pytest.raises(RuntimeError):
+        control.configure(True)
+
+
 def test_managed_start_mutes_and_settings_refresh_cannot_unmute(route):
     control, bus, gate, store = route
     control.configure(True)

@@ -14,6 +14,7 @@ from threading import Event, Lock, Thread, Timer, current_thread, get_native_id
 import time
 
 from .settings import PROFILES
+from .low_latency import LowLatencyStandby
 
 ROOT=resource_root()
 BUNDLE=ROOT/'build/speechcpp'
@@ -86,10 +87,14 @@ class SpeechServer:
         self._lock,self._stop=Lock(),Event()
         self._thread=self._child=None
         self._cleanup_ok=True
+        self._standby=None
         self._state=dict(state='stopped',base_url=None,error_code=None)
 
     def health(self):
-        with self._lock: return dict(self._state)
+        with self._lock:
+            state=dict(self._state)
+            if self._standby is not None: state['low_latency']=self._standby.health()
+            return state
 
     def start(self):
         with self._lock:
@@ -131,12 +136,20 @@ class SpeechServer:
         except (KeyError,TypeError): raise _Failure('speech_server_model_tasks') from None
         expected=['recognition','detection'] if self.profile=='asr' else ['synthesis']
         if sorted(tasks)!=sorted(expected): raise _Failure('speech_server_model_tasks')
+        if self.options.get('low_latency'):
+            speech=models['data'][0]['speech']
+            if (self.profile!='japanese' or speech.get('architecture')!='irodori-tts'
+                    or speech.get('device','CPU').lower()=='cpu'):
+                raise _Failure('speech_server_low_latency_requires_gpu_irodori')
+            self._standby=LowLatencyStandby(f'http://127.0.0.1:{port}')
+            if not self._stop.is_set(): self._standby.start()
         with self._lock:
             if not self._stop.is_set() and self._child.poll() is None:
                 self._state.update(state='ready',base_url=f'http://127.0.0.1:{port}')
 
     def _run(self):
         failure=None
+        exit_error='speech_server_exited'
         try:
             deadline=time.monotonic()+START_TIMEOUT
             binary=Path(self.binary) if self.binary else bundled_binary()
@@ -145,29 +158,39 @@ class SpeechServer:
             os.set_blocking(self._child.stderr.fileno(),False)
             pending=bytearray()
             while not self._stop.is_set():
-                if self._child.poll() is not None:
-                    raise _Failure('speech_server_exited')
-                if self.health()['state']!='ready' and time.monotonic()>=deadline:
+                exited=self._child.poll() is not None
+                if not exited and self.health()['state']!='ready' and time.monotonic()>=deadline:
                     raise _Failure('speech_server_start_timeout')
-                if not select.select([self._child.stderr],[],[],.05)[0]: continue
-                data=os.read(self._child.stderr.fileno(),8192)
-                if not data: continue
+                if not exited and not select.select([self._child.stderr],[],[],.05)[0]: continue
+                # A fast failure can exit before our first read. Drain a bounded
+                # amount from the nonblocking pipe, including its final partial line.
+                try: data=os.read(self._child.stderr.fileno(),65536 if exited else 8192)
+                except BlockingIOError: data=b''
+                if not data and not exited: continue
                 pending.extend(data)
+                if exited and pending and not pending.endswith(b'\n'): pending.extend(b'\n')
                 while b'\n' in pending:
                     line,_,tail=pending.partition(b'\n');pending=bytearray(tail)
                     if len(line)>65536: raise _Failure('speech_server_protocol')
-                    if self.health()['state']=='ready': continue
-                    matched=READY.search(ANSI.sub(b'',line))
+                    line=ANSI.sub(b'',line)
+                    # Only map the fixed engine's error category. Never publish
+                    # raw stderr, which can contain local model paths or input.
+                    if line.startswith(b'speech: out_of_memory:'):
+                        exit_error='speech_server_out_of_memory'
+                    if exited or self.health()['state']=='ready': continue
+                    matched=READY.search(line)
                     if matched:
                         port=int(matched[1])
                         if not 1<=port<=65535: raise _Failure('speech_server_protocol')
                         self._ready(port,deadline)
                 if len(pending)>65536: raise _Failure('speech_server_protocol')
+                if exited: raise _Failure(exit_error)
         except _Failure as exc:
             failure=str(exc)
         except Exception:
             failure='speech_server_launch_failed'
         finally:
+            if self._standby is not None and not self._standby.close(): self._cleanup_ok=False
             if self._child is not None:
                 try:
                     if self._child.poll() is None:

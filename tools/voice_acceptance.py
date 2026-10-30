@@ -108,17 +108,19 @@ def default_output():
 
 
 @contextmanager
-def private_graph(*, config_fragment=None):
+def private_graph(*, config_fragment=None, rate=48000):
     """Isolate both sockets and policy state; restore environment after workers exit."""
     if not sys.platform.startswith("linux"):
         raise RuntimeError("linux_required")
+    if type(rate) is not int or rate not in (24000, 48000):
+        raise ValueError('unsupported_acceptance_rate')
     for binary in ("pipewire", "wireplumber", "pw-loopback", "pw-cat", "pw-dump", "pw-metadata"):
         if not shutil.which(binary):
             raise RuntimeError(f"missing_{binary}")
     with tempfile.TemporaryDirectory(prefix="vrct-p1-") as directory, ExitStack() as stack:
         root = Path(directory)
         config = root / "acceptance.conf"
-        configuration = PIPEWIRE_CONFIG
+        configuration = PIPEWIRE_CONFIG.replace('default.clock.rate = 48000', f'default.clock.rate = {rate}')
         if config_fragment:
             fragment = Path(config_fragment).read_text(encoding="utf-8").strip()
             prefix = "context.modules = ["

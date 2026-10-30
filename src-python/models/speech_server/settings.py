@@ -3,7 +3,7 @@ from pathlib import Path
 import stat
 
 PROFILES = ('japanese', 'multilingual', 'asr')
-DEFAULT = dict(model='', vad_model='', voice_file='', device='auto')
+DEFAULT = dict(model='', vad_model='', voice_file='', device='auto', low_latency=False)
 
 
 def normalize_settings(value):
@@ -20,7 +20,9 @@ def normalize_settings(value):
         if not isinstance(row,dict) or set(row)-set(DEFAULT):
             raise ValueError('speech_server_settings_invalid')
         row={**DEFAULT,**row}
-        if any(not isinstance(v,str) or len(v)>4096 or any(ord(c)<32 for c in v) for v in row.values()):
+        if (type(row['low_latency']) is not bool or (row['low_latency'] and profile != 'japanese') or
+                any(not isinstance(v,str) or len(v)>4096 or any(ord(c)<32 for c in v)
+                    for k,v in row.items() if k != 'low_latency')):
             raise ValueError('speech_server_settings_invalid')
         if (row['device'] not in ('auto','cpu','gpu') or
                 (row['voice_file'] if profile=='asr' else row['vad_model'])):

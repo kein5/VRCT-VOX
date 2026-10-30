@@ -1,0 +1,12 @@
+#:schema https://docs.cocogitto.io/cog-schema.json
+# Cocogitto 7.0.0. Check an explicit base..HEAD range; do not rewrite old history.
+ignore_merge_commits = true
+ignore_fixup_commits = false
+tag_prefix = "v"
+
+# Deliberately no git_hooks, bump hooks, publish commands, or version rewriting.
+[changelog]
+template = "remote"
+remote = "github.com"
+owner = "kein5"
+repository = "VRCT-VOX"

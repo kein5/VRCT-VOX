@@ -7,8 +7,25 @@ import pytest
 from tools.linux_package import check_tree, inspect_tar, pack, normalize_modes
 
 
+@pytest.mark.parametrize('engine', ['rvc', 'seed_vc'])
+def test_packaged_vc_worker_can_start_outside_source_checkout(tmp_path, engine):
+    import subprocess
+    import sys
+    from tools.build_linux import copy_adapters
+    resources = tmp_path/'relocated-internal'
+    resources.mkdir()
+    copy_adapters(resources)
+    # A real external interpreter cannot import modules hidden in the sidecar PYZ.
+    # --help exercises imports before model loading; no ML packages/downloads needed.
+    result = subprocess.run([sys.executable, '-E', '-s', '-m',
+        f'integrations.{engine}.live_worker', '--help'], cwd=resources,
+        capture_output=True, text=True, timeout=5)
+    assert result.returncode == 0, result.stderr
+    assert '--session' in result.stdout
+
+
 def test_internal_file_link_survives_archive(tmp_path):
-    root = tmp_path / 'VRCT-TTS'
+    root = tmp_path / 'VRCT-VOX'
     (root / 'lib').mkdir(parents=True)
     (root / 'lib/library.so.1').write_bytes(b'library')
     (root / 'lib/library.so').symlink_to('library.so.1')
@@ -17,7 +34,7 @@ def test_internal_file_link_survives_archive(tmp_path):
     assert (tmp_path / 'candidate.tar.gz.sha256').is_file()
     assert inspect_tar(archive) == 4
     with tarfile.open(archive) as src:
-        assert src.getmember('VRCT-TTS/lib/library.so').issym()
+        assert src.getmember('VRCT-VOX/lib/library.so').issym()
 
 
 @pytest.mark.parametrize('target', ['missing', 'cycle', '../outside', '/etc/hosts', 'directory'])
@@ -41,9 +58,9 @@ def test_forbidden_assets_blocked(tmp_path, name):
 
 
 def test_pack_requires_complete_runtime(tmp_path):
-    root = tmp_path / 'VRCT-TTS'
+    root = tmp_path / 'VRCT-VOX'
     root.mkdir()
-    (root / 'vrct-tts').write_text('#!/bin/sh\n')
+    (root / 'vrct-vox').write_text('#!/bin/sh\n')
     with pytest.raises(ValueError, match='runtime'):
         pack(root, tmp_path / 'out.tar.gz')
     assert not (tmp_path / 'out.tar.gz').exists()
@@ -127,7 +144,7 @@ def test_build_reuses_only_marked_work_area(tmp_path):
 
 def test_tar_checks_renamed_nested_zip(tmp_path):
     import zipfile
-    root = tmp_path / 'VRCT-TTS'
+    root = tmp_path / 'VRCT-VOX'
     root.mkdir()
     with zipfile.ZipFile(root / 'data.dat', 'w') as archive:
         archive.writestr('ocr/model.onnx', b'model')

@@ -23,7 +23,7 @@ For an existing inspected Linux candidate:
 uv run --no-project --python 3.11 python tools/build_appimage.py --download-tools
 ```
 
-The second command uses `build/linux/candidate/VRCT-TTS`, `build/appimage` and
+The second command uses `build/linux/candidate/VRCT-VOX`, `build/appimage` and
 `build/appimage-tools`. The full builder instead keeps its AppImage staging and
 tools inside `build/linux`. The download flag fetches only the five build tools
 listed in [appimage-tools.json](appimage-tools.json), with fixed sizes and SHA-256.
@@ -36,9 +36,9 @@ requires deliberate review and repinning, never a hash bypass.
 Default outputs alongside tar.gz:
 
 ```text
-build/linux/artifacts/VRCT-TTS-<version>-linux-x64-vulkan-release.AppImage
-build/linux/artifacts/VRCT-TTS-<version>-linux-x64-vulkan-release.AppImage.sha256
-build/linux/artifacts/VRCT-TTS-<version>-linux-x64-vulkan-release.AppImage.manifest.json
+build/linux/artifacts/VRCT-VOX-<version>-linux-x64-vulkan-release.AppImage
+build/linux/artifacts/VRCT-VOX-<version>-linux-x64-vulkan-release.AppImage.sha256
+build/linux/artifacts/VRCT-VOX-<version>-linux-x64-vulkan-release.AppImage.manifest.json
 ```
 
 The builder checks the fixed runtime prefix, allowing only appimagetool's 16-byte
@@ -52,14 +52,14 @@ sandbox for arbitrary downloaded executables.
 ```sh
 cd build/linux/artifacts
 sha256sum -c ./*.AppImage.sha256
-chmod +x VRCT-TTS-<version>-linux-x64-vulkan-release.AppImage
-./VRCT-TTS-<version>-linux-x64-vulkan-release.AppImage
+chmod +x VRCT-VOX-<version>-linux-x64-vulkan-release.AppImage
+./VRCT-VOX-<version>-linux-x64-vulkan-release.AppImage
 ```
 
 FUSE must be available to the desktop user. For machines without FUSE:
 
 ```sh
-APPIMAGE_EXTRACT_AND_RUN=1 ./VRCT-TTS-<version>-linux-x64-vulkan-release.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./VRCT-VOX-<version>-linux-x64-vulkan-release.AppImage
 ```
 
 Extraction needs temporary disk space for the uncompressed payload (about 1.7 GB
@@ -67,7 +67,7 @@ for the measured local candidate), in addition to the image. A noexec temporary
 filesystem cannot run the extracted program. Both modes preserve settings/data
 in the [XDG locations](linux-build-pipeline.md#run-and-inspect); the image is not
 the writable model directory. The bundled PipeWire template is under
-`usr/lib/vrct-tts/_internal/config/pipewire/`; managed routing still requires
+`usr/lib/vrct-vox/_internal/config/pipewire/`; managed routing still requires
 the explicit [host setup](local-setup-linux.md). No host audio service is restarted.
 
 The pinned GTK plugin uses X11, including XWayland on a Wayland desktop. On hosts

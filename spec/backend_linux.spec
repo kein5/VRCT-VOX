@@ -41,6 +41,6 @@ a = Analysis([str(root / 'src-python/mainloop.py')], pathex=[str(root / 'src-pyt
 a.datas = filter_toc(a.datas)
 a.binaries = filter_toc(a.binaries)
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='vrct-tts-sidecar',
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='vrct-vox-sidecar',
           debug=False, bootloader_ignore_signals=False, strip=False, upx=False, console=True)
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='backend')

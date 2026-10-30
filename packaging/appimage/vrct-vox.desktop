@@ -1,9 +1,9 @@
 [Desktop Entry]
 Type=Application
-Name=VRCT-TTS
+Name=VRCT-VOX
 Comment=Speech, voice conversion and translated chat
-Exec=vrct-tts
-Icon=vrct-tts
+Exec=vrct-vox
+Icon=vrct-vox
 Terminal=false
 Categories=AudioVideo;Audio;
-StartupWMClass=vrct-tts
+StartupWMClass=vrct-vox

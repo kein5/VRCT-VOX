@@ -3,6 +3,7 @@ import { useI18n } from "@useI18n";
 import { useSpeechServers } from "../../../../../../logics/voice/useSpeechServers";
 import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
 import styles from "./VoiceSettings.module.scss";
+import { ModelDownloads } from "./ModelDownloads";
 
 export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }) => {
     const { t } = useI18n();
@@ -38,16 +39,25 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                     <legend>{t(`speech_servers.${name}`)}</legend>
                     <details open={owner?.state !== "ready"}><summary>{t("voice_ui.engine_settings")}</summary>
                     {input("model")}{input(name === "asr" ? "vad_model" : "voice_file")}
+                    {name !== "asr" && <ModelDownloads targets={[name]} blocked={dirty || busy} deviceMode={settings.profiles[name].device}
+                        expected={{ [name]: { model: settings.profiles[name].model } }} />}
                     <label>{t("speech_servers.device")}<select aria-label={t("speech_servers.device")} value={row.device} disabled={busy}
                         onChange={event => field(name, "device", event.target.value)}>
                         {["auto", "cpu", "gpu"].map(device => <option key={device} value={device}>{t(`speech_servers.${device}`)}</option>)}
                     </select></label>
+                    {name === "japanese" && <>
+                        <label className={styles.checkLabel}><input type="checkbox" checked={!!row.low_latency} disabled={busy}
+                            onChange={event => field(name, "low_latency", event.target.checked)} />{t("speech_servers.low_latency")}</label>
+                        <p>{t("speech_servers.low_latency_help")}</p>
+                    </>}
                     </details>
                     <div className={styles.actions}><button type="button" disabled={dirty || saving || busy || !row.model.trim() ||
                         (name === "asr" && !row.vad_model.trim()) || owner?.error_code === "speech_server_cleanup_unconfirmed"}
                         onClick={() => send("/run/start_speech_server", { profile: name, generation: owner.generation })}>{t("speech_servers.start")}</button>
                     <button type="button" onClick={() => send("/run/stop_speech_server", { profile: name })}>{t("speech_servers.stop")}</button></div>
                     <p role="status">{t(`speech_servers.state_${pending[name] ? "pending" : owner?.state ?? "unknown"}`)}</p>
+                    {owner?.low_latency && <p role="status">{t(`speech_servers.low_latency_${owner.low_latency.state}`)}</p>}
+                    {owner?.low_latency?.error_code && <p role="alert">{t("speech_servers.low_latency_failed")}</p>}
                     {owner?.error_code && <p role="alert">{owner.error_code === "speech_server_out_of_memory" && <>{t("voice_ui.memory_error")} </>}{owner.error_code}</p>}
                 </fieldset>;
             })}

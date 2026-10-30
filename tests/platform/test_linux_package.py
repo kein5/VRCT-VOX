@@ -38,8 +38,8 @@ def installation(tmp_path, monkeypatch):
             path.chmod(path.stat().st_mode & ~0o222)
     assert not os.access(root, os.W_OK), 'run package acceptance as an unprivileged user'
     before = inventory(root)
-    monkeypatch.setenv('VRCT_TEST_SIDECAR', str(root / 'vrct-tts-sidecar'))
-    monkeypatch.setenv('VRCT_TEST_APP', str(root / 'vrct-tts'))
+    monkeypatch.setenv('VRCT_TEST_SIDECAR', str(root / 'vrct-vox-sidecar'))
+    monkeypatch.setenv('VRCT_TEST_APP', str(root / 'vrct-vox'))
     try:
         yield root
         assert inventory(root) == before, 'installation mutated during acceptance'
@@ -59,7 +59,7 @@ def test_frozen_router_and_bundled_engine_entrypoints(installation, tmp_path):
     env = dict(os.environ, XDG_CONFIG_HOME=str(tmp_path / 'config'),
                XDG_DATA_HOME=str(tmp_path / 'data'), XDG_CACHE_HOME=str(tmp_path / 'cache'))
     # Invalid control must fail closed, without a missing-module traceback.
-    result = subprocess.run([str(installation / 'vrct-tts-sidecar'), '--voice-router-worker'],
+    result = subprocess.run([str(installation / 'vrct-vox-sidecar'), '--voice-router-worker'],
                             input=b'', capture_output=True, timeout=10, env=env, cwd=tmp_path)
     assert result.returncode == 1
     assert b'Traceback' not in result.stderr

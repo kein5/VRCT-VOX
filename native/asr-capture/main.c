@@ -24,6 +24,7 @@
 
 #define RATE 48000
 #define NS 1000000000ULL
+#define STARTUP_STABLE_NS 1000000000ULL
 struct state {
     struct pw_main_loop *loop;
     struct pw_context *context;
@@ -34,7 +35,7 @@ struct state {
     const struct spa_io_position *position;
     struct spa_latency_info latency;
     struct spa_io_clock epoch;
-    uint64_t cookie, serial, last_packet, last_cycle;
+    uint64_t cookie, serial, last_packet, last_cycle, stable_since;
     const char *name, *kind;
     char stream_name[80];
     uint32_t target, own, links[8], n_links, sequence;
@@ -85,6 +86,7 @@ static void stream_io(void *data, uint32_t id, void *area, uint32_t size) {
     struct state *s = data;
     if (id != SPA_IO_Position) return;
     if (s->started && s->position != area) { failed(s, "clock_changed"); return; }
+    if (s->position != area) s->stable_since = 0;
     s->position = size >= sizeof(struct spa_io_position) ? area : NULL;
 }
 static bool same_latency(const struct spa_latency_info *a, const struct spa_latency_info *b) {
@@ -96,6 +98,7 @@ static void stream_param(void *data, uint32_t id, const struct spa_pod *param) {
     if (!param) {
         if (id == SPA_PARAM_Latency) {
             s->latency_ok = false;
+            s->stable_since = 0;
             if (s->started) failed(s, "latency_removed");
         }
         if (s->started && id == SPA_PARAM_Format) failed(s, "format_removed");
@@ -115,6 +118,7 @@ static void stream_param(void *data, uint32_t id, const struct spa_pod *param) {
             failed(s, "latency_invalid"); return;
         }
         if (s->started && !same_latency(&s->latency, &latency)) { failed(s, "latency_changed"); return; }
+        if (!s->latency_ok || !same_latency(&s->latency, &latency)) s->stable_since = 0;
         s->latency = latency; s->latency_ok = true;
     }
 }
@@ -170,6 +174,17 @@ static bool send_buffer(struct state *s, struct pw_buffer *buffer) {
         buffer->time > now || (s->started && buffer->time <= s->last_cycle)) { failed(s, "timestamp_invalid"); return false; }
     uint64_t first = buffer->time - (uint64_t)ceill(ns);
     if (now - first > 250000000) { failed(s, "stale_buffer"); return false; }
+    /* A Bluetooth source can initially run on the dummy driver before its
+     * hardware clock/latency is ready. Discard negotiation PCM until one epoch
+     * has stayed stable; never buffer it and never relax checks after delivery.
+     * The existing three-second startup watchdog bounds repeated negotiation. */
+    if (!s->started) {
+        if (!s->stable_since || !same_clock(&s->epoch, &clock, false)) {
+            s->stable_since = now;
+            s->epoch = clock;
+        }
+        if (now - s->stable_since < STARTUP_STABLE_NS) return true;
+    }
     for (uint32_t i = 0; i < frames; i += 960) {
         uint32_t count = SPA_MIN(960U, frames - i);
         uint8_t packet[32 + 1920];

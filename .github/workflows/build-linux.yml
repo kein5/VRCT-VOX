@@ -1,4 +1,4 @@
-name: Linux candidate (no publication)
+name: VRCT-VOX Linux candidate (no publication)
 
 on:
   workflow_dispatch:
@@ -14,6 +14,9 @@ on:
       - 'src-python/**'
       - 'src-tauri/**'
       - 'src-ui/**'
+      - 'locales/**'
+      - '*.html'
+      - 'vite.config.js'
       - 'native/**'
       - 'config/pipewire/**'
       - 'integrations/**'
@@ -49,17 +52,17 @@ jobs:
       SPEECH_VARIANT: ${{ inputs.speech_variant || 'linux-x64-vulkan' }}
       UV_PYTHON: '3.11'
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           version: '0.13.5'
           enable-cache: true
           cache-dependency-glob: requirements-linux-build.lock
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.15.0'
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - name: System build and runtime dependencies
         run: |
           sudo apt-get update
@@ -110,20 +113,27 @@ jobs:
             uv run --no-project --python build/linux/venv/bin/python python -m pytest \
             -c tests/voice/pytest.ini tests/platform/test_appimage.py -q \
             --basetemp=build/linux/appimage-acceptance > appimage-acceptance.log 2>&1
+      - name: Record immutable candidate identity and hashes
+        env:
+          CANDIDATE_COMMIT: ${{ github.sha }}
+        run: |
+          python tools/release_candidate.py stage build/linux/candidate --platform linux --commit "$CANDIDATE_COMMIT" \
+            --asset build/linux/artifacts/*.AppImage --asset build/linux/artifacts/*.tar.gz
+          python tools/release_candidate.py verify build/linux/candidate --platform linux --commit "$CANDIDATE_COMMIT"
       # Candidate storage only. No release creation, package registry, or secrets.
       - name: Store inspected candidate
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: VRCT-TTS-linux-x86_64-candidate
-          path: build/linux/artifacts/*
+          name: VRCT-VOX-linux-x86_64-candidate
+          path: build/linux/candidate/*
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
       - name: Store diagnostic logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: VRCT-TTS-linux-build-logs
+          name: VRCT-VOX-linux-build-logs
           retention-days: 7
           path: |
             linux-build.log

@@ -120,7 +120,10 @@ export const useHotkeys = () => {
                 const shortcut = parseHotkey(hotkeyRaw);
                 try {
                     await register(shortcut, async (event) => {
-                        if (event.state !== "Pressed") return;
+                        // Moving focus during an X11 key grab can lose its release
+                        // event and leave the shortcut stuck in the pressed state.
+                        const trigger = actionKey === "open_quick_chat" ? "Released" : "Pressed";
+                        if (event.state !== trigger) return;
                         switch (actionKey) {
                             case "open_quick_chat": {
                                 await openQuickChat();

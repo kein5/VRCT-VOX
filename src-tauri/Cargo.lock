@@ -3,11 +3,13 @@
 version = 4
 
 [[package]]
-name = "VRCT"
+name = "vrct-vox"
 version = "0.0.0"
 dependencies = [
  "base64 0.22.1",
  "font-kit",
+ "gdkx11",
+ "gtk",
  "reqwest",
  "serde",
  "serde_json",

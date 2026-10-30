@@ -19,7 +19,7 @@ def test_gui_environment_does_not_reach_sidecar(tmp_path, library_path, host_dat
     from tools.build_appimage import install_launchers
     appdir = tmp_path / 'bundle with spaces.AppDir'
     (appdir / 'usr/bin').mkdir(parents=True)
-    payload = appdir / 'usr/lib/vrct-tts'
+    payload = appdir / 'usr/lib/vrct-vox'
     payload.mkdir(parents=True)
     (appdir / 'AppRun').write_text('''#!/bin/sh
 . "$APPDIR/apprun-hooks/test.sh"
@@ -31,14 +31,14 @@ export LD_LIBRARY_PATH="$APPDIR/usr/lib"
 export GIO_EXTRA_MODULES="$APPDIR/usr/lib/gio"
 export XDG_DATA_DIRS="$APPDIR/usr/share"
 export LD_LIBRARY_PATH_ORIG=/wrong/gui
-exec "$APPDIR/usr/bin/vrct-tts-sidecar" "$@"
+exec "$APPDIR/usr/bin/vrct-vox-sidecar" "$@"
 ''')
     (appdir / 'AppRun').chmod(0o755)
     (appdir / 'apprun-hooks').mkdir()
     (appdir / 'apprun-hooks/test.sh').write_text('export GUI_HOOK_LOADED=yes\nexport GUI_HOOK_COUNT=$((${GUI_HOOK_COUNT:-0}+1))\nexport XDG_DATA_DIRS="$APPDIR/usr/share:$XDG_DATA_DIRS"\n')
-    (appdir / 'vrct-tts.png').write_bytes(b'icon')
+    (appdir / 'vrct-vox.png').write_bytes(b'icon')
     # A real subprocess observes the environment after both launchers.
-    target = payload / 'vrct-tts-sidecar'
+    target = payload / 'vrct-vox-sidecar'
     target.write_text(f'#!{sys.executable}\nimport json,os,sys\nprint(json.dumps({{"args":sys.argv[1:],"ld":os.environ.get("LD_LIBRARY_PATH"),"gio":os.environ.get("GIO_EXTRA_MODULES"),"xdg":os.environ.get("XDG_DATA_DIRS"),"orig":os.environ.get("LD_LIBRARY_PATH_ORIG")}}))\n')
     target.chmod(0o755)
     install_launchers(appdir)
@@ -150,15 +150,15 @@ def test_backend_payload_is_copied_without_rewriting(tmp_path):
     from tools.build_appimage import install_payload
     candidate, appdir = tmp_path / 'candidate', tmp_path / 'AppDir'
     (candidate / '_internal/build/speechcpp').mkdir(parents=True)
-    (candidate / 'vrct-tts').write_bytes(b'gui')
-    (candidate / 'vrct-tts-sidecar').write_bytes(b'frozen')
+    (candidate / 'vrct-vox').write_bytes(b'gui')
+    (candidate / 'vrct-vox-sidecar').write_bytes(b'frozen')
     (candidate / '_internal/build/speechcpp/speech').write_bytes(b'exact pinned engine')
     (candidate / '_internal/lib.so').symlink_to('build/speechcpp/speech')
     install_payload(candidate, appdir)
-    target = appdir / 'usr/lib/vrct-tts'
+    target = appdir / 'usr/lib/vrct-vox'
     assert (target / '_internal/build/speechcpp/speech').read_bytes() == b'exact pinned engine'
     assert (target / '_internal/lib.so').is_symlink()
-    assert not (target / 'vrct-tts').exists(), 'do not include a duplicate unpatched GUI'
+    assert not (target / 'vrct-vox').exists(), 'do not include a duplicate unpatched GUI'
     assert (candidate / '_internal/build/speechcpp/speech').read_bytes() == b'exact pinned engine'
 
 
@@ -166,11 +166,11 @@ def test_webdriver_matches_only_payload_of_launched_appimage(monkeypatch):
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / 'platform'))
     from native_webdriver import matches_launched_app
     image = '/tmp/My App.AppImage'
-    executable = '/tmp/.mount_test/usr/bin/vrct-tts'
+    executable = '/tmp/.mount_test/usr/bin/vrct-vox'
     env = {'APPIMAGE': image, 'APPDIR': '/tmp/.mount_test'}
     assert matches_launched_app(executable, env, image, appimage=True)
     assert not matches_launched_app(image, {}, image, appimage=True), 'extract runtime waits for GUI exit'
     assert not matches_launched_app(executable, dict(env, APPIMAGE='/tmp/other.AppImage'), image, appimage=True)
-    assert not matches_launched_app('/tmp/unrelated/vrct-tts', env, image, appimage=True)
+    assert not matches_launched_app('/tmp/unrelated/vrct-vox', env, image, appimage=True)
     assert not matches_launched_app(executable, {}, image, appimage=True)
-    assert matches_launched_app('/tmp/app/vrct-tts', {}, '/tmp/app/vrct-tts')
+    assert matches_launched_app('/tmp/app/vrct-vox', {}, '/tmp/app/vrct-vox')

@@ -21,6 +21,9 @@ class VoiceRoute:
         self._pending = False
         self._error = None
         self._ready = True
+        self._preparing = False
+        self._prepare_needed = False
+        self._prepare_after = 0
         try:
             self._desired = store.read()
         except Exception:
@@ -37,6 +40,7 @@ class VoiceRoute:
             return {'managed': self._managed, 'requested_muted': self._desired,
                     'observed_muted': self._observed, 'ready': self._ready,
                     'pending': self._pending, 'error': self._error,
+                    'preparing': self._preparing,
                     'generation': self._revision, 'closed': self._closed,
                     'requested_direct_suppressed': self._suppress_direct,
                     'observed_direct_suppressed': self._direct_observed,
@@ -68,6 +72,8 @@ class VoiceRoute:
 
     def configure(self, managed, timeout=3, *, suppress_direct=False):
         with self._condition:
+            if self._closed:
+                raise RuntimeError('voice_route_closed')
             if self._managed == managed:
                 if managed and self._suppress_direct != suppress_direct:
                     self._suppress_direct = suppress_direct
@@ -76,6 +82,8 @@ class VoiceRoute:
                 return
             if managed:
                 self._managed = True
+                self._prepare_needed = True
+                self._prepare_after = 0
                 self._identity = None
                 self._direct_identity = None
                 self._suppress_direct = suppress_direct
@@ -117,6 +125,22 @@ class VoiceRoute:
             direct_observed = None
             try:
                 if managed:
+                    with self._condition:
+                        prepare = self._prepare_needed and not self._closed
+                        if prepare and time.monotonic() < self._prepare_after:
+                            continue
+                        self._preparing = prepare
+                    if prepare:
+                        try:
+                            callback = getattr(self.gate, 'prepare', None)
+                            if callback:
+                                callback()
+                            with self._condition:
+                                self._prepare_needed = False
+                        finally:
+                            with self._condition:
+                                self._preparing = False
+                                self._prepare_after = time.monotonic() + 2
                     pair = self.gate.inspect_pair()
                     state, direct = pair['source'], pair['direct']
                     if (identity != state['identity'] or direct_identity != direct['identity']
@@ -195,6 +219,8 @@ class VoiceRoute:
                     self._observed = observed
                     self._direct_observed = direct_observed
                     self._ready, self._pending = False, True
+                    if str(exc) == 'managed_endpoint_missing_or_invalid':
+                        self._prepare_needed = True
                     self._error = (str(exc) if isinstance(exc, RuntimeError)
                                    else 'mute_state_unavailable')
                     self._condition.notify_all()

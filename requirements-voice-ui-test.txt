@@ -1,5 +1,4 @@
-# Optional Linux browser/stdio integration fixture, never bundled with VRCT.
-pytest==8.4.2
-requests==2.34.2
+# Optional browser/stdio fixtures, never bundled with VRCT-VOX.
+-r requirements-voice-test.txt
 playwright==1.64.1
 python-osc==1.9.0

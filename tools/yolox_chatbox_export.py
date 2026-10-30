@@ -48,7 +48,7 @@ def main() -> None:
 
     torch.serialization.add_safe_globals(
         [np._core.multiarray.scalar, np.dtype, np.dtypes.Float64DType])
-    ckpt = torch.load(args.ckpt, map_location="cpu")
+    ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
     model.eval()
     model.load_state_dict(ckpt["model"] if "model" in ckpt else ckpt)
     # onnxruntime が読めるよう、nn.SiLU を素の演算で書いた実装に差し替える。

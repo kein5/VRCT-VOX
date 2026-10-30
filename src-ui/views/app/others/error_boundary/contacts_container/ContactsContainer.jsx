@@ -3,7 +3,7 @@ import styles from "./ContactsContainer.module.scss";
 export const ContactsContainer = () => {
     return (
         <div className={styles.container}>
-            <OpenLinkContainer className={styles.github_issues} href_id="github_issues" text="VRCT-TTS Issues"/>
+            <OpenLinkContainer className={styles.github_issues} href_id="github_issues" text="VRCT-VOX Issues"/>
         </div>
     );
 };
@@ -11,7 +11,7 @@ export const ContactsContainer = () => {
 import dev_github_icon from "@images/about_vrct/dev_github_icon.png";
 
 const contacts_links = {
-    github_issues: { img: dev_github_icon, href: "https://github.com/kein5/VRCT-TTS/issues" },
+    github_issues: { img: dev_github_icon, href: "https://github.com/kein5/VRCT-VOX/issues" },
 };
 
 const OpenLinkContainer = ({className, href_id, text}) => {

@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-30T10:22:28.124460+00:00",
+  "title": "Design System: VRCT-VOX Dark Studio",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Studio blue",
+        "canonical": "#2865dc",
+        "tonalRamp": [
+          "#153366",
+          "#1b418e",
+          "#2052b8",
+          "#2865dc",
+          "#3f7bf2",
+          "#6e9fff",
+          "#a9ccff",
+          "#dbeafe"
+        ]
+      }
+    },
+    "motion": [
+      {
+        "name": "control-transition",
+        "value": "160ms ease",
+        "purpose": "Color feedback; disabled with reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact",
+        "value": "800px"
+      },
+      {
+        "name": "stacked-fields",
+        "value": "700px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary action used by the studio forms.",
+      "html": "<button class=\"ds-primary\">Save settings</button>",
+      "css": ".ds-primary{font:14px system-ui;min-height:40px;padding:9px 12px;border-radius:8px;color:#edf3ff;background:#2865dc;border:0}.ds-primary:hover{background:#3470e8}.ds-primary:focus-visible{outline:2px solid #a9ccff;outline-offset:3px}"
+    },
+    {
+      "name": "Secondary action",
+      "kind": "button",
+      "refersTo": "",
+      "description": "Secondary action used by the studio forms.",
+      "html": "<button class=\"ds-secondary\">Discard changes</button>",
+      "css": ".ds-secondary{font:14px system-ui;min-height:40px;padding:9px 12px;border-radius:8px;color:#edf3ff;background:#25364f;border:0}.ds-secondary:hover{background:#798ca8}.ds-secondary:focus-visible{outline:2px solid #a9ccff;outline-offset:3px}"
+    },
+    {
+      "name": "Text field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Text field used by the studio forms.",
+      "html": "<label class=\"ds-field\">Model path<input value=\"models/irodori.gguf\"></label>",
+      "css": ".ds-field{display:grid;gap:8px;color:#edf3ff;font:14px system-ui}.ds-field input{font:14px system-ui;min-height:40px;padding:9px 12px;border-radius:8px;color:#edf3ff;background:#18253b;border:1px solid #657a96}.ds-field input:focus-visible{outline:2px solid #a9ccff;outline-offset:3px}"
+    },
+    {
+      "name": "Settings navigation",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "Settings navigation used by the studio forms.",
+      "html": "<nav class=\"ds-nav\"><button aria-current=\"page\">TTS</button><button>RVC</button></nav>",
+      "css": ".ds-nav{display:grid;gap:4px;background:#0d1625;padding:10px}.ds-nav button{font:14px system-ui;min-height:40px;padding:9px 12px;border-radius:8px;color:#edf3ff;text-align:left;border:0;background:transparent}.ds-nav [aria-current]{background:#18345f}.ds-nav button:hover{background:#25364f}.ds-nav button:focus-visible{outline:2px solid #a9ccff;outline-offset:2px}"
+    },
+    {
+      "name": "Explicit consent",
+      "kind": "custom",
+      "refersTo": "",
+      "description": "Explicit consent used by the studio forms.",
+      "html": "<label class=\"ds-consent\"><input type=\"checkbox\">I reviewed the terms and download size.</label>",
+      "css": ".ds-consent{display:flex;align-items:flex-start;gap:12px;font:14px/1.5 system-ui;color:#edf3ff}.ds-consent input{width:20px;height:20px;accent-color:#5b92ff}.ds-consent input:focus-visible{outline:2px solid #a9ccff;outline-offset:3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Dark Studio",
+    "overview": "Conversation and audio control take precedence over visual effects.",
+    "keyCharacteristics": [
+      "A deep rail separates navigation from the conversation workspace.",
+      "Blue identifies primary actions, selected navigation and keyboard focus.",
+      "Shared forms make TTS, RVC and model downloads feel part of the same application."
+    ],
+    "rules": [],
+    "dos": [
+      "Do preserve model consent, dirty-form guards, independent switches and stop/mute behavior.",
+      "Do check Japanese labels, long paths, keyboard navigation and narrow windows using production components.",
+      "Do retain the distinction between configured, pending, active and failed states."
+    ],
+    "donts": [
+      "Don't introduce remote fonts or a new UI framework for this redesign.",
+      "Don't imply connection, model readiness or microphone activity through decorative indicators."
+    ]
+  }
+}

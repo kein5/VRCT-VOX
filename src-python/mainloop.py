@@ -589,6 +589,13 @@ mapping = {
     "/set/disable/send_received_message_to_vrc": {"status": True, "variable":controller.setDisableSendReceivedMessageToVrc},
 
     # WebSocket Settings
+    "/get/data/model_download_catalog": {"status": True, "variable":controller.getModelDownloadCatalog},
+    "/get/data/model_download_hardware": {"status": True, "variable":controller.getModelDownloadHardware},
+    "/run/refresh_model_download_hardware": {"status": True, "variable":controller.refreshModelDownloadHardware},
+    "/get/data/model_download_state": {"status": True, "variable":controller.getModelDownloadState},
+    "/run/start_model_download": {"status": True, "variable":controller.startModelDownload},
+    "/run/cancel_model_download": {"status": True, "variable":controller.cancelModelDownload},
+    "/run/apply_model_download": {"status": True, "variable":controller.applyModelDownload},
     "/get/data/speech_server_settings": {"status": True, "variable":controller.getSpeechServerSettings},
     "/set/data/speech_server_settings": {"status": True, "variable":controller.setSpeechServerSettings},
     "/get/data/speech_server_state": {"status": True, "variable":controller.getSpeechServerState},

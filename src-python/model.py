@@ -1932,7 +1932,7 @@ class Model:
         # try to download at most 5 times
         # 戻り値: 成功なら None、失敗なら SETUP_DOWNLOAD_FAILED / SETUP_VERIFY_FAILED
         url = url or config.setupDownloadUrl()
-        program_name = "VRCT-TTS_setup.exe"
+        program_name = "VRCT-VOX_setup.exe"
         current_directory = config.PATH_LOCAL
         dest_path = os_path.join(current_directory, program_name)
         # minimum plausible size for a real NSIS installer; guards against
@@ -1984,7 +1984,7 @@ class Model:
         # ダウンロード & 検証する。updateSoftware()/updateCudaSoftware() の
         # 共通前処理。
         #
-        # 戻り値 None : VRCT-TTS_setup.exe がディスク上にあり起動して問題ない
+        # 戻り値 None : VRCT-VOX_setup.exe がディスク上にあり起動して問題ない
         # 戻り値 str  : 呼び出し側は何も起動せず中止すること。失敗の種類は
         #   - SETUP_VERIFY_FAILED   : ハッシュが一致しなかった、または ".sha256" が
         #     公開されているのに取得できなかった (SetupSha256Unavailable)。
@@ -2041,7 +2041,7 @@ class Model:
         # The channel is not saved to config here: if the installer is cancelled,
         # VRCT keeps running on its current version and channel.
         channel = config._channelForVersion(target_version) if target_version else config.SELECTED_RELEASE_CHANNEL
-        args = ["VRCT-TTS_setup.exe", f"/EDITION={edition}", f"/UILANG={config.UI_LANGUAGE}", f"/CHANNEL={channel}"]
+        args = ["VRCT-VOX_setup.exe", f"/EDITION={edition}", f"/UILANG={config.UI_LANGUAGE}", f"/CHANNEL={channel}"]
         if target_version:
             args.append(f"/VERSION={target_version}")
         Popen(args, cwd=config.PATH_LOCAL)

@@ -52,7 +52,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='vrct-tts-sidecar-x86_64-pc-windows-msvc',
+    name='vrct-vox-sidecar-x86_64-pc-windows-msvc',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

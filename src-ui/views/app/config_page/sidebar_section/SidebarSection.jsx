@@ -38,6 +38,8 @@ export const SidebarSection = () => {
             className={container_class_names}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
+            onFocusCapture={() => setIsHovered(true)}
+            onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setIsHovered(false); }}
         >
             <div className={styles.scroll_container}>
                 <div className={styles.scroll_content}>
@@ -81,7 +83,7 @@ export const TabIcon = ({ tab_id, className }) => {
         case "advanced_settings": return <CodeBlocksSvg className={clsx(className, styles.mui_icon)} />;
         case "updater": return <RefreshSvg className={clsx(className, styles.updater_icon)} />;
         case "supporters": return <CrownSvg className={clsx(className, styles.mui_icon, styles.supporters_icon)} />;
-        case "about_vrct": return <img src={chat_white_square} className={clsx(className, styles.about_vrct_icon)} />;
+        case "about_vrct": return <img alt="" src={chat_white_square} className={clsx(className, styles.about_vrct_icon)} />;
         default: return null;
     }
 };
@@ -106,20 +108,20 @@ const Tab = (props) => {
     const getLabel = () => {
         if (props.tab_id === "vr") return "VR";
         if (props.tab_id === "supporters") return "Supporters";
-        if (props.tab_id === "about_vrct") return "About VRCT";
+        if (props.tab_id === "about_vrct") return "About VRCT-VOX";
         return t(`config_page.side_menu_labels.${props.tab_id}`);
     };
 
     return (
-        <div className={tab_container_class_names} role="button" tabIndex={0} aria-label={getLabel()} aria-current={is_selected ? "page" : undefined}
-            onClick={onclickFunction} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onclickFunction(); } }}>
-            <div className={styles.tab_icon_wrapper}>
+        <button type="button" className={tab_container_class_names} aria-label={getLabel()} aria-current={is_selected ? "page" : undefined}
+            onClick={onclickFunction}>
+            <div className={styles.tab_icon_wrapper} aria-hidden="true">
                 <TabIcon tab_id={props.tab_id} className={styles.tab_icon} />
             </div>
             <p className={clsx(styles.tab_text, {
                 [styles.hide]: props.isSmall && !props.isHovered
             })}>{getLabel()}</p>
             <div className={switch_indicator_class_names}></div>
-        </div>
+        </button>
     );
 };

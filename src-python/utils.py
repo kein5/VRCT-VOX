@@ -352,7 +352,7 @@ def validateDictStructure(data: dict, structure: dict) -> bool:
                 return False
     return True
 
-def isConnectedNetwork(url="http://www.google.com", timeout=3) -> bool:
+def isConnectedNetwork(url="https://www.google.com", timeout=3) -> bool:
     """Quick network connectivity check by requesting `url`.
 
     Returns True when a 200 response is returned within `timeout` seconds.

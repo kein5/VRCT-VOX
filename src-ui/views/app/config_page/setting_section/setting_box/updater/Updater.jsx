@@ -9,9 +9,9 @@ export const Updater = () => {
     const { currentSoftwareVersion } = useSoftwareVersion();
     return (
         <div className={styles.container}>
-            <p>VRCT-TTS {currentSoftwareVersion.data}</p>
+            <p>VRCT-VOX {currentSoftwareVersion.data}</p>
             <p>{t("fork_distribution.update_policy")}</p>
-            <a href="https://github.com/kein5/VRCT-TTS/releases" target="_blank" rel="noreferrer">
+            <a href="https://github.com/kein5/VRCT-VOX/releases" target="_blank" rel="noreferrer">
                 {t("fork_distribution.releases")}
             </a>
         </div>

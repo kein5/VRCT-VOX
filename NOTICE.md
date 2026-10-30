@@ -2,7 +2,7 @@
 
 ## Optional voice integration in this fork
 
-VRCT-TTS is an independent fork of VRCT. Original VRCT copyright and MIT
+VRCT-VOX is an independent fork of VRCT. Original VRCT copyright and MIT
 license notices are retained in `LICENSE`. The model exception below describes
 the retained upstream source asset; **fork binary distributions exclude all OCR
 weights** while retaining their attribution documents.

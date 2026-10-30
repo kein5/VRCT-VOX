@@ -50,6 +50,26 @@ def load_complete_state(model, supplied):
     model.load_state_dict(selected, strict=True)
 
 
+def configure_index_search(index):
+    """Avoid sparse IVF lists yielding fewer than the eight requested neighbors.
+
+    Raise the in-memory probe count to eight (or nlist), retaining a larger
+    saved setting. No retries/full-scan fallback; CheckedIndex still rejects
+    incomplete results. Extraction also handles opaque/pretransform wrappers.
+    """
+    import faiss
+    try:
+        ivf = faiss.extract_index_ivf(index)
+    except RuntimeError:
+        return  # Flat and other non-IVF indexes have no nprobe parameter.
+    probes = min(int(ivf.nlist), max(8, int(ivf.nprobe)))
+    if probes < 1:
+        raise ValueError('vc_index_failed')
+    faiss.ParameterSpace().set_index_parameter(index, 'nprobe', probes)
+    if int(ivf.nprobe) != probes:
+        raise ValueError('vc_index_failed')
+
+
 class CheckedIndex:
     """Latch errors even when pinned upstream catches and hides search failures."""
     def __init__(self, index, rows):
@@ -150,6 +170,7 @@ def create_engine(engine_path, assets, model, index, pitch, index_rate):
         if (not hasattr(vc, 'index') or vc.index.ntotal < 8 or vc.index.d != features
                 or vc.big_npy.shape != (vc.index.ntotal, features) or not np.isfinite(vc.big_npy).all()):
             raise ValueError('vc_index_failed')
+        configure_index_search(vc.index)
         vc.index = CheckedIndex(vc.index, vc.index.ntotal)
     if vc.if_f0:
         vc.model_rmvpe = RMVPE(str(assets / 'rmvpe/rmvpe.pt'), config.is_half, device=device)

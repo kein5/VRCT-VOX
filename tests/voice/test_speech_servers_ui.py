@@ -20,6 +20,24 @@ ROOT = Path(__file__).resolve().parents[2]
 pytestmark = pytest.mark.skipif(os.environ.get('VRCT_TEST_SPEECH_UI') != '1', reason='opt-in browser integration')
 
 
+def test_low_latency_default_opt_in_save_and_busy_controls(ui):
+    from playwright.sync_api import expect
+    page, peer, reply = ui
+    toggle = page.get_by_label('Low-latency standby (Irodori GPU)', exact=True)
+    expect(toggle).not_to_be_checked()
+    toggle.check()
+    page.get_by_role('button', name='Save server settings', exact=True).click()
+    expect(page.get_by_role('button', name='Save server settings', exact=True)).to_be_disabled()
+    assert peer.settings['profiles']['japanese']['low_latency'] is True
+    assert not any(ep == '/run/start_speech_server' for ep, _ in peer.sent)
+    peer.state['japanese'].update(state='ready', generation=1,
+        low_latency=dict(state='ready', completed=1, error_code=None))
+    reply('/get/data/speech_server_state', peer.state)
+    expect(page.get_by_text('Low-latency standby active', exact=True)).to_be_visible()
+    # Engine settings can be collapsed while ready; property is still disabled.
+    expect(toggle).to_be_disabled()
+
+
 @pytest.fixture
 def ui(tmp_path):
     from playwright.sync_api import sync_playwright
@@ -108,7 +126,16 @@ def ui(tmp_path):
 
         page.expose_function('sidecarWrite', write)
         page.expose_function('sidecarRead', read)
-        page.goto(f'http://127.0.0.1:{port}/tests/voice/speech-ui-entry/')
+        pending_requests = set()
+        page.on('request', lambda request: pending_requests.add(request.url))
+        page.on('requestfinished', lambda request: pending_requests.discard(request.url))
+        page.on('requestfailed', lambda request: pending_requests.discard(request.url))
+        try:
+            page.goto(f'http://127.0.0.1:{port}/tests/voice/speech-ui-entry/')
+        except Exception:
+            print('Unfinished navigation resources:', sorted(pending_requests))
+            print('Document state:', page.evaluate('document.readyState'))
+            raise
         yield page, peer, reply
         assert not peer.errors
 
@@ -153,6 +180,28 @@ def test_save_only_explicit_start_pending_stop_and_stale_ready(ui):
     reply('/get/data/speech_server_state', peer.state)
     expect(group.get_by_role('alert')).to_contain_text('speech_server_exited')
     expect(start).to_be_enabled()
+
+
+def test_memory_error_explains_cpu_retry_and_preserves_saved_device(ui):
+    from playwright.sync_api import expect
+    page, peer, reply = ui
+    group = page.get_by_role('group', name='Japanese TTS', exact=True)
+    group.get_by_label('Model GGUF path', exact=True).fill('/local/tts.gguf')
+    page.get_by_role('button', name='Save server settings', exact=True).click()
+    peer.state['japanese'].update(state='failed', generation=3, base_url=None,
+                                error_code='speech_server_out_of_memory')
+    reply('/get/data/speech_server_state', peer.state)
+    expect(group.get_by_role('alert')).to_contain_text('Not enough memory')
+    expect(group.get_by_role('alert')).to_contain_text('CPU')
+    expect(group.get_by_role('alert')).to_contain_text('speech_server_out_of_memory')
+    expect(group.get_by_label('Inference device', exact=True)).to_have_value('auto')
+    group.get_by_label('Inference device', exact=True).select_option('cpu')
+    start = group.get_by_role('button', name='Start server', exact=True)
+    expect(start).to_be_disabled()
+    page.get_by_role('button', name='Save server settings', exact=True).click()
+    expect(start).to_be_enabled()
+    assert peer.settings['profiles']['japanese']['device'] == 'cpu'
+    assert not any(ep == '/run/start_speech_server' for ep, _ in peer.sent)
 
 
 def test_asr_requires_vad_and_save_errors_allow_retry(ui):

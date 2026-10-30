@@ -8,7 +8,7 @@ export const MainPage = () => {
     const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
 
     return (
-        <div className={clsx(styles.page, styles.main_page, {
+        <div inert={currentIsOpenedConfigPage.data ? "" : undefined} aria-hidden={currentIsOpenedConfigPage.data} className={clsx(styles.page, styles.main_page, {
             [styles.show_config]: currentIsOpenedConfigPage.data,
             [styles.show_main]: !currentIsOpenedConfigPage.data
         })}>

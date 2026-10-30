@@ -5,6 +5,12 @@ Status: ソースcheckout向けLinux実装を採用。host一時導入とVRChat�
 Date: 2026-10-27
 Related: [ADR-004](adr-004-audio-integration-boundaries.md)
 
+2026-10-30追記: [自動作成](../superpowers/specs/2026-10-30-auto-virtual-microphone-design.md)では、
+同じv1経路をsystemdユーザーサービス3件の`pw-loopback`で保持する。GUI/推論workerの子として所有しないため、
+アプリ終了時にendpointを削除しないという決定は維持する。手動のdaemon設定も再利用する。
+選択時の作成は非同期で、初期muteと明示再開を維持する。ログイン時の再生成もmuteから始める。
+OSサービス故障/daemon再起動による消失・consumer fallbackの制約は引き続き残る。
+
 ## 問題と決定
 
 Bの外部推論＋OS経路では、音声engineと仮想マイクの寿命を結び付けるとengine終了時に

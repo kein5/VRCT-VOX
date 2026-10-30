@@ -1,5 +1,5 @@
-# Build candidates only. Publication is a separate, currently disabled gate.
-name: Validate VRCT-TTS distribution
+# Build candidates only. Draft preparation is a separate manual workflow.
+name: Validate VRCT-VOX distribution
 
 on:
   workflow_dispatch:
@@ -7,21 +7,30 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: windows-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     name: Windows candidate (not a release)
     runs-on: windows-latest
+    timeout-minutes: 90
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Read candidate version
         shell: pwsh
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          # Keep the single-line GITHUB_ENV assignment and artifact paths bounded.
+          if ($version -isnot [string] -or $version -notmatch '\A[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?\z') {
+            throw 'package.json must contain a single version string such as 1.2.3 or 1.2.3-beta.1'
+          }
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-      - name: Verify version numbers match the tag
+      - name: Verify candidate version numbers match
         shell: pwsh
         run: |
           $expected = $env:VERSION
@@ -29,13 +38,13 @@ jobs:
 
           $pkgVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
           if ($pkgVersion -ne $expected) {
-            Write-Host "::error::package.json version ($pkgVersion) does not match tag version ($expected)"
+            Write-Host "::error::package.json version ($pkgVersion) does not match candidate version ($expected)"
             $failed = $true
           }
 
           $tauriVersion = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
           if ($tauriVersion -ne $expected) {
-            Write-Host "::error::src-tauri/tauri.conf.json version ($tauriVersion) does not match tag version ($expected)"
+            Write-Host "::error::src-tauri/tauri.conf.json version ($tauriVersion) does not match candidate version ($expected)"
             $failed = $true
           }
 
@@ -44,32 +53,32 @@ jobs:
             Write-Host "::error::could not find self._VERSION in src-python/config.py"
             $failed = $true
           } elseif ($Matches[1] -ne $expected) {
-            Write-Host "::error::src-python/config.py VERSION ($($Matches[1])) does not match tag version ($expected)"
+            Write-Host "::error::src-python/config.py VERSION ($($Matches[1])) does not match candidate version ($expected)"
             $failed = $true
           }
 
           if ($failed) {
-            Write-Host "::error::Version mismatch detected. Bump every version field to $expected before tagging."
+            Write-Host "::error::Version mismatch detected. Set every version field to $expected before building."
             exit 1
           }
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.15.0'
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           version: '0.9.5'
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.11'
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
 
       - name: Install dependencies
         run: npm ci
@@ -83,9 +92,9 @@ jobs:
       - name: Inspect source archive without OCR weights
         shell: pwsh
         run: |
-          git archive --format=zip --output=VRCT-TTS-source.zip HEAD
+          git archive --format=zip --output=VRCT-VOX-source.zip HEAD
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python tools/check_voice_distribution.py VRCT-TTS-source.zip
+          python tools/check_voice_distribution.py VRCT-VOX-source.zip
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build and package candidates
@@ -94,21 +103,27 @@ jobs:
       - name: Inspect CPU and CUDA ZIPs and completed NSIS installer
         shell: pwsh
         run: |
-          python tools/check_voice_distribution.py VRCT-TTS.zip VRCT-TTS_cuda.zip src-tauri/bin/_internal --nsis "src-tauri/target/release/bundle/nsis/VRCT-TTS_${{ env.VERSION }}_x64-setup.exe"
+          $installer = "src-tauri/target/release/bundle/nsis/VRCT-VOX_$($env:VERSION)_x64-setup.exe"
+          python tools/check_voice_distribution.py VRCT-VOX.zip VRCT-VOX_cuda.zip src-tauri/bin/_internal --nsis $installer
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $paths = @("VRCT-TTS.zip", "VRCT-TTS_cuda.zip", "src-tauri/target/release/bundle/nsis/VRCT-TTS_${{ env.VERSION }}_x64-setup.exe")
-          foreach ($path in $paths) {
-            (Get-FileHash -Path $path -Algorithm SHA256).Hash.ToLower() | Set-Content "$path.sha256" -Encoding ascii
-          }
+
+      - name: Stage release names and candidate identity
+        env:
+          CANDIDATE_COMMIT: ${{ github.sha }}
+        shell: pwsh
+        run: |
+          $installer = "src-tauri/target/release/bundle/nsis/VRCT-VOX_$($env:VERSION)_x64-setup.exe"
+          python tools/release_candidate.py stage build/release-candidate --platform windows --commit $env:CANDIDATE_COMMIT --asset VRCT-VOX.zip --asset VRCT-VOX_cuda.zip --asset $installer
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/release_candidate.py verify build/release-candidate --platform windows --commit $env:CANDIDATE_COMMIT
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # No Hugging Face upload, telemetry secrets, GitHub Release or publication.
       # Download candidate artifacts from this workflow for Windows acceptance.
       - name: Preserve inspected candidates for review
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: VRCT-TTS-windows-candidate
+          name: VRCT-VOX-windows-candidate
           if-no-files-found: error
           retention-days: 7
-          path: |
-            VRCT-TTS*.zip*
-            src-tauri/target/release/bundle/nsis/VRCT-TTS_*x64-setup.exe*
+          path: build/release-candidate/*

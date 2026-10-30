@@ -39,7 +39,7 @@ def matches_launched_app(executable, environment, launcher, *, appimage=False):
     # directory. Match both launcher identity and exact payload within that root.
     return (environment.get('APPIMAGE') == str(expected)
             and bool(environment.get('APPDIR'))
-            and executable == str(Path(environment['APPDIR']) / 'usr/bin/vrct-tts'))
+            and executable == str(Path(environment['APPDIR']) / 'usr/bin/vrct-vox'))
 
 
 class NativeWebDriver:
@@ -229,7 +229,7 @@ class NativeWebDriver:
                     if self.process.poll() is not None:
                         raise RuntimeError("tauri-driver exited before startup")
                     time.sleep(.1)
-            binary = os.environ.get("VRCT_TEST_APP", str(ROOT / "src-tauri/build/native-cargo/debug/vrct-tts"))
+            binary = os.environ.get("VRCT_TEST_APP", str(ROOT / "src-tauri/build/native-cargo/debug/vrct-vox"))
             result = self.request("POST", "/session", {"capabilities": {"alwaysMatch": {
                 "browserName": "wry", "tauri:options": {"application": binary}}}})
             self.session = result["sessionId"]

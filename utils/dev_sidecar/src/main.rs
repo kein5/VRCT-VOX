@@ -1,7 +1,7 @@
 // Dev-time sidecar wrapper.
 //
 // Tauri's externalBin requires a real executable at
-// src-tauri/bin/vrct-tts-sidecar-<triple>.exe. In release builds that slot is
+// src-tauri/bin/vrct-vox-sidecar-<triple>.exe. In release builds that slot is
 // filled by the PyInstaller-frozen backend. During development, packaging
 // the Python backend every iteration costs minutes; instead this wrapper
 // is dropped into that slot and launches the venv Python interpreter
@@ -55,9 +55,9 @@ fn main() {
     };
 
     // The exe may be executed from any of:
-    //   <root>/src-tauri/bin/vrct-tts-sidecar-<triple>.exe   (npm run sidecar-dev drop-in)
-    //   <root>/src-tauri/target/debug/vrct-tts-sidecar-<triple>.exe   (tauri dev copies it)
-    //   <root>/src-tauri/target/release/vrct-tts-sidecar-<triple>.exe
+    //   <root>/src-tauri/bin/vrct-vox-sidecar-<triple>.exe   (npm run sidecar-dev drop-in)
+    //   <root>/src-tauri/target/debug/vrct-vox-sidecar-<triple>.exe   (tauri dev copies it)
+    //   <root>/src-tauri/target/release/vrct-vox-sidecar-<triple>.exe
     // Walk upward until we find a directory that looks like the project root
     // (contains src-python/mainloop.py). Check the selected venv separately
     // so CUDA-only checkouts work and missing interpreters get a clear error.

@@ -42,6 +42,10 @@ class PipeWireGate:
     def __init__(self, helper=None):
         self.helper = Path(helper) if helper else resource_root() / 'build/vrct-voice-gate'
 
+    def prepare(self):
+        from .managed_microphone import ManagedMicrophone
+        ManagedMicrophone(self._snapshot).ensure()
+
     def inspect(self):
         return parse_graph(self._snapshot())
 

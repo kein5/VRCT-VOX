@@ -62,7 +62,7 @@ const useStartPython = () => {
     const { showNotification_Success, showNotification_Error } = useNotificationStatus();
 
     const asyncStartPython = async () => {
-        const command = Command.sidecar("bin/vrct-tts-sidecar");
+        const command = Command.sidecar("bin/vrct-vox-sidecar");
         command.on("error", error => console.error(`error: "${error}"`));
         command.stdout.on("data", (line) => {
             // Windows上のPython(CRLF)とTauriのread_line(\rまたは\nで区切る仕様)により、
@@ -91,7 +91,7 @@ const useStartPython = () => {
                 return;
             }
             showNotification_Error(
-                `An error occurred. Please restart VRCT-TTS or contact the developers. The last line:${JSON.stringify(line)}`, { hide_duration: null }
+                `An error occurred. Please restart VRCT-VOX or contact the developers. The last line:${JSON.stringify(line)}`, { hide_duration: null }
             );
             console.error("stderr", line);
         });

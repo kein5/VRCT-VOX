@@ -4,9 +4,11 @@ import SendMessageSvg from "@images/send_message.svg?react";
 import { useMessage } from "@logics_common";
 import { useAppearance, useOthers } from "@logics_configs";
 import { useMessageLogScroll } from "@logics_main";
+import { useI18n } from "@useI18n";
 import { store } from "@store";
 
 export const MessageInputBox = () => {
+    const { t } = useI18n();
     const [message_history, setMessageHistory] = useState([]);
     const [history_index, setHistoryIndex] = useState(-1);
     const {
@@ -102,7 +104,8 @@ export const MessageInputBox = () => {
                     className={styles.message_box_input_area}
                     onChange={onChangeFunction}
                     onBlur={stopTyping}
-                    // placeholder="Input Textfield"
+                    aria-label={t("studio.message_input")}
+                    placeholder={t("studio.message_placeholder")}
                     value={currentMessageInputValue.data}
                     onKeyDown={onKeyDownFunction}
                 />
@@ -115,13 +118,15 @@ export const MessageInputBox = () => {
 };
 
 const SendMessageButton = ({ onSubmitFunction }) => {
+    const { t } = useI18n();
     return (
         <button
             className={styles.message_send_button}
+            aria-label={t("studio.send_message")}
             type="button"
             onClick={onSubmitFunction}
         >
-            <SendMessageSvg className={styles.message_send_icon} />
+            <SendMessageSvg aria-hidden="true" className={styles.message_send_icon} />
         </button>
     );
 };

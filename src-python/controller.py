@@ -29,6 +29,8 @@ from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
 from models.tts.speechcpp_tts import SpeechError, SpeechCppTTS
 from models.speech_server.runtime import SpeechServers
+from models.model_downloads.manager import Downloads
+from models.model_downloads.hardware import HardwareProbe
 from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
 from models.tts.message_hook import chat_event, microphone_event
 from models.audio_routing.audio_router import enumerate_outputs
@@ -357,6 +359,8 @@ class Controller:
         config_path = getattr(self._config, '_PATH_CONFIG', 'config.json')
         if not isinstance(config_path, (str, Path)):
             config_path = 'config.json'
+        self.model_downloads = Downloads(Path(config_path).absolute().parent / 'downloaded_models')
+        self.model_hardware = HardwareProbe()
         self.voice_route = VoiceRoute(self.voice_events, gate=PipeWireGate(),
                                      store=MuteState(Path(config_path).with_name('voice_mute_state.json')))
         self.voice_route.configure(self.voice_events.settings.routing == 'managed',
@@ -386,6 +390,87 @@ class Controller:
         # 取るため、start*Message の中から呼ぶとデッドロックする)。
         self.mic_lifecycle_lock: Lock = Lock()
         self.speaker_lifecycle_lock: Lock = Lock()
+
+    def getModelDownloadCatalog(self, *args, **kwargs):
+        return {'status': 200, 'result': self.model_downloads.catalog()}
+
+    def getModelDownloadHardware(self, *args, **kwargs):
+        return {'status': 200, 'result': self.model_hardware.state()}
+
+    def refreshModelDownloadHardware(self, data=None):
+        if data not in (None, {}):
+            return {'status': 400, 'result': {'error_code': 'download_request_invalid'}}
+        try:
+            return {'status': 200, 'result': self.model_hardware.refresh()}
+        except ValueError:
+            return {'status': 409, 'result': {'error_code': 'hardware_closed'}}
+
+    def getModelDownloadState(self, *args, **kwargs):
+        return {'status': 200, 'result': self.model_downloads.state()}
+
+    @staticmethod
+    def _modelDownloadFailure(error):
+        conflict = {'download_busy', 'downloads_closed', 'stale_job', 'download_not_ready',
+                    'settings_changed', 'model_target_busy'}
+        return {'status': 409 if str(error) in conflict else 400,
+                'result': {'error_code': str(error)}}
+
+    @staticmethod
+    def _modelDownloadRequest(data, apply=False):
+        required = {'id', 'job_id', 'expected'} if apply else {'id', 'job_id'}
+        if (not isinstance(data, dict) or set(data) != required
+                or any(not isinstance(data[key], str) or not data[key] for key in ('id', 'job_id'))):
+            raise ValueError('download_request_invalid')
+
+    def startModelDownload(self, data, *args, **kwargs):
+        try:
+            return {'status': 200, 'result': self.model_downloads.start(data)}
+        except ValueError as error:
+            return self._modelDownloadFailure(error)
+
+    def cancelModelDownload(self, data, *args, **kwargs):
+        try:
+            self._modelDownloadRequest(data)
+            return {'status': 200, 'result': self.model_downloads.cancel(data['id'], data['job_id'])}
+        except ValueError as error:
+            return self._modelDownloadFailure(error)
+
+    def applyModelDownload(self, data, *args, **kwargs):
+        try:
+            self._modelDownloadRequest(data, apply=True)
+            def apply(entry, paths):
+                expected = data['expected']
+                keys = {'model', 'index'} if entry.target == 'rvc' else {'model'}
+                if not isinstance(expected, dict) or set(expected) != keys or any(not isinstance(v, str) for v in expected.values()):
+                    raise ValueError('download_request_invalid')
+                if entry.target == 'rvc':
+                    with self._voice_settings_lock:
+                        state = self.direct_voice.health()
+                        if self._direct_voice_closed or any(state.get(k) for k in ('requested', 'pending', 'stopping')):
+                            raise ValueError('model_target_busy')
+                        settings = self._direct_settings.to_dict()
+                        if any(settings['rvc_' + k] != expected[k] for k in keys):
+                            raise ValueError('settings_changed')
+                        settings.update(rvc_model=paths['model'], rvc_index=paths.get('index', ''))
+                        updated = DirectSettings.from_dict(settings)
+                        self.direct_voice.stop()  # Invalidate queued starts, as in the normal settings setter.
+                        self._config.DIRECT_VOICE_SETTINGS = updated.to_dict()
+                        self._direct_settings = updated
+                else:
+                    with self._speech_settings_lock:
+                        if self.speech_servers.state()[entry.target]['state'] not in ('stopped', 'failed'):
+                            raise ValueError('model_target_busy')
+                        settings = copy.deepcopy(self._speech_settings)
+                        if settings['profiles'][entry.target]['model'] != expected['model']:
+                            raise ValueError('settings_changed')
+                        settings['profiles'][entry.target]['model'] = paths['model']
+                        self._config.SPEECH_SERVER_SETTINGS = settings
+                        self._speech_settings = settings
+            return {'status': 200, 'result': self.model_downloads.apply(data['id'], data['job_id'], apply)}
+        except ValueError as error:
+            return self._modelDownloadFailure(error)
+        except OSError:
+            return {'status': 400, 'result': {'error_code': 'download_apply_failed'}}
 
     def getSpeechServerSettings(self, *args, **kwargs):
         with self._speech_settings_lock:
@@ -799,6 +884,11 @@ class Controller:
         Returns:
             dict with status 200 and result True on success.
         """
+        if getattr(self, 'model_downloads', None) is not None:
+            if not self.model_downloads.close():
+                printLog('[models] download cancellation pending; no model path will be applied')
+        if getattr(self, 'model_hardware', None) is not None and not self.model_hardware.close():
+            printLog('[models] hardware inspection shutdown pending')
         if not self._closeRealtimeASR():
             printLog("[asr] realtime shutdown unconfirmed")
         if getattr(self, "direct_voice", None) is not None:
@@ -4164,12 +4254,12 @@ class Controller:
 
     @staticmethod
     def openFilepathLogs(*args, **kwargs) -> dict:
-        Popen(['explorer', config.PATH_LOGS.replace('/', '\\')], shell=True)
+        Popen(['explorer', config.PATH_LOGS.replace('/', '\\')], shell=False)
         return {"status":200, "result":True}
 
     @staticmethod
     def openFilepathConfigFile(*args, **kwargs) -> dict:
-        Popen(['explorer', config.PATH_LOCAL.replace('/', '\\')], shell=True)
+        Popen(['explorer', config.PATH_LOCAL.replace('/', '\\')], shell=False)
         return {"status":200, "result":True}
 
     def setEnableTranscriptionSend(self, *args, **kwargs) -> dict:

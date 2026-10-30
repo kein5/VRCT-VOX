@@ -31,8 +31,8 @@ def test_model_free_native_app_renders_text_input_without_fatal_warning(tmp_path
     state = initial_state(tmp_path)
     with NativeWebDriver(tmp_path / "ui", {"VRCT_CONFIG_DIR": str(state)}) as ui:
         ui.wait("return document.querySelector('textarea') !== null")
-        assert ui.evaluate("return document.title") == "VRCT-TTS"
-        assert "VRCT-TTS" in ui.evaluate("return document.body.innerText")
+        assert ui.evaluate("return document.title") == "VRCT-VOX"
+        assert "VRCT-VOX" in ui.evaluate("return document.body.innerText")
         assert "An error occurred" not in ui.evaluate("return document.body.innerText")
         assert "download automatically, normally" not in ui.evaluate("return document.body.innerText")
         # DPMS Off reproduced the old black window while the DOM still worked.

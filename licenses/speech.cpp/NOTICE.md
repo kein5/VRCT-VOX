@@ -4,7 +4,7 @@ This component contains the unmodified `speech` executable extracted from an
 official speech.cpp 0.9.0 Linux release. `bundle.json` records the selected
 archive, its SHA256, the source commit and the hashes of the files included here.
 No speech model, reference recording, libspeech shared library or VC engine is
-included. This is a VRCT-TTS packaging component, not an upstream release of VRCT.
+included. This is a VRCT-VOX packaging component, not an upstream release of VRCT.
 
 Upstream source: https://github.com/nyosegawa/speech.cpp
 Commit: 49f022a48bc1c7e797aa64dd08d2d9655baf299e

@@ -1,10 +1,11 @@
 import { useEffect, useMemo } from "react";
 import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
-import { VoiceRouteSummary } from "../device/VoiceRouteSettings";
+import { VoiceRouteSummary, VoiceRouteControls } from "../device/VoiceRouteSettings";
 import { SectionLabelComponent } from "../_components/section_label_component/SectionLabelComponent";
 import styles from "./VoiceSettings.module.scss";
 import { useI18n } from "@useI18n";
 import { useVoice } from "../../../../../../logics/voice/useVoice";
+import { ModelDownloads } from "./ModelDownloads";
 
 // Keep the complete backend identity. Refresh never rebinds a selected name.
 const key = id => JSON.stringify([id.cookie, id.serial, id.name, id.media_class]);
@@ -13,7 +14,7 @@ const defaults = { mode: "passthrough", runtime: "", reference: "", engine: "see
 
 export const DirectVoiceSettings = ({ variant = "all" }) => {
     const { t } = useI18n();
-    const { settings, directState, directOwner, directPending, directSources, directError, updateDirectError, send, setDirectDraftBlocked,
+    const { settings, route, error, directState, directOwner, directPending, directSources, directError, updateDirectError, send, setDirectDraftBlocked,
         selectedSource: selected, setSelectedSource: setSelected } = useVoice();
     const saved = useMemo(() => {
         if (!directState.settings) return null;
@@ -95,6 +96,8 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
             {rvc && draft.rvc_index_rate > 0 && !draft.rvc_index && <p role="alert">{t("voice_ui.rvc_index_required")}</p>}
         </>}
         </fieldset>
+        {rvc && <ModelDownloads targets={["rvc"]} blocked={dirty || busy || saving}
+            expected={{ rvc: { model: directState.settings?.rvc_model || "", index: directState.settings?.rvc_index || "" } }} />}
         <div className={styles.actions}>
             <button className={styles.primary} type="button" disabled={busy || (!dirty && !needsSelection) || saving || !validNumbers}
                 onClick={() => form.submit(value => send("/set/data/direct_voice_settings", value))}>{t(saving ? "voice.saving" : "voice.direct_save")}</button>
@@ -110,8 +113,14 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
             </select>
         </label>
         <button type="button" onClick={() => send("/get/data/direct_voice_sources")}>{t("voice.refresh_inputs")}</button>
-        {!managed && <p>{t("voice.input_requires_managed")}</p>}
-        <button type="button" disabled={!managed || !source || !!directSources.error || !complete || dirty || saving ||
+        <p>{t("voice.input_selection_hint")}</p>
+        {!managed && <><p>{t("voice.input_requires_managed")}</p>
+            <button type="button" disabled={!settings || busy || saving}
+                onClick={() => send("/set/data/voice_settings", { ...settings, routing: "managed" })}>{t("voice.prepare_microphone")}</button>
+            {error && <p role="alert">{t(`voice_setup_errors.${error}`, { defaultValue: error })}</p>}
+        </>}
+        {managed && <VoiceRouteControls />}
+        <button type="button" disabled={!managed || !route.ready || route.pending || !source || !!directSources.error || !complete || dirty || saving ||
             !directState.observation_id || busy || needsSelection}
             onClick={() => send("/run/start_direct_voice", converted ? {
                 source: source.id, mode: "converted", options,

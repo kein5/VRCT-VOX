@@ -79,6 +79,14 @@ def copy_adapters(resources):
                 target = resources / 'integrations' / engine / file.name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(file, target)
+    # External inference interpreters cannot read the frozen sidecar's PYZ.
+    # Ship only their small, dependency-free contract modules as ordinary files.
+    for name in ('__init__.py', 'voice_conversion/__init__.py',
+                 'voice_conversion/protocol.py', 'voice_conversion/settings.py'):
+        source = ROOT / 'src-python/models' / name
+        target = resources / 'src-python/models' / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
 
 
 def tauri_workspace(work, frozen):
@@ -102,7 +110,7 @@ def tauri_workspace(work, frozen):
     if binary.exists():
         shutil.rmtree(binary)
     binary.mkdir()
-    shutil.copy2(frozen / 'vrct-tts-sidecar', binary / 'vrct-tts-sidecar-x86_64-unknown-linux-gnu')
+    shutil.copy2(frozen / 'vrct-vox-sidecar', binary / 'vrct-vox-sidecar-x86_64-unknown-linux-gnu')
     shutil.copytree(frozen / '_internal', binary / '_internal', symlinks=True)
     config = json.loads((tauri / 'tauri.conf.json').read_text())
     config['bundle']['targets'] = []
@@ -179,12 +187,12 @@ def main():
     env['CARGO_PROFILE_DEV_DEBUG_ASSERTIONS'] = 'false'
     run([ROOT / 'node_modules/.bin/tauri', 'build', '--no-bundle',
          *(['--debug'] if args.profile == 'debug' else []), '--', '--locked'], cwd=workspace, env=env)
-    candidate = work / 'candidate/VRCT-TTS'
+    candidate = work / 'candidate/VRCT-VOX'
     if candidate.exists():
         shutil.rmtree(candidate)
     candidate.parent.mkdir(exist_ok=True)
     shutil.copytree(frozen, candidate, symlinks=True)
-    shutil.copy2(work / 'cargo' / args.profile / 'vrct-tts', candidate / 'vrct-tts')
+    shutil.copy2(work / 'cargo' / args.profile / 'vrct-vox', candidate / 'vrct-vox')
     normalize_modes(candidate)
     check_tree(candidate, require_runtime=True)
     verify_bundle(candidate / '_internal/build/speechcpp')
@@ -199,7 +207,7 @@ def main():
     (candidate / 'build-manifest.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
     (candidate / 'build-manifest.json').chmod(0o644)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    output = args.output_dir / f'VRCT-TTS-{version}-{args.variant}-{args.profile}.tar.gz'
+    output = args.output_dir / f'VRCT-VOX-{version}-{args.variant}-{args.profile}.tar.gz'
     pack(candidate, output)
     shutil.copyfile(candidate / 'build-manifest.json', output.with_suffix('').with_suffix('.manifest.json'))
     print(f'Unpublished candidate: {output.resolve()}')

@@ -1,11 +1,11 @@
 // ============================================================
 // 検索バーの位置・サイズ調整用変数（ここを変更して簡単に調節可能）
 // ============================================================
-$search_bar_top: 2.8rem;             // 上からの位置 (設定画面上部・サイドメニュー上の位置)
+$search_bar_top: 1.6rem;             // 上からの位置 (設定画面上部・サイドメニュー上の位置)
 $search_bar_left: 1.6rem;              // 左からの位置 (サイドバー左端からの余白)
-$search_bar_height: 2.8rem;          // 検索バーの高さ
-$search_bar_width_normal: 24rem;     // 通常時の幅 (サイドバー12remの2倍)
-$search_bar_width_compact: 12rem;    // コンパクト時の幅 (その半分)
+$search_bar_height: 4rem;          // 検索バーの高さ
+$search_bar_width_normal: 17.6rem;     // 通常時の幅 (サイドバー12remの2倍)
+$search_bar_width_compact: 17.6rem;    // コンパクト時の幅 (その半分)
 // ============================================================
 
 .search_wrapper {
@@ -40,7 +40,7 @@ $search_bar_width_compact: 12rem;    // コンパクト時の幅 (その半分)
 
     &:focus-within {
         border-color: var(--primary_400_color);
-        box-shadow: 0 0 0.4rem rgba(72, 164, 149, 0.35);
+        box-shadow: 0 0 0.4rem rgba(91, 146, 255, 0.35);
     }
 }
 
@@ -56,7 +56,7 @@ $search_bar_width_compact: 12rem;    // コンパクト時の幅 (その半分)
     border: none;
     background: transparent;
     outline: none;
-    font-size: 1.25rem;
+    font-size: 1.3rem;
     color: var(--dark_basic_text_color);
     font-family: inherit;
     min-width: 0;
@@ -154,7 +154,7 @@ $search_bar_width_compact: 12rem;    // コンパクト時の幅 (その半分)
 }
 
 .item_label {
-    font-size: 1.25rem;
+    font-size: 1.3rem;
     font-weight: 500;
     color: var(--dark_basic_text_color);
     white-space: nowrap;
@@ -194,6 +194,6 @@ $search_bar_width_compact: 12rem;    // コンパクト時の幅 (その半分)
 .no_results {
     padding: 1.6rem 1rem;
     text-align: center;
-    font-size: 1.25rem;
+    font-size: 1.3rem;
     color: var(--dark_550_color);
 }

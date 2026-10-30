@@ -155,6 +155,86 @@ def test_advancing_graph_cycle_is_same_epoch_but_not_same_snapshot(tmp_path):
     assert subprocess.run([str(executable)], capture_output=True).returncode == 0
 
 
+@pytest.mark.parametrize('change', ['driver', 'latency', 'unstable'])
+def test_capture_waits_for_stable_startup_before_delivering_pcm(tmp_path, change):
+    """Bluetooth startup rebinds before stable delivery; later changes still stop."""
+    harness = tmp_path / 'startup.c'
+    harness.write_text('''
+#define main capture_main
+#define clock_gettime fixture_clock_gettime
+#define pw_stream_get_node_id fixture_node_id
+#define pw_stream_get_time_n fixture_time
+#include "''' + str(ROOT / 'native/asr-capture/main.c') + '''"
+#undef main
+static uint64_t fixture_now = 10000000000ULL;
+int fixture_clock_gettime(clockid_t id, struct timespec *t) {
+    (void)id; t->tv_sec=fixture_now/NS; t->tv_nsec=fixture_now%NS; return 0;
+}
+uint32_t fixture_node_id(struct pw_stream *stream) { (void)stream; return 7; }
+int fixture_time(struct pw_stream *stream, struct pw_time *t, size_t size) {
+    (void)stream; (void)size; *t=(struct pw_time){.now=fixture_now-1000000,.rate={1,48000}}; return 0;
+}
+static bool push(struct state *s) {
+    struct spa_io_position *position=(struct spa_io_position*)s->position;
+    position->clock.nsec=fixture_now-1000000;
+    uint8_t pcm[960]={1}; struct spa_chunk chunk={.size=960,.stride=2};
+    struct spa_data data={.data=pcm,.maxsize=960,.chunk=&chunk};
+    struct spa_buffer buffer={.n_datas=1,.datas=&data};
+    struct pw_buffer input={.buffer=&buffer,.time=fixture_now-1000000};
+    return send_buffer(s,&input);
+}
+int main(int argc, char **argv) {
+    pw_init(&argc,&argv);
+    struct spa_io_position a={.clock={.id=32,.rate={1,48000},.duration=256}};
+    struct spa_io_position b={.clock={.id=86,.rate={1,48000},.duration=256}};
+    struct state s={.target_ok=true,.n_links=1,.format_ok=true,.latency_ok=true,.own=7,
+        .position=&a,.latency={.direction=SPA_DIRECTION_OUTPUT}};
+    s.loop=pw_main_loop_new(NULL);
+    if (argv[1][0]=='u') {
+        s.last_packet=fixture_now;
+        for (int i=0;i<8 && !s.stopping;i++) {
+            a.clock.id++; if (!push(&s)) return 16;
+            fixture_now+=500000000; watchdog(&s,1);
+        }
+        bool stopped=s.stopping && s.result!=0 && !s.started && !s.sequence;
+        pw_main_loop_destroy(s.loop); pw_deinit(); return stopped?0:17;
+    }
+    if (!push(&s) || s.started || s.sequence) return 10;
+    fixture_now+=600000000;
+    if (argv[1][0]=='d') stream_io(&s,SPA_IO_Position,&b,sizeof(b));
+    else {
+        uint8_t bytes[1024]; struct spa_pod_builder builder=SPA_POD_BUILDER_INIT(bytes,sizeof(bytes));
+        struct spa_latency_info latency={.direction=SPA_DIRECTION_OUTPUT,.max_ns=1000000};
+        stream_param(&s,SPA_PARAM_Latency,spa_latency_build(&builder,SPA_PARAM_Latency,&latency));
+    }
+    if (!push(&s) || s.started || s.sequence || s.stopping) return 11;
+    fixture_now+=600000000;
+    if (!push(&s) || s.started || s.sequence) return 12;
+    fixture_now+=500000000;
+    if (!push(&s) || !s.started || s.sequence!=1 || s.stopping) return 13;
+    /* Identical notification is harmless; actual post-start rebind is not. */
+    stream_io(&s,SPA_IO_Position,(void*)s.position,sizeof(a));
+    if (s.stopping) return 14;
+    stream_io(&s,SPA_IO_Position,NULL,0);
+    bool stopped=s.stopping && s.result!=0;
+    pw_main_loop_destroy(s.loop); pw_deinit(); return stopped?0:15;
+}
+''')
+    flags = shlex.split(subprocess.check_output(
+        ['pkg-config', '--cflags', '--libs', 'libpipewire-0.3'], text=True))
+    binary = tmp_path / 'startup'
+    subprocess.run(['cc', '-std=gnu11', '-O2', '-Wall', '-Wextra', '-Werror',
+                    str(harness), '-o', str(binary), *flags, '-lm'], check=True)
+    result = subprocess.run([str(binary), change], capture_output=True, timeout=2)
+    assert result.returncode == 0, (result.returncode, result.stderr)
+    if change == 'unstable':
+        assert result.stdout == b'', 'unstable startup emitted PCM'
+        assert b'asr_capture_stalled' in result.stderr
+    else:
+        assert len(result.stdout) == 32 + 960, 'negotiation PCM escaped or stable PCM missing'
+        assert b'asr_capture_clock_changed' in result.stderr
+
+
 @pytest.mark.parametrize("fault", ["cookie", "serial", "backpressure"])
 def test_capture_fails_closed_for_wrong_identity_or_unread_pipe(tmp_path, fault):
     binary = build(tmp_path)

@@ -1,7 +1,9 @@
-import { useStore_IsMainPageCompactMode } from "@store";
+import { useStore_IsMainPageCompactMode, useStore_IsBreakPoint } from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 
 export const useIsMainPageCompactMode = () => {
+    const { currentIsBreakPoint } = useStore_IsBreakPoint();
+    const isAutomaticCompact = currentIsBreakPoint.data;
     const { asyncStdoutToPython } = useStdoutToPython();
     const { currentIsMainPageCompactMode, updateIsMainPageCompactMode } = useStore_IsMainPageCompactMode();
 
@@ -10,6 +12,7 @@ export const useIsMainPageCompactMode = () => {
     };
 
     const toggleIsMainPageCompactMode = () => {
+        if (isAutomaticCompact) return;
         if (currentIsMainPageCompactMode.data) {
             asyncStdoutToPython("/set/disable/main_window_sidebar_compact_mode");
         } else {
@@ -18,7 +21,8 @@ export const useIsMainPageCompactMode = () => {
     };
 
     return {
-        currentIsMainPageCompactMode,
+        currentIsMainPageCompactMode: { ...currentIsMainPageCompactMode, data: currentIsMainPageCompactMode.data || isAutomaticCompact },
+        isAutomaticCompact,
         getIsMainPageCompactMode,
         toggleIsMainPageCompactMode,
         updateIsMainPageCompactMode,

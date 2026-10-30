@@ -1,22 +1,22 @@
 :root {
-    --primary_100_color: #b7ded8;
-    --primary_150_color: #a1d4cc;
-    --primary_200_color: #8acac0;
-    --primary_250_color: #76bfb4;
-    --primary_300_color: #61b4a7;
-    --primary_350_color: #55ac9e;
-    --primary_400_color: #48a495;
-    --primary_450_color: #429c8c;
-    --primary_500_color: #3b9483;
-    --primary_550_color: #398E7D;
-    --primary_600_color: #368777;
-    --primary_650_color: #347f6f;
-    --primary_700_color: #317767;
-    --primary_750_color: #2f6f60;
-    --primary_800_color: #2c6759;
-    --primary_900_color: #214b3f;
+    --primary_100_color: #dbeafe;
+    --primary_150_color: #bfdbfe;
+    --primary_200_color: #a9ccff;
+    --primary_250_color: #93bcff;
+    --primary_300_color: #80acff;
+    --primary_350_color: #6e9fff;
+    --primary_400_color: #5b92ff;
+    --primary_450_color: #4d86fa;
+    --primary_500_color: #3f7bf2;
+    --primary_550_color: #3470e8;
+    --primary_600_color: #2865dc;
+    --primary_650_color: #235bcc;
+    --primary_700_color: #2052b8;
+    --primary_750_color: #1d49a4;
+    --primary_800_color: #1b418e;
+    --primary_900_color: #153366;
 
-    --primary_600_color_44: #36877744;
+    --primary_600_color_44: #2865dc44;
 
     /* primary_300_color 61b4a7 as standard */
     --sent_400_color: #6197b4;
@@ -28,32 +28,32 @@
     --warning_color: #cb944f;
     --warning_bc_color: #cf7b1b;
 
-    --dark_basic_text_color: #f2f2f2;
-    --dark_100_color: #f5f7fb;
-    --dark_200_color: #f1f2f6;
-    --dark_300_color: #e9eaee;
-    --dark_350_color: #d8d9dd;
-    --dark_400_color: #c7c8cc;
-    --dark_450_color: #b8b9bd;
-    --dark_500_color: #a9aaae;
-    --dark_550_color: #949599;
-    --dark_600_color: #7f8084;
-    --dark_650_color: #75767a;
-    --dark_700_color: #6a6c6f;
-    --dark_725_color: #636467;
-    --dark_750_color: #5b5c5f;
-    --dark_775_color: #535457;
-    --dark_800_color: #4b4c4f;
-    --dark_825_color: #434447;
-    --dark_850_color: #3a3b3e;
-    --dark_863_color: #36373a;
-    --dark_875_color: #323336;
-    --dark_888_color: #2e2f32;
-    --dark_900_color: #292a2d;
-    --dark_925_color: #242528;
-    --dark_950_color: #1f2022;
-    --dark_975_color: #1a1b1d;
-    --dark_1000_color: #151517;
+    --dark_basic_text_color: #edf3ff;
+    --dark_100_color: #f5f8ff;
+    --dark_200_color: #edf3ff;
+    --dark_300_color: #dbe6f7;
+    --dark_350_color: #cbd9ee;
+    --dark_400_color: #bccde2;
+    --dark_450_color: #adbed6;
+    --dark_500_color: #9daec6;
+    --dark_550_color: #8d9fb9;
+    --dark_600_color: #798ca8;
+    --dark_650_color: #6f83a0;
+    --dark_700_color: #657a96;
+    --dark_725_color: #586f8d;
+    --dark_750_color: #4b6280;
+    --dark_775_color: #425975;
+    --dark_800_color: #344662;
+    --dark_825_color: #2d3e58;
+    --dark_850_color: #25364f;
+    --dark_863_color: #213047;
+    --dark_875_color: #1d2940;
+    --dark_888_color: #182438;
+    --dark_900_color: #152032;
+    --dark_925_color: #121c2d;
+    --dark_950_color: #0e1726;
+    --dark_975_color: #0b1322;
+    --dark_1000_color: #080f1b;
 
     --dark_550_color_22: #94959922;
     --dark_825_color_cc: #434447cc;
@@ -66,11 +66,17 @@
 
     --supporters_crown_color: #f0cb55;
 
-    --title_bar_height: 2rem;
-    --main_page_topbar_height: 4.8rem;
-    --config_page_sidebar_width: 16.8rem;
-    --config_page_content_padding_top: 8rem;
+    --title_bar_height: 3.4rem;
+    --main_page_topbar_height: 5.6rem;
+    --config_page_sidebar_width: 20.8rem;
+    --config_page_content_padding_top: 7.2rem;
 
+    --vox_canvas: #111b2c;
+    --vox_rail: #0d1625;
+    --vox_surface: #18253b;
+    --vox_border: #344662;
+    --vox_radius: .8rem;
+    --dark_50_color: #ffffff;
     --font_family: "Yu Gothic UI";
 }
 /* https://m2.material.io/design/color/the-color-system.html#tools-for-picking-colors */

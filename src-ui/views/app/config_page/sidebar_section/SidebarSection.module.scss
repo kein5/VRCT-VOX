@@ -1,5 +1,5 @@
 .container {
-    width: 12.8rem;
+    width: var(--config_page_sidebar_width);
     flex-shrink: 0;
     padding: 0;
     position: relative;
@@ -7,9 +7,9 @@
     height: 100%;
 
     &.is_small {
-        width: 4rem;
+        width: 5.6rem;
         &:hover {
-            width: 12.8rem;
+            width: var(--config_page_sidebar_width);
         }
     }
 }
@@ -20,7 +20,7 @@
     justify-content: space-between;
     height: 100%;
     width: 100%;
-    background-color: var(--dark_900_color);
+    background-color: var(--vox_rail);
     padding-top: var(--config_page_content_padding_top);
     padding-bottom: 0.8rem;
     overflow: hidden;
@@ -32,7 +32,7 @@
     justify-content: space-between;
     overflow-y: auto;
     flex: 1;
-    max-height: 60rem;
+    padding: 0 1rem;
 
     &::-webkit-scrollbar {
         width: 0.3rem;
@@ -43,7 +43,7 @@
     width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
+    gap: .4rem;
 }
 
 .tab_container {
@@ -52,22 +52,25 @@
     display: flex;
     justify-content: left;
     align-items: center;
-    padding: 0.6rem 0.8rem;
+    min-height: 4rem;
+    padding: .8rem 1.2rem;
+    border-radius: var(--vox_radius);
+    text-align: left;
     cursor: pointer;
-    gap: 0.4rem;
+    gap: 1rem;
     overflow: hidden;
 
     &:hover {
         background-color: var(--dark_800_color);
     }
     &:active {
-        background-color: var(--dark_900_color);
+        background-color: var(--vox_rail);
     }
     &.is_selected {
-        background-color: inherit;
+        background-color: var(--primary_900_color);
         color: var(--primary_200_color);
         cursor: default;
-        pointer-events: none;
+
         .tab_icon {
             fill: var(--primary_200_color);
         }
@@ -116,9 +119,9 @@
         display: block;
         position: absolute;
         top: 50%;
-        left: 0.4rem;
+        left: .2rem;
         transform: translate(-50%, -50%);
-        width: 0.2rem;
+        width: .1rem;
         height: 2rem;
         border-radius: 0.1rem;
         background-color: var(--primary_300_color);
@@ -126,16 +129,17 @@
 }
 
 .tab_text {
-    font-size: 1.2rem;
+    font-size: 1.35rem;
     position: relative;
-    white-space: nowrap;
+    white-space: normal;
+    line-height: 1.4;
     opacity: 1;
     transition: opacity 0.2s;
     color: var(--dark_basic_text_color);
 
     &.hide {
         opacity: 0;
-        pointer-events: none;
+
     }
 }
 

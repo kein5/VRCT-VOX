@@ -3,6 +3,7 @@ import sys
 from time import monotonic_ns
 
 from models.tts.speechcpp_tts import SpeechError
+from .gc_guard import defer_cyclic_gc
 
 
 def enumerate_outputs():
@@ -32,6 +33,12 @@ class AudioRouter:
         self.output_factory = output_factory
 
     def play(self, frames, device, token, on_first_audio):
+        # A full cyclic collection can hold the GIL longer than the bounded
+        # native output queue, starving playback even while PCM is available.
+        with defer_cyclic_gc():
+            self._play(frames, device, token, on_first_audio)
+
+    def _play(self, frames, device, token, on_first_audio):
         sink = None
         stream_format = None
         first = True

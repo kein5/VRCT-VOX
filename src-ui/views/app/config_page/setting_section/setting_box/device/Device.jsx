@@ -24,9 +24,9 @@ import {
 export const Device = () => {
     return (
         <div className={styles.container}>
+            <VoiceRouteSettings />
             <MicContainer />
             <SpeakerContainer />
-            <VoiceRouteSettings />
         </div>
     );
 };

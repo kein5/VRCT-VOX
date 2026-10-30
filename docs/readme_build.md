@@ -1,544 +1,107 @@
-# VRCTビルドガイド
+# VRCT-VOXのビルドとCI
 
-このドキュメントでは、VRCTプロジェクトのビルド方法について説明します。
+Windows向けのビルド手順と、現在のCIを説明します。Linuxでは[Linuxビルドパイプライン](voice-stack/linux-build-pipeline.md)と[AppImageガイド](voice-stack/appimage.md)を使います。Windows用のバッチコマンドはLinuxでは実行できません。
 
-## 目次
+## Windowsの準備
 
-- [必要な環境](#必要な環境)
-- [初回セットアップ](#初回セットアップ)
-- [ビルドの種類](#ビルドの種類)
-- [開発ビルド](#開発ビルド)
-- [リリースビルド](#リリースビルド)
-- [ビルドプロセスの詳細](#ビルドプロセスの詳細)
-- [トラブルシューティング](#トラブルシューティング)
+Node.jsとnpm、Python 3.11、Rust、Git、TauriのWindowsビルドに必要なVisual Studio C++ツールを用意します。CIのNode.jsは22.15.0です。依存関係は`package-lock.json`、`requirements.txt`、`requirements_cuda.txt`、`src-tauri/Cargo.lock`で管理しています。
 
-## 必要な環境
-
-### 必須ソフトウェア
-
-- **Node.js** (npm含む)
-- **Python 3.x**
-- **Rust** (Tauri用)
-- **Git**
-
-### 推奨環境
-
-- Windows 10/11
-- メモリ: 8GB以上
-- ストレージ: 5GB以上の空き容量
-
-## 初回セットアップ
-
-### 1. リポジトリのクローン
-
-```bash
-git clone <repository-url>
-cd VRCT
-```
-
-### 2. Node.js依存関係のインストール
-
-```bash
-npm install
-```
-
-### 3. Python環境のセットアップ
-
-以下のコマンドで、CPU版とCUDA版の両方の仮想環境を作成します:
-
-```bash
+```sh
+git clone https://github.com/kein5/VRCT-VOX.git
+cd VRCT-VOX
+npm ci
 npm run setup-python
 ```
 
-このコマンドは以下の処理を実行します:
-- `.venv` (CPU版) の作成と依存関係のインストール
-- `.venv_cuda` (CUDA版) の作成と依存関係のインストール
+`setup-python`は`.venv`と`.venv_cuda`を作り直し、標準版とCUDA版の依存関係を入れます。既存の同名環境も削除するため、個別に追加した依存関係があれば先に記録してください。
 
-> **注意**: CUDA版を使用する場合は、CUDA 12.8対応のNVIDIA GPUドライバーが必要です。
-> CUDA Toolkit のインストールは不要です。ctranslate2 が使う cuBLAS / cuDNN は
-> `requirements_cuda.txt` の `nvidia-*-cu12` wheel で入り、ビルド時に同梱されます。
+CUDA版は対応するNVIDIAドライバーを使います。cuBLAS・cuDNNは`requirements_cuda.txt`の`nvidia-*-cu12`パッケージから同梱するため、CUDA Toolkitを別に入れる必要はありません。モデルの取得と本体のビルドは別の操作です。
 
-## ビルドの種類
+## 開発時の起動
 
-VRCTでは、以下の2種類のビルドが可能です:
+日常のPython・UI開発では、仮想環境のPythonを直接起動する開発用sidecarを使えます。
 
-### CPU版
-標準的なCPUで動作するバージョン。GPUは不要。
-
-### CUDA版
-NVIDIA GPUを活用した高速処理版。CUDA対応GPUが必要。
-
-## 開発ビルド
-
-開発中にアプリケーションを実行・テストするためのビルドです。
-
-### CPU版の開発ビルド
-
-```bash
-npm run dev
-```
-
-このコマンドは以下を実行します:
-1. 実行中のプロセスを終了 (`task-kill`)
-2. ビルドファイルのクリーンアップ (`clean`)
-3. バージョン情報の更新 (`update-version`)
-4. Pythonバックエンドのビルド (`build-python`)
-5. ViteとTauriの開発サーバー起動
-
-### CUDA版の開発ビルド
-
-```bash
-npm run dev-cuda
-```
-
-CPU版と同様ですが、CUDA対応のPythonバックエンドをビルドします。
-
-### UIのみの開発
-
-バックエンドのビルドをスキップして、UIのみを開発する場合:
-
-```bash
-npm run dev-ui
-```
-
-### 高速開発ビルド（推奨: 日常検証用）
-
-PyInstaller によるバックエンド再パッケージを毎回スキップし、仮想環境の
-Python を直接 sidecar として起動する高速ループです。Python コードを
-修正した検証も、プロセス再起動だけで反映されます（数分 → 数秒）。
-
-```bash
-# 標準環境: .venv/Scripts/python.exe
+```sh
 npm run dev-fast
-
-# CUDA環境: .venv_cuda/Scripts/python.exe
+# CUDA版の仮想環境を使う場合
 npm run dev-cuda-fast
 ```
 
-どちらのコマンドも以下を実行します:
+コマンドは`VRCT_DEV_VENV`を設定し、Rustの開発用sidecarをビルドしてからViteとTauriを起動します。選択した仮想環境がなければエラーで止まります。事前のactivateは不要です。
 
-1. 実行中のプロセスを終了 (`task-kill`)
-2. dev 用 sidecar ラッパー（`utils/dev_sidecar/`, Rust 製の薄いバイナリ）を
-   ビルドして `src-tauri/bin/` に配置 (`sidecar-dev`)
-3. Vite と Tauri の開発サーバー起動 (`dev-ui`)
+Pythonの変更は再起動で反映されます。配布用の凍結バックエンドとは起動方法が違うため、この起動確認だけで配布物の動作確認を終えたとは扱いません。依存関係や同梱資源を変更した場合は、次の方法でも確認します。
 
-前提:
-
-- 選択した仮想環境と依存関係が準備済みであること
-  - `dev-fast`: `.venv/Scripts/python.exe`
-  - `dev-cuda-fast`: `.venv_cuda/Scripts/python.exe`（`.venv` は不要）
-- Rust ツールチェーン (`cargo`) が使えること（既に Tauri で必要）
-
-各コマンドが `VRCT_DEV_VENV` を設定し、Tauri 経由で dev 用 sidecar に
-使用する環境を渡します。選択した環境が存在しない場合はエラーで停止し、
-別の仮想環境への自動切り替えは行いません。環境の有効化（activate）は不要です。
-
-配布 EXE と同一挙動になる根拠:
-
-- Python コード側は `_internal/...` バンドルパスと開発ツリー相対パスの
-  両対応が入っており、venv 直起動でもリソース探索が正しく解決される
-  （`src-python/models/overlay/overlay_image.py` ほか）
-- Tauri 側の sidecar 起動ロジックは共通のまま（EXE ファイル名は不変）
-
-依存ライブラリを追加/更新した場合や、配布形式そのものを確認したい場合は
-従来の `npm run dev` / `npm run build` を使ってください。
-
-## リリースビルド
-
-配布用のインストーラーを作成するビルドです。
-
-### CPU版のリリースビルド
-
-```bash
-npm run build
+```sh
+npm run dev
+# CUDA版
+npm run dev-cuda
 ```
 
-または、ZIP形式でパッケージング:
+こちらは既存のビルド出力を削除し、バージョン情報を同期して、PyInstallerでバックエンドを作り直します。UIだけを再起動する`npm run dev-ui`は、sidecarの準備が済んでいる場合に使います。
 
-```bash
+## 配布候補の作成
+
+```sh
 npm run release
-```
-
-生成されるファイル:
-- インストーラー: `src-tauri/target/release/bundle/nsis/`
-- ZIPファイル: `VRCT.zip` (releaseコマンド使用時)
-
-### CUDA版のリリースビルド
-
-```bash
-npm run build-cuda
-```
-
-または、ZIP形式でパッケージング:
-
-```bash
 npm run release-cuda
-```
-
-生成されるファイル:
-- インストーラー: `src-tauri/target/release/bundle/nsis/`
-- ZIPファイル: `VRCT_cuda.zip` (release-cudaコマンド使用時)
-
-### 両バージョンの同時ビルド
-
-CPU版とCUDA版の両方をビルドする場合:
-
-```bash
+# 両方を順に作成する場合
 npm run release-all
 ```
 
-## ビルドプロセスの詳細
+| 対象 | 出力 |
+|---|---|
+| Windows標準版 | `VRCT-VOX.zip` |
+| Windows CUDA版 | `VRCT-VOX_cuda.zip` |
+| Windowsインストーラー | `src-tauri/target/release/bundle/nsis/VRCT-VOX_<version>_x64-setup.exe` |
+| Linux | `VRCT-VOX-<version>-linux-x64-vulkan-release.tar.gz`と同名の`.AppImage` |
 
-### バージョン管理
+WindowsのZIPには`vrct-vox.exe`、`vrct-vox-sidecar.exe`、依存ファイルの`_internal/`を収めます。Linuxの実行名には`.exe`を付けません。配布物の作成時にはOCR重みなどの禁止資源を検査します。ソースツリー全体をそのまま配布ZIPにしないでください。
 
-バージョンは `package.json` で一元管理され、以下のファイルに自動で同期されます:
+個別にビルドするコマンドは次のとおりです。
 
-```bash
+| 操作 | コマンド | 主な出力先 |
+|---|---|---|
+| 標準版バックエンド | `npm run build-python` | `src-tauri/bin/` |
+| CUDA版バックエンド | `npm run build-python-cuda` | `src-tauri/bin/` |
+| フロントエンド | `npm run vite-build` | `dist/` |
+| Tauri本体 | `npm run tauri build` | `src-tauri/target/release/` |
+| 標準版をまとめてビルド | `npm run build` | 上記の本体と資源 |
+| CUDA版をまとめてビルド | `npm run build-cuda` | 上記の本体と資源 |
+
+`VRCT_PYINSTALLER_CLEAN=1`はPyInstallerの解析キャッシュを破棄します。`VRCT_PYINSTALLER_UPX=1`はUPX圧縮を有効にする設定で、初期設定は無効です。
+
+## バージョン管理
+
+バージョンは`package.json`で管理し、次のコマンドで`src-tauri/tauri.conf.json`と`src-python/config.py`へ同期します。通常のビルドコマンドでも同期処理を実行します。
+
+```sh
 npm run update-version
 ```
 
-更新されるファイル:
-- `src-tauri/tauri.conf.json`
-- `src-python/config.py`
+`3.6.0-beta.1`のような識別子も使えます。バージョン文字列だけで公開や配布先の切り替えは行いません。ZIP名はバージョンを含まない固定名で、NSIS・Linux候補のファイル名にはバージョンが入ります。
 
-### どこにバージョンを設定すればReleaseに反映されるか
+## CIと公開先
 
-- **設定箇所**: `package.json` の `version` が唯一のソース・オブ・トゥルース。
-- **反映方法**: `npm run update-version`（`build`/`build-cuda`/`release`コマンド内でも自動実行）により、
-	- `src-tauri/tauri.conf.json` の `version` に同期（Tauri/NSISインストーラーの表示・メタデータに使用）
-	- `src-python/config.py` の `self._VERSION` に同期（ランタイム表示等に使用）
-- **成果物への影響**:
-	- インストーラー（NSIS）は `tauri.conf.json` の `version` を取り込み、プロダクトバージョンとして反映。
-	- ZIPパッケージ名はスクリプト既定では固定（`VRCT.zip`/`VRCT_cuda.zip`）。ファイル名にバージョンを含めたい場合は、`package.json` の `release` スクリプトを調整してください。
+[voice-tests.yml](../.github/workflows/voice-tests.yml)はpushとpull requestで回帰試験を実行します。[build-linux.yml](../.github/workflows/build-linux.yml)は対象ファイルのpull requestと手動実行に対応し、Linux候補を作成・検査します。[release.yml](../.github/workflows/release.yml)は手動でWindows候補を作成・検査するワークフローです。
 
-### Pythonバックエンドのビルド
+ビルド候補はGitHub Actionsの成果物として保存します。これらのワークフローはGitHub ReleasesやHugging Faceへ自動公開しません。タグをpushしても公開処理は始まりません。権限は`contents: read`で、本家の公開用キーやテレメトリー用キーは使いません。
 
-#### CPU版
+配布先は[kein5/VRCT-VOX Releases](https://github.com/kein5/VRCT-VOX/releases)です。WindowsのNSISインストーラーは、このリポジトリのリリースから`VRCT-VOX.zip`または`VRCT-VOX_cuda.zip`を取得します。候補をビルドしただけでは、そのURLにファイルは存在しません。アプリ内更新は無効です。
 
-```bash
-npm run build-python
-```
+公開前に[配布検査](voice-stack/fork-distribution-isolation.md)とライセンス監査を行います。ローカルで作った候補と公開済みリリースは区別します。上流への連絡やPRの扱いは[公開方針](voice-stack/publication-and-upstream.md)を参照してください。
 
-実行内容:
+## ビルド出力の削除と診断
 
-- `.venv` 環境をアクティベート
-- PyInstallerで `spec/backend.spec` を使用してビルド
-- 出力先: `src-tauri/bin/`
+`npm run clean`は`build/`、`dist/`、`src-tauri/bin/`、`src-tauri/target/`を削除します。保持したい試験成果物が`build/`にある場合は、先に退避してください。`npm run clean-soft`では`src-tauri/target/`だけを残します。
 
-#### CUDA版
+`npm run task-kill`は実行中の`vrct-vox-sidecar.exe`を強制終了します。保存や変換の途中で実行しないでください。
 
-```bash
-npm run build-python-cuda
-```
+Python依存の問題は、選択した仮想環境とrequirementsの対応から確認します。Tauriの失敗はRust・C++ツールとsidecarの配置、画面だけの失敗は`npm run vite-build`の出力を確認します。CUDAの失敗では、ドライバーとCUDA版の仮想環境を確認してください。ビルド用のスペックファイルは`spec/backend.spec`、`spec/backend_cuda.spec`、`spec/backend_linux.spec`です。
 
-実行内容:
+旧版の設定保存先とアプリIDは維持します。[改名と互換性](voice-stack/project-rename.md)を参照してください。元の[LICENSE](../LICENSE)と[NOTICE](../NOTICE.md)を保持し、同梱ライブラリとモデルの条件はそれぞれ確認します。
 
-- `.venv_cuda` 環境をアクティベート
-- PyInstallerで `spec/backend_cuda.spec` を使用してビルド
-- 出力先: `src-tauri/bin/`
+## 共通の開発コマンドと下書き作成
 
-### フロントエンドのビルド
+環境診断と検査の入口は[開発ガイド](development.md)にまとめています。`npm run check`で軽い検査、`npm run test:voice`でモデル不要の音声契約、`npm run test:ui`でNodeテストとViteビルドを実行します。
 
-```bash
-npm run vite-build
-```
-
-Viteを使用してフロントエンド（React）をビルドし、`dist/` ディレクトリに出力します。
-
-### Tauriアプリケーションのビルド
-
-```bash
-npm run tauri build
-```
-
-Tauriを使用して最終的なデスクトップアプリケーションをビルドします。
-
-## GitHub ActionsでのRelease自動化
-
-Windows用のReleaseをGitHub Actionsで自動生成・公開する例です。`package.json` のバージョンをタグ・リリース名に使い、TauriのNSISインストーラーとZIPを添付します。
-
-### 推奨トリガー
-
-- タグプッシュ（例: `v*`）または手動実行（`workflow_dispatch`）
-
-### サンプルワークフロー（Windows）
-
-```yaml
-name: Release (Windows)
-
-on:
-	workflow_dispatch: {}
-	push:
-		tags:
-			- 'v*'
-
-jobs:
-	build-release-windows:
-		runs-on: windows-latest
-
-		steps:
-			- name: Checkout
-				uses: actions/checkout@v4
-
-			- name: Setup Node
-				uses: actions/setup-node@v4
-				with:
-					node-version: '20'
-
-			- name: Setup Python
-				uses: actions/setup-python@v5
-				with:
-					python-version: '3.11'
-
-			- name: Setup Rust
-				uses: dtolnay/rust-toolchain@stable
-
-			- name: Install dependencies
-				run: |
-					npm ci
-
-			- name: Setup Python envs (.venv/.venv_cuda)
-				run: |
-					npm run setup-python
-
-			- name: Sync versions from package.json
-				run: |
-					npm run update-version
-
-			- name: Build (CPU)
-				run: |
-					npm run build
-
-			- name: Package ZIP (CPU)
-				run: |
-					python utils/zip.py --zip_name VRCT.zip
-
-			- name: Read version from package.json
-				id: pkg
-				shell: pwsh
-				run: |
-					$version = (Get-Content package.json | ConvertFrom-Json).version
-					echo "version=$version" >> $env:GITHUB_OUTPUT
-
-			- name: Upload artifacts
-				uses: actions/upload-artifact@v4
-				with:
-					name: VRCT-windows-${{ steps.pkg.outputs.version }}
-					path: |
-						src-tauri/target/release/bundle/nsis/**/*
-						VRCT.zip
-
-			- name: Create GitHub Release
-				uses: softprops/action-gh-release@v2
-				with:
-					tag_name: v${{ steps.pkg.outputs.version }}
-					name: VRCT v${{ steps.pkg.outputs.version }}
-					files: |
-						src-tauri/target/release/bundle/nsis/**/*
-						VRCT.zip
-				env:
-					GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-### ポイント
-- ビルド前に必ず `npm run update-version` を実行して、`tauri.conf.json` と `config.py` にバージョンを同期します。
-- アーティファクトのパスは既定構成に合わせています：
-	- インストーラー: `src-tauri/target/release/bundle/nsis/`
-	- ZIP: ルート直下の `VRCT.zip`
-- CUDA版も同様にビルドする場合は、`npm run build-cuda` と `python utils/zip.py --zip_name VRCT_cuda.zip` を追加して、別アーティファクト名でアップロード・添付してください。
-
-## ユーティリティコマンド
-
-### クリーンアップ
-
-```bash
-npm run clean
-```
-
-以下のディレクトリを削除します:
-- `build/`
-- `dist/`
-- `src-tauri/bin/`
-- `src-tauri/target/`
-
-Rust のインクリメンタルビルド結果 (`src-tauri/target/`) を残したい場合は
-`--soft` 版を使ってください:
-
-```bash
-npm run clean-soft
-```
-
-こちらは `build/`, `dist/`, `src-tauri/bin/` のみを削除します。
-
-### PyInstaller のオプション環境変数
-
-`build-python` / `build-python-cuda` は以下の環境変数で挙動を切り替えられます:
-
-- `VRCT_PYINSTALLER_CLEAN=1` — PyInstaller に `--clean` を渡し、
-  Analysis キャッシュを破棄してからビルド（依存追加時・リリース前確認用）。
-  既定では付与しないので、2 回目以降のビルドは Analysis キャッシュが効いて
-  数倍速くなります。
-- `VRCT_PYINSTALLER_UPX=1` — 生成物を UPX で圧縮（配布サイズを最小化したい
-  リリース時のみ）。既定は無効。UPX 圧縮はビルド時間と初回起動時間の両方を
-  伸ばすため、開発中は無効を推奨します。
-
-### プロセスの強制終了
-
-```bash
-npm run task-kill
-```
-
-VRCTに関連する実行中のプロセスを終了します。
-
-## ディレクトリ構成
-
-```
-VRCT/
-├── bat/                    # バッチスクリプト
-│   ├── build.bat          # CPU版Pythonビルド
-│   ├── build_cuda.bat     # CUDA版Pythonビルド
-│   ├── install.bat        # Python環境セットアップ
-│   └── sidecar_dev.bat    # dev-fast用sidecarラッパービルド
-├── spec/                   # PyInstallerスペックファイル
-│   ├── backend.spec       # CPU版ビルド設定
-│   └── backend_cuda.spec  # CUDA版ビルド設定
-├── src-python/            # Pythonバックエンドソースコード
-├── src-tauri/             # Tauriアプリケーション設定
-│   ├── bin/              # ビルド済みPythonバイナリ（生成）
-│   └── target/           # Tauriビルド出力（生成）
-├── src-ui/               # Reactフロントエンドソースコード
-├── utils/                # ユーティリティスクリプト
-│   ├── clean.py         # クリーンアップスクリプト
-│   ├── dev_sidecar/     # dev-fast用のvenv直起動ラッパー(Rust)
-│   ├── task_kill.py     # プロセス終了スクリプト
-│   ├── update_version.py # バージョン更新スクリプト
-│   └── zip.py           # ZIPパッケージング
-├── package.json          # Node.js設定とバージョン管理
-├── requirements.txt      # Python依存関係（CPU版）
-└── requirements_cuda.txt # Python依存関係（CUDA版。requirements.txt + CUDAライブラリ）
-```
-
-## トラブルシューティング
-
-### Python環境のエラー
-
-仮想環境を再作成してください:
-
-```bash
-npm run setup-python
-```
-
-### ビルドが失敗する
-
-1. クリーンアップを実行:
-```bash
-npm run clean
-```
-
-2. Node.js依存関係を再インストール:
-```bash
-npm install
-```
-
-3. 再度ビルド:
-```bash
-npm run build
-```
-
-### CUDA版が動作しない
-
-- NVIDIA GPUドライバーが最新か確認（CUDA Toolkit のインストールは不要）
-- `requirements_cuda.txt` の依存関係が正しくインストールされているか確認
-- `.venv_cuda/Lib/site-packages/nvidia/{cublas,cudnn}/bin/` にDLLがあるか確認。
-  ctranslate2 はGPU実行時にここの `cublas64_12.dll` / `cudnn64_9.dll` を
-  実行時ロードする。無ければGPUは計算デバイス一覧に出ない
-
-### プロセスが残っている
-
-```bash
-npm run task-kill
-```
-
-を実行して、すべてのVRCTプロセスを終了してください。
-
-## 参考情報
-
-### PyInstallerスペックファイル
-
-- `spec/backend.spec` - CPU版の設定
-- `spec/backend_cuda.spec` - CUDA版の設定
-
-これらのファイルでは、以下を設定しています:
-- エントリーポイント: `src-python/mainloop.py`
-- データファイル（フォント、プロンプト、言語ファイル等）のパス
-- 依存ライブラリのパス
-
-### バージョン管理フロー
-
-1. `package.json` のバージョンを更新
-2. `npm run update-version` を実行
-3. 自動的に `tauri.conf.json` と `config.py` が更新される
-
-## β版リリース
-
-実際のリリースは `.github/workflows/release.yml` が `v*` タグのpushで自動実行しますが、
-タグ名に `-beta` または `-rc` を含めることで、公開先を本番と分離したβ版として配布できます。
-
-### リリース手順
-
-1. `package.json` の `version` を `3.5.0-beta.1` のようなpre-release識別子付きの値にする
-2. `npm run update-version` を実行(通常のビルド/リリースコマンド内で自動実行されるため手動実行は不要)
-3. `v3.5.0-beta.1` のようなタグを打ってpush
-
-```bash
-git tag v3.5.0-beta.1
-git push origin v3.5.0-beta.1
-```
-
-### 本番版との違い
-
-| 項目 | 本番版 (`v3.5.0`) | β版 (`v3.5.0-beta.1`) |
-|---|---|---|
-| GitHub Release | `prerelease: false` | `prerelease: true` |
-| Hugging Face公開先 | `ms-software/VRCT` | `ms-software/VRCT-beta` |
-| インストーラー(setup.exe)の既定ダウンロード元 | `ms-software/VRCT` | `ms-software/VRCT-beta`(バージョン文字列の `-beta`/`-rc` から自動判定、または `/CHANNEL=` 指定) |
-
-> **事前準備**: β用のHugging Faceリポジトリ `ms-software/VRCT-beta` は
-> CIでは自動作成されないため、初回は手動で作成しておく必要があります。
-
-### チャンネル切り替え・旧バージョンへのロールバック
-
-GitHub Releasesで配布されるsetup.exeは、実行時にHugging Faceから本体一式を
-ダウンロードするダウンローダー形式です。そのため、通常はGitHub Releasesの
-古いバージョンのsetup.exeを取得しても、その時点の最新版がインストールされてしまいます。
-
-チャンネル・バージョンの指定はGUI画面ではなく `/CHANNEL=` `/VERSION=` の
-CLI引数でのみ行えます(setup.exe自体はどのバージョン・チャンネルのものでも
-構いません)。setup.exeを単体でダブルクリックした場合はこれらの引数が付かない
-ため、CPU/GPU選択のみでビルド元チャンネルの最新版がインストールされます
-(GUI上に選択肢を増やさないための意図的な設計です)。VRCT本体のUpdaterタブ
-からの更新はこれらの引数を自動的に付与して起動します。
-
-```bash
-VRCT_setup.exe /CHANNEL=beta
-VRCT_setup.exe /VERSION=3.4.2
-```
-
-`/VERSION=` を指定した場合は、そのバージョン文字列に `-beta` または `-rc` が
-含まれるかどうかで自動的にダウンロード元リポジトリ(`ms-software/VRCT` /
-`ms-software/VRCT-beta`)を判定します(`/CHANNEL=` の指定より優先されます)。
-`/VERSION=` を指定しない場合は `/CHANNEL=`(省略時はこのsetup.exe自身が
-ビルドされたチャンネル)の最新版をダウンロードします。指定したバージョンが
-Hugging Face上に存在しない場合はダウンロードに失敗し、インストールが
-中断されます。
-
-### リリースパッケージの内容
-
-ZIPファイルには以下が含まれます:
-- `VRCT.exe` - メインアプリケーション
-- `VRCT-sidecar.exe` - Pythonバックエンド
-- `_internal/` - 必要な依存ファイル
-
-## ライセンス
-
-プロジェクトのライセンスについては、`LICENSE` ファイルを参照してください。
+候補の検査後は[配布手順](voice-stack/release-candidates.md)に従い、同じコミットのLinux・Windows成果物からリリース下書きを作成できます。公開は別途行います。

@@ -137,7 +137,10 @@ class GUI:
 
 
 class Capture:
-    def __init__(self, target, path, monitor=False):
+    def __init__(self, target, path, monitor=False, *, rate=RATE):
+        if type(rate) is not int or rate not in (24000, 48000):
+            raise ValueError('unsupported_capture_rate')
+        self.rate = rate
         props = '{ node.dont-fallback=true node.dont-reconnect=true'
         props += ' stream.capture.sink=true' if monitor else ''
         props += ' }'
@@ -148,7 +151,7 @@ class Capture:
         self.count, self.max_gap = 0, 0
         self.error = None
         self.process = subprocess.Popen([
-            'pw-cat', '--record', '--raw', '--format', 's16', '--rate', str(RATE),
+            'pw-cat', '--record', '--raw', '--format', 's16', '--rate', str(self.rate),
             '--channels', '1', '--latency', '20ms', '--target', target,
             '--properties', props, '-'], stdout=subprocess.PIPE, stderr=self.stderr)
         self.thread = Thread(target=self.read, daemon=True)
@@ -182,7 +185,7 @@ class Capture:
         self.stderr.close()
         return {'valid': not early and not self.thread.is_alive() and self.error is None
                 and capture_valid(self.count, end - self.start,
-                                  min(end, self.last) - self.start, self.max_gap, RATE),
+                                  min(end, self.last) - self.start, self.max_gap, self.rate),
                 'samples': self.count, 'elapsed_seconds': end - self.start,
                 'last_read_seconds': self.last - self.start, 'max_read_gap_seconds': self.max_gap,
                 'early_exit': early, 'reader_error': self.error}

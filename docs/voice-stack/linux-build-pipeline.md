@@ -7,7 +7,7 @@ preservation; copying only the executable or flattening `_internal` is unsupport
 Add `--appimage --download-appimage-tools` for an additional inspected AppImage;
 see [AppImage build and acceptance](appimage.md). The CI builds both formats.
 
-The GitHub Actions workflow `Linux candidate (no publication)` targets Ubuntu 24.04.
+The GitHub Actions workflow `VRCT-VOX Linux candidate (no publication)` targets Ubuntu 24.04.
 It runs on relevant pull requests or manual dispatch, tests the relocated package,
 and the AppImage extraction fallback, then retains successful candidates for seven days. It has `contents: read`, no
 publishing credentials and no release/AUR/upstream actions. Creating the workflow
@@ -45,9 +45,9 @@ The inventory records the build commit, tracked dirty state, host, hashes and EL
 Default outputs:
 
 ```text
-build/linux/artifacts/VRCT-TTS-<version>-linux-x64-vulkan-release.tar.gz
-build/linux/artifacts/VRCT-TTS-<version>-linux-x64-vulkan-release.tar.gz.sha256
-build/linux/artifacts/VRCT-TTS-<version>-linux-x64-vulkan-release.manifest.json
+build/linux/artifacts/VRCT-VOX-<version>-linux-x64-vulkan-release.tar.gz
+build/linux/artifacts/VRCT-VOX-<version>-linux-x64-vulkan-release.tar.gz.sha256
+build/linux/artifacts/VRCT-VOX-<version>-linux-x64-vulkan-release.manifest.json
 ```
 
 ## Run and inspect
@@ -56,11 +56,11 @@ build/linux/artifacts/VRCT-TTS-<version>-linux-x64-vulkan-release.manifest.json
 cd build/linux/artifacts
 sha256sum -c ./*.tar.gz.sha256
 # Inspect with tools/linux_package.py before extracting an independently obtained candidate.
-tar -xzf VRCT-TTS-<version>-linux-x64-vulkan-release.tar.gz
-./VRCT-TTS/vrct-tts
+tar -xzf VRCT-VOX-<version>-linux-x64-vulkan-release.tar.gz
+./VRCT-VOX/vrct-vox
 ```
 
-The full `VRCT-TTS` directory must stay together. The host supplies WebKitGTK 4.1,
+The full `VRCT-VOX` directory must stay together. The host supplies WebKitGTK 4.1,
 GTK3, OpenSSL, PipeWire/tools, Vulkan loader for Vulkan variants and other system
 ELF dependencies. This is a portable directory layout, **not** an AppImage or a
 promise of compatibility with all distributions. A build made on CachyOS may

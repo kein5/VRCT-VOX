@@ -1,0 +1,729 @@
+{
+  "reviewed_at": "2026-10-29T20:50:32.389490+09:00",
+  "target": ".",
+  "head": "79419a1f",
+  "raw_count": 23,
+  "merged_count": 21,
+  "merged_severity": {
+    "INFO": 7,
+    "WARNING": 8,
+    "ERROR": 6
+  },
+  "merged_category": {
+    "UNSET": 3,
+    "security": 18
+  },
+  "diagnostic_count": 48,
+  "diagnostic_types": {
+    "Rule parse error": 15,
+    "Timeout": 4,
+    "PartialParsing": 13,
+    "Other syntax error": 16
+  },
+  "matching_current_code_snippets": 21,
+  "findings": [
+    {
+      "id": 1,
+      "severity": "INFO",
+      "category": "UNSET",
+      "path": "src-python/models/overlay/overlay_image.py",
+      "line": 517,
+      "rule": "static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.generic-one-liners",
+      "priority": "誤検知と判断",
+      "assessment": "長い関数宣言または静的な支援者向け案内文。難読化コードではない。",
+      "raw_sources": [
+        "all-apiiro-malicious-code-ruleset.json"
+      ],
+      "remediation_status": "false_positive"
+    },
+    {
+      "id": 2,
+      "severity": "WARNING",
+      "category": "UNSET",
+      "path": "src-python/models/overlay/overlay_tooltip.py",
+      "line": 82,
+      "rule": "static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.python.generic-obfuscation-operators",
+      "priority": "誤検知と判断",
+      "assessment": "通常の描画座標計算。難読化・動的コード実行ではない。",
+      "raw_sources": [
+        "all-apiiro-malicious-code-ruleset.json"
+      ],
+      "remediation_status": "false_positive"
+    },
+    {
+      "id": 3,
+      "severity": "INFO",
+      "category": "UNSET",
+      "path": "src-ui/views/app/config_page/setting_section/setting_box/supporters/supporters_container/SupportersContainer.jsx",
+      "line": 27,
+      "rule": "static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.generic-one-liners",
+      "priority": "誤検知と判断",
+      "assessment": "長い関数宣言または静的な支援者向け案内文。難読化コードではない。",
+      "raw_sources": [
+        "all-apiiro-malicious-code-ruleset.json"
+      ],
+      "remediation_status": "false_positive"
+    },
+    {
+      "id": 4,
+      "severity": "ERROR",
+      "category": "security",
+      "path": "src-python/controller.py",
+      "line": 3468,
+      "rule": "python.lang.security.audit.subprocess-shell-true.subprocess-shell-true",
+      "priority": "修正推奨・局所的",
+      "assessment": "Explorer起動にshell=Trueは不要。入力はインストール由来のパスで、遠隔入力からの到達は未確認。shellを介さない起動へ。",
+      "raw_sources": [
+        "all-security-audit.json",
+        "python-python.json"
+      ],
+      "remediation_status": "fixed"
+    },
+    {
+      "id": 5,
+      "severity": "ERROR",
+      "category": "security",
+      "path": "src-python/controller.py",
+      "line": 3473,
+      "rule": "python.lang.security.audit.subprocess-shell-true.subprocess-shell-true",
+      "priority": "修正推奨・局所的",
+      "assessment": "Explorer起動にshell=Trueは不要。入力はインストール由来のパスで、遠隔入力からの到達は未確認。shellを介さない起動へ。",
+      "raw_sources": [
+        "all-security-audit.json",
+        "python-python.json"
+      ],
+      "remediation_status": "fixed"
+    },
+    {
+      "id": 6,
+      "severity": "ERROR",
+      "category": "security",
+      "path": "tools/yolox_chatbox_export.py",
+      "line": 51,
+      "rule": "static_analysis_semgrep_3.repos.trailofbits-semgrep-rules.python.pickles-in-pytorch",
+      "priority": "条件付き・軽微な強化",
+      "assessment": "開発用torch==2.7.0ではweights_only=Trueが既定。無制限pickle復元とは断定できない。意図と環境差を明確にするためweights_only=Trueを明示。",
+      "raw_sources": [
+        "all-trailofbits-semgrep-rules.json"
+      ],
+      "remediation_status": "hardened_rule_still_matches"
+    },
+    {
+      "id": 7,
+      "severity": "WARNING",
+      "category": "security",
+      "path": ".github/workflows/release.yml",
+      "line": 16,
+      "rule": "yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag",
+      "priority": "修正推奨",
+      "assessment": "Actionの参照を検証済みの完全なコミットSHAへ固定する。可変タグ参照の供給網リスク。",
+      "raw_sources": [
+        "github-actions-github-actions.json"
+      ],
+      "remediation_status": "fixed"
+    },
+    {
+      "id": 8,
+      "severity": "ERROR",
+      "category": "security",
+      "path": ".github/workflows/release.yml",
+      "line": 29,
+      "rule": "yaml.github-actions.security.run-shell-injection.run-shell-injection",
+      "priority": "優先修正",
+      "assessment": "タグ名をPowerShellスクリプトへ直接埋め込む。env経由で値を渡し、タグ形式も検証する。v*タグをpushできる主体が前提。",
+      "raw_sources": [
+        "github-actions-github-actions.json"
+      ],
+      "remediation_status": "already_removed"
+    },
+    {
+      "id": 9,
+      "severity": "ERROR",
+      "category": "security",
+      "path": ".github/workflows/release.yml",
+      "line": 72,
+      "rule": "yaml.github-actions.security.run-shell-injection.run-shell-injection",
+      "priority": "優先修正",
+      "assessment": "タグ名をPowerShellスクリプトへ直接埋め込む。env経由で値を渡し、タグ形式も検証する。v*タグをpushできる主体が前提。",
+      "raw_sources": [
+        "github-actions-github-actions.json"
+      ],
+      "remediation_status": "already_removed"
+    },
+    {
+      "id": 10,
+      "severity": "WARNING",
+      "category": "security",
+      "path": ".github/workflows/release.yml",
+      "line": 101,
+      "rule": "yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag",
+      "priority": "修正推奨",
+      "assessment": "Actionの参照を検証済みの完全なコミットSHAへ固定する。可変タグ参照の供給網リスク。",
+      "raw_sources": [
+        "github-actions-github-actions.json"
+      ],
+      "remediation_status": "fixed"
+    },
+    {
+      "id": 11,
+      "severity": "WARNING",
+      "category": "security",
+      "path": ".github/workflows/release.yml",
+      "line": 106,
+      "rule": "yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag",
+      "priority": "修正推奨",
+      "assessment": "Actionの参照を検証済みの完全なコミットSHAへ固定する。可変タグ参照の供給網リスク。",
+      "raw_sources": [
+        "github-actions-github-actions.json"
+      ],
+      "remediation_status": "fixed"
+    },
+    {
+      "id": 12,
+      "severity": "WARNING",
+      "category": "security",
+      "path": ".github/workflows/release.yml",
+      "line": 111,
+      "rule": "yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag",
+      "priority": "修正推奨",
+      "assessment": "Actionの参照を検証済みの完全なコミットSHAへ固定する。可変タグ参照の供給網リスク。",
+      "raw_sources": [
+        "github-actions-github-actions.json"
+      ],
+      "remediation_status": "replacement_pinned"
+    },
+    {
+      "id": 13,
+      "severity": "ERROR",
+      "category": "security",
+      "path": ".github/workflows/release.yml",
+      "line": 151,
+      "rule": "yaml.github-actions.security.run-shell-injection.run-shell-injection",
+      "priority": "優先修正",
+      "assessment": "タグ名をPowerShellスクリプトへ直接埋め込む。env経由で値を渡し、タグ形式も検証する。v*タグをpushできる主体が前提。",
+      "raw_sources": [
+        "github-actions-github-actions.json"
+      ],
+      "remediation_status": "already_removed"
+    },
+    {
+      "id": 14,
+      "severity": "WARNING",
+      "category": "security",
+      "path": ".github/workflows/release.yml",
+      "line": 170,
+      "rule": "yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag",
+      "priority": "修正推奨",
+      "assessment": "Actionの参照を検証済みの完全なコミットSHAへ固定する。可変タグ参照の供給網リスク。",
+      "raw_sources": [
+        "github-actions-github-actions.json"
+      ],
+      "remediation_status": "already_removed"
+    },
+    {
+      "id": 15,
+      "severity": "WARNING",
+      "category": "security",
+      "path": ".github/workflows/release.yml",
+      "line": 180,
+      "rule": "yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag",
+      "priority": "修正推奨",
+      "assessment": "Actionの参照を検証済みの完全なコミットSHAへ固定する。可変タグ参照の供給網リスク。",
+      "raw_sources": [
+        "github-actions-github-actions.json"
+      ],
+      "remediation_status": "already_removed"
+    },
+    {
+      "id": 16,
+      "severity": "WARNING",
+      "category": "security",
+      "path": ".github/workflows/release.yml",
+      "line": 190,
+      "rule": "yaml.github-actions.security.github-actions-mutable-action-tag.github-actions-mutable-action-tag",
+      "priority": "修正推奨",
+      "assessment": "Actionの参照を検証済みの完全なコミットSHAへ固定する。可変タグ参照の供給網リスク。",
+      "raw_sources": [
+        "github-actions-github-actions.json"
+      ],
+      "remediation_status": "already_removed"
+    },
+    {
+      "id": 17,
+      "severity": "INFO",
+      "category": "security",
+      "path": "src-python/utils.py",
+      "line": 361,
+      "rule": "python.lang.security.audit.insecure-transport.requests.request-with-http.request-with-http",
+      "priority": "低優先",
+      "assessment": "接続確認がHTTP。認証情報は付けずstatus_codeだけ使用。ネットワーク上で確認結果を改変され得るためHTTPSへ。",
+      "raw_sources": [
+        "python-python.json"
+      ],
+      "remediation_status": "fixed"
+    },
+    {
+      "id": 18,
+      "severity": "INFO",
+      "category": "security",
+      "path": "src-tauri/src/lib.rs",
+      "line": 42,
+      "rule": "rust.lang.security.current-exe.current-exe",
+      "priority": "脆弱性は未確認",
+      "assessment": "ログ位置の取得、開発用プロセス起動、Win32 FFI、引数配列の転送。今回の使用箇所で悪用経路は確認できず。",
+      "raw_sources": [
+        "rust-rust.json"
+      ],
+      "remediation_status": "reviewed_no_exploit_identified"
+    },
+    {
+      "id": 19,
+      "severity": "INFO",
+      "category": "security",
+      "path": "utils/dev_sidecar/src/main.rs",
+      "line": 41,
+      "rule": "rust.lang.security.unsafe-usage.unsafe-usage",
+      "priority": "脆弱性は未確認",
+      "assessment": "ログ位置の取得、開発用プロセス起動、Win32 FFI、引数配列の転送。今回の使用箇所で悪用経路は確認できず。",
+      "raw_sources": [
+        "rust-rust.json"
+      ],
+      "remediation_status": "reviewed_no_exploit_identified"
+    },
+    {
+      "id": 20,
+      "severity": "INFO",
+      "category": "security",
+      "path": "utils/dev_sidecar/src/main.rs",
+      "line": 45,
+      "rule": "rust.lang.security.current-exe.current-exe",
+      "priority": "脆弱性は未確認",
+      "assessment": "ログ位置の取得、開発用プロセス起動、Win32 FFI、引数配列の転送。今回の使用箇所で悪用経路は確認できず。",
+      "raw_sources": [
+        "rust-rust.json"
+      ],
+      "remediation_status": "reviewed_no_exploit_identified"
+    },
+    {
+      "id": 21,
+      "severity": "INFO",
+      "category": "security",
+      "path": "utils/dev_sidecar/src/main.rs",
+      "line": 87,
+      "rule": "rust.lang.security.args.args",
+      "priority": "脆弱性は未確認",
+      "assessment": "ログ位置の取得、開発用プロセス起動、Win32 FFI、引数配列の転送。今回の使用箇所で悪用経路は確認できず。",
+      "raw_sources": [
+        "rust-rust.json"
+      ],
+      "remediation_status": "reviewed_no_exploit_identified"
+    }
+  ],
+  "diagnostics": [
+    {
+      "raw": "all-apiiro-malicious-code-ruleset.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.dart.dart-obfuscation-conditions",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.dart.dart-obfuscation-conditions:\n Invalid pattern for Dart: Stdlib.Parsing.Parse_error\n----- pattern -----\nswitch ($VAR) { ... }\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-apiiro-malicious-code-ruleset.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.javascript_typescript.javascript-obfuscation-conditions",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.javascript_typescript.javascript-obfuscation-conditions:\n Invalid pattern for JavaScript: Stdlib.Parsing.Parse_error\n----- pattern -----\nswitch ($VAR) { case ... }\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-apiiro-malicious-code-ruleset.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.java.java-obfuscation-declarations",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.java.java-obfuscation-declarations:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\nclass $VAR\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-apiiro-malicious-code-ruleset.json",
+      "type": "Timeout",
+      "level": "warn",
+      "path": "src-python/controller.py",
+      "rule_id": "static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.python.python-obfuscation-reconstruction",
+      "message": "Timeout when running static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.python.python-obfuscation-reconstruction on src-python/controller.py:\n "
+    },
+    {
+      "raw": "all-apiiro-malicious-code-ruleset.json",
+      "type": "Timeout",
+      "level": "warn",
+      "path": "src-python/model.py",
+      "rule_id": "static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.python.python-obfuscation-reconstruction",
+      "message": "Timeout when running static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.python.python-obfuscation-reconstruction on src-python/model.py:\n "
+    },
+    {
+      "raw": "all-apiiro-malicious-code-ruleset.json",
+      "type": "Timeout",
+      "level": "warn",
+      "path": "src-python/models/overlay/overlay.py",
+      "rule_id": "static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.python.generic-obfuscation-operators",
+      "message": "Timeout when running static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.python.generic-obfuscation-operators on src-python/models/overlay/overlay.py:\n "
+    },
+    {
+      "raw": "all-apiiro-malicious-code-ruleset.json",
+      "type": "Timeout",
+      "level": "warn",
+      "path": "src-python/models/overlay/overlay.py",
+      "rule_id": "static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.python.python-obfuscation-reconstruction",
+      "message": "Timeout when running static_analysis_semgrep_3.repos.apiiro-malicious-code-ruleset.obfuscation.python.python-obfuscation-reconstruction on src-python/models/overlay/overlay.py:\n "
+    },
+    {
+      "raw": "all-apiiro-malicious-code-ruleset.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".agents/skills/semgrep/scripts/run-scans.sh",
+      "rule_id": null,
+      "message": "Syntax error at line .agents/skills/semgrep/scripts/run-scans.sh:6:\n `set -euo pipefail\n\nreadonly METRICS_OFF=\"--metrics=off\"\n# semgrep --severity accepts INFO, WARNING and ERROR only, and rejects anything else with exit 2\n# before scanning. The metadata thresholds LOW/MEDIUM/HIGH are applied by the post-filter in\n# references/scan-modes.md, not here.\nSEVERITY_FLAGS=(--severity WARNING --severity ERROR)\nreadonly DEFAULT_JOBS=4\n# semgrep drops any file larger than --max-target-bytes and reports NOTHING about it: no\n# paths.skipped entry, no error, and the file is simply absent from .paths.scanned. A scan that\n# never opened a 1 MB bundle therefore records `findings: 0` next to a plausible filesScanned\n# count, which is indistinguishable from a file that was opened and found clean. semgrep's own\n# default is 1,000,000 bytes, which generated sources, single-file bundles, vendored blobs and\n# legacy monoliths pass routinely, so the limit is set explicitly here, recorded in scans.json,\n# and the files it still drops are named — see the oversized report below.\nreadonly DEFAULT_MAX_TARGET_BYTES=20000000\n\n# A semgrep join rule carries `mode: join` and the `join:` block that mode needs, and requiring\n# both is what keeps the prune below off a rule that merely mentions the words. Each is anchored\n# as a YAML key on its own line — optionally the first key of a list item, optionally quoted,\n# with a trailing comment allowed — because one file holds many rules and deleting it on a\n# `message:` that quotes the docs would take every sibling rule with it. A rule that names the\n# mode without the block is not a valid join rule; semgrep rejects it per-rule, which the exit-2\n# handling below now survives, so leaving it in place costs nothing.\nreadonly JOIN_MODE_RE=\"^[[:space:]]*(-[[:space:]]+)?mode:[[:space:]]*(join|\\\"join\\\"|'join')[[:space:]]*(#.*)?\\$\"\nreadonly JOIN_BLOCK_RE=\"^[[:space:]]*join:[[:space:]]*(#.*)?\\$\"\n\nusage() {\n  cat <<'USAGE'\nUsage: run-scans.sh --target DIR --output-dir DIR --mode MODE --rulesets FILE [options]\n\n  --target DIR       absolute path to the tree to scan\n  --outpu... (truncated 31997 more characters)"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.struts2.security.audit.entrypoints.class-extends-action-support",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.struts2.security.audit.entrypoints.class-extends-action-support:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\nclass $CLASS extends ActionSupport\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules.java.spring.security.audit.remoting.UnsafeHttpInvokerServiceExporter-extends",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules.java.spring.security.audit.remoting.UnsafeHttpInvokerServiceExporter-extends:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\nclass $CLASS extends org.springframework.remoting.rmi.RemoteInvocationSerializingExporter\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.rest-Order",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.rest-Order:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\n@org.springframework.core.annotation.Order(...)\nclass $CLASS\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.java.servlet.filter",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.java.servlet.filter:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\nclass $CLASS implements javax.servlet.Filter\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.struts2.security.audit.entrypoints.convention-annotation-class-method",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.struts2.security.audit.entrypoints.convention-annotation-class-method:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\n@$ANNOTATION($...PARAMS)\nclass $CLASS\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.rest-CrossOrigin",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.rest-CrossOrigin:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\n@org.springframework.web.bind.annotation.CrossOrigin(...)\nclass $CLASS\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.rest-Priority",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.rest-Priority:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\n@javax.annotation.Priority(...)\nclass $CLASS\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.rest-RequestMapping",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.rest-RequestMapping:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\n@org.springframework.web.bind.annotation.RequestMapping(...)\nclass $CLASS\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.jax-rs.security.audit.entrypoints.jax-rs.path-class",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.jax-rs.security.audit.entrypoints.jax-rs.path-class:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\n@jakarta.ws.rs.Path(...)\nclass $CLASS\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.jax-rs.security.audit.entrypoints.path-class",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.jax-rs.security.audit.entrypoints.path-class:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\n@jakarta.ws.rs.Path(...)\nclass $CLASS\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.rest-RestController",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.spring.security.audit.entrypoints.rest-RestController:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\n@org.springframework.web.bind.annotation.RestController(...)\nclass $CLASS\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Rule parse error",
+      "level": "error",
+      "path": null,
+      "rule_id": "static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.struts2.security.audit.entrypoints.convention-annotation-class",
+      "message": "Rule parse error in rule static_analysis_semgrep_3.repos.elttam-semgrep-rules.rules-audit.java.struts2.security.audit.entrypoints.convention-annotation-class:\n Invalid pattern for Java: Stdlib.Parsing.Parse_error\n----- pattern -----\n@$ANNOTATION($...PARAMS)\nclass $CLASS\n\n----- end pattern -----\n"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/zh-Hans.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/zh-Hans.yml:15:\n (approximate error location; error nearby after) error calling parser: did not find expected hexdecimal number character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/zh-Hant.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/zh-Hant.yml:19:\n (approximate error location; error nearby after) error calling parser: did not find expected hexdecimal number character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/ja.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/ja.yml:12:\n (approximate error location; error nearby after) error calling parser: found unknown escape character character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "all-elttam-semgrep-rules.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/ko.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/ko.yml:18:\n (approximate error location; error nearby after) error calling parser: found unknown escape character character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "all-secrets.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/zh-Hans.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/zh-Hans.yml:15:\n (approximate error location; error nearby after) error calling parser: did not find expected hexdecimal number character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "all-secrets.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/zh-Hant.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/zh-Hant.yml:19:\n (approximate error location; error nearby after) error calling parser: did not find expected hexdecimal number character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "all-secrets.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/ja.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/ja.yml:12:\n (approximate error location; error nearby after) error calling parser: found unknown escape character character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "all-secrets.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/ko.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/ko.yml:18:\n (approximate error location; error nearby after) error calling parser: found unknown escape character character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "all-trailofbits-semgrep-rules.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/zh-Hans.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/zh-Hans.yml:15:\n (approximate error location; error nearby after) error calling parser: did not find expected hexdecimal number character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "all-trailofbits-semgrep-rules.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/zh-Hant.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/zh-Hant.yml:19:\n (approximate error location; error nearby after) error calling parser: did not find expected hexdecimal number character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "all-trailofbits-semgrep-rules.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/ja.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/ja.yml:12:\n (approximate error location; error nearby after) error calling parser: found unknown escape character character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "all-trailofbits-semgrep-rules.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/ko.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/ko.yml:18:\n (approximate error location; error nearby after) error calling parser: found unknown escape character character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/zh-Hans.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/zh-Hans.yml:15:\n (approximate error location; error nearby after) error calling parser: did not find expected hexdecimal number character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/zh-Hant.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/zh-Hant.yml:19:\n (approximate error location; error nearby after) error calling parser: did not find expected hexdecimal number character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/ja.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/ja.yml:12:\n (approximate error location; error nearby after) error calling parser: found unknown escape character character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "Other syntax error",
+      "level": "warn",
+      "path": "locales/ko.yml",
+      "rule_id": null,
+      "message": "Other syntax error at line locales/ko.yml:18:\n (approximate error location; error nearby after) error calling parser: found unknown escape character character 0 position 0 returned: 0"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:29:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `if (\"${{ github.ref_name }}\" -match \"-(beta|rc)\") {\n  echo \"is_beta=true\" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append\n  echo \"hf_repo=ms-software/VRCT-beta\" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append\n} else {\n  echo \"is_beta=false\" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append\n  echo \"hf_repo=ms-software/VRCT\" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append\n}\n` was unexpected"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:29:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `if (\"${{ github.ref_name }}\" -match \"-(beta|rc)\") {\n  echo \"is_beta=true\" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append\n  echo \"hf_repo=ms-software/VRCT-beta\" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append\n} else {\n  echo \"is_beta=false\" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append\n  echo \"hf_repo=ms-software/VRCT\" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append\n}\n` was unexpected"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:40:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `$expected = $env:VERSION\n$failed = $false\n\n$pkgVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version\nif ($pkgVersion -ne $expected) {\n  Write-Host \"::error::package.json version ($pkgVersion) does not match tag version ($expected)\"\n  $failed = $true\n}\n\n$tauriVersion = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version\nif ($tauriVersion -ne $expected) {\n  Write-Host \"::error::src-tauri/tauri.conf.json version ($tauriVersion) does not match tag version ($expected)\"\n  $failed = $true\n}\n\n$configContent = Get-Content src-python/config.py -Raw\nif ($configContent -notmatch 'self\\._VERSION\\s*=\\s*\"([^\"]+)\"') {\n  Write-Host \"::error::could not find self._VERSION in src-python/config.py\"\n  $failed = $true\n} elseif ($Matches[1] -ne $expected) {\n  Write-Host \"::error::src-python/config.py VERSION ($($Matches[1])) does not match tag version ($expected)\"\n  $failed = $true\n}\n\nif ($failed) {\n  Write-Host \"::error::Version mismatch detected. Bump every version field to $expected before tagging.\"\n  exit 1\n}\n` was unexpected"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:40:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `$expected = $env:VERSION\n$failed = $false\n\n$pkgVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version\nif ($pkgVersion -ne $expected) {\n  Write-Host \"::error::package.json version ($pkgVersion) does not match tag version ($expected)\"\n  $failed = $true\n}\n\n$tauriVersion = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version\nif ($tauriVersion -ne $expected) {\n  Write-Host \"::error::src-tauri/tauri.conf.json version ($tauriVersion) does not match tag version ($expected)\"\n  $failed = $true\n}\n\n$configContent = Get-Content src-python/config.py -Raw\nif ($configContent -notmatch 'self\\._VERSION\\s*=\\s*\"([^\"]+)\"') {\n  Write-Host \"::error::could not find self._VERSION in src-python/config.py\"\n  $failed = $true\n} elseif ($Matches[1] -ne $expected) {\n  Write-Host \"::error::src-python/config.py VERSION ($($Matches[1])) does not match tag version ($expected)\"\n  $failed = $true\n}\n\nif ($failed) {\n  Write-Host \"::error::Version mismatch detected. Bump every version field to $expected before tagging.\"\n  exit 1\n}\n` was unexpected"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:72:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `$isBeta = \"${{ steps.channel.outputs.is_beta }}\" -eq \"true\"\n$expectedChannel = if ($isBeta) { \"beta\" } else { \"stable\" }\n\n$content = Get-Content src-python/build_channel.py -Raw\nif ($content -notmatch 'BUILD_CHANNEL\\s*=\\s*\"([^\"]+)\"') {\n  Write-Host \"::error::could not find BUILD_CHANNEL in src-python/build_channel.py\"\n  exit 1\n}\n$actualChannel = $Matches[1]\n\nif ($actualChannel -ne $expectedChannel) {\n  Write-Host \"::error::BUILD_CHANNEL is '$actualChannel' but tag '${{ github.ref_name }}' implies '$expectedChannel'. Fix src-python/build_channel.py before tagging.\"\n  exit 1\n}\n` was unexpected"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:72:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `$isBeta = \"${{ steps.channel.outputs.is_beta }}\" -eq \"true\"\n$expectedChannel = if ($isBeta) { \"beta\" } else { \"stable\" }\n\n$content = Get-Content src-python/build_channel.py -Raw\nif ($content -notmatch 'BUILD_CHANNEL\\s*=\\s*\"([^\"]+)\"') {\n  Write-Host \"::error::could not find BUILD_CHANNEL in src-python/build_channel.py\"\n  exit 1\n}\n$actualChannel = $Matches[1]\n\nif ($actualChannel -ne $expectedChannel) {\n  Write-Host \"::error::BUILD_CHANNEL is '$actualChannel' but tag '${{ github.ref_name }}' implies '$expectedChannel'. Fix src-python/build_channel.py before tagging.\"\n  exit 1\n}\n` was unexpected"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:93:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `if (-not $env:TELEMETRY_KEY_STABLE -or -not $env:TELEMETRY_KEY_BETA) {\n  Write-Host \"::error::TELEMETRY_KEY_STABLE / TELEMETRY_KEY_BETA secrets are not set.\"\n  exit 1\n}\nSet-Content -Path src-python/telemetry_keys.py -Encoding utf8 -Value \"APP_KEYS = {'stable': '$env:TELEMETRY_KEY_STABLE', 'beta': '$env:TELEMETRY_KEY_BETA'}\"\n` was unexpected"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:93:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `if (-not $env:TELEMETRY_KEY_STABLE -or -not $env:TELEMETRY_KEY_BETA) {\n  Write-Host \"::error::TELEMETRY_KEY_STABLE / TELEMETRY_KEY_BETA secrets are not set.\"\n  exit 1\n}\nSet-Content -Path src-python/telemetry_keys.py -Encoding utf8 -Value \"APP_KEYS = {'stable': '$env:TELEMETRY_KEY_STABLE', 'beta': '$env:TELEMETRY_KEY_BETA'}\"\n` was unexpected"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:132:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `{ env.VERSION` was unexpected"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:132:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `{ env.VERSION` was unexpected"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:157:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.curl-eval.curl-eval', `${{` was unexpected"
+    },
+    {
+      "raw": "github-actions-github-actions.json",
+      "type": "PartialParsing",
+      "level": "warn",
+      "path": ".github/workflows/release.yml",
+      "rule_id": null,
+      "message": "Syntax error at line .github/workflows/release.yml:157:\n When parsing a snippet as Bash for metavariable-pattern in rule 'yaml.github-actions.security.gha-curl-pipe-shell.gha-curl-pipe-shell', `${{` was unexpected"
+    }
+  ],
+  "remediation": {
+    "date": "2026-10-29",
+    "worktree": "implementation-worktree",
+    "base_head": "ac6d2c431f4e",
+    "original_checkout_application_files_modified": false,
+    "new_agents": 0,
+    "pytest_passed": 49,
+    "external_runner_tests_passed": 10,
+    "limited_scan": {
+      "engine": "CE",
+      "version": "1.182.1",
+      "rules": 6,
+      "files": 6,
+      "before": 19,
+      "after": 1,
+      "diagnostics": 0
+    },
+    "external_runner": ".agents/skills/semgrep/scripts/run-scans.sh",
+    "research": "local-evidence/vrct-semgrep-remediation"
+  },
+  "path_basis": "Repository-relative paths; workstation-specific locations removed for publication. External evidence is not included."
+}

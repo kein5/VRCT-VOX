@@ -1,4 +1,4 @@
-"""Compatibility facade: telemetry is disabled in VRCT-TTS.
+"""Compatibility facade: telemetry is disabled in VRCT-VOX.
 
 Never import a stale telemetry_keys.py or create an upstream SDK client.
 The async interface remains so existing feature callers need not change.

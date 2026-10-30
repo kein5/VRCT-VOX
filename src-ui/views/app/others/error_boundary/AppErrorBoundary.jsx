@@ -19,7 +19,7 @@ import { CloseButton } from "@common_components";
 
 import styles from "./AppErrorBoundary.module.scss";
 
-const VRCT_STATUS_URL = "https://github.com/kein5/VRCT-TTS/issues";
+const VRCT_STATUS_URL = "https://github.com/kein5/VRCT-VOX/issues";
 
 export const AppErrorBoundary = ({children}) => {
     const [errorInfo, setErrorInfo] = useState(null);

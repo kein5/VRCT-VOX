@@ -289,7 +289,7 @@ class TestModelUpdate(_EnabledUpdaterTests):
 
         popen.assert_called_once_with(
             [
-                "VRCT-TTS_setup.exe",
+                "VRCT-VOX_setup.exe",
                 "/EDITION=gpu",
                 f"/UILANG={config.UI_LANGUAGE}",
                 f"/CHANNEL={config.SELECTED_RELEASE_CHANNEL}",
@@ -308,8 +308,8 @@ class TestPinnedVersionDownload(_EnabledUpdaterTests):
     beta.2 から beta.1 を選んだとき)。
     """
 
-    BETA_MAIN = "https://github.com/kein5/VRCT-TTS/releases/latest/download/VRCT-TTS_setup.exe"
-    STABLE_MAIN = "https://github.com/kein5/VRCT-TTS/releases/latest/download/VRCT-TTS_setup.exe"
+    BETA_MAIN = "https://github.com/kein5/VRCT-VOX/releases/latest/download/VRCT-VOX_setup.exe"
+    STABLE_MAIN = "https://github.com/kein5/VRCT-VOX/releases/latest/download/VRCT-VOX_setup.exe"
 
     def setUp(self) -> None:
         super().setUp()
@@ -346,11 +346,11 @@ class TestPinnedVersionDownload(_EnabledUpdaterTests):
     def test_setup_download_url_follows_the_target_version(self) -> None:
         self.assertEqual(
             config.setupDownloadUrl("3.5.1-beta.1", tag="v3.5.1-beta.1"),
-            "https://github.com/kein5/VRCT-TTS/releases/download/v3.5.1-beta.1/VRCT-TTS_setup.exe",
+            "https://github.com/kein5/VRCT-VOX/releases/download/v3.5.1-beta.1/VRCT-VOX_setup.exe",
         )
         self.assertEqual(
             config.setupDownloadUrl("3.5.0", tag="v3.5.0"),
-            "https://github.com/kein5/VRCT-TTS/releases/download/v3.5.0/VRCT-TTS_setup.exe",
+            "https://github.com/kein5/VRCT-VOX/releases/download/v3.5.0/VRCT-VOX_setup.exe",
         )
 
     def test_setup_download_url_pins_target_version_even_without_explicit_tag(self) -> None:
@@ -579,3 +579,17 @@ class ListAvailableReleasesTests(_EnabledUpdaterTests):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# Runtime policy belongs in the backend suite, which imports the real Model.
+def test_fork_updater_makes_no_request_and_never_starts_installer(monkeypatch):
+    import model
+    request, spawn = Mock(), Mock()
+    monkeypatch.setattr(model, "requests_get", request)
+    monkeypatch.setattr(model, "Popen", spawn)
+    assert model.Model.checkSoftwareUpdated()["is_update_available"] is False
+    assert model.Model.listAvailableReleases() == []
+    assert model.Model.updateSoftware() == model.SETUP_DOWNLOAD_FAILED
+    assert model.Model.updateCudaSoftware("3.6.0") == model.SETUP_DOWNLOAD_FAILED
+    request.assert_not_called()
+    spawn.assert_not_called()

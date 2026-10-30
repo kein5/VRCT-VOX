@@ -1,9 +1,9 @@
 .container {
-    display: flex; flex-direction: column; gap: .8rem; padding: 1.2rem; height: 100%; box-sizing: border-box; overflow: auto;
-    background: var(--dark_900_color); color: var(--dark_basic_text_color); font-size: 1.4rem;
-    textarea { flex: 1; min-height: 3rem; width: 100%; box-sizing: border-box; resize: none; padding: .8rem; font: inherit; user-select: text;
-        color: inherit; background: var(--dark_925_color); border: .1rem solid var(--dark_650_color); border-radius: .4rem; }
-    button { font: inherit; padding: .6rem 1.4rem; min-height: 3.6rem; border-radius: .4rem; color: var(--dark_50_color); background: var(--primary_700_color); cursor: pointer; }
+    display: flex; flex-direction: column; gap: 1.2rem; padding: 1.6rem; height: 100%; box-sizing: border-box; overflow: auto;
+    background: var(--vox_canvas); color: var(--dark_basic_text_color); font-size: 1.4rem;
+    textarea { flex: 1; min-height: 3rem; width: 100%; box-sizing: border-box; resize: none; padding: 1.2rem; font: inherit; user-select: text;
+        color: inherit; background: var(--dark_925_color); border: .1rem solid var(--dark_650_color); border-radius: var(--vox_radius); }
+    button { font: inherit; padding: .6rem 1.4rem; min-height: 3.6rem; border-radius: var(--vox_radius); color: var(--dark_50_color); background: var(--primary_600_color); cursor: pointer; }
     button:disabled { opacity: .6; cursor: default; }
     :focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }
 }

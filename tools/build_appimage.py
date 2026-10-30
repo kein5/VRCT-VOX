@@ -51,7 +51,7 @@ def verify_tools(directory, *, download=False):
     for row in json.loads(MANIFEST.read_text())['tools']:
         target = directory / row['name']
         if not os.path.lexists(target) and download:
-            request = Request(row['url'], headers={'User-Agent': 'VRCT-TTS-AppImage-build'})
+            request = Request(row['url'], headers={'User-Agent': 'VRCT-VOX-AppImage-build'})
             with urlopen(request, timeout=60) as response:
                 data = response.read(row['size'] + 1)
             store_tool(directory, row, data)
@@ -89,10 +89,10 @@ def verify_runtime(image, runtime, *, digest_offset=None):
 
 
 def install_payload(candidate, appdir):
-    target = Path(appdir) / 'usr/lib/vrct-tts'
+    target = Path(appdir) / 'usr/lib/vrct-vox'
     target.mkdir(parents=True)
     for source in Path(candidate).iterdir():
-        if source.name == 'vrct-tts':
+        if source.name == 'vrct-vox':
             continue  # GUI already deployed/patched separately by linuxdeploy
         if source.is_dir():
             shutil.copytree(source, target / source.name, symlinks=True)
@@ -104,8 +104,8 @@ def install_launchers(appdir):
     appdir = Path(appdir)
     (appdir / 'AppRun').rename(appdir / 'AppRun.gui')
     if not os.path.lexists(appdir / '.DirIcon'):
-        (appdir / '.DirIcon').symlink_to('vrct-tts.png')
-    for name, target in [('AppRun', appdir / 'AppRun'), ('sidecar', appdir / 'usr/bin/vrct-tts-sidecar')]:
+        (appdir / '.DirIcon').symlink_to('vrct-vox.png')
+    for name, target in [('AppRun', appdir / 'AppRun'), ('sidecar', appdir / 'usr/bin/vrct-vox-sidecar')]:
         shutil.copyfile(ROOT / 'packaging/appimage' / name, target)
         target.chmod(0o755)
 
@@ -113,14 +113,14 @@ def install_launchers(appdir):
 def check_appdir(appdir):
     appdir = Path(appdir)
     check_tree(appdir, allow_directory_links=True)
-    for name in ('AppRun', 'AppRun.gui', 'vrct-tts.desktop', 'vrct-tts.png', '.DirIcon',
-                 'usr/bin/vrct-tts', 'usr/bin/vrct-tts-sidecar'):
+    for name in ('AppRun', 'AppRun.gui', 'vrct-vox.desktop', 'vrct-vox.png', '.DirIcon',
+                 'usr/bin/vrct-vox', 'usr/bin/vrct-vox-sidecar'):
         if not (appdir / name).is_file():
             raise ValueError(f'missing AppDir component: {name}')
     for name in RUNTIME:
-        if name != 'vrct-tts' and not (appdir / 'usr/lib/vrct-tts' / name).is_file():
+        if name != 'vrct-vox' and not (appdir / 'usr/lib/vrct-vox' / name).is_file():
             raise ValueError(f'missing AppDir backend: {name}')
-    verify_bundle(appdir / 'usr/lib/vrct-tts/_internal/build/speechcpp')
+    verify_bundle(appdir / 'usr/lib/vrct-vox/_internal/build/speechcpp')
 
 
 def inspect_image(image, runtime, work):
@@ -151,7 +151,7 @@ def webkit_helpers(appdir):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--candidate', type=Path, default=ROOT / 'build/linux/candidate/VRCT-TTS')
+    parser.add_argument('--candidate', type=Path, default=ROOT / 'build/linux/candidate/VRCT-VOX')
     parser.add_argument('--work-dir', type=Path, default=ROOT / 'build/appimage')
     parser.add_argument('--tools-dir', type=Path, default=ROOT / 'build/appimage-tools')
     parser.add_argument('--output-dir', type=Path, default=ROOT / 'build/linux/artifacts')
@@ -162,16 +162,16 @@ def main():
     verify_bundle(candidate / '_internal/build/speechcpp')
     tools = verify_tools(args.tools_dir, download=args.download_tools)
     work = prepare_work(args.work_dir)
-    appdir = work / 'VRCT-TTS.AppDir'
+    appdir = work / 'VRCT-VOX.AppDir'
     if appdir.exists():
         shutil.rmtree(appdir)
     (appdir / 'usr/bin').mkdir(parents=True)
-    gui = appdir / 'usr/bin/vrct-tts'
-    shutil.copy2(candidate / 'vrct-tts', gui)
-    icon = appdir / 'usr/share/icons/hicolor/256x256/apps/vrct-tts.png'
+    gui = appdir / 'usr/bin/vrct-vox'
+    shutil.copy2(candidate / 'vrct-vox', gui)
+    icon = appdir / 'usr/share/icons/hicolor/256x256/apps/vrct-vox.png'
     icon.parent.mkdir(parents=True)
     shutil.copyfile(ROOT / 'src-tauri/icons/128x128@2x.png', icon)
-    desktop = ROOT / 'packaging/appimage/vrct-tts.desktop'
+    desktop = ROOT / 'packaging/appimage/vrct-vox.desktop'
     run(['desktop-file-validate', desktop])
     webkit_helpers(appdir)
     env = dict(os.environ, APPIMAGE_EXTRACT_AND_RUN='1', DEPLOY_GTK_VERSION='3',
@@ -182,12 +182,12 @@ def main():
     # Nothing that rewrites ELF bytes may run over the frozen backend.
     install_payload(candidate, appdir)
     install_launchers(appdir)
-    shutil.copytree(ROOT / 'licenses/appimage', appdir / 'usr/share/licenses/vrct-tts-appimage')
+    shutil.copytree(ROOT / 'licenses/appimage', appdir / 'usr/share/licenses/vrct-vox-appimage')
     normalize_modes(appdir)
     check_appdir(appdir)
     before = inventory(appdir)
     source = json.loads((candidate / 'build-manifest.json').read_text())
-    name = f'VRCT-TTS-{source["version"]}-{source["variant"]}-{source["profile"]}.AppImage'
+    name = f'VRCT-VOX-{source["version"]}-{source["variant"]}-{source["profile"]}.AppImage'
     output = work / name
     output.unlink(missing_ok=True)
     run([tools['appimagetool-x86_64.AppImage'], '--runtime-file', tools['runtime-x86_64'],

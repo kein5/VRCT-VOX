@@ -8,13 +8,16 @@ export function useSettingsDraft(saved, error, updateError) {
     const [saving, setSaving] = useState(false);
     const submitted = useRef(null);
     const savedKey = JSON.stringify(saved);
+    const previousSavedKey = useRef(savedKey);
     const dirty = draft !== null && JSON.stringify(draft) !== savedKey;
     const current = useRef({ draft, dirty });
     current.current = { draft, dirty };
     useEffect(() => {
         if (saved == null) return;
         const acknowledged = submitted.current !== null && savedKey === submitted.current;
-        if (current.current.draft === null || !current.current.dirty || acknowledged) setDraft(saved);
+        const wasClean = JSON.stringify(current.current.draft) === previousSavedKey.current;
+        if (current.current.draft === null || wasClean || acknowledged) setDraft(saved);
+        previousSavedKey.current = savedKey;
         if (acknowledged) { setSaving(false); submitted.current = null; }
     }, [savedKey, saved]);
     useEffect(() => { if (error) { setSaving(false); submitted.current = null; } }, [error]);

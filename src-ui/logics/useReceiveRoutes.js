@@ -5,12 +5,20 @@ import * as main from "@logics_main";
 import * as configs from "@logics_configs";
 import * as voice from "./voice/useVoice";
 import * as speech from "./voice/useSpeechServers";
+import * as downloads from "./voice/useModelDownloads";
 import { _useBackendErrorHandling } from "./_useBackendErrorHandling";
 import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { receiveLanguageMutation, resetLanguageMutations } from "./main/languageMutations";
 
 export const STATIC_ROUTE_META_LIST = [
+    { endpoint: "/get/data/model_download_catalog", ns: downloads, hook_name: "useModelDownloads", method_name: "updateCatalog" },
+    { endpoint: "/get/data/model_download_hardware", ns: downloads, hook_name: "useModelDownloads", method_name: "updateHardware" },
+    { endpoint: "/run/refresh_model_download_hardware", ns: downloads, hook_name: "useModelDownloads", method_name: "updateHardware" },
+    { endpoint: "/get/data/model_download_state", ns: downloads, hook_name: "useModelDownloads", method_name: "updateState" },
+    { endpoint: "/run/start_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
+    { endpoint: "/run/cancel_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
+    { endpoint: "/run/apply_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
     { endpoint: "/get/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
     { endpoint: "/set/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
     { endpoint: "/get/data/speech_server_state", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
@@ -186,6 +194,23 @@ export const useReceiveRoutes = () => {
         const timer = setInterval(() => sendSpeech("/get/data/speech_server_state"), 500);
         return () => clearInterval(timer);
     }, [speechActive, sendSpeech]);
+    const { state: downloadState, hardware: modelHardware, pending: downloadPending, send: sendDownload, updateError: updateDownloadError, reset: resetDownloads } = downloads.useModelDownloads();
+    useEffect(() => {
+        if (modelHardware.phase !== 'probing') return;
+        const timer = setInterval(() => sendDownload('/get/data/model_download_hardware'), 500);
+        return () => clearInterval(timer);
+    }, [modelHardware.phase, sendDownload]);
+    const downloadActive = !!downloadPending || Object.values(downloadState.jobs).some(job => ["queued", "downloading", "verifying", "cancelling"].includes(job.phase));
+    useEffect(() => {
+        if (!downloadActive) return;
+        const timer = setInterval(() => sendDownload("/get/data/model_download_state"), 750);
+        return () => clearInterval(timer);
+    }, [downloadActive, sendDownload]);
+    useEffect(() => {
+        if (!downloadPending) return;
+        const timer = setTimeout(() => updateDownloadError("request_unconfirmed"), 10000);
+        return () => clearTimeout(timer);
+    }, [downloadPending, updateDownloadError]);
     const { state: realtimeState, send: sendRealtime, updateError: updateRealtimeError, reset: resetRealtime } = realtime.useRealtimeASR();
     const realtimeActive = Object.values(realtimeState).some(value => value.requested);
     useEffect(() => {
@@ -231,6 +256,14 @@ export const useReceiveRoutes = () => {
 
     const receiveRoutes = (parsed_data) => {
         const { endpoint, status, result } = parsed_data;
+        if (status !== 200 && endpoint.includes("model_download")) {
+            updateDownloadError(result?.error_code || "download_failed");
+            return;
+        }
+        if (status === 200 && endpoint === "/run/apply_model_download") {
+            sendSpeech("/get/data/speech_server_settings");
+            sendVoice("/get/data/direct_voice_state");
+        }
         if (status !== 200 && ["/run/enable_tts", "/run/disable_tts"].includes(endpoint)) {
             updateTtsError(result?.error_code || "voice_request_failed", endpoint);
             sendVoice("/get/data/voice_status");
@@ -255,6 +288,9 @@ export const useReceiveRoutes = () => {
         }
 
         if (endpoint === "/run/initialization_complete") {
+            resetDownloads();
+            sendDownload("/get/data/model_download_catalog");
+            sendDownload("/get/data/model_download_state");
             resetVoice();
             sendVoice("/get/data/voice_settings");
             sendVoice("/get/data/direct_voice_sources");

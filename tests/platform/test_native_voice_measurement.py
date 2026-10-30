@@ -18,7 +18,7 @@ from types import SimpleNamespace
 import pytest
 
 from native_webdriver import NativeWebDriver, ROOT
-from native_voice_measurement import calibrate, elapsed_bounds, summarize_trials
+from native_voice_measurement import calibrate, elapsed_bounds, summarize_trials, exact_pcm
 from test_native_ui import initial_state
 
 pytestmark = pytest.mark.skipif(
@@ -42,12 +42,15 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
 
     model = os.environ.get("VRCT_TEST_SPEECH_MODEL")
     binary = os.environ.get("VRCT_TEST_SPEECH_BINARY")
+    managed_server = os.environ.get('VRCT_TEST_MEASUREMENT_MANAGED') == '1'
+    low_latency = os.environ.get('VRCT_TEST_MEASUREMENT_LOW_LATENCY') == '1'
     count = int(os.environ.get("VRCT_TEST_MEASUREMENT_TRIALS", "30" if model else "2"))
     assert 1 <= count <= 100
     report = {"status": "failed", "real_inference": bool(model), "native_tauri": True,
               "vrchat_display": False, "host_audio_changed": False, "trials": [],
               "timer_padding_ms": 1, "clock_assumption": "steady monotonic clocks, no suspend",
               "system": platform.platform(), "python": platform.python_version()}
+    report.update(managed_server=managed_server, low_latency=low_latency)
     try:
         with private_graph(config_fragment=ROOT / "config/pipewire/90-vrct-managed.conf"), ExitStack() as stack:
             gate = PipeWireGate()
@@ -77,9 +80,17 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
             pcm = reference()
             assert pcm == reference(), "independent reference is not deterministic"
             (tmp_path / "reference.pcm").write_bytes(pcm)
+            if managed_server:
+                assert model
+                server.stop()
             state = initial_state(tmp_path)
             config = json.loads((state / "config.json").read_text())
             config.update(SEND_MESSAGE_TO_VRC=True, OSC_PORT=udp.getsockname()[1], ENABLE_TRANSLATION=False)
+            if managed_server:
+                from models.speech_server.settings import normalize_settings
+                config['SPEECH_SERVER_SETTINGS'] = normalize_settings({'profiles': {'japanese': {
+                    'model': str(Path(model).resolve()), 'device': 'gpu', 'low_latency': low_latency}}})
+                config.setdefault('VOICE_SETTINGS', {})['japanese_seed'] = '42'
             (state / "config.json").write_text(json.dumps(config))
             trace = tmp_path / "first-write.jsonl"
 
@@ -99,19 +110,33 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
             with NativeWebDriver(tmp_path / "ui", {"VRCT_CONFIG_DIR": str(state),
                                                    "VRCT_VOICE_TRACE": str(trace)}) as ui:
                 ui.wait("return document.querySelector('textarea') !== null")
+                ui.open_route_settings()
+                ui.select('Audio route', 'managed')
+                ui.click_text('button', 'Save audio route')
+                wait_for(lambda: json.loads((state / 'config.json').read_text()).get('VOICE_SETTINGS', {}).get('routing') == 'managed')
+                ui.click_text('button', 'Resume voice')
+                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Voice enabled (confirmed)')")
+                ui.close_settings()
                 ui.open_voice_settings()
+                if managed_server:
+                    ui.click_text('button', 'Start server')
+                    ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Ready')", timeout=120)
+                    if low_latency:
+                        ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Low-latency standby active')", timeout=15)
 
                 def save(mode):
-                    ui.select("Audio route", "managed")
-                    ui.select("Read aloud", mode)
-                    ui.fill("Japanese server (Irodori)", server.url)
+                    ui.select("Chat voice", mode)
+                    if managed_server:
+                        ui.select('Japanese server', 'bundled')
+                    else:
+                        ui.fill("Japanese server (Irodori)", server.url)
                     ui.click_text("button", "Save voice settings")
                     wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("mode") == mode)
 
                 save("original")
-                ui.click_text("button", "Resume voice")
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Voice enabled (confirmed)')")
                 ui.close_settings()
+                ui.click('[role=switch][aria-label=TTS]')
+                ui.wait("return document.querySelector('[role=switch][aria-label=TTS]').getAttribute('aria-checked')==='true'")
                 ui.evaluate("""
                     window.__voiceMeasurements = [];
                     document.addEventListener('click', event => {
@@ -128,7 +153,7 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
                     # Check late duplicates from the previous trial instead of discarding them.
                     pending = packets()
                     assert not any(p["address"] == "/chatbox/input" for p in pending), pending
-                    field = ui.command("POST", "/element", {"using": "css selector", "value": "textarea"})
+                    field = ui.evaluate("return [...document.querySelectorAll('textarea')].find(e => getComputedStyle(e).visibility === 'visible' && e.getClientRects().length)")
                     ui.element_command(field, "clear")
                     ui.element_command(field, "value", {"text": SHORT})
                     previous_trace = records()
@@ -139,7 +164,7 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
                         before = calibrate(ui)
                         call_ns = time.monotonic_ns()
                         ui.click('[class*="message_send_button"]')
-                        ui.wait("return document.querySelector('textarea').value === ''")
+                        ui.wait("return [...document.querySelectorAll('textarea')].filter(e => getComputedStyle(e).visibility === 'visible' && e.getClientRects().length).every(e => e.value === '')")
                         if off:
                             settled(monitor, call_ns, "off_leaked_audio", silent=True)
                         else:
@@ -170,8 +195,13 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
                         row.update(elapsed_bounds(row["trace"]["first_write_ns"], marks[0]["ms"], before + after))
                         row["match"] = compare_pcm(pcm, observed, 48000)
                         assert row["match"]["verdict"] == "pass" and row["match"]["occurrences"] == 1, row["match"]
+                        row['exact_pcm'] = exact_pcm(pcm, observed)
+                        assert row['exact_pcm']['valid'], row['exact_pcm']
                     assert gate.inspect()["identity"] == identity
                     require_continuous_capture(monitor.snapshot())
+                    if low_latency:
+                        row['low_latency_active'] = ui.evaluate("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Low-latency standby active')")
+                        assert row['low_latency_active'], 'standby ended during measurement'
                     row["valid"] = True
                     (tmp_path / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
                     return row
@@ -187,8 +217,12 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
                 ui.close_app()
             assert gate.inspect()["muted"] is True
             report["capture"] = monitor.snapshot()
-            report["summary"] = summarize_trials([r for r in report["trials"] if r["name"].startswith("warm-")], real_inference=bool(model))
+            report["summary"] = summarize_trials([r for r in report["trials"] if r["name"].startswith("warm-")], real_inference=bool(model),
+                target_p95_ms=float(os.environ.get('VRCT_TEST_MEASUREMENT_P95_MS', '800')))
             assert report["summary"]["verdict"] != "invalid_measurement", report["summary"]
-            report["status"] = "passed"
+        report["status"] = "passed"
+    except BaseException as error:
+        report.update(status='failed', error_type=type(error).__name__)
+        raise
     finally:
         (tmp_path / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))

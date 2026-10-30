@@ -189,6 +189,43 @@ pub fn quick_chat_hide(window: WebviewWindow) -> Result<(), String> {
     sender(window.label(), "quick_chat")?;
     window.hide().map_err(|e| e.to_string())
 }
+
+#[cfg(target_os = "linux")]
+async fn present_chat(chat: &WebviewWindow) -> Result<(), String> {
+    use gtk::prelude::*;
+
+    let (tx, mut rx) = tauri::async_runtime::channel(1);
+    let target = chat.clone();
+    chat.run_on_main_thread(move || {
+        let result = (|| {
+            let window = target.gtk_window().map_err(|e| e.to_string())?;
+            window.realize();
+            // Global shortcuts arrive outside GTK. CURRENT_TIME would reuse
+            // GTK's previous input time, which KWin can reject as stale.
+            let timestamp = window
+                .window()
+                .and_then(|native| native.downcast::<gdkx11::X11Window>().ok())
+                .map(|native| {
+                    // Required by get_server_time's property-notify roundtrip.
+                    let gdk_window = native.upcast_ref::<gtk::gdk::Window>();
+                    gdk_window.set_events(
+                        gdk_window.events() | gtk::gdk::EventMask::PROPERTY_CHANGE_MASK,
+                    );
+                    gdkx11::functions::x11_get_server_time(&native)
+                })
+                .unwrap_or(gtk::gdk::ffi::GDK_CURRENT_TIME as u32);
+            window.set_keep_above(true);
+            window.show_all();
+            window.deiconify();
+            window.present_with_time(timestamp);
+            Ok(())
+        })();
+        let _ = tx.try_send(result);
+    })
+    .map_err(|e| e.to_string())?;
+    rx.recv().await.ok_or("quick_chat_unavailable")?
+}
+
 #[tauri::command]
 pub async fn quick_chat_show(window: WebviewWindow, app: tauri::AppHandle) -> Result<(), String> {
     sender(window.label(), "main")?;
@@ -200,7 +237,7 @@ pub async fn quick_chat_show(window: WebviewWindow, app: tauri::AppHandle) -> Re
             "quick_chat",
             WebviewUrl::App("quick-chat.html".into()),
         )
-        .title("VRCT-TTS Quick Chat")
+        .title("VRCT-VOX Quick Chat")
         .inner_size(480.0, 160.0)
         .min_inner_size(320.0, 120.0)
         .center()
@@ -210,9 +247,17 @@ pub async fn quick_chat_show(window: WebviewWindow, app: tauri::AppHandle) -> Re
         .build()
         .map_err(|e| e.to_string())?
     };
-    chat.show().map_err(|e| e.to_string())?;
-    chat.unminimize().map_err(|e| e.to_string())?;
-    chat.set_focus().map_err(|e| e.to_string())?;
+    #[cfg(target_os = "linux")]
+    present_chat(&chat).await?;
+    #[cfg(not(target_os = "linux"))]
+    {
+        // Focus alone can leave the input behind a fullscreen/topmost game.
+        // Apply this on every open, including reused hidden/minimized windows.
+        chat.set_always_on_top(true).map_err(|e| e.to_string())?;
+        chat.show().map_err(|e| e.to_string())?;
+        chat.unminimize().map_err(|e| e.to_string())?;
+        chat.set_focus().map_err(|e| e.to_string())?;
+    }
     chat.emit("quick-chat-opened", ())
         .map_err(|e| e.to_string())
 }

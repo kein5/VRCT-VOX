@@ -1,6 +1,6 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
-    "productName": "VRCT-TTS",
+    "productName": "VRCT-VOX",
     "version": "3.6.0-beta.1",
     "identifier": "io.github.kein5.vrct-tts",
     "build": {
@@ -13,7 +13,7 @@
         "enableGTKAppId": false,
         "windows": [
             {
-                "title": "VRCT-TTS",
+                "title": "VRCT-VOX",
                 "center": true,
                 "width": 450,
                 "height": 220,
@@ -40,7 +40,7 @@
         "publisher": "kein5",
         "copyright": "Copyright m's software",
         "licenseFile": "../LICENSE",
-        "shortDescription": "VRCT-TTS — speech, voice conversion and translated chat",
+        "shortDescription": "VRCT-VOX — speech, voice conversion and translated chat",
         "icon": [
             "icons/32x32.png",
             "icons/128x128.png",
@@ -49,7 +49,7 @@
             "icons/icon.ico"
         ],
         "externalBin": [
-            "bin/vrct-tts-sidecar"
+            "bin/vrct-vox-sidecar"
         ],
         "resources": {
             "bin/_internal": "_internal"
@@ -69,5 +69,5 @@
             }
         }
     },
-    "mainBinaryName": "vrct-tts"
+    "mainBinaryName": "vrct-vox"
 }

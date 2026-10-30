@@ -13,4 +13,4 @@ for name in LD_LIBRARY_PATH PATH GIO_EXTRA_MODULES GSETTINGS_SCHEMA_DIR GTK_PATH
     unset "VRCT_APPIMAGE_HOST_${name}_SET" "VRCT_APPIMAGE_HOST_${name}"
 done
 unset LD_LIBRARY_PATH_ORIG
-exec "$root/usr/lib/vrct-tts/vrct-tts-sidecar" "$@"
+exec "$root/usr/lib/vrct-vox/vrct-vox-sidecar" "$@"

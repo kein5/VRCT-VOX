@@ -65,7 +65,7 @@ body:
     id: terms
     attributes:
       label: Fork support guidelines
-      description: By submitting this issue, you agree to follow the [fork support guidance](https://github.com/kein5/VRCT-TTS#status-and-downloads)
+      description: By submitting this issue, you agree to follow the [fork support guidance](https://github.com/kein5/VRCT-VOX#status-and-downloads)
       options:
         - label: I have read the fork support guidelines and will remove secrets from attached logs
           required: true

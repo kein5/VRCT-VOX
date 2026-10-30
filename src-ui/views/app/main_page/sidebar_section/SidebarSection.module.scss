@@ -1,12 +1,14 @@
 .container {
     position: relative;
-    min-width: 23rem;
+    width: 24rem;
+    min-width: 24rem;
     height: 100%;
     display: flex;
     flex-direction: column;
-    background-color: var(--dark_850_color);
+    background-color: var(--vox_rail);
     &.is_compact_mode {
-        min-width: auto;
+        width: 7.2rem;
+        min-width: 7.2rem;
         .scroll_container {
             // overflow-y: hidden;
             // width: auto;
@@ -15,7 +17,7 @@
 }
 
 .scroll_container {
-    width: calc(100% + 0.8rem);
+    width: 100%;
     overflow-y: scroll;
     overflow-x: hidden;
     margin-bottom: calc(2rem + 1.6rem + 2rem); // config button's sizes (svg + padding + margin).

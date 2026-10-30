@@ -6,13 +6,14 @@ from time import monotonic, monotonic_ns
 from models.audio_routing.audio_router import AudioRouter
 from .settings import VoiceSettings
 from .speechcpp_tts import CancelToken, SpeechCppTTS, SpeechError
-from .voice_trace import write_voice_trace
+from .voice_trace import write_voice_trace, install_gc_diagnostics
 
 
 class VoiceEventBus:
     """Serialize final chat and opted-in microphone translations."""
     def __init__(self, settings=None, *, provider_factory=SpeechCppTTS, router=None,
                  capacity=4, max_age=5.0, request_timeout=30.0, resolve_server=None, enabled=True):
+        install_gc_diagnostics()
         self.settings = settings or VoiceSettings()
         self.provider_factory = provider_factory
         self.resolve_server = resolve_server
@@ -145,7 +146,7 @@ class VoiceEventBus:
             self._queue.append((event, self.settings, self._epoch))
             self._stats["accepted"] += 1
             if self._thread is None:
-                self._thread = Thread(target=self._work, name="vrct-tts", daemon=True)
+                self._thread = Thread(target=self._work, name="vrct-vox", daemon=True)
                 self._thread.start()
             self._condition.notify()
             return True

@@ -14,9 +14,22 @@ export const VoiceRouteSummary = () => {
         <button type="button" onClick={() => updateSelectedConfigTabId("device")}>{t("voice_ui.edit_route")}</button></div>;
 };
 
+export const VoiceRouteControls = () => {
+    const { t } = useI18n();
+    const { route, error, send } = useVoice();
+    const problem = error || route.error;
+    return <>
+        <p>{t(route.managed ? "voice.mute_scope_managed" : "voice.mute_scope_external")}</p>
+        <div className={styles.actions}><button type="button" onClick={() => send("/run/mute_voice")}>{t("voice.mute")}</button>
+            <button type="button" disabled={!route.ready || route.pending || !route.requested_muted} onClick={() => send("/run/resume_voice")}>{t("voice.resume")}</button></div>
+        <p role="status">{t(route.preparing ? "voice.preparing_microphone" : route.error ? "voice.gate_error" : route.pending ? "voice.gate_pending" : !route.ready || route.observed_muted == null ? "voice.gate_unknown" : route.observed_muted ? "voice.gate_muted" : "voice.gate_open")}</p>
+        {problem && <p role="alert">{t(`voice_setup_errors.${problem}`, { defaultValue: problem })}</p>}
+    </>;
+};
+
 export const VoiceRouteSettings = () => {
     const { t } = useI18n();
-    const { settings, route, directState, directPending, error, updateError, send } = useVoice();
+    const { settings, directState, directPending, error, updateError, send } = useVoice();
     const form = useSettingsDraft(settings, error, updateError);
     useEffect(() => { send("/get/data/voice_settings"); }, [send]);
     const busy = !!directPending || directState.requested || directState.pending || directState.stopping || !directState.observation_id;
@@ -34,10 +47,6 @@ export const VoiceRouteSettings = () => {
                 <span role="status">{t(`voice_ui.${form.saveState}`)}</span></div>
         </form>}
         {form.navigationDialog}
-        <p>{t(route.managed ? "voice.mute_scope_managed" : "voice.mute_scope_external")}</p>
-        <div className={styles.actions}><button type="button" onClick={() => send("/run/mute_voice")}>{t("voice.mute")}</button>
-            <button type="button" disabled={!route.ready || route.pending || !route.requested_muted} onClick={() => send("/run/resume_voice")}>{t("voice.resume")}</button></div>
-        <p role="status">{t(route.error ? "voice.gate_error" : route.pending ? "voice.gate_pending" : !route.ready || route.observed_muted == null ? "voice.gate_unknown" : route.observed_muted ? "voice.gate_muted" : "voice.gate_open")}</p>
-        {(error || route.error) && <p role="alert">{error || route.error}</p>}
+        <VoiceRouteControls />
     </section>;
 };

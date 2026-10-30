@@ -52,10 +52,19 @@ def calibrate(ui, count=25):
     return samples
 
 
-def summarize_trials(rows, *, real_inference):
+def exact_pcm(reference, observed):
+    """Reject inserted silence, lost samples or extra speech in seeded tests."""
+    offset = observed.find(reference) if reference and any(reference) and not (len(reference) % 2 or len(observed) % 2) else -1
+    return {'valid': offset >= 0 and offset % 2 == 0 and not any(observed[:offset]) and not any(observed[offset + len(reference):]),
+            'offset_bytes': offset, 'reference_bytes': len(reference), 'observed_bytes': len(observed)}
+
+
+def summarize_trials(rows, *, real_inference, target_p95_ms=800):
+    if not math.isfinite(target_p95_ms) or target_p95_ms <= 0:
+        raise ValueError('invalid latency budget')
     result = {"count": len(rows), "minimum_count": 30, "method": "nearest_rank",
               "boundary": "trusted UI click capture to first nonzero output write completion",
-              "target_p50_ms": 350, "target_p95_ms": 800,
+              "target_p50_ms": 350, "target_p95_ms": target_p95_ms,
               "max_clock_interval_ms": 5, "p50_upper_ms": None, "p95_upper_ms": None}
     for row in rows:
         bounds = [row.get(key, math.nan) for key in ("lower_ms", "upper_ms", "calibration_width_ms")]
@@ -69,6 +78,6 @@ def summarize_trials(rows, *, real_inference):
             for label, rank in (("p50", .5), ("p95", .95)):
                 result[f"{label}_{suffix}_ms"] = ordered[math.ceil(len(rows) * rank) - 1]
     verdict = ("fixture_only" if not real_inference else "insufficient_samples" if len(rows) < 30
-               else "pass" if result["p50_upper_ms"] < 350 and result["p95_upper_ms"] < 800
+               else "pass" if result["p50_upper_ms"] < 350 and result["p95_upper_ms"] < target_p95_ms
                else "target_not_met")
     return {**result, "verdict": verdict}

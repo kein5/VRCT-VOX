@@ -54,3 +54,28 @@ def test_invalid_trials_cannot_be_discarded_to_claim_passing_tail(change):
     from native_voice_measurement import summarize_trials
     rows = [trial()] * 30 + [{**trial(), **change}]
     assert summarize_trials(rows, real_inference=True)["verdict"] == "invalid_measurement"
+
+
+def test_low_latency_budget_does_not_use_historical_800ms_gate():
+    from native_voice_measurement import summarize_trials
+    assert summarize_trials([trial(99)] * 30, real_inference=True, target_p95_ms=100)['verdict'] == 'pass'
+    assert summarize_trials([trial(100)] * 30, real_inference=True, target_p95_ms=100)['verdict'] == 'target_not_met'
+    assert summarize_trials([trial(200)] * 30, real_inference=True, target_p95_ms=100)['target_p95_ms'] == 100
+
+
+def test_exact_pcm_rejects_gap_drop_duplicate_and_extra_audio():
+    from native_voice_measurement import exact_pcm
+    reference = bytes(range(256)) * 10
+    assert exact_pcm(reference, b'\0' * 400 + reference + b'\0' * 200)['valid']
+    for observed in [reference[:512] + b'\0' * 7680 + reference[512:], reference[:-2],
+                     reference * 2, reference + b'\1\0']:
+        assert not exact_pcm(reference, observed)['valid']
+
+
+def test_exact_pcm_requires_s16_sample_alignment():
+    import struct
+    from native_voice_measurement import exact_pcm
+    reference = struct.pack('<4h', 1, 2, 3, 4)
+    assert not exact_pcm(reference, b'\0' + reference + b'\0')['valid']
+    assert not exact_pcm(reference[:-1], reference[:-1])['valid']
+    assert not exact_pcm(reference, reference + b'\0')['valid']

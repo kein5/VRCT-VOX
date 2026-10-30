@@ -1,0 +1,57 @@
+name: Prepare verified VRCT-VOX release draft
+on:
+  workflow_dispatch:
+    inputs:
+      linux_run:
+        description: Successful manual Linux candidate run ID at the current develop commit
+        type: string
+        required: true
+      windows_run:
+        description: Successful manual Windows candidate run ID at the same commit
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: release-draft
+  cancel-in-progress: false
+jobs:
+  draft:
+    if: github.repository == 'kein5/VRCT-VOX' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Verify origin, successful runs, commit, version and every asset hash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LINUX_RUN: ${{ inputs.linux_run }}
+          WINDOWS_RUN: ${{ inputs.windows_run }}
+          CANDIDATE_COMMIT: ${{ github.sha }}
+        run: |
+          python -m tools.prepare_release --linux-run "$LINUX_RUN" --windows-run "$WINDOWS_RUN" \
+            --commit "$CANDIDATE_COMMIT" --output build/release-draft
+      - name: Create draft only; publication remains a maintainer action
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_COMMIT: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, subprocess
+          from tools.prepare_release import require_unused_tag
+          version = json.loads(pathlib.Path('package.json').read_text())['version']
+          require_unused_tag(version)
+          payload = pathlib.Path('build/release-draft/payload')
+          command = ['gh', 'release', 'create', 'v' + version, '--repo', 'kein5/VRCT-VOX',
+                     '--draft', '--target', os.environ['CANDIDATE_COMMIT'], '--title', 'VRCT-VOX ' + version,
+                     '--notes-file', 'docs/release-draft-template.md']
+          if '-' in version:
+              command.append('--prerelease')
+          subprocess.run(command + [str(path) for path in sorted(payload.iterdir())], check=True)
+          PY

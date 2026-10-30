@@ -18,7 +18,7 @@ except ImportError:
     from check_voice_distribution import _check_name, _zip, check
     from distribution_policy import ARCHIVE_SUFFIXES
 
-RUNTIME = ('vrct-tts', 'vrct-tts-sidecar', '_internal/base_library.zip',
+RUNTIME = ('vrct-vox', 'vrct-vox-sidecar', '_internal/base_library.zip',
            '_internal/build/vrct-voice-gate', '_internal/build/vrct-source-bridge',
            '_internal/build/vrct-vc-worker', '_internal/build/vrct-asr-capture',
            '_internal/build/speechcpp/speech', '_internal/build/speechcpp/bundle.json',
@@ -53,7 +53,7 @@ def check_tree(root, *, require_runtime=False, allow_directory_links=False):
             path = root / name
             if not path.is_file():
                 raise ValueError(f'Missing runtime component: {name}')
-            if name in ('vrct-tts', 'vrct-tts-sidecar') or name.startswith('_internal/build/vrct-') or name.endswith('/speech'):
+            if name in ('vrct-vox', 'vrct-vox-sidecar') or name.startswith('_internal/build/vrct-') or name.endswith('/speech'):
                 with path.open('rb') as src:
                     header = src.read(20)
                 if header[:6] != b'\x7fELF\x02\x01' or header[18:20] != b'\x3e\x00' or not os.access(path, os.X_OK):
