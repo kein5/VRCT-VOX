@@ -11,6 +11,7 @@ from models.voice_events import AudioFrame
 from models.http_stream import InterruptibleSocket
 from .settings import local_url
 from .model_options import parse_options, SAFE_SEED_MAX
+from .listener_table import windows_listener_table
 
 
 class SpeechError(Exception):
@@ -105,24 +106,21 @@ class CancelToken:
                 pass
 
 
-def _windows_listener_missing(address):
+def _windows_listener_missing(address, stopped=None):
     """Winsock may retry refused connects beyond the short probe timeout.
 
     A successful Windows TCP table query can establish listener absence without
     consuming response PCM. Failure to read the table remains inconclusive.
-    No connection addresses or process details are retained or published.
+    No remote connection addresses or process details are retained or published.
     """
-    import psutil
     host, port = address
     addresses = {'::1', '::'} if host == '::1' else {'127.0.0.1', '0.0.0.0', '::'}
     if host == 'localhost':
         addresses.add('::1')
-    try:
-        rows = psutil.net_connections(kind='tcp')
-    except (psutil.Error, OSError):
+    rows = windows_listener_table.read(stopped if stopped is not None else Event())
+    if rows is None:
         return False
-    return not any(row.status == psutil.CONN_LISTEN and row.laddr
-                   and row.laddr[0] in addresses and row.laddr[1] == port for row in rows)
+    return not any(ip in addresses and local_port == port for ip, local_port in rows)
 
 
 def _watch_listener(address, token, stopped):
@@ -133,7 +131,7 @@ def _watch_listener(address, token, stopped):
     No PCM is read or queued here, and only this request's token is cancelled.
     """
     while not stopped.wait(.02) and not token.is_set():
-        if sys.platform == 'win32' and _windows_listener_missing(address):
+        if sys.platform == 'win32' and _windows_listener_missing(address, stopped):
             if not stopped.is_set():
                 token.cancel("server_unavailable")
             return
