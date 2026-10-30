@@ -48,6 +48,48 @@ def test_capture_rejects_invalid_cli_before_connecting(tmp_path):
         assert subprocess.run([str(binary), *args], timeout=2).returncode != 0
 
 
+def test_old_runtime_or_daemon_cannot_start_capture(tmp_path):
+    harness = tmp_path / "versions.c"
+    harness.write_text('''
+#include <assert.h>
+#define main capture_main
+#define pw_get_library_version fixture_version
+#define pw_main_loop_quit fixture_quit
+#include "''' + str(ROOT / 'native/asr-capture/main.c') + '''"
+#undef main
+static int quits;
+const char *fixture_version(void) { return "1.0.5"; }
+int fixture_quit(struct pw_main_loop *loop) { (void)loop; quits++; return 0; }
+int main(void) {
+    const char *bad[] = {NULL,"","1.0.5","1.6.9","0.3.99","1.6","1.6.10-rc1",
+        "-1.6.10","1.-6.10","1.6.10extra","4294967296.0.0"," 1.6.10"};
+    for (unsigned i=0; i<sizeof(bad)/sizeof(bad[0]); i++) assert(!supported_version(bad[i]));
+    assert(supported_version("1.6.10") && supported_version("1.6.11"));
+    assert(supported_version("1.7.0") && supported_version("2.0.0"));
+    /* The old linked library is rejected before CLI parsing/pw_init/connection. */
+    assert(capture_main(0,NULL)==1);
+    struct state s={.cookie=42,.sync=7};
+    struct pw_core_info info={.cookie=42,.version="1.6.10"};
+    core_info(&s,&info);
+    assert(s.cookie_ok && !s.stopping);
+    info.version="1.0.5";
+    core_info(&s,&info);
+    assert(s.stopping && s.result==1 && quits==1);
+    core_done(&s,PW_ID_CORE,7);
+    assert(!s.stream); /* No stream after a rejected daemon, even with a valid cookie. */
+    return 0;
+}
+''')
+    flags = shlex.split(subprocess.check_output(
+        ["pkg-config", "--cflags", "--libs", "libpipewire-0.3"], text=True))
+    executable = tmp_path / "versions"
+    subprocess.run(["cc", "-std=gnu11", "-O2", "-Wall", "-Wextra", "-Werror",
+                    str(harness), "-o", str(executable), *flags, "-lm"], check=True)
+    result = subprocess.run([str(executable)], capture_output=True, timeout=3)
+    assert result.returncode == 0, result.stderr.decode()
+    assert result.stdout == b""
+
+
 @pytest.mark.parametrize("source_kind", ["mic", "speaker"])
 def test_private_capture_has_timestamped_pcm_and_stops_on_target_removal(
     tmp_path, source_kind

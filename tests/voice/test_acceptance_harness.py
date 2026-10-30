@@ -73,21 +73,82 @@ def test_empty_speak_exits_instead_of_waiting_forever(text):
     assert not result.stderr
 
 
-def test_private_graph_failure_restores_environment_and_reaps_processes(tmp_path, monkeypatch):
+@pytest.mark.parametrize("failure_at", ["startup", "policy", "body", "cleanup", None])
+def test_private_graph_failure_restores_environment_and_reaps_processes(tmp_path, monkeypatch, failure_at):
     if not sys.platform.startswith("linux"):
         pytest.skip("Linux-only harness")
+    prefix = tmp_path / "policy"
+    binary = prefix / "bin/wireplumber"
+    binary.parent.mkdir(parents=True)
+    binary.touch()
+    binary.chmod(0o755)
+    data = prefix / "share/wireplumber"
+    (data / "scripts/lib").mkdir(parents=True)
+    (data / "wireplumber.conf").touch()
+    module = prefix / "lib/wireplumber-0.5"
+    module.mkdir(parents=True)
+    (module / "libwireplumber-module-lua-scripting.so").touch()
+    shadow = tmp_path / "host-data"
+    (shadow / "wireplumber/scripts/lib").mkdir(parents=True)
+    (shadow / "wireplumber/scripts/lib/common-utils.lua").write_text("error('host script')")
     monkeypatch.setenv("PIPEWIRE_REMOTE", "existing-desktop")
     monkeypatch.delenv("PIPEWIRE_RUNTIME_DIR", raising=False)
-    monkeypatch.setattr(acceptance.shutil, "which", lambda _: "installed")
-    process = MagicMock()
-    process.poll.return_value = None
-    monkeypatch.setattr(acceptance.subprocess, "Popen", lambda *a, **kw: process)
-    def timeout(*a, **kw):
-        raise TimeoutError("daemon_start_timeout")
-    monkeypatch.setattr(acceptance, "wait_for", timeout)
-    with pytest.raises(TimeoutError):
+    monkeypatch.setenv("XDG_DATA_HOME", str(shadow))
+    monkeypatch.setenv("XDG_DATA_DIRS", str(shadow))
+    monkeypatch.setenv("WIREPLUMBER_DATA_DIR", str(shadow / "wireplumber"))
+    monkeypatch.setenv("WIREPLUMBER_MODULE_DIR", str(tmp_path / "host-modules"))
+    monkeypatch.delenv("WIREPLUMBER_CONFIG_DIR", raising=False)
+    monkeypatch.setattr(acceptance.shutil, "which",
+                        lambda name: str(binary) if name == "wireplumber" else "installed")
+    before = dict(acceptance.os.environ)
+    selected = {"WIREPLUMBER_CONFIG_DIR": str(data), "WIREPLUMBER_DATA_DIR": str(data),
+                "WIREPLUMBER_MODULE_DIR": str(module)}
+    processes = []
+    commands = []
+
+    def assert_policy_paths():
+        assert {key: acceptance.os.environ.get(key) for key in selected} == selected
+
+    def terminate():
+        assert_policy_paths()
+        if failure_at == "cleanup":
+            raise OSError("injected_cleanup_failure")
+
+    def popen(command, **kwargs):
+        assert_policy_paths()
+        commands.append(command)
+        if failure_at == "startup":
+            raise OSError("injected_startup_failure")
+        process = MagicMock(pid=100 + len(processes))
+        process.poll.return_value = None
+        process.terminate.side_effect = terminate
+        processes.append(process)
+        return process
+
+    waits = 0
+
+    def wait_for(*args, **kwargs):
+        nonlocal waits
+        waits += 1
+        if failure_at == "policy" and waits == 2:
+            raise TimeoutError("injected_policy_failure")
+
+    monkeypatch.setattr(acceptance.subprocess, "Popen", popen)
+    monkeypatch.setattr(acceptance, "wait_for", wait_for)
+
+    def run():
         with acceptance.private_graph():
-            pass
-    assert acceptance.os.environ["PIPEWIRE_REMOTE"] == "existing-desktop"
-    assert "PIPEWIRE_RUNTIME_DIR" not in acceptance.os.environ
-    process.terminate.assert_called_once()
+            assert_policy_paths()
+            if failure_at == "body":
+                raise ValueError("injected_body_failure")
+
+    if failure_at:
+        with pytest.raises((OSError, TimeoutError, ValueError), match="injected_"):
+            run()
+    else:
+        run()
+    assert dict(acceptance.os.environ) == before
+    for process in processes:
+        process.terminate.assert_called_once()
+    if len(commands) == 2:
+        assert commands[1] == [str(binary.resolve()), "--profile", "policy"]

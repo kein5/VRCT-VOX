@@ -22,6 +22,10 @@
 #include <spa/param/latency-utils.h>
 #include <spa/node/io.h>
 
+#if !PW_CHECK_VERSION(1, 6, 10)
+#error "VRCT-VOX capture requires PipeWire 1.6.10 or newer headers; see tools/ci/setup_pipewire.sh"
+#endif
+
 #define RATE 48000
 #define NS 1000000000ULL
 #define STARTUP_STABLE_NS 1000000000ULL
@@ -45,6 +49,22 @@ struct state {
 static uint64_t now_ns(void) {
     struct timespec now; clock_gettime(CLOCK_MONOTONIC, &now);
     return (uint64_t)now.tv_sec * NS + now.tv_nsec;
+}
+static bool supported_version(const char *version) {
+    /* Older peers leave newer clock fields/flags unavailable. Do not interpret
+     * padding or absent discontinuity signals as a validated capture clock. */
+    unsigned long parts[3];
+    if (!version) return false;
+    for (int i = 0; i < 3; i++) {
+        char *end;
+        if (*version < '0' || *version > '9') return false;
+        errno = 0;
+        parts[i] = strtoul(version, &end, 10);
+        if (errno || parts[i] > UINT32_MAX || *end != (i == 2 ? '\0' : '.')) return false;
+        version = i == 2 ? end : end + 1;
+    }
+    return parts[0] > 1 || (parts[0] == 1 &&
+        (parts[1] > 6 || (parts[1] == 6 && parts[2] >= 10)));
 }
 static bool number(const char *text, uint64_t *value) {
     char *end;
@@ -72,6 +92,7 @@ static void watchdog(void *data, uint64_t expirations) {
 }
 static void core_info(void *data, const struct pw_core_info *info) {
     struct state *s = data;
+    if (!supported_version(info->version)) { failed(s, "pipewire_version_unsupported"); return; }
     s->cookie_ok = info->cookie == s->cookie;
     if (!s->cookie_ok) failed(s, "core_changed");
 }
@@ -260,6 +281,10 @@ static void core_done(void *data, uint32_t id, int seq) {
 static const struct pw_core_events core_events = {PW_VERSION_CORE_EVENTS, .info = core_info, .done = core_done, .error = core_error};
 static const struct pw_registry_events registry_events = {PW_VERSION_REGISTRY_EVENTS, .global = global, .global_remove = removed};
 int main(int argc, char **argv) {
+    if (!supported_version(pw_get_library_version())) {
+        fprintf(stderr, "asr_capture_pipewire_version_unsupported\n");
+        return 1;
+    }
     uint64_t parent, owner, cookie, serial;
     if (argc != 8 || !number(argv[1], &parent) || parent <= 1 || parent > INT_MAX ||
         !number(argv[2], &owner) || owner < 3 || owner > INT_MAX || !number(argv[3], &cookie) || cookie > UINT32_MAX ||

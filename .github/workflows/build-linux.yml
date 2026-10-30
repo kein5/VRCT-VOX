@@ -71,7 +71,12 @@ jobs:
             pipewire-bin libvulkan1 libglfw3 libportaudio2 libasound2-dev \
             webkit2gtk-driver xvfb xauth x11-utils dbus-x11 fonts-noto-cjk \
             desktop-file-utils libgtk-3-dev libgdk-pixbuf-2.0-dev glib-networking \
-            imagemagick xdotool
+            imagemagick xdotool meson ninja-build libsndfile1-dev libglib2.0-dev liblua5.4-dev
+      - name: Prepare tested PipeWire API in an isolated prefix
+        run: |
+          bash tools/ci/setup_pipewire.sh "$RUNNER_TEMP/vrct-pipewire"
+          cat "$RUNNER_TEMP/vrct-pipewire/environment" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/vrct-pipewire/prefix/bin" >> "$GITHUB_PATH"
       - name: Build isolated candidate with pinned speech.cpp
         run: |
           uv run --no-project --python 3.11 python tools/build_linux.py \

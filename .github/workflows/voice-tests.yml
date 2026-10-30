@@ -8,6 +8,7 @@ jobs:
   headless:
     timeout-minutes: 20
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -17,7 +18,13 @@ jobs:
       - run: uv venv --python 3.11
       - run: uv pip install -r requirements-voice-test.txt
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libpipewire-0.3-dev pkg-config gcc
+        run: sudo apt-get update && sudo apt-get install -y pkg-config gcc g++ meson ninja-build libsndfile1-dev libglib2.0-dev liblua5.4-dev
+      - name: Prepare tested PipeWire API in an isolated prefix
+        if: runner.os == 'Linux'
+        run: |
+          bash tools/ci/setup_pipewire.sh "$RUNNER_TEMP/vrct-pipewire"
+          cat "$RUNNER_TEMP/vrct-pipewire/environment" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/vrct-pipewire/prefix/bin" >> "$GITHUB_PATH"
       - if: runner.os == 'Linux'
         run: uv run --no-project python tools/build_voice_gate.py
       - run: uv run --no-project python tools/dev.py check --scope tooling

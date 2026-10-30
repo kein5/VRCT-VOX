@@ -107,6 +107,43 @@ def default_output():
     return None
 
 
+def policy_installation():
+    """Bind policy configuration, scripts and modules to the selected daemon."""
+    binary = shutil.which("wireplumber")
+    if not binary:
+        raise RuntimeError("missing_wireplumber")
+    binary = Path(binary).resolve(strict=True)
+    prefix = binary.parent.parent
+    data = prefix / "share/wireplumber"
+
+    def inside(path):
+        return path.resolve().is_relative_to(prefix)
+
+    config = data / "wireplumber.conf"
+    if not config.is_file() or not inside(config):
+        raise RuntimeError("missing_wireplumber_policy_config")
+    scripts = data / "scripts/lib"
+    if not scripts.is_dir() or not inside(scripts):
+        raise RuntimeError("missing_wireplumber_policy_data")
+    # Arch and the isolated CI prefix use lib; Debian uses lib/<multiarch>.
+    # Do not guess an architecture when multiple installations are present.
+    candidates = [prefix / "lib/wireplumber-0.5", *prefix.glob("lib/*/wireplumber-0.5")]
+    modules = {path.resolve() for path in candidates if path.is_dir()}
+    if not modules:
+        raise RuntimeError("missing_wireplumber_policy_modules")
+    if len(modules) != 1:
+        raise RuntimeError("ambiguous_wireplumber_policy_modules")
+    module = modules.pop()
+    lua = module / "libwireplumber-module-lua-scripting.so"
+    if not lua.is_file() or not inside(lua):
+        raise RuntimeError("missing_wireplumber_policy_modules")
+    return str(binary), {
+        "WIREPLUMBER_CONFIG_DIR": str(data),
+        "WIREPLUMBER_DATA_DIR": str(data),
+        "WIREPLUMBER_MODULE_DIR": str(module),
+    }
+
+
 @contextmanager
 def private_graph(*, config_fragment=None, rate=48000):
     """Isolate both sockets and policy state; restore environment after workers exit."""
@@ -117,6 +154,7 @@ def private_graph(*, config_fragment=None, rate=48000):
     for binary in ("pipewire", "wireplumber", "pw-loopback", "pw-cat", "pw-dump", "pw-metadata"):
         if not shutil.which(binary):
             raise RuntimeError(f"missing_{binary}")
+    policy_binary, policy_environment = policy_installation()
     with tempfile.TemporaryDirectory(prefix="vrct-p1-") as directory, ExitStack() as stack:
         root = Path(directory)
         config = root / "acceptance.conf"
@@ -131,7 +169,7 @@ def private_graph(*, config_fragment=None, rate=48000):
         config.write_text(configuration, encoding="utf-8")
         overrides = {"PIPEWIRE_RUNTIME_DIR": directory, "PIPEWIRE_REMOTE": "vrct-acceptance",
                      "XDG_STATE_HOME": str(root / "state"), "XDG_CONFIG_HOME": str(root / "config"),
-                     "WIREPLUMBER_CONFIG_DIR": "/usr/share/wireplumber"}
+                     **policy_environment}
         old = {key: os.environ.get(key) for key in overrides}
         os.environ.update(overrides)
 
@@ -146,7 +184,7 @@ def private_graph(*, config_fragment=None, rate=48000):
         wait_for(lambda: (root / "vrct-acceptance").exists() or daemon.poll() is not None)
         if daemon.poll() is not None:
             raise RuntimeError("private_pipewire_failed")
-        policy = start_process(stack, ["wireplumber", "--profile", "policy"], stdout=subprocess.DEVNULL)
+        policy = start_process(stack, [policy_binary, "--profile", "policy"], stdout=subprocess.DEVNULL)
         # Wait for the policy client to appear before creating devices.
         def policy_ready():
             data = subprocess.run(["pw-dump"], capture_output=True, check=True, timeout=3)
