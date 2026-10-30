@@ -25,7 +25,7 @@
 - [x] Add EditorConfig, Cocogitto and cross-platform setup/doctor/check commands with owned-file tests (existing reviewer).
 - [x] Align CI and candidate provenance/checksums, prepare explicit publication path with tested-artifact validation.
 - [x] Build the renamed AppImage, run native UI/sidecar checks with isolated config and verify packaged names.
-- [ ] Review all pending changes, commit coherent work, merge into current develop without rewriting history, and verify remote result.
+- [x] Review all pending changes, commit coherent work, merge into current develop without rewriting history, and verify remote result.
 
 ## Review focus
 

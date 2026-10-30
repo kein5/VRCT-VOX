@@ -162,4 +162,11 @@ python tools/dev.py check --scope commits --base origin/develop
 
 このCLIはvoice gateのコンパイルを代行しません。Linux CIの `tools/build_voice_gate.py` と必要なOS依存の準備は既存の手順を維持します。ブラウザ試験、ネイティブアプリ、実GPU、マイク、配布物の受け入れ試験も別の明示的な工程です。
 
+新規のLinux checkoutで `check --scope voice` を実行する前には、Cコンパイラー、pkg-config、PipeWire開発ライブラリを用意し、次を実行してください。音声試験用の補助バイナリを `build/` に生成します。これを省くと、Python依存がそろっていてもcaptureなどの試験が失敗します。
+
+```sh
+python tools/build_voice_gate.py
+python tools/dev.py check --scope voice
+```
+
 npmとCargoは既存のlockを使います。Linux backendは完全な依存一覧を使い、headless/browserは直接依存を固定しています。後者の間接依存、Pythonのpatch版、Rust、OSライブラリまではこのCLIで完全固定しません。同じビット列の配布物や全機種での動作を保証するものではありません。検証記録には `doctor --json` の結果、実行scope、commit、OSを併記します。
