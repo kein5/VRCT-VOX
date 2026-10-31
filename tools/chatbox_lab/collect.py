@@ -94,6 +94,19 @@ def known_avatars():
     return sorted(avatar for avatar, name in avatar_names().items() if name)
 
 
+def client_log(profile: int) -> Path:
+    """The newest VRChat log of the client started with --profile=<profile>."""
+    logs = sorted(VRCHAT_DATA.glob('output_log_*.txt'), key=lambda p: p.stat().st_mtime, reverse=True)
+    marker = f'Arg: --profile={profile}'
+    return next(p for p in logs if marker in p.read_text(errors='replace')[:20000])
+
+
+def read_from(path: Path, offset: int) -> str:
+    with open(path, 'rb') as log:
+        log.seek(offset)
+        return log.read().decode('utf-8', errors='replace')
+
+
 class AvatarSwitcher:
     """Switch the speaker's avatar and confirm it from the speaker's VRChat log.
 
@@ -104,11 +117,10 @@ class AvatarSwitcher:
     at the start is restored at the end.
     """
 
-    def __init__(self, osc: SimpleUDPClient, profile: int = 0):
+    def __init__(self, osc: SimpleUDPClient, profile: int = 0, camera_profile: int = 1):
         self.osc = osc
-        logs = sorted(VRCHAT_DATA.glob('output_log_*.txt'), key=lambda p: p.stat().st_mtime, reverse=True)
-        marker = f'Arg: --profile={profile}'
-        self.log = next(p for p in logs if marker in p.read_text(errors='replace')[:20000])
+        self.log = client_log(profile)
+        self.camera_log = client_log(camera_profile)
         names = avatar_names()
         worn = re.findall(r'Switching \S+ to avatar (.+)', self.log.read_text(errors='replace'))
         by_name = {name: avatar for avatar, name in names.items()}
@@ -117,14 +129,35 @@ class AvatarSwitcher:
 
     def switch(self, avatar_id: str, timeout: float = 30.0) -> bool:
         offset = self.log.stat().st_size
+        camera_offset = self.camera_log.stat().st_size
+        if not self._switched(avatar_id, offset, timeout):
+            return False
+        self._camera_loaded(avatar_id, camera_offset)
+        return True
+
+    def _camera_loaded(self, avatar_id: str, offset: int, timeout: float = 90.0) -> None:
+        """Wait until the camera client shows the avatar, not the loading robot.
+
+        An avatar it has to download is shown after "Unpacking Avatar (<name> by";
+        a cached one is shown at once, without a download line.
+        """
+        name = self.names.get(avatar_id, '')
+        start = time.monotonic()
+        while time.monotonic() - start < timeout:
+            time.sleep(1.0)
+            tail = read_from(self.camera_log, offset)
+            if f'Unpacking Avatar ({name} by' in tail:
+                return
+            if 'Starting download of Avatar' not in tail and time.monotonic() - start >= 6.0:
+                return
+
+    def _switched(self, avatar_id: str, offset: int, timeout: float) -> bool:
         self.osc.send_message('/avatar/change', avatar_id)
         end = time.monotonic() + timeout
         switched_at = None
         while time.monotonic() < end:
             time.sleep(0.5)
-            with open(self.log, encoding='utf-8', errors='replace') as log:
-                log.seek(offset)
-                tail = log.read()
+            tail = read_from(self.log, offset)
             if f"'{avatar_id}' did not pass" in tail:
                 return False
             name = self.names.get(avatar_id)
@@ -172,7 +205,7 @@ def main():
     out.mkdir(parents=True)
     rng = random.Random(args.seed)
     avatars = known_avatars() if args.avatar_every else []
-    switcher = AvatarSwitcher(osc, speaker['profile']) if avatars else None
+    switcher = AvatarSwitcher(osc, speaker['profile'], args.camera_profile) if avatars else None
     if switcher and args.restore_avatar:
         switcher.original = args.restore_avatar
     try:
@@ -193,7 +226,6 @@ def collect(args, osc, camera, out, rng, avatars, switcher):
                 for candidate in rng.sample(avatars, min(5, len(avatars))):
                     if switcher.switch(candidate):
                         avatar = candidate
-                        time.sleep(4.0)  # let the avatar finish loading
                         break
             negative = args.negative_every and count % args.negative_every == args.negative_every - 1
             text = '' if negative else sample_text(rng)
