@@ -74,7 +74,9 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
             })}
             <p>{t('model_downloads.memory_boundary')}</p>
         </>}
-        {matching.filter(entry => entry.id === choice(entry.target) || activePhases.includes(state.jobs[entry.id]?.phase) || state.jobs[entry.id]?.phase === 'ready').map(entry => {
+        {targets.includes("asr") && <p>{t("model_downloads.asr_choice")}</p>}
+        {/* TTS variants are one choice per target; ASR and VAD entries are different models, so list them all. */}
+        {matching.filter(entry => !ttsTargets.includes(entry.target) || entry.id === choice(entry.target) || activePhases.includes(state.jobs[entry.id]?.phase) || state.jobs[entry.id]?.phase === 'ready').map(entry => {
             const job = state.jobs[entry.id], active = activePhases.includes(job?.phase);
             return <div key={entry.id}>
                 <strong>{entry.name}</strong>
@@ -87,6 +89,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
                 </>}
                 {entry.target === "rvc" && <p>{t("model_downloads.rvc_requirements")}</p>}
                 {entry.target === "asr" && <p>{t("model_downloads.asr_requirements")}</p>}
+                {entry.target === "vad" && <p>{t("model_downloads.vad_requirements")}</p>}
                 {job && <p role="status">{t(`model_downloads.phase_${job.phase}`)}</p>}
                 {active && <><progress aria-label={t("model_downloads.progress")} value={job.received_bytes} max={job.total_bytes} />
                     <p>{bytes(job.received_bytes)} / {bytes(job.total_bytes)}</p>
@@ -109,6 +112,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
             <p>{t(`model_downloads.notice_${selected.notice}`)}</p>
             {selected.target === "rvc" && <p>{t("model_downloads.rvc_requirements")}</p>}
             {selected.target === "asr" && <p>{t("model_downloads.asr_requirements")}</p>}
+            {selected.target === "vad" && <p>{t("model_downloads.vad_requirements")}</p>}
             <p>{t("model_downloads.connection_notice")}</p>
             <p>{t("model_downloads.no_start")}</p>
             <p>{t("model_downloads.source")}: <a href={selected.source} onClick={event => openLink(event, selected.source)} target="_blank" rel="noreferrer">{selected.repo}</a></p>

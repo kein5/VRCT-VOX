@@ -43,9 +43,12 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                     <details open={owner?.state !== "ready"}><summary>{t("voice_ui.engine_settings")}</summary>
                     {input("model")}{input(name === "asr" ? "vad_model" : "voice_file")}
                     {/* Other unsaved edits survive an apply; only an edited model path conflicts. */}
-                    <ModelDownloads targets={[name]} deviceMode={settings.profiles[name].device}
-                        blocked={busy ? "busy" : row.model !== settings.profiles[name].model ? "edited" : false}
-                        expected={{ [name]: { model: settings.profiles[name].model } }} />
+                    {/* The asr profile also takes a VAD file; "expected" names the field each target replaces. */}
+                    <ModelDownloads targets={name === "asr" ? ["asr", "vad"] : [name]} deviceMode={settings.profiles[name].device}
+                        blocked={busy ? "busy" : row.model !== settings.profiles[name].model ||
+                            (name === "asr" && row.vad_model !== settings.profiles.asr.vad_model) ? "edited" : false}
+                        expected={name === "asr" ? { asr: { model: settings.profiles.asr.model }, vad: { model: settings.profiles.asr.vad_model } }
+                            : { [name]: { model: settings.profiles[name].model } }} />
                     <label>{t("speech_servers.device")}<select aria-label={t("speech_servers.device")} value={row.device} disabled={busy}
                         onChange={event => field(name, "device", event.target.value)}>
                         {["auto", "cpu", "gpu"].map(device => <option key={device} value={device}>{t(`speech_servers.${device}`)}</option>)}

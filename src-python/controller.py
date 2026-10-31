@@ -30,6 +30,7 @@ from models.tts.tts_scheduler import VoiceEventBus
 from models.tts.speechcpp_tts import SpeechError, SpeechCppTTS
 from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, SpeechServers
 from models.model_downloads.manager import Downloads
+from models.model_downloads.catalog import SPEECH_FIELDS as SPEECH_DOWNLOAD_FIELDS
 from models.model_downloads.hardware import HardwareProbe
 from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
 from models.tts.message_hook import chat_event, microphone_event
@@ -467,13 +468,15 @@ class Controller:
                         self._config.DIRECT_VOICE_SETTINGS = updated.to_dict()
                         self._direct_settings = updated
                 else:
+                    # A VAD file goes to the asr profile's vad_model; expected names that field's value.
+                    profile, field = SPEECH_DOWNLOAD_FIELDS[entry.target]
                     with self._speech_settings_lock:
-                        if self.speech_servers.state()[entry.target]['state'] not in ('stopped', 'failed'):
+                        if self.speech_servers.state()[profile]['state'] not in ('stopped', 'failed'):
                             raise ValueError('model_target_busy')
                         settings = copy.deepcopy(self._speech_settings)
-                        if settings['profiles'][entry.target]['model'] != expected['model']:
+                        if settings['profiles'][profile][field] != expected['model']:
                             raise ValueError('settings_changed')
-                        settings['profiles'][entry.target]['model'] = paths['model']
+                        settings['profiles'][profile][field] = paths['model']
                         self._config.SPEECH_SERVER_SETTINGS = settings
                         self._speech_settings = settings
             return {'status': 200, 'result': self.model_downloads.apply(data['id'], data['job_id'], apply)}

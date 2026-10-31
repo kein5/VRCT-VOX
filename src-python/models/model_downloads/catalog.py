@@ -2,7 +2,7 @@
 from dataclasses import dataclass, replace
 import re
 
-CATALOG_VERSION = '2026-10-31.1'
+CATALOG_VERSION = '2026-11-01.1'
 
 
 @dataclass(frozen=True)
@@ -32,6 +32,9 @@ QWEN_REV = 'fd9df9364613a92a86b4137074bc281204823033'
 RVC_REV = '7a61b17e4f014fc5013a489f2b5cd3a7ee9e2b1a'
 # Files before this revision hold no custom vocabulary; needs speech.cpp 0.9.4 or later.
 HAAS_REV = '6b965d5007ba780585de51549d57a8c1c0d67c7e'
+# The revision speech.cpp 0.10.0's own catalog pins for qwen3-asr-0.6b and silero-vad.
+QWEN_ASR_REV = 'ee78f8709547f39bea3b924a16c72403826cac92'
+SILERO_REV = '7fcb7aa2a70c312f8579fc987b3e1cdecf9321ca'
 CATALOG = (
     Model('irodori-v41-f16', 'japanese', 'Irodori-TTS v4.1 Small MF · F16', 'Aratako / sakasegawa',
           'sakasegawa/Irodori-TTS-v4.1-Small-MF-GGUF', IRODORI_REV, 'MIT + Apache-2.0', (
@@ -59,6 +62,21 @@ CATALOG = (
               f'https://huggingface.co/sakasegawa/Haas-ja-v1.0-GGUF/blob/{HAAS_REV}/LICENSE'),
           'haas', (Artifact('Haas-616M-ja-v1.0-Q8_0.gguf', 656381472,
                            'cd5f60b2f1c411404b83fca4a65e3ce30a26d9e951b6a346529e65f22758afeb', 'model'),)),
+    # Q8_0 is the file speech.cpp fetches for this name. On Common Voice 8.0 ja its
+    # CER is 11.89% against 12.49% for Q5_K, for 0.25 GB more; it detects the language.
+    Model('qwen3-asr-06b-q8', 'asr', 'Qwen3-ASR 0.6B · Q8_0 (30 languages)', 'Qwen / sakasegawa',
+          'sakasegawa/Qwen3-ASR-0.6B-GGUF', QWEN_ASR_REV, 'Apache-2.0', (
+              f'https://huggingface.co/sakasegawa/Qwen3-ASR-0.6B-GGUF/blob/{QWEN_ASR_REV}/README.md',
+              'https://www.apache.org/licenses/LICENSE-2.0'),
+          'qwen_asr', (Artifact('Qwen3-ASR-0.6B-Q8_0.gguf', 841502336,
+                               '416e10c15b4a3d9002bd337d18fc450233fdf68502b6e10d1379d2789838afd0', 'model'),)),
+    # Applies to the asr profile's vad_model, not to its recognition model.
+    Model('silero-vad-v62', 'vad', 'Silero VAD v6.2 · F32', 'Silero Team / sakasegawa',
+          'sakasegawa/silero-vad-GGUF', SILERO_REV, 'MIT', (
+              f'https://huggingface.co/sakasegawa/silero-vad-GGUF/blob/{SILERO_REV}/README.md',
+              f'https://huggingface.co/sakasegawa/silero-vad-GGUF/blob/{SILERO_REV}/LICENSE'),
+          'silero', (Artifact('silero-vad-309K-v6.2-F32.gguf', 1238624,
+                             '2fc312514e5fc4fa4ffd02b25c76a4853fa4130e8fb9777d01502183b01238cb', 'model'),)),
 )
 
 CATALOG = (*CATALOG,
@@ -70,13 +88,19 @@ CATALOG = (*CATALOG,
                  '4bb9ba9e822ab614798c416c7f0187994f349be41221966fa911aca24f237930', 'model'),)))
 
 
+TARGETS = ('japanese', 'multilingual', 'asr', 'vad', 'rvc')
+# Where an applied file goes: (speech server profile, settings field). RVC is separate.
+SPEECH_FIELDS = {'japanese': ('japanese', 'model'), 'multilingual': ('multilingual', 'model'),
+                 'asr': ('asr', 'model'), 'vad': ('asr', 'vad_model')}
+
+
 def validate_catalog(catalog):
     ids = set()
     for model in catalog:
         if (model.id in ids or not re.fullmatch(r'[a-z0-9][a-z0-9-]*', model.id)
                 or not re.fullmatch(r'[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+', model.repo)
                 or not re.fullmatch(r'[0-9a-f]{40}', model.revision)
-                or model.target not in ('japanese', 'multilingual', 'asr', 'rvc') or not model.artifacts):
+                or model.target not in TARGETS or not model.artifacts):
             raise ValueError('catalog_invalid')
         ids.add(model.id)
         names, roles = set(), set()

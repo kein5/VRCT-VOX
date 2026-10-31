@@ -64,6 +64,31 @@ def test_asr_apply_sets_only_the_recognizer_path_and_keeps_vad(
     assert c.speech_servers.state()["asr"]["state"] == "stopped"
 
 
+def test_vad_apply_sets_only_the_asr_vad_path_and_checks_that_field(
+    controller_module, setup, monkeypatch
+):
+    c = controller_module.Controller()
+    m, entry, content, _ = setup
+    c.model_downloads = m
+    m.entries[entry.id] = replace(entry, target="vad")
+    m.transport = lambda _: io.BytesIO(content)
+    c._speech_settings["profiles"]["asr"].update(model="/asr.gguf", vad_model="/old-vad.gguf")
+    start(m)
+    job = finish(m)
+    # expected names the replaced field, vad_model, not the recognizer path.
+    stale = {"id": entry.id, "job_id": job["job_id"], "expected": {"model": "/asr.gguf"}}
+    assert c.applyModelDownload(stale)["result"]["error_code"] == "settings_changed"
+    monkeypatch.setattr(c.speech_servers, "state", lambda: {"asr": {"state": "ready"}})
+    req = {"id": entry.id, "job_id": job["job_id"], "expected": {"model": "/old-vad.gguf"}}
+    assert c.applyModelDownload(req)["result"]["error_code"] == "model_target_busy"
+    monkeypatch.undo()
+    assert c.applyModelDownload(req)["status"] == 200
+    profiles = c.getSpeechServerSettings()["result"]["profiles"]
+    assert profiles["asr"]["model"] == "/asr.gguf"
+    assert profiles["asr"]["vad_model"] == job["paths"]["model"]
+    assert c.speech_servers.state()["asr"]["state"] == "stopped"
+
+
 def test_stale_settings_and_running_server_cannot_be_overwritten(
     controller_module, setup, monkeypatch
 ):
