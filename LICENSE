@@ -1,6 +1,7 @@
 MIT License
 
 Copyright (c) 2023 misyaguziya
+Copyright (c) 2026 kein5 (VRCT-VOX changes)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -35,7 +36,8 @@ the VRCT Chat-Bubble Detection Model License Agreement, which permits
 running it as part of VRCT, and as part of a fork of VRCT while working on
 VRCT itself, but does not permit shipping it in a fork's own release, using
 it in unrelated software, redistributing it on its own, or deriving models
-from it or from its outputs.
+from it or from its outputs. VRCT-VOX builds do not include this file; it
+stays in the repository only for the development uses that its terms permit.
 
     Copyright (c) 2026 misyaguziya. All rights reserved.
     Full text (Japanese, authoritative):
@@ -43,5 +45,5 @@ from it or from its outputs.
     English translation:
         src-python/models/ocr/onnx/LICENSE.en.txt
 
-See NOTICE.md for details and for the other third-party model weights
-bundled with VRCT.
+See NOTICE.md for details and for the third-party components and licenses
+in VRCT-VOX builds.
