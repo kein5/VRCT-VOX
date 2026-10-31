@@ -1,3 +1,0 @@
-[lint.per-file-ignores]
-# Deliberately incomplete upstream function body parsed by AST contract tests.
-"tests/voice/fixtures/rvc_retrieval.py" = ["F821"]

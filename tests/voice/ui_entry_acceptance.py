@@ -167,7 +167,7 @@ def execute(args, report):
             reserve.bind(('127.0.0.1', 0))
             port = reserve.getsockname()[1]
         vite_log = stack.enter_context((args.output / 'vite.log').open('w'))
-        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '--host', '127.0.0.1',
+        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '.', '--host', '127.0.0.1',
                                  '--port', str(port), '--strictPort'], cwd=ROOT, stdout=vite_log, stderr=vite_log)
 
         def close_vite():

@@ -222,6 +222,24 @@ def test_complete_cache_is_reverified_and_corrupt_cache_is_preserved(setup):
     assert path.read_bytes() == b"bad cache" and len(opened) == 1
 
 
+def test_restart_right_after_ready_waits_for_the_finishing_worker(setup, monkeypatch):
+    from models.model_downloads import manager as module
+
+    m, _, _, opened = setup
+    release, close = Event(), module.RootLease.close
+
+    def slow_close(lease):
+        release.wait(3)
+        close(lease)
+
+    monkeypatch.setattr(module.RootLease, "close", slow_close)
+    start(m)
+    assert finish(m)["phase"] == "ready"
+    start(m)
+    release.set()
+    assert finish(m)["phase"] == "ready" and len(opened) == 1
+
+
 def test_symlink_destination_cannot_overwrite_outside_file(setup, tmp_path):
     m, entry, _, opened = setup
     outside = tmp_path / "outside"

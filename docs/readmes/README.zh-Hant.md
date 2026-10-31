@@ -1,4 +1,9 @@
-# VRCT-VOX
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../brand/logo-zh-Hant-on-dark.svg">
+    <img src="../brand/logo-zh-Hant-on-light.svg" width="800" alt="VRCT-VOX：語音辨識、語音合成、聲音轉換、文字辨識、翻譯">
+  </picture>
+</h1>
 
 VRCT-VOX 是基於 [VRCT](https://github.com/misyaguziya/VRCT) 的獨立開發 fork，並非 VRCT 官方發行版。
 

@@ -80,14 +80,15 @@ class Downloads:
         with self.lock:
             if self.closed:
                 raise ValueError('downloads_closed')
-            if self.thread is not None and self.thread.is_alive():
+            if any(job['phase'] in ACTIVE for job in self.jobs.values()):
                 raise ValueError('download_busy')
             entry = self.entries[request['id']]
             event = Event()
             self.jobs[entry.id] = dict(job_id=uuid4().hex, phase='queued', received_bytes=0,
                                       total_bytes=sum(a.size for a in entry.artifacts), paths={}, error_code=None)
             self.cancel_event = event
-            self.thread = Thread(target=self._download, args=(entry, event), daemon=True, name='model-download')
+            self.thread = Thread(target=self._download, args=(entry, event, self.thread),
+                                 daemon=True, name='model-download')
             self.thread.start()
             return self.state()
 
@@ -122,7 +123,10 @@ class Downloads:
             if digest.hexdigest() != artifact.sha256:
                 raise ValueError('hash_mismatch')
 
-    def _download(self, entry, event):
+    def _download(self, entry, event, previous=None):
+        # A finished job is reported before its worker releases the root lease.
+        if previous is not None:
+            previous.join()
         staging = None
         lease = RootLease(self.root)
         job = self.jobs[entry.id]

@@ -21,8 +21,6 @@ import unittest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# requirements-yolox-train.txt など学習ツール用のファイルは配布物にも
-# インストーラにも関わらないので対象外。
 TARGETS = ("bat/*.bat",)
 
 # 改行だけ許可する。.bat と requirements にタブが必要な場面は無く、タブを許すと
