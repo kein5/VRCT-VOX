@@ -38,11 +38,12 @@ def update_versions():
     pyproject_path = os.path.join(root, "pyproject.toml")
     with open(pyproject_path, "r", encoding="utf-8") as f:
         pyproject = f.read()
-    pyproject = re.sub(r'(?m)^(version = ")[^"]+(")', rf'\g<1>{version}\g<2>', pyproject, count=1)
-    with open(pyproject_path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(pyproject)
-    import subprocess
-    subprocess.run(["uv", "lock"], cwd=root, check=True)
+    updated = re.sub(r'(?m)^(version = ")[^"]+(")', rf'\g<1>{version}\g<2>', pyproject, count=1)
+    if updated != pyproject:
+        with open(pyproject_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(updated)
+        import subprocess
+        subprocess.run(["uv", "lock"], cwd=root, check=True)
 
     print(f"updated to version {version}")
 
