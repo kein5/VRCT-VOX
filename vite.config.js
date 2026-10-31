@@ -9,6 +9,9 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vitejs.dev/config/
 export default defineConfig(() => {
     return {
+        // The page entries (index.html, vr.html, quick-chat.html) live in src-ui;
+        // the build still writes them to the root of dist for Tauri.
+        root: path.resolve(__dirname, "src-ui"),
         plugins: [
             yaml({ include: ["**/*.yml", "**/*.yaml"] }),
             react(),
@@ -40,11 +43,7 @@ export default defineConfig(() => {
                     "**/.venv/**",
                     "**/.venv_cuda/**",
                     "**/.venv_linux/**",
-                    // OCR検出モデルの学習まわり (dataset_annotatedは数百MB規模)
-                    "**/.venv-yolo/**",
-                    "**/dataset_annotated/**",
-                    "**/dataset_collected/**",
-                    "**/runs/**",
+                    "**/build/**",
                     "**/weights/**",
                 ],
             },
@@ -52,11 +51,12 @@ export default defineConfig(() => {
 
         build: {
             outDir: path.resolve(__dirname, "dist"),
+            emptyOutDir: true,
             rollupOptions: {
                 input: {
-                    main: path.resolve(__dirname, "index.html"),
-                    vr: path.resolve(__dirname, "vr.html"),
-                    quick_chat: path.resolve(__dirname, "quick-chat.html"),
+                    main: path.resolve(__dirname, "src-ui/index.html"),
+                    vr: path.resolve(__dirname, "src-ui/vr.html"),
+                    quick_chat: path.resolve(__dirname, "src-ui/quick-chat.html"),
                 },
             },
             sourcemap: true,

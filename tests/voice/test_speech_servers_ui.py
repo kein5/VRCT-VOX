@@ -46,7 +46,7 @@ def ui(tmp_path):
             sock.bind(('127.0.0.1', 0))
             port = sock.getsockname()[1]
         log = stack.enter_context((tmp_path / 'vite.log').open('w'))
-        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', str(port), '--strictPort'], cwd=ROOT, stdout=log, stderr=log)
+        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '.', '--host', '127.0.0.1', '--port', str(port), '--strictPort'], cwd=ROOT, stdout=log, stderr=log)
 
         def close_vite():
             vite.terminate()
