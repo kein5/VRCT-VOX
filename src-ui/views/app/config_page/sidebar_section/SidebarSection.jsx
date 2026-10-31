@@ -18,7 +18,7 @@ import CodeBlocksSvg from "@images/mui_code_blocks.svg?react";
 import RefreshSvg from "@images/refresh.svg?react";
 import ChatTranscribeSvg from "@images/chat_transcribe.svg?react";
 
-import chat_white_square from "@images/chato_white_square.png";
+import vrct_vox_icon from "@images/brand/icon-small.svg";
 
 import { VersionLabel } from "../version_label/VersionLabel.jsx";
 
@@ -80,7 +80,7 @@ export const TabIcon = ({ tab_id, className }) => {
         case "hotkeys": return <KeyboardAltSvg className={clsx(className, styles.mui_icon)} />;
         case "advanced_settings": return <CodeBlocksSvg className={clsx(className, styles.mui_icon)} />;
         case "updater": return <RefreshSvg className={clsx(className, styles.updater_icon)} />;
-        case "about_vrct": return <img alt="" src={chat_white_square} className={clsx(className, styles.about_vrct_icon)} />;
+        case "about_vrct": return <img alt="" src={vrct_vox_icon} className={clsx(className, styles.about_vrct_icon)} />;
         default: return null;
     }
 };

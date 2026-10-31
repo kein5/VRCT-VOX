@@ -183,6 +183,16 @@ update_modal:
     warn_switch_channel: "{{channel}}チャンネルに切り替わります。次回以降のアップデート通知も{{channel}}が対象になります。"
 
 config_page:
+    about_vrct:
+        summary: "音声認識（ASR）、読み上げ（TTS）、ボイスチェンジ（RVC）、チャット読み取り（OCR）、翻訳を、VRChat 向けに一つにまとめたアプリです。"
+        fork_notice: "VRCT-VOX は、kein5 が開発している VRCT の独立した fork で、VRCT の公式版ではありません。不具合や質問は、本家 VRCT の開発者ではなく VRCT-VOX の Issues にお寄せください。"
+        links:
+            repository: "GitHub"
+            releases: "リリース"
+            issues: "不具合を報告（Issues）"
+            licenses: "ライセンスと表記"
+        original_heading: "本家 VRCT"
+        original_desc: "VRCT-VOX は VRCT をもとに作られています。VRCT の開発者、貢献者、支えてくださった皆さんに感謝します。"
     search:
         placeholder: "設定を検索..."
         no_results: "一致する設定が見つかりませんでした"

@@ -97,6 +97,16 @@ update_modal:
     warn_switch_channel: "將切換至{{channel}}頻道，之後的更新通知也將以{{channel}}為主。"
 
 config_page:
+    about_vrct:
+        summary: "將語音辨識（ASR）、語音合成（TTS）、變聲（RVC）、聊天讀取（OCR）與翻譯整合在一起的 VRChat 應用程式。"
+        fork_notice: "VRCT-VOX 是 kein5 開發的 VRCT 獨立 fork，並非 VRCT 官方版本。問題與疑問請回報至 VRCT-VOX Issues，請勿聯絡原 VRCT 開發者。"
+        links:
+            repository: "GitHub"
+            releases: "發行版本"
+            issues: "回報問題（Issues）"
+            licenses: "授權與聲明"
+        original_heading: "原版 VRCT"
+        original_desc: "VRCT-VOX 以 VRCT 為基礎開發。感謝 VRCT 的開發者、貢獻者以及所有支持者。"
     search:
         placeholder: "搜尋設定..."
         no_results: "未找到相符的設定"

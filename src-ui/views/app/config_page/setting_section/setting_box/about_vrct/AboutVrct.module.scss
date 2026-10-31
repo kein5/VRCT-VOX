@@ -8,6 +8,56 @@
     margin: auto;
 }
 
+.vrct_vox_section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+}
+.vrct_vox_logo {
+    width: 100%;
+    max-width: 60rem;
+}
+.vrct_vox_version {
+    font-size: 1.4rem;
+    color: var(--dark_400_color);
+}
+.vrct_vox_text {
+    font-size: 1.4rem;
+    line-height: 1.7;
+    color: var(--dark_200_color);
+    width: 100%;
+}
+.vrct_vox_links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.8rem;
+    margin-top: 0.6rem;
+}
+.vrct_vox_link {
+    font-size: 1.4rem;
+    padding: 0.6rem 1.4rem;
+    border-radius: 0.4rem;
+    color: var(--primary_200_color);
+    background-color: var(--dark_850_color);
+    &:hover {
+        background-color: var(--dark_800_color);
+    }
+    &:active {
+        background-color: var(--dark_900_color);
+    }
+}
+.original_heading {
+    font-size: 1.6rem;
+    margin-top: 2rem;
+    width: 100%;
+    color: var(--dark_300_color);
+    border-top: 0.1rem solid var(--dark_750_color);
+    padding-top: 2.4rem;
+}
+
 .section_title {
     height: 1.2rem;
     object-fit: contain;
