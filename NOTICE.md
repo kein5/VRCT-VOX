@@ -90,7 +90,7 @@ put the model in its own released build; it can still develop and run with
 it. A fork that wants to ship detection can train its own detector — the
 procedure, the training configuration and the dataset preparation scripts
 are all published in
-[`docs/ocr_yolo_training.md`](docs/ocr_yolo_training.md). VRCT also builds
+[upstream VRCT](https://github.com/misyaguziya/VRCT/blob/develop/docs/ocr_yolo_training.md). VRCT also builds
 and runs without the model, in which case only chat-bubble detection within
 the OCR feature is unavailable.
 

@@ -2,7 +2,7 @@
 
 色/輪郭のヒューリスティックは実機で反証された(ワールドのUIパネル文字や
 岩・木目を吹き出しと誤認する)ため、収集したVRChatのスクリーンショットで
-学習した検出モデルに置き換えた。学習手順は docs/ocr_yolo_training.md。
+学習した検出モデルに置き換えた。学習手順は上流 VRCT の docs/ocr_yolo_training.md。
 
 基盤は Megvii の YOLOX (Apache-2.0)。以前は Ultralytics の YOLOv8n を使って
 いたが、事前学習重みが AGPL-3.0 で成果物もその派生になるため載せ替えた。
@@ -13,7 +13,7 @@
 デコード(grid/stride の復元)はエクスポート時にグラフへ入れてあるので、
 ここでやるのは前処理(letterbox)・閾値・NMS・元画像座標への戻しだけになる。
 
-同梱モデルは入力サイズ可変で、INT8に量子化してある(docs/ocr_yolo_training.md)。
+同梱モデルは入力サイズ可変で、INT8に量子化してある(上流 VRCT の docs/ocr_yolo_training.md)。
 ウィンドウのアスペクト比に合わせて余白を削れるので、正方形fp32より速い。
 """
 
@@ -115,7 +115,7 @@ class BubbleDetector:
         # 実機のワールドや距離によって当たり方が変わるので調整できるようにしておく。
         # 既定0.7 (固定val80枚で 68/70・余分0、0.5 だと 69/70・余分1)。実機では
         # 低い閾値でVRChatのconfig画面を吹き出しと誤検出した。0.85 まで上げると
-        # 70個中18個を落とすので上げすぎない。表は docs/ocr_yolo_training.md。
+        # 70個中18個を落とすので上げすぎない。表は上流 VRCT の docs/ocr_yolo_training.md。
         self.confidence = float(confidence)
         self.crop_padding = max(0, int(crop_padding))
         self.nms_iou = float(nms_iou)
