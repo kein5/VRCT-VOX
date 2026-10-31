@@ -33,10 +33,19 @@ class TestInitMappingExcludesNetworkEndpoints(unittest.TestCase):
         self.assertIn("/get/data/available_releases", mapping)
         self.assertNotIn("/get/data/available_releases", init_mapping)
 
+    def test_ocr_readiness_is_not_collected_at_startup(self) -> None:
+        """X11 の接続や VRChat のウィンドウを調べるので、起動時には集めない。
+
+        UI 側は 設定 → チャット読み取り を開いたときに自分で要求する。
+        """
+        self.assertIn("/get/data/ocr_readiness", mapping)
+        self.assertNotIn("/get/data/ocr_readiness", init_mapping)
+
     def test_other_get_data_endpoints_are_still_collected(self) -> None:
-        """除外は available_releases だけで、他は従来どおり集められること。"""
+        """除外は available_releases と ocr_readiness だけで、他は従来どおり集められること。"""
         get_data_keys = {k for k in mapping if k.startswith("/get/data/")}
-        self.assertEqual(get_data_keys - set(init_mapping), {"/get/data/available_releases"})
+        self.assertEqual(get_data_keys - set(init_mapping),
+                         {"/get/data/available_releases", "/get/data/ocr_readiness"})
 
 
 class TestUpdateConfigSettingsIsolatesFailures(unittest.TestCase):
