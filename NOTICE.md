@@ -88,14 +88,47 @@ are all published in
 and runs without the model, in which case only chat-bubble detection within
 the OCR feature is unavailable.
 
-## Third-party model weights bundled in the built application
+## Third-party OCR model weights (upstream VRCT; not in VRCT-VOX builds)
+
+Upstream VRCT bundles these weights in its own builds. VRCT-VOX builds exclude
+them, as stated above; the table is kept for attribution.
 
 | Component | Version | License |
 |---|---|---|
 | YOLOX `yolox_tiny.pth` (COCO-pretrained base of the model above; not shipped, used only at training time) | 0.1.1rc0 | Apache-2.0 |
 | RapidOCR and the PP-OCR ONNX models it ships, fetched by `tools/fetch_ocr_models.py` | 3.9.2 | Apache-2.0 |
 
-This table covers bundled **model weights** only. Python package
+This table covers **model weights** only. Python package
 dependencies are listed in `requirements.txt` / `requirements_cuda.txt` and
 carry their own licenses; JavaScript and Rust dependencies are listed in
 `package.json` and `src-tauri/Cargo.toml`.
+
+## LGPL and GPL components in VRCT-VOX builds
+
+The frozen backend (`_internal` next to the `vrct-vox-sidecar` executable)
+contains the following components under the GNU LGPL or GPL. Each is a
+separate shared library, Python extension module or Python source directory,
+so you may replace it with your own build of the same component and interface;
+the application loads whatever file is present. Their license texts are
+included under `_internal/licenses/python/` (Python packages) or alongside the
+component.
+
+| Component | Where in the build | License | Corresponding source |
+|---|---|---|---|
+| libsoxr, statically built into the `soxr` 1.1.0 extension module | `_internal/soxr/` | LGPL-2.1-or-later | [soxr 1.1.0 source distribution](https://pypi.org/project/soxr/1.1.0/#files) (contains libsoxr), [python-soxr](https://github.com/dofuuz/python-soxr) |
+| FFmpeg libraries (libavcodec, libavformat, libavutil, libswresample, libswscale) shipped with `opencv-python-headless` 4.10.0.84 | Linux: `_internal/opencv_python_headless.libs/`; Windows: `_internal/cv2/opencv_videoio_ffmpeg*.dll` | LGPL-2.1-or-later | [FFmpeg](https://ffmpeg.org/download.html); build scripts and version in [opencv-python 84](https://github.com/opencv/opencv-python/tree/84) |
+| libquadmath and libgfortran (GCC runtime) shipped with `opencv-python-headless` on Linux | `_internal/opencv_python_headless.libs/` | libquadmath: LGPL-2.1-or-later; libgfortran: GPL-3.0-or-later with the GCC Runtime Library Exception 3.1 | [GCC](https://gcc.gnu.org/) |
+| `zeroconf` 0.39.1 (Python) | `_internal/zeroconf/` (source files, outside the PYZ archive) | LGPL-2.1-or-later | [zeroconf 0.39.1](https://pypi.org/project/zeroconf/0.39.1/#files) |
+| Seed-VC Realtime integration (Python source, run by an external worker) | `_internal/integrations/seed_vc/` | GPL-3.0-only (license text included) | The files themselves; [seed-vc-realtime](https://github.com/jiaheguo521/seed-vc-realtime) |
+| PyInstaller bootloader | `vrct-vox-sidecar` | GPL-2.0-or-later with the PyInstaller bootloader exception | [PyInstaller 6.10.0](https://pypi.org/project/pyinstaller/6.10.0/#files) |
+
+On request through this repository's Issues, we will provide a copy of the
+corresponding source code of the LGPL and GPL components above, as used in a
+given release, for at least three years after that release.
+
+PyAV is deliberately **not** included: its binary wheels bundle FFmpeg together
+with the GPL-licensed x264 and x265 encoders. faster-whisper imports it only to
+decode audio files, and VRCT-VOX always passes decoded audio, so builds use a
+stand-in module (`packaging/pyinstaller-stubs/av`). The distribution policy
+(`tools/distribution_policy.py`) rejects PyAV libraries and x264/x265 in any
+build.

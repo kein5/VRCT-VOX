@@ -12,7 +12,8 @@ _use_upx = os.environ.get("VRCT_PYINSTALLER_UPX") == "1"
 
 a = Analysis(
     ['..\\src-python\\mainloop.py'],
-    pathex=[],
+    # A stand-in for PyAV keeps its GPL x264/x265 libraries out (see the stub).
+    pathex=[str(Path(SPECPATH).resolve().parent / 'packaging' / 'pyinstaller-stubs')],
     binaries=[],
     datas=[
         ("./../LICENSE", "licenses/VRCT/"),
@@ -42,6 +43,8 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=['pandas', 'matplotlib', 'PyQt5'],
+    # LGPL Python code stays as replaceable source files outside the PYZ archive.
+    module_collection_mode={'zeroconf': 'py', 'bidi': 'py'},
     noarchive=False,
     optimize=0,
 )
