@@ -39,7 +39,7 @@ class RootLease:
 
 
 def mark_owned(path, entry):
-    data = dict(product='VRCT-TTS-model-download-v1', id=entry.id, revision=entry.revision,
+    data = dict(product='VRCT-VOX-model-download-v1', id=entry.id, revision=entry.revision,
                 files=[a.filename for a in entry.artifacts], directory=path.name)
     with (path / 'owner.json').open('x') as out:
         json.dump(data, out); out.flush(); os.fsync(out.fileno())
@@ -56,7 +56,7 @@ def recover_owned(root, entries):
                 continue
             data = json.loads(marker.read_text())
             entry = entries.get(data.get('id'))
-            if (entry is None or data != dict(product='VRCT-TTS-model-download-v1', id=entry.id,
+            if (entry is None or data != dict(product='VRCT-VOX-model-download-v1', id=entry.id,
                     revision=entry.revision, files=[a.filename for a in entry.artifacts], directory=path.name)):
                 continue
             children = list(path.iterdir())

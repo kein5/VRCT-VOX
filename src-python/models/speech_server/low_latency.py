@@ -24,7 +24,7 @@ class LowLatencyStandby:
     def start(self):
         if self._thread is not None or self._stop.is_set():
             raise RuntimeError('low_latency_single_use')
-        self._thread = Thread(target=self._run, name='vrct-tts-standby', daemon=True)
+        self._thread = Thread(target=self._run, name='vrct-vox-standby', daemon=True)
         self._thread.start()
 
     def close(self, timeout=1):

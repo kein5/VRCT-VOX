@@ -14,8 +14,8 @@ def test_fork_identity_and_sidecar_contract():
     conf = json.loads((ROOT / "src-tauri/tauri.conf.json").read_text(encoding="utf-8"))
     assert conf["productName"] == "VRCT-VOX"
     assert conf["mainBinaryName"] == "vrct-vox"
-    # Branding changes must not orphan existing Tauri data or OS integration.
-    assert conf["identifier"] == "io.github.kein5.vrct-tts"
+    # Changing it moves Tauri data and desktop integration (portal, app id).
+    assert conf["identifier"] == "io.github.kein5.vrct-vox"
     assert conf["bundle"]["publisher"] == "kein5"
     assert "m's software" in conf["bundle"]["copyright"]
     assert conf["app"]["windows"][0]["title"] == "VRCT-VOX"
@@ -37,20 +37,14 @@ def test_build_metadata_and_launchers_agree_on_renamed_binaries():
         assert "name='vrct-vox-sidecar" in (ROOT / "spec" / spec).read_text(encoding="utf-8")
 
 
-def test_windows_rename_preserves_install_location_and_retires_legacy_binary_only_after_unpack():
+def test_windows_installer_identity_finds_previous_install_location():
     script = (ROOT / "src-tauri/nsis/template.nsi").read_text(encoding="utf-8")
-    assert '!define INSTALLREGNAME "VRCT-TTS"' in script
+    assert '!define INSTALLREGNAME "VRCT-VOX"' in script
     assert 'Uninstall\\${INSTALLREGNAME}"' in script
     assert 'Software\\${MANUFACTURER}\\${INSTALLREGNAME}"' in script
     assert 'WriteRegStr SHCTX "${UNINSTKEY}" "DisplayName" "${PRODUCTNAME}"' in script
     install = script[script.index("\nSection Install\n"):script.index("SectionEnd", script.index("\nSection Install\n"))]
-    for name in ("vrct-tts.exe", "vrct-tts-sidecar.exe"):
-        assert install.index(f'!insertmacro RequireLegacyProcessClosed "$INSTDIR" "{name}"') < install.index("install_ready:")
-        assert install.index(f'Delete "$INSTDIR\\{name}"') > install.index("install_ready:")
     assert 'Delete "$INSTDIR\\config.json"' not in install
-    reinstall = script[script.index("Function PageLeaveReinstall"):script.index("FunctionEnd", script.index("Function PageLeaveReinstall"))]
-    for name in ("vrct-tts.exe", "vrct-tts-sidecar.exe"):
-        assert reinstall.index('ReadRegStr $4 SHCTX') < reinstall.index(f'!insertmacro RequireLegacyProcessClosed "$4" "{name}"') < reinstall.index("ExecWait '$R1 /P")
 
 
 def test_telemetry_stays_disabled_even_with_stale_upstream_key(monkeypatch):

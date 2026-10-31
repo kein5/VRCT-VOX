@@ -39,8 +39,8 @@ ${StrLoc}
 !define WEBVIEW2INSTALLERARGS "{{webview2_installer_args}}"
 !define WEBVIEW2BOOTSTRAPPERPATH "{{webview2_bootstrapper_path}}"
 !define WEBVIEW2INSTALLERPATH "{{webview2_installer_path}}"
-; Stable registry identity preserves VRCT-TTS upgrades and stored install locations.
-!define INSTALLREGNAME "VRCT-TTS"
+; Stable registry identity: upgrades find the stored install location by this key.
+!define INSTALLREGNAME "VRCT-VOX"
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${INSTALLREGNAME}"
 !define MANUPRODUCTKEY "Software\${MANUFACTURER}\${INSTALLREGNAME}"
 !define UNINSTALLERSIGNCOMMAND "{{uninstaller_sign_cmd}}"
@@ -366,23 +366,6 @@ Function PageReinstallUpdateSelection
     StrCpy $ReinstallPageCheck 2
   ${EndIf}
 FunctionEnd
-; A renamed installation reuses the old directory. Never replace shared runtime
-; files while the legacy GUI or sidecar is still using them.
-!macro RequireLegacyProcessClosed DIRECTORY EXECUTABLE
-  ${If} ${FileExists} "${DIRECTORY}\${EXECUTABLE}"
-    !if "${INSTALLMODE}" == "currentUser"
-      nsis_tauri_utils::FindProcessCurrentUser "${EXECUTABLE}"
-    !else
-      nsis_tauri_utils::FindProcess "${EXECUTABLE}"
-    !endif
-    Pop $R0
-    ${If} $R0 = 0
-      BringToFront
-      Abort "Close VRCT-TTS and its background processes before installing VRCT-VOX."
-    ${EndIf}
-  ${EndIf}
-!macroend
-
 Function PageLeaveReinstall
   ${NSD_GetState} $R2 $R1
 
@@ -404,8 +387,6 @@ Function PageLeaveReinstall
       ExecWait '$R1' $0
     ${Else}
       ReadRegStr $4 SHCTX "${MANUPRODUCTKEY}" ""
-      !insertmacro RequireLegacyProcessClosed "$4" "vrct-tts.exe"
-      !insertmacro RequireLegacyProcessClosed "$4" "vrct-tts-sidecar.exe"
       ReadRegStr $R1 SHCTX "${UNINSTKEY}" "UninstallString"
       ExecWait '$R1 /P _?=$4' $0
     ${EndIf}
@@ -750,8 +731,6 @@ Section Install
     StrCpy $existing_install "1"
   ${EndIf}
 
-  !insertmacro RequireLegacyProcessClosed "$INSTDIR" "vrct-tts.exe"
-  !insertmacro RequireLegacyProcessClosed "$INSTDIR" "vrct-tts-sidecar.exe"
   !insertmacro CheckIfAppIsRunning
 
   !addplugindir "..\..\..\..\nsis\plugins\x86-unicode"
@@ -1186,12 +1165,6 @@ Section Install
     Abort
 
   install_ready:
-  ; Retire only legacy executables after the new payload passed extraction.
-  ; config.json, models and the stable installation registry keys stay intact.
-  Delete "$INSTDIR\vrct-tts.exe"
-  Delete "$INSTDIR\vrct-tts-sidecar.exe"
-  Delete "$DESKTOP\vrct-tts.lnk"
-  Delete "$SMPROGRAMS\$AppStartMenuFolder\vrct-tts.lnk"
   ; The archive is no longer needed once it is unpacked; reclaim the space.
   Delete "$TEMP\$file_name"
 

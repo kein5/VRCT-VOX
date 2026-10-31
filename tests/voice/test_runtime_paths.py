@@ -23,8 +23,8 @@ def test_linux_state_paths_use_xdg_and_ignore_relative_xdg_values(tmp_path):
     home = tmp_path / "home"
     result = paths.linux_directories({"XDG_CONFIG_HOME": "relative", "XDG_DATA_HOME": str(tmp_path / "data"),
                                       "XDG_CACHE_HOME": str(tmp_path / "cache")}, home)
-    assert result == {"config": home / ".config/vrct-tts", "data": tmp_path / "data/vrct-tts",
-                      "cache": tmp_path / "cache/vrct-tts"}
+    assert result == {"config": home / ".config/vrct-vox", "data": tmp_path / "data/vrct-vox",
+                      "cache": tmp_path / "cache/vrct-vox"}
 
 
 def test_explicit_state_override_keeps_existing_directory_contract(tmp_path):
@@ -57,10 +57,10 @@ def test_frozen_bootstrap_creates_only_user_state(monkeypatch, tmp_path):
     # Preserve changes made by bootstrap inside this test's monkeypatch scope.
     monkeypatch.setattr(os, "environ", dict(os.environ))
     paths.bootstrap_linux_frozen()
-    assert Path.cwd() == tmp_path / "data/vrct-tts"
-    assert Path(os.environ["VRCT_CONFIG_DIR"]) == tmp_path / "config/vrct-tts"
-    assert Path(os.environ["HF_HOME"]).is_relative_to(tmp_path / "cache/vrct-tts")
-    assert (tmp_path / "config/vrct-tts/logs").is_dir()
+    assert Path.cwd() == tmp_path / "data/vrct-vox"
+    assert Path(os.environ["VRCT_CONFIG_DIR"]) == tmp_path / "config/vrct-vox"
+    assert Path(os.environ["HF_HOME"]).is_relative_to(tmp_path / "cache/vrct-vox")
+    assert (tmp_path / "config/vrct-vox/logs").is_dir()
 
 
 @pytest.mark.parametrize("original", [None, "/opt/user-libs"])

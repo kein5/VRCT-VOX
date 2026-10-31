@@ -11,7 +11,7 @@ import time
 from runtime_paths import external_process_env
 from .pipewire_gate import parse_graph
 
-OWNER = 'vrct-tts-service-v1'
+OWNER = 'vrct-vox-service-v1'
 SERVICE_NAMES = tuple(f'vrct-managed-{part}.service' for part in ('source', 'tts', 'vc'))
 
 

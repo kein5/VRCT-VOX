@@ -288,7 +288,7 @@ class SpeechCppTTS:
                         # notice that the external server is no longer there.
                         watcher = Thread(target=_watch_listener,
                                          args=((url.hostname, url.port or 80), cancel_token, watch_stopped),
-                                         name="vrct-tts-listener", daemon=True)
+                                         name="vrct-vox-listener", daemon=True)
                         watcher.start()
                     samples += complete // 2
                     if samples > rate * 60:

@@ -18,7 +18,7 @@ use zbus::blocking::{Connection, Proxy};
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
 /// Must match a desktop file the portal can find; see `ensure_desktop_file`.
-const APP_ID: &str = "io.github.kein5.vrct-tts";
+const APP_ID: &str = "io.github.kein5.vrct-vox";
 const DESTINATION: &str = "org.freedesktop.portal.Desktop";
 const DESKTOP: &str = "/org/freedesktop/portal/desktop";
 const INTERFACE: &str = "org.freedesktop.portal.GlobalShortcuts";

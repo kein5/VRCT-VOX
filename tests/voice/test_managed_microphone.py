@@ -238,6 +238,6 @@ def test_partial_owned_route_can_be_completed_without_removing_endpoint(machine)
     state.graph.pop()
     for item in state.graph:
         if item["type"].endswith(":Node"):
-            item["info"]["props"]["vrct.managed.owner"] = "vrct-tts-service-v1"
+            item["info"]["props"]["vrct.managed.owner"] = "vrct-vox-service-v1"
     setup.ensure()
     assert len(state.graph) == 5
