@@ -5,6 +5,8 @@ import { useSpeechServers } from "../../../../../../logics/voice/useSpeechServer
 import styles from "../advanced_settings/VoiceSettings.module.scss";
 
 const key = endpoint => endpoint ? JSON.stringify([endpoint.cookie, endpoint.serial, endpoint.name, endpoint.media_class]) : "";
+// Select value for "follow the system default"; never a JSON endpoint key.
+const FOLLOW = "follow-default";
 
 export const RealtimeASRSettings = () => {
     const { t } = useI18n();
@@ -54,7 +56,8 @@ export const RealtimeASRSettings = () => {
             <button type="button" onClick={refreshDevices}>{t("realtime.refresh_devices")}</button>
             {["mic", "speaker"].map(source => {
                 const choices = endpoints[source]?.endpoints ?? [];
-                const selected = choices.find(row => key(row.endpoint) === key(draft[source].endpoint));
+                const follow = !draft[source].endpoint && draft[source].follow_default !== false;
+                const selected = follow || choices.find(row => key(row.endpoint) === key(draft[source].endpoint));
                 // "auto" only for a model that detects the language (Qwen3-ASR).
                 const languages = [...(selectedModel?.detects_language ? ["auto"] : []), ...(selectedModel?.languages ?? [])];
                 const owner = state[source];
@@ -62,9 +65,11 @@ export const RealtimeASRSettings = () => {
                 return <fieldset key={source}>
                     <legend>{t(`realtime.${source}`)}</legend>
                     {source === "speaker" && <p>{t("realtime.speaker_help")}</p>}
-                    <label>{t(`realtime.${source}_input`)}<select aria-label={t(`realtime.${source}_input`)} value={key(draft[source].endpoint)}
-                        onChange={event => updateSource(source, { endpoint: choices.find(row => key(row.endpoint) === event.target.value)?.endpoint ?? null })}>
+                    <label>{t(`realtime.${source}_input`)}<select aria-label={t(`realtime.${source}_input`)} value={follow ? FOLLOW : key(draft[source].endpoint)}
+                        onChange={event => updateSource(source, event.target.value === FOLLOW ? { endpoint: null, follow_default: true }
+                            : { endpoint: choices.find(row => key(row.endpoint) === event.target.value)?.endpoint ?? null, follow_default: false })}>
                         <option value="">{t("realtime.select_device")}</option>
+                        <option value={FOLLOW}>{t(`realtime.follow_default_${source}`)}</option>
                         {draft[source].endpoint && !selected && <option value={key(draft[source].endpoint)}>{t("realtime.disconnected")}</option>}
                         {choices.map(row => <option key={key(row.endpoint)} value={key(row.endpoint)}>{row.label}</option>)}
                     </select></label>
@@ -73,6 +78,7 @@ export const RealtimeASRSettings = () => {
                         {!languages.includes(draft[source].language) && <option value={draft[source].language}>{draft[source].language}</option>}
                         {languages.map(language => <option key={language} value={language}>{language === "auto" ? t("realtime.auto_language") : language}</option>)}
                     </select></label>
+                    {follow && <p>{t("realtime.follow_default_help")}</p>}
                     <button type="button" disabled={dirty || !selected || !selectedModel || !languages.includes(draft[source].language) ||
                         !owner || owner.requested || !!endpoints[source]?.error_code}
                         onClick={() => send("/run/start_realtime_asr", { source })}>{t(`realtime.start_${source}`)}</button>

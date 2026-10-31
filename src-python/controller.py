@@ -19,10 +19,11 @@ from models.transcription.transcription_openai_compatible import TRANSCRIPTION_M
 from models.translation.translation_providers import TRANSLATION_PROVIDER_REGISTRY, CONNECTION_PROVIDER_REGISTRY
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
 from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
-from models.transcription.realtime_settings import normalize_settings as normalize_realtime_settings, session_options, endpoint_dict
+from models.transcription.realtime_settings import (
+    normalize_settings as normalize_realtime_settings, session_options, endpoint_dict, realtime_endpoint)
 from models.transcription.realtime_session import RealtimeSession
 from models.transcription.realtime_delivery import RealtimeDelivery
-from models.transcription.capture_pipewire import enumerate_endpoints
+from models.transcription.capture_pipewire import enumerate_endpoints, default_endpoint
 from models.transcription.speechcpp_asr import SpeechCppASR
 from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
@@ -722,18 +723,43 @@ class Controller:
         def failure(code, status=409):
             return {"status": status, "result": {"error_code": code}}
 
+        def precheck():
+            if self._realtime_closed or expected != self._realtime_generation[source]:
+                return failure("realtime_stale_start")
+            if sys.platform != "linux":
+                return failure("realtime_linux_only")
+            if self._realtime_requested[source]:
+                owner = self._realtime_owners[source]
+                if owner is None or owner[0].health()["state"] not in ("closed", "failed"):
+                    return failure("realtime_already_started")
+            return None
+
         with getattr(self, source + "_lifecycle_lock"):
             with self._realtime_lock:
-                if self._realtime_closed or expected != self._realtime_generation[source]:
-                    return failure("realtime_stale_start")
-                if sys.platform != "linux":
-                    return failure("realtime_linux_only")
-                if self._realtime_requested[source]:
-                    owner = self._realtime_owners[source]
-                    if owner is None or owner[0].health()["state"] not in ("closed", "failed"):
-                        return failure("realtime_already_started")
+                refused = precheck()
+                row = self._realtime_settings[source]
+                follow = row["endpoint"] is None and row["follow_default"]
+            if refused:
+                return refused
+            default = None
+            if follow:
+                # Read the graph outside the fast-stop lock; a settings change
+                # meanwhile advances the generation and makes this start stale.
                 try:
-                    options, endpoint = session_options(self._realtime_settings, source)
+                    default = default_endpoint(source)
+                except ValueError as exc:
+                    return failure(str(exc))
+            with self._realtime_lock:
+                refused = precheck()
+                if refused:
+                    return refused
+                try:
+                    endpoint = realtime_endpoint(self._realtime_settings, source)
+                    if endpoint is None:
+                        endpoint = default
+                    if endpoint is None:
+                        raise ValueError("realtime_endpoint_required")
+                    options, _ = session_options(self._realtime_settings, source)
                     if self._realtime_settings["server"] == "bundled":
                         options = replace(options, base_url=self.speech_servers.binding("asr"))
                     detect = options.language == "auto"

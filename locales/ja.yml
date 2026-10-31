@@ -772,6 +772,9 @@ realtime:
   save: "字幕設定を保存"
   auto_language: "自動判定（auto）"
   auto_help: "自動判定には、Qwen3-ASRのように言語を判定できるモデルが必要です。同梱ASRサーバーが読み込むモデルは1つで両方の入力が共用するため、日本語以外を話すプレイヤーがいるならQwen3-ASRを選んでください。"
+  follow_default_mic: "システムの既定の入力に従う"
+  follow_default_speaker: "システムの既定の出力に従う"
+  follow_default_help: "字幕の開始時にシステムの既定を読み取り、停止するまでそのデバイスを使います。VRCTの仮想デバイスは対象にしません。"
 
 speech_servers:
     title: "同梱speech.cppサーバー"

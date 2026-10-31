@@ -16,13 +16,30 @@ def test_default_settings_have_no_recording_intent_and_roundtrip():
         "server": "external",
         "base_url": "http://127.0.0.1:8080",
         "model": "",
-        "mic": {"language": "ja", "endpoint": None},
-        "speaker": {"language": "auto", "endpoint": None},
+        "mic": {"language": "ja", "endpoint": None, "follow_default": True},
+        "speaker": {"language": "auto", "endpoint": None, "follow_default": True},
     }
     assert m.normalize_settings(value) == value
     assert m.normalize_settings(value) is not value
     with pytest.raises(ValueError):
         m.session_options(value, "mic")
+
+
+def test_settings_saved_before_auto_and_follow_default_keep_their_meaning():
+    m = module()
+    endpoint = dict(cookie="1", serial="2", name="selected", media_class="Audio/Source")
+    old = {"model": "asr", "mic": {"language": "ja", "endpoint": endpoint},
+           "speaker": {"language": "ja", "endpoint": None}}
+    value = m.normalize_settings(old)
+    assert value["speaker"]["language"] == "ja"  # A saved language is never replaced by auto.
+    # A picked endpoint wins over following the default; none picked follows it.
+    assert m.realtime_endpoint(value, "mic").name == "selected"
+    assert m.realtime_endpoint(value, "speaker") is None
+    value["speaker"]["follow_default"] = False
+    with pytest.raises(ValueError, match="realtime_endpoint_required"):
+        m.realtime_endpoint(value, "speaker")
+    with pytest.raises(ValueError):
+        m.normalize_settings({"speaker": {"follow_default": "yes"}})
 
 
 def test_auto_is_accepted_only_for_models_that_detect_the_language():
@@ -104,6 +121,9 @@ def test_model_and_each_endpoint_are_explicit_and_not_mutated():
     )
     assert selected.serial == 2**64 - 1 and selected.media_class == "Audio/Source"
     assert given == before
+    # No speaker endpoint was picked: it follows the default, resolved at start.
+    assert m.session_options(value, "speaker")[1] is None
+    value["speaker"]["follow_default"] = False
     with pytest.raises(ValueError):
         m.session_options(value, "speaker")
     with pytest.raises(ValueError):

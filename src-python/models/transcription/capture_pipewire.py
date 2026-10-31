@@ -5,6 +5,7 @@ False to reject input (for example, a closed RealtimeIngress). stop() reaps the
 native helper even if a callback misbehaves; a busy callback is reported rather
 than claiming that all Python delivery has stopped.
 """
+import json
 import os
 from pathlib import Path
 import select
@@ -112,6 +113,49 @@ def enumerate_endpoints(source):
         label = props.get('node.description')
         result.append({'endpoint': endpoint, 'label': label if isinstance(label, str) and label else name})
     return result
+
+
+def default_endpoint(source):
+    """The session's default input or output, for a "follow default" choice.
+
+    Called once per start; the result is then pinned like an explicit choice,
+    so a later default change or unplug ends capture instead of moving it. When
+    the current default is one of VRCT's own nodes (the managed route can make
+    its mix the default sink), use the configured default instead: capturing
+    VRCT's output would transcribe its own speech.
+    """
+    if sys.platform != 'linux' or source not in ('mic', 'speaker'):
+        raise ValueError('asr_capture_source_invalid')
+    try:
+        graph = _read_graph()
+    except RuntimeError:
+        raise ValueError('realtime_default_endpoint_missing') from None
+    kind = 'source' if source == 'mic' else 'sink'
+    entries = {}
+    for item in graph:
+        if (item.get('type') == 'PipeWire:Interface:Metadata'
+                and (item.get('props') or {}).get('metadata.name') == 'default'):
+            for row in item.get('metadata') or []:
+                if isinstance(row, dict) and row.get('subject') == 0:
+                    entries[row.get('key')] = row.get('value')
+    blocked = False
+    for key in (f'default.audio.{kind}', f'default.configured.audio.{kind}'):
+        value = entries.get(key)
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except ValueError:
+                value = None
+        name = value.get('name') if isinstance(value, dict) else None
+        if not isinstance(name, str) or not name:
+            continue
+        try:
+            return _select(graph, name, source)
+        except ValueError:
+            blocked = True  # VRCT's own node; never capture it.
+        except (RuntimeError, KeyError, TypeError):
+            continue
+    raise ValueError('realtime_default_endpoint_feedback' if blocked else 'realtime_default_endpoint_missing')
 
 
 class PipeWireCapture:

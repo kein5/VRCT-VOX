@@ -113,25 +113,41 @@ def normalize_settings(value):
     )
     for source in ("mic", "speaker"):
         row = value.get(source, {})
-        if not isinstance(row, dict) or set(row) - {"language", "endpoint"}:
+        if not isinstance(row, dict) or set(row) - {"language", "endpoint", "follow_default"}:
             raise ValueError("realtime_source_settings_invalid")
         selected = row.get("endpoint")
+        # Following the system default is a choice, never a fallback: it
+        # applies only while no endpoint is picked, is resolved once per start,
+        # and that endpoint is then pinned. A picked endpoint always wins.
+        follow = row.get("follow_default", True)
+        if type(follow) is not bool:
+            raise ValueError("realtime_source_settings_invalid")
         result[source] = dict(
             language=_language(row.get("language", DEFAULT_LANGUAGE[source])),
             endpoint=None
             if selected is None
             else endpoint_dict(parse_endpoint(selected, source)),
+            follow_default=follow,
         )
     return result
 
 
-def session_options(value, source):
+def realtime_endpoint(value, source):
+    """The pinned endpoint, or None to resolve the system default at start."""
     settings = normalize_settings(value)
-    if source not in ("mic", "speaker") or settings[source]["endpoint"] is None:
+    if source not in ("mic", "speaker"):
         raise ValueError("realtime_endpoint_required")
+    row = settings[source]
+    if row["endpoint"] is None and not row["follow_default"]:
+        raise ValueError("realtime_endpoint_required")
+    return None if row["endpoint"] is None else parse_endpoint(row["endpoint"], source)
+
+
+def session_options(value, source):
+    """Options and realtime_endpoint(); a session needs a saved model id."""
+    endpoint = realtime_endpoint(value, source)
+    settings = normalize_settings(value)
     return (
-        SessionOptions(
-            settings["base_url"], settings["model"], settings[source]["language"]
-        ),
-        parse_endpoint(settings[source]["endpoint"], source),
+        SessionOptions(settings["base_url"], settings["model"], settings[source]["language"]),
+        endpoint,
     )

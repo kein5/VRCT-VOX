@@ -772,6 +772,9 @@ realtime:
   save: "Save caption settings"
   auto_language: "Detect automatically (auto)"
   auto_help: "Automatic detection needs a model that detects the language, such as Qwen3-ASR. The bundled ASR server loads one model for both inputs, so choose Qwen3-ASR if other players speak languages other than Japanese."
+  follow_default_mic: "Follow the system default input"
+  follow_default_speaker: "Follow the system default output"
+  follow_default_help: "The system default is read when captions start and kept until they stop. VRCT's own virtual devices are never captured."
 
 speech_servers:
     title: "Bundled speech.cpp servers"
