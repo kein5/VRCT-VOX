@@ -5,7 +5,13 @@ client's window is captured through X11/XWayland. Each frame is saved with the
 text that was on screen, so labels can be made automatically later. Frames
 with no chatbox are saved too, as negatives.
 
-    python tools/chatbox_lab/collect.py --minutes 30
+    python tools/chatbox_lab/collect.py --minutes 30 --avatar-every 12
+
+With --avatar-every, the speaker switches to a random avatar from the ones
+this account has worn (VRChat keeps an OSC config for each) every N
+messages. VRChat only switches to avatars the account may use; the switch
+is confirmed by the /avatar/change that VRChat sends back, and avatars
+that do not switch are skipped.
 
 Run only in the lab's own local test instance: never capture other people.
 """
@@ -13,11 +19,14 @@ import argparse
 import json
 import random
 import sys
+import threading
 import time
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from pythonosc.dispatcher import Dispatcher
+from pythonosc.osc_server import ThreadingOSCUDPServer
 from pythonosc.udp_client import SimpleUDPClient
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -25,6 +34,8 @@ sys.path.insert(0, str(ROOT / 'src-python'))
 from models.ocr.ocr_capture_x11 import X11WindowCapture
 
 CACHE = Path.home() / '.cache/vrct-vox-chatbox-lab'
+VRCHAT_DATA = (Path.home() / '.local/share/Steam/steamapps/compatdata/438100/pfx/drive_c/users/steamuser'
+               / 'AppData/LocalLow/VRChat/VRChat')
 CHATBOX_LIMIT = 144
 
 PHRASES = [
@@ -65,6 +76,38 @@ class CameraWindow(X11WindowCapture):
         return None
 
 
+def known_avatars():
+    """Avatars this PC's account has worn: VRChat writes an OSC config for each."""
+    return sorted(path.stem for path in (VRCHAT_DATA / 'OSC').glob('usr_*/Avatars/avtr_*.json'))
+
+
+class AvatarSwitcher:
+    """Switch the speaker's avatar and wait for VRChat to confirm it."""
+
+    def __init__(self, osc: SimpleUDPClient, listen_port: int):
+        self.osc = osc
+        self.current = None
+        self.changed = threading.Event()
+        dispatcher = Dispatcher()
+        dispatcher.map('/avatar/change', self._on_change)
+        self.server = ThreadingOSCUDPServer(('127.0.0.1', listen_port), dispatcher)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def _on_change(self, _address, avatar_id, *_rest):
+        self.current = avatar_id
+        self.changed.set()
+
+    def switch(self, avatar_id: str, timeout: float = 20.0) -> bool:
+        self.changed.clear()
+        self.osc.send_message('/avatar/change', avatar_id)
+        end = time.monotonic() + timeout
+        while time.monotonic() < end:
+            if self.changed.wait(max(0.0, end - time.monotonic())) and self.current == avatar_id:
+                return True
+            self.changed.clear()
+        return False
+
+
 def capture(camera: CameraWindow, retries: int = 5):
     for _ in range(retries):
         frame = camera.capture()
@@ -80,6 +123,7 @@ def main():
     parser.add_argument('--camera-profile', type=int, default=1)
     parser.add_argument('--interval', type=float, default=2.5, help='seconds between chat messages (OSC is rate limited)')
     parser.add_argument('--negative-every', type=int, default=5, help='capture a frame without chatbox every N messages')
+    parser.add_argument('--avatar-every', type=int, default=0, help='switch to a random avatar every N messages')
     parser.add_argument('--seed', type=int, default=None)
     args = parser.parse_args()
 
@@ -94,10 +138,19 @@ def main():
     out = CACHE / 'dataset/raw' / session
     out.mkdir(parents=True)
     rng = random.Random(args.seed)
+    avatars = known_avatars() if args.avatar_every else []
+    switcher = AvatarSwitcher(osc, speaker['osc_out']) if avatars else None
+    avatar = None
     end = time.monotonic() + args.minutes * 60
     count = 0
     with open(out / 'frames.jsonl', 'w', encoding='utf-8') as index:
         while time.monotonic() < end:
+            if switcher and count % args.avatar_every == 0:
+                for candidate in rng.sample(avatars, min(5, len(avatars))):
+                    if switcher.switch(candidate):
+                        avatar = candidate
+                        time.sleep(4.0)  # let the avatar finish loading
+                        break
             negative = args.negative_every and count % args.negative_every == args.negative_every - 1
             text = '' if negative else sample_text(rng)
             # (text, send immediately, no notification sound)
@@ -107,7 +160,7 @@ def main():
             if frame is not None:
                 name = f'{count:06d}.png'
                 Image.fromarray(np.ascontiguousarray(frame[..., :3])).save(out / name)
-                index.write(json.dumps({'file': name, 'text': text, 'time': time.time(),
+                index.write(json.dumps({'file': name, 'text': text, 'time': time.time(), 'avatar': avatar,
                                         'shape': list(frame.shape)}, ensure_ascii=False) + '\n')
                 index.flush()
             count += 1
