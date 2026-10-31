@@ -6,6 +6,7 @@ from json import dump as json_dump
 from secrets import token_urlsafe as secrets_token_urlsafe
 import threading
 from os import environ
+import os
 from models.tts.settings import VoiceSettings, normalize_settings
 from models.voice_conversion.settings import DirectSettings, normalize_settings as normalize_direct_settings
 from models.transcription.realtime_settings import normalize_settings as normalize_realtime_settings
@@ -784,7 +785,12 @@ class Config:
             # クラッシュ/強制終了時にconfig.jsonが破損しないよう、一時ファイルに書いてから
             # アトミックにリネームする
             tmp_path = f"{self.PATH_CONFIG}.tmp"
-            with open(tmp_path, "w", encoding="utf-8") as fp:
+            # config.json holds API keys: owner-only on POSIX, also for a file
+            # that existed before with wider permissions (replaced below).
+            fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            if os.name == "posix":
+                os.fchmod(fd, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fp:
                 json_dump(filtered, fp, indent=4, ensure_ascii=False)
                 fp.flush()
                 os_fsync(fp.fileno())

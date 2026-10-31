@@ -830,10 +830,10 @@ Section Install
   StrCpy $cmder_dl "https://github.com/kein5/VRCT-VOX/releases/download/$release_revision/$file_name"
   DetailPrint "Got URL : $cmder_dl"
 
-  ; New releases publish a SHA-256 sidecar next to each package. Download it
-  ; before the large archive so a package can be rejected before extraction.
-  ; A missing sidecar is treated as a legacy release for backward-compatible
-  ; rollback support; other sidecar download failures are fatal.
+  ; Every VRCT-VOX release publishes a SHA-256 sidecar next to each package.
+  ; Download it before the large archive so a package can be rejected before
+  ; extraction. Any failure, including a missing sidecar (HTTP 404), is fatal:
+  ; continuing without it would skip the integrity check.
   StrCpy $package_hash_path "$TEMP\$file_name.sha256"
   Delete "$package_hash_path"
   StrCpy $package_hash_available "0"
@@ -861,11 +861,6 @@ Section Install
 
   NScurl::query /ID $package_hash_id "@ERRORTYPE@|@ERRORCODE@"
   Pop $1
-  ${If} $1 == "HTTP|404"
-    DetailPrint "Package checksum is unavailable; using legacy size-only validation"
-    Delete "$package_hash_path"
-    Goto package_hash_ready
-  ${EndIf}
   DetailPrint "Could not download package checksum ($1)"
   Delete "$package_hash_path"
   MessageBox MB_OK|MB_ICONSTOP "Could not download the package checksum. Installation was aborted to protect the integrity of the downloaded package." /SD IDOK
