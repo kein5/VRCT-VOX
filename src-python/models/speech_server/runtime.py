@@ -252,12 +252,17 @@ class SpeechServers:
             self._owners[profile]=owner;self._generations[profile]+=1
             owner.start()
 
-    def stop(self,profile):
+    def stop(self,profile,generation=None):
+        # With a generation, stop only that exact start: a caller that owns one
+        # run must not stop a newer server the user started after it ended.
         self._profile(profile)
         with self._lock:
+            if generation is not None and generation!=self._generations[profile]:
+                return False
             self._generations[profile]+=1
             owner=self._owners[profile]
             if owner: owner.stop()
+            return True
 
     def close(self,timeout=3):
         deadline=time.monotonic()+timeout
