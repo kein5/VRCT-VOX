@@ -1,12 +1,42 @@
 """One bounded worker; chat delivery never waits for HTTP or audio devices."""
 from collections import OrderedDict, deque
-from threading import Condition, Thread, Timer
+from threading import Condition, Event, Thread, Timer
 from time import monotonic, monotonic_ns
 
 from models.audio_routing.audio_router import AudioRouter
 from .settings import VoiceSettings
 from .speechcpp_tts import CancelToken, SpeechCppTTS, SpeechError
 from .voice_trace import write_voice_trace, install_gc_diagnostics
+
+
+class StartExpiry:
+    """Expire a token's start deadline once it has really passed.
+
+    A one-shot threading.Timer is not enough: on Windows a timed wait can
+    return a little before monotonic() reaches the deadline (~15.6 ms timer
+    tick). expire_start() then sees an unexpired deadline and nothing ever
+    retries, so a stalled server held the job until the request timeout.
+    """
+
+    def __init__(self, token, deadline):
+        self._token, self._deadline = token, deadline
+        self._stopped = Event()
+        self._thread = Thread(target=self._run, name="vrct-vox-start-expiry", daemon=True)
+
+    def start(self):
+        self._thread.start()
+        return self
+
+    def _run(self):
+        while not self._stopped.is_set():
+            remaining = self._deadline - monotonic()
+            if remaining <= 0:
+                self._token.expire_start()
+                return
+            self._stopped.wait(remaining)
+
+    def cancel(self):
+        self._stopped.set()
 
 
 class VoiceEventBus:
@@ -177,9 +207,7 @@ class VoiceEventBus:
                 self._active_source = event.source
             start_timer = None
             if deadline is not None:
-                start_timer = Timer(max(0, deadline - monotonic()), token.expire_start)
-                start_timer.daemon = True
-                start_timer.start()
+                start_timer = StartExpiry(token, deadline).start()
             timer = Timer(self.request_timeout, lambda: token.cancel("request_timeout"))
             timer.daemon = True
             timer.start()
