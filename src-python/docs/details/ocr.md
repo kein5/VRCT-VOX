@@ -67,7 +67,7 @@ VRChatの画面上に浮かぶチャット吹き出し（他プレイヤーの�
   (正解70個)は 0.5で68/70・余分な候補4、0.7で67/70・余分3（余分はラベルずれ、本当の誤検出は0）。
   学習に入れていない VRCT 自身のオーバーレイ49枚では、0.5で誤検出1、0.7で0。実機で低い閾値だと
   VRChat の config 画面を誤検出したため引き上げた。モデルを学習し直したら決め直す
-  （表は docs/ocr_yolo_training.md）
+  （表は上流 VRCT の https://github.com/misyaguziya/VRCT/blob/develop/docs/ocr_yolo_training.md）
 - VRCT 自身のオーバーレイ（翻訳ログの窓）は暗い角丸パネルに文字が並ぶので吹き出しと紛らわしく、
   拾うと OCR が自分の翻訳を読み返して翻訳し直すループになる。文字列で照合して捨てる案は、
   切り取り方で OCR 結果が大きく変わるので採らず、検出器にネガティブとして教えている
@@ -77,7 +77,7 @@ VRChatの画面上に浮かぶチャット吹き出し（他プレイヤーの�
   そのまま tick の長さに乗る
 - `crop_padding`（既定4px）はOCRに渡す切り出しを各辺4px広げる。小さい吹き出しでは
   この分だけ枠がGTからずれるので、IoUで評価するときは0にして測る
-- 学習・再学習とモデルの差し替え手順は [docs/ocr_yolo_training.md](../../../docs/ocr_yolo_training.md)
+- 学習・再学習とモデルの差し替え手順は [上流 VRCT の docs/ocr_yolo_training.md](https://github.com/misyaguziya/VRCT/blob/develop/docs/ocr_yolo_training.md)
 
 #### 経緯: 色/輪郭ヒューリスティックからの置き換え（2026-09-17）
 初版は OpenCV の adaptiveThreshold → 輪郭抽出 → 幾何フィルタ（面積比・アスペクト比・

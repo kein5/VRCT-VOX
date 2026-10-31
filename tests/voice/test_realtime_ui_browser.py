@@ -30,7 +30,7 @@ def test_selection_caption_replacement_stop_and_stale_responses(tmp_path):
         vite = subprocess.Popen(
             [
                 "node",
-                "node_modules/vite/bin/vite.js",
+                "node_modules/vite/bin/vite.js", ".",
                 "--host",
                 "127.0.0.1",
                 "--port",

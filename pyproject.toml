@@ -148,3 +148,7 @@ exclude-dependencies = ["opencv-python"]
 # tinyoscquery pins zeroconf==0.39.1, which has known vulnerabilities; the
 # API it uses (Zeroconf, ServiceInfo, ServiceBrowser) is unchanged since.
 override-dependencies = ["zeroconf==0.152.0"]
+
+[tool.ruff.lint.per-file-ignores]
+# Deliberately incomplete upstream function body parsed by AST contract tests.
+"tests/voice/fixtures/rvc_retrieval.py" = ["F821"]

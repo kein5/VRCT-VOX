@@ -12,7 +12,7 @@
 |---|---|---|
 | `weights/yolox_tiny.pth`（学習の初期値、COCO事前学習） | Megvii ([YOLOX](https://github.com/Megvii-BaseDetection/YOLOX)) | Apache-2.0 |
 | YOLOX 0.3.0（学習・エクスポート） | Megvii | Apache-2.0 |
-| 学習データ（VRChat のスクリーンショット + 人手確定アノテーション） | 自前収集（`tools/ocr_dataset_collector.py`） | 非公開・未配布 |
+| 学習データ（VRChat のスクリーンショット + 人手確定アノテーション） | 自前収集（上流 VRCT の `tools/ocr_dataset_collector.py`） | 非公開・未配布 |
 | **`chatbox_yolox_tiny.onnx`（成果物）** | 上記の派生 | **VRCT 専用の利用許諾** |
 | RapidOCR / PP-OCR の ONNX（文字認識側） | RapidAI | Apache-2.0 |
 
@@ -92,7 +92,7 @@ VRCT はそのライセンスを持っていないので、**自分が受け取�
    同梱する形なので、Linux ディストリビューションのような「全体が OSS であること」を
    求める再配布経路には乗らない。フォークは開発・検証には使えるが、モデルを同梱した
    自前のリリースは配れないので、そこまでやるなら自前で検出器を学習する必要がある
-   （手順・設定・前処理スクリプトはすべて公開済み: `docs/ocr_yolo_training.md`）。
+   （手順・設定・前処理スクリプトはすべて公開済み: [上流 VRCT の docs/ocr_yolo_training.md](https://github.com/misyaguziya/VRCT/blob/develop/docs/ocr_yolo_training.md)）。
    「どこからが VRCT のフォークで、どこからが別プロジェクトか」の線引きは条文では
    引ききれない。悪用の余地が見えたら第6条（個別の許諾）で個別に対応する前提。
 3. **条文は法律の専門家が書いたものではない**。`LICENSE.txt` は準拠法を日本法、

@@ -30,7 +30,7 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         port = sock.getsockname()[1]
         sock.close()
         log = stack.enter_context((tmp_path / 'vite.log').open('w'))
-        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '--host', '127.0.0.1',
+        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '.', '--host', '127.0.0.1',
                                  '--port', str(port), '--strictPort'], cwd=ROOT, stdout=log, stderr=log)
         def close_vite():
             vite.terminate()

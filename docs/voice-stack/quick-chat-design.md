@@ -11,7 +11,7 @@ IME変換中のEnterとキーリピートは送信しない。
 
 ## 本体への受け渡し
 
-小窓のエントリーは `quick-chat.html`。本体のAppやStartPythonControllerを読み込まない。
+小窓のエントリーは `src-ui/quick-chat.html`。本体のAppやStartPythonControllerを読み込まない。
 ウィンドウlabelは `quick_chat`、サイズは480×160（最小320×120）。同じウィンドウを再利用する。
 
 1. 小窓はUUIDと文字列をnative commandへ渡す。Rustは実際の呼出元label、ID形式、空白だけの
