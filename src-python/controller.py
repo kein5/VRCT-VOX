@@ -17,6 +17,7 @@ from utils import removeLog, printLog, errorLogging, isConnectedNetwork, isValid
 from errors import ErrorCode, OcrStartError, VRCTError
 from models.transcription.transcription_openai_compatible import TRANSCRIPTION_MODEL_KEYWORDS, TRANSCRIPTION_API_ENGINES
 from models.translation.translation_providers import TRANSLATION_PROVIDER_REGISTRY, CONNECTION_PROVIDER_REGISTRY
+from models.translation.translation_utils import ctranslate2_weights, isNonCommercialCTranslate2Weight
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
 from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
 from models.transcription.realtime_settings import normalize_settings as normalize_realtime_settings, session_options, endpoint_dict
@@ -4031,9 +4032,50 @@ class Controller:
 
 
     @staticmethod
-    def setCtranslate2WeightType(data, *args, **kwargs) -> dict:
-        config.CTRANSLATE2_WEIGHT_TYPE = str(data)
+    def _parseCtranslate2WeightRequest(data) -> tuple:
+        """Accept either a bare weight id (the historical payload, still used
+        for MIT weights and by the startup auto-download) or
+        {"weight_type": id, "accept_non_commercial_license": bool}, which the
+        UI sends after the user confirms the CC-BY-NC-4.0 dialog."""
+        if isinstance(data, dict):
+            return str(data.get("weight_type")), data.get("accept_non_commercial_license") is True
+        return str(data), False
+
+    @staticmethod
+    def _ctranslate2LicenseConsentError(weight_type: str, accepted: bool) -> Optional[dict]:
+        """Error response when a non-commercial weight is requested without
+        the explicit opt-in, else None.
+
+        The weight that is already selected is exempt: it was either
+        confirmed earlier or saved by an older version where NLLB was the
+        default. Saved settings are never changed behind the user's back, so
+        that weight must keep downloading/loading as before (startup
+        auto-download calls downloadCtranslate2Weight with a bare id).
+        """
+        if accepted or not isNonCommercialCTranslate2Weight(weight_type):
+            return None
+        if weight_type == config.CTRANSLATE2_WEIGHT_TYPE:
+            return None
+        return VRCTError.create_error_response(
+            ErrorCode.WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED,
+            data={"weight_type": weight_type, "selected": config.CTRANSLATE2_WEIGHT_TYPE},
+        )
+
+    def setCtranslate2WeightType(self, data, *args, **kwargs) -> dict:
+        weight_type, accepted = self._parseCtranslate2WeightRequest(data)
+        consent_error = self._ctranslate2LicenseConsentError(weight_type, accepted)
+        if consent_error is not None:
+            return consent_error
+        config.CTRANSLATE2_WEIGHT_TYPE = weight_type
+        if accepted and isNonCommercialCTranslate2Weight(config.CTRANSLATE2_WEIGHT_TYPE):
+            # The confirmation dialog already showed the license; the
+            # one-time startup notice would only repeat it.
+            config.CTRANSLATE2_LICENSE_NOTICE_SHOWN = True
         model.setChangedTranslatorParameters(True)
+        # Each weight has its own language table (M2M100 lacks e.g. Basque
+        # and Telugu, which NLLB has). Re-check the current selection now
+        # rather than letting the next translation fail on it.
+        self.updateTranslationEngineAndEngineList()
         return {"status":200, "result":config.CTRANSLATE2_WEIGHT_TYPE}
 
 
@@ -4416,8 +4458,11 @@ class Controller:
         th_start_update_cuda_software.start()
         return {"status":200, "result":True}
 
-    def downloadCtranslate2Weight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
-        weight_type = str(data)
+    def downloadCtranslate2Weight(self, data:Any, asynchronous:bool=True, *args, **kwargs) -> dict:
+        weight_type, accepted = self._parseCtranslate2WeightRequest(data)
+        consent_error = self._ctranslate2LicenseConsentError(weight_type, accepted)
+        if consent_error is not None:
+            return consent_error
         download_ctranslate2 = self.DownloadCTranslate2(
             self.run_mapping,
             weight_type,
@@ -4486,6 +4531,11 @@ class Controller:
         engines = config.SELECTED_TRANSLATION_ENGINES
         engines[config.SELECTED_TAB_NO] = "CTranslate2"
         config.SELECTED_TRANSLATION_ENGINES = engines
+        # Same reasoning as updateTranslationEngineAndEngineList(): if the
+        # CTranslate2 weight can't translate the current languages either,
+        # reset them (with a warning) instead of passing text through
+        # untranslated on every following message.
+        self.fallbackUnsupportedLanguagesForEngine(config.SELECTED_TAB_NO, "CTranslate2")
         selectable_engines = self.getTranslationEngines()["result"]
         self.run(200, self.run_mapping["selected_translation_engines"], config.SELECTED_TRANSLATION_ENGINES)
         self.run(200, self.run_mapping["translation_engines"], selectable_engines)
@@ -4738,9 +4788,11 @@ class Controller:
             for target_language in target_languages[tab_no].values()
             if target_language["enable"] is True
         }
+        reset_languages = []
         if not model.isLanguageSupportedByEngine(engine, your_language["language"]):
             default = model.pickDefaultLanguageForEngine(engine, enabled_target_languages)
             if default is not None:
+                reset_languages.append(your_language["language"])
                 your_languages[tab_no]["1"] = {**default, "enable": True}
                 config.SELECTED_YOUR_LANGUAGES = your_languages
                 changed = True
@@ -4759,6 +4811,7 @@ class Controller:
                 continue
             default = model.pickDefaultLanguageForEngine(engine, taken_languages)
             if default is not None:
+                reset_languages.append(target_language["language"])
                 target_language["language"] = default["language"]
                 target_language["country"] = default["country"]
                 target_changed = True
@@ -4770,8 +4823,42 @@ class Controller:
         if changed:
             self.run(200, self.run_mapping["selected_your_languages"], config.SELECTED_YOUR_LANGUAGES)
             self.run(200, self.run_mapping["selected_target_languages"], config.SELECTED_TARGET_LANGUAGES)
+            self._notifyUnsupportedLanguagesReset(engine, reset_languages)
 
         return changed
+
+    def _notifyUnsupportedLanguagesReset(self, engine: str, languages: list) -> None:
+        """Tell the user which languages were reset and why. Without this
+        the language dropdown just changes, which looks like a UI glitch
+        (most visibly after switching from an NLLB weight to M2M100)."""
+        endpoint = self.run_mapping.get("translation_language_unsupported")
+        if endpoint is None or not languages:
+            return
+        error_response = VRCTError.create_error_response(
+            ErrorCode.TRANSLATION_LANGUAGE_UNSUPPORTED,
+            data={
+                "engine": engine,
+                "weight_type": config.CTRANSLATE2_WEIGHT_TYPE if engine == "CTranslate2" else None,
+                "languages": list(dict.fromkeys(languages)),
+            },
+        )
+        self.run(error_response["status"], endpoint, error_response["result"])
+
+    def notifyNonCommercialCTranslate2Weight(self) -> None:
+        """One-time notice for a non-commercial weight saved by an older
+        version. Before M2M100 became the default, every install was given
+        nllb-200-distilled-600M (CC-BY-NC-4.0) without being asked, so the
+        saved value usually isn't an informed choice. The setting itself is
+        kept; this only tells the user and points at Config -> Translation."""
+        weight_type = config.CTRANSLATE2_WEIGHT_TYPE
+        if config.CTRANSLATE2_LICENSE_NOTICE_SHOWN is True or not isNonCommercialCTranslate2Weight(weight_type):
+            return
+        error_response = VRCTError.create_error_response(
+            ErrorCode.WEIGHT_CTRANSLATE2_NON_COMMERCIAL_NOTICE,
+            data={"weight_type": weight_type, "license": ctranslate2_weights[weight_type]["license"]},
+        )
+        self.run(error_response["status"], self.run_mapping["ctranslate2_license_notice"], error_response["result"])
+        config.CTRANSLATE2_LICENSE_NOTICE_SHOWN = True
 
     def updateDownloadedWhisperModelWeight(self) -> None:
         # キャッシュされた結果を使用（起動時の重複チェックを回避）
@@ -6222,6 +6309,8 @@ class Controller:
         # Update Settings
         printLog("Update settings")
         self.updateConfigSettings()
+        # After initialization_complete so the UI is ready to show it.
+        self.notifyNonCommercialCTranslate2Weight()
 
         printLog(f"End Initialization ({time.monotonic() - init_started:.2f}s)")
 

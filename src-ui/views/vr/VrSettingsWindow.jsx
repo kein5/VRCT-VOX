@@ -21,6 +21,7 @@ import WarningSvg from "@images/warning.svg?react";
 import { VrWindow } from "./VrWindow";
 import { Disclosure, Picker, SectionLabel, SegmentRow, SelectRow, StepperRow, ThresholdRow, ToggleRow } from "./VrSettingsRows";
 import { buildComputeDeviceOptions } from "../app/config_page/setting_section/setting_box/_components/compute_device/computeDeviceOptions";
+import { isNonCommercialWeight } from "../../logics/configs/ctranslate2License";
 import styles from "./VrSettingsWindow.module.scss";
 
 // 左のカテゴリはデスクトップの設定画面と同じ順序・名前・アイコン。VRでは文字入力が要る項目
@@ -282,12 +283,14 @@ const TranscriptionSettings = ({ t, openPicker }) => {
 
 const TranslationSettings = ({ t, openPicker }) => {
     const tl = useTranslation();
-    // CTranslate2 はダウンロード済みのモデルだけ選べる (ダウンロードはデスクトップで行う)
-    const weights = (tl.currentCTranslate2WeightTypeStatus.data ?? [])
-        .filter(w => w.is_downloaded)
-        .map(w => ({ id: w.id, label: `${w.id} (${w.capacity})` }));
-    const ct2_label = t("config_page.translation.ctranslate2_weight_type.label", { ctranslate2: "CTranslate2" });
+    // CTranslate2 はダウンロード済みのモデルだけ選べる (ダウンロードはデスクトップで行う)。
+    // 非商用ライセンス (NLLB) のモデルは確認ダイアログが必要なので、デスクトップの
+    // 設定 > 翻訳 でのみ選べる。既に選択中なら表示はする (ライセンス表記付き)。
     const selected_weight = tl.currentSelectedCTranslate2WeightType;
+    const weights = (tl.currentCTranslate2WeightTypeStatus.data ?? [])
+        .filter(w => w.is_downloaded && (!isNonCommercialWeight(w) || w.id === selected_weight.data))
+        .map(w => ({ id: w.id, label: isNonCommercialWeight(w) ? `${w.id} (${w.capacity}, ${w.license})` : `${w.id} (${w.capacity})` }));
+    const ct2_label = t("config_page.translation.ctranslate2_weight_type.label", { ctranslate2: "CTranslate2" });
     return (
         <>
             <SelectRow label={ct2_label} value={selected_weight.data} is_pending={selected_weight.state === "pending"}

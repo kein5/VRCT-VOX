@@ -28,9 +28,10 @@ except Exception:  # pragma: no cover - optional runtime
         return {}
 
 try:
-    from models.translation.translation_utils import ctranslate2_weights
+    from models.translation.translation_utils import ctranslate2_weights, DEFAULT_CTRANSLATE2_WEIGHT_TYPE
 except Exception:  # pragma: no cover - optional runtime
     ctranslate2_weights = {}  # type: ignore
+    DEFAULT_CTRANSLATE2_WEIGHT_TYPE = "m2m100_418M-ct2-int8"
 
 try:
     from models.transcription.transcription_languages import transcription_lang
@@ -1042,6 +1043,12 @@ class Config:
     SELECTED_TRANSCRIPTION_ENGINE = ManagedProperty('SELECTED_TRANSCRIPTION_ENGINE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST)
     SELECTED_RELEASE_CHANNEL = ManagedProperty('SELECTED_RELEASE_CHANNEL', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_RELEASE_CHANNEL_LIST)
     CTRANSLATE2_WEIGHT_TYPE = ManagedProperty('CTRANSLATE2_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST)
+    # True once the user has seen the non-commercial license notice for the
+    # selected CTranslate2 weight, either because they confirmed it when
+    # choosing an NLLB weight or because Controller.init() showed the one-time
+    # notice for an NLLB weight saved by an older version (where NLLB was the
+    # default, so the saved value is usually not a deliberate choice).
+    CTRANSLATE2_LICENSE_NOTICE_SHOWN = ManagedProperty('CTRANSLATE2_LICENSE_NOTICE_SHOWN', type_=bool)
     WHISPER_WEIGHT_TYPE = ManagedProperty('WHISPER_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST)
     SELECTED_PLAMO_MODEL = ManagedProperty('SELECTED_PLAMO_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_PLAMO_MODEL_LIST'))
     SELECTED_GEMINI_MODEL = ManagedProperty('SELECTED_GEMINI_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GEMINI_MODEL_LIST'))
@@ -1287,7 +1294,11 @@ class Config:
         self._TRANSCRIPTION_CUSTOM_URL = ""
         self._SELECTED_TRANSLATION_COMPUTE_DEVICE = copy.deepcopy(self.SELECTABLE_COMPUTE_DEVICE_LIST[0])
         self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = copy.deepcopy(self.SELECTABLE_COMPUTE_DEVICE_LIST[0])
-        self._CTRANSLATE2_WEIGHT_TYPE = "nllb-200-distilled-600M-ct2-int8"
+        # MIT-licensed. Configs saved by older versions keep their stored
+        # value (load_config() overwrites this default), including the
+        # previous non-commercial default nllb-200-distilled-600M-ct2-int8.
+        self._CTRANSLATE2_WEIGHT_TYPE = DEFAULT_CTRANSLATE2_WEIGHT_TYPE
+        self._CTRANSLATE2_LICENSE_NOTICE_SHOWN = False
         self._SELECTED_PLAMO_MODEL = None
         self._SELECTED_GEMINI_MODEL = None
         self._SELECTED_OPENAI_MODEL = None

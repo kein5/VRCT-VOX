@@ -72,6 +72,10 @@ class ErrorCode(str, Enum):
     TRANSLATION_VRAM_SPEAKER = "TRANSLATION_VRAM_SPEAKER"
     TRANSLATION_VRAM_ENABLE = "TRANSLATION_VRAM_ENABLE"
     TRANSLATION_DISABLED_VRAM = "TRANSLATION_DISABLED_VRAM"
+    # The active engine (in practice the CTranslate2 fallback with the
+    # selected weight) cannot translate a selected language, so that language
+    # was reset. data = {"engine", "weight_type", "languages"}.
+    TRANSLATION_LANGUAGE_UNSUPPORTED = "TRANSLATION_LANGUAGE_UNSUPPORTED"
     
     # ============================================================================
     # 音声認識関連エラー (TRANSCRIPTION_*)
@@ -90,6 +94,13 @@ class ErrorCode(str, Enum):
     # ============================================================================
     WEIGHT_CTRANSLATE2_DOWNLOAD = "WEIGHT_CTRANSLATE2_DOWNLOAD"
     WEIGHT_WHISPER_DOWNLOAD = "WEIGHT_WHISPER_DOWNLOAD"
+    # A non-commercial (CC-BY-NC-4.0) CTranslate2 weight was requested
+    # without the explicit license opt-in. data = {"weight_type", "selected"}.
+    WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED = "WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED"
+    # One-time startup notice: the saved CTranslate2 weight is non-commercial.
+    # Not a failure; it is delivered on the error channel because that is the
+    # channel the UI already turns into a localized notification.
+    WEIGHT_CTRANSLATE2_NON_COMMERCIAL_NOTICE = "WEIGHT_CTRANSLATE2_NON_COMMERCIAL_NOTICE"
 
     # ============================================================================
     # ソフトウェア更新関連エラー (UPDATE_*)
@@ -367,6 +378,12 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "severity": "critical",
         "user_action_required": True,
     },
+    ErrorCode.TRANSLATION_LANGUAGE_UNSUPPORTED: {
+        "category": ErrorCategory.TRANSLATION,
+        "message": "The selected translation model does not support a selected language; it was reset",
+        "severity": "warning",
+        "user_action_required": False,
+    },
     
     # 音声認識エラー
     ErrorCode.TRANSCRIPTION_VRAM_MIC: {
@@ -430,6 +447,18 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "Whisper weight download error",
         "severity": "error",
         "user_action_required": True,
+    },
+    ErrorCode.WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED: {
+        "category": ErrorCategory.WEIGHT,
+        "message": "This translation model has a non-commercial license (CC-BY-NC-4.0) and must be confirmed explicitly",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+    ErrorCode.WEIGHT_CTRANSLATE2_NON_COMMERCIAL_NOTICE: {
+        "category": ErrorCategory.WEIGHT,
+        "message": "The selected translation model has a non-commercial license (CC-BY-NC-4.0)",
+        "severity": "warning",
+        "user_action_required": False,
     },
 
     # ソフトウェア更新エラー

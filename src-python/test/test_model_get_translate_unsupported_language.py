@@ -122,6 +122,29 @@ class TestGetTranslateSuccessFlagSemantics(unittest.TestCase):
         self.assertFalse(success_flag, "a genuine CTranslate2 fallback failure must not be masked as success")
         mock_error_logging.assert_called_once()
 
+    def test_primary_failure_with_unsupported_fallback_is_reported_as_failure(self) -> None:
+        # The requested engine really fails (False) and the CTranslate2
+        # fallback can't translate the pair with the selected weight (None,
+        # e.g. Basque on M2M100). This used to pass the original text through
+        # as a success, so the user never learned translation had stopped.
+        self.model.translator = type(
+            "T", (), {"translate": staticmethod(lambda **kwargs: (
+                False if kwargs["translator_name"] == "Google" else None
+            ))}
+        )()
+
+        with patch("model.printLog"):
+            translation, success_flag = self.model.getTranslate(
+                translator_name="Google",
+                source_language="Basque",
+                target_language="Japanese",
+                target_country="Japan",
+                message="kaixo",
+            )
+
+        self.assertEqual(translation, "kaixo")
+        self.assertFalse(success_flag, "the primary engine failed and nothing could translate instead")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,3 +3,69 @@
     flex-direction: column;
     gap: 6.4rem;
 }
+
+// Non-commercial license confirmation (NLLB weights). Same native <dialog>
+// pattern as the model download warning in advanced_settings/ModelDownloads.
+.license_dialog {
+    max-width: min(46rem, 85vw);
+    padding: 2.4rem;
+    border: .1rem solid var(--warning_color);
+    border-radius: .6rem;
+    background: var(--dark_875_color, #282a2e);
+    color: var(--dark_200_color, #e5e7eb);
+
+    &::backdrop { background: #0009; }
+
+    h3 { font-size: 1.6rem; font-weight: 650; margin-bottom: 1.2rem; }
+    p { font-size: 1.3rem; line-height: 1.6; overflow-wrap: anywhere; margin-bottom: 1rem; }
+    a { color: var(--primary_300_color); }
+}
+
+.license_check {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.2rem;
+    font-size: 1.3rem;
+    line-height: 1.5;
+    cursor: pointer;
+
+    input {
+        accent-color: var(--primary_400_color);
+        width: 2rem;
+        height: 2rem;
+        margin-top: .1rem;
+        flex-shrink: 0;
+    }
+}
+
+.license_actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-top: 2rem;
+
+    button {
+        font: inherit;
+        font-size: 1.3rem;
+        font-weight: 600;
+        min-height: 3.6rem;
+        padding: .8rem 1.4rem;
+        border-radius: .4rem;
+        border: .1rem solid transparent;
+        color: inherit;
+        background: var(--dark_800_color);
+        cursor: pointer;
+
+        &:hover:enabled { background: var(--dark_700_color); }
+        &:disabled { opacity: .5; cursor: not-allowed; }
+        &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }
+    }
+
+    .confirm_button {
+        background: var(--primary_600_color);
+        color: var(--dark_50_color, #fff);
+
+        &:hover:enabled { background: var(--primary_550_color); }
+    }
+}

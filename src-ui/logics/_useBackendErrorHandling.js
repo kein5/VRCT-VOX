@@ -23,7 +23,7 @@ import { ui_configs } from "./ui_configs";
 
 export const _useBackendErrorHandling = () => {
     const { t } = useI18n();
-    const { showNotification_Error } = useNotificationStatus();
+    const { showNotification_Error, showNotification_Warning } = useNotificationStatus();
     const { updateIsSoftwareUpdating } = useIsSoftwareUpdating();
 
     const {
@@ -64,6 +64,9 @@ export const _useBackendErrorHandling = () => {
         updateSelectedOpenAICompatibleModel,
 
         updateSelectedOllamaModel,
+
+        updateSelectedCTranslate2WeightType,
+        updateCTranslate2WeightTypeStatus,
     } = useTranslation();
 
     const { updateEnableVrcMicMuteSync } = useOthers();
@@ -118,6 +121,15 @@ export const _useBackendErrorHandling = () => {
                 updateTranslationStatus(data);
                 showNotification_Error(message, { category_id: error_code });
                 return;
+            case "TRANSLATION_LANGUAGE_UNSUPPORTED":
+                // The backend already pushed the reset language selection; this
+                // only explains why it changed.
+                showNotification_Warning(t("common_error.translation_language_unsupported", {
+                    model: data?.weight_type ?? data?.engine,
+                    languages: (data?.languages ?? []).join(", "),
+                    ctranslate2: "CTranslate2",
+                }), { category_id: error_code, hide_duration: null });
+                return;
 
             // ============================================================================
             // 音声認識関連エラー (TRANSCRIPTION_*)
@@ -166,6 +178,25 @@ export const _useBackendErrorHandling = () => {
                 return;
             case "WEIGHT_WHISPER_DOWNLOAD":
                 showNotification_Error(t("common_error.failed_download_weight_whisper"), { category_id: error_code });
+                return;
+            case "WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED":
+                // Normally unreachable: Config -> Translation asks before sending.
+                // Undo the optimistic UI state of whichever request was refused.
+                if (endpoint === "/set/data/selected_ctranslate2_weight_type") {
+                    updateSelectedCTranslate2WeightType(data?.selected);
+                } else {
+                    updateCTranslate2WeightTypeStatus((old_status) => old_status.data.map((item) =>
+                        item.id === data?.weight_type ? { ...item, is_pending: false, progress: null } : item
+                    ));
+                }
+                showNotification_Warning(t("common_error.ctranslate2_license_consent_required", { weight_type: data?.weight_type }), { category_id: error_code });
+                return;
+            case "WEIGHT_CTRANSLATE2_NON_COMMERCIAL_NOTICE":
+                showNotification_Warning(t("config_page.translation.ctranslate2_weight_type.non_commercial_notice", {
+                    ctranslate2: "CTranslate2",
+                    weight_type: data?.weight_type,
+                    license: data?.license,
+                }), { category_id: error_code, hide_duration: null });
                 return;
 
             // ============================================================================

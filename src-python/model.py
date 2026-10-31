@@ -1476,6 +1476,9 @@ class Model:
         if isinstance(translation, str):
             success_flag = True
         else:
+            # False = the selected engine itself failed; None = it just
+            # doesn't support this language pair.
+            primary_failed = translation is False
             max_retries = 20  # 0.1s間隔で最大2秒。CTranslate2が使用不可な場合の無限ループを防ぐ
             for _ in range(max_retries):
                 translation = self.translator.translate(
@@ -1506,9 +1509,23 @@ class Model:
                 sleep(0.1)
             if isinstance(translation, str):
                 success_flag = True
-            elif translation is None:
+            elif translation is None and not primary_failed:
                 # どちらのエンジンもこの言語ペアに未対応なだけ。実障害ではない。
                 success_flag = True
+                translation = message
+            elif translation is None:
+                # 選択中のエンジンが実際に失敗し、CTranslate2 も選択中の重みでは
+                # この言語ペアに未対応 (例: M2M100 の Basque/Telugu)。以前は
+                # 原文を「成功」として黙って流していた。失敗として返すと
+                # controller が通知して CTranslate2 へ切り替え、
+                # fallbackUnsupportedLanguagesForEngine() が未対応言語を
+                # 理由付きでリセットする。
+                success_flag = False
+                printLog(
+                    "Translation failed and CTranslate2 cannot translate this language pair",
+                    {"engine": translator_name, "weight_type": config.CTRANSLATE2_WEIGHT_TYPE,
+                     "source": source_language, "target": target_language},
+                )
                 translation = message
             else:
                 # CTranslate2フォールバック自体が実際に失敗した。

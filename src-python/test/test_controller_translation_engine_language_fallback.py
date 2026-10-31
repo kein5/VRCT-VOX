@@ -185,6 +185,11 @@ class TestSetSelectedTranslationEnginesValidatesFinalEngine(unittest.TestCase):
         # getter returns a live wrapper object rather than a plain dict -
         # snapshot it as a real dict so tearDown can restore it cleanly.
         self._original_status = dict(config.SELECTABLE_TRANSLATION_ENGINE_STATUS)
+        # These cases rely on Filipino being missing from the NLLB tables, so
+        # pin an NLLB weight instead of depending on the default (M2M100,
+        # which does have Filipino).
+        self._original_weight_type = config.CTRANSLATE2_WEIGHT_TYPE
+        config.CTRANSLATE2_WEIGHT_TYPE = "nllb-200-distilled-600M-ct2-int8"
 
         config.SELECTED_TAB_NO = self.TAB_NO
 
@@ -194,6 +199,7 @@ class TestSetSelectedTranslationEnginesValidatesFinalEngine(unittest.TestCase):
         config.SELECTED_YOUR_LANGUAGES = self._original_your_languages
         config.SELECTED_TARGET_LANGUAGES = self._original_target_languages
         config.SELECTABLE_TRANSLATION_ENGINE_STATUS = self._original_status
+        config.CTRANSLATE2_WEIGHT_TYPE = self._original_weight_type
 
     def test_language_falls_back_to_the_engine_actually_active_after_downgrade(self) -> None:
         # Filipino: supported by Google, but not by CTranslate2's nllb-200
@@ -228,7 +234,7 @@ class TestSetSelectedTranslationEnginesValidatesFinalEngine(unittest.TestCase):
 
 class TestUpdateTranslationEngineAndEngineListResetsLanguageWhenCTranslate2AlsoUnsupported(unittest.TestCase):
     """CTranslate2 is the engine everything falls back to, but its default
-    nllb-200 weight tables don't cover every language either (e.g. Filipino,
+    nllb-200 weight tables (pinned below) don't cover every language either (e.g. Filipino,
     which only has the closely-related "Tagalog" entry). If the user
     changes the LANGUAGE while CTranslate2 is already selected and the new
     language isn't in CTranslate2's table, there's no further engine to
@@ -259,6 +265,11 @@ class TestUpdateTranslationEngineAndEngineListResetsLanguageWhenCTranslate2AlsoU
         self._original_your_languages = config.SELECTED_YOUR_LANGUAGES
         self._original_target_languages = config.SELECTED_TARGET_LANGUAGES
         self._original_status = dict(config.SELECTABLE_TRANSLATION_ENGINE_STATUS)
+        # These cases rely on Filipino being missing from the NLLB tables, so
+        # pin an NLLB weight instead of depending on the default (M2M100,
+        # which does have Filipino).
+        self._original_weight_type = config.CTRANSLATE2_WEIGHT_TYPE
+        config.CTRANSLATE2_WEIGHT_TYPE = "nllb-200-distilled-600M-ct2-int8"
 
         config.SELECTED_TAB_NO = self.TAB_NO
         config.SELECTABLE_TRANSLATION_ENGINE_STATUS = {engine: True for engine in self.ENGINES}
@@ -269,6 +280,7 @@ class TestUpdateTranslationEngineAndEngineListResetsLanguageWhenCTranslate2AlsoU
         config.SELECTED_YOUR_LANGUAGES = self._original_your_languages
         config.SELECTED_TARGET_LANGUAGES = self._original_target_languages
         config.SELECTABLE_TRANSLATION_ENGINE_STATUS = self._original_status
+        config.CTRANSLATE2_WEIGHT_TYPE = self._original_weight_type
 
     def test_source_language_reset_when_ctranslate2_does_not_support_it_either(self) -> None:
         config.SELECTED_TRANSLATION_ENGINES = {self.TAB_NO: "CTranslate2"}

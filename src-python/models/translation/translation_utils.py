@@ -51,33 +51,69 @@ logged (via utils.errorLogging) and the functions return/complete without
 raising, which matches the repository's defensive style.
 """
 
+# License metadata is shown next to each weight in Config -> Translation, and
+# commercial_use=False weights need an explicit opt-in before they can be
+# downloaded or selected (see Controller.setCtranslate2WeightType /
+# downloadCtranslate2Weight). Licenses per the Hugging Face model cards
+# (2026-10-31): facebook/nllb-200-* and its ct2 conversions are CC-BY-NC-4.0,
+# facebook/m2m100_* and the jncraton ct2 conversions are MIT. A conversion
+# cannot relax the upstream license, so the upstream (tokenizer) repo decides.
+_LICENSE_MIT = {
+    "license": "MIT",
+    "commercial_use": True,
+}
+_LICENSE_CC_BY_NC_4_0 = {
+    "license": "CC-BY-NC-4.0",
+    "commercial_use": False,
+}
+
 ctranslate2_weights = {
     "m2m100_418M-ct2-int8": {
         "hf_repo": "jncraton/m2m100_418M-ct2-int8",
         "directory_name": "m2m100_418M-ct2-int8",
         "tokenizer": "facebook/m2m100_418M",
+        **_LICENSE_MIT,
     },
     "m2m100_1.2B-ct2-int8": {
         "hf_repo": "jncraton/m2m100_1.2B-ct2-int8",
         "directory_name": "m2m100_1.2B-ct2-int8",
         "tokenizer": "facebook/m2m100_1.2B",
+        **_LICENSE_MIT,
     },
     "nllb-200-distilled-600M-ct2-int8": {
         "hf_repo": "JustFrederik/nllb-200-distilled-600M-ct2-int8",
         "directory_name": "nllb-200-distilled-600M-ct2-int8",
         "tokenizer": "facebook/nllb-200-distilled-600M",
+        **_LICENSE_CC_BY_NC_4_0,
     },
     "nllb-200-distilled-1.3B-ct2-int8": {
         "hf_repo": "OpenNMT/nllb-200-distilled-1.3B-ct2-int8",
         "directory_name": "nllb-200-distilled-1.3B-ct2-int8",
         "tokenizer": "facebook/nllb-200-distilled-1.3B",
+        **_LICENSE_CC_BY_NC_4_0,
     },
     "nllb-200-3.3B-ct2-int8": {
         "hf_repo": "OpenNMT/nllb-200-3.3B-ct2-int8",
         "directory_name": "nllb-200-3.3B-ct2-int8",
         "tokenizer": "facebook/nllb-200-3.3B",
+        **_LICENSE_CC_BY_NC_4_0,
     },
 }
+
+# Weight used for configurations that have no saved CTRANSLATE2_WEIGHT_TYPE.
+# Must be a commercial-use weight: a fresh install downloads it without asking.
+DEFAULT_CTRANSLATE2_WEIGHT_TYPE = "m2m100_418M-ct2-int8"
+
+
+def isNonCommercialCTranslate2Weight(weight_type: str) -> bool:
+    """True for weights whose license forbids commercial use.
+
+    Unknown weight types return False: they are rejected by the
+    CTRANSLATE2_WEIGHT_TYPE descriptor anyway, and treating them as
+    restricted would only change which error the caller sees.
+    """
+    weight = ctranslate2_weights.get(weight_type)
+    return weight is not None and weight.get("commercial_use") is False
 
 def backwardCompatibleRenameWeightsDir(root: str):
     # 後方互換のためファイル名を変更する

@@ -45,7 +45,9 @@ export const RadioButton = (props) => {
                                 </div>
                             </div>
                             {option.desc && (
-                                <p className={styles.radio_button_desc}>{option.desc}</p>
+                                <p className={clsx(styles.radio_button_desc, {
+                                    [styles.desc_warning]: option.desc_tone === "warning",
+                                })}>{option.desc}</p>
                             )}
                         </label>
                         {props.ChildComponent && <props.ChildComponent option={option} {...props} />}

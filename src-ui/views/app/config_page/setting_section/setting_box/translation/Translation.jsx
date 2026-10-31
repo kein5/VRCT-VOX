@@ -1,4 +1,8 @@
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@useI18n";
+import { isTauri } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { isNonCommercialWeight, needsLicenseConfirmation, weightRequest } from "../../../../../../logics/configs/ctranslate2License";
 
 import {
     useTranslation,
@@ -100,6 +104,10 @@ const LocalLLM_Container = () => {
     );
 };
 
+// Weights whose license the user confirmed since the app started, so that
+// "download" followed by "select" of the same NLLB weight asks only once.
+const license_confirmed_weights = new Set();
+
 const CTranslate2WeightType_Box = () => {
     const { t } = useI18n();
     const {
@@ -110,27 +118,65 @@ const CTranslate2WeightType_Box = () => {
         currentSelectedCTranslate2WeightType,
         setSelectedCTranslate2WeightType,
     } = useTranslation();
+    const [confirming, setConfirming] = useState(null);
+
+    const findWeight = (id) => currentCTranslate2WeightTypeStatus.data.find(item => item.id === id);
+    const isConfirmed = (weight) => license_confirmed_weights.has(weight?.id);
+    const askFirst = (weight) => needsLicenseConfirmation(weight, currentSelectedCTranslate2WeightType.data) && !isConfirmed(weight);
+
+    const select = (id) => setSelectedCTranslate2WeightType(weightRequest(id, isConfirmed(findWeight(id))));
+    const download = (id) => {
+        pendingCTranslate2WeightTypeStatus(id);
+        downloadCTranslate2WeightTypeStatus(weightRequest(id, isConfirmed(findWeight(id))));
+    };
 
     const selectFunction = (id) => {
-        setSelectedCTranslate2WeightType(id);
+        const weight = findWeight(id);
+        if (askFirst(weight)) return setConfirming({ weight, action: "select" });
+        select(id);
     };
 
     const downloadStartFunction = (id) => {
-        pendingCTranslate2WeightTypeStatus(id);
-        downloadCTranslate2WeightTypeStatus(id);
+        const weight = findWeight(id);
+        if (askFirst(weight)) return setConfirming({ weight, action: "download" });
+        download(id);
+    };
+
+    const confirmLicense = () => {
+        const { weight, action } = confirming;
+        license_confirmed_weights.add(weight.id);
+        setConfirming(null);
+        if (action === "select") select(weight.id);
+        else download(weight.id);
     };
 
 
     const c_translate2_weight_types_object = currentCTranslate2WeightTypeStatus.data.map(item => {
+        const non_commercial = isNonCommercialWeight(item);
         return {
             ...item,
             label: item.id,
+            desc: t(
+                non_commercial
+                    ? "config_page.translation.ctranslate2_weight_type.license_non_commercial"
+                    : "config_page.translation.ctranslate2_weight_type.license_commercial",
+                { license: item.license }
+            ),
+            desc_tone: non_commercial ? "warning" : undefined,
         };
     });
 
 
     return (
         <>
+            {confirming && (
+                <CTranslate2LicenseDialog
+                    weight={confirming.weight}
+                    action={confirming.action}
+                    onCancel={() => setConfirming(null)}
+                    onConfirm={confirmLicense}
+                />
+            )}
             <DownloadModelsContainer
                 label={t(
                     "config_page.translation.ctranslate2_weight_type.label",
@@ -147,6 +193,43 @@ const CTranslate2WeightType_Box = () => {
                 downloadStartFunction={downloadStartFunction}
             />
         </>
+    );
+};
+
+const CTranslate2LicenseDialog = ({ weight, action, onCancel, onConfirm }) => {
+    const { t } = useI18n();
+    const dialog = useRef(null);
+    const [checked, setChecked] = useState(false);
+    useEffect(() => { dialog.current?.showModal(); }, []);
+
+    const openLink = async (event, url) => {
+        if (!isTauri()) return;
+        event.preventDefault();
+        try { await openUrl(url); }
+        catch (error) { console.error("Failed to open", url, error); }
+    };
+    const key = (name) => `config_page.translation.ctranslate2_weight_type.${name}`;
+
+    return (
+        <dialog ref={dialog} className={styles.license_dialog} aria-label={t(key("confirm_title"))} onCancel={onCancel}>
+            <h3>{t(key("confirm_title"))}</h3>
+            <p>{t(key("confirm_body"), { weight_type: weight.id, license: weight.license })}</p>
+            <p>
+                <a href={weight.license_url} target="_blank" rel="noreferrer" onClick={event => openLink(event, weight.license_url)}>{t(key("license_link"))} ({weight.license})</a>
+                {" · "}
+                <a href={weight.model_card_url} target="_blank" rel="noreferrer" onClick={event => openLink(event, weight.model_card_url)}>{t(key("model_card_link"))}</a>
+            </p>
+            <label className={styles.license_check}>
+                <input type="checkbox" checked={checked} onChange={event => setChecked(event.target.checked)} />
+                {t(key("confirm_check"))}
+            </label>
+            <div className={styles.license_actions}>
+                <button type="button" autoFocus onClick={onCancel}>{t(key("confirm_cancel"))}</button>
+                <button type="button" className={styles.confirm_button} disabled={!checked} onClick={onConfirm}>
+                    {t(key(action === "download" ? "confirm_download" : "confirm_select"))}
+                </button>
+            </div>
+        </dialog>
     );
 };
 
