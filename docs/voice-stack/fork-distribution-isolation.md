@@ -1,6 +1,8 @@
 # VRCT-VOX 配布境界の分離（2026-10-29）
 現在の名称・配布物・識別子は[名称と識別子](project-rename.md)を参照してください。
 
+> 2026-10-29時点の実装記録です。その後、2026-10-31に`v0.1.0-beta.1`（プレリリース）としてWindowsのZIP・インストーラーとLinuxのtar.gz・AppImageを公開しました。現在の配布手順は[ビルドガイド](../readme_build.md)と[配布候補とリリース下書き](release-candidates.md)、上流VRCTとの関係は[公開方針](publication-and-upstream.md)を参照してください。
+
 ユーザーの5項目に対し、除外・公開経路・identity・説明・上流候補の変更を実装した。
 **完成したWindows ZIP/NSIS、Linux製品package、最終ライセンス監査は未検証。公開可能とはまだ判断しない。**
 

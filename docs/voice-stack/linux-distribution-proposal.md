@@ -1,6 +1,8 @@
 # Linuxパッケージ配布案（2026-10-29）
 現在の名称・配布物・識別子は[名称と識別子](project-rename.md)を参照してください。
 
+> 2026-10-29時点の案です。2026-10-31の`v0.1.0-beta.1`では、Linux向けにtar.gzとAppImageをGitHub Releasesで配布しました（[Linuxビルド手順](linux-build-pipeline.md)、[AppImageガイド](appimage.md)）。AUR用のPKGBUILDはリポジトリにありません。
+
 第一候補は **`vrct-vox-bin`（x86_64、Arch/CachyOS向けAUR）**。
 検証したバージョンのバイナリ配布物を固定SHA-256で取得する方式を推奨する。
 これは配布方式の案であり、完成したPKGBUILDや登録・公開の報告ではない。

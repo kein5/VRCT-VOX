@@ -1,6 +1,6 @@
 # VRCT-VOXの配布候補とリリース下書き
 
-配布候補の作成と公開を分けています。Linux・Windowsの候補を同じブランチの同じコミットから作り、検査後にGitHub Releasesの下書きへまとめます。公開は保守担当者が下書きを確認して行います。
+配布候補の作成と公開を分けています。最初の公開版は2026-10-31の`v0.1.0-beta.1`（developからのプレリリース）です。Linux・Windowsの候補を同じブランチの同じコミットから作り、検査後にGitHub Releasesの下書きへまとめます。公開は保守担当者が下書きを確認して行います。
 
 ## ブランチとチャンネル
 
@@ -13,9 +13,9 @@
 
 ## 候補を作る
 
-1. `package.json`、`src-tauri/tauri.conf.json`、`src-python/config.py`の版を、リリースするブランチの形式で揃えます。
+1. `package.json`の版をリリースするブランチの形式にし、`npm run update-version`で`src-tauri/tauri.conf.json`、`src-python/config.py`、`pyproject.toml`、`uv.lock`へ反映します。
 2. GitHub Actionsの「VRCT-VOX Linux candidate (no publication)」を`main`（正式版）または`develop`（ベータ版）で手動実行します。Vulkan版かCPU版を選びます。
-3. 「Validate VRCT-VOX distribution」を同じコミットで手動実行し、Windows候補を作ります。
+3. 「Validate VRCT-VOX distribution」を同じコミットで手動実行し、Windows候補を作ります。このワークフローはmain宛てのPRでも動きますが、下書きに使えるのは手動実行の結果だけです。
 4. 両方の実行が成功したら、run IDを控えます。候補の保存期間は7日です。
 
 Linuxでは再配置したアーカイブとAppImageのGUI試験、WindowsではZIP・NSIS内の配布禁止ファイル検査が成功した後に、候補を保存します。各候補の`candidate-manifest.json`にはリポジトリ、コミット、版、ファイル名、容量、SHA-256を記録します。`SHA256SUMS`と、各配布物の`.sha256`も同梱します。インストーラー用の`.sha256`は改行なしの64 ASCII文字で保存します。
