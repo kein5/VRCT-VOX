@@ -3,6 +3,3 @@ contact_links:
   - name: Report a security vulnerability / 脆弱性の報告
     url: https://github.com/kein5/VRCT-VOX/security/advisories/new
     about: Report privately; do not open a public issue. / 公開の Issue ではなく非公開で報告してください。
-  - name: Upstream VRCT issues / 上流 VRCT の不具合
-    url: https://github.com/misyaguziya/VRCT/issues
-    about: Problems that also occur in upstream VRCT belong there. / 上流の VRCT でも起きる問題は上流へ。

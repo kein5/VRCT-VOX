@@ -29,5 +29,5 @@
   同日の追加指示で、上流への連絡・打診・PR作成は全機能が完成しても自動では行わず、ユーザーの明示的な指示を必要とすることにした。
 - 2026-10-29: 配布前の条件として、OCR全重みの除外、ZIP/NSIS検査、本家へのupload/telemetryの排除、fork固有の識別子、
   READMEと支援窓口の分離を優先した。[配布境界の記録](fork-distribution-isolation.md)、[AUR案](linux-distribution-proposal.md)、
-  [上流への差分候補](upstream-contribution-candidates.md)をローカルで作成した。この時点で上流への連絡・PRは行っていない。
+  上流への差分候補をローカルで作成した（2026-11-01に削除）。この時点で上流への連絡・PRは行っていない。
 - 2026-10-31: `v0.1.0-beta.1`を公開し、リポジトリはfork networkから外れた。上流への提案の準備は、上の方針により止めている。

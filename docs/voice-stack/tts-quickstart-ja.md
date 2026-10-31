@@ -85,12 +85,6 @@ RVCページで別の入力を選ぶまでは、デバイスページでの変�
 RVCページで選んだ入力はページ移動では保持する。再起動後はデバイスページのマイクが初期値になるため、別の入力を使う場合は選び直す。
 デバイスの再接続後も入力の選択を確認する。
 
-このPCで取得済みの日本語モデルは次の場所にある（2026-10-29確認）。新規取得は不要。
-
-```text
-~/.cache/speech.cpp/models/sakasegawa--Irodori-TTS-v4.1-Small-MF-GGUF/e237dc3eefe469b8bba87872beacf12fb7fe00dbdf85767edca8ec04ab910d13/Irodori-TTS-866M-MF-v4.1-F16.gguf
-```
-
 ## VRChatへ送る場合
 
 **Device → Audio route** を **Managed virtual microphone (Linux)** にして保存すると自動準備が始まる。

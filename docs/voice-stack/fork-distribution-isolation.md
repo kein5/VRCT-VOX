@@ -81,4 +81,4 @@ CIはこの検査が失敗したら候補artifactを保管しない。完成し�
 次は[Linux package案](linux-distribution-proposal.md)に沿いcheckout不要のruntimeと可変パスを整理する。
 speech.cpp/外部VC/各モデルは[ライセンス台帳](licensing.md)の独立した条件を維持する。
 Trail of Bits Skills監査は依頼済み・未実施で、公開前の必須ゲート。
-[上流候補](upstream-contribution-candidates.md)はローカル資料だけで、PR/打診は送信していない。
+上流候補はローカル資料だけで、PR/打診は送信していない（資料は2026-11-01に削除）。
