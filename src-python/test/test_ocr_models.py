@@ -141,10 +141,11 @@ class TestEngineGetsExplicitPaths(unittest.TestCase):
     @unittest.skipUnless(engine.RapidOCR is not None, "rapidocr not installed")
     def test_rapidocr_downloader_is_blocked(self) -> None:
         from rapidocr.utils.download_file import DownloadFile, DownloadFileInput
-        with patch("requests.get") as get, patch("requests.Session.get") as session_get:
+        with tempfile.TemporaryDirectory() as directory, patch("requests.get") as get, \
+                patch("requests.Session.get") as session_get:
             with self.assertRaises(engine.ImplicitDownloadBlocked):
                 DownloadFile.run(DownloadFileInput(file_url="https://example.invalid/x.onnx",
-                                                   save_path=tempfile.mktemp(), logger=None))
+                                                   save_path=Path(directory) / "x.onnx", logger=None))
         get.assert_not_called()
         session_get.assert_not_called()
 

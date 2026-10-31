@@ -69,7 +69,7 @@ export const OcrModels = ({ required, missing, onChanged }) => {
             <p>{t("model_downloads.source")}: {(selected.sources ?? [selected.source]).map(url =>
                 <span key={url}> <a href={url} onClick={event => openLink(event, url)} target="_blank" rel="noreferrer">{url.replace("https://huggingface.co/", "").replace(/\/tree\/.*/, "")}</a> </span>)}</p>
             <p>{t("model_downloads.license_links")}: {selected.licenses.map((url, i) =>
-                <span key={url}> <a href={url} onClick={event => openLink(event, url)} target="_blank" rel="noreferrer">{url.includes("apache.org") ? selected.license : `${t("model_downloads.model_card")} (${i + 1})`}</a> </span>)}</p>
+                <span key={url}> <a href={url} onClick={event => openLink(event, url)} target="_blank" rel="noreferrer">{new URL(url).hostname === "www.apache.org" ? selected.license : `${t("model_downloads.model_card")} (${i + 1})`}</a> </span>)}</p>
             {linkError && <div role="alert"><p>{t("model_downloads.link_error")}</p><code style={{ overflowWrap: "anywhere" }}>{linkError}</code></div>}
             <p>{t("model_downloads.destination")}: <code style={{ overflowWrap: "anywhere" }}>{selected.destination}</code></p>
             <ul>{selected.artifacts.map(file => <li key={file.filename}>{file.filename} · {Number(file.size).toLocaleString("en-US")} bytes</li>)}</ul>
