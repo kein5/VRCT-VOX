@@ -11,20 +11,37 @@ from urllib.parse import quote
 from tools.release_candidate import REPOSITORY, ROOT, verify
 
 WORKFLOWS = {"linux": "build-linux.yml", "windows": "release.yml"}
+# main publishes stable releases; develop publishes betas (GitHub prereleases).
+CHANNELS = {
+    "main": ("stable", r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"),
+    "develop": ("beta", r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-beta\.[1-9][0-9]*"),
+}
 
 
-def check_run(run, platform, commit):
+def release_channel(branch, version):
+    """The channel of a release from `branch`; its version must match it."""
+    if branch not in CHANNELS:
+        raise ValueError("Releases are made only from main (stable) or develop (beta)")
+    channel, pattern = CHANNELS[branch]
+    if not isinstance(version, str) or not re.fullmatch(pattern, version):
+        raise ValueError(
+            "main releases need a version X.Y.Z and develop releases X.Y.Z-beta.N"
+        )
+    return channel
+
+
+def check_run(run, platform, commit, branch):
     expected = dict(
         conclusion="success",
         status="completed",
         event="workflow_dispatch",
-        head_branch="develop",
+        head_branch=branch,
         head_sha=commit,
         path=f".github/workflows/{WORKFLOWS[platform]}",
     )
     if any(run.get(key) != value for key, value in expected.items()):
         raise ValueError(
-            "Candidate must be a successful manual develop build at the requested commit"
+            "Candidate must be a successful manual build of the release branch at the requested commit"
         )
     if any(
         run.get(key, {}).get("full_name") != REPOSITORY
@@ -33,9 +50,10 @@ def check_run(run, platform, commit):
         raise ValueError("Candidate must originate in the canonical repository")
 
 
-def prepare(output, run_ids, commit, version):
+def prepare(output, run_ids, commit, version, branch):
     # Never execute downloaded code. Only allowlisted files from verified runs
     # are copied to the draft payload; candidate integrity is a hard failure.
+    release_channel(branch, version)
     output.mkdir(parents=True, exist_ok=False)
     payload = output / "payload"
     payload.mkdir()
@@ -46,7 +64,7 @@ def prepare(output, run_ids, commit, version):
             ["gh", "api", f"repos/{REPOSITORY}/actions/runs/{run_id}"], text=True
         )
         run = json.loads(raw)
-        check_run(run, platform, commit)
+        check_run(run, platform, commit, branch)
         directory = output / platform
         artifact = (
             "VRCT-VOX-linux-x86_64-candidate"
@@ -119,6 +137,7 @@ def main():
     parser.add_argument("--linux-run", required=True)
     parser.add_argument("--windows-run", required=True)
     parser.add_argument("--commit", required=True)
+    parser.add_argument("--branch", required=True, choices=sorted(CHANNELS))
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     version = json.loads((ROOT / "package.json").read_text())["version"]
@@ -127,6 +146,7 @@ def main():
         {"linux": args.linux_run, "windows": args.windows_run},
         args.commit,
         version,
+        args.branch,
     )
     print(f"Verified draft assets: {payload}")
 
