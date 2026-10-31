@@ -6,6 +6,7 @@ joining a hidden local instance of the built world. The first client becomes
 the instance master and speaks; the others are cameras.
 
     python tools/chatbox_lab/launch_clients.py --clients 2
+    python tools/chatbox_lab/launch_clients.py --add --clients 1
     python tools/chatbox_lab/launch_clients.py --stop
 
 VRChat uses the account already signed in on this PC. Close the clients from
@@ -74,10 +75,13 @@ def launch(args):
     env = dict(os.environ, SteamAppId=APP_ID, SteamGameId=APP_ID,
                STEAM_COMPAT_DATA_PATH=str(library / 'steamapps/compatdata' / APP_ID),
                STEAM_COMPAT_CLIENT_INSTALL_PATH=str(STEAM))
-    room = str(random.randint(10_000_000, 99_999_999))
-    clients = []
+    # --add joins more clients to the running instance; it needs the same room.
+    state = json.loads(STATE.read_text()) if args.add and STATE.is_file() else {'clients': []}
+    room = state.get('room') or str(random.randint(10_000_000, 99_999_999))
+    clients = state['clients']
+    first = len(clients)
     CACHE.mkdir(parents=True, exist_ok=True)
-    for index in range(args.clients):
+    for index in range(first, first + args.clients):
         osc_in, osc_out = args.osc_base + 2 * index, args.osc_base + 2 * index + 1
         command = [str(proton), 'run', str(install / args.exe), '--no-vr', f'--profile={index}',
                    f'--osc={osc_in}:127.0.0.1:{osc_out}', f'--url={world_url(args.world, room)}',
@@ -90,7 +94,7 @@ def launch(args):
                         'osc_in': osc_in, 'osc_out': osc_out})
         print(f'client {index} ({clients[-1]["role"]}): pid {process.pid}, OSC in {osc_in}, out {osc_out}')
         # The speaker must be master, so it has to join first.
-        if index == 0 and args.clients > 1:
+        if index == 0 and first + args.clients > 1:
             time.sleep(args.stagger)
     STATE.write_text(json.dumps({'room': room, 'clients': clients}, indent=2))
 
@@ -113,6 +117,7 @@ def main():
     parser.add_argument('--exe', default='VRChat.exe')
     parser.add_argument('--osc-base', type=int, default=9100)
     parser.add_argument('--stagger', type=float, default=60.0, help='seconds before starting the camera clients')
+    parser.add_argument('--add', action='store_true', help='add clients to the running instance')
     parser.add_argument('--stop', action='store_true')
     args = parser.parse_args()
     (stop if args.stop else launch)(args)

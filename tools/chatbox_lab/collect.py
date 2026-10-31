@@ -51,6 +51,8 @@ class CameraWindow(X11WindowCapture):
         self.profile = profile
 
     def findWindow(self):
+        if self._open() is None:
+            return None
         self._begin()
         for window in self._candidates():
             pid = self._pid(window)
