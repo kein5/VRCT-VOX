@@ -20,7 +20,8 @@ from models.translation.translation_providers import TRANSLATION_PROVIDER_REGIST
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
 from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
 from models.transcription.realtime_settings import (
-    normalize_settings as normalize_realtime_settings, session_options, endpoint_dict, realtime_endpoint)
+    normalize_settings as normalize_realtime_settings, session_options, endpoint_dict,
+    realtime_endpoint, language_supported, SessionOptions)
 from models.transcription.realtime_session import RealtimeSession
 from models.transcription.realtime_delivery import RealtimeDelivery
 from models.transcription.capture_pipewire import enumerate_endpoints, default_endpoint
@@ -551,9 +552,16 @@ class Controller:
             self._releaseTtsServers()
         elif profile == "asr":
             with self._realtime_lock:
-                if self._realtime_settings["server"] == "bundled":
+                bundled = self._realtime_settings["server"] == "bundled"
+                if bundled:
                     for source in ("mic", "speaker"):
                         self._invalidateRealtimeLocked(source)
+            if bundled:
+                row = self.speech_servers.state()["asr"]
+                # A crash is worth a notice; a Stop from Settings is the user's own.
+                reason = (row.get("error_code") or "speech_server_start_failed") if row["state"] == "failed" else None
+                for source in ("mic", "speaker"):
+                    self._publishRealtimeToggle(source, reason)
 
     def stopSpeechServer(self, data, *args, **kwargs):
         try:
@@ -575,6 +583,12 @@ class Controller:
         self._realtime_owners = dict.fromkeys(self._realtime_generation)
         self._realtime_errors = dict.fromkeys(self._realtime_generation)
         self._realtime_closed = False
+        # Linux main toggles: the state last shown for each source, a bundled
+        # ASR server a toggle started (its generation), and toggles starting.
+        self._realtime_toggle_lock = Lock()
+        self._realtime_toggle_shown = dict.fromkeys(self._realtime_generation, False)
+        self._asr_server_owned = None
+        self._asr_toggle_starting = 0
 
     @staticmethod
     def _realtimeSource(data):
@@ -620,6 +634,8 @@ class Controller:
                 self._realtime_settings = settings
             # Disk persistence never holds the fast-stop lock.
             config.REALTIME_ASR_SETTINGS = settings
+        for source in ("mic", "speaker"):
+            self._publishRealtimeToggle(source)
         return self.getRealtimeASRSettings()
 
     def getRealtimeASREndpoints(self, data, *args, **kwargs):
@@ -674,6 +690,7 @@ class Controller:
             return {"status": 400, "result": {"error_code": "realtime_source_invalid"}}
         with self._realtime_lock:
             self._invalidateRealtimeLocked(source)
+        self._publishRealtimeToggle(source)
         return self.getRealtimeASRState()
 
     def _drainRealtimeASR(self, source, timeout=3.0):
@@ -702,6 +719,194 @@ class Controller:
         results = [self._drainRealtimeASR(source) for source in ("mic", "speaker")]
         return all(results)
 
+    def startRealtimeASR(self, data, *args, **kwargs):
+        try:
+            source = self._realtimeSource(data)
+            expected = data.get("_realtime_generation")
+            if type(expected) is not int or expected < 0:
+                raise ValueError()
+        except ValueError:
+            return {"status": 400, "result": {"error_code": "realtime_start_invalid"}}
+        result = self._startRealtime(source, expected)
+        self._publishRealtimeToggle(source)
+        return result
+
+    # ------------------------------------------------------------------
+    # Linux main Mic/Speaker toggles. PyAudioWPatch, the legacy recorder, is
+    # Windows-only, so on Linux these toggles start and stop the realtime
+    # session of their source with the saved realtime settings, and show its
+    # state. config.ENABLE_TRANSCRIPTION_* stays False there, so the legacy
+    # device-change paths keyed on it never start the legacy recorder.
+    # ------------------------------------------------------------------
+    # A started server enforces its own START_TIMEOUT; this only bounds the
+    # toggle's wait if that end state is somehow never published.
+    _ASR_SERVER_WAIT = SPEECH_START_TIMEOUT + 5
+    _ASR_START_FAILURES = ("speech_server_out_of_memory", "speech_server_start_timeout")
+
+    @staticmethod
+    def _realtimeToggles():
+        return sys.platform == "linux"
+
+    def _realtimeActiveLocked(self, source):
+        owner = self._realtime_owners[source]
+        state = owner[0].health()["state"] if owner else "idle"
+        return self._realtime_requested[source] and state not in ("closed", "failed", "stopping")
+
+    def _realtimeNotReady(self, source, reason):
+        # details.reason names the missing piece; the UI turns it into the next step.
+        code = ErrorCode.TRANSCRIPTION_SEND_NOT_READY if source == "mic" else ErrorCode.TRANSCRIPTION_RECEIVE_NOT_READY
+        return VRCTError.create_error_response(code, data=False, details={"reason": str(reason)})
+
+    def _publishRealtimeToggle(self, source, reason=None):
+        """Show the realtime state as the Linux toggle; reason explains a stop nobody asked for."""
+        if not self._realtimeToggles():
+            return
+        direction = "send" if source == "mic" else "receive"
+        with self._realtime_toggle_lock:
+            with self._realtime_lock:
+                active = self._realtimeActiveLocked(source)
+            if active != self._realtime_toggle_shown[source]:
+                self._realtime_toggle_shown[source] = active
+                if not active and reason:
+                    response = self._realtimeNotReady(source, reason)
+                    self.run(response["status"], "/set/enable/transcription_" + direction, response["result"])
+                else:
+                    self.run(200, "/set/%s/transcription_%s" % ("enable" if active else "disable", direction), active)
+        self._releaseAsrServer()
+
+    def _realtimeEnded(self, source, generation):
+        """A session's delivery stopped. If it was still wanted, it failed: say why."""
+        if not self._realtimeToggles():
+            return
+        with self._realtime_lock:
+            wanted = self._realtime_generation[source] == generation and self._realtime_requested[source]
+            owner = self._realtime_owners[source]
+            code = self._realtime_errors[source] or (owner[0].health().get("error_code") if owner else None)
+        self._publishRealtimeToggle(source, (code or "realtime_session_failed") if wanted else None)
+
+    def _releaseAsrServer(self):
+        """Stop a bundled ASR server a toggle started, once neither toggle uses it."""
+        with self._realtime_toggle_lock:
+            owned = self._asr_server_owned
+            if owned is None or self._asr_toggle_starting:
+                return
+            with self._realtime_lock:
+                if any(self._realtimeActiveLocked(source) for source in ("mic", "speaker")):
+                    return
+            self._asr_server_owned = None
+            # Non-joining. A server started from Settings has another generation
+            # and keeps running; so does one started after this run ended.
+            self.speech_servers.stop("asr", generation=owned)
+
+    def _awaitAsrServer(self):
+        """Start the bundled ASR server if it is stopped, then wait until it is ready."""
+        row = self.speech_servers.state()["asr"]
+        if row["state"] == "stopping":
+            return "speech_server_busy"
+        run = row["generation"]
+        if row["state"] not in ("ready", "preparing"):
+            with self._speech_settings_lock:
+                settings = copy.deepcopy(self._speech_settings)
+            profile = settings["profiles"]["asr"]
+            if not profile["model"].strip():
+                return "realtime_asr_model_missing"
+            if not profile["vad_model"].strip():
+                return "realtime_vad_model_missing"
+            try:
+                options = speech_start_options(settings, "asr")
+            except ValueError:
+                return "speech_server_model_invalid"
+            with self._realtime_toggle_lock:
+                try:
+                    self.speech_servers.start("asr", options, run)
+                except RuntimeError as exc:
+                    return "speech_server_busy" if str(exc) == "speech_server_busy" else "speech_server_start_failed"
+                run += 1  # start() succeeds only from that generation and takes the next.
+                self._asr_server_owned = run
+        deadline = time.monotonic() + self._ASR_SERVER_WAIT
+        while True:
+            row = self.speech_servers.state()["asr"]
+            if row["state"] == "failed":
+                code = row.get("error_code")
+                return code if code in self._ASR_START_FAILURES else "speech_server_start_failed"
+            if row["generation"] != run or row["state"] in ("stopped", "stopping"):
+                return "speech_server_not_ready"  # Stopped from Settings meanwhile.
+            if row["state"] == "ready":
+                return None
+            if time.monotonic() >= deadline:
+                return "speech_server_start_timeout"
+            time.sleep(0.05)
+
+    def _prepareRealtimeToggle(self, source):
+        """Check a toggle ON against settings and the server; (code, None) names what is missing."""
+        with self._realtime_lock:
+            settings = normalize_realtime_settings(self._realtime_settings)
+        row = settings[source]
+        try:
+            if realtime_endpoint(settings, source) is None:
+                default_endpoint(source)  # Fail before loading a model for a missing device.
+        except ValueError as exc:
+            return str(exc), None
+        if settings["server"] == "bundled":
+            code = self._awaitAsrServer()
+            if code:
+                return code, None
+            try:
+                base_url = self.speech_servers.binding("asr")
+            except RuntimeError:
+                return "speech_server_not_ready", None
+        else:
+            base_url = settings["base_url"]
+        try:
+            models = SpeechCppASR(base_url, timeout=5).recognizers()
+        except Exception:
+            return "realtime_models_unavailable", None
+        chosen = next((m for m in models if m.id == settings["model"]), None)
+        if chosen is None and settings["server"] == "bundled" and len(models) == 1:
+            # The bundled server loads exactly one recognizer: switching the
+            # downloaded model must not also require picking its id again.
+            chosen = models[0]
+        if chosen is None:
+            return ("realtime_model_unavailable" if settings["model"] else "realtime_model_required"), None
+        if not language_supported(chosen, row["language"]):
+            return ("realtime_language_auto_unsupported" if row["language"] == "auto"
+                    else "realtime_language_unsupported"), None
+        return None, SessionOptions(base_url, chosen.id, row["language"])
+
+    def _enableRealtimeToggle(self, source):
+        with self._realtime_lock:
+            active = self._realtimeActiveLocked(source)
+        if not active:
+            with self._realtime_toggle_lock:
+                self._asr_toggle_starting += 1  # Keeps a just-started server from release.
+            try:
+                code, options = self._prepareRealtimeToggle(source)
+                if code is None:
+                    with self._realtime_lock:
+                        generation = self._realtime_generation[source]
+                    result = self._startRealtime(source, generation, options)
+                    if result["status"] != 200:
+                        code = result["result"]["error_code"]
+            finally:
+                with self._realtime_toggle_lock:
+                    self._asr_toggle_starting -= 1
+            if code is not None:
+                self._publishRealtimeToggle(source)
+                return self._realtimeNotReady(source, code)
+        with self._realtime_lock:
+            active = self._realtimeActiveLocked(source)
+            owner = self._realtime_owners[source]
+            code = self._realtime_errors[source] or (owner[0].health().get("error_code") if owner else None)
+        self._publishRealtimeToggle(source)
+        # A session can fail before this returns; report that, not a stale ON.
+        return {"status": 200, "result": True} if active else self._realtimeNotReady(source, code or "realtime_session_failed")
+
+    def _disableRealtimeToggle(self, source):
+        with self._realtime_lock:
+            self._invalidateRealtimeLocked(source)
+        self._publishRealtimeToggle(source)
+        return {"status": 200, "result": False}
+
     def _realtimeFallbackLanguage(self, source):
         # With "auto" the model names each final's language. Without one, use
         # the language VRCT has for this side, as the legacy recorder does.
@@ -711,15 +916,8 @@ class Controller:
         except (KeyError, TypeError, AttributeError):
             return None
 
-    def startRealtimeASR(self, data, *args, **kwargs):
-        try:
-            source = self._realtimeSource(data)
-            expected = data.get("_realtime_generation")
-            if type(expected) is not int or expected < 0:
-                raise ValueError()
-        except ValueError:
-            return {"status": 400, "result": {"error_code": "realtime_start_invalid"}}
-
+    def _startRealtime(self, source, expected, prepared=None):
+        """prepared: SessionOptions that a main toggle already checked with the server."""
         def failure(code, status=409):
             return {"status": status, "result": {"error_code": code}}
 
@@ -759,9 +957,12 @@ class Controller:
                         endpoint = default
                     if endpoint is None:
                         raise ValueError("realtime_endpoint_required")
-                    options, _ = session_options(self._realtime_settings, source)
-                    if self._realtime_settings["server"] == "bundled":
-                        options = replace(options, base_url=self.speech_servers.binding("asr"))
+                    if prepared is not None:
+                        options = prepared
+                    else:
+                        options, _ = session_options(self._realtime_settings, source)
+                        if self._realtime_settings["server"] == "bundled":
+                            options = replace(options, base_url=self.speech_servers.binding("asr"))
                     detect = options.language == "auto"
                     language = self._realtimeFallbackLanguage(source) if detect else self._realtimeLanguage(options.language)
                 except RuntimeError:
@@ -797,7 +998,8 @@ class Controller:
             try:
                 setattr(config, "ENABLE_TRANSCRIPTION_" + direction, False)
                 setattr(config, "ENABLE_CHECK_ENERGY_" + direction, False)
-                self.run(200, "/set/disable/transcription_" + direction.lower(), False)
+                # Realtime is Linux-only, and there the Mic/Speaker toggles show
+                # realtime itself; turning them off here would undo this start.
                 self.run(200, "/set/disable/check_" + source + "_threshold", False)
                 if model.stopCaptureForRealtime(source) is not True:
                     return fail_start("realtime_legacy_stop_failed")
@@ -849,7 +1051,12 @@ class Controller:
                     return failure("realtime_stale_start")
                 try:
                     session = RealtimeSession(source, options, endpoint)
-                    delivery = RealtimeDelivery(session, publish, process, error, on_stopped=clear_overlay)
+                    def stopped():
+                        try:
+                            clear_overlay()
+                        finally:
+                            self._realtimeEnded(source, generation)
+                    delivery = RealtimeDelivery(session, publish, process, error, on_stopped=stopped)
                     self._realtime_owners[source] = (session, delivery)
                     # These only launch workers; neither waits for capture/network.
                     session.start()
@@ -4473,22 +4680,30 @@ class Controller:
         return {"status":200, "result":True}
 
     def setEnableTranscriptionSend(self, *args, **kwargs) -> dict:
+        if self._realtimeToggles():
+            return self._enableRealtimeToggle("mic")
         if config.ENABLE_TRANSCRIPTION_SEND is False:
             config.ENABLE_TRANSCRIPTION_SEND = self.startTranscriptionSendMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
 
     def setDisableTranscriptionSend(self, *args, **kwargs) -> dict:
+        if self._realtimeToggles():
+            return self._disableRealtimeToggle("mic")
         if config.ENABLE_TRANSCRIPTION_SEND is True:
             self.stopTranscriptionSendMessage()
             config.ENABLE_TRANSCRIPTION_SEND = False
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
 
     def setEnableTranscriptionReceive(self, *args, **kwargs) -> dict:
+        if self._realtimeToggles():
+            return self._enableRealtimeToggle("speaker")
         if config.ENABLE_TRANSCRIPTION_RECEIVE is False:
             config.ENABLE_TRANSCRIPTION_RECEIVE = self.startTranscriptionReceiveMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}
 
     def setDisableTranscriptionReceive(self, *args, **kwargs) -> dict:
+        if self._realtimeToggles():
+            return self._disableRealtimeToggle("speaker")
         if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
             self.stopTranscriptionReceiveMessage()
             config.ENABLE_TRANSCRIPTION_RECEIVE = False

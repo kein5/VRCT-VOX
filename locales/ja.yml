@@ -740,7 +740,7 @@ vr_panel:
 
 realtime:
   title: "リアルタイム字幕"
-  scope: "Linux / PipeWire対応。字幕ログと、有効にした大きいオーバーレイに表示します。再起動後は停止した状態になります。字幕を開始すると、同じ入力の従来の音声認識とレベルメーターを停止します。"
+  scope: "Linux / PipeWire対応。字幕ログと、有効にした大きいオーバーレイに表示します。再起動後は停止した状態になります。Linuxではメイン画面のマイクと聞き取りのスイッチでこの字幕を開始・停止し、同梱サーバーを選んでいればサーバーも起動します。字幕を開始すると、同じ入力のレベルメーターを停止します。"
   server_help: "ASRモデルとSilero VADを読み込んだ、ローカルのspeech.cppサーバーに接続します。"
   url: "ASRサーバーURL"
   model: "ASRモデル"
@@ -775,6 +775,27 @@ realtime:
   follow_default_mic: "システムの既定の入力に従う"
   follow_default_speaker: "システムの既定の出力に従う"
   follow_default_help: "字幕の開始時にシステムの既定を読み取り、停止するまでそのデバイスを使います。VRCTの仮想デバイスは対象にしません。"
+
+realtime_toggle:
+  generic: "リアルタイム認識を開始できないか、停止しました（{{reason}}）。設定 → 音声認識 → リアルタイム字幕を確認してください。"
+  realtime_endpoint_required: "入力が選ばれていません。設定 → 音声認識 → リアルタイム字幕でデバイスかシステムの既定を選んで保存し、もう一度オンにしてください。"
+  realtime_default_endpoint_missing: "システムの既定のデバイスが見つかりません。デバイスを接続するか、設定 → 音声認識 → リアルタイム字幕でデバイスを選んでから、もう一度オンにしてください。"
+  realtime_default_endpoint_feedback: "システムの既定がVRCTの仮想デバイスのため、VRCT自身の音声を拾ってしまいます。設定 → 音声認識 → リアルタイム字幕で実際のデバイスを選ぶか、システムの既定を変えてから、もう一度オンにしてください。"
+  realtime_asr_model_missing: "同梱ASRサーバーに認識モデルがありません。設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADでQwen3-ASR（30言語）かHaas-ja（日本語）を取得して適用し、もう一度オンにしてください。"
+  realtime_vad_model_missing: "同梱ASRサーバーにVADモデルがありません。設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADでSilero VADを取得して適用し、もう一度オンにしてください。"
+  speech_server_model_invalid: "同梱ASRサーバーのモデルファイルが見つからないか、GGUFではありません。設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADでモデルとVADのパスを確認してください。"
+  speech_server_busy: "ASRサーバーが停止処理中です。少し待ってから、もう一度オンにしてください。"
+  speech_server_start_failed: "同梱ASRサーバーを起動できませんでした。設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADでモデルファイルと推論デバイスを確認し、もう一度オンにしてください。"
+  speech_server_exited: "同梱ASRサーバーが予期せず停止しました。設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADでモデルファイルと推論デバイスを確認し、もう一度オンにしてください。"
+  speech_server_out_of_memory: "ASRモデルを読み込むメモリが足りません。ほかのGPUアプリを止めるか、設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADでCPUを選んで保存し、もう一度オンにしてください。"
+  speech_server_start_timeout: "ASRモデルの読み込みに時間がかかりすぎました。設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADで別の推論デバイスを選び、もう一度オンにしてください。"
+  speech_server_not_ready: "ASRサーバーが動いていません。設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADで起動するか、設定 → 音声認識 → リアルタイム字幕で同梱サーバーを選んでから、もう一度オンにしてください。"
+  realtime_models_unavailable: "ASRサーバーから応答がありません。外部サーバーを使う場合は、起動していることと、設定 → 音声認識 → リアルタイム字幕のURLが正しいことを確認してください。"
+  realtime_model_required: "ASRモデルが選ばれていません。設定 → 音声認識 → リアルタイム字幕でモデルを選んで保存してください。"
+  realtime_model_unavailable: "選んだASRモデルがサーバーに読み込まれていません。設定 → 音声認識 → リアルタイム字幕でモデル一覧を更新し、使えるモデルを選んで保存してください。"
+  realtime_language_unsupported: "このASRモデルは選んだ言語を認識できません。設定 → 音声認識 → リアルタイム字幕で、モデルが対応する言語を選んでください。"
+  realtime_language_auto_unsupported: "このASRモデルは言語を自動判定できません。設定 → 音声認識 → リアルタイム字幕で話されている言語を選ぶか、自動判定できるQwen3-ASRを取得してください。"
+  realtime_capture_failed: "音声の取り込みが止まりました。デバイスが外れたか変わった可能性があります。確認してから、もう一度オンにしてください。"
 
 speech_servers:
     title: "同梱speech.cppサーバー"

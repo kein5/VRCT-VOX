@@ -171,6 +171,9 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/selectable_release_channels", ns: null, hook_name: null, method_name: null }, // Not implemented on UI yet; release_channel options are hardcoded in Updater.jsx for now.
 ];
 
+const TRANSCRIPTION_TOGGLES = ["/set/enable/transcription_send", "/set/disable/transcription_send",
+    "/set/enable/transcription_receive", "/set/disable/transcription_receive"];
+
 export const useReceiveRoutes = () => {
     const { showNotification_Error } = common.useNotificationStatus();
     const { errorHandling_Backend } = _useBackendErrorHandling();
@@ -281,6 +284,12 @@ export const useReceiveRoutes = () => {
             updateSpeechError(result?.error_code || "speech_server_request_failed");
             if (endpoint !== "/get/data/speech_server_state") sendSpeech("/get/data/speech_server_state");
             return;
+        }
+        // On Linux these switches drive realtime ASR and may start or stop the
+        // bundled ASR server; keep Settings in step with them.
+        if (TRANSCRIPTION_TOGGLES.includes(endpoint)) {
+            sendSpeech("/get/data/speech_server_state");
+            sendRealtime("/get/data/realtime_asr_state");
         }
         if (status !== 200 && endpoint.includes("realtime_asr")) {
             updateRealtimeError(result?.error_code || "realtime_request_failed");

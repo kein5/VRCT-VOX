@@ -134,6 +134,17 @@ export const _useBackendErrorHandling = () => {
                 updateTranscriptionReceiveStatus(data);
                 showNotification_Error(message, { category_id: error_code });
                 return;
+            // Linux: the Mic/Speaker switch drives realtime ASR, which is not
+            // configured or has stopped. details.reason names the next step.
+            case "TRANSCRIPTION_SEND_NOT_READY":
+            case "TRANSCRIPTION_RECEIVE_NOT_READY": {
+                (error_code === "TRANSCRIPTION_SEND_NOT_READY" ? updateTranscriptionSendStatus : updateTranscriptionReceiveStatus)(false);
+                const reason = typeof result?.details?.reason === "string" ? result.details.reason : "";
+                showNotification_Error(t(`realtime_toggle.${reason || "generic"}`, {
+                    reason, defaultValue: t("realtime_toggle.generic", { reason }),
+                }), { category_id: error_code });
+                return;
+            }
 
             // ============================================================================
             // OCR関連エラー (OCR_*)  開始できずバックエンドより強制的にOFFへ戻る
