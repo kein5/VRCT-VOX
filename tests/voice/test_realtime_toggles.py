@@ -12,9 +12,12 @@ import pytest
 from models.audio_routing.source_bridge import Endpoint
 from models.transcription.realtime_events import TranscriptUpdate
 from models.transcription.speechcpp_asr import RecognitionModel
-from test_controller_integration import controller_module  # noqa: F401
-from test_realtime_controls import CaptureSession, app, captions, request  # noqa: F401
+from test_controller_integration import controller_module as controller_module
+from test_realtime_controls import app as app, captions, request
 from test_realtime_delivery import eventually
+
+# Shared pytest fixtures are intentionally re-exported for discovery.
+__all__ = ["controller_module", "app"]
 
 QWEN = RecognitionModel("Qwen3-ASR-0.6B", ("de", "en", "ja"), True, True)
 HAAS = RecognitionModel("Haas-616M-ja-v1.0", ("ja",), True, False)
