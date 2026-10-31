@@ -325,3 +325,16 @@ def test_rvc_top_requires_saved_form_and_explains_invalid_numbers(pages):
     expect(
         page.get_by_role("button", name="Start input forwarding", exact=True)
     ).to_be_disabled()
+
+
+def test_tts_failure_names_the_next_step(pages):
+    from playwright.sync_api import expect
+
+    page, peer, _ = pages
+    tts = page.get_by_role("switch", name="TTS", exact=True)
+    peer.reject_tts = "voice_route_muted"
+    tts.click()
+    alert = page.get_by_role("alert").filter(has_text="voice_route_muted")
+    expect(alert).to_contain_text('press "Resume voice"')
+    expect(alert).not_to_contain_text("Check TTS settings.")
+    expect(tts).to_have_attribute("aria-checked", "false")

@@ -2027,8 +2027,11 @@ class Controller:
             state = self.voice_events.status()
             if data['generation'] != state['tts_generation']:
                 return {'status': 409, 'result': {'error_code': 'tts_state_changed'}}
-            if state['muted'] or state['closed']:
-                return {'status': 409, 'result': {'error_code': 'voice_route_not_ready'}}
+            # Name the blocking condition: the UI turns each code into its next step.
+            if state['closed']:
+                return {'status': 409, 'result': {'error_code': 'voice_route_closed'}}
+            if state['muted']:
+                return {'status': 409, 'result': {'error_code': 'voice_route_muted'}}
             settings = self.voice_events.settings
             if settings.mode == 'off' and settings.mic_mode == 'off':
                 return {'status': 409, 'result': {'error_code': 'tts_source_not_selected'}}
@@ -2042,20 +2045,33 @@ class Controller:
                 if settings.mode == 'translated' or settings.mic_mode == 'translated':
                     target = cfg.SELECTED_TARGET_LANGUAGES[cfg.SELECTED_TAB_NO][settings.target_slot]
                     if not cfg.ENABLE_TRANSLATION or target.get('enable') is not True:
-                        raise ValueError('translation_not_ready')
+                        raise ValueError('tts_translation_not_ready')
                     languages.append(target['language'])
                 from models.tts.settings import language_tag
                 urls = set()
                 for language in languages:
-                    role = 'japanese' if language_tag(language) == 'ja' else 'multilingual'
+                    try:
+                        tag = language_tag(language)
+                    except ValueError:
+                        raise ValueError('tts_language_unsupported') from None
+                    role = 'japanese' if tag == 'ja' else 'multilingual'
                     url = (self._ttsSpeechServer(role) if getattr(settings, role + '_server') == 'bundled'
                            else getattr(settings, role + '_url'))
                     urls.add(url)
                 if not settings.playback_device.strip():
-                    raise ValueError('output_missing')
+                    raise ValueError('tts_output_missing')
                 for url in urls:
                     SpeechCppTTS(url).check_health()
-            except (ValueError, KeyError, TypeError, SpeechError):
+            except SpeechError:
+                # A stopped bundled server and an unreachable external URL both
+                # need the user to start (or fix) the server for that language.
+                return {'status': 409, 'result': {'error_code': 'speech_server_not_ready'}}
+            except ValueError as exc:
+                code = str(exc)
+                if code not in ('tts_translation_not_ready', 'tts_language_unsupported', 'tts_output_missing'):
+                    code = 'speech_server_or_settings_not_ready'
+                return {'status': 409, 'result': {'error_code': code}}
+            except (KeyError, TypeError):
                 return {'status': 409, 'result': {'error_code': 'speech_server_or_settings_not_ready'}}
             # OFF bypasses this lock; the epoch must be rechecked after probing.
             if not self.voice_events.set_enabled(True, expected_generation=data['generation']):

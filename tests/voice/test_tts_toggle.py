@@ -172,6 +172,35 @@ def test_enable_checks_generation_settings_and_health_without_resuming_mute(
     assert gate.muted is initial_native_mute  # No native route operation.
 
 
+
+def test_enable_names_each_blocking_condition(app, monkeypatch):
+    c, _, _, module = app
+
+    def code():
+        result = c.enableTts({"generation": c.voice_events.generation()})
+        assert result["status"] == 409
+        return result["result"]["error_code"]
+
+    c.voice_events.set_muted(False)
+    assert code() == "tts_source_not_selected"
+    c.voice_events.set_muted(True)
+    assert code() == "voice_route_muted"
+    c.voice_events.set_muted(False)
+    c.setVoiceSettings({"mode": "original", "output_device": "cable", "japanese_server": "bundled"})
+    assert code() == "speech_server_not_ready"  # Bundled server not started.
+    c.setVoiceSettings({"mode": "original", "output_device": "cable"})
+
+    def unhealthy(self):
+        raise SpeechError("speech_server_not_ready")
+
+    monkeypatch.setattr(module.SpeechCppTTS, "check_health", unhealthy)
+    assert code() == "speech_server_not_ready"  # External server unreachable.
+    monkeypatch.setattr(module.SpeechCppTTS, "check_health", lambda self: None)
+    c.setVoiceSettings({"mode": "translated", "output_device": "cable"})
+    c._config.ENABLE_TRANSLATION = False
+    assert code() == "tts_translation_not_ready"
+    assert not c.voice_events.status()["tts_enabled"]
+
 def test_disable_during_health_check_cannot_be_undone_by_delayed_enable(
     app, monkeypatch
 ):
