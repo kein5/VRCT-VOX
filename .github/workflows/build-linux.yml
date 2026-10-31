@@ -123,15 +123,15 @@ jobs:
         env:
           CANDIDATE_COMMIT: ${{ github.sha }}
         run: |
-          python tools/release_candidate.py stage build/linux/candidate --platform linux --commit "$CANDIDATE_COMMIT" \
+          python tools/release_candidate.py stage build/linux/release-candidate --platform linux --commit "$CANDIDATE_COMMIT" \
             --asset build/linux/artifacts/*.AppImage --asset build/linux/artifacts/*.tar.gz
-          python tools/release_candidate.py verify build/linux/candidate --platform linux --commit "$CANDIDATE_COMMIT"
+          python tools/release_candidate.py verify build/linux/release-candidate --platform linux --commit "$CANDIDATE_COMMIT"
       # Candidate storage only. No release creation, package registry, or secrets.
       - name: Store inspected candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: VRCT-VOX-linux-x86_64-candidate
-          path: build/linux/candidate/*
+          path: build/linux/release-candidate/*
           if-no-files-found: error
           retention-days: 7
           compression-level: 0

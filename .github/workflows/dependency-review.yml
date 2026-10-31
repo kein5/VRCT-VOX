@@ -1,11 +1,10 @@
 name: Dependency review
 # Blocks pull requests that add dependencies with known vulnerabilities
-# (GitHub Advisory Database) and summarizes license changes.
+# (GitHub Advisory Database); results appear in the job summary.
 on:
   pull_request:
 permissions:
   contents: read
-  pull-requests: write
 jobs:
   dependency-review:
     runs-on: ubuntu-24.04
@@ -19,4 +18,3 @@ jobs:
           fail-on-severity: moderate
           # eslint's lint-only tree depends on minimatch below the fixed 11.x.
           fail-on-scopes: runtime
-          comment-summary-in-pr: on-failure

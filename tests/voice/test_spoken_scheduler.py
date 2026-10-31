@@ -193,7 +193,10 @@ def test_start_deadline_includes_inference_and_output_open(pcm_server, delay):
             if delay == "output":
                 sleep(.2)
                 release.set()
-            until(lambda: bus.status()["errors"] == 1, timeout=3)
+            try:
+                until(lambda: bus.status()["errors"] == 1, timeout=3)
+            except AssertionError:
+                raise AssertionError(f"expiry not reported: {bus.status()}") from None
             assert bus.status()["last_error"] == "speech_expired"
             assert sink.data == []
         finally:
