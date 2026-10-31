@@ -148,7 +148,12 @@ def main():
     uv = ['uv', '--offline'] if args.offline else ['uv']
     if not python.exists():
         run([*uv, 'venv', '--python', args.python, venv])
-    run([*uv, 'pip', 'sync', '--python', python, ROOT / 'requirements-linux-build.lock'])
+    # Exact Linux subset of uv.lock: the project, dev and linux-build groups.
+    requirements = work / 'requirements.txt'
+    run([*uv, 'export', '--quiet', '--frozen', '--no-hashes', '--no-header', '--no-annotate',
+         '--format', 'requirements-txt', '--no-emit-project', '--group', 'dev', '--group', 'linux-build',
+         '--output-file', requirements], cwd=ROOT)
+    run([*uv, 'pip', 'sync', '--python', python, requirements])
     run([python, '-c', 'import sys; assert sys.version_info[:2] == (3, 11), "Python 3.11 required"'])
     resources = work / 'resources'
     if resources.exists():

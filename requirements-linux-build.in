@@ -1,5 +1,0 @@
-# Linux packaging environment. Resolve with requirements-linux-exclude.txt.
-# Python 3.11 is required by the existing speech-recognition dependency.
--r requirements.txt
--r requirements-dev.txt
-pyinstaller-hooks-contrib==2026.9

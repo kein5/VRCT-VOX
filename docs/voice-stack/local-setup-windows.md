@@ -31,9 +31,8 @@ speech serve C:\models\Irodori-TTS-866M-MF-v4.1-F16.gguf --host 127.0.0.1 --port
 モデル不要テスト:
 
 ```powershell
-uv venv --python 3.11
-uv pip install -r requirements-voice-test.txt
-uv run --no-project python -m pytest -c tests/voice/pytest.ini tests/voice -q
+python tools/dev.py setup --scope headless
+python tools/dev.py check --scope voice
 ```
 
 Windows CLIを実デバイスへ接続する場合は別途既存requirementsのPyAudioWPatchが必要。

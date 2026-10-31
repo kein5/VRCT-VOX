@@ -29,12 +29,29 @@ from openai import (
     OpenAI,
     RateLimitError,
 )
+import speech_recognition as _speech_recognition
 from speech_recognition import AudioData, Recognizer, UnknownValueError
 
 from errors import ErrorCode
 from models.transcription.transcription_deepgram import resolveDeepgramLanguageCode
 from models.transcription.transcription_languages import transcription_lang
 from utils import errorLogging
+
+
+# speech_recognition builds the Google Web Speech URL with plain HTTP, which
+# would send microphone audio unencrypted. The same endpoint serves HTTPS, so
+# upgrade only that URL where the library constructs its request.
+_GOOGLE_SPEECH_HTTP = "http://www.google.com/speech-api/"
+_PlainRequest = _speech_recognition.Request
+
+
+def _https_google_request(url, *args, **kwargs):
+    if isinstance(url, str) and url.startswith(_GOOGLE_SPEECH_HTTP):
+        url = "https://" + url[len("http://"):]
+    return _PlainRequest(url, *args, **kwargs)
+
+
+_speech_recognition.Request = _https_google_request
 
 # setup.exe ダウンロード等の HTTP 呼び出しで使っている (10, 60) と同じ
 # (connect, read) タイムアウト。実機検証の結果次第で調整する。

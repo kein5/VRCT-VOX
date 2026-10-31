@@ -15,6 +15,8 @@ def violation(name):
     base = parts[-1]
     if base in PRIVATE_VOICE_NAMES:
         return "Private voice asset"
+    if base.startswith("translator_engines"):
+        return "Upstream-only translator_engines"
     if base.startswith(GPL_CODEC_PREFIXES) and (".so" in base or base.endswith(".dll")):
         return "GPL codec library"
     if "av.libs" in parts or (len(parts) > 1 and parts[-2] == "av" and base.endswith((".so", ".pyd"))):

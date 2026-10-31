@@ -47,6 +47,12 @@ def test_windows_installer_identity_finds_previous_install_location():
     assert 'Delete "$INSTDIR\\config.json"' not in install
 
 
+def test_installer_never_skips_the_package_checksum():
+    script = (ROOT / "src-tauri/nsis/template.nsi").read_text(encoding="utf-8")
+    assert '"HTTP|404"' not in script
+    assert "size-only" not in script
+
+
 def test_telemetry_stays_disabled_even_with_stale_upstream_key(monkeypatch):
     # Deliberately simulate an ignored key file left behind by an old build.
     sdk = Mock()

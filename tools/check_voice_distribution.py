@@ -19,6 +19,9 @@ except ImportError:
 MAX_NESTED_ZIP = 128 * 1024 * 1024
 
 
+ZIP_SIGNATURES = (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
+
+
 def _check_name(name, context):
     reason = violation(name)
     if reason:
@@ -35,7 +38,13 @@ def _zip(stream, context, depth=0):
                 _check_name(name, context)
                 if entry.flag_bits & 1:
                     raise ValueError(f"Cannot inspect encrypted ZIP: {context}")
-                if name.lower().endswith(".zip"):
+                if entry.is_dir():
+                    continue
+                # A renamed member is still an archive: decide by signature,
+                # not only by the .zip suffix.
+                with archive.open(entry) as source:
+                    signature = source.read(4)
+                if name.lower().endswith(".zip") or signature in ZIP_SIGNATURES:
                     if entry.file_size > MAX_NESTED_ZIP:
                         raise ValueError(f"Cannot inspect oversized nested ZIP: {context}: {name}")
                     with archive.open(entry) as source, tempfile.TemporaryFile() as nested:

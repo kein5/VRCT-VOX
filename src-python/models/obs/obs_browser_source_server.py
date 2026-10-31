@@ -1,3 +1,4 @@
+import ipaddress
 import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -279,6 +280,30 @@ def _build_overlay_html(ws_token: str = "") -> str:
 """
 
 
+def _is_trusted_host_header(value) -> bool:
+    """Accept only IP literals and localhost in the Host header.
+
+    The overlay page embeds the WebSocket token. A web page can rebind its own
+    domain name to 127.0.0.1 (DNS rebinding) and then read this page as
+    same-origin; such a request carries that domain name in Host. OBS and LAN
+    clients reach the server by IP address or localhost.
+    """
+    if not isinstance(value, str) or not value:
+        return False
+    host = value.strip()
+    if host.startswith("["):
+        host = host[1:host.find("]")] if "]" in host else ""
+    elif host.count(":") == 1:
+        host = host.split(":", 1)[0]
+    if host.lower() == "localhost":
+        return True
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return True
+
+
 class ObsBrowserSourceServer:
     def __init__(self, host: str, port: int, ws_token: str = "") -> None:
         self.host = host
@@ -307,6 +332,11 @@ class ObsBrowserSourceServer:
                 return
 
             def do_GET(self):  # noqa: N802
+                if not _is_trusted_host_header(self.headers.get("Host")):
+                    self.send_response(403)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
                 parsed = urlparse(self.path)
                 if parsed.path in ("/", "/obs"):
                     body = _build_overlay_html(ws_token).encode("utf-8")

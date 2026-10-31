@@ -1,6 +1,6 @@
 """Opt-in browser -> real stdio Main/Controller -> real PipeWire acceptance.
 
-Requires npm dependencies, optional requirements-voice-ui-test.txt, an existing
+Requires npm dependencies, the voice-ui-test dependency group (tools/dev.py setup --scope browser), an existing
 Chromium executable and native gate. Without --model a local PCM fixture is used.
 This is not native Tauri/full Model runtime or VRChat acceptance.
 """

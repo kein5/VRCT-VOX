@@ -53,7 +53,7 @@ Choose `--variant linux-x64-cpu` with the corresponding CPU archive for CPU buil
 reference recordings are fetched. `--backend-only` is a diagnostic mode and produces
 no distributable. `--profile debug` is also diagnostic; normal output is release.
 
-The builder syncs `requirements-linux-build.lock` into `build/linux/venv`, uses
+The builder exports the project, `dev` and `linux-build` groups from `uv.lock` and syncs them into `build/linux/venv`, uses
 `npm ci --ignore-scripts`, and builds Cargo with `--locked` in a copied workspace.
 It does not replace `src-tauri/bin` or reuse its development Python wrapper.
 Python packages are exact versions and Git dependencies are full commits; this is

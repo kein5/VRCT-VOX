@@ -25,7 +25,7 @@ Tauri画面・音声入出力はこの試験の範囲外。[継続記録](comple
 
 ```sh
 uv venv --python 3.11 .venv_linux
-uv pip install --python .venv_linux/bin/python -r requirements.txt -r requirements-dev.txt --excludes requirements-linux-exclude.txt
+UV_PROJECT_ENVIRONMENT=.venv_linux uv sync --frozen --python 3.11
 mkdir -p src-tauri/bin/_internal
 rustc --edition=2021 utils/dev_sidecar/src/main.rs -o src-tauri/bin/VRCT-sidecar-x86_64-unknown-linux-gnu
 ```

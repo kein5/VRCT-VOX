@@ -21,7 +21,8 @@ on:
       - 'config/pipewire/**'
       - 'integrations/**'
       - 'spec/backend_linux.spec'
-      - 'requirements*'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - 'package*.json'
       - 'packaging/appimage/**'
       - 'tools/**'
@@ -57,7 +58,7 @@ jobs:
         with:
           version: '0.13.5'
           enable-cache: true
-          cache-dependency-glob: requirements-linux-build.lock
+          cache-dependency-glob: uv.lock
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.15.0'

@@ -661,6 +661,27 @@ def _maskSensitiveData(data: Any) -> Any:
     return data
 
 
+# Conversation text (chat, transcripts, translations) reaches only the
+# explicitly enabled conversation logger, never the always-on diagnostic log.
+_CONVERSATION_ENDPOINTS = frozenset({
+    "/run/send_message_box", "/run/transcription_send_mic_message",
+    "/run/transcription_receive_speaker_message", "/run/transcription_ocr_message",
+})
+_CONVERSATION_KEYS = frozenset({"message", "original", "translation", "translations", "transliteration", "text"})
+
+
+def _redactConversation(data: Any) -> Any:
+    if isinstance(data, dict):
+        return {
+            key: ("***CONVERSATION***" if key in _CONVERSATION_KEYS and value not in (None, "", [], {})
+                  else _redactConversation(value))
+            for key, value in data.items()
+        }
+    if isinstance(data, list):
+        return [_redactConversation(item) for item in data]
+    return data
+
+
 def printLog(log: str, data: Any = None) -> None:
     """Log and print a structured process log message."""
     global process_logger
@@ -668,6 +689,8 @@ def printLog(log: str, data: Any = None) -> None:
         process_logger = setupLogger("process", "process.log", logging.INFO)
 
     logged_data = _maskSensitiveValue(data) if _isSensitiveEndpoint(log) else data
+    if log in _CONVERSATION_ENDPOINTS:
+        logged_data = _redactConversation(logged_data)
     response = {
         "status": 348,
         "log": log,
@@ -706,6 +729,8 @@ def printResponse(status: int, endpoint: str, result: Any = None) -> None:
         logged_result = _maskSensitiveValue(result)
     else:
         logged_result = _maskSensitiveData(result)
+    if endpoint in _CONVERSATION_ENDPOINTS:
+        logged_result = _redactConversation(logged_result)
     logged_response = {**response, "result": logged_result}
     if endpoint not in _UNLOGGED_ENDPOINTS:
         process_logger.info(logged_response)  # Log the (possibly masked) response, never the raw secret

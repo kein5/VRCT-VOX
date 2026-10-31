@@ -38,10 +38,10 @@ Linuxのトレイ用ライブラリは `ayatana-appindicator3-0.1` または `ap
 
 | スコープ | 実行内容と保存先 |
 | --- | --- |
-| `headless` | `requirements-voice-test.txt` を `build/dev/headless-venv` に導入 |
+| `headless` | `uv.lock` の `voice-test` グループだけを `build/dev/headless-venv` に同期 |
 | `ui` | `npm ci --ignore-scripts` でルートの `node_modules` を準備 |
-| `browser` | `requirements-voice-ui-test.txt` を `build/dev/browser-venv` に導入。既存venvへの追加も可 |
-| `backend` | Linuxの `requirements-linux-build.lock` を `build/dev/backend-venv` に同期 |
+| `browser` | `uv.lock` の `voice-ui-test` グループを `build/dev/browser-venv` に同期。既存venvへの追加も可 |
+| `backend` | `uv.lock` の本体・`dev`・`linux-build` を `build/dev/backend-venv` に同期（Linux） |
 | `rust` | `cargo fetch --locked` でCargo.lockに従う依存を取得 |
 | `sidecar` | Unixで既存Rustソースをコンパイルし、Tauri開発用wrapperと必要なplaceholderを準備 |
 

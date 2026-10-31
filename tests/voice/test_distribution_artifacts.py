@@ -59,6 +59,25 @@ def test_pyav_stand_in_imports_without_its_native_code():
     with pytest.raises(AttributeError, match="not included"):
         namespace["__getattr__"]("open")
 
+
+def test_renamed_nested_zip_is_still_inspected(tmp_path):
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as archive:
+        archive.writestr("ocr_onnx/chatbox_yolox_tiny.onnx", b"synthetic")
+    with zipfile.ZipFile(tmp_path / "package.zip", "w") as archive:
+        archive.writestr("_internal/resources/data.bin", payload.getvalue())
+    with pytest.raises(ValueError, match="OCR"):
+        guard.check([tmp_path])
+
+
+@pytest.mark.parametrize("name", ["_internal/translator_engines.pyd", "translator_engines.cpython-311-x86_64-linux-gnu.so",
+                                  "src-python/translator_engines.LICENSE.txt"])
+def test_upstream_only_translator_engines_is_rejected(tmp_path, name):
+    with zipfile.ZipFile(tmp_path / "package.zip", "w") as archive:
+        archive.writestr(name, b"upstream-only")
+    with pytest.raises(ValueError, match="translator_engines"):
+        guard.check([tmp_path])
+
 def test_guard_inspects_nested_zip_in_tree_and_zip(tmp_path):
     payload = io.BytesIO()
     with zipfile.ZipFile(payload, "w") as archive:
