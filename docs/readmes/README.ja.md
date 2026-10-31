@@ -2,9 +2,9 @@
 
 [English](/docs/readmes/README.en.md)
 
-[VRCT-VOX](https://github.com/kein5/VRCT-VOX)は、[VRCT](https://github.com/misyaguziya/VRCT)を基にkein5が開発する独立したforkです。旧名は`kein5/VRCT.cpp`、`kein5/VRCT-TTS`です。本家の公式版ではなく、本家開発者やVRChatによる承認・公式サポートを示すものではありません。
+[VRCT-VOX](https://github.com/kein5/VRCT-VOX)は、[VRCT](https://github.com/misyaguziya/VRCT)を基にkein5が開発する独立したforkです。本家の公式版ではなく、本家開発者やVRChatによる承認・公式サポートを示すものではありません。
 
-speech.cppによるTTS、外部Seed-VC/RVCによる直接ボイスチェンジ、リアルタイムASR、翻訳発声を追加しています。音声出力とOSC文字出力は独立して組み合わせられます。speech.cppのローカルサーバーはGUIから保存・起動・停止できます。設定画面からIrodori、Qwen3-TTS、RVCの既定モデルを取得することもできます。
+speech.cppによるTTS、外部Seed-VC/RVCによる直接ボイスチェンジ、リアルタイムASR、翻訳発声を追加しています。音声出力とOSC文字出力は独立して組み合わせられます。speech.cppのローカルサーバーはGUIから保存・起動・停止できます。設定画面からIrodori、Qwen3-TTS、Haas-ja（日本語ASR）、RVCの既定モデルを取得することもできます。
 
 ## 配布とサポート
 
@@ -22,11 +22,11 @@ GPUとVRAMに応じて標準・軽量モデルの目安を表示します。メ�
 
 日本語TTSの低遅延モードは選択式で、初期設定はオフです。有効にすると待機中の消費電力が増え、ゲームとGPU処理が競合する場合があります。すべての環境で100ms以内になるとは保証していません。
 
-## 旧版からの引き継ぎ
+## 名称と保存先
 
-新しい配布物と実行ファイルはVRCT-VOXの名称になります。既存設定を引き継ぐため、アプリID、Linuxの`vrct-tts`設定・データ・キャッシュ保存先、`VRCT_*`環境変数、管理対象の仮想マイクの識別子は維持します。設定や取得済みモデルを手作業で移す必要はありません。[改名と互換性](/docs/voice-stack/project-rename.md)に対象をまとめています。
+配布物と実行ファイルは`vrct-vox` / `VRCT-VOX`、アプリIDは`io.github.kein5.vrct-vox`です。Linuxでは設定・データ・キャッシュを`vrct-vox`ディレクトリ（`~/.config/vrct-vox`など）に保存します。詳しくは[名称と識別子](/docs/voice-stack/project-rename.md)を参照してください。
 
-過去の試験記録では、実際に使った配布物名とハッシュ値を残しています。開発手順は[ビルドとCIのガイド](/docs/readme_build.md)を参照してください。
+開発手順は[ビルドとCIのガイド](/docs/readme_build.md)を参照してください。
 
 ## モデルとライセンス
 

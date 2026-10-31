@@ -66,7 +66,7 @@ GUI保存中の入力消失とラベル照合の失敗は、imozuruでReact/Play
 
 ## 残る確認
 
-Linux配布先のresources/config/cache分離、VRCT-TTSのアプリ識別・更新先、インストール/削除・更新試験は後続。
+Linux配布先のresources/config/cache分離、VRCT-VOXのアプリ識別・更新先、インストール/削除・更新試験は後続。
 モデルの配布許諾確認は実行ファイルのライセンスと別。ユーザー提供Mia2026は引き続き検証専用で非同梱。
 同梱枠でのIrodori/任意voice GGUFの実ロード、CPU推論性能、Windowsネイティブ管理、物理音声/VRChat/HMD、
 聴感、制御したGPU競合は未検証。先の30分混在試験は[別の結果](combined-voice-gpu-isolated-results.json)であり、

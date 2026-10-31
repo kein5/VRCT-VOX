@@ -70,8 +70,8 @@ CLIに`--server`を渡すとこの実API障害smokeも反復測定の前に実�
 # 合成信号による停止・切断・復旧。モデル不要。
 uv run --no-project python tools/voice_acceptance.py --route-runs 30 --output /tmp/vrct-routing-run
 # ユーザーが用意した既存ローカルTTSも測定。サーバー起動・モデル取得はしない。
-uv run --no-project python tools/voice_acceptance.py --server http://127.0.0.1:18080 --samples 30 --warmup 2 --output /tmp/vrct-tts-run
-uv run --no-project python tools/voice_latency.py /tmp/vrct-tts-run/latency.csv
+uv run --no-project python tools/voice_acceptance.py --server http://127.0.0.1:18080 --samples 30 --warmup 2 --output /tmp/vrct-vox-run
+uv run --no-project python tools/voice_latency.py /tmp/vrct-vox-run/latency.csv
 ```
 
 専用ソケット・一時stateを使用し、通常の既定デバイスや物理マイクには接続しない。

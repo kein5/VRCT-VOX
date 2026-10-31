@@ -80,5 +80,4 @@ src-python/telemetry_state.json
 src-python/telemetry_keys.py
 
 # Fork release archives (including legacy candidates)
-/VRCT-TTS*.zip*
 /VRCT-VOX*.zip*

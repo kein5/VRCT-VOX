@@ -5,7 +5,7 @@
 **Goal:** 同意済み固定モデルを検証可能な形で取得し、隔離した外部Seed engineでロード・VAD互換・変換と故障停止を実測する。
 **Architecture:** B（外部推論＋OS音声経路）のまま。本体Controller/UIへ未知のconverted状態を追加しない。モデル取得helperは明示manifest限定。GPL対象engine/PoC adapterはMIT本体から別ディレクトリに置き、固定checkoutと対応source/patchを記録。推論時はlocal file限定。
 **Tech Stack:** uv/Python3.11、PyTorch CUDA runtime、固定Seed-VC、FunASR、私有PipeWire、既存SourceBridgeとcapture観測器。
-**Spec:** [承認済みPoC提案](../../voice-stack/vc-engine-poc-proposal.md)、[固定artifact](../../voice-stack/seed-vc-poc-artifacts.json)、[仕様§8/P2](../../voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md)。
+**Spec:** [承認済みPoC提案](../../voice-stack/vc-engine-poc-proposal.md)、[固定artifact](../../voice-stack/seed-vc-poc-artifacts.json)、[仕様§8/P2](../../voice-stack/spec/codex-implementation-spec.md)。
 
 ## Global Constraints
 

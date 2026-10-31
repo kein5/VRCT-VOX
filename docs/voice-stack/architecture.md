@@ -1,7 +1,7 @@
 # Voice stack — P0 / P1
 
-要件: `VRCT_cpp_Codex_Implementation_Spec.md`、作業順序:
-`VRCT_cpp_CODEX_START.md`。提供ファイルは `/data/projects/VRCT.cpp/` で確認。
+要件: `codex-implementation-spec.md`、作業順序:
+`codex-start.md`。提供ファイルは `docs/voice-stack/spec/` に保存。
 基準と作業開始HEADはいずれも `79419a1f2ce78d38993b0f33e273155667eb0b6a`。
 
 ## 既存構造と境界

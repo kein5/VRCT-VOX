@@ -51,7 +51,7 @@ fn startup_log_path(executable_path: &Path) -> PathBuf {
         let base = std::env::var_os("XDG_CONFIG_HOME")
             .map(PathBuf::from).filter(|p| p.is_absolute())
             .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config"));
-        return base.join("vrct-tts/logs/startup.log");
+        return base.join("vrct-vox/logs/startup.log");
     }
     executable_path
         .parent()

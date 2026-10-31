@@ -31,10 +31,10 @@ def prepare_work(path):
     marker = work / '.vrct-linux-build'
     if work == ROOT or work in ROOT.parents or work.is_relative_to(ROOT / 'src-tauri'):
         raise ValueError('choose a dedicated build directory')
-    if work.exists() and any(work.iterdir()) and (not marker.is_file() or marker.read_text() != 'VRCT-TTS Linux staging v1\n'):
+    if work.exists() and any(work.iterdir()) and (not marker.is_file() or marker.read_text() != 'VRCT-VOX Linux staging v1\n'):
         raise ValueError('refusing an existing nonempty directory: choose a dedicated build directory')
     work.mkdir(parents=True, exist_ok=True)
-    marker.write_text('VRCT-TTS Linux staging v1\n')
+    marker.write_text('VRCT-VOX Linux staging v1\n')
     return work
 
 

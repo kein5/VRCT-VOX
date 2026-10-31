@@ -5,7 +5,7 @@
 **Goal:** speech.cpp Realtimeの暫定/確定イベントを分離し、有界・停止可能なローカルWSセッションを検証する。
 **Architecture:** 既存batch transcriberとは別の小さなイベントreducerとasyncio WS producer。mic/speakerは別instance・session namespace。capture/UI/翻訳への接続は次段。モデル同意に依存しない模擬試験と、既存モデルのmanual-commit試験を先に行う。
 **Tech Stack:** uv/Python3.11、既存websockets15.0.1、AudioFrame、標準asyncio。依存追加なし。
-**Spec:** [仕様§3/§5/P3](../../voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md)、[固定speech.cpp0.9.0仕様](https://github.com/nyosegawa/speech.cpp/blob/49f022a48bc1c7e797aa64dd08d2d9655baf299e/docs/server.md#realtime-transcription)。
+**Spec:** [仕様§3/§5/P3](../../voice-stack/spec/codex-implementation-spec.md)、[固定speech.cpp0.9.0仕様](https://github.com/nyosegawa/speech.cpp/blob/49f022a48bc1c7e797aa64dd08d2d9655baf299e/docs/server.md#realtime-transcription)。
 
 ## Scope / decisions
 

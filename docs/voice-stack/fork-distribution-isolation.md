@@ -1,5 +1,5 @@
-# VRCT-TTS 配布境界の分離（2026-10-29）
-現在のプロジェクト名はVRCT-VOXです。この文書には改名前の判断と試験記録を残しています。現在の名称・配布物・設定の互換性は[改名と互換性](project-rename.md)を参照してください。
+# VRCT-VOX 配布境界の分離（2026-10-29）
+現在の名称・配布物・識別子は[名称と識別子](project-rename.md)を参照してください。
 
 ユーザーの5項目に対し、除外・公開経路・identity・説明・上流候補の変更を実装した。
 **完成したWindows ZIP/NSIS、Linux製品package、最終ライセンス監査は未検証。公開可能とはまだ判断しない。**
@@ -14,7 +14,7 @@
 | 公開先 | 本家HF uploadとtelemetry secrets生成を削除。workflowは`workflow_dispatch`、contents readのみ、候補の検査/CI保管だけ | Windows candidate workflow未実行。リリース公開処理は無効 |
 | 更新 | NSISはforkのGitHub tag/ZIPへ固定。configの更新URLもforkへ変更。組込み更新/版一覧取得は無効、GUIは配布元からの更新を案内 | Windowsで再有効化する場合の版選択・checksum厳格化・更新/取消/復旧。AUR版では無効を維持 |
 | Telemetry | SDK client/key読込みを削除し互換async APIはno-op。古いキーが残っていてもclientを作らない。初期設定OFF、GUIの無効なトグルを除去 | 翻訳等のユーザー指定API通信まで無効化したという意味ではない |
-| Identity | 製品名`VRCT-TTS`、実行名`vrct-tts`、sidecar `vrct-tts-sidecar`、identifier `io.github.kein5.vrct-tts`、publisher `kein5` | Windowsインストール先/registry/共存、Linux desktop package/XDGパス移行は未検証 |
+| Identity | 製品名`VRCT-VOX`、実行名`vrct-vox`、sidecar `vrct-vox-sidecar`、identifier `io.github.kein5.vrct-vox`、publisher `kein5` | Windowsインストール先/registry/共存、Linux desktop package/XDGパス移行は未検証 |
 | 説明/支援 | README各言語、非公式表記、fork Releases/Issues、原作者への謝辞。GUIエラー支援先とissue templateもforkへ。元LICENSE/著作権維持 | 将来の実releaseに応じて導入手順を更新 |
 | 上流還元 | 共通修正2件のpatchとPR文案をローカルに分離 | 上流最新HEADへの適用・Windows検証・送信指示。連絡/PRは未実施 |
 
@@ -39,7 +39,7 @@ ZIP作成では欠損入力とI/O失敗を成功扱いにしていた問題も�
 | 最終関連回帰 | **42 PASS**, 1.12s | 両specをAnalysis/TOC境界で実行。実ZIPと7zの非NSIS拒否、模擬NSIS inventory、実Unix sidecar。Windows freezeではない |
 | 既存標準Python suite | **1,222 PASS / 6 SKIP**, 14.03s | 46 warnings。既存非推奨API/mock coroutine警告を含む |
 | Vite | PASS | bundleサイズ警告あり |
-| locked/offline Tauri build | PASS, `debug/vrct-tts`生成 | 開発sidecarなのでcheckout依存 |
+| locked/offline Tauri build | PASS, `debug/vrct-vox`生成 | 開発sidecarなのでcheckout依存 |
 | 実Tauri GUI | **3 PASS**, 110.10s | DPMS guard、外部network隔離、モデル不要。描画/新名称/設定反復/保存再起動/ミュート |
 | 実source ZIP | **PASS**, 1,329 entries / 29,940,935 bytes | `bb154f47`からgit archiveで生成。OCR重みなし、CRC正常、元LICENSEとOCR通知のbyte一致。実行可能ZIP/installerではない |
 | Ruff（追加guard/tests） / diff check | PASS | 全体security scanではない |
@@ -66,8 +66,8 @@ imozuru原典・map/log: `tmp/voice-resume/research/fork-distribution/`。
 ## 完成したWindows成果物に必要なゲート
 
 ```sh
-python tools/check_voice_distribution.py VRCT-TTS.zip VRCT-TTS_cuda.zip \
-  src-tauri/bin/_internal --nsis path/to/VRCT-TTS_VERSION_x64-setup.exe
+python tools/check_voice_distribution.py VRCT-VOX.zip VRCT-VOX_cuda.zip \
+  src-tauri/bin/_internal --nsis path/to/VRCT-VOX_VERSION_x64-setup.exe
 ```
 
 NSIS検査には7-Zipが必要。検査に成功したZIPとinstallerのhashを記録し、

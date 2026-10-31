@@ -2,7 +2,7 @@
 
 [日本語](/docs/readmes/README.ja.md) · [한국어](/docs/readmes/README.ko.md) · [繁體中文](/docs/readmes/README.zh-Hant.md)
 
-VRCT-VOX is an independent development fork of [VRCT](https://github.com/misyaguziya/VRCT), maintained by [kein5](https://github.com/kein5). Previous names were `kein5/VRCT.cpp` and `kein5/VRCT-TTS`. **This is not an official VRCT release and is not endorsed by the upstream authors or VRChat.**
+VRCT-VOX is an independent development fork of [VRCT](https://github.com/misyaguziya/VRCT), maintained by [kein5](https://github.com/kein5). **This is not an official VRCT release and is not endorsed by the upstream authors or VRChat.**
 
 The fork adds speech.cpp text-to-speech, optional external Seed-VC/RVC voice conversion, realtime ASR and translated speech. Voice output and OSC text are independently configurable: for example, original microphone audio can accompany translated TTS while original and translated text appear in VRChat chat. Local speech.cpp server profiles can be saved, started and stopped from the GUI. Settings can download fixed Irodori, Qwen3-TTS, Haas-ja (Japanese ASR) and RVC model candidates from Hugging Face after explicit license/size consent. GPU/VRAM guidance helps choose standard or lighter TTS variants; it is not a memory reservation or a compatibility guarantee. Downloaded files are size/SHA-256 checked and applied separately. RVC still requires an external runtime, HuBERT and RMVPE.
 
@@ -30,9 +30,9 @@ Report fork-specific bugs or request support through **[VRCT-VOX Issues](https:/
 
 Python work uses `uv`. The Linux pipeline freezes the backend and produces tar.gz and optional AppImage candidates with speech.cpp; the development sidecar remains separate. See the pipeline guides for build commands, validation and remaining release gates. Do not use the Windows batch build commands on Linux.
 
-## Upgrading from VRCT-TTS
+## Names and storage
 
-The project and repository are now **VRCT-VOX** (`kein5/VRCT-VOX`). Executables and new packages use `vrct-vox` / `VRCT-VOX`; the application ID, Linux `vrct-tts` configuration/data/cache directories, `VRCT_*` environment variables and managed microphone identity remain stable. Existing settings and downloaded models do not need to be renamed. See the [rename and compatibility notes](/docs/voice-stack/project-rename.md). Historical test reports retain the names and hashes of the artifacts actually tested.
+Executables and packages use `vrct-vox` / `VRCT-VOX`, the application ID is `io.github.kein5.vrct-vox`, and Linux keeps configuration, data and cache in `vrct-vox` directories (`~/.config/vrct-vox` and so on). See [names and identifiers](/docs/voice-stack/project-rename.md).
 
 ## Telemetry and models
 

@@ -2,7 +2,7 @@
   "date": "2026-10-29",
   "implementation_commit": "09e482dc",
   "runtime_paths_commit": "7723accd",
-  "artifact": "build/linux/artifacts/VRCT-TTS-3.6.0-beta.1-linux-x64-vulkan-release.tar.gz",
+  "artifact": "build/linux/artifacts/VRCT-VOX-3.6.0-beta.1-linux-x64-vulkan-release.tar.gz",
   "bytes": 528443579,
   "sha256": "b758a31dfced504ee38241a172249ee1bdd815cbc466eb4b77f780175a0f7e33",
   "build": {

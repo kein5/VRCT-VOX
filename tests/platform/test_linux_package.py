@@ -52,7 +52,7 @@ def installation(tmp_path, monkeypatch):
 def test_relocated_sidecar_settings_restart(installation, tmp_path):
     from test_native_backend import test_real_startup_settings_and_restart_without_models
     test_real_startup_settings_and_restart_without_models(tmp_path)
-    assert (tmp_path / 'native-state/data/vrct-tts').is_dir()
+    assert (tmp_path / 'native-state/data/vrct-vox').is_dir()
 
 
 def test_frozen_router_and_bundled_engine_entrypoints(installation, tmp_path):

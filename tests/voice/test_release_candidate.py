@@ -5,7 +5,7 @@ import subprocess
 import pytest
 
 from tools.release_candidate import stage, verify
-from tools.prepare_release import check_run, prepare, require_unused_tag
+from tools.prepare_release import check_run, prepare, release_channel, require_unused_tag
 
 SHA = "a" * 40
 VERSION = "3.6.0-beta.1"
@@ -53,7 +53,7 @@ def test_prepare_preserves_installer_checksums(candidate, tmp_path, monkeypatch)
         shutil.copytree(candidate, argv[argv.index("--dir") + 1])
 
     monkeypatch.setattr(subprocess, "run", download)
-    payload = prepare(tmp_path / "draft", {"windows": "123"}, SHA, VERSION)
+    payload = prepare(tmp_path / "draft", {"windows": "123"}, SHA, VERSION, "develop")
     for name in ("VRCT-VOX.zip", "VRCT-VOX_cuda.zip", "VRCT-VOX_setup.exe"):
         assert (payload / (name + ".sha256")).read_bytes() == (
             candidate / (name + ".sha256")
@@ -150,7 +150,7 @@ def test_release_draft_only_accepts_successful_canonical_manual_builds(mutation)
         head_repository={"full_name": "kein5/VRCT-VOX"},
     )
     if mutation is None:
-        check_run(run, "linux", SHA)
+        check_run(run, "linux", SHA, "develop")
     else:
         run[mutation] = (
             {"full_name": "someone/fork"}
@@ -158,4 +158,35 @@ def test_release_draft_only_accepts_successful_canonical_manual_builds(mutation)
             else "untrusted"
         )
         with pytest.raises(ValueError):
-            check_run(run, "linux", SHA)
+            check_run(run, "linux", SHA, "develop")
+
+
+@pytest.mark.parametrize("branch,version,channel", [
+    ("main", "0.1.0", "stable"),
+    ("main", "12.0.3", "stable"),
+    ("develop", "0.2.0-beta.1", "beta"),
+    ("develop", "1.0.0-beta.12", "beta"),
+])
+def test_main_releases_stable_and_develop_releases_betas(branch, version, channel):
+    assert release_channel(branch, version) == channel
+
+
+@pytest.mark.parametrize("branch,version", [
+    ("main", "0.1.0-beta.1"),      # A beta must not be published from main.
+    ("develop", "0.1.0"),          # A stable version must not come from develop.
+    ("develop", "0.1.0-rc.1"),
+    ("develop", "0.1.0-beta.0"),
+    ("main", "01.0.0"),
+    ("feature/x", "0.1.0"),
+])
+def test_branch_and_version_must_agree(branch, version):
+    with pytest.raises(ValueError):
+        release_channel(branch, version)
+
+
+def test_candidate_from_another_branch_is_rejected():
+    run = dict(conclusion="success", status="completed", event="workflow_dispatch",
+               head_branch="develop", head_sha=SHA, path=".github/workflows/build-linux.yml",
+               repository={"full_name": "kein5/VRCT-VOX"}, head_repository={"full_name": "kein5/VRCT-VOX"})
+    with pytest.raises(ValueError):
+        check_run(run, "linux", SHA, "main")

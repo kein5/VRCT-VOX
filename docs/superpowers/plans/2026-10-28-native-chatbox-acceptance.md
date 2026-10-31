@@ -8,7 +8,7 @@
 
 **Tech Stack:** 既存uv Python、Tauri/WebDriver、PipeWire、speech.cpp/Irodori、既存tesseract eng、spectacle/kdotool。
 
-**Spec:** [実装仕様P1](../../voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md)、[先行native測定](../../voice-stack/native-latency-report.md)。
+**Spec:** [実装仕様P1](../../voice-stack/spec/codex-implementation-spec.md)、[先行native測定](../../voice-stack/native-latency-report.md)。
 
 ## Global Constraints
 

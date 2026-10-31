@@ -1,10 +1,10 @@
-# 現在のVRCT-TTSアーキテクチャ
+# 現在のVRCT-VOXアーキテクチャ
 
 確認対象: `frail-walrus` / `232b4b79`、2026-10-28。未コミットのnative受入テスト2ファイルは合格済みの根拠に含めない。本資料の作成ではアプリ実装を変更していない。
 
 [AntV図解をブラウザで開く](diagrams/vrct-architecture-infographic.html) — 全体構成・テキストTTS・マイク翻訳発声・直接音声の4ビュー。SVG保存に対応し、オフライン時は埋込み済みの図を表示する。[全体図PNG](diagrams/vrct-architecture-overview.png)。
 
-VRCT-TTSは、**React/Tauriの画面、Pythonのアプリ制御、外部speech.cppの推論、OSの音声経路**を組み合わせている。C++だけで構成したアプリではない。[ADR 004](adr-004-audio-integration-boundaries.md)の「B：外部推論＋OS音声経路」を段階的に検証・実装中であり、全OS・全機能での採用確定ではない。
+VRCT-VOXは、**React/Tauriの画面、Pythonのアプリ制御、外部speech.cppの推論、OSの音声経路**を組み合わせている。C++だけで構成したアプリではない。[ADR 004](adr-004-audio-integration-boundaries.md)の「B：外部推論＋OS音声経路」を段階的に検証・実装中であり、全OS・全機能での採用確定ではない。
 
 ## 1. プロセスと責務
 

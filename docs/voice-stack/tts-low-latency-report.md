@@ -6,7 +6,7 @@
 
 ## GPU案内版の30回測定（3c034035）
 
-`build/gpu-model-guidance-2026-10-30-artifacts/VRCT-TTS-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
+`build/gpu-model-guidance-2026-10-30-artifacts/VRCT-VOX-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
 
 SHA-256: `3c034035748633fa4e11d56c09379bd8dfe751dbf86b62aee0d1c3945a33036a`。
 `tmp/tts-latency-100/native-guidance-latency-30/` にartifact/harness/verification/GPU記録と、pytest配下の全PCM・時計・OSC・trace・reportを保存した。1 PASS（355.82秒）、32件の実行成功とsummary性能判定passを両方確認。以下の前候補と同じモデル・文・seed・観測境界で、GPU案内追加後に独立実行した。
@@ -24,7 +24,7 @@ SHA-256: `3c034035748633fa4e11d56c09379bd8dfe751dbf86b62aee0d1c3945a33036a`。
 
 ## 前候補の成果物と共通測定条件
 
-- AppImage: `build/tts-model-downloads-2026-10-30-artifacts/VRCT-TTS-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
+- AppImage: `build/tts-model-downloads-2026-10-30-artifacts/VRCT-VOX-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
 - SHA-256: `f5d567ad54265253e08e29cf38d174feb908896db99213bdbda1a174df2f11e4`
 - RTX 4080 SUPER / Vulkan GPU / 同梱speech.cpp 0.9.0 / Irodori v4.1 Small MF F16。
 - 同じモデル・voice=none・ja・seed=42。本文は「こんにちは。音声の接続テストです。」。モデル読込済み、低遅延待機ON、処理待ちなし。

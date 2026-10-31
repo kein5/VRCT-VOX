@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       linux_run:
-        description: Successful manual Linux candidate run ID at the current develop commit
+        description: Successful manual Linux candidate run ID at the current commit of this branch (main = stable, develop = beta)
         type: string
         required: true
       windows_run:
@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   draft:
-    if: github.repository == 'kein5/VRCT-VOX' && github.ref == 'refs/heads/develop'
+    if: github.repository == 'kein5/VRCT-VOX' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -34,24 +34,27 @@ jobs:
           LINUX_RUN: ${{ inputs.linux_run }}
           WINDOWS_RUN: ${{ inputs.windows_run }}
           CANDIDATE_COMMIT: ${{ github.sha }}
+          RELEASE_BRANCH: ${{ github.ref_name }}
         run: |
           python -m tools.prepare_release --linux-run "$LINUX_RUN" --windows-run "$WINDOWS_RUN" \
-            --commit "$CANDIDATE_COMMIT" --output build/release-draft
+            --commit "$CANDIDATE_COMMIT" --branch "$RELEASE_BRANCH" --output build/release-draft
       - name: Create draft only; publication remains a maintainer action
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_COMMIT: ${{ github.sha }}
+          RELEASE_BRANCH: ${{ github.ref_name }}
         run: |
           python - <<'PY'
           import json, os, pathlib, subprocess
-          from tools.prepare_release import require_unused_tag
+          from tools.prepare_release import release_channel, require_unused_tag
           version = json.loads(pathlib.Path('package.json').read_text())['version']
+          channel = release_channel(os.environ['RELEASE_BRANCH'], version)
           require_unused_tag(version)
           payload = pathlib.Path('build/release-draft/payload')
           command = ['gh', 'release', 'create', 'v' + version, '--repo', 'kein5/VRCT-VOX',
                      '--draft', '--target', os.environ['CANDIDATE_COMMIT'], '--title', 'VRCT-VOX ' + version,
                      '--notes-file', 'docs/release-draft-template.md']
-          if '-' in version:
-              command.append('--prerelease')
+          # Betas never become the repository's latest release.
+          command += ['--prerelease', '--latest=false'] if channel == 'beta' else ['--latest']
           subprocess.run(command + [str(path) for path in sorted(payload.iterdir())], check=True)
           PY

@@ -198,7 +198,7 @@ def test_request_end_releases_monitor_and_prevents_late_cancellation(ending):
                 assert token.reason == 'cancelled'
             else:
                 assert not token.wait(.15), 'an ended request was cancelled by a stale monitor'
-            assert not [t for t in threads() if t not in before and t.name == 'vrct-tts-listener']
+            assert not [t for t in threads() if t not in before and t.name == 'vrct-vox-listener']
         finally:
             stream.close()
 

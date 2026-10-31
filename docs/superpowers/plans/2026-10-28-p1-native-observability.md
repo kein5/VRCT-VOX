@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python3.11/uv、既存Tauri/WebDriver、PipeWire、speech.cpp、python-osc。
 
-**Spec:** [実装仕様§6/8](../../voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md)、[継続記録](../../voice-stack/completion-ledger.md)。
+**Spec:** [実装仕様§6/8](../../voice-stack/spec/codex-implementation-spec.md)、[継続記録](../../voice-stack/completion-ledger.md)。
 
 ## Global Constraints
 

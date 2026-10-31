@@ -1,6 +1,6 @@
 infographic relation-dagre-flow-lr-badge-card
 data
-  title VRCT-TTS｜4つの責務に分ける
+  title VRCT-VOX｜4つの責務に分ける
   desc UI・アプリ制御・外部推論・OS音声経路
   nodes
     - id ui
