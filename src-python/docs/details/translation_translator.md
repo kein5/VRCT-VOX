@@ -174,7 +174,7 @@ else:
 # ローカルモデルの読み込み
 translator.changeCTranslate2Model(
     path=".",                                      # アプリケーションルート
-    model_type="nllb-200-distilled-600M-ct2-int8", # weight_type（デフォルトモデル）
+    model_type="m2m100_418M-ct2-int8",             # weight_type（デフォルトモデル）
     device="cuda",                                 # GPU使用
     device_index=0,
     compute_type="float16"       # 半精度で高速化
@@ -277,13 +277,17 @@ if translator.isChangedTranslatorParameters():
 ### 対応モデル（weight_type）
 実体の定義は `translation_utils.py` の `ctranslate2_weights` にある（詳細は [translation_utils.md](translation_utils.md) 参照）。`weight_type` の値がそのまま `config.CTRANSLATE2_WEIGHT_TYPE` / UI選択肢のキーになる。
 
-| weight_type | ベースモデル | サイズ目安 | 備考 |
-|---|---|---|---|
-| `m2m100_418M-ct2-int8` | M2M100 418M | ~418MB | レガシー。オフライン翻訳フォールバックの旧デフォルト |
-| `m2m100_1.2B-ct2-int8` | M2M100 1.2B | ~1.2GB | レガシー |
-| `nllb-200-distilled-600M-ct2-int8` | NLLB-200 distilled 600M | ~600MB | **新規インストール時のデフォルト**。m2m100より翻訳精度が高くCPUでも実用速度 |
-| `nllb-200-distilled-1.3B-ct2-int8` | NLLB-200 distilled 1.3B | ~1.3GB | 高精度・高負荷 |
-| `nllb-200-3.3B-ct2-int8` | NLLB-200 3.3B | ~3.3GB | 最高精度・高メモリ要求 |
+| weight_type | ベースモデル | サイズ目安 | ライセンス | 備考 |
+|---|---|---|---|---|
+| `m2m100_418M-ct2-int8` | M2M100 418M | ~418MB | MIT | **新規設定のデフォルト**（2026-11-01 以降） |
+| `m2m100_1.2B-ct2-int8` | M2M100 1.2B | ~1.2GB | MIT | 高精度・高負荷 |
+| `nllb-200-distilled-600M-ct2-int8` | NLLB-200 distilled 600M | ~600MB | CC-BY-NC-4.0（非商用） | オプトイン。2026-08-04〜2026-11-01 のデフォルト |
+| `nllb-200-distilled-1.3B-ct2-int8` | NLLB-200 distilled 1.3B | ~1.3GB | CC-BY-NC-4.0（非商用） | オプトイン。高精度・高負荷 |
+| `nllb-200-3.3B-ct2-int8` | NLLB-200 3.3B | ~3.3GB | CC-BY-NC-4.0（非商用） | オプトイン。最高精度・高メモリ要求 |
+
+ライセンスは `ctranslate2_weights[weight_type]["license"]` / `["commercial_use"]` に持つ。`commercial_use` が `False` の重み（NLLB系）は、`setCtranslate2WeightType` / `downloadCtranslate2Weight` に `{"weight_type": ..., "accept_non_commercial_license": true}` を渡さない限り `WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED` で拒否される。ただし現在選択中の重みは例外（旧バージョンが保存した値の起動時自動ダウンロードを止めないため）。
+
+M2M100 の言語コードは transformers の `M2M100Tokenizer`（`FAIRSEQ_LANGUAGE_CODES["m2m100"]`、100言語）に存在するものだけを `languages.yml` に載せる。UI が提示する言語のうち **Basque と Telugu は M2M100 非対応**（NLLB は対応）。重みを切り替えると `updateTranslationEngineAndEngineList()` で選択言語を再検証し、未対応言語はリセットして `TRANSLATION_LANGUAGE_UNSUPPORTED` で理由を通知する。
 
 NLLB系モデルは Flores-200 言語コード（例: `jpn_Jpan`, `eng_Latn`）を使用し、`translateCTranslate2()` 内では `target_prefix` にそのままターゲット言語コードを渡す（m2m100系は `tokenizer.lang_code_to_token[...]` でトークン変換してから渡す点が異なる）。両者の分岐は次の通り：
 
@@ -343,7 +347,7 @@ def robust_translation(translator, message, source_lang, target_lang):
     # オンライン翻訳が全て失敗した場合、ローカル翻訳にフォールバック
     try:
         if not translator.isLoadedCTranslate2Model():
-            translator.changeCTranslate2Model(".", "nllb-200-distilled-600M-ct2-int8", "cpu")
+            translator.changeCTranslate2Model(".", "m2m100_418M-ct2-int8", "cpu")
             
         result = translator.translate("CTranslate2", source_lang, target_lang, "", message)
         if result != False:
@@ -377,9 +381,9 @@ def robust_translation(translator, message, source_lang, target_lang):
 root/
 └── weights/
     └── ctranslate2/
-        ├── m2m100_418M-ct2-int8/
+        ├── m2m100_418M-ct2-int8/               # デフォルト（新規設定時）
         ├── m2m100_1.2B-ct2-int8/
-        ├── nllb-200-distilled-600M-ct2-int8/   # デフォルト（新規インストール時）
+        ├── nllb-200-distilled-600M-ct2-int8/   # 非商用。旧デフォルト
         ├── nllb-200-distilled-1.3B-ct2-int8/
         └── nllb-200-3.3B-ct2-int8/
 ```
@@ -402,6 +406,25 @@ root/
 - `controller.py`: 翻訳制御インターフェース
 
 ## 最近の更新
+
+### 2026-11-01: デフォルトを M2M100 418M（MIT）に戻し、NLLB をオプトイン化
+
+#### 背景
+NLLB-200 系の重み（`facebook/nllb-200-*` とその ct2 変換）はすべて CC-BY-NC-4.0 で、商用利用できない。それを確認なしにデフォルトでダウンロードしていた。M2M100（`facebook/m2m100_*`、`jncraton/*-ct2-int8`）は MIT。
+
+#### 変更内容
+- `config.py` の `CTRANSLATE2_WEIGHT_TYPE` 初期値を `translation_utils.DEFAULT_CTRANSLATE2_WEIGHT_TYPE`（`m2m100_418M-ct2-int8`）に変更
+- `ctranslate2_weights` に `license` / `commercial_use` を追加。NLLB の選択・ダウンロードはバックエンドでもオプトイン必須
+- Config → 翻訳 に各重みのライセンスを表示し、NLLB は「非商用ライセンス（CC-BY-NC-4.0）」と明示。NLLB のダウンロード・選択前に確認ダイアログを出す。VR 設定パネルでは確認ダイアログを出せないため、NLLB は選択中のものしか表示しない
+- `languages.yml` の M2M100 表を修正。Whisper の言語表から写した名残で、M2M100 に無い言語（Latin, Maori, Telugu, Basque など15言語）が載っており、トークナイザーで KeyError になっていた。Javanese は `jw` → `jv`、Burmese（`my`）を追加
+- 重み切替時に言語を再検証し、未対応言語のリセット理由を通知（`TRANSLATION_LANGUAGE_UNSUPPORTED`）
+
+#### 影響
+| 項目 | 内容 |
+|------|------|
+| 新規設定 | M2M100 418M をダウンロード・使用 |
+| 既存ユーザー | config.json に保存済みの NLLB はそのまま。起動時に一度だけ非商用ライセンスの通知を出す（`CTRANSLATE2_LICENSE_NOTICE_SHOWN`）。旧バージョンは NLLB を確認なしに保存していたため、本人が選んだとは限らない |
+| 翻訳品質 | M2M100 418M は NLLB 600M より一般に精度が低いとされる（本変更では比較していない） |
 
 ### 2026-08-04: NLLB-200 distilled 600M をデフォルトのオフライン翻訳モデルに追加
 
