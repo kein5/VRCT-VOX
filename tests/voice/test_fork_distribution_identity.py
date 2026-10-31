@@ -82,7 +82,8 @@ def test_download_sources_belong_to_fork():
 def test_release_workflow_cannot_publish_or_inject_upstream_keys():
     import yaml
     workflow = yaml.load((ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
-    assert set(workflow["on"]) == {"workflow_dispatch"}
+    assert set(workflow["on"]) == {"workflow_dispatch", "pull_request"}
+    assert workflow["on"]["pull_request"] == {"branches": ["main"]}
     assert workflow["permissions"] == {"contents": "read"}
     text = json.dumps(workflow)
     for forbidden in ("HF_TOKEN", "TELEMETRY_KEY", "hf upload", "create-release", "upload-release-asset", "ms-software/VRCT"):

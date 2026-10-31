@@ -1,71 +1,55 @@
-name: Feature Request
-description: File a feature request
-title: "[Feature]: (Please note that the title must be in English)"
+name: Feature request / 機能の要望
+description: Suggest a new feature or an improvement. / 新しい機能や改善を提案する。
+labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
-      value: |
-        Thanks for taking the time to fill out this feature request!
+      value: Write in English or Japanese. 英語でも日本語でも構いません。
   - type: textarea
-    id: expect-to-happened
+    id: problem
     attributes:
-      label: Expect to happened
-      description: What happened, and what did you expect to happen?
-      placeholder: Tell us what you see!
-      value: "A feature I have expected ..."
+      label: Problem or use case / 困っていること・使い方
+      description: What do you want to do, and what gets in the way today? / 何をしたいか、今何が妨げになっているか。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior / 提案する動作
     validations:
       required: true
   - type: dropdown
-    id: expected-app-version
+    id: area
     attributes:
-      label: Expected APP Version
-      description: What version of App did you expect?
+      label: Related feature / 関連する機能
+      multiple: true
       options:
-        - next newest version
-        - a future version
+        - TTS (speech.cpp)
+        - Speech recognition / 音声認識
+        - Translation / 翻訳
+        - Voice conversion (RVC / Seed-VC)
+        - VRChat (OSC, chatbox, virtual microphone)
+        - Model downloads / モデルの取得
+        - Shortcuts, quick chat / ショートカット・入力の小窓
+        - VR overlay
+        - Install, update, packaging / 導入・更新・配布
+        - Other / その他
     validations:
       required: true
   - type: dropdown
-    id: expected-runtime-environment
+    id: os
     attributes:
-      label: Expected Runtime Environment
-      description: What runtime environment(OS) did you expect?
+      label: Operating system / OS
+      multiple: true
       options:
-        - "Windows 10"
-        - "Windows 11"
-        - "Other"
-    validations:
-      required: true
-  - type: input
-    id: region
-    attributes:
-      label: Country/Region
-      description: What Country(Region) did you expect?
-      placeholder: Tell us what you see!
-      value: "Qatar(example)"
+        - Windows
+        - Linux
+        - Any / すべて
     validations:
       required: true
   - type: textarea
-    id: expected-output
+    id: alternatives
     attributes:
-      label: Expected Output
-      render: sh
+      label: Alternatives you considered / 検討した別の方法
     validations:
       required: false
-  - type: textarea
-    id: screenshot
-    attributes:
-      label: "Sharing features in images"
-      value: |
-        ![DESCRIPTION](LINK.png)
-      render: Markdown
-    validations:
-      required: false
-  - type: checkboxes
-    id: terms
-    attributes:
-      label: Fork support guidelines
-      description: By submitting this issue, you agree to follow the [fork support guidance](https://github.com/kein5/VRCT-VOX#status-and-downloads)
-      options:
-        - label: I have read the fork support guidelines and will remove secrets from attached logs
-          required: true
