@@ -18,6 +18,7 @@ def update_versions():
 
     with open(tauri_conf_path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(tauri_conf, f, indent=4, ensure_ascii=False)
+        f.write("\n")
 
     # config.pyを更新
     config_path = os.path.join(root, "src-python", "config.py")
