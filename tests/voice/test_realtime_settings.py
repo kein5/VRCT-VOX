@@ -17,12 +17,24 @@ def test_default_settings_have_no_recording_intent_and_roundtrip():
         "base_url": "http://127.0.0.1:8080",
         "model": "",
         "mic": {"language": "ja", "endpoint": None},
-        "speaker": {"language": "ja", "endpoint": None},
+        "speaker": {"language": "auto", "endpoint": None},
     }
     assert m.normalize_settings(value) == value
     assert m.normalize_settings(value) is not value
     with pytest.raises(ValueError):
         m.session_options(value, "mic")
+
+
+def test_auto_is_accepted_only_for_models_that_detect_the_language():
+    from models.transcription.speechcpp_asr import RecognitionModel
+
+    m = module()
+    assert m.normalize_settings({"mic": {"language": "auto"}})["mic"]["language"] == "auto"
+    qwen = RecognitionModel("Qwen3-ASR-0.6B", ("en", "ja", "de"), True, True)
+    haas = RecognitionModel("Haas-616M-ja-v1.0", ("ja",), True, False)
+    assert m.language_supported(qwen, "auto") and m.language_supported(qwen, "de")
+    assert not m.language_supported(haas, "auto") and m.language_supported(haas, "ja")
+    assert not m.language_supported(haas, "en")
 
 
 @pytest.mark.parametrize(
@@ -39,7 +51,8 @@ def test_default_settings_have_no_recording_intent_and_roundtrip():
         ("model", "\nsecret"),
         ("mic", {"language": "ja", "endpoint": None, "active": True}),
         ("speaker", {"language": True}),
-        ("mic", {"language": "auto"}),
+        ("mic", {"language": "AUTO"}),
+        ("mic", {"language": "automatic"}),
     ],
 )
 def test_bad_settings_fail_without_silent_fallback(field, value):

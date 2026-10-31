@@ -701,6 +701,15 @@ class Controller:
         results = [self._drainRealtimeASR(source) for source in ("mic", "speaker")]
         return all(results)
 
+    def _realtimeFallbackLanguage(self, source):
+        # With "auto" the model names each final's language. Without one, use
+        # the language VRCT has for this side, as the legacy recorder does.
+        try:
+            languages = config.SELECTED_YOUR_LANGUAGES if source == "mic" else config.SELECTED_TARGET_LANGUAGES
+            return languages[config.SELECTED_TAB_NO]["1"]["language"]
+        except (KeyError, TypeError, AttributeError):
+            return None
+
     def startRealtimeASR(self, data, *args, **kwargs):
         try:
             source = self._realtimeSource(data)
@@ -727,7 +736,8 @@ class Controller:
                     options, endpoint = session_options(self._realtime_settings, source)
                     if self._realtime_settings["server"] == "bundled":
                         options = replace(options, base_url=self.speech_servers.binding("asr"))
-                    language = self._realtimeLanguage(options.language)
+                    detect = options.language == "auto"
+                    language = self._realtimeFallbackLanguage(source) if detect else self._realtimeLanguage(options.language)
                 except RuntimeError:
                     return failure("speech_server_not_ready")
                 except ValueError as exc:
@@ -792,9 +802,15 @@ class Controller:
                     return current() and valid()
                 if source == "mic" and getattr(config, "VRC_MIC_MUTE_SYNC", False) and model.mic_mute_status is True:
                     return None
+                spoken = language
+                if detect and getattr(update, "language", ""):
+                    try:
+                        spoken = self._realtimeLanguage(update.language)
+                    except ValueError:
+                        pass  # A code VRCT cannot translate from keeps the fallback.
                 return self._processMessage(
                     REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC,
-                    update.text, language, msg_id=update.namespace + ":" + update.item_id,
+                    update.text, spoken, msg_id=update.namespace + ":" + update.item_id,
                     publication_guard=guard, speech_update=update if source == "mic" else None)
 
             def error(code):

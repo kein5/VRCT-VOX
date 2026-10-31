@@ -31,15 +31,27 @@ def _model(value, *, empty=True):
     return value
 
 
+AUTO = "auto"
+# A fresh speaker setting detects the language: other players speak anything.
+# The microphone keeps Japanese, which steers the model toward the user's speech.
+DEFAULT_LANGUAGE = dict(mic="ja", speaker=AUTO)
+
+
 def _language(value):
-    # Explicit requested language; the protocol doesn't return detected language.
-    if (
-        not isinstance(value, str)
-        or not re.fullmatch(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?", value)
-        or value == "auto"
+    # "auto" asks the model to detect the language; whether the selected model
+    # can is checked against its /v1/models options when a session starts.
+    if not isinstance(value, str) or not (
+        value == AUTO or re.fullmatch(r"[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?", value)
     ):
         raise ValueError("realtime_language_invalid")
     return value
+
+
+def language_supported(model, language):
+    """Whether a RecognitionModel takes language; "auto" needs real detection."""
+    if language == AUTO:
+        return bool(getattr(model, "detects_language", False))
+    return language in model.languages
 
 
 def parse_endpoint(value, source):
@@ -105,7 +117,7 @@ def normalize_settings(value):
             raise ValueError("realtime_source_settings_invalid")
         selected = row.get("endpoint")
         result[source] = dict(
-            language=_language(row.get("language", "ja")),
+            language=_language(row.get("language", DEFAULT_LANGUAGE[source])),
             endpoint=None
             if selected is None
             else endpoint_dict(parse_endpoint(selected, source)),

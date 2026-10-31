@@ -770,6 +770,8 @@ realtime:
   state_failed: "エラーにより字幕を停止しました"
   save_help: "変更を保存してから開始してください。入力の設定変更でその字幕を停止し、サーバーやモデルの変更で両方の字幕を停止します。"
   save: "字幕設定を保存"
+  auto_language: "自動判定（auto）"
+  auto_help: "自動判定には、Qwen3-ASRのように言語を判定できるモデルが必要です。同梱ASRサーバーが読み込むモデルは1つで両方の入力が共用するため、日本語以外を話すプレイヤーがいるならQwen3-ASRを選んでください。"
 
 speech_servers:
     title: "同梱speech.cppサーバー"

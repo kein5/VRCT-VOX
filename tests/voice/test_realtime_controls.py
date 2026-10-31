@@ -16,7 +16,8 @@ from test_realtime_delivery import Session, eventually
 
 
 def settings():
-    value = normalize_settings({"model": "asr"})
+    # Explicit languages: "auto" (the fresh speaker default) has its own tests.
+    value = normalize_settings({"model": "asr", "speaker": {"language": "ja"}})
     for source, media in (("mic", "Audio/Source"), ("speaker", "Audio/Sink")):
         value[source]["endpoint"] = dict(
             cookie="1", serial="2", name=source, media_class=media
@@ -343,7 +344,7 @@ def test_explicit_model_and_endpoint_lists_and_safe_errors(app, monkeypatch):
         "server_generation": None,
         "configured_url": "http://127.0.0.1:8080",
         "base_url": "http://127.0.0.1:8080",
-        "models": [{"id": "asr", "languages": ("ja",), "accepts_language": False}],
+        "models": [{"id": "asr", "languages": ("ja",), "accepts_language": False, "detects_language": False}],
         "error_code": None,
     }
     m.SpeechCppASR.assert_called_once_with("http://127.0.0.1:8080", timeout=5)

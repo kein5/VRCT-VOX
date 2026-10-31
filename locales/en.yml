@@ -770,6 +770,8 @@ realtime:
   state_failed: "Captions stopped after an error"
   save_help: "Save changes before starting. Changing an input stops its captions; changing the server or model stops both inputs."
   save: "Save caption settings"
+  auto_language: "Detect automatically (auto)"
+  auto_help: "Automatic detection needs a model that detects the language, such as Qwen3-ASR. The bundled ASR server loads one model for both inputs, so choose Qwen3-ASR if other players speak languages other than Japanese."
 
 speech_servers:
     title: "Bundled speech.cpp servers"

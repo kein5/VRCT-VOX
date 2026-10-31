@@ -49,12 +49,14 @@ export const RealtimeASRSettings = () => {
                 {knownModels.map(row => <option key={row.id} value={row.id}>{row.id}</option>)}
             </select></label>
             <button type="button" onClick={() => send("/get/data/realtime_asr_models")}>{t("realtime.refresh_models")}</button>
+            <p>{t("realtime.auto_help")}</p>
             {models.error_code && <p role="alert">{models.error_code}</p>}
             <button type="button" onClick={refreshDevices}>{t("realtime.refresh_devices")}</button>
             {["mic", "speaker"].map(source => {
                 const choices = endpoints[source]?.endpoints ?? [];
                 const selected = choices.find(row => key(row.endpoint) === key(draft[source].endpoint));
-                const languages = selectedModel?.languages ?? [];
+                // "auto" only for a model that detects the language (Qwen3-ASR).
+                const languages = [...(selectedModel?.detects_language ? ["auto"] : []), ...(selectedModel?.languages ?? [])];
                 const owner = state[source];
                 const failure = endpoints[source]?.error_code || owner?.error_code;
                 return <fieldset key={source}>
@@ -69,7 +71,7 @@ export const RealtimeASRSettings = () => {
                     <label>{t(`realtime.${source}_language`)}<select aria-label={t(`realtime.${source}_language`)} value={draft[source].language}
                         onChange={event => updateSource(source, { language: event.target.value })}>
                         {!languages.includes(draft[source].language) && <option value={draft[source].language}>{draft[source].language}</option>}
-                        {languages.map(language => <option key={language} value={language}>{language}</option>)}
+                        {languages.map(language => <option key={language} value={language}>{language === "auto" ? t("realtime.auto_language") : language}</option>)}
                     </select></label>
                     <button type="button" disabled={dirty || !selected || !selectedModel || !languages.includes(draft[source].language) ||
                         !owner || owner.requested || !!endpoints[source]?.error_code}
