@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 import re
 
+from .asr_vocabulary import MAX_TERMS, merged_terms, normalize_vocabulary, parse_term
+
 from models.audio_routing.source_bridge import Endpoint
 from models.tts.settings import local_url
 from .capture_pipewire import _validate
@@ -13,11 +15,16 @@ class SessionOptions:
     base_url: str
     model: str
     language: str
+    # Merged vocabulary terms; sent as keywords or a prompt where the model takes one.
+    vocabulary: tuple = ()
 
     def __post_init__(self):
         local_url(self.base_url)
         _model(self.model, empty=False)
         _language(self.language)
+        if (not isinstance(self.vocabulary, tuple) or len(self.vocabulary) > MAX_TERMS
+                or any(parse_term(term) != term for term in self.vocabulary)):
+            raise ValueError("realtime_vocabulary_invalid")
 
 
 def _model(value, *, empty=True):
@@ -97,6 +104,7 @@ def normalize_settings(value):
         "model",
         "mic",
         "speaker",
+        "vocabulary",
     }:
         raise ValueError("realtime_settings_invalid")
     version = value.get("version", 1)
@@ -110,6 +118,7 @@ def normalize_settings(value):
         server=server,
         base_url=local_url(value.get("base_url", "http://127.0.0.1:8080")),
         model=_model(value.get("model", "")),
+        vocabulary=normalize_vocabulary(value.get("vocabulary")),
     )
     for source in ("mic", "speaker"):
         row = value.get(source, {})
@@ -148,6 +157,7 @@ def session_options(value, source):
     endpoint = realtime_endpoint(value, source)
     settings = normalize_settings(value)
     return (
-        SessionOptions(settings["base_url"], settings["model"], settings[source]["language"]),
+        SessionOptions(settings["base_url"], settings["model"], settings[source]["language"],
+                       merged_terms(settings["vocabulary"])),
         endpoint,
     )

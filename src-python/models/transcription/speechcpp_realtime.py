@@ -32,8 +32,9 @@ class _NoRedirect(connect):
 
 
 class SpeechCppRealtime:
-    def __init__(self, base_url, model, language, source, server_vad=True):
+    def __init__(self, base_url, model, language, source, server_vad=True, options=None):
         self.base_url = local_url(base_url)
+        options = dict(options or {})
         if (
             any(
                 not isinstance(v, str)
@@ -42,9 +43,14 @@ class SpeechCppRealtime:
                 for v in (model, language)
             )
             or type(server_vad) is not bool
+            # Only the vocabulary members; their values are checked by asr_vocabulary.
+            or set(options) - {"keywords", "prompt"}
+            or not isinstance(options.get("keywords", []), list)
+            or not isinstance(options.get("prompt", ""), str)
         ):
             raise ValueError("invalid_realtime_settings")
         self.model, self.language, self.server_vad = model, language, server_vad
+        self.options = options
         self.namespace = uuid4().hex
         self._events = TranscriptEvents(source, self.namespace)
         self.state, self.error = "new", None
@@ -61,7 +67,7 @@ class SpeechCppRealtime:
             "audio": {
                 "input": {
                     "format": {"type": "audio/pcm", "rate": 24000},
-                    "transcription": {"model": self.model, "language": self.language},
+                    "transcription": {"model": self.model, "language": self.language, **self.options},
                     "turn_detection": {"type": "server_vad"}
                     if self.server_vad
                     else None,
@@ -96,6 +102,8 @@ class SpeechCppRealtime:
                 and audio["format"] == {"type": "audio/pcm", "rate": 24000}
                 and transcription["model"] == self.model
                 and transcription["language"] == self.language
+                # The server echoes the vocabulary it will use; anything else is not ours.
+                and all(transcription.get(key) == value for key, value in self.options.items())
                 and audio.get("noise_reduction") is None
                 and audio.get("diarization") is None
                 and (

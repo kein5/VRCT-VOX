@@ -775,6 +775,14 @@ realtime:
   follow_default_mic: "システムの既定の入力に従う"
   follow_default_speaker: "システムの既定の出力に従う"
   follow_default_help: "字幕の開始時にシステムの既定を読み取り、停止するまでそのデバイスを使います。VRCTの仮想デバイスは対象にしません。"
+  vocabulary: "用語辞書"
+  vocabulary_help: "認識モデルに聞き取ってほしい用語と、その書き方です。Haas-jaにはキーワードとして、Qwen3-ASRには短いヒントとして渡します。1項目に1語を書き、必要なら「=」のあとに読みをカンマ区切りで続けます（例: VRChat=ブイアールチャット,ブイチャ）。登録した語ごとに、言っていない語が書かれる可能性が少し増えるため、必要な語だけにしてください。辞書を変えると、動作中の字幕は停止します。"
+  vocabulary_builtin: "内蔵のVRChat用語を使う"
+  vocabulary_user: "追加した用語"
+  vocabulary_term: "追加する用語"
+  vocabulary_add: "用語を追加"
+  vocabulary_remove: "{{term}}を削除"
+  vocabulary_remove_short: "削除"
 
 realtime_toggle:
   generic: "リアルタイム認識を開始できないか、停止しました（{{reason}}）。設定 → 音声認識 → リアルタイム字幕を確認してください。"

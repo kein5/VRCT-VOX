@@ -10,6 +10,7 @@ from models.tts.speechcpp_tts import CancelToken
 from .capture_pipewire import PipeWireCapture, _validate
 from .realtime_audio import RealtimeIngress
 from .realtime_settings import SessionOptions, language_supported
+from .asr_vocabulary import request_options
 from .speechcpp_asr import SpeechCppASR
 from .speechcpp_realtime import SpeechCppRealtime
 
@@ -147,9 +148,10 @@ class RealtimeSession:
                 if self.options.language == "auto"
                 else "realtime_language_unsupported"
             )
+        return request_options(selected.options, self.options.vocabulary)
 
     async def _consume(self):
-        await asyncio.to_thread(self._preflight)
+        extra = await asyncio.to_thread(self._preflight)
         if self._stop.is_set():
             return
         client = self._client_factory(
@@ -157,6 +159,7 @@ class RealtimeSession:
             self.options.model,
             self.options.language,
             self.source,
+            options=extra,
         )
         with self._lock:
             self._client, self._namespace = client, client.namespace

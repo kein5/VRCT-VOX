@@ -18,6 +18,7 @@ def test_default_settings_have_no_recording_intent_and_roundtrip():
         "model": "",
         "mic": {"language": "ja", "endpoint": None, "follow_default": True},
         "speaker": {"language": "auto", "endpoint": None, "follow_default": True},
+        "vocabulary": {"builtin": True, "terms": []},
     }
     assert m.normalize_settings(value) == value
     assert m.normalize_settings(value) is not value

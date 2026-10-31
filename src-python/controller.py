@@ -26,6 +26,7 @@ from models.transcription.realtime_session import RealtimeSession
 from models.transcription.realtime_delivery import RealtimeDelivery
 from models.transcription.capture_pipewire import enumerate_endpoints, default_endpoint
 from models.transcription.speechcpp_asr import SpeechCppASR
+from models.transcription.asr_vocabulary import merged_terms
 from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
@@ -627,7 +628,7 @@ class Controller:
         with self._realtime_settings_lock:
             with self._realtime_lock:
                 old = self._realtime_settings
-                shared_changed = any(settings[key] != old[key] for key in ("server", "base_url", "model"))
+                shared_changed = any(settings[key] != old[key] for key in ("server", "base_url", "model", "vocabulary"))
                 for source in ("mic", "speaker"):
                     if shared_changed or settings[source] != old[source]:
                         self._invalidateRealtimeLocked(source)
@@ -871,7 +872,7 @@ class Controller:
         if not language_supported(chosen, row["language"]):
             return ("realtime_language_auto_unsupported" if row["language"] == "auto"
                     else "realtime_language_unsupported"), None
-        return None, SessionOptions(base_url, chosen.id, row["language"])
+        return None, SessionOptions(base_url, chosen.id, row["language"], merged_terms(settings["vocabulary"]))
 
     def _enableRealtimeToggle(self, source):
         with self._realtime_lock:

@@ -775,6 +775,14 @@ realtime:
   follow_default_mic: "Follow the system default input"
   follow_default_speaker: "Follow the system default output"
   follow_default_help: "The system default is read when captions start and kept until they stop. VRCT's own virtual devices are never captured."
+  vocabulary: "Term dictionary"
+  vocabulary_help: "Terms the recognizer should hear and write as given. Haas-ja takes them as keywords; Qwen3-ASR gets a short hint of them. Write one term per entry, optionally with readings after \"=\" separated by commas, such as VRChat=ブイアールチャット,ブイチャ. List only terms you need: each one adds a small chance of a word that was not said. Changing the dictionary stops running captions."
+  vocabulary_builtin: "Use the built-in VRChat terms"
+  vocabulary_user: "Your terms"
+  vocabulary_term: "Term to add"
+  vocabulary_add: "Add term"
+  vocabulary_remove: "Remove {{term}}"
+  vocabulary_remove_short: "Remove"
 
 realtime_toggle:
   generic: "Realtime recognition could not start or has stopped ({{reason}}). Check Settings → Transcription → Realtime captions."

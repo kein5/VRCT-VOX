@@ -299,3 +299,17 @@ def test_captions_still_flow_after_a_toggle_start(app, monkeypatch):
     assert c.setEnableTranscriptionSend()["result"] is True
     made[0].emit(revision=1)
     eventually(lambda: len(captions(c)) == 1)
+
+
+def test_toggle_session_carries_the_merged_vocabulary_and_a_change_stops_it(app, monkeypatch):
+    from models.transcription.vrchat_terms import VRCHAT_TERMS
+
+    c, m, made = app
+    recognizers(m, monkeypatch, RecognitionModel("asr", ("ja",), True))
+    configure(c, vocabulary={"builtin": True, "terms": ["自作ワールド=じさくわーるど"]})
+    assert c.setEnableTranscriptionSend()["result"] is True
+    assert made[0].options.vocabulary == ("自作ワールド=じさくわーるど", *VRCHAT_TERMS)
+    configure(c, vocabulary={"builtin": False, "terms": []})
+    assert not made[0].active  # Both sources use the dictionary: a change stops them.
+    assert c.setEnableTranscriptionSend()["result"] is True
+    assert made[1].options.vocabulary == ()

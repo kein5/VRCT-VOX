@@ -344,7 +344,7 @@ def test_explicit_model_and_endpoint_lists_and_safe_errors(app, monkeypatch):
         "server_generation": None,
         "configured_url": "http://127.0.0.1:8080",
         "base_url": "http://127.0.0.1:8080",
-        "models": [{"id": "asr", "languages": ("ja",), "accepts_language": False, "detects_language": False}],
+        "models": [{"id": "asr", "languages": ("ja",), "accepts_language": False, "detects_language": False, "options": ()}],
         "error_code": None,
     }
     m.SpeechCppASR.assert_called_once_with("http://127.0.0.1:8080", timeout=5)

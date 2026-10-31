@@ -13,6 +13,7 @@ export const RealtimeASRSettings = () => {
     const { settings, state, endpoints, models, error, send } = useRealtimeASR();
     const { state: servers, send: sendSpeech } = useSpeechServers();
     const [draft, setDraft] = useState(null);
+    const [newTerm, setNewTerm] = useState("");
     useEffect(() => { setDraft(settings); }, [settings]);
     const refreshDevices = () => {
         for (const source of ["mic", "speaker"]) send("/get/data/realtime_asr_endpoints", { source });
@@ -33,6 +34,13 @@ export const RealtimeASRSettings = () => {
     const selectedModel = knownModels.find(row => row.id === draft?.model);
     const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
     const updateSource = (source, values) => setDraft(previous => ({ ...previous, [source]: { ...previous[source], ...values } }));
+    const vocabulary = draft?.vocabulary ?? { builtin: true, terms: [] };
+    const updateVocabulary = values => setDraft(previous => ({ ...previous, vocabulary: { ...vocabulary, ...values } }));
+    // One keyword per entry, "written=reading,reading"; the backend validates it on save.
+    const term = newTerm.trim();
+    const written = term.split("=")[0].trim().toLowerCase();
+    const canAdd = term && written && vocabulary.terms.length < 100 && !/[\u0000-\u001f]/.test(term)
+        && !vocabulary.terms.some(row => row.split("=")[0].trim().toLowerCase() === written);
     return <section className={styles.container} aria-label={t("realtime.title")}>
         <h3>{t("realtime.title")}</h3>
         <p>{t("realtime.scope")}</p>
@@ -87,6 +95,22 @@ export const RealtimeASRSettings = () => {
                     {failure && <p role="alert">{failure}</p>}
                 </fieldset>;
             })}
+            <fieldset>
+                <legend>{t("realtime.vocabulary")}</legend>
+                <p>{t("realtime.vocabulary_help")}</p>
+                <label className={styles.checkLabel}><input type="checkbox" checked={vocabulary.builtin !== false}
+                    onChange={event => updateVocabulary({ builtin: event.target.checked })} />{t("realtime.vocabulary_builtin")}</label>
+                <ul aria-label={t("realtime.vocabulary_user")}>
+                    {vocabulary.terms.map(row => <li key={row}>{row} <button type="button"
+                        aria-label={t("realtime.vocabulary_remove", { term: row })}
+                        onClick={() => updateVocabulary({ terms: vocabulary.terms.filter(other => other !== row) })}>{t("realtime.vocabulary_remove_short")}</button></li>)}
+                </ul>
+                <label>{t("realtime.vocabulary_term")}<input value={newTerm} maxLength={320} spellCheck={false}
+                    placeholder="VRChat=ブイアールチャット" onChange={event => setNewTerm(event.target.value)} /></label>
+                <button type="button" disabled={!canAdd} onClick={() => {
+                    updateVocabulary({ terms: [...vocabulary.terms, term] }); setNewTerm("");
+                }}>{t("realtime.vocabulary_add")}</button>
+            </fieldset>
             <p>{t("realtime.save_help")}</p>
             <button type="submit" disabled={!dirty}>{t("realtime.save")}</button>
         </form>}
