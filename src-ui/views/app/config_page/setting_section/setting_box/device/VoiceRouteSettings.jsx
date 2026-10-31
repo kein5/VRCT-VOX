@@ -30,21 +30,19 @@ export const VoiceRouteControls = () => {
 export const VoiceRouteSettings = () => {
     const { t } = useI18n();
     const { settings, directState, directPending, error, updateError, send } = useVoice();
-    const form = useSettingsDraft(settings, error, updateError);
-    useEffect(() => { send("/get/data/voice_settings"); }, [send]);
     const busy = !!directPending || directState.requested || directState.pending || directState.stopping || !directState.observation_id;
+    const form = useSettingsDraft(settings, error, updateError, { label: ([key]) => t(`voice.${key}`, { defaultValue: key }),
+        write: value => send("/set/data/voice_settings", value), canSave: !busy });
+    useEffect(() => { send("/get/data/voice_settings"); }, [send]);
     return <section className={styles.container} aria-label={t("voice.routing")} data-setting-id="voice_route">
         <SectionLabelComponent label={t("voice.routing")} />
         <p>{t("voice_ui.route_hint")}</p>
-        {form.draft && <form onSubmit={e => { e.preventDefault(); if (!busy) form.submit(value => send("/set/data/voice_settings", value)); }}>
+        {form.draft && <form onSubmit={e => { e.preventDefault(); if (!busy && form.dirty) form.submit(value => send("/set/data/voice_settings", value)); }}>
             <label>{t("voice.routing")}<select aria-label={t("voice.routing")} value={form.draft.routing} disabled={busy || form.saving}
                 onChange={e => form.setDraft({ ...form.draft, routing: e.target.value })}>
                 <option value="external">{t("voice.routing_external")}</option><option value="managed">{t("voice.routing_managed")}</option>
             </select></label>
             {form.draft.routing === "managed" && <p>{t("voice.managed_hint")}</p>}
-            <div className={styles.actions}><button className={styles.primary} type="submit" disabled={busy || form.saving || !form.dirty}>{t("voice_ui.save_route")}</button>
-                <button type="button" disabled={form.saving || !form.dirty} onClick={form.discard}>{t("voice_ui.discard")}</button>
-                <span role="status">{t(`voice_ui.${form.saveState}`)}</span></div>
         </form>}
         {form.navigationDialog}
         <VoiceRouteControls />

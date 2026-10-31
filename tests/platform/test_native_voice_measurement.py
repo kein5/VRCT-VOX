@@ -112,7 +112,7 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
                 ui.wait("return document.querySelector('textarea') !== null")
                 ui.open_route_settings()
                 ui.select('Audio route', 'managed')
-                ui.click_text('button', 'Save audio route')
+                ui.click_text('button', 'Save changes')
                 wait_for(lambda: json.loads((state / 'config.json').read_text()).get('VOICE_SETTINGS', {}).get('routing') == 'managed')
                 ui.click_text('button', 'Resume voice')
                 ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Voice enabled (confirmed)')")
@@ -130,7 +130,7 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
                         ui.select('Japanese server', 'bundled')
                     else:
                         ui.fill("Japanese server (Irodori)", server.url)
-                    ui.click_text("button", "Save voice settings")
+                    ui.click_text("button", "Save changes")
                     wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("mode") == mode)
 
                 save("original")

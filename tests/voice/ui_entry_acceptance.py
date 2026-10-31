@@ -240,7 +240,7 @@ def execute(args, report):
             page.get_by_label('Audio route').select_option('managed')
             page.get_by_label('Japanese server (Irodori)', exact=True).fill(server.url)
             page.get_by_label('Translation slot').select_option('2')
-            page.get_by_role('button', name='Save voice settings', exact=True).click()
+            page.get_by_role('button', name='Save changes', exact=True).click()
             until(f'window.entry.state.settings?.mode === {json.dumps(mode)} && window.entry.state.settings.routing === "managed"')
             until('window.entry.state.route?.managed === true && window.entry.state.route.ready && !window.entry.state.route.pending')
             assert state()['error'] is None, state()
@@ -393,7 +393,7 @@ def execute(args, report):
             # return an error through the production UI response route.
             previous = state()['settings']
             page.get_by_label('Japanese server (Irodori)', exact=True).fill('https://invalid.example')
-            page.get_by_role('button', name='Save voice settings', exact=True).click()
+            page.get_by_role('button', name='Save changes', exact=True).click()
             until('window.entry.state.error === "VOICE_SETTINGS_INVALID"')
             assert state()['settings'] == previous
             done_case({'name': 'invalid-settings-preserve-working-config'})

@@ -8,7 +8,10 @@ import { ModelDownloads } from "./ModelDownloads";
 export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }) => {
     const { t } = useI18n();
     const { settings, state, pending, error, send, updateError } = useSpeechServers();
-    const form = useSettingsDraft(settings, error, updateError);
+    // Paths are ["profiles", name, key]; a page shows only its own profiles.
+    const label = ([, name, key]) => `${t(`speech_servers.${name}`)}: ${t(`speech_servers.${key}`, { defaultValue: key })}`;
+    const form = useSettingsDraft(settings, error, updateError, { label,
+        write: value => send("/set/data/speech_server_settings", value) });
     const { draft, setDraft, saving, dirty } = form;
     const pendingKey = JSON.stringify(pending);
     useEffect(() => {
@@ -26,7 +29,7 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
         <h3>{t("speech_servers.title")}</h3>
         <p>{t("speech_servers.help")}</p>
         {draft && <form onSubmit={event => {
-            event.preventDefault(); form.submit(value => send("/set/data/speech_server_settings", value));
+            event.preventDefault(); if (dirty) form.submit(value => send("/set/data/speech_server_settings", value));
         }}>
             {profiles.map(name => {
                 const row = draft.profiles[name], owner = state[name];
@@ -63,8 +66,6 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                     {owner?.error_code && <p role="alert">{owner.error_code === "speech_server_out_of_memory" && <>{t("voice_ui.memory_error")} </>}{owner.error_code}</p>}
                 </fieldset>;
             })}
-            <div className={styles.actions}><button className={styles.primary} type="submit" disabled={saving || !dirty}>{t(saving ? "voice.saving" : "speech_servers.save")}</button>
-                <button type="button" disabled={saving || !dirty} onClick={form.discard}>{t("voice_ui.discard")}</button><span role="status">{t(`voice_ui.${form.saveState}`)}</span></div>
         </form>}
         {form.navigationDialog}
         <button type="button" disabled={dirty || saving} onClick={() => { send("/get/data/speech_server_settings"); send("/get/data/speech_server_state"); }}>{t("speech_servers.reload")}</button>

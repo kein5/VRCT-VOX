@@ -321,7 +321,7 @@ def test_unsaved_changes_require_ack_and_navigation_confirmation(pages):
     mode = page.get_by_label("Chat voice", exact=True)
     mode.select_option("original")
     page.get_by_label("Output device", exact=True).select_option("headphones")
-    save = page.get_by_role("button", name="Save voice settings", exact=True)
+    save = page.get_by_role("button", name="Save changes", exact=True)
     peer.reject_voice = True
     save.click()
     expect(
@@ -430,7 +430,7 @@ def test_discard_before_closing_restores_mounted_form(pages):
     page.wait_for_function("window.didLeave === true")
     expect(mode).to_have_value(peer.voice["mode"])
     expect(
-        page.get_by_role("button", name="Save voice settings", exact=True)
+        page.get_by_role("button", name="Save changes", exact=True)
     ).to_be_disabled()
     page.get_by_role("button", name="RVC", exact=True).click()
     expect(page.get_by_role("dialog")).to_have_count(0)

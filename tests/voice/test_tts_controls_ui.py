@@ -160,7 +160,7 @@ def test_rvc_numbers_preserve_seed_paths_and_lock_during_start(pages):
         dict(peer.direct, observation_id=str(peer.sequence)),
     )
     page.get_by_role("button", name="RVC", exact=True).click()
-    save = page.get_by_role("button", name="Save input settings", exact=True)
+    save = page.get_by_role("button", name="Save changes", exact=True)
     pitch = page.get_by_label("Pitch shift (semitones)", exact=True)
     for invalid in ("25", "-25", "0.5"):
         pitch.fill(invalid)
@@ -316,7 +316,7 @@ def test_rvc_top_requires_saved_form_and_explains_invalid_numbers(pages):
         blend.fill(invalid)
         expect(blend).to_have_attribute("aria-invalid", "true")
         expect(
-            page.get_by_role("button", name="Save input settings", exact=True)
+            page.get_by_role("button", name="Save changes", exact=True)
         ).to_be_disabled()
     blend.fill("1")
     expect(
