@@ -128,7 +128,3 @@ export const generateLocalizedDocumentUrl = (lang_code = "en") => {
         vrct_document_ui_guide_url: `${vrct_document_home_url}/${lang_path}/${vrct_document_url_chunk_ui_guide}`,
     };
 };
-
-
-export const supporters_data_url = "https://shiinasakamoto.github.io/vrct_supporters/assets/supporters/data.json";
-export const supporters_images_url = "https://ShiinaSakamoto.github.io/vrct_supporters/assets/supporters";

@@ -82,7 +82,6 @@ def test_navigation_keyboard_and_all_settings(studio):
         "RVC",
         "高度な設定",
         "アップデート",
-        "Supporters",
         "About VRCT-VOX",
     ):
         tab = page.get_by_role("button", name=label, exact=True)
