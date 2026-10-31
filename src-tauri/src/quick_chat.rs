@@ -191,7 +191,7 @@ pub fn quick_chat_hide(window: WebviewWindow) -> Result<(), String> {
 }
 
 #[cfg(target_os = "linux")]
-async fn present_chat(chat: &WebviewWindow) -> Result<(), String> {
+async fn present_chat(chat: &WebviewWindow, activation_token: Option<String>) -> Result<(), String> {
     use gtk::prelude::*;
 
     let (tx, mut rx) = tauri::async_runtime::channel(1);
@@ -214,6 +214,11 @@ async fn present_chat(chat: &WebviewWindow) -> Result<(), String> {
                     gdkx11::functions::x11_get_server_time(&native)
                 })
                 .unwrap_or(gtk::gdk::ffi::GDK_CURRENT_TIME as u32);
+            // A portal shortcut's xdg-activation token lets a native Wayland
+            // compositor focus the window instead of only flagging it.
+            if let Some(token) = activation_token.as_deref() {
+                window.set_startup_id(token);
+            }
             window.set_keep_above(true);
             window.show_all();
             window.deiconify();
@@ -227,7 +232,11 @@ async fn present_chat(chat: &WebviewWindow) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn quick_chat_show(window: WebviewWindow, app: tauri::AppHandle) -> Result<(), String> {
+pub async fn quick_chat_show(
+    window: WebviewWindow,
+    app: tauri::AppHandle,
+    activation_token: Option<String>,
+) -> Result<(), String> {
     sender(window.label(), "main")?;
     let chat = if let Some(chat) = app.get_webview_window("quick_chat") {
         chat
@@ -237,7 +246,7 @@ pub async fn quick_chat_show(window: WebviewWindow, app: tauri::AppHandle) -> Re
             "quick_chat",
             WebviewUrl::App("quick-chat.html".into()),
         )
-        .title("VRCT-VOX Quick Chat")
+        .title(TITLE)
         .inner_size(480.0, 160.0)
         .min_inner_size(320.0, 120.0)
         .center()
@@ -248,9 +257,18 @@ pub async fn quick_chat_show(window: WebviewWindow, app: tauri::AppHandle) -> Re
         .map_err(|e| e.to_string())?
     };
     #[cfg(target_os = "linux")]
-    present_chat(&chat).await?;
+    {
+        let token = activation_token.is_some();
+        present_chat(&chat, activation_token).await?;
+        // KDE's portal gives no activation token, so a window behind a game
+        // would stay there; KWin can still raise it on the user's behalf.
+        if native_wayland() && !token {
+            crate::portal_shortcuts::raise_with_kwin(TITLE);
+        }
+    }
     #[cfg(not(target_os = "linux"))]
     {
+        let _ = activation_token; // Only Linux portal shortcuts supply one.
         // Focus alone can leave the input behind a fullscreen/topmost game.
         // Apply this on every open, including reused hidden/minimized windows.
         chat.set_always_on_top(true).map_err(|e| e.to_string())?;
@@ -261,21 +279,28 @@ pub async fn quick_chat_show(window: WebviewWindow, app: tauri::AppHandle) -> Re
     chat.emit("quick-chat-opened", ())
         .map_err(|e| e.to_string())
 }
+const TITLE: &str = "VRCT-VOX Quick Chat";
+
+fn wayland_session() -> bool {
+    cfg!(target_os = "linux")
+        && (std::env::var_os("WAYLAND_DISPLAY").is_some()
+            || std::env::var("XDG_SESSION_TYPE").as_deref() == Ok("wayland"))
+}
+
+fn native_wayland() -> bool {
+    wayland_session() && std::env::var("GDK_BACKEND").as_deref() != Ok("x11")
+}
+
 #[tauri::command]
 pub fn quick_chat_shortcut_platform(window: WebviewWindow) -> Result<&'static str, String> {
     sender(window.label(), "main")?;
-    if cfg!(target_os = "linux")
-        && (std::env::var_os("WAYLAND_DISPLAY").is_some()
-            || std::env::var("XDG_SESSION_TYPE").as_deref() == Ok("wayland"))
-    {
-        if std::env::var("GDK_BACKEND").as_deref() == Ok("x11") {
-            Ok("xwayland")
-        } else {
-            Ok("wayland")
-        }
+    Ok(if native_wayland() {
+        "wayland"
+    } else if wayland_session() {
+        "xwayland"
     } else {
-        Ok("native")
-    }
+        "native"
+    })
 }
 #[cfg(test)]
 mod tests {

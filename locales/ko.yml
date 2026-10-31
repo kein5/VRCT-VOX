@@ -702,7 +702,6 @@ quick_chat:
     open: "입력 창 열기"
     shortcut_hint: "입력 창을 여는 단축키를 설정하세요. 기본 단축키는 없습니다. Esc로 닫아도 초안이 유지됩니다."
     clear_shortcut: "단축키 해제: {{action}}"
-    wayland_unavailable: "네이티브 Wayland에서는 전역 단축키를 사용할 수 없습니다. 이 빌드는 GlobalShortcuts portal을 지원하지 않습니다. 버튼으로 입력 창을 열 수 있습니다."
     xwayland_hint: "XWayland에서는 다른 Wayland 앱이 활성화되어 있을 때 데스크톱이 단축키나 포커스 이동을 제한할 수 있습니다."
     platform_unknown: "단축키 지원 환경을 확인하지 못했습니다. 설정을 다시 열어 주세요."
     open_failed: "입력 창을 열거나 포커스를 옮기지 못했습니다. 단축키 설정에서 다시 열어 주세요."

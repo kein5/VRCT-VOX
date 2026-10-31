@@ -34,7 +34,7 @@ const HotkeysBoxContainer = () => {
                 setHotkeys={setHotkeys}
             />
             <p className={styles.quick_chat_notice}>{t("quick_chat.shortcut_hint")}</p>
-            {platform === "wayland" && <p role="status" className={styles.quick_chat_notice}>{t("quick_chat.wayland_unavailable")}</p>}
+            {platform === "wayland" && <p role="status" className={styles.quick_chat_notice}>{t("quick_chat.wayland_portal")}</p>}
             {platform === "xwayland" && <p role="status" className={styles.quick_chat_notice}>{t("quick_chat.xwayland_hint")}</p>}
             {platform === "unknown" && <p role="status" className={styles.quick_chat_notice}>{t("quick_chat.platform_unknown")}</p>}
             <button type="button" className={styles.open_quick_chat} onClick={() => { setIsOpenedConfigPage(false); openQuickChat(); }}>

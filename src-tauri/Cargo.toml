@@ -34,4 +34,6 @@ tauri-plugin-global-shortcut = "=2.2.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "=0.18.2"
+# Already locked through tauri-plugin-opener; used for the GlobalShortcuts portal.
+zbus = "=5.5.0"
 gdkx11 = "=0.18.2"

@@ -4,11 +4,32 @@ import { useNotificationStatus } from "@logics_common";
 import { useMainFunction } from "@logics_main";
 import { register, unregister, unregisterAll } from "@tauri-apps/plugin-global-shortcut";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useI18n } from "@useI18n";
+
+// Native Wayland grants no global key grab: the desktop binds the keys
+// through the GlobalShortcuts portal and Rust forwards each press here.
+let platformRequest = null;
+const shortcutPlatform = () => {
+    platformRequest ??= invoke("quick_chat_shortcut_platform").catch(error => {
+        platformRequest = null;
+        throw error;
+    });
+    return platformRequest;
+};
+let portalHandler = null;
+let portalPaused = true; // Like the plugin's unregisterAll while settings are open.
+let portalListener = null;
+const ensurePortalListener = () => {
+    portalListener ??= listen("portal-shortcut", ({ payload }) => {
+        if (!portalPaused && portalHandler) portalHandler(payload.id, payload.activation_token ?? null);
+    });
+    return portalListener;
+};
 
 export const useHotkeys = () => {
     const appWindow = store.appWindow;
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
 
     const { asyncStdoutToPython } = useStdoutToPython();
     const { currentHotkeys, updateHotkeys, pendingHotkeys } = useStore_Hotkeys();
@@ -24,23 +45,81 @@ export const useHotkeys = () => {
     };
     const { showNotification_SaveSuccess, showNotification_Error, closeNotification } = useNotificationStatus();
 
-    const openQuickChat = async () => {
-        try { await invoke("quick_chat_show"); }
+    const openQuickChat = async (activationToken = null) => {
+        try { await invoke("quick_chat_show", { activationToken }); }
         catch (error) {
             console.warn("Quick chat window could not be focused", error);
             showNotification_Error(t("quick_chat.open_failed"));
         }
     };
 
-    const canRegisterQuickChat = async () => {
-        try {
-            const platform = await invoke("quick_chat_shortcut_platform");
-            if (platform !== "wayland") return true;
-            showNotification_Error(t("quick_chat.wayland_unavailable"), { hide_duration: 8000 });
-        } catch {
+    const currentPlatform = async () => {
+        try { return await shortcutPlatform(); }
+        catch {
             showNotification_Error(t("quick_chat.platform_unknown"));
+            return null;
         }
-        return false;
+    };
+
+    const runAction = async (actionKey, activationToken = null) => {
+        switch (actionKey) {
+            case "open_quick_chat": {
+                await openQuickChat(activationToken);
+                break;
+            }
+            case "toggle_vrct_visibility": {
+                const minimized = await appWindow.isMinimized();
+                if (minimized) {
+                    await appWindow.unminimize();
+                    await appWindow.setFocus();
+                    store.text_area_ref.current?.focus();
+                } else {
+                    await appWindow.minimize();
+                }
+                break;
+            }
+            case "toggle_translation": {
+                toggleTranslation();
+                break;
+            }
+            case "toggle_transcription_send": {
+                toggleTranscriptionSend();
+                break;
+            }
+            case "toggle_transcription_receive": {
+                toggleTranscriptionReceive();
+                break;
+            }
+            default: {
+                console.warn(`No handler defined for action: ${actionKey}`);
+                break;
+            }
+        }
+    };
+
+    const registerPortalShortcuts = async () => {
+        await unregisterAll();
+        portalHandler = runAction;
+        const shortcuts = Object.fromEntries(Object.entries(currentHotkeys.data ?? {}).filter(([, keys]) => keys));
+        try {
+            await ensurePortalListener();
+            // The desktop may show its confirmation dialog the first time.
+            const assigned = await invoke("portal_shortcuts_bind", { shortcuts });
+            portalPaused = false;
+            // The desktop may keep another key, e.g. when VRCT's is taken.
+            for (const [actionKey, row] of Object.entries(assigned ?? {})) {
+                if (row?.applied !== false) continue;
+                showNotification_Error(t("quick_chat.portal_key_kept", {
+                    action_name: getHotkeyActionLabel(actionKey, t),
+                    wanted: shortcuts[actionKey].join(" + "),
+                    hotkey: row.shown || "-",
+                }), { hide_duration: 10000 });
+            }
+        } catch (code) {
+            const key = `quick_chat.portal_errors.${code}`;
+            showNotification_Error(i18n.exists(key) ? t(key) : t("quick_chat.portal_failed", { code: String(code) }),
+                { hide_duration: 8000 });
+        }
     };
 
     const setHotkeys = async (hotkeys) => {
@@ -56,7 +135,8 @@ export const useHotkeys = () => {
             return true;
         }
 
-        if (targetActionKey === "open_quick_chat" && !await canRegisterQuickChat()) return false;
+        const platform = await currentPlatform();
+        if (targetActionKey === "open_quick_chat" && !platform) return false;
 
         const targetShortcut = parseHotkey(targetHotkey);
         const targetDisplay = targetHotkey.join(" + ");
@@ -78,13 +158,16 @@ export const useHotkeys = () => {
         }
 
         // 2. OS / 他のアプリケーションで既に使用されていないか（テスト登録）
+        // On native Wayland the desktop resolves conflicts when binding.
         let isOsConflict = false;
-        try {
-            await register(targetShortcut, () => {});
-            await unregister(targetShortcut);
-        } catch (err) {
-            console.warn(`Hotkey registration test failed for ${targetShortcut}:`, err);
-            isOsConflict = true;
+        if (platform !== "wayland") {
+            try {
+                await register(targetShortcut, () => {});
+                await unregister(targetShortcut);
+            } catch (err) {
+                console.warn(`Hotkey registration test failed for ${targetShortcut}:`, err);
+                isOsConflict = true;
+            }
         }
 
         if (isOsConflict) {
@@ -107,6 +190,7 @@ export const useHotkeys = () => {
     };
 
     const registerShortcuts = async () => {
+        if (await currentPlatform() === "wayland") return registerPortalShortcuts();
         try {
             await unregisterAll();
 
@@ -115,7 +199,6 @@ export const useHotkeys = () => {
 
             for (const [actionKey, hotkeyRaw] of hotkeyEntries) {
                 if (!hotkeyRaw) continue;
-                if (actionKey === "open_quick_chat" && !await canRegisterQuickChat()) continue;
 
                 const shortcut = parseHotkey(hotkeyRaw);
                 try {
@@ -124,39 +207,7 @@ export const useHotkeys = () => {
                         // event and leave the shortcut stuck in the pressed state.
                         const trigger = actionKey === "open_quick_chat" ? "Released" : "Pressed";
                         if (event.state !== trigger) return;
-                        switch (actionKey) {
-                            case "open_quick_chat": {
-                                await openQuickChat();
-                                break;
-                            }
-                            case "toggle_vrct_visibility": {
-                                const minimized = await appWindow.isMinimized();
-                                if (minimized) {
-                                    await appWindow.unminimize();
-                                    await appWindow.setFocus();
-                                    store.text_area_ref.current?.focus();
-                                } else {
-                                    await appWindow.minimize();
-                                }
-                                break;
-                            }
-                            case "toggle_translation": {
-                                toggleTranslation();
-                                break;
-                            }
-                            case "toggle_transcription_send": {
-                                toggleTranscriptionSend();
-                                break;
-                            }
-                            case "toggle_transcription_receive": {
-                                toggleTranscriptionReceive();
-                                break;
-                            }
-                            default: {
-                                console.warn(`No handler defined for action: ${actionKey}`);
-                                break;
-                            }
-                        }
+                        await runAction(actionKey);
                     });
                 } catch (error) {
                     console.warn(`Failed to register global shortcut ${shortcut} for ${actionKey}:`, error);
@@ -197,7 +248,10 @@ export const useHotkeys = () => {
         setHotkeys,
         setSuccessHotkeys,
         registerShortcuts,
-        unregisterAll,
+        unregisterAll: async () => {
+            portalPaused = true;
+            await unregisterAll();
+        },
         openQuickChat,
     };
 };
