@@ -89,6 +89,8 @@ const MicContainer = () => {
             <MultiDropdownMenuContainer
                 setting_id="mic_host_device"
                 label={t("config_page.device.mic_host_device.label")}
+                // Linux lists PipeWire inputs; say what this choice drives there.
+                desc={currentSelectedMicHost.data === "PipeWire" ? t("config_page.device.mic_host_device.desc_pipewire") : undefined}
                 dropdown_settings={[
                     {
                         insert_component: SwitchBox,

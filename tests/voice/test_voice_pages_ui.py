@@ -63,6 +63,7 @@ def pages(ui, request, tmp_path):
     )
     peer.catalog = Downloads(tmp_path / "models").catalog()
     peer.download_jobs = {}
+    peer.preferred = None
     peer.sources = [
         dict(
             label="Test microphone",
@@ -140,7 +141,7 @@ def pages(ui, request, tmp_path):
         elif ep == "/get/data/direct_voice_state":
             reply(ep, dict(peer.direct, observation_id=observation))
         elif ep == "/get/data/direct_voice_sources":
-            reply(ep, dict(sources=peer.sources, error=None))
+            reply(ep, dict(sources=peer.sources, error=None, preferred=peer.preferred))
         elif ep == "/get/data/voice_output_devices":
             reply(
                 ep,
@@ -201,7 +202,10 @@ def test_separate_pages_search_and_asr_placement(pages):
     expect(page.get_by_role("group", name="ASR + VAD", exact=True)).to_be_visible()
     expect(page.get_by_role("group", name="Japanese TTS", exact=True)).to_have_count(0)
     page.get_by_label("Search settings", exact=True).fill("RVC")
-    page.get_by_label("Search results", exact=True).get_by_role("button").first.click()
+    results = page.get_by_label("Search results", exact=True).get_by_role("button")
+    # The Device page Mic selection is also the RVC input on Linux, so it is found too.
+    expect(results.filter(has_text="Device: Mic Device")).to_be_visible()
+    results.filter(has_text="RVC: RVC").click()
     expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_be_visible()
     assert not any(ep.startswith("/run/start_") for ep, _ in peer.sent)
 
@@ -371,6 +375,45 @@ def test_input_identity_survives_pages_and_stale_state(pages):
     expect(
         page.get_by_role("combobox", name="Audio route", exact=True)
     ).to_be_disabled()
+
+
+def test_device_page_mic_preselects_rvc_input_until_rvc_page_choice(pages):
+    from playwright.sync_api import expect
+
+    page, peer, reply = pages
+    first = peer.sources[0]["id"]
+    second = dict(first, serial=16, name="second-source")
+    peer.sources.append(dict(label="Second microphone", id=second))
+
+    def key(id):
+        return json.dumps([id["cookie"], id["serial"], id["name"], id["media_class"]], separators=(",", ":"))
+
+    peer.preferred = first
+    page.get_by_role("button", name="RVC", exact=True).click()
+    source = page.get_by_label("Input to forward", exact=True)
+    expect(source).to_have_value(key(first))
+    # Device page Mic changed: the UI refetches and follows the new default.
+    peer.preferred = second
+    reply("/run/selected_mic_device", "Second microphone")
+    expect(source).to_have_value(key(second))
+
+    def sources(preferred):
+        received = reply("/get/data/direct_voice_sources", dict(sources=peer.sources, error=None, preferred=preferred))
+        page.wait_for_function("id => window.received.includes(id)", arg=received)
+
+    # An input picked on the RVC page wins over later Device page defaults.
+    source.select_option(label="Test microphone")
+    sources(second)
+    expect(source).to_have_value(key(first))
+    # Never retarget a running input, even while following the Device page.
+    source.select_option(label="Second microphone")
+    sources(second)
+    peer.direct.update(requested=True, active=True, mode="converted")
+    reply("/get/data/direct_voice_state", dict(peer.direct, observation_id="100000"))
+    expect(source).to_be_disabled()
+    sources(first)
+    expect(source).to_have_value(key(second))
+    assert not any(ep == "/run/start_direct_voice" for ep, _ in peer.sent)
 
 
 def test_discard_before_closing_restores_mounted_form(pages):

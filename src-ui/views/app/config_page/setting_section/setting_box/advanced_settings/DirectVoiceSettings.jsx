@@ -4,11 +4,9 @@ import { VoiceRouteSummary, VoiceRouteControls } from "../device/VoiceRouteSetti
 import { SectionLabelComponent } from "../_components/section_label_component/SectionLabelComponent";
 import styles from "./VoiceSettings.module.scss";
 import { useI18n } from "@useI18n";
-import { useVoice } from "../../../../../../logics/voice/useVoice";
+import { useVoice, sourceKey as key } from "../../../../../../logics/voice/useVoice";
 import { ModelDownloads } from "./ModelDownloads";
 
-// Keep the complete backend identity. Refresh never rebinds a selected name.
-const key = id => JSON.stringify([id.cookie, id.serial, id.name, id.media_class]);
 const defaults = { mode: "passthrough", runtime: "", reference: "", engine: "seed-vc",
     rvc_runtime: "", rvc_model: "", rvc_index: "", rvc_pitch: 0, rvc_index_rate: 0 };
 

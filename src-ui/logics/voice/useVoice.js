@@ -6,7 +6,7 @@ import { newerRoute } from "./routeState";
 const settingsAtom = atom(null), statusAtom = atom({}), routeAtom = atom({});
 const devicesAtom = atom({ devices: [], error: null }), errorAtom = atom(null);
 const directStateAtom = atom({}), directSourcesAtom = atom({ sources: [], error: null }), directErrorAtom = atom(null);
-const selectedSourceAtom = atom("");
+const selectedSourceAtom = atom(""), preferredSourceAtom = atom("");
 const modelOptionsAtom = atom({});
 let optionsSequence = 0;
 const ttsPendingAtom = atom(null), directPendingAtom = atom(null), ttsErrorAtom = atom(null);
@@ -14,6 +14,8 @@ const ttsPendingAtom = atom(null), directPendingAtom = atom(null), ttsErrorAtom 
 const directOwnerAtom = atom(null);
 const directDraftBlockedAtom = atom(false);
 const inputOwner = (mode, engine) => mode === "converted" ? engine || "seed-vc" : "passthrough";
+// Keep the complete backend identity. Refresh never rebinds a selected name.
+export const sourceKey = id => JSON.stringify([id.cookie, id.serial, id.name, id.media_class]);
 
 export const useVoice = () => {
     const atoms = useStore();
@@ -31,7 +33,7 @@ export const useVoice = () => {
     const [directState] = useAtom(directStateAtom);
     const [directOwner] = useAtom(directOwnerAtom);
     const [directDraftBlocked, setDirectDraftBlocked] = useAtom(directDraftBlockedAtom);
-    const [directSources, updateDirectSources] = useAtom(directSourcesAtom);
+    const [directSources] = useAtom(directSourcesAtom);
     const [directError] = useAtom(directErrorAtom);
     const [selectedSource, setSelectedSource] = useAtom(selectedSourceAtom);
     const [ttsPending] = useAtom(ttsPendingAtom), [directPending] = useAtom(directPendingAtom), [ttsError] = useAtom(ttsErrorAtom);
@@ -44,6 +46,16 @@ export const useVoice = () => {
         atoms.set(directErrorAtom, value);
         if (value && endpoint === "/run/start_direct_voice" && atoms.get(directPendingAtom)?.intent)
             atoms.set(directPendingAtom, null);
+    }, [atoms]);
+    // The Device page Mic choice (backend `preferred`) is the default input. Follow it
+    // until another input is picked here; never retarget an input that is running.
+    const updateDirectSources = useCallback(value => {
+        atoms.set(directSourcesAtom, value);
+        const next = value?.preferred ? sourceKey(value.preferred) : "", state = atoms.get(directStateAtom);
+        if (!next || atoms.get(directPendingAtom) || state.requested || state.pending || state.stopping) return;
+        const selected = atoms.get(selectedSourceAtom);
+        if (selected === "" || selected === atoms.get(preferredSourceAtom)) atoms.set(selectedSourceAtom, next);
+        atoms.set(preferredSourceAtom, next);
     }, [atoms]);
     const updateSettings = useCallback(value => { setSettings(value); updateError(null); }, [setSettings, updateError]);
     const updateStatus = useCallback(value => {
@@ -101,7 +113,7 @@ export const useVoice = () => {
     const reset = useCallback(() => {
         atoms.set(modelOptionsAtom, {});
         atoms.set(settingsAtom, null); atoms.set(statusAtom, {}); atoms.set(routeAtom, {}); atoms.set(directStateAtom, {});
-        atoms.set(selectedSourceAtom, ""); atoms.set(directSourcesAtom, { sources: [], error: null });
+        atoms.set(selectedSourceAtom, ""); atoms.set(preferredSourceAtom, ""); atoms.set(directSourcesAtom, { sources: [], error: null });
         atoms.set(directOwnerAtom, null); atoms.set(directDraftBlockedAtom, false);
         for (const target of [errorAtom, directErrorAtom, ttsErrorAtom, ttsPendingAtom, directPendingAtom]) atoms.set(target, null);
     }, [atoms]);

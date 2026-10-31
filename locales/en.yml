@@ -31,7 +31,7 @@ voice:
     select_input: "Select an input"
     refresh_inputs: "Refresh inputs"
     input_requires_managed: "Prepare the virtual microphone to start. This changes the shared TTS/RVC output to the virtual microphone."
-    input_selection_hint: "Choose the microphone you speak into here. Select VRCT Managed Virtual Microphone as the input in VRChat."
+    input_selection_hint: "Choose the microphone you speak into here; it starts as the mic selected in Device > Mic. Select VRCT Managed Virtual Microphone as the input in VRChat."
     prepare_microphone: "Prepare and use virtual microphone"
     preparing_microphone: "Preparing the virtual microphone…"
     input_start: "Start input forwarding"
@@ -262,6 +262,7 @@ config_page:
         label_device: "Device"
         mic_host_device:
             label: "Mic Device"
+            desc_pipewire: "On Linux this list shows PipeWire inputs. The selected mic is the default RVC input (Start RVC from the RVC switch). Realtime transcription uses the mic chosen in Transcription settings."
         mic_dynamic_energy_threshold:
             label: "Mic Sensitivity Settings"
             desc_for_automatic: "Automatically control mic input sensitivity."
@@ -837,7 +838,7 @@ voice_ui:
         speech_server_or_settings_not_ready: "TTS settings are incomplete. Check Settings → TTS and the voice route."
         tts_state_changed: "The TTS state changed while switching. Try again."
     state_unknown: "State not confirmed; retry after the backend connects."
-    rvc_not_ready: "Select the managed route, save an RVC model, and choose an input microphone."
+    rvc_not_ready: "Select the managed route, save an RVC model, and choose an input microphone in Device > Mic or on the RVC page."
     seed_mode: "Seed mode"
     seed_value: "Seed value"
     seed_random: "Random / server default"
