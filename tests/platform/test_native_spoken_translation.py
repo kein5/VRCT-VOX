@@ -151,7 +151,7 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                 ui.select('Realtime microphone speech', 'translated')
                 ui.select('Direct input while translating', direct_policy)
                 ui.fill('Other languages server (Qwen3-TTS)', tts.url)
-                ui.click_text('button', 'Save voice settings')
+                ui.click_text('button', 'Save changes')
                 wait_for(lambda: json.loads(config_path.read_text()).get('VOICE_SETTINGS', {}).get('mic_mode') == 'translated')
                 wait_for(lambda: gate.inspect_pair()['direct']['muted'] == (direct_policy == 'suppress'))
                 ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Muted (confirmed)')")

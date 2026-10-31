@@ -72,7 +72,7 @@ def test_native_rvc_selection_real_conversion_stop_and_restart(tmp_path):
                 ui.fill('Permitted RVC model (.pth)', model)
                 ui.fill('RVC retrieval index (.index, optional)', index)
                 ui.fill('Retrieval blend (0–1)', '0.5')
-                ui.click_text('button', 'Save input settings')
+                ui.click_text('button', 'Save changes')
                 wait_for(lambda: json.loads((state/'config.json').read_text()).get('DIRECT_VOICE_SETTINGS', {}).get('engine') == 'rvc')
                 assert gate.inspect()['muted'] and not any(name.startswith('vrct.asr.capture.') for name in nodes())
                 ui.select('Input to forward', selected)

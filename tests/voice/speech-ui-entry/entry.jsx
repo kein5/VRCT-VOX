@@ -6,6 +6,7 @@ import { useReceiveRoutes } from "@useReceiveRoutes";
 import { SpeechServers } from "../../../src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/SpeechServers";
 import { VoiceSettings } from "../../../src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/VoiceSettings";
 import { RealtimeASRSettings } from "../../../src-ui/views/app/config_page/setting_section/setting_box/transcription/RealtimeASRSettings";
+import { SaveBar } from "../../../src-ui/views/app/config_page/topbar/Topbar";
 import "../../../locales/config";
 
 store.backend_subprocess = { write: line => window.sidecarWrite(line) };
@@ -27,6 +28,7 @@ function App() {
         return () => { active = false; };
     }, []);
     return <main style={{ maxWidth: 900, margin: "24px auto", color: "#222", background: "#fff" }}>
+        <SaveBar />
         <VoiceSettings /><SpeechServers /><RealtimeASRSettings />
     </main>;
 }

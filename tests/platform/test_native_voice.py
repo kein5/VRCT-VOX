@@ -86,7 +86,7 @@ def test_native_text_to_virtual_microphone_and_recovery(tmp_path):
                     ui.select("Audio route", "managed")
                     ui.select("Read aloud", mode)
                     ui.fill("Japanese server (Irodori)", server.url)
-                    ui.click_text("button", "Save voice settings")
+                    ui.click_text("button", "Save changes")
                     wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("mode") == mode)
 
                 def home():

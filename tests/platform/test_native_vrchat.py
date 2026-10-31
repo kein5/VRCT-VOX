@@ -112,7 +112,7 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
                     ui.select("Audio route", "managed")
                     ui.select("Read aloud", mode)
                     ui.fill("Japanese server (Irodori)", server.url)
-                    ui.click_text("button", "Save voice settings")
+                    ui.click_text("button", "Save changes")
                     wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("mode") == mode)
 
                 def home():

@@ -10,8 +10,16 @@ import styles from "./VoiceSettings.module.scss";
 export const VoiceSettings = () => {
     const { t } = useI18n();
     const { settings, status, devices, error, send, updateError } = useVoice();
-    const form = useSettingsDraft(settings, error, updateError);
-    const { draft, setDraft, saving, dirty } = form;
+    const label = ([key]) => {
+        const role = ["japanese", "multilingual"].find(name => key.startsWith(`${name}_`));
+        if (key === `${role}_server`) return t(`speech_servers.${role}_selection`);
+        if (key === `${role}_seed`) return `${t(`speech_servers.${role}`)}: ${t("voice_ui.seed_mode")}`;
+        if (key === `${role}_instructions`) return `${t(`speech_servers.${role}`)}: ${t("voice_ui.instruction")}`;
+        return t(`voice.${key}`, { defaultValue: key });
+    };
+    const form = useSettingsDraft(settings, error, updateError, { label,
+        write: value => send("/set/data/voice_settings", value), canSave: validGenerationOptions });
+    const { draft, setDraft, saving } = form;
     useEffect(() => {
         send("/get/data/voice_settings");
         send("/get/data/voice_output_devices");
@@ -36,7 +44,7 @@ export const VoiceSettings = () => {
         <SectionLabelComponent label="TTS" />
         <p>{t("voice_ui.tts_description")}</p>
         <VoiceRouteSummary />
-        <form onSubmit={e => { e.preventDefault(); form.submit(value => send("/set/data/voice_settings", value)); }}>
+        <form onSubmit={e => { e.preventDefault(); if (form.dirty && validGenerationOptions(draft)) form.submit(value => send("/set/data/voice_settings", value)); }}>
             <fieldset className={styles.fields} disabled={saving}>
                 <label>{t("voice.mode")}<select aria-label={t("voice.mode")} value={draft.mode} onChange={e => field("mode", e.target.value)}>
                     {["off", "original", "translated"].map(mode => <option key={mode} value={mode}>{t(`voice.${mode}`)}</option>)}
@@ -86,11 +94,6 @@ export const VoiceSettings = () => {
                     </select></label><p>{t("voice.mic_hint")}</p>
                 </details>
             </fieldset>
-            <div className={styles.actions}>
-                <button className={styles.primary} type="submit" disabled={saving || !dirty || !validGenerationOptions(draft)}>{t(saving ? "voice.saving" : "voice.save")}</button>
-                <button type="button" disabled={saving || !dirty} onClick={form.discard}>{t("voice_ui.discard")}</button>
-                <span role="status">{t(`voice_ui.${form.saveState}`)}</span>
-            </div>
         </form>
         {!validGenerationOptions(draft) && <p role="alert">{t("voice_ui.invalid_options")}</p>}
         {form.navigationDialog}

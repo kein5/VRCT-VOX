@@ -34,8 +34,8 @@ IME変換中のEnterとキーリピートは送信しない。
 
 ## ショートカットとWayland
 
-既存のTauri global-shortcut pluginを再利用する。固定依存 `global-hotkey 0.6.4` の
-ローカルソースはLinuxをX11のみとしている。Windowsの登録経路も既存のまま。
+Windows、X11、XWaylandでは既存のTauri global-shortcut pluginを再利用する。固定依存 `global-hotkey 0.6.4` の
+ローカルソースはLinuxをX11のみとしている。ネイティブWaylandではGlobalShortcuts portalを使う（下記）。
 過去の4項目だけを持つHOTKEYS設定は、値を保持したまま `open_quick_chat: null` を補う。
 
 [GlobalShortcuts portalの原典](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.GlobalShortcuts.html)
@@ -43,10 +43,17 @@ IME変換中のEnterとキーリピートは送信しない。
 Activatedの `activation_token` は対象ウィンドウをアクティブにするために使う。
 登録だけでフォーカス移動まで保証できるものではない。
 
-この変更でportalを実装したとは扱わない。ネイティブWaylandを検出した場合は登録を試みず、
-未対応の理由とボタンでの開き方を表示する。XWaylandでは既存登録を試みるが、他のWayland
-アプリを操作しているときのキーとフォーカスはデスクトップの制限を受け得る旨を表示する。
-OS登録エラーとウィンドウ表示・フォーカスAPIの失敗も通知する。
+当初（2026-10-29）はネイティブWaylandで登録を試みず、ボタンでの開き方を案内していた。
+2026-10-31からはportalで登録する（`src-tauri/src/portal_shortcuts.rs`）。portalはインストール済みの
+desktop fileでアプリを識別するため、ほかに用意されていなければ `~/.local/share/applications/io.github.kein5.vrct-vox.desktop` を作る。
+押下はportalのシグナルとして受け取り、本体ウィンドウへ渡す。初回はデスクトップが確認画面を出す。
+KDEではportalの指定キーが新規登録時の初期値にしかならないため、VRCTのキーをkglobalaccelにも書き込み、
+KDEが実際に使うキーを読み戻す。別のキーが残った場合はその旨を表示する。
+KDEのportalは押下時にactivation tokenを渡さないため、ゲームの背面にある表示中の小窓は、
+自プロセスのウィンドウだけを対象にしたKWinスクリプトで前面に出す。ほかのデスクトップでは通常の表示要求だけを行う。
+portalに対応していない場合や登録に失敗した場合は、理由とボタンでの開き方を表示する。
+XWaylandでは既存登録を試みるが、他のWaylandアプリを操作しているときのキーとフォーカスは
+デスクトップの制限を受け得る旨を表示する。OS登録エラーとウィンドウ表示・フォーカスAPIの失敗も通知する。
 Windowsでの実機動作、物理IME、VRChat入力中の挙動は未検証。
 
 Yキーの既定割当て、任意キーをVRChatへ渡さない仕組み、VR空間の入力パネルは含めない。

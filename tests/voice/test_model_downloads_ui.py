@@ -250,7 +250,7 @@ def test_apply_right_after_download_keeps_other_unsaved_edits(ui):
         "/verified/model.gguf", "", "auto"
     )
     assert not any(ep == "/set/data/speech_server_settings" for ep, _ in peer.sent)
-    page.get_by_role("button", name="Save server settings", exact=True).click()
+    page.get_by_role("button", name="Save changes", exact=True).click()
     expect(page.get_by_text("Unsaved changes", exact=True)).to_have_count(0)
     saved = peer.settings["profiles"]["japanese"]
     assert (saved["model"], saved["voice_file"], saved["device"]) == (

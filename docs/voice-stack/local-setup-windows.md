@@ -1,8 +1,8 @@
 # P1 Windows手動試験
 
 これは手順書であり、Windows/VRChat実機の合格記録ではない。
-Python依存管理にはuvを使用する。通常VRCTのWindowsビルド依存/手順は
-[既存手順](../readme_build.md)も参照。
+Python依存管理にはuvを使用する。Windowsのビルド依存と手順は
+[ビルドガイド](../readme_build.md)も参照。
 
 1. ユーザーが許諾を確認してspeech.cppと日本語モデルを別途用意する。
    実行バイナリcommit/hash、モデルID/hash、GPU/driverを[計測記録](benchmarks.md)に残す。
@@ -19,7 +19,7 @@ speech serve C:\models\Irodori-TTS-866M-MF-v4.1-F16.gguf --host 127.0.0.1 --port
 参照音声なしは `--add-voice` を省略し、UIの声名を `none` にする。
 他言語は別端末・8081等でローカルQwen3-TTS GGUFをserveし、そのURLと登録声名を設定する。
 
-4. VRCT「高度な設定」→「テキスト発声」で出力先を明示し、原文・声名・URLを保存。
+4. VRCT-VOXの設定の「TTS」ページで出力先を明示し、原文・声名・URLを保存。
    VRCT側の自分の言語を日本語にし、「こんにちは」を1回送信。
 5. OSC Chatbox表示1回、VRChatマイクへの声1回、旧WebSocket payload形式を確認。
    上流作者のVRCT-TTSなど、同じCHATを読み上げる外部クライアントは停止する。
@@ -35,5 +35,5 @@ python tools/dev.py setup --scope headless
 python tools/dev.py check --scope voice
 ```
 
-Windows CLIを実デバイスへ接続する場合は別途既存requirementsのPyAudioWPatchが必要。
+Windows CLIを実デバイスへ接続する場合はPyAudioWPatchが必要。`npm run setup-python`（`uv sync`）で作る`.venv`には入るが、`headless`のvenvには入らない。
 ASRやVCはP1では有効化されない。通常のVRChatマイクミュートはゲーム内で操作する。

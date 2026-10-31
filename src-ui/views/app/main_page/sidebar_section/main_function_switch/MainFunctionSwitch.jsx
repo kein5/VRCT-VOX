@@ -92,6 +92,7 @@ export const MainFunctionSwitch = () => {
             toggleFunction: toggleOcrCapture,
         },
         { switch_id: "tts", label: "TTS", SvgComponent: HeadphonesSvg, toggleFunction: toggleTts, cancellable: true, disabled: !Number.isSafeInteger(voice.status.tts_generation),
+          statusText: voice.ttsPending?.intent && voice.status.tts_server_starting === true ? t("voice_ui.tts_server_starting") : null,
           currentState: { data: voice.status.tts_enabled === true, state: voice.ttsPending || voice.status.tts_stopping ? "pending" : "ok" } },
         { switch_id: "rvc", label: "RVC", SvgComponent: MicSvg, toggleFunction: toggleRvc, cancellable: true, disabled: !voice.directState.observation_id,
           currentState: { data: rvcOwnsInput && !!voice.directState.requested,
@@ -108,6 +109,7 @@ export const MainFunctionSwitch = () => {
                     disabled={item.disabled}
                     switchLabel={item.label}
                     currentState={item.currentState}
+                    statusText={item.statusText}
                     toggleFunction={item.toggleFunction}
                     SvgComponent={item.SvgComponent}
                 >
@@ -117,7 +119,7 @@ export const MainFunctionSwitch = () => {
     );
 };
 
-export const SwitchContainer = ({ switchLabel, switch_id, children, currentState, toggleFunction, SvgComponent, cancellable = false, disabled = false }) => {
+export const SwitchContainer = ({ switchLabel, switch_id, children, currentState, toggleFunction, SvgComponent, cancellable = false, disabled = false, statusText = null }) => {
     const { currentIsMainPageCompactMode } = useIsMainPageCompactMode();
 
     const getClassNames = (baseClass) => clsx(baseClass, {
@@ -132,6 +134,7 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
             className={getClassNames(styles.switch_container)}
             role="switch" aria-label={switchLabel} aria-checked={currentState.data === true}
             aria-busy={currentState.state === "pending"} aria-disabled={disabled} tabIndex={0}
+            title={statusText ?? undefined}
             onClick={() => { if (!disabled) toggleFunction(); }}
             onKeyDown={event => {
                 if (event.key === " " || event.key === "Enter") {
@@ -143,6 +146,7 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
             <div className={styles.label_wrapper}>
                 <SvgComponent className={getClassNames(styles.switch_svg)} />
                 <p className={getClassNames(styles.switch_label)}>{switchLabel}</p>
+                {statusText && <span className={getClassNames(styles.switch_status)} role="status">{statusText}</span>}
                 {children}
             </div>
 

@@ -1,7 +1,7 @@
 from typing import Callable, Any, List, Optional
 from contextlib import nullcontext
 from subprocess import Popen
-from threading import Thread, Lock
+from threading import Event, Thread, Lock
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, replace
 import copy
@@ -29,13 +29,14 @@ from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
 from models.tts.speechcpp_tts import SpeechError, SpeechCppTTS
-from models.speech_server.runtime import SpeechServers
+from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, SpeechServers
 from models.model_downloads.manager import Downloads
 from models.model_downloads.hardware import HardwareProbe
 from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
 from models.tts.message_hook import chat_event, microphone_event
 from models.audio_routing.audio_router import enumerate_outputs
 from models.audio_routing.managed_route import VoiceRoute
+from models.audio_routing.monitor_output import monitor_spec
 from models.audio_routing.mute_state import MuteState
 from models.audio_routing.pipewire_gate import PipeWireGate
 from models.audio_routing.source_bridge import PIPEWIRE_MIC_HOST, enumerate_sources, microphone_names, parse_source
@@ -354,6 +355,14 @@ class Controller:
         self._speech_settings = normalize_speech_server_settings(saved_servers if isinstance(saved_servers, dict) else {})
         self._speech_settings_lock = Lock()
         self.speech_servers = SpeechServers(on_end=self._speechServerEnded)
+        # TTS servers the main toggle started, as {profile: server generation}.
+        # The generation names one run, so a server the user starts from
+        # Settings is never adopted or stopped by the toggle.
+        self._tts_owner_lock = Lock()
+        self._tts_owned = {}
+        self._tts_released = {}
+        self._tts_attempts = set()
+        self._tts_waiting = 0
         voice_settings = getattr(self._config, "VOICE_SETTINGS", {})
         self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings if isinstance(voice_settings, dict) else {}),
                                           resolve_server=self._ttsSpeechServer, enabled=False,
@@ -529,7 +538,14 @@ class Controller:
         # Called after releasing hub locks, including on natural child failure.
         # One shared TTS scheduler deliberately cancels all pending speech.
         if profile in ("japanese", "multilingual"):
+            with self._tts_owner_lock:
+                released = self._tts_released.pop(profile, None)
+                if released is not None and released == self.speech_servers.state()[profile]["generation"]:
+                    return  # The end of a run the TTS toggle's own OFF stopped.
             self.voice_events.set_enabled(False)
+            # TTS is off now, so servers the main toggle started for it go too.
+            # A waiting ON is not cancelled here: it reports this failure itself.
+            self._releaseTtsServers()
         elif profile == "asr":
             with self._realtime_lock:
                 if self._realtime_settings["server"] == "bundled":
@@ -1997,7 +2013,8 @@ class Controller:
         return self.getVoiceSettings()
 
     def getVoiceStatus(self, *args, **kwargs) -> dict:
-        return {"status": 200, "result": self.voice_events.status()}
+        # tts_server_starting: an ON request is waiting for a bundled server to load.
+        return {"status": 200, "result": dict(self.voice_events.status(), tts_server_starting=self._tts_waiting > 0)}
 
     def getTtsModelOptions(self, data, *args, **kwargs) -> dict:
         if (not isinstance(data, dict) or set(data) not in ({'role'}, {'role', 'request_id'})
@@ -2026,67 +2043,178 @@ class Controller:
             result['error_code'] = str(exc) if isinstance(exc, SpeechError) else 'tts_model_options_unavailable'
         return {'status': 200, 'result': result}
 
+    # A started server enforces its own START_TIMEOUT; this only bounds the
+    # toggle's wait if that end state is somehow never published.
+    _TTS_SERVER_WAIT = SPEECH_START_TIMEOUT + 5
+    # Server failures with their own next step; the rest share a generic code.
+    _TTS_START_FAILURES = ('speech_server_out_of_memory', 'speech_server_start_timeout',
+                           'speech_server_low_latency_requires_gpu_irodori')
+
     def enableTts(self, data, *args, **kwargs) -> dict:
         if (not isinstance(data, dict) or set(data) != {'generation'}
                 or type(data.get('generation')) is not int or data['generation'] < 0):
             return {'status': 400, 'result': {'error_code': 'invalid_tts_toggle'}}
+        attempt, started = Event(), {}
+        with self._tts_owner_lock:
+            self._tts_attempts.add(attempt)
+        try:
+            code = self._enableTts(data['generation'], attempt, started)
+        finally:
+            with self._tts_owner_lock:
+                self._tts_attempts.discard(attempt)
+        if code:
+            # A failed or cancelled ON leaves no server of its own running.
+            self._releaseTtsServers(only=started)
+            # OFF during ON is the user's choice, not an error to report.
+            return {'status': 409, 'result': {'error_code': 'tts_enable_cancelled' if attempt.is_set() else code}}
+        return self.getVoiceStatus()
+
+    def _enableTts(self, generation, attempt, started):
         with self._voice_settings_lock:
-            state = self.voice_events.status()
-            if data['generation'] != state['tts_generation']:
-                return {'status': 409, 'result': {'error_code': 'tts_state_changed'}}
-            # Name the blocking condition: the UI turns each code into its next step.
-            if state['closed']:
-                return {'status': 409, 'result': {'error_code': 'voice_route_closed'}}
-            if state['muted']:
-                return {'status': 409, 'result': {'error_code': 'voice_route_muted'}}
+            code, roles = self._ttsRolesLocked(generation)
+            if code:
+                return code
             settings = self.voice_events.settings
-            if settings.mode == 'off' and settings.mic_mode == 'off':
-                return {'status': 409, 'result': {'error_code': 'tts_source_not_selected'}}
+            bundled = sorted(role for role in roles if getattr(settings, role + '_server') == 'bundled')
+        if bundled:
+            # Loading a model takes seconds. Wait without the settings lock so
+            # saves and status polls are not blocked; OFF cancels the wait.
+            code = self._awaitTtsServers(bundled, generation, attempt, started)
+            if code:
+                return code
+        with self._voice_settings_lock:
+            code, roles = self._ttsRolesLocked(generation)
+            if code:
+                return code
+            settings = self.voice_events.settings
             try:
-                # Resolve only the selected sources/languages; do not require an
-                # unused multilingual model to enable Japanese-only speech.
-                languages = []
-                cfg = self._config
-                if settings.mode == 'original':
-                    languages.append(cfg.SELECTED_YOUR_LANGUAGES[cfg.SELECTED_TAB_NO]['1']['language'])
-                if settings.mode == 'translated' or settings.mic_mode == 'translated':
-                    target = cfg.SELECTED_TARGET_LANGUAGES[cfg.SELECTED_TAB_NO][settings.target_slot]
-                    if not cfg.ENABLE_TRANSLATION or target.get('enable') is not True:
-                        raise ValueError('tts_translation_not_ready')
-                    languages.append(target['language'])
-                from models.tts.settings import language_tag
-                urls = set()
-                for language in languages:
-                    try:
-                        tag = language_tag(language)
-                    except ValueError:
-                        raise ValueError('tts_language_unsupported') from None
-                    role = 'japanese' if tag == 'ja' else 'multilingual'
-                    url = (self._ttsSpeechServer(role) if getattr(settings, role + '_server') == 'bundled'
-                           else getattr(settings, role + '_url'))
-                    urls.add(url)
-                if not settings.playback_device.strip():
-                    raise ValueError('tts_output_missing')
+                urls = {self._ttsSpeechServer(role) if getattr(settings, role + '_server') == 'bundled'
+                        else getattr(settings, role + '_url') for role in roles}
                 for url in urls:
                     SpeechCppTTS(url).check_health()
             except SpeechError:
                 # A stopped bundled server and an unreachable external URL both
                 # need the user to start (or fix) the server for that language.
-                return {'status': 409, 'result': {'error_code': 'speech_server_not_ready'}}
-            except ValueError as exc:
-                code = str(exc)
-                if code not in ('tts_translation_not_ready', 'tts_language_unsupported', 'tts_output_missing'):
-                    code = 'speech_server_or_settings_not_ready'
-                return {'status': 409, 'result': {'error_code': code}}
-            except (KeyError, TypeError):
-                return {'status': 409, 'result': {'error_code': 'speech_server_or_settings_not_ready'}}
+                return 'speech_server_not_ready'
+            except (ValueError, KeyError, TypeError):
+                return 'speech_server_or_settings_not_ready'
             # OFF bypasses this lock; the epoch must be rechecked after probing.
-            if not self.voice_events.set_enabled(True, expected_generation=data['generation']):
-                return {'status': 409, 'result': {'error_code': 'tts_state_changed'}}
-        return self.getVoiceStatus()
+            if not self.voice_events.set_enabled(True, expected_generation=generation):
+                return 'tts_state_changed'
+        return None
+
+    def _ttsRolesLocked(self, generation):
+        """Check an ON request; return (error_code, server roles) without probing servers."""
+        state = self.voice_events.status()
+        if generation != state['tts_generation']:
+            return 'tts_state_changed', None
+        # Name the blocking condition: the UI turns each code into its next step.
+        if state['closed']:
+            return 'voice_route_closed', None
+        if state['muted']:
+            return 'voice_route_muted', None
+        settings = self.voice_events.settings
+        if settings.mode == 'off' and settings.mic_mode == 'off':
+            return 'tts_source_not_selected', None
+        try:
+            # Resolve only the selected sources/languages; do not require an
+            # unused multilingual model to enable Japanese-only speech.
+            languages = []
+            cfg = self._config
+            if settings.mode == 'original':
+                languages.append(cfg.SELECTED_YOUR_LANGUAGES[cfg.SELECTED_TAB_NO]['1']['language'])
+            if settings.mode == 'translated' or settings.mic_mode == 'translated':
+                target = cfg.SELECTED_TARGET_LANGUAGES[cfg.SELECTED_TAB_NO][settings.target_slot]
+                if not cfg.ENABLE_TRANSLATION or target.get('enable') is not True:
+                    return 'tts_translation_not_ready', None
+                languages.append(target['language'])
+            from models.tts.settings import language_tag
+            roles = set()
+            for language in languages:
+                try:
+                    tag = language_tag(language)
+                except ValueError:
+                    return 'tts_language_unsupported', None
+                roles.add('japanese' if tag == 'ja' else 'multilingual')
+            # Checked before any server starts, so this never costs a model load.
+            if not settings.playback_device.strip():
+                return 'tts_output_missing', None
+        except (KeyError, TypeError):
+            return 'speech_server_or_settings_not_ready', None
+        return None, roles
+
+    def _awaitTtsServers(self, roles, generation, attempt, started):
+        """Start stopped bundled servers for roles, then wait until all are ready."""
+        state = self.speech_servers.state()
+        for role in roles:
+            row = state[role]
+            if row['state'] in ('ready', 'preparing'):
+                continue  # Started from Settings: wait for it, but never own it.
+            if row['state'] == 'stopping':
+                return 'speech_server_busy'
+            try:
+                options = speech_start_options(self.getSpeechServerSettings()['result'], role)
+            except ValueError as exc:
+                return 'speech_server_model_invalid' if str(exc) == 'speech_server_model_invalid' else 'speech_server_start_failed'
+            with self._tts_owner_lock:
+                # OFF takes this lock too: it either cancels first or sees ownership.
+                if attempt.is_set():
+                    return 'tts_enable_cancelled'
+                try:
+                    self.speech_servers.start(role, options, row['generation'])
+                except RuntimeError as exc:
+                    return 'speech_server_busy' if str(exc) == 'speech_server_busy' else 'speech_server_start_failed'
+                # start() succeeds only from this generation and takes the next one.
+                started[role] = self._tts_owned[role] = row['generation'] + 1
+        with self._tts_owner_lock:
+            self._tts_waiting += 1
+        try:
+            deadline = time.monotonic() + self._TTS_SERVER_WAIT
+            while not attempt.is_set():
+                state = self.speech_servers.state()
+                rows = {role: state[role] for role in roles}
+                # Report a failure before the TTS epoch bump that it causes.
+                failed = [row['error_code'] for row in rows.values() if row['state'] == 'failed']
+                if failed:
+                    return failed[0] if failed[0] in self._TTS_START_FAILURES else 'speech_server_start_failed'
+                if any(row['state'] in ('stopped', 'stopping') or row['generation'] != started.get(role, row['generation'])
+                       for role, row in rows.items()):
+                    return 'speech_server_not_ready'  # Stopped from Settings meanwhile.
+                if all(row['state'] == 'ready' for row in rows.values()):
+                    return None
+                if self.voice_events.generation() != generation:
+                    return 'tts_state_changed'
+                if time.monotonic() >= deadline:
+                    return 'speech_server_start_timeout'
+                attempt.wait(.05)
+            return 'tts_enable_cancelled'
+        finally:
+            with self._tts_owner_lock:
+                self._tts_waiting -= 1
+
+    def _releaseTtsServers(self, only=None, cancel=False):
+        """Stop TTS servers the main toggle started; servers started from Settings stay up."""
+        with self._tts_owner_lock:
+            if cancel:
+                for attempt in self._tts_attempts:
+                    attempt.set()
+            owned = {role: run for role, run in self._tts_owned.items() if only is None or only.get(role) == run}
+            for role, run in owned.items():
+                del self._tts_owned[role]
+                # Stop takes run + 1 and the published end run + 2. TTS is
+                # already off, so that end must not bump the epoch again and
+                # turn a quick OFF -> ON into tts_state_changed.
+                self._tts_released[role] = run + 2
+        for role, run in owned.items():
+            # Non-joining like stopSpeechServer; a newer run is left alone.
+            if not self.speech_servers.stop(role, generation=run):
+                with self._tts_owner_lock:
+                    self._tts_released.pop(role, None)
 
     def disableTts(self, *args, **kwargs) -> dict:
         self.voice_events.set_enabled(False)
+        # OFF also cancels an ON that is still waiting for its server.
+        self._releaseTtsServers(cancel=True)
         return self.getVoiceStatus()
 
     def getDirectVoiceSources(self, *args, **kwargs) -> dict:
@@ -2106,7 +2234,13 @@ class Controller:
         return {'status': 200, 'result': {'sources': sources, 'error': error, 'preferred': preferred}}
 
     def getDirectVoiceState(self, *args, **kwargs) -> dict:
-        return {'status': 200, 'result': dict(self.direct_voice.health(), settings=self._direct_settings.to_dict())}
+        state = self.direct_voice.health()
+        # The VC router's stderr is not kept; log each new monitor code once here.
+        code = state.get('monitor_error')
+        if code and code != getattr(self, '_vc_monitor_logged', None):
+            self._voiceMonitorFailed(code)
+        self._vc_monitor_logged = code
+        return {'status': 200, 'result': dict(state, settings=self._direct_settings.to_dict())}
 
     def setDirectVoiceSettings(self, data, *args, **kwargs) -> dict:
         try:
@@ -2140,8 +2274,10 @@ class Controller:
                     raise RuntimeError('source_bridge_closed')
                 if self.voice_events.settings.routing != 'managed':
                     raise RuntimeError('source_bridge_managed_required')
+                # One monitor setting covers TTS and converted voice; passthrough is never monitored.
+                monitor = monitor_spec(self.voice_events.settings.monitor_choice) if mode == 'converted' else None
                 self.direct_voice.start(source=source, expected_generation=data['_direct_generation'],
-                                        mode=mode, options=options)
+                                        mode=mode, options=options, monitor=monitor)
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
         return self.getDirectVoiceState()
