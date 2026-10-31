@@ -115,6 +115,8 @@ run_mapping = {
     "download_progress_ctranslate2_weight":"/run/download_progress_ctranslate2_weight",
     "downloaded_ctranslate2_weight":"/run/downloaded_ctranslate2_weight",
     "error_ctranslate2_weight":"/run/error_ctranslate2_weight",
+    "ctranslate2_license_notice":"/run/ctranslate2_license_notice",
+    "translation_language_unsupported":"/run/translation_language_unsupported",
     "download_progress_whisper_weight":"/run/download_progress_whisper_weight",
     "downloaded_whisper_weight":"/run/downloaded_whisper_weight",
     "error_whisper_weight":"/run/error_whisper_weight",

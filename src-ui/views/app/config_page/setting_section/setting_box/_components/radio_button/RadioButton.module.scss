@@ -155,6 +155,15 @@
     width: 100%;
 }
 
+// e.g. the non-commercial license line of an NLLB translation weight. Placed
+// after the state rules above so it stays visible when selected or disabled.
+.radio_button_wrapper .radio_button_desc.desc_warning,
+.radio_button_wrapper.is_selected .radio_button_desc.desc_warning,
+.radio_button_wrapper.disabled .radio_button_desc.desc_warning {
+    color: var(--warning_color);
+    font-weight: 600;
+}
+
 .capacity_label {
     margin-left: auto;
     font-size: 1.2rem;

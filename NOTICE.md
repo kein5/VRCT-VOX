@@ -104,7 +104,27 @@ them, as stated above; the table is kept for attribution.
 | YOLOX `yolox_tiny.pth` (COCO-pretrained base of the model above; not shipped, used only at training time) | 0.1.1rc0 | Apache-2.0 |
 | RapidOCR and the PP-OCR ONNX models it ships, fetched by `tools/fetch_ocr_models.py` | 3.9.2 | Apache-2.0 |
 
-This table covers **model weights** only. Python package
+## Downloadable CTranslate2 translation weights
+
+None of these weights ship with VRCT-VOX. The app downloads the selected one
+from Hugging Face into `weights/ctranslate2/`. The license is shown next to
+each weight in Config → Translation.
+
+| Weight (setting value) | Downloaded from | Upstream model | License |
+|---|---|---|---|
+| `m2m100_418M-ct2-int8` (**default**) | `jncraton/m2m100_418M-ct2-int8` | `facebook/m2m100_418M` | MIT |
+| `m2m100_1.2B-ct2-int8` | `jncraton/m2m100_1.2B-ct2-int8` | `facebook/m2m100_1.2B` | MIT |
+| `nllb-200-distilled-600M-ct2-int8` | `JustFrederik/nllb-200-distilled-600M-ct2-int8` | `facebook/nllb-200-distilled-600M` | CC-BY-NC-4.0 (non-commercial) |
+| `nllb-200-distilled-1.3B-ct2-int8` | `OpenNMT/nllb-200-distilled-1.3B-ct2-int8` | `facebook/nllb-200-distilled-1.3B` | CC-BY-NC-4.0 (non-commercial) |
+| `nllb-200-3.3B-ct2-int8` | `OpenNMT/nllb-200-3.3B-ct2-int8` | `facebook/nllb-200-3.3B` | CC-BY-NC-4.0 (non-commercial) |
+
+The NLLB-200 weights are opt-in. The user must confirm the non-commercial
+license before downloading or selecting one, and the backend refuses either
+request without that confirmation. Earlier versions made
+`nllb-200-distilled-600M-ct2-int8` the default. Configurations saved by those
+versions keep it, and the app shows a one-time notice about its license.
+
+This table and the OCR table above cover **model weights** only. Python package
 dependencies are listed in `pyproject.toml` (resolved in `uv.lock`) and
 carry their own licenses; JavaScript and Rust dependencies are listed in
 `package.json` and `src-tauri/Cargo.toml`.

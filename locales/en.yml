@@ -111,6 +111,8 @@ common:
     default_label: "Default"
 
 common_error:
+    ctranslate2_license_consent_required: "{{weight_type}} has a non-commercial license (CC-BY-NC-4.0). Confirm the license in Settings > Translation first."
+    translation_language_unsupported: "{{model}} cannot translate {{languages}}, so the language was reset. To use it, choose another translation engine or {{ctranslate2}} model."
     no_device_mic: "No mic device detected."
     no_device_speaker: "No speaker device detected."
     copy_to_clipboard_failed: "Failed to copy to the clipboard."
@@ -317,6 +319,17 @@ config_page:
             desc: "You can choose the translation model when using the {{ctranslate2}} translation engine."
             small: "Basic Model ({{capacity}})"
             large: "High Accuracy Model ({{capacity}})"
+            license_commercial: "License: {{license}} (commercial use allowed)"
+            license_non_commercial: "Non-commercial license ({{license}})"
+            confirm_title: "Non-commercial license"
+            confirm_body: "{{weight_type}} is licensed under {{license}}. It may not be used for commercial purposes. The M2M100 models (MIT license) have no such restriction."
+            confirm_check: "I have read the license and will use this model only for non-commercial purposes."
+            confirm_download: "Download"
+            confirm_select: "Use this model"
+            confirm_cancel: "Cancel"
+            license_link: "License terms"
+            model_card_link: "Model card"
+            non_commercial_notice: "Your {{ctranslate2}} model, {{weight_type}}, has a non-commercial license ({{license}}). It was the default in earlier versions, and your setting has not been changed. For commercial use, select an M2M100 model (MIT) in Settings > Translation."
         translation_compute_device:
             label: "Processing device for AI translation"
 

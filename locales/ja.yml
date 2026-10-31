@@ -111,6 +111,8 @@ common:
     default_label: "デフォルト"
 
 common_error:
+    ctranslate2_license_consent_required: "{{weight_type}} は非商用ライセンス（CC-BY-NC-4.0）です。先に 設定 > 翻訳 でライセンスを確認してください。"
+    translation_language_unsupported: "{{model}} は {{languages}} を翻訳できないため、言語をリセットしました。この言語を使うには、別の翻訳エンジンか {{ctranslate2}} モデルを選んでください。"
     no_device_mic: "マイクデバイスが検出されませんでした。"
     no_device_speaker: "スピーカーデバイスが検出されませんでした。"
     copy_to_clipboard_failed: "クリップボードへのコピーに失敗しました。"
@@ -317,6 +319,17 @@ config_page:
             desc: "翻訳エンジン「{{ctranslate2}}」で翻訳する際に、使用する翻訳モデルを選択できます。"
             small: "通常モデル （{{capacity}}）"
             large: "高精度モデル （{{capacity}}）"
+            license_commercial: "ライセンス: {{license}}（商用利用可）"
+            license_non_commercial: "非商用ライセンス（{{license}}）"
+            confirm_title: "非商用ライセンス"
+            confirm_body: "{{weight_type}} のライセンスは {{license}} です。商用目的では使用できません。M2M100 モデル（MIT ライセンス）にはこの制限はありません。"
+            confirm_check: "ライセンスを確認し、非商用目的でのみ使用します。"
+            confirm_download: "ダウンロード"
+            confirm_select: "このモデルを使う"
+            confirm_cancel: "キャンセル"
+            license_link: "ライセンス条項"
+            model_card_link: "モデルカード"
+            non_commercial_notice: "現在の {{ctranslate2}} モデル {{weight_type}} は非商用ライセンス（{{license}}）です。以前のバージョンの既定値で、設定は変更していません。商用利用する場合は、設定 > 翻訳 で M2M100 モデル（MIT）を選んでください。"
         translation_compute_device:
             label: "AI翻訳の処理デバイス"
 

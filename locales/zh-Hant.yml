@@ -9,6 +9,8 @@ common:
     default_label: "預設"
 
 common_error:
+    ctranslate2_license_consent_required: "{{weight_type}} 採用非商業授權（CC-BY-NC-4.0）。請先在 設定 > 翻譯 中確認授權。"
+    translation_language_unsupported: "{{model}} 無法翻譯 {{languages}}，因此已重設語言。如需使用該語言，請選擇其他翻譯引擎或 {{ctranslate2}} 模型。"
     no_device_mic: "未偵測到麥克風裝置。"
     no_device_speaker: "未偵測到喇叭裝置。"
     copy_to_clipboard_failed: "複製到剪貼簿失敗。"
@@ -214,6 +216,17 @@ config_page:
             desc: "你可以選擇用於離線翻譯引擎的翻譯模型。"
             small: "基本模型（{{capacity}}）"
             large: "高準確率模型（{{capacity}}）"
+            license_commercial: "授權：{{license}}（允許商業使用）"
+            license_non_commercial: "非商業授權（{{license}}）"
+            confirm_title: "非商業授權"
+            confirm_body: "{{weight_type}} 採用 {{license}} 授權，不得用於商業用途。M2M100 模型（MIT 授權）沒有此限制。"
+            confirm_check: "我已閱讀授權條款，並且只會將此模型用於非商業用途。"
+            confirm_download: "下載"
+            confirm_select: "使用此模型"
+            confirm_cancel: "取消"
+            license_link: "授權條款"
+            model_card_link: "模型卡"
+            non_commercial_notice: "目前的 {{ctranslate2}} 模型 {{weight_type}} 採用非商業授權（{{license}}）。它是舊版本的預設模型，你的設定未被變更。如需商業使用，請在 設定 > 翻譯 中選擇 M2M100 模型（MIT）。"
         translation_compute_device:
             label: "AI 翻譯的處理裝置"
 

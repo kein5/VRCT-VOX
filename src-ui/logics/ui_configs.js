@@ -79,12 +79,18 @@ export const translator_status = [
     { id: "OpenAI_Compatible", label: `OpenAI Compatible`, is_available: false },
 ];
 
+// license/non_commercial mirror ctranslate2_weights in
+// src-python/models/translation/translation_utils.py (a pytest checks they
+// agree). non_commercial weights need the confirmation dialog in
+// Config -> Translation before they are downloaded or selected.
+const CC_BY_NC_4_0 = { license: "CC-BY-NC-4.0", non_commercial: true, license_url: "https://creativecommons.org/licenses/by-nc/4.0/" };
+const MIT = { license: "MIT", non_commercial: false };
 export const ctranslate2_weight_type_status = [
-    { id: "m2m100_418M-ct2-int8", capacity: "418MB"},
-    { id: "m2m100_1.2B-ct2-int8", capacity: "1.2GB"},
-    { id: "nllb-200-distilled-600M-ct2-int8", capacity: "600MB", is_default: true},
-    { id: "nllb-200-distilled-1.3B-ct2-int8", capacity: "1.3GB"},
-    { id: "nllb-200-3.3B-ct2-int8", capacity: "3.3GB"},
+    { id: "m2m100_418M-ct2-int8", capacity: "418MB", is_default: true, ...MIT, model_card_url: "https://huggingface.co/facebook/m2m100_418M" },
+    { id: "m2m100_1.2B-ct2-int8", capacity: "1.2GB", ...MIT, model_card_url: "https://huggingface.co/facebook/m2m100_1.2B" },
+    { id: "nllb-200-distilled-600M-ct2-int8", capacity: "600MB", ...CC_BY_NC_4_0, model_card_url: "https://huggingface.co/facebook/nllb-200-distilled-600M" },
+    { id: "nllb-200-distilled-1.3B-ct2-int8", capacity: "1.3GB", ...CC_BY_NC_4_0, model_card_url: "https://huggingface.co/facebook/nllb-200-distilled-1.3B" },
+    { id: "nllb-200-3.3B-ct2-int8", capacity: "3.3GB", ...CC_BY_NC_4_0, model_card_url: "https://huggingface.co/facebook/nllb-200-3.3B" },
 ].map(item => ({ is_default: false, ...item, is_downloaded: false, progress: null }));
 
 export const whisper_weight_type_status = [

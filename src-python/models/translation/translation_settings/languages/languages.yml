@@ -270,6 +270,11 @@ Papago:
   target: *papago_langs
 
 CTranslate2:
+  # Codes must be in transformers' M2M100Tokenizer FAIRSEQ_LANGUAGE_CODES['m2m100']
+  # (100 languages). This table was originally copied from Whisper's language list,
+  # so it listed languages M2M100 does not have (Latin, Maori, Telugu, Basque, ...),
+  # which raised KeyError inside the tokenizer instead of failing as unsupported.
+  # Burmese is the name the rest of the app uses; Myanmar is kept as an alias.
   m2m100_418M-ct2-int8:
     source: &m2m100_langs
       English: en
@@ -308,12 +313,9 @@ CTranslate2:
       Croatian: hr
       Bulgarian: bg
       Lithuanian: lt
-      Latin: la
-      Maori: mi
       Malayalam: ml
       Welsh: cy
       Slovak: sk
-      Telugu: te
       Persian: fa
       Latvian: lv
       Bengali: bn
@@ -324,7 +326,6 @@ CTranslate2:
       Estonian: et
       Macedonian: mk
       Breton: br
-      Basque: eu
       Icelandic: is
       Armenian: hy
       Nepali: ne
@@ -338,39 +339,29 @@ CTranslate2:
       Punjabi: pa
       Sinhala: si
       Khmer: km
-      Shona: sn
       Yoruba: yo
       Somali: so
       Afrikaans: af
       Occitan: oc
       Georgian: ka
       Belarusian: be
-      Tajik: tg
       Sindhi: sd
       Gujarati: gu
       Amharic: am
       Yiddish: yi
       Lao: lo
       Uzbek: uz
-      Faroese: fo
       Haitian creole: ht
       Pashto: ps
-      Turkmen: tk
-      Nynorsk: nn
-      Maltese: mt
-      Sanskrit: sa
       Luxembourgish: lb
       Myanmar: my
-      Tibetan: bo
+      Burmese: my
       Filipino: tl
       Malagasy: mg
-      Assamese: as
-      Tatar: tt
-      Hawaiian: haw
       Lingala: ln
       Hausa: ha
       Bashkir: ba
-      Javanese: jw
+      Javanese: jv
       Sundanese: su
     target: *m2m100_langs
   m2m100_1.2B-ct2-int8:
