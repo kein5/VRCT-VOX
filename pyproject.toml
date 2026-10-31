@@ -86,8 +86,10 @@ dependencies = [
     # NOTE: rapidocr requires opencv-python, but this app uses
     # opencv-python-headless; tool.uv.exclude-dependencies drops opencv-python
     # and rapidocr's other dependencies are listed explicitly below.
-    # Optional Windows window-capture OCR; not part of Linux voice startup.
-    "rapidocr==3.9.2 ; sys_platform == 'win32'",
+    # Chat reading on Windows and Linux. The wheel's bundled models are never
+    # used or shipped: models/ocr/ocr_models.py passes explicit paths to
+    # consented downloads, and tools/distribution_policy.py strips the weights.
+    "rapidocr==3.9.2",
     "opencv-python-headless==4.10.0.84",
     "omegaconf==2.3.1",
     "colorlog==6.12.0",

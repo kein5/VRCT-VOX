@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""Linux onedir; resources are explicitly selected, never copy the OCR directory."""
+"""Linux onedir; resources are explicitly selected, never copy the OCR directory or OCR weights."""
 import os
 from pathlib import Path
 import sys
@@ -25,6 +25,9 @@ for source, destination in (
 # These packages load data/native libraries dynamically, outside static imports.
 for package in ('faster_whisper', 'openvr', 'glfw', 'sudachipy', 'sudachidict_core', 'sudachidict_full'):
     datas += collect_data_files(package)
+# RapidOCR reads its YAML config at start-up. Only that is collected: its bundled
+# weights are never shipped (filter_toc) and never loaded (explicit model paths).
+datas += collect_data_files('rapidocr', includes=['*.yaml'])
 binaries = collect_dynamic_libs('openvr') + collect_dynamic_libs('glfw')
 for package in ('ctranslate2', 'transformers', 'faster-whisper', 'huggingface-hub',
                 'tokenizers', 'safetensors', 'regex', 'requests', 'numpy',
@@ -35,9 +38,10 @@ for package in ('ctranslate2', 'transformers', 'faster-whisper', 'huggingface-hu
 a = Analysis([str(root / 'src-python/mainloop.py')], pathex=[str(root / 'packaging/pyinstaller-stubs'), str(root / 'src-python')],
     binaries=binaries, datas=datas,
     hiddenimports=['models.voice_conversion.router_worker',
-                   'faster_whisper.vad', 'cv2', 'models.ocr'],
+                   'faster_whisper.vad', 'cv2', 'models.ocr',
+                   'rapidocr', 'rapidocr.inference_engine.onnxruntime'],
     hookspath=[], hooksconfig={}, runtime_hooks=[],
-    excludes=['pandas', 'matplotlib', 'PyQt5', 'torch', 'tensorflow', 'rapidocr',
+    excludes=['pandas', 'matplotlib', 'PyQt5', 'torch', 'tensorflow',
               'windows_capture', 'pytest', 'ruff'], noarchive=False, optimize=0,
     # LGPL Python code stays as replaceable source files outside the PYZ archive.
     module_collection_mode={'zeroconf': 'py', 'bidi': 'py'})
