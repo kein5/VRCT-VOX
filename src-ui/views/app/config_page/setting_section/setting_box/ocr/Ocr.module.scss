@@ -3,3 +3,97 @@
     flex-direction: column;
     gap: 6.4rem;
 }
+
+.readiness {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.6rem;
+    margin: 1.6rem 0;
+    padding: 1.2rem 1.6rem;
+    border: .1rem solid var(--warning_color);
+    border-radius: var(--vox_radius, .8rem);
+    p { line-height: 1.6; overflow-wrap: anywhere; }
+    &[data-ready="true"] { border-color: var(--primary_400_color); }
+    button {
+        flex-shrink: 0;
+        min-height: 3.6rem;
+        padding: .6rem 1.2rem;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        background: var(--dark_850_color, #25364f);
+        border: .1rem solid transparent;
+        border-radius: var(--vox_radius, .8rem);
+        &:hover { background: var(--dark_600_color, #555d69); }
+    }
+}
+
+.models {
+    padding-top: 0;
+}
+
+.modelRow {
+    display: grid;
+    gap: .6rem;
+}
+
+.region {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    padding: 1.6rem 0;
+    border-bottom: .1rem solid var(--dark_800_color, #34363b);
+}
+
+.regionHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 2.4rem;
+}
+
+.regionLabel {
+    font-size: 1.4rem;
+    color: var(--dark_200_color, #e5e7eb);
+}
+
+.regionDesc {
+    margin-top: .4rem;
+    font-size: 1.2rem;
+    line-height: 1.6;
+    color: var(--dark_400_color, #9ca3af);
+}
+
+.preview {
+    position: relative;
+    flex-shrink: 0;
+    width: 16rem;
+    aspect-ratio: 16 / 9;
+    background: var(--dark_900_color, #1d1f22);
+    border: .1rem solid var(--dark_650_color, #5e6570);
+    border-radius: .4rem;
+    overflow: hidden;
+}
+
+.previewArea {
+    position: absolute;
+    box-sizing: border-box;
+    background: color-mix(in srgb, var(--primary_400_color, #4d8ef7) 30%, transparent);
+    border: .2rem solid var(--primary_400_color, #4d8ef7);
+}
+
+.resetButton {
+    align-self: flex-start;
+    margin-top: .8rem;
+    min-height: 3.6rem;
+    padding: .6rem 1.2rem;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    background: var(--dark_850_color, #25364f);
+    border: .1rem solid transparent;
+    border-radius: var(--vox_radius, .8rem);
+    &:hover:enabled { background: var(--dark_600_color, #555d69); }
+    &:disabled { opacity: .6; cursor: not-allowed; }
+}

@@ -134,6 +134,13 @@ common_error:
     invalid_value_speaker_max_phrase: "You can set a number equal to or greater than 0."
 
     invalid_hex_color: "Please enter a valid HEX color code (e.g., {{brand_color_hex}})."
+    ocr_engine_unavailable: "Chat Transcribe could not start: the OCR engine is not included in this build."
+    ocr_model_load_failed: "Chat Transcribe could not start: the recognition models could not be loaded. Download them again in Config → Chat Transcribe."
+    ocr_unsupported_language: "Chat Transcribe could not start: the selected source language is not supported."
+    ocr_model_missing: "Chat Transcribe needs recognition models. Download them in Config → Chat Transcribe."
+    ocr_window_not_found: "Chat Transcribe could not find the VRChat window. Start VRChat, then turn it on again."
+    ocr_capture_unavailable: "Chat Transcribe cannot capture windows in this session. On Linux, VRChat has to run as an X11/XWayland window."
+    ocr_unknown: "Chat Transcribe could not start because of an unexpected error."
 
 common_warning:
     unable_to_use_osc_query: "The following functions have been automatically disabled due to the OSC IP Address settings preventing OSC data from being received."
@@ -552,6 +559,34 @@ config_page:
         bubble_min_text_length:
             label: "Minimum text length"
             desc: "Bubbles with fewer characters than this are ignored. Default: 2."
+        detection: "Where to read"
+        region:
+            label: "Reading area"
+            desc: "Part of the VRChat window to read, in percent of its width and height. Chat bubbles float above avatars, so an area that covers only where they appear is faster and picks up less world text. Default: the whole window."
+            x: "Left (%)"
+            y: "Top (%)"
+            width: "Width (%)"
+            height: "Height (%)"
+            reset: "Use the whole window"
+            preview_label: "Reading area within the VRChat window"
+        chatbox_filter:
+            label: "Only read chatbox-style text"
+            desc: "Keep only light text on a dark panel, the way VRChat draws chatbox bubbles. Turn this off if bubbles are missed; signs and menus in the world will then be read too."
+        models:
+            title: "Recognition models"
+            desc: "Chat reading runs PaddleOCR models on this computer. Nothing is downloaded until you review the terms and agree."
+            installed: "Downloaded"
+            missing: "Not downloaded"
+            required: "Needed for the current source language"
+            refresh: "Check again"
+        readiness:
+            ready: "Ready. Turn on Chat Transcribe from the main screen."
+            checking: "Checking…"
+            engine_unavailable: "The OCR engine is not included in this build."
+            language_unsupported: "The selected source language is not supported."
+            models_missing: "Download the recognition models below before turning on Chat Transcribe."
+            window_not_found: "The '{{title}}' window was not found. Start VRChat, then turn on Chat Transcribe."
+            capture_unavailable: "Window capture is not available in this session. On Linux, VRChat has to run as an X11/XWayland window (the Proton default)."
 
     updater:
         install_panel:
@@ -977,6 +1012,7 @@ model_downloads:
     notice_irodori: "Japanese TTS for speech.cpp 0.9.0. MIT model and codec, with Apache-2.0 codec base. The provider prohibits impersonation without consent and misleading synthetic speech. Text-only voices can coincidentally resemble a person; review all model-card restrictions."
     notice_qwen: "Multilingual TTS with nine preset speakers for speech.cpp 0.9.0. Apache-2.0. Use the model and generated speech responsibly and respect the rights of others."
     notice_rvc: "RVC v2 voice conversion, trained on the author's own voice according to the model card. CC BY 4.0 requires attribution: Voice model created by Saisho Utane — https://huggingface.co/Saisho-Utane — Used under the CC BY 4.0 license. Include credit in public content and project documentation, link the license, and indicate changes. Voice quality in this runtime has not yet been verified."
+    notice_ppocr: "Text detection and recognition for Chat Transcribe from PaddleOCR (PaddlePaddle), Apache-2.0. Runs on this computer's CPU; screen contents are never uploaded."
     notice_haas: "Japanese speech recognition with punctuation for speech.cpp 0.9.4 or later. Apache-2.0, by Third Intelligence, converted by sakasegawa. Review the model card before use."
     rvc_requirements: "This downloads only the RVC voice model and index. Conversion also needs a separately prepared RVC runtime, Python environment, HuBERT and RMVPE assets. Download completion does not mean conversion is ready."
     notice_qwen_asr: "Speech recognition in 30 languages that detects the spoken language itself, for speech.cpp 0.7.0 or later. Apache-2.0, by the Qwen team, converted by sakasegawa. Review the model card before use."

@@ -708,6 +708,8 @@ mapping = {
 # 外しても取得経路は失われない。
 _INIT_MAPPING_EXCLUDED_ENDPOINTS = frozenset({
     "/get/data/available_releases",
+    # Probes the X11 display / VRChat window; the OCR page asks for it when shown.
+    "/get/data/ocr_readiness",
 })
 
 init_mapping = {

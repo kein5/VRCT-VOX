@@ -679,6 +679,31 @@ export const SETTINGS_ARRAY = [
         logics_template_id: "get_set",
         base_endpoint_name: "ocr_bubble_min_text_length",
     },
+    {
+        Category: "Ocr",
+        Base_Name: "OcrCaptureRegion",
+        default_value: { x: 0, y: 0, width: 1, height: 1 },
+        ui_template_id: "custom",
+        logics_template_id: "get_set",
+        base_endpoint_name: "ocr_capture_region",
+    },
+    {
+        Category: "Ocr",
+        Base_Name: "OcrChatboxFilter",
+        default_value: true,
+        ui_template_id: "toggle",
+        logics_template_id: "toggle_enable_disable",
+        base_endpoint_name: "ocr_chatbox_filter",
+    },
+    {
+        // Probes the window; requested by the OCR page, not at start-up.
+        Category: "Ocr",
+        Base_Name: "OcrReadiness",
+        default_value: null,
+        ui_template_id: "custom",
+        logics_template_id: "get_only",
+        base_endpoint_name: "ocr_readiness",
+    },
 
     // Vr
     {

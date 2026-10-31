@@ -21,6 +21,16 @@ import {
 } from "@logics_configs";
 import { ui_configs } from "./ui_configs";
 
+const OCR_ERROR_KEYS = {
+    OCR_DISABLED_ENGINE_UNAVAILABLE: "common_error.ocr_engine_unavailable",
+    OCR_DISABLED_MODEL_LOAD_FAILED: "common_error.ocr_model_load_failed",
+    OCR_DISABLED_UNSUPPORTED_LANGUAGE: "common_error.ocr_unsupported_language",
+    OCR_DISABLED_MODEL_MISSING: "common_error.ocr_model_missing",
+    OCR_DISABLED_WINDOW_NOT_FOUND: "common_error.ocr_window_not_found",
+    OCR_DISABLED_CAPTURE_UNAVAILABLE: "common_error.ocr_capture_unavailable",
+    OCR_DISABLED_UNKNOWN: "common_error.ocr_unknown",
+};
+
 export const _useBackendErrorHandling = () => {
     const { t } = useI18n();
     const { showNotification_Error, showNotification_Warning } = useNotificationStatus();
@@ -162,23 +172,15 @@ export const _useBackendErrorHandling = () => {
             // OCR関連エラー (OCR_*)  開始できずバックエンドより強制的にOFFへ戻る
             // ============================================================================
             case "OCR_DISABLED_ENGINE_UNAVAILABLE":
-                updateOcrCaptureStatus(data);
-                // OCRエンジン、または必要なファイルが見つからないため
-                showNotification_Error(message, { category_id: error_code });
-                return;
             case "OCR_DISABLED_MODEL_LOAD_FAILED":
-                updateOcrCaptureStatus(data);
-                // モデルの読み込みに失敗したため
-                showNotification_Error(message, { category_id: error_code });
-                return;
             case "OCR_DISABLED_UNSUPPORTED_LANGUAGE":
-                updateOcrCaptureStatus(data);
-                // 選択中の読み取り言語には対応していないため
-                showNotification_Error(message, { category_id: error_code });
-                return;
+            case "OCR_DISABLED_MODEL_MISSING":
+            case "OCR_DISABLED_WINDOW_NOT_FOUND":
+            case "OCR_DISABLED_CAPTURE_UNAVAILABLE":
             case "OCR_DISABLED_UNKNOWN":
+                // 理由ごとに、次に何をすればよいか (モデルのダウンロード、VRChatの起動) を出す
                 updateOcrCaptureStatus(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(t(OCR_ERROR_KEYS[error_code], { defaultValue: message }), { category_id: error_code });
                 return;
 
             // ============================================================================
