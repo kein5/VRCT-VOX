@@ -25,7 +25,7 @@ def _launch(runtime, options, session):
 
 
 class RVCProcess(VCProcess):
-    def __init__(self, options):
+    def __init__(self, options, monitor=None):
         self.options = start_options('converted', options)
         if self.options.get('engine') != 'rvc':
             raise ValueError('vc_options_invalid')
@@ -40,7 +40,7 @@ class RVCProcess(VCProcess):
                 or not (self.runtime / 'engine').is_dir()
                 or not (self.runtime / 'assets').is_dir()):
             raise ValueError('vc_runtime_missing')
-        super().__init__(engine='rvc')
+        super().__init__(engine='rvc', monitor=monitor)
 
     def _launch_worker(self):
         return _launch(self.runtime, self.options, self._session)

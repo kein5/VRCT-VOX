@@ -26,6 +26,23 @@ def check_monitor_target(target, exclude=()):
     return target
 
 
+def monitor_spec(choice):
+    """VoiceSettings.monitor_choice as the bounded dict that crosses process boundaries."""
+    return None if choice is None else parse_monitor({'device': choice[0], 'volume': choice[1]})
+
+
+def parse_monitor(value):
+    """None (disabled) or {'device', 'volume'}; '' device is the OS default."""
+    if value is None:
+        return None
+    if (not isinstance(value, dict) or set(value) != {'device', 'volume'}
+            or not isinstance(value['device'], str) or len(value['device']) > 512
+            or any(ord(c) < 32 for c in value['device']) or value['device'].startswith(VIRTUAL_PREFIXES)
+            or type(value['volume']) is not int or not 0 <= value['volume'] <= 100):
+        raise ValueError('vc_monitor_invalid')
+    return dict(value)
+
+
 def open_monitor_output(device, rate, channels, *, exclude=()):
     """Empty device means the OS default output, resolved off the main path."""
     if sys.platform == 'win32':

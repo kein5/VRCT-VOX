@@ -35,6 +35,7 @@ from models.speech_server.settings import PROFILES, normalize_settings as normal
 from models.tts.message_hook import chat_event, microphone_event
 from models.audio_routing.audio_router import enumerate_outputs
 from models.audio_routing.managed_route import VoiceRoute
+from models.audio_routing.monitor_output import monitor_spec
 from models.audio_routing.mute_state import MuteState
 from models.audio_routing.pipewire_gate import PipeWireGate
 from models.audio_routing.source_bridge import PIPEWIRE_MIC_HOST, enumerate_sources, microphone_names, parse_source
@@ -2232,7 +2233,13 @@ class Controller:
         return {'status': 200, 'result': {'sources': sources, 'error': error, 'preferred': preferred}}
 
     def getDirectVoiceState(self, *args, **kwargs) -> dict:
-        return {'status': 200, 'result': dict(self.direct_voice.health(), settings=self._direct_settings.to_dict())}
+        state = self.direct_voice.health()
+        # The VC router's stderr is not kept; log each new monitor code once here.
+        code = state.get('monitor_error')
+        if code and code != getattr(self, '_vc_monitor_logged', None):
+            self._voiceMonitorFailed(code)
+        self._vc_monitor_logged = code
+        return {'status': 200, 'result': dict(state, settings=self._direct_settings.to_dict())}
 
     def setDirectVoiceSettings(self, data, *args, **kwargs) -> dict:
         try:
@@ -2266,8 +2273,10 @@ class Controller:
                     raise RuntimeError('source_bridge_closed')
                 if self.voice_events.settings.routing != 'managed':
                     raise RuntimeError('source_bridge_managed_required')
+                # One monitor setting covers TTS and converted voice; passthrough is never monitored.
+                monitor = monitor_spec(self.voice_events.settings.monitor_choice) if mode == 'converted' else None
                 self.direct_voice.start(source=source, expected_generation=data['_direct_generation'],
-                                        mode=mode, options=options)
+                                        mode=mode, options=options, monitor=monitor)
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
         return self.getDirectVoiceState()

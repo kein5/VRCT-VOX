@@ -6,6 +6,7 @@ import time
 
 from .direct_voice import create_worker_process
 from .router_protocol import Reader, encode
+from models.audio_routing.monitor_output import parse_monitor
 from models.audio_routing.source_bridge import parse_source
 
 
@@ -14,12 +15,15 @@ def main():
     try:
         reader = Reader(sys.stdin.buffer)
         request = reader.read(timeout=5)
-        if not isinstance(request, dict) or set(request) != {'kind', 'source', 'options'} or request['kind'] != 'start':
+        if (not isinstance(request, dict) or request.get('kind') != 'start'
+                or set(request) not in ({'kind', 'source', 'options'}, {'kind', 'source', 'options', 'monitor'})):
             raise ValueError('vc_router_request_invalid')
+        monitor = parse_monitor(request.get('monitor'))
         if reader.pending or select.select([sys.stdin.buffer], [], [], 0)[0]:
             return 1  # Extra buffered control or Stop before capture starts.
         source = parse_source(request['source'])
-        process = create_worker_process(request['options'])
+        process = (create_worker_process(request['options']) if monitor is None
+                   else create_worker_process(request['options'], monitor=monitor))
         process.start(source=source)
         os.set_blocking(sys.stdout.fileno(), False)
         while True:

@@ -7,7 +7,8 @@ import time
 
 LIMIT = 32768
 BASE_STATE = dict(requested=False, active=False, pending=False, stopping=False,
-                  conversion_verified=False, error=None, state='off', converted_blocks=0)
+                  conversion_verified=False, error=None, state='off', converted_blocks=0,
+                  monitor_error=None)
 
 
 def encode(value):
@@ -26,7 +27,9 @@ def validate_health(value):
             or type(value['converted_blocks']) is not int or not 0 <= value['converted_blocks'] < 2**63
             or value['state'] not in ('off', 'preparing', 'ready', 'converted', 'idle', 'failed', 'stopped')
             or (value['error'] is not None and (not isinstance(value['error'], str)
-                or not re.fullmatch(r'(?:vc|asr_capture)_[a-z_]{1,56}', value['error'])))):
+                or not re.fullmatch(r'(?:vc|asr_capture)_[a-z_]{1,56}', value['error'])))
+            or (value['monitor_error'] is not None and (not isinstance(value['monitor_error'], str)
+                or not re.fullmatch(r'monitor_[a-z_]{1,56}', value['monitor_error'])))):
         raise ValueError('vc_router_health_invalid')
     return {key: value[key] for key in BASE_STATE}
 
