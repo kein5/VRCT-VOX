@@ -29,8 +29,8 @@ export const ConfigPage = () => {
                     <div className={styles.main_container}>
                         <SettingSection />
                     </div>
+                    <Topbar />
                 </div>
-                <Topbar />
                 <SearchBar />
             </div>
         </div>

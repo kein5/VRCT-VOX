@@ -8,6 +8,7 @@ import { SidebarSection } from "../../../src-ui/views/app/config_page/sidebar_se
 import { SettingBox } from "../../../src-ui/views/app/config_page/setting_section/setting_box/SettingBox";
 import { MainFunctionSwitch } from "../../../src-ui/views/app/main_page/sidebar_section/main_function_switch/MainFunctionSwitch";
 import { SnackbarController } from "../../../src-ui/views/app/others/snackbar_controller/SnackbarController";
+import { SaveBar } from "../../../src-ui/views/app/config_page/topbar/Topbar";
 import "../../../locales/config";
 
 getDefaultStore().set(Atom_SelectedConfigTabId, { data: "tts", state: "ok" });
@@ -37,7 +38,7 @@ function App() {
         <label>Search settings<input value={search.query} onChange={e => search.setQuery(e.target.value)} /></label>
         <div aria-label="Search results">{search.results.map(r => <button key={`${r.tab}:${r.setting_id}`}
             onClick={() => search.navigateToSetting(r)}>{r.tab_label}: {r.label}</button>)}</div>
-        <div style={{ display: "flex", alignItems: "start" }}><SidebarSection /><main style={{ width: 850 }}><SettingBox /></main></div>
+        <div style={{ display: "flex", alignItems: "start" }}><SidebarSection /><main style={{ width: 850 }}><SaveBar /><SettingBox /></main></div>
     </>;
 }
 createRoot(document.getElementById("root")).render(<App />);

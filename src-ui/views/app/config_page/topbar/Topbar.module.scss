@@ -1,5 +1,21 @@
-.container { position: absolute; top: 1.6rem; right: 2.4rem; }
-.back { display: flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .8rem 1.6rem; border-radius: var(--vox_radius); color: var(--dark_200_color); background: var(--dark_850_color); font-size: 1.4rem; cursor: pointer; }
+.container { position: absolute; top: 1.6rem; left: 2.4rem; right: 2.4rem; display: flex; justify-content: flex-end; align-items: center; gap: 1.2rem; pointer-events: none; }
+.container > * { pointer-events: auto; }
+.back { display: flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .8rem 1.6rem; border-radius: var(--vox_radius); color: var(--dark_200_color); background: var(--dark_850_color); font-size: 1.4rem; cursor: pointer; flex-shrink: 0; }
 .back svg { width: 1.8rem; height: 1.8rem; }
 .back:hover { background: var(--dark_800_color); }
 .back:active { background: var(--dark_900_color); }
+
+.save_bar { flex: 1; min-width: 0; display: flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .4rem .4rem .4rem 1.4rem; border-radius: var(--vox_radius); background: var(--dark_900_color); border: .1rem solid var(--dark_800_color); }
+.save_bar.is_dirty { border-color: var(--primary_500_color); }
+.summary { flex: 1; min-width: 0; display: flex; align-items: center; gap: 1rem; overflow: hidden; }
+.state { flex-shrink: 0; font-size: 1.3rem; color: var(--dark_400_color); }
+.is_dirty .state { color: var(--primary_200_color); }
+.state.is_failed { color: var(--error_bc_color); }
+.changes { display: flex; gap: .6rem; min-width: 0; overflow: hidden; margin: 0; padding: 0; list-style: none; }
+.changes li { flex-shrink: 0; max-width: 24rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: .2rem .8rem; border-radius: .4rem; font-size: 1.2rem; color: var(--dark_200_color); background: var(--dark_800_color); }
+.discard, .save { flex-shrink: 0; min-height: 3.2rem; padding: .4rem 1.4rem; border-radius: var(--vox_radius); font-size: 1.4rem; cursor: pointer; }
+.discard { color: var(--dark_200_color); background: var(--dark_850_color); }
+.discard:hover:not(:disabled) { background: var(--dark_800_color); }
+.save { color: var(--dark_50_color, #fff); background: var(--primary_600_color); }
+.save:hover:not(:disabled) { background: var(--primary_550_color); }
+.discard:disabled, .save:disabled { opacity: .45; cursor: default; }

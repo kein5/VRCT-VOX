@@ -95,7 +95,7 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
                 fill(ui, 'Multilingual TTS', 'Model GGUF path', models['tts'])
                 fill(ui, 'ASR + VAD', 'Model GGUF path', models['asr'])
                 fill(ui, 'ASR + VAD', 'VAD GGUF path', models['vad'])
-                ui.click_text('button', 'Save server settings')
+                ui.click_text('button', 'Save changes')
                 wait_for(lambda: json.loads(config_path.read_text()).get('SPEECH_SERVER_SETTINGS', {}).get('profiles', {}).get('asr', {}).get('vad_model') == str(models['vad']))
                 assert not owned(ui), 'saving started a model'
                 started = time.monotonic()
@@ -112,7 +112,7 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
                 ui.select('Read aloud', 'original')
                 ui.fill('Other languages server (Qwen3-TTS)', external.url)
                 ui.select('Other languages server', 'bundled')
-                ui.click_text('button', 'Save voice settings')
+                ui.click_text('button', 'Save changes')
                 ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Muted (confirmed)')")
                 ui.click_text('button', 'Resume voice')
                 wait_for(lambda: not gate.inspect()['muted'])

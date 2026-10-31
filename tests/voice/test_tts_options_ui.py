@@ -26,9 +26,9 @@ def test_zero_instruction_save_reload_and_random_omission(pages):
     expect(seed).to_have_value("0")
     instruction = group.get_by_label("Instruction", exact=True)
     instruction.fill("やさしく\nゆっくり。")
-    page.get_by_role("button", name="Save voice settings", exact=True).click()
+    page.get_by_role("button", name="Save changes", exact=True).click()
     expect(
-        page.get_by_role("button", name="Save voice settings", exact=True)
+        page.get_by_role("button", name="Save changes", exact=True)
     ).to_be_disabled()
     assert peer.voice["japanese_seed"] == "0"
     assert peer.voice["japanese_instructions"] == "やさしく\nゆっくり。"
@@ -37,9 +37,9 @@ def test_zero_instruction_save_reload_and_random_omission(pages):
     expect(seed).to_have_value("0")
     expect(instruction).to_have_value("やさしく\nゆっくり。")
     group.get_by_label("Seed mode", exact=True).select_option("random")
-    page.get_by_role("button", name="Save voice settings", exact=True).click()
+    page.get_by_role("button", name="Save changes", exact=True).click()
     expect(
-        page.get_by_role("button", name="Save voice settings", exact=True)
+        page.get_by_role("button", name="Save changes", exact=True)
     ).to_be_disabled()
     assert peer.voice["japanese_seed"] == ""
     assert not any(ep.startswith("/run/start_") for ep, _ in peer.sent)
@@ -52,7 +52,7 @@ def test_seed_bounds_and_unknown_or_unsupported_capabilities_keep_edits(pages):
     group = japanese(page)
     group.get_by_label("Seed mode", exact=True).select_option("fixed")
     seed = group.get_by_label("Seed value", exact=True)
-    save = page.get_by_role("button", name="Save voice settings", exact=True)
+    save = page.get_by_role("button", name="Save changes", exact=True)
     for invalid in ("-1", "1.5", "1e3", "9007199254740992", "100000000000000000"):
         seed.fill(invalid)
         expect(save).to_be_disabled()

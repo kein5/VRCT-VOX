@@ -26,8 +26,8 @@ def test_low_latency_default_opt_in_save_and_busy_controls(ui):
     toggle = page.get_by_label('Low-latency standby (Irodori GPU)', exact=True)
     expect(toggle).not_to_be_checked()
     toggle.check()
-    page.get_by_role('button', name='Save server settings', exact=True).click()
-    expect(page.get_by_role('button', name='Save server settings', exact=True)).to_be_disabled()
+    page.get_by_role('button', name='Save changes', exact=True).click()
+    expect(page.get_by_role('button', name='Save changes', exact=True)).to_be_disabled()
     assert peer.settings['profiles']['japanese']['low_latency'] is True
     assert not any(ep == '/run/start_speech_server' for ep, _ in peer.sent)
     peer.state['japanese'].update(state='ready', generation=1,
@@ -148,7 +148,7 @@ def test_save_only_explicit_start_pending_stop_and_stale_ready(ui):
     expect(start).to_be_disabled()
     group.get_by_label('Model GGUF path', exact=True).fill('/local/tts.gguf')
     expect(start).to_be_disabled()
-    save = page.get_by_role('button', name='Save server settings', exact=True)
+    save = page.get_by_role('button', name='Save changes', exact=True)
     save.click()
     expect(start).to_be_enabled()
     assert not any(ep == '/run/start_speech_server' for ep, _ in peer.sent)
@@ -187,7 +187,7 @@ def test_memory_error_explains_cpu_retry_and_preserves_saved_device(ui):
     page, peer, reply = ui
     group = page.get_by_role('group', name='Japanese TTS', exact=True)
     group.get_by_label('Model GGUF path', exact=True).fill('/local/tts.gguf')
-    page.get_by_role('button', name='Save server settings', exact=True).click()
+    page.get_by_role('button', name='Save changes', exact=True).click()
     peer.state['japanese'].update(state='failed', generation=3, base_url=None,
                                 error_code='speech_server_out_of_memory')
     reply('/get/data/speech_server_state', peer.state)
@@ -198,7 +198,7 @@ def test_memory_error_explains_cpu_retry_and_preserves_saved_device(ui):
     group.get_by_label('Inference device', exact=True).select_option('cpu')
     start = group.get_by_role('button', name='Start server', exact=True)
     expect(start).to_be_disabled()
-    page.get_by_role('button', name='Save server settings', exact=True).click()
+    page.get_by_role('button', name='Save changes', exact=True).click()
     expect(start).to_be_enabled()
     assert peer.settings['profiles']['japanese']['device'] == 'cpu'
     assert not any(ep == '/run/start_speech_server' for ep, _ in peer.sent)
@@ -210,11 +210,11 @@ def test_asr_requires_vad_and_save_errors_allow_retry(ui):
     group = page.get_by_role('group', name='ASR + VAD', exact=True)
     start = group.get_by_role('button', name='Start server', exact=True)
     group.get_by_label('Model GGUF path', exact=True).fill('/local/asr.gguf')
-    page.get_by_role('button', name='Save server settings', exact=True).click()
+    page.get_by_role('button', name='Save changes', exact=True).click()
     expect(start).to_be_disabled()
     group.get_by_label('VAD GGUF path', exact=True).fill('/local/vad.gguf')
     peer.reject_save = True
-    save = page.get_by_role('button', name='Save server settings', exact=True)
+    save = page.get_by_role('button', name='Save changes', exact=True)
     save.click()
     expect(page.get_by_role('alert').filter(has_text='speech_server_settings_invalid')).to_be_visible()
     expect(save).to_be_enabled()
@@ -229,7 +229,7 @@ def test_endpoint_selection_retains_external_urls_and_rejects_old_model_lists(ui
     page, peer, reply = ui
     page.get_by_label('Japanese server', exact=True).select_option('bundled')
     expect(page.get_by_label('Japanese server (Irodori)', exact=True)).to_have_count(0)
-    page.get_by_role('button', name='Save voice settings', exact=True).click()
+    page.get_by_role('button', name='Save changes', exact=True).click()
     page.get_by_label('Japanese server', exact=True).select_option('external')
     expect(page.get_by_label('Japanese server (Irodori)', exact=True)).to_have_value('http://127.0.0.1:8080')
     page.get_by_label('ASR server', exact=True).select_option('bundled')

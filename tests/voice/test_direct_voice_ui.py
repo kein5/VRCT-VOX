@@ -105,8 +105,8 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         policy = page.get_by_role('combobox', name='Direct input while translating', exact=True)
         expect(policy).to_have_value('suppress')
         policy.select_option('mix')
-        page.get_by_role('button', name='Save voice settings', exact=True).click()
-        expect(page.get_by_role('button', name='Save voice settings', exact=True)).to_be_disabled()
+        page.get_by_role('button', name='Save changes', exact=True).click()
+        expect(page.get_by_role('button', name='Save changes', exact=True)).to_be_disabled()
         assert voice_settings['mic_mode'] == 'translated' and voice_settings['direct_policy'] == 'mix'
         assert not any(r['endpoint'].startswith('/run/start') for r in sent)
         page.reload()
@@ -155,7 +155,7 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         page.get_by_role('textbox', name='Seed runtime folder', exact=True).fill('/allowed/runtime')
         page.get_by_role('textbox', name='Permitted reference WAV', exact=True).fill('/allowed/reference.wav')
         expect(start).to_be_disabled()  # Unsaved intent cannot start a different producer.
-        page.get_by_role('button', name='Save input settings', exact=True).click()
+        page.get_by_role('button', name='Save changes', exact=True).click()
         expect(start).to_be_enabled()
         assert len([r for r in sent if r['endpoint'] == '/run/start_direct_voice']) == 2
         page.reload()
@@ -188,11 +188,11 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         page.get_by_role('textbox', name='RVC retrieval index (.index, optional)', exact=True).fill('/allowed/voice.index')
         pitch = page.get_by_role('spinbutton', name='Pitch shift (semitones)', exact=True)
         pitch.fill('25')
-        expect(page.get_by_role('button', name='Save input settings', exact=True)).to_be_disabled()
+        expect(page.get_by_role('button', name='Save changes', exact=True)).to_be_disabled()
         pitch.fill('-3')
         page.get_by_role('spinbutton', name='Retrieval blend (0–1)', exact=True).fill('0.5')
         expect(start).to_be_disabled()
-        page.get_by_role('button', name='Save input settings', exact=True).click()
+        page.get_by_role('button', name='Save changes', exact=True).click()
         expect(start).to_be_enabled()
         page.reload()
         expect(engine).to_have_value('rvc')
