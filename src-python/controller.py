@@ -36,6 +36,8 @@ from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, 
 from models.model_downloads.manager import Downloads
 from models.model_downloads.catalog import SPEECH_FIELDS as SPEECH_DOWNLOAD_FIELDS
 from models.model_downloads.hardware import HardwareProbe
+from models.ocr import ocr_capture, ocr_languages, ocr_models
+from models.ocr import ocr_engine_rapidocr as ocr_engine
 from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
 from models.tts.message_hook import chat_event, microphone_event
 from models.audio_routing.audio_router import enumerate_outputs
@@ -312,6 +314,8 @@ _SIMPLE_CONFIG_GETTERS = {
     "getOcrPollIntervalMs": "OCR_POLL_INTERVAL_MS",
     "getOcrMinConfidence": "OCR_MIN_CONFIDENCE",
     "getOcrBubbleMinTextLength": "OCR_BUBBLE_MIN_TEXT_LENGTH",
+    "getOcrCaptureRegion": "OCR_CAPTURE_REGION",
+    "getOcrChatboxFilter": "OCR_CHATBOX_FILTER",
 }
 
 # 起動時のエンジンの確認で、選んだモデルの設定とクライアントの生成に使う Model のメソッド名 (モデル一覧を持つエンジン)
@@ -455,6 +459,12 @@ class Controller:
             self._modelDownloadRequest(data, apply=True)
             def apply(entry, paths):
                 expected = data['expected']
+                if entry.target == 'ocr':
+                    # Chat reading finds verified downloads by catalog id; there is
+                    # no path setting to change (models/ocr/ocr_models.py).
+                    if expected not in ({}, None):
+                        raise ValueError('download_request_invalid')
+                    return
                 keys = {'model', 'index'} if entry.target == 'rvc' else {'model'}
                 if not isinstance(expected, dict) or set(expected) != keys or any(not isinstance(v, str) for v in expected.values()):
                     raise ValueError('download_request_invalid')
@@ -5053,7 +5063,7 @@ class Controller:
         OCR_DISABLED_* を /run/enable_ocr_capture へ送って False を返す。
         """
         try:
-            return model.startOCRCapture(self.ocrMessage)
+            return model.startOCRCapture(self.ocrMessage, model_root=self._ocrModelRoot())
         except OcrStartError as e:
             error_code = e.error_code
         except Exception:
@@ -5070,6 +5080,38 @@ class Controller:
     @staticmethod
     def stopOcrCapture() -> None:
         model.stopOCRCapture()
+
+    def _ocrModelRoot(self):
+        downloads = getattr(self, "model_downloads", None)
+        return getattr(downloads, "root", None)
+
+    def getOcrReadiness(self, *args, **kwargs) -> dict:
+        """What chat reading still needs before it can start (models, window).
+
+        The Config page shows this next to the download button, and the main
+        toggle reports the same reasons as OCR_DISABLED_* when it is turned on.
+        Probing the window opens and closes the X11 connection / finds the
+        HWND; it never captures a frame.
+        """
+        language = config.OCR_SOURCE_LANGUAGE
+        spec = ocr_languages.resolveModelSpec(language)
+        root = self._ocrModelRoot()
+        required = list(spec.model_ids) if spec is not None else []
+        missing = ocr_models.missingModels(root, spec) if spec is not None else []
+        try:
+            capture = ocr_capture.probeCapture(config.OCR_WINDOW_TITLE)
+        except Exception:
+            errorLogging()
+            capture = ocr_capture.CAPTURE_UNAVAILABLE
+        return {"status": 200, "result": {
+            "engine": ocr_engine.isAvailable(),
+            "language": language,
+            "language_supported": spec is not None,
+            "required_models": required,
+            "missing_models": missing,
+            "capture": capture,
+            "window_title": config.OCR_WINDOW_TITLE,
+        }}
 
     @staticmethod
     def replaceExclamationsWithRandom(text):
@@ -5775,6 +5817,28 @@ class Controller:
         config.OCR_BUBBLE_MIN_TEXT_LENGTH = data
         model.updateOCRCaptureSettings()
         return {"status":200, "result":config.OCR_BUBBLE_MIN_TEXT_LENGTH}
+
+    @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
+    def setOcrCaptureRegion(data, *args, **kwargs) -> dict:
+        # Round so slider jitter does not produce 17-digit values in config.json.
+        if isinstance(data, dict):
+            data = {k: round(v, 4) if isinstance(v, float) else v for k, v in data.items()}
+        config.OCR_CAPTURE_REGION = data
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_CAPTURE_REGION}
+
+    @staticmethod
+    def setEnableOcrChatboxFilter(*args, **kwargs) -> dict:
+        config.OCR_CHATBOX_FILTER = True
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_CHATBOX_FILTER}
+
+    @staticmethod
+    def setDisableOcrChatboxFilter(*args, **kwargs) -> dict:
+        config.OCR_CHATBOX_FILTER = False
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_CHATBOX_FILTER}
 
     def initializationProgress(self, progress):
         self.run(200, self.run_mapping["initialization_progress"], progress)

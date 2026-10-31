@@ -2202,11 +2202,13 @@ class Model:
         self.ensure_initialized()
         self._speaker_session.reconfigure(transcript=False)
 
-    def startOCRCapture(self, fnc: Callable[[dict], None]) -> bool:
+    def startOCRCapture(self, fnc: Callable[[dict], None], model_root=None) -> bool:
         """Start the VRChat chat-bubble OCR pipeline.
 
         The callback receives dicts shaped like mic/speaker transcripts so
         Controller.ocrMessage can share the mic/speaker translation path.
+        model_root is the consented-download directory holding the PP-OCR
+        models (Controller.model_downloads.root).
         Returns True once the pipeline started (models loaded). Raises
         OcrStartError carrying the OCR_DISABLED_* reason when it cannot start.
         """
@@ -2234,6 +2236,9 @@ class Model:
                 poll_interval_ms=config.OCR_POLL_INTERVAL_MS,
                 min_confidence=config.OCR_MIN_CONFIDENCE,
                 min_text_length=config.OCR_BUBBLE_MIN_TEXT_LENGTH,
+                model_root=model_root,
+                region=config.OCR_CAPTURE_REGION,
+                chatbox_filter=config.OCR_CHATBOX_FILTER,
             )
             return self.ocr_pipeline.start()
         except Exception:
@@ -2255,6 +2260,8 @@ class Model:
                 "poll_interval_ms": config.OCR_POLL_INTERVAL_MS,
                 "min_confidence": config.OCR_MIN_CONFIDENCE,
                 "min_text_length": config.OCR_BUBBLE_MIN_TEXT_LENGTH,
+                "region": config.OCR_CAPTURE_REGION,
+                "chatbox_filter": config.OCR_CHATBOX_FILTER,
             })
         except Exception:
             errorLogging()

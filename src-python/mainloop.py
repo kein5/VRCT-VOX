@@ -674,6 +674,12 @@ mapping = {
     "/set/data/ocr_min_confidence": {"status": True, "variable":controller.setOcrMinConfidence},
     "/get/data/ocr_bubble_min_text_length": {"status": True, "variable":controller.getOcrBubbleMinTextLength},
     "/set/data/ocr_bubble_min_text_length": {"status": True, "variable":controller.setOcrBubbleMinTextLength},
+    "/get/data/ocr_capture_region": {"status": True, "variable":controller.getOcrCaptureRegion},
+    "/set/data/ocr_capture_region": {"status": True, "variable":controller.setOcrCaptureRegion},
+    "/get/data/ocr_chatbox_filter": {"status": True, "variable":controller.getOcrChatboxFilter},
+    "/set/enable/ocr_chatbox_filter": {"status": True, "variable":controller.setEnableOcrChatboxFilter},
+    "/set/disable/ocr_chatbox_filter": {"status": True, "variable":controller.setDisableOcrChatboxFilter},
+    "/get/data/ocr_readiness": {"status": True, "variable":controller.getOcrReadiness},
 
     # Advanced Settings
     "/get/data/osc_ip_address": {"status": True, "variable":controller.getOscIpAddress},

@@ -1,5 +1,6 @@
 import sys
 import copy
+import math
 from os import path as os_path, makedirs as os_makedirs, replace as os_replace, fsync as os_fsync, remove as os_remove
 from json import load as json_load
 from json import dump as json_dump
@@ -482,6 +483,24 @@ class ValidatedProperty:
 # ============================================================================
 # Validator Functions for ValidatedProperty
 # ============================================================================
+
+# Smallest side of the OCR region (relative). Matches models/ocr/ocr_detection.py.
+_OCR_REGION_MIN_SIDE = 0.02
+
+
+def _ocr_capture_region_validator(val, inst):
+    """{"x", "y", "width", "height"} in window-relative units, inside the window."""
+    if not isinstance(val, dict) or set(val) != {"x", "y", "width", "height"}:
+        return False
+    if any(isinstance(val[k], bool) or not isinstance(val[k], (int, float)) for k in val):
+        return False
+    x, y, w, h = (float(val[k]) for k in ("x", "y", "width", "height"))
+    if not all(math.isfinite(v) for v in (x, y, w, h)):
+        return False
+    eps = 1e-6
+    return (0.0 <= x and 0.0 <= y and w >= _OCR_REGION_MIN_SIDE - eps and h >= _OCR_REGION_MIN_SIDE - eps
+            and x + w <= 1.0 + eps and y + h <= 1.0 + eps)
+
 
 def _main_window_geometry_validator(val, inst):
     if not (isinstance(val, dict) and set(val.keys()) == set(inst.MAIN_WINDOW_GEOMETRY.keys())):
@@ -1090,6 +1109,10 @@ class Config:
     OCR_POLL_INTERVAL_MS = ManagedProperty('OCR_POLL_INTERVAL_MS', type_=int, allowed=lambda v, inst: 100 <= v <= 5000)
     OCR_MIN_CONFIDENCE = ManagedProperty('OCR_MIN_CONFIDENCE', type_=(int, float), allowed=lambda v, inst: 0.1 <= v <= 0.99)
     OCR_BUBBLE_MIN_TEXT_LENGTH = ManagedProperty('OCR_BUBBLE_MIN_TEXT_LENGTH', type_=int, allowed=lambda v, inst: 1 <= v <= 50)
+    # Detector-free reading: the part of the window to read, and whether to keep
+    # only chatbox-style text (light glyphs on a dark panel). See ocr_detection.py.
+    OCR_CAPTURE_REGION = ManagedProperty('OCR_CAPTURE_REGION', type_=dict, allowed=_ocr_capture_region_validator)
+    OCR_CHATBOX_FILTER = ManagedProperty('OCR_CHATBOX_FILTER', type_=bool)
 
     def init_config(self):
         # Read Only
@@ -1440,6 +1463,9 @@ class Config:
         # 誤りの34%を落とせたのでこの値にしている。
         self._OCR_MIN_CONFIDENCE = 0.85
         self._OCR_BUBBLE_MIN_TEXT_LENGTH = 2
+        # Whole window until the user narrows it.
+        self._OCR_CAPTURE_REGION = {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
+        self._OCR_CHATBOX_FILTER = True
 
     def load_config(self):
         self._config_data = {}
