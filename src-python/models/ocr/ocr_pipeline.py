@@ -1,4 +1,9 @@
-"""OCR pipeline orchestrator: capture → detect → OCR → dedup → callback.
+"""OCR pipeline orchestrator: capture → candidates → OCR → bubbles → dedup → callback.
+
+Candidates come from a pluggable source (see ocr_detection.py). Without a
+detector, the configured region is read whole and PP-OCR's text lines are
+grouped into bubbles afterwards. Models are the user's consented downloads
+(ocr_models.py); nothing is fetched here.
 
 Runs in its own thread. The callback signature mirrors mic/speaker
 transcript callbacks so Controller.ocrMessage can reuse the same
@@ -27,10 +32,11 @@ from typing import Callable, List, Optional
 import numpy as np
 
 from ..background_priority import BackgroundThreads, lowerCurrentThread
-from .ocr_bubble_detector import BubbleDetector
-from .ocr_capture import OcrCapture
+from .ocr_capture import CAPTURE_OK, CAPTURE_UNAVAILABLE, OcrCapture, probeCapture
+from .ocr_detection import FULL_REGION, RegionCandidates, blockBounds, groupLines, looksLikeChatbox
 from . import ocr_engine_rapidocr as ocr_engine
-from .ocr_languages import resolveModelSpec
+from .ocr_languages import OcrModelSpec, resolveModelSpec
+from .ocr_models import OcrModelsInvalid, OcrModelsMissing, resolveModelFiles
 from errors import ErrorCode, OcrStartError
 
 try:
@@ -156,7 +162,18 @@ class OcrPipeline:
         poll_interval_ms: int = 750,
         min_confidence: float = 0.55,
         min_text_length: int = 2,
+        model_root=None,
+        region=FULL_REGION,
+        chatbox_filter: bool = True,
+        detector=None,
+        capture_probe: Optional[Callable[[str], str]] = None,
     ) -> None:
+        """detector: a candidate source with isAvailable()/loadModel()/detect().
+
+        None (the default, and the only option today) reads the configured
+        region without a detector. A future VRCT-VOX bubble detector plugs in
+        here; the upstream one must not be passed (see ocr_detection.py).
+        """
         self._callback = callback
         self._source_language = source_language or "auto"
         self._window_title = window_title or "VRChat"
@@ -171,7 +188,11 @@ class OcrPipeline:
         self._thread: Optional[Thread] = None
         self._background_threads: Optional[BackgroundThreads] = None
         self._capture: Optional[OcrCapture] = None
-        self._detector = BubbleDetector()
+        self._model_root = model_root
+        self._region_source = RegionCandidates(region)
+        self._detector = detector if detector is not None else self._region_source
+        self._chatbox_filter = bool(chatbox_filter)
+        self._capture_probe = capture_probe or probeCapture
         self._dedup = _DedupCache()
         self._reader = None
         # 設定変更はここに積んでおき、ワーカースレッドが次のtickの頭で取り込む。
@@ -179,18 +200,27 @@ class OcrPipeline:
         # スレッドではなく、使っているスレッドの側で作り直す。
         self._pending: dict = {}
         self._pending_lock = Lock()
-        self._counts = {"tick": 0, "frame": 0, "candidate": 0, "ocr": 0, "text": 0, "emit": 0}
+        self._counts = {"tick": 0, "frame": 0, "candidate": 0, "ocr": 0, "text": 0, "bubble": 0, "emit": 0}
         self._counts_since = 0.0
         self._last_tick_at = 0.0
 
     def isEngineAvailable(self) -> bool:
-        return ocr_engine.isAvailable() and self._detector.isAvailable()
+        # 検出器は必須ではない (無ければ範囲指定+PP-OCRの行検出で読む)。
+        return ocr_engine.isAvailable()
+
+    def _readerFor(self, spec: OcrModelSpec):
+        """spec のモデルで推論器を作る。ダウンロード済みのファイルだけを使う。
+
+        無い・壊れているときは OcrModelsMissing / OcrModelsInvalid をそのまま投げる。
+        """
+        files = resolveModelFiles(self._model_root, spec)
+        return ocr_engine.getReader(spec, files)
 
     def start(self) -> bool:
         """モデルを読み込んでからワーカーを起動する。
 
         起動できなければ理由 (OCR_DISABLED_*) を載せた OcrStartError を投げる。
-        どちらのモデルもここで読むので、戻った時点で読み取りを始められる。
+        モデルはここで読むので、戻った時点で読み取りを始められる。
         """
         if not self.isEngineAvailable():
             printLog("OCR pipeline: engine or opencv unavailable, refusing to start")
@@ -204,11 +234,23 @@ class OcrPipeline:
             raise OcrStartError(ErrorCode.OCR_DISABLED_UNSUPPORTED_LANGUAGE)
         # モデルを読むときに増える onnxruntime のスレッドは、VR UI や VRChat より低い優先度にする
         self._background_threads = BackgroundThreads()
-        self._reader = ocr_engine.getReader(spec)
+        try:
+            self._reader = self._readerFor(spec)
+        except OcrModelsMissing as missing:
+            printLog(f"OCR pipeline: models not downloaded: {', '.join(missing.model_ids)}")
+            self.stop()
+            raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_MISSING)
+        except (OcrModelsInvalid, OSError):
+            errorLogging()
+            self.stop()
+            raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
         if self._reader is None:
             printLog(f"OCR pipeline: OCR engine init failed for {spec.label}")
             self.stop()
             raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
+        if not self._detector.isAvailable():
+            printLog(f"OCR pipeline: detector {getattr(self._detector, 'name', '?')!r} unavailable, reading the region instead")
+            self._detector = self._region_source
         try:
             self._detector.loadModel()
         except Exception:
@@ -216,6 +258,14 @@ class OcrPipeline:
             printLog("OCR pipeline: bubble detector model load failed")
             self.stop()
             raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
+        capture = self._capture_probe(self._window_title)
+        if capture != CAPTURE_OK:
+            printLog(f"OCR pipeline: capture not ready ({capture}) for window {self._window_title!r}")
+            self.stop()
+            raise OcrStartError(ErrorCode.OCR_DISABLED_CAPTURE_UNAVAILABLE if capture == CAPTURE_UNAVAILABLE
+                                else ErrorCode.OCR_DISABLED_WINDOW_NOT_FOUND)
+        printLog(f"OCR pipeline: started ({spec.label}, candidates={getattr(self._detector, 'name', 'custom')}, "
+                 f"region={self._region_source.region}, chatbox_filter={self._chatbox_filter})")
         self._background_threads.lower()
         self._thread = Thread(target=self._run, name="ocr_pipeline", daemon=True)
         self._thread.start()
@@ -269,6 +319,10 @@ class OcrPipeline:
                 self._min_text_length = max(1, int(pending["min_text_length"]))
             except (TypeError, ValueError):
                 errorLogging()
+        if "region" in pending:
+            self._region_source.setRegion(pending["region"])
+        if "chatbox_filter" in pending:
+            self._chatbox_filter = bool(pending["chatbox_filter"])
 
         # 言語を変えると使うモデルが変わることがある (auto/日英中+ラテンは同じモデル、
         # ハングル・キリル・タイ等はPP-OCRv5の別モデル)。同じモデルはキャッシュ
@@ -279,7 +333,14 @@ class OcrPipeline:
             if spec is None:
                 printLog(f"OCR pipeline: language {language!r} is not supported, keeping {self._source_language!r}")
             else:
-                reader = ocr_engine.getReader(spec)
+                try:
+                    reader = self._readerFor(spec)
+                except OcrModelsMissing as missing:
+                    printLog(f"OCR pipeline: models for {language!r} not downloaded ({', '.join(missing.model_ids)})")
+                    reader = None
+                except (OcrModelsInvalid, OSError):
+                    errorLogging()
+                    reader = None
                 if reader is None:
                     printLog(f"OCR pipeline: could not load {spec.label}, keeping {self._source_language!r}")
                 else:
@@ -352,7 +413,7 @@ class OcrPipeline:
         printLog(
             f"OCR status ({now - self._counts_since:.0f}s): "
             f"tick={counts['tick']} frame={counts['frame']} candidate={counts['candidate']} "
-            f"ocr={counts['ocr']} text={counts['text']} emit={counts['emit']} "
+            f"ocr={counts['ocr']} text={counts['text']} bubble={counts['bubble']} emit={counts['emit']} "
             f"lang={self._source_language!r}")
         for key in counts:
             counts[key] = 0
@@ -389,6 +450,7 @@ class OcrPipeline:
         self._dedup.evictStale(now, retention)
         deadline = now + self._tick_budget
 
+        splits = getattr(self._detector, "splits_bubbles", False) is True
         for bbox, crop in candidates:
             if self._stop_event.is_set():
                 return
@@ -399,17 +461,38 @@ class OcrPipeline:
             if not words:
                 continue
             self._counts["text"] += 1
-            merged = self._mergeWords(words)
-            if len(merged) < self._min_text_length:
+            for block, center in self._bubbles(bbox, crop, words, splits):
+                self._counts["bubble"] += 1
+                merged = self._mergeWords(block)
+                if len(merged) < self._min_text_length:
+                    continue
+                h = _textHash(merged)
+                if self._dedup.seen(h, merged, now):
+                    continue
+                self._dedup.record(h, merged, center, now)
+                self._counts["emit"] += 1
+                self._emit(merged)
+
+    def _bubbles(self, bbox, crop, words: List[dict], splits: bool):
+        """候補1つ分のOCR行を吹き出しごとに分ける。[(行のリスト, 中心座標), ...]。
+
+        検出器の候補は1つが1吹き出し。検出器なし (範囲読み) は範囲に複数の
+        吹き出しやワールドの文字が写るので、行をまとめ直し、チャットボックスの
+        見た目 (暗い板に明るい文字) でないものを落とす。
+        """
+        center = (int(bbox[0] + bbox[2] / 2), int(bbox[1] + bbox[3] / 2))
+        if not splits:
+            return [(words, center)]
+        out = []
+        for block in groupLines(words):
+            if self._chatbox_filter and not looksLikeChatbox(crop, block):
                 continue
-            h = _textHash(merged)
-            if self._dedup.seen(h, merged, now):
-                continue
-            cx = int(bbox[0] + bbox[2] / 2)
-            cy = int(bbox[1] + bbox[3] / 2)
-            self._dedup.record(h, merged, (cx, cy), now)
-            self._counts["emit"] += 1
-            self._emit(merged)
+            bounds = blockBounds(block)
+            block_center = center
+            if bounds is not None:
+                block_center = (int(bbox[0] + bounds[0] + bounds[2] / 2), int(bbox[1] + bounds[1] + bounds[3] / 2))
+            out.append((block, block_center))
+        return out
 
     @staticmethod
     def _mergeWords(words: List[dict]) -> str:
