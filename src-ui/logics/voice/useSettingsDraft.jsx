@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@useI18n";
+import { rebaseDraft } from "./draftRebase";
 
 // A write is confirmed only when the backend returns the submitted values.
 export function useSettingsDraft(saved, error, updateError) {
@@ -15,8 +16,8 @@ export function useSettingsDraft(saved, error, updateError) {
     useEffect(() => {
         if (saved == null) return;
         const acknowledged = submitted.current !== null && savedKey === submitted.current;
-        const wasClean = JSON.stringify(current.current.draft) === previousSavedKey.current;
-        if (current.current.draft === null || wasClean || acknowledged) setDraft(saved);
+        if (current.current.draft === null || acknowledged) setDraft(saved);
+        else setDraft(rebaseDraft(JSON.parse(previousSavedKey.current), current.current.draft, saved));
         previousSavedKey.current = savedKey;
         if (acknowledged) { setSaving(false); submitted.current = null; }
     }, [savedKey, saved]);

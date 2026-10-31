@@ -39,7 +39,9 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                     <legend>{t(`speech_servers.${name}`)}</legend>
                     <details open={owner?.state !== "ready"}><summary>{t("voice_ui.engine_settings")}</summary>
                     {input("model")}{input(name === "asr" ? "vad_model" : "voice_file")}
-                    <ModelDownloads targets={[name]} blocked={dirty || busy} deviceMode={settings.profiles[name].device}
+                    {/* Other unsaved edits survive an apply; only an edited model path conflicts. */}
+                    <ModelDownloads targets={[name]} deviceMode={settings.profiles[name].device}
+                        blocked={busy ? "busy" : row.model !== settings.profiles[name].model ? "edited" : false}
                         expected={{ [name]: { model: settings.profiles[name].model } }} />
                     <label>{t("speech_servers.device")}<select aria-label={t("speech_servers.device")} value={row.device} disabled={busy}
                         onChange={event => field(name, "device", event.target.value)}>

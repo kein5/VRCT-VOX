@@ -98,7 +98,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
                     <p>{t("model_downloads.apply_hint")}</p>
                     <button type="button" disabled={busy || blocked || !expected?.[entry.target]}
                         onClick={() => send("/run/apply_model_download", { id: entry.id, job_id: job.job_id, expected: expected[entry.target] })}>{t("model_downloads.apply")}</button>
-                    {blocked && <p>{t("model_downloads.blocked")}</p>}
+                    {blocked && <p>{t(blocked === "edited" ? "model_downloads.blocked_edited" : "model_downloads.blocked")}</p>}
                 </>}
             </div>;
         })}
