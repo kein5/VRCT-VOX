@@ -1,4 +1,9 @@
-# VRCT-VOX
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-en-on-dark.svg">
+    <img src="docs/brand/logo-en-on-light.svg" width="800" alt="VRCT-VOX: speech recognition, text to speech, voice conversion, screen text reading and translation">
+  </picture>
+</h1>
 
 [日本語](/docs/readmes/README.ja.md) · [한국어](/docs/readmes/README.ko.md) · [繁體中文](/docs/readmes/README.zh-Hant.md)
 
