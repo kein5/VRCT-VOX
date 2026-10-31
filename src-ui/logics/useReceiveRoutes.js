@@ -174,7 +174,7 @@ export const STATIC_ROUTE_META_LIST = [
 export const useReceiveRoutes = () => {
     const { showNotification_Error } = common.useNotificationStatus();
     const { errorHandling_Backend } = _useBackendErrorHandling();
-    const { settings: voiceSettings, send: sendVoice, reset: resetVoice, updateTtsError, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
+    const { settings: voiceSettings, status: voiceStatus, send: sendVoice, reset: resetVoice, updateTtsError, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
     const voiceConnected = voiceSettings !== null;
     useEffect(() => {
         if (!voiceConnected) return;
@@ -188,7 +188,8 @@ export const useReceiveRoutes = () => {
         return () => clearInterval(timer);
     }, [voiceConnected, sendVoice]);
     const { state: speechState, pending: speechPending, send: sendSpeech, updateError: updateSpeechError, reset: resetSpeech } = speech.useSpeechServers();
-    const speechActive = Object.values(speechState).some(row => ["preparing", "ready", "stopping"].includes(row.state)) || Object.keys(speechPending).length > 0;
+    const speechActive = Object.values(speechState).some(row => ["preparing", "ready", "stopping"].includes(row.state)) || Object.keys(speechPending).length > 0
+        || voiceStatus.tts_server_starting === true;
     useEffect(() => {
         if (!speechActive) return;
         const timer = setInterval(() => sendSpeech("/get/data/speech_server_state"), 500);
@@ -264,6 +265,8 @@ export const useReceiveRoutes = () => {
             sendSpeech("/get/data/speech_server_settings");
             sendVoice("/get/data/direct_voice_state");
         }
+        // The main TTS toggle can start or stop a bundled server; keep Settings in step.
+        if (["/run/enable_tts", "/run/disable_tts"].includes(endpoint)) sendSpeech("/get/data/speech_server_state");
         if (status !== 200 && ["/run/enable_tts", "/run/disable_tts"].includes(endpoint)) {
             updateTtsError(result?.error_code || "voice_request_failed", endpoint);
             sendVoice("/get/data/voice_status");

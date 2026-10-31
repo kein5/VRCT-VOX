@@ -36,6 +36,8 @@ export const useVoice = () => {
     const [selectedSource, setSelectedSource] = useAtom(selectedSourceAtom);
     const [ttsPending] = useAtom(ttsPendingAtom), [directPending] = useAtom(directPendingAtom), [ttsError] = useAtom(ttsErrorAtom);
     const updateTtsError = useCallback((value, endpoint) => {
+        // OFF while a bundled server was starting cancels that ON; nothing to report.
+        if (value === "tts_enable_cancelled") return;
         atoms.set(ttsErrorAtom, value);
         if (value && endpoint === "/run/enable_tts" && atoms.get(ttsPendingAtom)?.intent)
             atoms.set(ttsPendingAtom, null);
@@ -92,7 +94,14 @@ export const useVoice = () => {
                 atoms.set(directOwnerAtom, request.owner);
             }
             atoms.set(target, request);
-            setTimeout(() => { if (atoms.get(target) === request) report("voice_request_unconfirmed"); }, 5000);
+            const confirm = () => {
+                if (atoms.get(target) !== request) return;
+                // ON may be loading a bundled server's model, which takes longer than 5 s.
+                if (ttsCommand && request.intent && atoms.get(statusAtom).tts_server_starting === true)
+                    return setTimeout(confirm, 1000);
+                report("voice_request_unconfirmed");
+            };
+            setTimeout(confirm, 5000);
         } else if (endpoint.startsWith("/set/") || endpoint === "/run/mute_voice" || endpoint === "/run/resume_voice") report(null);
         const ok = await asyncStdoutToPython(endpoint, data);
         if (!ok) report("backend_unavailable");

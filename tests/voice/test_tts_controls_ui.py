@@ -338,3 +338,45 @@ def test_tts_failure_names_the_next_step(pages):
     expect(alert).to_contain_text('press "Resume voice"')
     expect(alert).not_to_contain_text("Check TTS settings.")
     expect(tts).to_have_attribute("aria-checked", "false")
+
+
+@pytest.mark.parametrize("pages", ["main"], indirect=True)
+def test_server_start_shows_starting_and_outlasts_the_confirmation_timer(pages):
+    from playwright.sync_api import expect
+
+    page, peer, reply = pages
+    tts = page.get_by_role("switch", name="TTS", exact=True)
+    peer.hold_tts = True
+    peer.tts["tts_server_starting"] = True  # Status polls report the model load.
+    tts.click()
+    expect(tts).to_have_attribute("aria-busy", "true")
+    expect(tts).to_contain_text("Starting server…")
+    page.wait_for_timeout(6500)  # Past the ordinary 5 s confirmation timer.
+    expect(page.get_by_role("alert").filter(has_text="voice_request_unconfirmed")).to_have_count(0)
+    expect(tts).to_have_attribute("aria-busy", "true")
+    peer.tts.update(tts_enabled=True, tts_generation=1, tts_server_starting=False)
+    peer.sequence += 1
+    ready = reply("/run/enable_tts", dict(peer.tts, observation_id=str(peer.sequence)))
+    page.wait_for_function("id => window.received.includes(id)", arg=ready)
+    expect(tts).to_have_attribute("aria-checked", "true")
+    expect(tts).not_to_contain_text("Starting server…")
+
+
+@pytest.mark.parametrize("pages", ["main"], indirect=True)
+def test_off_during_server_start_cancels_without_an_error(pages):
+    from playwright.sync_api import expect
+
+    page, peer, reply = pages
+    tts = page.get_by_role("switch", name="TTS", exact=True)
+    peer.hold_tts = True
+    peer.tts["tts_server_starting"] = True
+    tts.click()
+    expect(tts).to_contain_text("Starting server…")
+    peer.tts["tts_server_starting"] = False
+    tts.click()
+    expect(tts).to_have_attribute("aria-busy", "false")
+    cancelled = reply("/run/enable_tts", dict(error_code="tts_enable_cancelled"), 409)
+    page.wait_for_function("id => window.received.includes(id)", arg=cancelled)
+    expect(page.get_by_role("alert").filter(has_text="tts_enable_cancelled")).to_have_count(0)
+    expect(tts).to_have_attribute("aria-checked", "false")
+    assert [ep for ep, _ in peer.sent if ep.startswith("/run/")] == ["/run/enable_tts", "/run/disable_tts"]
