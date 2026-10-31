@@ -19,6 +19,8 @@ from .pipewire_gate import VC_SINK
 START_TIMEOUT = 3.0
 MONITOR_INTERVAL = .1
 BUILD = resource_root() / 'build'
+# Device page host for PipeWire inputs on Linux (no PyAudio host APIs there).
+PIPEWIRE_MIC_HOST = 'PipeWire'
 
 
 @dataclass(frozen=True)
@@ -58,7 +60,51 @@ def parse_source(value):
 def enumerate_sources():
     if not sys.platform.startswith('linux'):
         raise RuntimeError('source_bridge_linux_only')
+    return _sources(_read_graph())
+
+
+def microphone_names(sources):
+    """Device page names; a description shared by several inputs gets its node name."""
+    labels = [item['label'] for item in sources]
+    return [label if labels.count(label) == 1 else f"{label} ({item['id']['name']})"
+            for label, item in zip(labels, sources)]
+
+
+def microphone_devices():
+    """Device page list on Linux, where PyAudio is absent: (devices, default).
+
+    Uses the same filter as enumerate_sources so the selection maps onto an RVC
+    input. PipeWire's default may be the managed virtual microphone itself, so the
+    configured default and then the first real input are the fallbacks.
+    """
+    if not sys.platform.startswith('linux'):
+        raise RuntimeError('source_bridge_linux_only')
     graph = _read_graph()
+    sources = _sources(graph)
+    devices = [{'index': i, 'name': name, 'node_name': item['id']['name']}
+               for i, (item, name) in enumerate(zip(sources, microphone_names(sources)))]
+    defaults = {}
+    for item in graph:
+        if (item.get('type') != 'PipeWire:Interface:Metadata'
+                or item.get('props', {}).get('metadata.name') != 'default'):
+            continue
+        for entry in item.get('metadata') or []:
+            value = entry.get('value') if isinstance(entry, dict) else None
+            if isinstance(value, str):
+                try:
+                    value = json.loads(value)
+                except ValueError:
+                    continue
+            if isinstance(value, dict) and isinstance(value.get('name'), str):
+                defaults[entry.get('key')] = value['name']
+    for key in ('default.audio.source', 'default.configured.audio.source'):
+        match = [device for device in devices if device['node_name'] == defaults.get(key)]
+        if match:
+            return devices, match[0]
+    return devices, devices[0] if devices else None
+
+
+def _sources(graph):
     result = []
     for item in graph:
         if item.get('type') != 'PipeWire:Interface:Node':

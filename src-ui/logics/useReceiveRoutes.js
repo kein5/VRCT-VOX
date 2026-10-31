@@ -260,6 +260,11 @@ export const useReceiveRoutes = () => {
             updateDownloadError(result?.error_code || "download_failed");
             return;
         }
+        // On Linux the Device page Mic choice is the default RVC input (`preferred`).
+        if (status === 200 && ["/set/data/selected_mic_host", "/set/data/selected_mic_device",
+            "/run/selected_mic_host", "/run/selected_mic_device"].includes(endpoint)) {
+            sendVoice("/get/data/direct_voice_sources");
+        }
         if (status === 200 && endpoint === "/run/apply_model_download") {
             sendSpeech("/get/data/speech_server_settings");
             sendVoice("/get/data/direct_voice_state");

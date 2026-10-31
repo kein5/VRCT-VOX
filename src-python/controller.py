@@ -37,7 +37,7 @@ from models.audio_routing.audio_router import enumerate_outputs
 from models.audio_routing.managed_route import VoiceRoute
 from models.audio_routing.mute_state import MuteState
 from models.audio_routing.pipewire_gate import PipeWireGate
-from models.audio_routing.source_bridge import enumerate_sources, parse_source
+from models.audio_routing.source_bridge import PIPEWIRE_MIC_HOST, enumerate_sources, microphone_names, parse_source
 from models.voice_conversion.direct_voice import DirectVoice, create_converted_process
 from models.voice_conversion.settings import DirectSettings, start_options
 from models.overlay.overlay_tooltip import validate_tooltip
@@ -2095,7 +2095,14 @@ class Controller:
             sources = []
             error = ('source_bridge_linux_only' if not sys.platform.startswith('linux')
                      else 'source_bridge_graph_unavailable')
-        return {'status': 200, 'result': {'sources': sources, 'error': error}}
+        # The Device page Mic choice is the default RVC input; the UI applies it
+        # only while the user has not picked another input on the RVC page.
+        preferred = None
+        if getattr(config, 'SELECTED_MIC_HOST', None) == PIPEWIRE_MIC_HOST:
+            selected = getattr(config, 'SELECTED_MIC_DEVICE', None)
+            preferred = next((item['id'] for item, name in zip(sources, microphone_names(sources))
+                              if name == selected), None)
+        return {'status': 200, 'result': {'sources': sources, 'error': error, 'preferred': preferred}}
 
     def getDirectVoiceState(self, *args, **kwargs) -> dict:
         return {'status': 200, 'result': dict(self.direct_voice.health(), settings=self._direct_settings.to_dict())}

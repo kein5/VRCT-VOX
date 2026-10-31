@@ -799,6 +799,10 @@ class MicSession(_AudioDeviceSession):
         selected_mic_device = [d for d in mic_device_list if d["name"] == mic_device_name]
         if not selected_mic_device or mic_device_name == "NoDevice":
             return None
+        # Linux PipeWire entries select the RVC input; the PyAudio recorders
+        # cannot open them, so legacy capture stays without a device as before.
+        if "node_name" in selected_mic_device[0]:
+            return None
         return selected_mic_device[0]
 
     def _create_recorder(self, device: dict):

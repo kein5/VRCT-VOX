@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useVoice } from "../../../../../logics/voice/useVoice";
+import { useVoice, sourceKey } from "../../../../../logics/voice/useVoice";
 import { useNotificationStatus } from "../../../../../logics/common/useNotificationStatus";
 import { useI18n } from "@useI18n";
 import clsx from "clsx";
@@ -53,8 +53,7 @@ export const MainFunctionSwitch = () => {
             return notify(t("voice_ui.input_conflict"), "RVC");
         if (voice.directDraftBlocked) return notify(t("voice_ui.save_direct_first"), "RVC");
         const cfg = voice.directState.settings;
-        const source = voice.directSources.sources?.find(item =>
-            JSON.stringify([item.id.cookie, item.id.serial, item.id.name, item.id.media_class]) === voice.selectedSource);
+        const source = voice.directSources.sources?.find(item => sourceKey(item.id) === voice.selectedSource);
         if (voice.settings?.routing !== "managed" || !voice.directState.observation_id ||
             voice.directSources.error || !source || cfg?.mode !== "converted" || cfg?.engine !== "rvc" ||
             !cfg.rvc_runtime || !cfg.rvc_model) return notify(t("voice_ui.rvc_not_ready"), "RVC");

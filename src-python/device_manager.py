@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import sys
 from typing import Callable, Dict, List, Optional, Any
 from time import sleep
 from threading import Thread, Lock, Event
@@ -268,6 +269,23 @@ class DeviceManager:
     def default_speaker_device(self) -> Dict[str, Any]:
         return self._device_snapshot.default_speaker_device
 
+    def _linuxMicDevices(self):
+        """PipeWire inputs as one host. These are the RVC inputs, not legacy recorder devices."""
+        no_device = {"host": {"index": -1, "name": "NoHost"}, "device": {"index": -1, "name": "NoDevice"}}
+        try:
+            from models.audio_routing.source_bridge import PIPEWIRE_MIC_HOST, microphone_devices
+            devices, default = microphone_devices()
+        except RuntimeError:
+            # pw-dump is missing or the graph is unreadable: same as no inputs.
+            return {}, no_device
+        except Exception:
+            errorLogging()
+            return {}, no_device
+        if not devices:
+            return {}, no_device
+        host = {"index": 0, "name": PIPEWIRE_MIC_HOST}
+        return {PIPEWIRE_MIC_HOST: devices}, {"host": host, "device": default}
+
     def update(self):
         buffer_mic_devices: Dict[str, List[Dict[str, Any]]] = {}
         buffer_default_mic_device: Dict[str, Any] = {"host": {"index": -1, "name": "NoHost"}, "device": {"index": -1, "name": "NoDevice"}}
@@ -275,7 +293,10 @@ class DeviceManager:
         buffer_default_speaker_device: Dict[str, Any] = {"device": {"index": -1, "name": "NoDevice"}}
 
         if PyAudio is None:
-            # PyAudio not available; leave defaults in place
+            # PyAudio not available (PyAudioWPatch is Windows-only). On Linux
+            # the Mic list comes from PipeWire instead; elsewhere keep defaults.
+            if sys.platform.startswith("linux"):
+                buffer_mic_devices, buffer_default_mic_device = self._linuxMicDevices()
             self._device_snapshot = _DeviceSnapshot(
                 mic_devices=buffer_mic_devices or {"NoHost": [{"index": -1, "name": "NoDevice"}]},
                 default_mic_device=buffer_default_mic_device,

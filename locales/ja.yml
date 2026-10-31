@@ -31,7 +31,7 @@ voice:
     select_input: "入力を選択"
     refresh_inputs: "入力一覧を更新"
     input_requires_managed: "開始するには仮想マイクを準備してください。TTSとRVCの共通出力先が仮想マイクに切り替わります。"
-    input_selection_hint: "ここでは自分が話すマイクを選びます。VRChat側の入力に VRCT Managed Virtual Microphone を選んでください。"
+    input_selection_hint: "ここでは自分が話すマイクを選びます。初期値はデバイス設定の「マイク」で選んだマイクです。VRChat側の入力に VRCT Managed Virtual Microphone を選んでください。"
     prepare_microphone: "仮想マイクを準備して使用"
     preparing_microphone: "仮想マイクを準備中…"
     input_start: "入力の転送を開始"
@@ -262,6 +262,7 @@ config_page:
         label_device: "デバイス"
         mic_host_device:
             label: "マイク （デバイス）"
+            desc_pipewire: "Linuxでは PipeWire の入力デバイスを表示します。選んだマイクがRVCの入力の初期値になります（RVCはトップ画面のRVCスイッチで開始）。リアルタイム音声認識のマイクは音声認識の設定で選びます。"
         mic_dynamic_energy_threshold:
             label: "マイク入力感度の調整"
             desc_for_automatic: "マイクの入力感度を自動的に調節する。"
@@ -837,7 +838,7 @@ voice_ui:
         speech_server_or_settings_not_ready: "TTSの設定がそろっていません。設定の「TTS」と音声経路を確認してください。"
         tts_state_changed: "切り替え中にTTSの状態が変わりました。もう一度お試しください。"
     state_unknown: "状態を確認できません。バックエンド接続後に再試行してください。"
-    rvc_not_ready: "管理された音声経路を選び、RVCモデル設定を保存して入力マイクを選択してください。"
+    rvc_not_ready: "管理された音声経路を選び、RVCモデル設定を保存して、デバイス設定の「マイク」かRVC設定で入力マイクを選択してください。"
     seed_mode: "シードの指定"
     seed_value: "シード値"
     seed_random: "ランダム／サーバー既定"
