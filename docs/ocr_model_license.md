@@ -79,7 +79,7 @@ VRCT はそのライセンスを持っていないので、**自分が受け取�
 
 候補は YOLOX / RT-DETR / RF-DETR（いずれも Apache-2.0）で、YOLOX-Tiny を選んだ。
 精度・速度・組み込みの検証記録は
-[`docs/ocr_yolox_migration_2026-09-22.md`](ocr_yolox_migration_2026-09-22.md)。
+[上流 VRCT の docs/ocr_yolox_migration_2026-09-22.md](https://github.com/misyaguziya/VRCT/blob/develop/docs/ocr_yolox_migration_2026-09-22.md)。
 
 2026-09-22 に載せ替えを完了し、`chatbox_yolov8n.onnx` はリポジトリから削除した。
 

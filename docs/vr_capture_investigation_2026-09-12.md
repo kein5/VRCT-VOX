@@ -1,5 +1,7 @@
 # VRChat の最小化中に使う学習画像の取得調査
 
+> 上流VRCTから引き継いだ2026-09-12の調査記録です。OCR学習用の収集・注釈ツールと関連文書は2026-10-31にVRCT-VOXから削除しました（[上流VRCTのdocs](https://github.com/misyaguziya/VRCT/tree/develop/docs)に残っています）。`tools/probe_openvr_capture.py`は残しています。
+
 調査日: 2026-09-12 / branch: `feature/ocr-chat-bubble`
 
 追記: 本書は最初の取得可能性検証の記録。その後、収集CLIをD3D11対応・自動撮影・

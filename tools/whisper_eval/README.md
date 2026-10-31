@@ -19,7 +19,7 @@ Common Voiceの日本語データセットは、Mozillaのデータカタログ�
 ## 必要なもの
 
 - VRCTのPython仮想環境
-- `numpy`（既存のrequirementsに含まれる）
+- `numpy`（`pyproject.toml`の依存に含まれる）
 - Common Voice日本語の展開済みデータ
 - MP3を変換する場合は `ffmpeg`。16kHz・モノラル・16-bit PCM WAVを入力する場合は不要
 - `--environment-noise` 用の利用許諾済み環境音WAVまたは変換可能な音声
