@@ -4,6 +4,7 @@ from threading import Condition, Event, Thread, Timer
 from time import monotonic, monotonic_ns
 
 from models.audio_routing.audio_router import AudioRouter
+from models.audio_routing.monitor_output import MonitorTee
 from .settings import VoiceSettings
 from .speechcpp_tts import CancelToken, SpeechCppTTS, SpeechError
 from .voice_trace import write_voice_trace, install_gc_diagnostics
@@ -42,12 +43,15 @@ class StartExpiry:
 class VoiceEventBus:
     """Serialize final chat and opted-in microphone translations."""
     def __init__(self, settings=None, *, provider_factory=SpeechCppTTS, router=None,
-                 capacity=4, max_age=5.0, request_timeout=30.0, resolve_server=None, enabled=True):
+                 capacity=4, max_age=5.0, request_timeout=30.0, resolve_server=None, enabled=True,
+                 monitor_factory=MonitorTee, on_monitor_error=None):
         install_gc_diagnostics()
         self.settings = settings or VoiceSettings()
         self.provider_factory = provider_factory
         self.resolve_server = resolve_server
         self.router = router or AudioRouter()
+        self.monitor_factory = monitor_factory
+        self.on_monitor_error = on_monitor_error
         self.capacity = capacity
         self.max_age = max_age
         self.request_timeout = request_timeout
@@ -65,13 +69,14 @@ class VoiceEventBus:
         self._source_epochs = {}
         self._stats = {"accepted": 0, "completed": 0, "dropped": 0, "duplicates": 0,
                        "cancelled": 0, "errors": 0, "last_error": None,
-                       "last_first_write_ms": None, "sample_rate": None}
+                       "last_first_write_ms": None, "sample_rate": None, "monitor_error": None}
 
     def configure(self, settings):
         with self._condition:
             self.settings = settings
             self._cancel_locked()
             self._stats["last_error"] = None
+            self._stats["monitor_error"] = None
 
     def _cancel_locked(self):
         self._epoch += 1
@@ -190,6 +195,32 @@ class VoiceEventBus:
                     "tts_stopping": not self._tts_enabled and self._active is not None,
                     "observation_id": str(self._observation_id)}
 
+    def _open_monitor(self, settings, epoch):
+        """Optional and isolated: a monitor problem is a notice, never a speech error."""
+        choice = settings.monitor_choice
+        if choice is None or self.monitor_factory is None:
+            return None
+
+        def failed(code):
+            with self._condition:
+                if epoch == self._epoch:
+                    self._stats["monitor_error"] = code
+            if self.on_monitor_error is not None:
+                self.on_monitor_error(code)
+
+        def ready():
+            with self._condition:
+                if epoch == self._epoch:
+                    self._stats["monitor_error"] = None
+
+        device, volume = choice
+        try:
+            return self.monitor_factory(device, volume, exclude=(settings.playback_device,),
+                                        on_error=failed, on_ready=ready)
+        except Exception:
+            failed("monitor_output_error")
+            return None
+
     def _work(self):
         while True:
             with self._condition:
@@ -212,6 +243,7 @@ class VoiceEventBus:
             timer.daemon = True
             timer.start()
             frames = None
+            monitor = None
             first_write = None
             outcome = "error"
             try:
@@ -226,7 +258,11 @@ class VoiceEventBus:
                         self._stats["last_first_write_ms"] = round((timestamp - event.timestamp_ns) / 1e6, 3)
                         self._stats["sample_rate"] = rate
 
-                self.router.play(frames, settings.playback_device, token, first_audio)
+                monitor = self._open_monitor(settings, epoch)
+                if monitor is None:
+                    self.router.play(frames, settings.playback_device, token, first_audio)
+                else:
+                    self.router.play(frames, settings.playback_device, token, first_audio, monitor=monitor)
                 token.check()
                 outcome = "completed"
                 with self._condition:
@@ -248,6 +284,8 @@ class VoiceEventBus:
                                                          "language_or_text_unavailable" if isinstance(exc, ValueError) else
                                                          "audio_output_error")
             finally:
+                if monitor is not None:
+                    monitor.close(drain=outcome == "completed")  # Idempotent; never waits.
                 timer.cancel()
                 if start_timer is not None:
                     start_timer.cancel()

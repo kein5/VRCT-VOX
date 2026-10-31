@@ -23,9 +23,25 @@ def enumerate_outputs():
         pa.terminate()
 
 
+def default_output():
+    """Identity of the OS default output. Monitor only: TTS never uses a default."""
+    import pyaudiowpatch as audio
+    pa = audio.PyAudio()
+    try:
+        try:
+            info = pa.get_default_output_device_info()
+        except (OSError, LookupError) as exc:
+            raise SpeechError("output_missing") from exc
+        return _identity(pa, info)
+    finally:
+        pa.terminate()
+
+
 class WindowsOutput:
-    def __init__(self, device, rate, channels):
+    def __init__(self, device, rate, channels, *, strict_underflow=True):
         import pyaudiowpatch as audio
+        # A monitor tolerates a stalled server's gap; the virtual mic reports it.
+        self.strict_underflow = strict_underflow
         self.pa = audio.PyAudio()
         self.stream = None
         try:
@@ -43,7 +59,7 @@ class WindowsOutput:
 
     def write(self, pcm, token):
         token.check()
-        self.stream.write(pcm, exception_on_underflow=True)
+        self.stream.write(pcm, exception_on_underflow=self.strict_underflow)
 
     def close(self, *, drain, token):
         # PortAudio owns the final hardware buffer. Immediate device abort and
