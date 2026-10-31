@@ -31,6 +31,9 @@ def test_rapidocr_code_and_config_are_allowed(name):
     "_internal/chatbox_yolox_tiny.ort", "data/chatbox_yolox_tiny.onnx.zst", "x/CHATBOX_YOLOX_TINY.bin",
     # Downloaded PP-OCR files never travel with a build either.
     "downloaded_models/ppocrv6-small/rev/det.onnx",
+    # Nor does VRCT-VOX's own detector: it is a consented download as well.
+    "_internal/vrct_vox_chatbox_yolox_tiny.onnx",
+    "downloaded_models/vrct-vox-chatbox-detector/rev/vrct_vox_chatbox_yolox_tiny.onnx",
 ])
 def test_ocr_weights_and_detector_are_rejected(name):
     assert violation(name) == "Restricted OCR model"
