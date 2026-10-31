@@ -11,20 +11,21 @@ import time
 from models.audio_routing.source_bridge import Endpoint, SourceBridge, _source_id, parse_source
 
 
-def create_converted_process(options):
+def create_converted_process(options, monitor=None):
     from .isolated import IsolatedVCProcess
-    return IsolatedVCProcess(options)
+    return IsolatedVCProcess(options) if monitor is None else IsolatedVCProcess(options, monitor=monitor)
 
 
-def create_worker_process(options):
+def create_worker_process(options, monitor=None):
     # Linux-only optional backend is loaded only after an explicit converted Start.
     from .settings import start_options
     options = start_options('converted', options)
+    extra = {} if monitor is None else {'monitor': monitor}
     if options.get('engine') == 'rvc':
         from .rvc_process import RVCProcess
-        return RVCProcess(options)
+        return RVCProcess(options, **extra)
     from .seed_process import SeedProcess
-    return SeedProcess(options)
+    return SeedProcess(options, **extra)
 
 
 class DirectVoice:
@@ -40,7 +41,8 @@ class DirectVoice:
         self._requested = self._closed = False
         self._error = None
 
-    def start(self, *, source, expected_generation, mode='passthrough', options=None):
+    def start(self, *, source, expected_generation, mode='passthrough', options=None, monitor=None):
+        """monitor applies to converted output only; it is fixed for this Start."""
         if not isinstance(source, Endpoint):
             raise ValueError('source_bridge_source_invalid')
         parse_source(_source_id(source))
@@ -68,8 +70,12 @@ class DirectVoice:
             self._source, self._mode, self._options = source, mode, choices
             self._error = None
             try:
-                self._backend = (self._original() if mode == 'passthrough'
-                                 else self._converted(deepcopy(choices)))
+                if mode == 'passthrough':
+                    self._backend = self._original()
+                elif monitor is None:
+                    self._backend = self._converted(deepcopy(choices))
+                else:
+                    self._backend = self._converted(deepcopy(choices), monitor=dict(monitor))
                 self._requested = True
                 self._backend.start(source=source)
             except Exception:
@@ -116,4 +122,6 @@ class DirectVoice:
                 conversion_state=(state.get('state') if self._requested and self._mode == 'converted' else None),
                 conversion_verified=(self._requested and self._mode == 'converted'
                                      and bool(state.get('conversion_verified'))),
+                monitor_error=(state.get('monitor_error') if self._requested and self._mode == 'converted'
+                               else None),
             )

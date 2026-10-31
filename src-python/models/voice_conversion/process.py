@@ -12,6 +12,7 @@ import time
 from uuid import uuid4
 
 from models.audio_routing.devices_pipewire import PipeWireOutput
+from models.audio_routing.monitor_output import MonitorTee, parse_monitor
 from models.audio_routing.source_bridge import _read_graph, _sink, select_source
 from models.transcription.capture_pipewire import (
     CaptureError, PipeWireCapture, _validate, capture_error_code,
@@ -49,8 +50,12 @@ class _Deadline:
 
 
 class VCProcess:
-    def __init__(self, *, engine):
+    def __init__(self, *, engine, monitor=None):
         self.engine = engine
+        # Optional local copy of the converted output; never on its critical path.
+        self._monitor_choice = parse_monitor(monitor)
+        self._monitor = None
+        self._monitor_error = None
         self._lock = Lock()
         self._queue = Queue(maxsize=1)
         self._partial = bytearray()
@@ -99,7 +104,27 @@ class VCProcess:
                         pending=self._pending, stopping=bool(self._thread and self._thread.is_alive()
                                                             and not self._requested),
                         conversion_verified=self._verified, error=self._error,
-                        state=self._state, converted_blocks=self._blocks)
+                        state=self._state, converted_blocks=self._blocks,
+                        monitor_error=self._monitor_error)
+
+    def _monitor_failed(self, code):
+        # Monitor thread. A notice only: conversion and the managed sink go on.
+        with self._lock:
+            self._monitor_error = code
+
+    def _monitor_ready(self):
+        with self._lock:
+            self._monitor_error = None
+
+    def _open_monitor(self, sink):
+        choice = self._monitor_choice
+        if choice is None:
+            return
+        try:
+            self._monitor = MonitorTee(choice['device'], choice['volume'], exclude=(sink.name,),
+                                       on_error=self._monitor_failed, on_ready=self._monitor_ready)
+        except Exception:
+            self._monitor_failed('monitor_output_error')
 
     def _fail(self, code):
         with self._lock:
@@ -169,6 +194,7 @@ class VCProcess:
             if _binding(source) != sink:
                 raise p.ProtocolError('vc_sink_changed')
             self._output = _output(sink)
+            self._open_monitor(sink)
             self._token.check()
             capture = PipeWireCapture(source, 'mic', self._audio,
                                       self._capture_failed)
@@ -201,6 +227,9 @@ class VCProcess:
                 state = p.require_output(result, converted, info, pcm, time.monotonic_ns())
                 deadline.check()
                 self._output.write(converted, deadline)
+                if self._monitor is not None:
+                    # Queue only, after the managed write: the same block, no added wait.
+                    self._monitor.offer(converted, p.RATE, 1)
                 deadline.check()
                 with self._lock:
                     self._token.check()
@@ -215,7 +244,7 @@ class VCProcess:
             self._fail(code)
         finally:
             self.stop()
-            for cleanup in (self._stop_capture, self._stop_output, self._stop_child):
+            for cleanup in (self._stop_capture, self._stop_output, self._stop_monitor, self._stop_child):
                 try:
                     cleanup()
                 except Exception:
@@ -231,6 +260,13 @@ class VCProcess:
     def _stop_capture(self):
         if self._capture is not None:
             self._capture.stop()
+
+    def _stop_monitor(self):
+        # After the managed output. The monitor thread reaps its own device; a
+        # slow monitor never marks VC cleanup as incomplete.
+        if self._monitor is not None:
+            self._monitor.close(drain=False)
+            self._monitor.join(1.5)
 
     def _stop_output(self):
         if self._output is not None:

@@ -8,6 +8,7 @@ import sys
 from threading import Event, Lock, Thread, current_thread, get_native_id
 import time
 
+from models.audio_routing.monitor_output import parse_monitor
 from models.audio_routing.source_bridge import _source_id
 from models.transcription.capture_pipewire import _validate
 from .router_protocol import BASE_STATE, Reader, encode, validate_health
@@ -33,9 +34,10 @@ def _launch():
 
 
 class IsolatedVCProcess:
-    def __init__(self, options):
+    def __init__(self, options, monitor=None):
         from .direct_voice import create_worker_process
         self.options = start_options('converted', options)
+        self.monitor = parse_monitor(monitor)
         for key in ('runtime', 'reference', 'model', 'index'):
             if self.options.get(key):
                 self.options[key] = str(Path(self.options[key]).expanduser().resolve())
@@ -47,7 +49,10 @@ class IsolatedVCProcess:
 
     def start(self, *, source):
         _validate(source, 'mic')
-        request = encode(dict(kind='start', source=_source_id(source), options=self.options))
+        request = dict(kind='start', source=_source_id(source), options=self.options)
+        if self.monitor is not None:
+            request['monitor'] = self.monitor
+        request = encode(request)
         with self._lock:
             if self._thread is not None or self._stop.is_set():
                 raise RuntimeError('vc_single_use')

@@ -23,7 +23,7 @@ def _launch(runtime, reference, session):
 
 
 class SeedProcess(VCProcess):
-    def __init__(self, options):
+    def __init__(self, options, monitor=None):
         if (not isinstance(options, dict) or set(options) != {'runtime', 'reference'}
                 or any(not isinstance(v, str) or not v or '\0' in v for v in options.values())):
             raise ValueError('vc_options_invalid')
@@ -33,7 +33,7 @@ class SeedProcess(VCProcess):
                 or not (self.runtime / 'engine').is_dir()
                 or not (self.runtime / 'assets').is_dir() or not self.reference.is_file()):
             raise ValueError('vc_runtime_missing')
-        super().__init__(engine='seed-vc')
+        super().__init__(engine='seed-vc', monitor=monitor)
 
     def _launch_worker(self):
         return _launch(self.runtime, self.reference, self._session)
