@@ -15,6 +15,12 @@ own licenses. See [voice licensing](docs/voice-stack/licensing.md) for component
 boundaries, original sources, and unresolved binary distribution obligations.
 Do not infer the complete stack's license from the main MIT license alone.
 
+Upstream VRCT's `translator_engines` extension (Google, Bing and Papago web
+translation) is licensed for official VRCT distributions only. VRCT-VOX does
+not include it, so those web translators are unavailable; local CTranslate2
+translation, DeepL and the LLM providers remain. The distribution policy
+rejects it in any build.
+
 ## Exception: the chat-bubble detection model
 
 | | |

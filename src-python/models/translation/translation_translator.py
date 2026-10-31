@@ -15,12 +15,10 @@ except Exception:
 from utils import errorLogging, getBestComputeType
 
 try:
-    # GPL の translators から、MIT 互換の自前実装に置き換えた
-    # (translator_engines)。Bing の認証情報パースはそちらに内蔵済み。
-    # Rust 製のビルド済み拡張 (src-python/translator_engines.pyd) を同梱している。
-    # ライセンスにより VRCT 以外への流用は不可 (translator_engines.LICENSE.txt)。
-    # translators と違い import 時に通信しないので、オフライン起動でも
-    # ENABLE_TRANSLATORS が False に落ちない。
+    # Upstream VRCT bundles translator_engines (Google/Bing/Papago web
+    # translation). Its license allows use and distribution only in official
+    # VRCT, so VRCT-VOX does not ship it and these engines stay disabled unless
+    # the module is installed separately.
     from translator_engines import translate_text as other_web_Translator
     ENABLE_TRANSLATORS = True
 except Exception:
