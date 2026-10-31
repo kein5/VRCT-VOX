@@ -41,6 +41,29 @@ def test_apply_updates_only_stopped_profile_path_and_preserves_options(
     assert not c.direct_voice.health()["requested"]
 
 
+def test_asr_apply_sets_only_the_recognizer_path_and_keeps_vad(
+    controller_module, setup
+):
+    c = controller_module.Controller()
+    m, entry, content, _ = setup
+    c.model_downloads = m
+    m.entries[entry.id] = replace(entry, target="asr")
+    m.transport = lambda _: io.BytesIO(content)
+    c._speech_settings["profiles"]["asr"].update(vad_model="/vad.gguf", device="gpu")
+    start(m)
+    job = finish(m)
+    result = c.applyModelDownload(
+        {"id": entry.id, "job_id": job["job_id"], "expected": {"model": ""}}
+    )
+    assert result["status"] == 200
+    profiles = c.getSpeechServerSettings()["result"]["profiles"]
+    assert profiles["asr"] == dict(
+        profiles["asr"], model=job["paths"]["model"], vad_model="/vad.gguf", device="gpu"
+    )
+    assert profiles["japanese"]["model"] == ""
+    assert c.speech_servers.state()["asr"]["state"] == "stopped"
+
+
 def test_stale_settings_and_running_server_cannot_be_overwritten(
     controller_module, setup, monkeypatch
 ):

@@ -20,8 +20,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT/'docs/voice-stack/speechcpp-bundle-artifacts.json'
 NOTICES = ROOT/'licenses/speech.cpp'
-VERSION = '0.9.0'
-COMMIT = '49f022a48bc1c7e797aa64dd08d2d9655baf299e'
+VERSION = '0.10.0'
+COMMIT = '06590811a90041f935a470ba0e2b85346d2fc041'
 VARIANTS = ('linux-x64-cpu', 'linux-x64-vulkan')
 NOTICE_NAMES = frozenset(('NOTICE.md', 'speech.cpp-LICENSE', 'ggml-LICENSE',
     'cpp-httplib-LICENSE', 'miniaudio-LICENSE', 'GCC-COPYING3', 'GCC-COPYING.RUNTIME'))

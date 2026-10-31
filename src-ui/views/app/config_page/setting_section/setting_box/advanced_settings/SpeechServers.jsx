@@ -39,8 +39,8 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                     <legend>{t(`speech_servers.${name}`)}</legend>
                     <details open={owner?.state !== "ready"}><summary>{t("voice_ui.engine_settings")}</summary>
                     {input("model")}{input(name === "asr" ? "vad_model" : "voice_file")}
-                    {name !== "asr" && <ModelDownloads targets={[name]} blocked={dirty || busy} deviceMode={settings.profiles[name].device}
-                        expected={{ [name]: { model: settings.profiles[name].model } }} />}
+                    <ModelDownloads targets={[name]} blocked={dirty || busy} deviceMode={settings.profiles[name].device}
+                        expected={{ [name]: { model: settings.profiles[name].model } }} />
                     <label>{t("speech_servers.device")}<select aria-label={t("speech_servers.device")} value={row.device} disabled={busy}
                         onChange={event => field(name, "device", event.target.value)}>
                         {["auto", "cpu", "gpu"].map(device => <option key={device} value={device}>{t(`speech_servers.${device}`)}</option>)}

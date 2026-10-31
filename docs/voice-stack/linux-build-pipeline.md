@@ -1,7 +1,7 @@
 # Linux build pipeline
 
 `tools/build_linux.py` builds an **unpublished x86_64 candidate**: frozen Python sidecar,
-Tauri frontend, four C audio helpers and pinned speech.cpp 0.9.0 CPU or Vulkan.
+Tauri frontend, four C audio helpers and pinned speech.cpp 0.10.0 CPU or Vulkan.
 The default output is a `tar.gz`, SHA-256 sidecar and JSON file inventory. Use tar with symlink
 preservation; copying only the executable or flattening `_internal` is unsupported.
 Add `--appimage --download-appimage-tools` for an additional inspected AppImage;
@@ -46,7 +46,7 @@ before emitting PCM; compile-time checks give an explicit dependency error. This
 does not relax timestamp/discontinuity checks or validate every newer release.
 
 `--download-speech` authorizes acquisition of **only the pinned engine executable**.
-Alternatively use `--speech-archive /absolute/path/speech-0.9.0-linux-x64-vulkan.zip`;
+Alternatively use `--speech-archive /absolute/path/speech-0.10.0-linux-x64-vulkan.zip`;
 the archive and executable hashes are checked against `speechcpp-bundle-artifacts.json`.
 Choose `--variant linux-x64-cpu` with the corresponding CPU archive for CPU builds.
 `--offline` requires uv, npm and Cargo caches to be populated. No engine models or

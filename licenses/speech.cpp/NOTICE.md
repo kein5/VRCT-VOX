@@ -1,20 +1,20 @@
 # speech.cpp binary component
 
 This component contains the unmodified `speech` executable extracted from an
-official speech.cpp 0.9.0 Linux release. `bundle.json` records the selected
+official speech.cpp 0.10.0 Linux release. `bundle.json` records the selected
 archive, its SHA256, the source commit and the hashes of the files included here.
 No speech model, reference recording, libspeech shared library or VC engine is
 included. This is a VRCT-VOX packaging component, not an upstream release of VRCT.
 
 Upstream source: https://github.com/nyosegawa/speech.cpp
-Commit: 49f022a48bc1c7e797aa64dd08d2d9655baf299e
-Release: https://github.com/nyosegawa/speech.cpp/releases/tag/v0.9.0
+Commit: 06590811a90041f935a470ba0e2b85346d2fc041
+Release: https://github.com/nyosegawa/speech.cpp/releases/tag/v0.10.0
 
 The executable includes the following code; preserve the accompanying notices:
 
 - speech.cpp: MIT, Copyright (c) 2026 Sakasegawa; `speech.cpp-LICENSE`.
 - GGML: MIT; `ggml-LICENSE`. Submodule commit
-  cbdeccfd49ec9c702c175c273d36c47520cf4710.
+  700c9d743ed7cc583c0f1b6507afebb6c0e88bc0.
 - cpp-httplib: MIT; `cpp-httplib-LICENSE`. Vendored commit
   cf3693cb5cc0d39b0e6f4122ba89bda9edb5ac6b.
 - miniaudio: public domain or MIT, as provided in `miniaudio-LICENSE`.

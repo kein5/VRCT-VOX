@@ -56,7 +56,7 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
     with wave.open(os.environ['VRCT_SPEECH_ASR_INPUT'], 'rb') as wav:
         assert (wav.getframerate(), wav.getnchannels(), wav.getsampwidth()) == (48000, 1, 2)
         pcm = wav.readframes(wav.getnframes())
-    report = dict(status='failed', bundled_version='0.9.0', native_gui=True, private_audio=True,
+    report = dict(status='failed', bundled_version='0.10.0', native_gui=True, private_audio=True,
                   physical_capture=False, vrchat=False, perceptual_quality=False)
     trace = tmp_path / 'voice.jsonl'
 

@@ -13,8 +13,11 @@ function App() {
         const poll = async () => { for (const response of await window.sidecarRead()) receiver.current(response); if (active) setTimeout(poll, 20); };
         poll(); return () => { active = false; };
     }, []);
+    const asr = new URLSearchParams(location.search).get("view") === "asr";
     return <main style={{ maxWidth: 900, margin: 24, color: "#222", background: "#fff" }}>
-        <SpeechServers profiles={["japanese"]} /><ModelDownloads targets={["rvc"]} expected={{ rvc: { model: "", index: "" } }} />
+        {asr ? <SpeechServers profiles={["asr"]} /> : <>
+            <SpeechServers profiles={["japanese"]} /><ModelDownloads targets={["rvc"]} expected={{ rvc: { model: "", index: "" } }} />
+        </>}
     </main>;
 }
 createRoot(document.getElementById("root")).render(<App />);

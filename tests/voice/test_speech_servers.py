@@ -367,7 +367,7 @@ def test_bundle_selection_rejects_missing_corrupt_or_unpinned_binary(
     with pytest.raises(RuntimeError, match="speech_bundle_"):
         runtime.bundled_binary()
     (tmp_path / "bundle.json").write_text(
-        json.dumps({"schema": 1, "version": "0.9.0", "variant": "linux-x64-cpu"})
+        json.dumps({"schema": 1, "version": "0.10.0", "variant": "linux-x64-cpu"})
     )
     (tmp_path / "speech").write_bytes(b"not the pinned binary")
     (tmp_path / "speech").chmod(0o700)

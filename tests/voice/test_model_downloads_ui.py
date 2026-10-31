@@ -355,3 +355,23 @@ def test_failed_hardware_probe_does_not_invent_capacity_or_disable_manual_choice
     page.get_by_role("button", name="Review download", exact=True).first.click()
     expect(page.get_by_role("dialog")).to_contain_text("Q8_0")
     assert not any(ep == "/run/start_model_download" for ep, _ in peer.sent)
+
+
+def test_asr_profile_offers_haas_without_hardware_advice(ui):
+    from playwright.sync_api import expect
+
+    page, peer, _, _ = ui
+    page.goto(page.url + "?view=asr")
+    expect(page.get_by_text("Haas-ja v1.0 · Q8_0", exact=True)).to_be_visible()
+    expect(page.get_by_text("Irodori-TTS v4.1 Small MF · F16", exact=True)).to_have_count(0)
+    expect(page.get_by_label("Memory headroom", exact=True)).to_have_count(0)
+    expect(page.get_by_text("also needs a VAD model", exact=False)).to_be_visible()
+    page.get_by_role("button", name="Review download", exact=True).click()
+    dialog = page.get_by_role("dialog")
+    expect(dialog).to_contain_text("Third Intelligence / sakasegawa")
+    expect(dialog).to_contain_text("656,381,472")
+    expect(dialog).to_contain_text("speech.cpp 0.9.4 or later")
+    dialog.get_by_role("checkbox").check()
+    dialog.get_by_role("button", name="Agree and download", exact=True).click()
+    expect(page.get_by_role("progressbar")).to_be_visible()
+    assert next(data for ep, data in peer.sent if ep == "/run/start_model_download")["id"] == "haas-ja-q8"

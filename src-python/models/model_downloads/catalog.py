@@ -2,7 +2,7 @@
 from dataclasses import dataclass, replace
 import re
 
-CATALOG_VERSION = '2026-10-30.2'
+CATALOG_VERSION = '2026-10-31.1'
 
 
 @dataclass(frozen=True)
@@ -30,6 +30,8 @@ class Model:
 IRODORI_REV = '9db7da1bec3d1069ef8e29732e0497be60c7b047'
 QWEN_REV = 'fd9df9364613a92a86b4137074bc281204823033'
 RVC_REV = '7a61b17e4f014fc5013a489f2b5cd3a7ee9e2b1a'
+# Files before this revision hold no custom vocabulary; needs speech.cpp 0.9.4 or later.
+HAAS_REV = '6b965d5007ba780585de51549d57a8c1c0d67c7e'
 CATALOG = (
     Model('irodori-v41-f16', 'japanese', 'Irodori-TTS v4.1 Small MF · F16', 'Aratako / sakasegawa',
           'sakasegawa/Irodori-TTS-v4.1-Small-MF-GGUF', IRODORI_REV, 'MIT + Apache-2.0', (
@@ -51,6 +53,12 @@ CATALOG = (
           'rvc', (
               Artifact('model.pth', 57577658, '82312a29a3996a451aaa3d3776566cec85b47b5414fce53da82b2d66b04f3d35', 'model'),
               Artifact('model.index', 278065619, 'e9f7396e5db3077274c720d055e43abb8f1eac5609cbdf48b198ca4f4a35cad5', 'index'))),
+    Model('haas-ja-q8', 'asr', 'Haas-ja v1.0 · Q8_0', 'Third Intelligence / sakasegawa',
+          'sakasegawa/Haas-ja-v1.0-GGUF', HAAS_REV, 'Apache-2.0', (
+              f'https://huggingface.co/sakasegawa/Haas-ja-v1.0-GGUF/blob/{HAAS_REV}/README.md',
+              f'https://huggingface.co/sakasegawa/Haas-ja-v1.0-GGUF/blob/{HAAS_REV}/LICENSE'),
+          'haas', (Artifact('Haas-616M-ja-v1.0-Q8_0.gguf', 656381472,
+                           'cd5f60b2f1c411404b83fca4a65e3ce30a26d9e951b6a346529e65f22758afeb', 'model'),)),
 )
 
 CATALOG = (*CATALOG,
@@ -68,7 +76,7 @@ def validate_catalog(catalog):
         if (model.id in ids or not re.fullmatch(r'[a-z0-9][a-z0-9-]*', model.id)
                 or not re.fullmatch(r'[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+', model.repo)
                 or not re.fullmatch(r'[0-9a-f]{40}', model.revision)
-                or model.target not in ('japanese', 'multilingual', 'rvc') or not model.artifacts):
+                or model.target not in ('japanese', 'multilingual', 'asr', 'rvc') or not model.artifacts):
             raise ValueError('catalog_invalid')
         ids.add(model.id)
         names, roles = set(), set()

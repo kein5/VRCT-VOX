@@ -322,7 +322,7 @@ def test_catalog_contains_pinned_artifacts_and_no_private_model():
     from models.model_downloads.catalog import CATALOG, validate_catalog
 
     validate_catalog(CATALOG)
-    assert {m.target for m in CATALOG} == {"japanese", "multilingual", "rvc"}
+    assert {m.target for m in CATALOG} == {"japanese", "multilingual", "asr", "rvc"}
     assert "Mia" not in repr(CATALOG)
     for m in CATALOG:
         assert m.licenses and all(
@@ -334,6 +334,17 @@ def test_catalog_contains_pinned_artifacts_and_no_private_model():
         )
         assert m.artifacts and all(a.size > 0 for a in m.artifacts)
 
+
+
+def test_haas_recognizer_is_pinned_for_the_asr_profile():
+    from models.model_downloads.catalog import CATALOG
+
+    haas = [m for m in CATALOG if m.target == "asr"]
+    assert [m.id for m in haas] == ["haas-ja-q8"]
+    assert haas[0].license == "Apache-2.0" and haas[0].notice == "haas"
+    assert [(a.filename, a.size, a.role) for a in haas[0].artifacts] == [
+        ("Haas-616M-ja-v1.0-Q8_0.gguf", 656381472, "model")
+    ]
 
 @pytest.mark.parametrize(
     "url",
