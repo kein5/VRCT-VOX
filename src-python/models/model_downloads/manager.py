@@ -10,10 +10,9 @@ import shutil
 import stat
 from threading import Event, RLock, Thread
 import time
-from urllib.parse import quote
 from uuid import uuid4
 
-from .catalog import CATALOG, CATALOG_VERSION, validate_catalog
+from .catalog import CATALOG, CATALOG_VERSION, artifact_url, validate_catalog
 from .guidance import model_guidance
 from .transport import open_public
 from .staging import RootLease, mark_owned, recover_owned
@@ -57,7 +56,9 @@ class Downloads:
     def catalog(self):
         return {'catalog_version': self.catalog_version, 'models': [dict(asdict(m),
                 total_bytes=sum(a.size for a in m.artifacts), destination=str(self.destination(m)),
-                source=f'https://huggingface.co/{m.repo}/tree/{m.revision}', guidance=model_guidance(m.id)) for m in self.entries.values()]}
+                source=f'https://huggingface.co/{m.repo}/tree/{m.revision}', guidance=model_guidance(m.id),
+                sources=sorted({f'https://huggingface.co/{r}/tree/{v}' for r, v, _ in
+                                (a.remote or (m.repo, m.revision, a.filename) for a in m.artifacts)})) for m in self.entries.values()]}
 
     def state(self):
         with self.lock:
@@ -150,7 +151,7 @@ class Downloads:
                 for artifact in entry.artifacts:
                     self._checkpoint(event)
                     with self.lock: job['phase'] = 'downloading'
-                    url = f'https://huggingface.co/{entry.repo}/resolve/{entry.revision}/{quote(artifact.filename)}'
+                    url = artifact_url(entry, artifact)
                     digest, received = hashlib.sha256(), 0
                     with self.transport(url) as response, (staging / artifact.filename).open('xb') as output:
                         with self.lock:

@@ -6,6 +6,11 @@ VRChatの画面上に浮かぶチャット吹き出し（他プレイヤーの�
 
 出力先はメインメッセージログと SteamVR オーバーレイの2系統。VRChatの OSC チャットボックス（`/chatbox/input`）へは**送信しません**（他人の発言を自分のチャットボックスに垂れ流すのはユーザー体験・コミュニティ規範の両面で不適切なため、初版で明示的に封印）。
 
+> **VRCT-VOX:** 上流の吹き出し検出モデル (下記 ocr_bubble_detector.py) は使わない。検出器なしで
+> 読む方法 (読み取り範囲 + PP-OCR の行検出 + チャットボックスの見た目判定)、Linux の
+> X11/XWayland キャプチャ、同意を得たモデルのダウンロード、未実装の Wayland portal 経路の計画は
+> [ocr-linux-capture.md](ocr-linux-capture.md) を参照。
+
 ## 主要コンポーネント
 
 `src-python/models/ocr/` 配下に配置されており、既存の `models/transcription/` の構造（recorder → transcriber → pipeline）を踏襲しています。
@@ -129,8 +134,11 @@ scipy(119MB)・scikit-image(30MB)を配布物へ連れてきていた。
 | Arabic | PP-OCRv5 mobile / arabic (精度は低め) |
 | Hindi | PP-OCRv5 mobile / devanagari |
 
-モデルは配布物へ同梱する (計78MB)。実行時にネットワークへ出ないよう、ビルド前に
-`tools/fetch_ocr_models.py` で rapidocr パッケージ内へ取得し、spec の datas でまとめて含める。
+VRCT-VOX ではモデルを配布物へ同梱しない。ユーザーが 設定 → チャット読み取り で条件を確認して
+同意したときだけ、固定リビジョンの PaddleOCR 公式 ONNX (Hugging Face、Apache-2.0) を
+`downloaded_models/` へダウンロードし、`ocr_models.py` がそのパスを RapidOCR へ明示的に渡す
+(RapidOCR 自身のダウンロードは無効化)。開発時は `tools/fetch_ocr_models.py --root ...` でも同じ
+経路で取得できる。詳細は [ocr-linux-capture.md](ocr-linux-capture.md)。
 
 ### ocr_pipeline.py — オーケストレーター
 - 独立スレッドで poll ループを回し、capture → detect → OCR → dedup → callback

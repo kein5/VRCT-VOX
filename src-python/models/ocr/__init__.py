@@ -1,10 +1,11 @@
 """VRChat chat-bubble OCR pipeline.
 
-Captures VRChat window (via HWND or OpenVR compositor mirror), detects
-chat-bubble regions with a fine-tuned YOLOv8n, OCRs them with RapidOCR
-(ONNX PP-OCR), deduplicates
-results, and emits recognized text via a callback so it can be fed into
-the existing translation → UI/overlay pipeline.
+Captures the VRChat window (HWND or the OpenVR compositor mirror on Windows,
+X11/XWayland on Linux), finds chat bubbles without a detector model (a
+configured region, PP-OCR text lines, a chatbox-style check; see
+ocr_detection.py), reads them with RapidOCR on PP-OCR models the user
+downloaded with consent, deduplicates the results, and emits the text via a
+callback into the existing translation -> UI/overlay pipeline.
 """
 
 from .ocr_pipeline import OcrPipeline

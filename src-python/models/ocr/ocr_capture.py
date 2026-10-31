@@ -1,4 +1,7 @@
-"""Capture backend facade for OCR: picks HWND vs OpenVR by SteamVR status.
+"""Capture backend facade for OCR: picks the desktop window vs OpenVR by SteamVR status.
+
+The desktop window backend is HWND/PrintWindow on Windows and X11/XWayland
+(ocr_capture_x11.py) on Linux.
 
 Contract: get() returns a BGR ndarray or None. It never raises. The
 facade rechecks SteamVR periodically so the backend follows the user
@@ -10,6 +13,7 @@ to the desktop window until the next recheck.
 from __future__ import annotations
 
 import os
+import sys
 import time
 from typing import Optional
 
@@ -17,8 +21,9 @@ import numpy as np
 
 from ..process_check import isProcessRunning
 
-from .ocr_capture_hwnd import HwndCapture, isFrameBlank
+from .ocr_capture_hwnd import HwndCapture, _find_vrchat_hwnd, isFrameBlank
 from .ocr_capture_openvr import OpenVRMirrorCapture
+from .ocr_capture_x11 import X11WindowCapture
 
 try:
     from utils import errorLogging, printLog
@@ -33,20 +38,56 @@ except Exception:  # pragma: no cover
 
 _STEAMVR_RECHECK_INTERVAL_SEC = 5.0
 
+# probeCapture() results. The pipeline turns the last two into OCR_DISABLED_*.
+CAPTURE_OK = "ok"
+CAPTURE_WINDOW_NOT_FOUND = "window_not_found"
+CAPTURE_UNAVAILABLE = "capture_unavailable"
+
 
 def _isSteamvrRunning() -> bool:
     return isProcessRunning("vrmonitor.exe" if os.name == "nt" else "vrmonitor")
+
+
+def _windowCapture(window_title: str):
+    """(backend name, capture) for the desktop window on this platform."""
+    if sys.platform == "win32":
+        return OcrCapture.BACKEND_HWND, HwndCapture(window_title=window_title)
+    return OcrCapture.BACKEND_X11, X11WindowCapture(window_title=window_title)
+
+
+def probeCapture(window_title: str) -> str:
+    """Can the window be read right now? Opens and closes everything it uses.
+
+    Run before the worker starts so the toggle can say why reading cannot
+    begin (no X11 / XWayland session, or VRChat is not running) instead of
+    starting a loop that silently reads nothing.
+    """
+    if sys.platform == "win32":
+        if _isSteamvrRunning() and OpenVRMirrorCapture().isAvailable():
+            return CAPTURE_OK
+        return CAPTURE_OK if _find_vrchat_hwnd(window_title) is not None else CAPTURE_WINDOW_NOT_FOUND
+    capture = X11WindowCapture(window_title=window_title)
+    try:
+        if not capture.isAvailable():
+            return CAPTURE_UNAVAILABLE
+        return CAPTURE_OK if capture.findWindow() is not None else CAPTURE_WINDOW_NOT_FOUND
+    except Exception:
+        errorLogging()
+        return CAPTURE_UNAVAILABLE
+    finally:
+        capture.close()
 
 
 class OcrCapture:
     """Facade that returns the current VRChat frame using the best backend."""
 
     BACKEND_HWND = "hwnd"
+    BACKEND_X11 = "x11"
     BACKEND_OPENVR = "openvr_mirror"
     BACKEND_NONE = "none"
 
     def __init__(self, window_title: str = "VRChat") -> None:
-        self._hwnd = HwndCapture(window_title=window_title)
+        self._window_backend, self._window = _windowCapture(window_title)
         self._openvr: Optional[OpenVRMirrorCapture] = None
         self._backend = self.BACKEND_NONE
         # 実際にフレームが取れた経路。VRとデスクトップを5秒ごとに試し直すので、
@@ -69,14 +110,14 @@ class OcrCapture:
             if self._openvr is not None and self._openvr.isAvailable():
                 self._backend = self.BACKEND_OPENVR
                 return self._backend
-        # Fall back to HWND
+        # Fall back to the desktop window
         if self._openvr is not None:
             try:
                 self._openvr.close()
             except Exception:
                 pass
             self._openvr = None
-        self._backend = self.BACKEND_HWND if self._hwnd.isAvailable() else self.BACKEND_NONE
+        self._backend = self._window_backend if self._window.isAvailable() else self.BACKEND_NONE
         return self._backend
 
     def _noteSource(self, backend: str) -> None:
@@ -106,15 +147,15 @@ class OcrCapture:
                 # VRChat is not the SteamVR scene (desktop mode, SteamVR Home)
                 # or the VR read failed: use the desktop window until the
                 # next recheck instead of reading nothing.
-                self._backend = self.BACKEND_HWND if self._hwnd.isAvailable() else self.BACKEND_NONE
+                self._backend = self._window_backend if self._window.isAvailable() else self.BACKEND_NONE
                 backend = self._backend
-            if backend == self.BACKEND_HWND:
-                frame = self._hwnd.capture()
+            if backend == self._window_backend:
+                frame = self._window.capture()
                 # A minimized or occluded window keeps returning a stale black
                 # buffer, so the stricter thresholds earn their keep here.
                 if isFrameBlank(frame):
                     return None
-                self._noteSource(self.BACKEND_HWND)
+                self._noteSource(self._window_backend)
                 return frame
         except Exception:
             errorLogging()
@@ -122,7 +163,7 @@ class OcrCapture:
 
     def close(self) -> None:
         try:
-            self._hwnd.close()
+            self._window.close()
         except Exception:
             pass
         if self._openvr is not None:

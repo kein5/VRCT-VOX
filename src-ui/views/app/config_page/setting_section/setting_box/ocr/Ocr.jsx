@@ -1,21 +1,33 @@
+import { useCallback, useEffect, useRef } from "react";
 import { useI18n } from "@useI18n";
 import styles from "./Ocr.module.scss";
 
 import { useOcr } from "@logics_configs";
 import { useSaveButtonLogic } from "@logics_configs";
+import {
+    FULL_REGION,
+    isFullRegion,
+    normalizeRegion,
+    readinessSummary,
+    regionPercent,
+    withRegionValue,
+} from "../../../../../../logics/configs/ocrReadiness";
 
 import {
+    CheckboxContainer,
     DropdownMenuContainer,
     EntryWithSaveButtonContainer,
     SliderContainer,
 } from "../_templates/Templates";
 
 import { SectionLabelComponent } from "../_components";
+import { OcrModels } from "./OcrModels";
 
 export const Ocr = () => {
     return (
         <div className={styles.container}>
             <Main_Container />
+            <Detection_Container />
             <Advanced_Container />
         </div>
     );
@@ -24,11 +36,91 @@ export const Ocr = () => {
 
 const Main_Container = () => {
     const { t } = useI18n();
+    const { currentOcrReadiness, getOcrReadiness, currentOcrSourceLanguage, currentOcrWindowTitle } = useOcr();
+    // useOcr() hands out new functions on every render; pin the latest one so
+    // refreshing does not itself trigger another refresh.
+    const getReadiness = useRef(getOcrReadiness);
+    getReadiness.current = getOcrReadiness;
+    const refresh = useCallback(() => getReadiness.current(), []);
+    const language = currentOcrSourceLanguage.data, title = currentOcrWindowTitle.data;
+    // The models a language needs and whether VRChat is open change with these settings.
+    useEffect(() => { refresh(); }, [refresh, language, title]);
+    const readiness = currentOcrReadiness.data;
+    const summary = readinessSummary(readiness);
     return (
         <div>
             <SectionLabelComponent label={t("config_page.ocr.section_title")} desc={t("config_page.ocr.section_desc")} />
+            <div className={styles.readiness} data-ready={summary.ok}>
+                <p role="status">{t(summary.key, summary.params)}</p>
+                <button type="button" onClick={refresh}>{t("config_page.ocr.models.refresh")}</button>
+            </div>
             <OcrSourceLanguage_Box />
+            {readiness && readiness.required_models.length > 0 &&
+                <OcrModels required={readiness.required_models} missing={readiness.missing_models} onChanged={refresh} />}
         </div>
+    );
+};
+
+const Detection_Container = () => {
+    const { t } = useI18n();
+    return (
+        <div>
+            <SectionLabelComponent label={t("config_page.ocr.detection")} />
+            <OcrCaptureRegion_Box />
+            <OcrChatboxFilter_Box />
+        </div>
+    );
+};
+
+const OcrCaptureRegion_Box = () => {
+    const { t } = useI18n();
+    const { currentOcrCaptureRegion, setOcrCaptureRegion } = useOcr();
+    const region = normalizeRegion(currentOcrCaptureRegion.data);
+    const slider = (key) => (
+        <SliderContainer
+            key={key}
+            label={t(`config_page.ocr.region.${key}`)}
+            variable={regionPercent(region, key)}
+            setterFunction={(value) => setOcrCaptureRegion(withRegionValue(region, key, value))}
+            min={key === "width" || key === "height" ? 2 : 0}
+            max={100}
+            step={1}
+            show_label_values={[0, 25, 50, 75, 100]}
+            valueLabelFormat={(v) => `${v}%`}
+        />
+    );
+    return (
+        <div className={styles.region}>
+            <div className={styles.regionHeader}>
+                <div>
+                    <p className={styles.regionLabel}>{t("config_page.ocr.region.label")}</p>
+                    <p className={styles.regionDesc}>{t("config_page.ocr.region.desc")}</p>
+                </div>
+                <div className={styles.preview} role="img" aria-label={t("config_page.ocr.region.preview_label")}>
+                    <div className={styles.previewArea} style={{
+                        left: `${region.x * 100}%`, top: `${region.y * 100}%`,
+                        width: `${region.width * 100}%`, height: `${region.height * 100}%`,
+                    }} />
+                </div>
+            </div>
+            {["x", "y", "width", "height"].map(slider)}
+            <button type="button" className={styles.resetButton} disabled={isFullRegion(region)}
+                onClick={() => setOcrCaptureRegion({ ...FULL_REGION })}>{t("config_page.ocr.region.reset")}</button>
+        </div>
+    );
+};
+
+const OcrChatboxFilter_Box = () => {
+    const { t } = useI18n();
+    const { currentOcrChatboxFilter, toggleOcrChatboxFilter } = useOcr();
+    return (
+        <CheckboxContainer
+            setting_id="ocr_chatbox_filter"
+            label={t("config_page.ocr.chatbox_filter.label")}
+            desc={t("config_page.ocr.chatbox_filter.desc")}
+            variable={currentOcrChatboxFilter}
+            toggleFunction={toggleOcrChatboxFilter}
+        />
     );
 };
 

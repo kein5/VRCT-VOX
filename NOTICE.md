@@ -102,7 +102,8 @@ them, as stated above; the table is kept for attribution.
 | Component | Version | License |
 |---|---|---|
 | YOLOX `yolox_tiny.pth` (COCO-pretrained base of the model above; not shipped, used only at training time) | 0.1.1rc0 | Apache-2.0 |
-| RapidOCR and the PP-OCR ONNX models it ships, fetched by `tools/fetch_ocr_models.py` | 3.9.2 | Apache-2.0 |
+| RapidOCR (code and YAML config only; its bundled PP-OCR weights are stripped from builds) | 3.9.2 | Apache-2.0 |
+| PaddleOCR PP-OCRv6 small det/rec and PP-OCRv5 mobile script recognisers (official ONNX exports by PaddlePaddle on Hugging Face; not shipped, downloaded only after the user agrees in Config → Chat Transcribe) | pinned revisions in `src-python/models/model_downloads/catalog.py` | Apache-2.0 |
 
 ## Downloadable CTranslate2 translation weights
 

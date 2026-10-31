@@ -213,6 +213,9 @@ class ErrorCode(str, Enum):
     OCR_DISABLED_ENGINE_UNAVAILABLE = "OCR_DISABLED_ENGINE_UNAVAILABLE"
     OCR_DISABLED_MODEL_LOAD_FAILED = "OCR_DISABLED_MODEL_LOAD_FAILED"
     OCR_DISABLED_UNSUPPORTED_LANGUAGE = "OCR_DISABLED_UNSUPPORTED_LANGUAGE"
+    OCR_DISABLED_MODEL_MISSING = "OCR_DISABLED_MODEL_MISSING"
+    OCR_DISABLED_WINDOW_NOT_FOUND = "OCR_DISABLED_WINDOW_NOT_FOUND"
+    OCR_DISABLED_CAPTURE_UNAVAILABLE = "OCR_DISABLED_CAPTURE_UNAVAILABLE"
     OCR_DISABLED_UNKNOWN = "OCR_DISABLED_UNKNOWN"
     
     # ============================================================================
@@ -853,6 +856,24 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "OCR disabled: source language is not supported",
         "severity": "error",
         "user_action_required": False,
+    },
+    ErrorCode.OCR_DISABLED_MODEL_MISSING: {
+        "category": ErrorCategory.OCR,
+        "message": "OCR disabled: the OCR models for this language have not been downloaded",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.OCR_DISABLED_WINDOW_NOT_FOUND: {
+        "category": ErrorCategory.OCR,
+        "message": "OCR disabled: the VRChat window was not found",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.OCR_DISABLED_CAPTURE_UNAVAILABLE: {
+        "category": ErrorCategory.OCR,
+        "message": "OCR disabled: window capture is not available in this session",
+        "severity": "error",
+        "user_action_required": True,
     },
     ErrorCode.OCR_DISABLED_UNKNOWN: {
         "category": ErrorCategory.OCR,

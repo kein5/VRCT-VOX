@@ -13,10 +13,10 @@ import tempfile
 
 try:
     from .check_voice_distribution import _check_name, _zip, check
-    from .distribution_policy import ARCHIVE_SUFFIXES
+    from .distribution_policy import ARCHIVE_SUFFIXES, OCR_RUNTIME_DATA
 except ImportError:
     from check_voice_distribution import _check_name, _zip, check
-    from distribution_policy import ARCHIVE_SUFFIXES
+    from distribution_policy import ARCHIVE_SUFFIXES, OCR_RUNTIME_DATA
 
 RUNTIME = ('vrct-vox', 'vrct-vox-sidecar', '_internal/base_library.zip',
            '_internal/build/vrct-voice-gate', '_internal/build/vrct-source-bridge',
@@ -24,7 +24,8 @@ RUNTIME = ('vrct-vox', 'vrct-vox-sidecar', '_internal/base_library.zip',
            '_internal/build/speechcpp/speech', '_internal/build/speechcpp/bundle.json',
            '_internal/integrations/rvc/live_worker.py',
            '_internal/integrations/seed_vc/live_worker.py',
-           '_internal/licenses/VRCT/LICENSE', '_internal/licenses/VRCT/NOTICE.md')
+           '_internal/licenses/VRCT/LICENSE', '_internal/licenses/VRCT/NOTICE.md',
+           *('_internal/' + name for name in OCR_RUNTIME_DATA))
 
 
 def check_tree(root, *, require_runtime=False, allow_directory_links=False):

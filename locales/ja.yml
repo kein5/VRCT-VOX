@@ -134,6 +134,13 @@ common_error:
     invalid_value_speaker_max_phrase: "0 以上の数値を設定できます。"
 
     invalid_hex_color: "有効なHEXカラーコード（例: {{brand_color_hex}}）形式で入力してください。"
+    ocr_engine_unavailable: "チャット読み取りを開始できません。このビルドにはOCRエンジンが含まれていません。"
+    ocr_model_load_failed: "チャット読み取りを開始できません。認識モデルを読み込めませんでした。設定 → チャット読み取りでダウンロードし直してください。"
+    ocr_unsupported_language: "チャット読み取りを開始できません。選択中の読み取り言語には対応していません。"
+    ocr_model_missing: "チャット読み取りには認識モデルが必要です。設定 → チャット読み取りでダウンロードしてください。"
+    ocr_window_not_found: "VRChatのウィンドウが見つかりません。VRChatを起動してから、もう一度オンにしてください。"
+    ocr_capture_unavailable: "このセッションではウィンドウを取り込めません。LinuxではVRChatをX11/XWaylandのウィンドウとして動かす必要があります。"
+    ocr_unknown: "予期しないエラーのため、チャット読み取りを開始できません。"
 
 common_warning:
     unable_to_use_osc_query: "OSC IP Address の設定によりOSCデータの受信ができないため、以下の機能が自動的に無効になっています。"
@@ -552,6 +559,34 @@ config_page:
         bubble_min_text_length:
             label: "最小文字数"
             desc: "この文字数未満の吹き出しは無視されます。既定値: 2。"
+        detection: "読み取る場所"
+        region:
+            label: "読み取り範囲"
+            desc: "VRChatのウィンドウのうち読み取る部分を、幅と高さに対する割合（%）で指定します。吹き出しはアバターの頭上に出るので、出る場所だけを囲むと速くなり、ワールド内の文字も拾いにくくなります。既定値: ウィンドウ全体。"
+            x: "左端（%）"
+            y: "上端（%）"
+            width: "幅（%）"
+            height: "高さ（%）"
+            reset: "ウィンドウ全体にする"
+            preview_label: "VRChatのウィンドウ内の読み取り範囲"
+        chatbox_filter:
+            label: "チャットボックスらしい文字だけ読む"
+            desc: "VRChatのチャットボックスと同じ、暗い板の上の明るい文字だけを残します。吹き出しを取りこぼすときはオフにしてください。オフにするとワールド内の看板やメニューの文字も読み取ります。"
+        models:
+            title: "認識モデル"
+            desc: "チャット読み取りはPaddleOCRのモデルをこのPCで動かします。条件を確認して同意するまでダウンロードはしません。"
+            installed: "ダウンロード済み"
+            missing: "未ダウンロード"
+            required: "いまの読み取り言語に必要"
+            refresh: "再確認"
+        readiness:
+            ready: "準備できています。メイン画面からチャット読み取りをオンにしてください。"
+            checking: "確認中…"
+            engine_unavailable: "このビルドにはOCRエンジンが含まれていません。"
+            language_unsupported: "選択中の読み取り言語には対応していません。"
+            models_missing: "チャット読み取りをオンにする前に、下の認識モデルをダウンロードしてください。"
+            window_not_found: "「{{title}}」のウィンドウが見つかりません。VRChatを起動してからチャット読み取りをオンにしてください。"
+            capture_unavailable: "このセッションではウィンドウを取り込めません。LinuxではVRChatをX11/XWaylandのウィンドウとして動かす必要があります（Protonの既定）。"
 
     updater:
         install_panel:
@@ -977,6 +1012,7 @@ model_downloads:
     notice_irodori: "speech.cpp 0.9.0用の日本語TTSです。モデルとcodecはMIT、codecの基盤はApache-2.0です。提供元は無断の声の模倣・なりすましや、誤解を招く合成音声の生成を禁止しています。参照音声を使わなくても実在する声に偶然似る場合があります。モデルカードの条件を確認してください。"
     notice_qwen: "speech.cpp 0.9.0用、9種類の話者を持つ多言語TTSです。Apache-2.0です。モデルと生成音声を適切に利用し、第三者の権利を尊重してください。"
     notice_rvc: "モデルカードでは作者本人の声で学習したRVC v2音声変換モデルと説明されています。CC BY 4.0の帰属表示が必要です：Voice model created by Saisho Utane — https://huggingface.co/Saisho-Utane — Used under the CC BY 4.0 license. 公開コンテンツやプロジェクトの説明にクレジットとライセンスへのリンクを記載し、変更した場合は明示してください。このランタイムでの変換品質はまだ検証していません。"
+    notice_ppocr: "チャット読み取り用の文字検出・認識モデルです。PaddleOCR（PaddlePaddle）提供、Apache-2.0です。このPCのCPUで動き、画面の内容を送信することはありません。"
     notice_haas: "speech.cpp 0.9.4以降用の、句読点付きで書き起こす日本語音声認識モデルです。Third Intelligence提供、sakasegawa変換、Apache-2.0です。利用前にモデルカードを確認してください。"
     rvc_requirements: "取得するのはRVC音声モデルとindexだけです。変換には、別途準備したRVCランタイム・Python環境・HuBERT・RMVPEが必要です。取得完了だけでは変換の準備完了になりません。"
     notice_qwen_asr: "speech.cpp 0.7.0以降用の、30言語を認識し話している言語を自動で判定する音声認識モデルです。Qwenチーム提供、sakasegawa変換、Apache-2.0です。利用前にモデルカードを確認してください。"

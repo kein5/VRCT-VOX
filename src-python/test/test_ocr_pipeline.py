@@ -213,6 +213,13 @@ class TestApplyConfig(unittest.TestCase):
     呼ぶ想定なので、ここではスレッドを起こさず直接呼んで確認する。
     """
 
+    def setUp(self) -> None:
+        # ダウンロード済みモデルの場所は ocr_models が解決する。ここでは推論器の
+        # 切り替えだけを見るので、ファイルは常にあることにする。
+        resolver = patch("models.ocr.ocr_pipeline.resolveModelFiles", return_value="files")
+        resolver.start()
+        self.addCleanup(resolver.stop)
+
     def _pipeline(self, **kwargs) -> OcrPipeline:
         return OcrPipeline(callback=lambda payload: None, **{"source_language": "auto", **kwargs})
 
@@ -348,6 +355,7 @@ class TestStartReportsReason(unittest.TestCase):
         pipeline = self._make()
         pipeline._detector.loadModel.side_effect = RuntimeError("bad onnx")
         with patch("models.ocr.ocr_pipeline.ocr_engine.isAvailable", return_value=True), \
+                patch("models.ocr.ocr_pipeline.resolveModelFiles", return_value="files"), \
                 patch("models.ocr.ocr_pipeline.ocr_engine.getReader", return_value=object()), \
                 patch("models.ocr.ocr_pipeline.errorLogging"),                 self.assertRaises(OcrStartError) as ctx:
             pipeline.start()

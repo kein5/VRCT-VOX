@@ -23,9 +23,9 @@ class TestFallbackToDesktopWindow(unittest.TestCase):
         capture._openvr = MagicMock()
         capture._openvr.isAvailable.return_value = True
         capture._openvr.capture.return_value = vr_frame
-        capture._hwnd = MagicMock()
-        capture._hwnd.isAvailable.return_value = True
-        capture._hwnd.capture.return_value = _frame()
+        capture._window = MagicMock()
+        capture._window.isAvailable.return_value = True
+        capture._window.capture.return_value = _frame()
         return capture
 
     def test_vr_frame_is_used_when_available(self) -> None:
@@ -33,14 +33,14 @@ class TestFallbackToDesktopWindow(unittest.TestCase):
         capture = self._make(vr)
         with patch("models.ocr.ocr_capture._isSteamvrRunning", return_value=True):
             self.assertIs(capture.get(), vr)
-        capture._hwnd.capture.assert_not_called()
+        capture._window.capture.assert_not_called()
 
     def test_falls_back_to_the_window_when_vr_gives_nothing(self) -> None:
         capture = self._make(None)
         with patch("models.ocr.ocr_capture._isSteamvrRunning", return_value=True):
             frame = capture.get()
             self.assertIsNotNone(frame)
-            self.assertEqual(capture.backend, OcrCapture.BACKEND_HWND)
+            self.assertEqual(capture.backend, capture._window_backend)
             # 次の再判定までは VR を試し直さない。
             capture.get()
         capture._openvr.capture.assert_called_once()

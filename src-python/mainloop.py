@@ -674,6 +674,12 @@ mapping = {
     "/set/data/ocr_min_confidence": {"status": True, "variable":controller.setOcrMinConfidence},
     "/get/data/ocr_bubble_min_text_length": {"status": True, "variable":controller.getOcrBubbleMinTextLength},
     "/set/data/ocr_bubble_min_text_length": {"status": True, "variable":controller.setOcrBubbleMinTextLength},
+    "/get/data/ocr_capture_region": {"status": True, "variable":controller.getOcrCaptureRegion},
+    "/set/data/ocr_capture_region": {"status": True, "variable":controller.setOcrCaptureRegion},
+    "/get/data/ocr_chatbox_filter": {"status": True, "variable":controller.getOcrChatboxFilter},
+    "/set/enable/ocr_chatbox_filter": {"status": True, "variable":controller.setEnableOcrChatboxFilter},
+    "/set/disable/ocr_chatbox_filter": {"status": True, "variable":controller.setDisableOcrChatboxFilter},
+    "/get/data/ocr_readiness": {"status": True, "variable":controller.getOcrReadiness},
 
     # Advanced Settings
     "/get/data/osc_ip_address": {"status": True, "variable":controller.getOscIpAddress},
@@ -702,6 +708,8 @@ mapping = {
 # 外しても取得経路は失われない。
 _INIT_MAPPING_EXCLUDED_ENDPOINTS = frozenset({
     "/get/data/available_releases",
+    # Probes the X11 display / VRChat window; the OCR page asks for it when shown.
+    "/get/data/ocr_readiness",
 })
 
 init_mapping = {

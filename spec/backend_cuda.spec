@@ -29,6 +29,10 @@ a = Analysis(
         ('./../.venv_cuda/Lib/site-packages/glfw', 'glfw/'),  # glfw3.dll (VR UI overlay texture) is loaded via ctypes, not found by analysis
         ('./../.venv_cuda/Lib/site-packages/faster_whisper', 'faster_whisper/'),
         ('./../.venv_cuda/Lib/site-packages/hf_xet', 'hf_xet/'),
+        # RapidOCR reads these at start-up; nothing else in the package is data we ship
+        # (its bundled weights are dropped by filter_toc and never used).
+        ('./../.venv_cuda/Lib/site-packages/rapidocr/config.yaml', 'rapidocr/'),
+        ('./../.venv_cuda/Lib/site-packages/rapidocr/default_models.yaml', 'rapidocr/'),
         ],
     # nvidia.cublas / nvidia.cudnn は ctranslate2 が GPU 実行時に
     # LoadLibrary で遅延ロードするDLLの提供元で、Python からは import
@@ -37,7 +41,7 @@ a = Analysis(
     # へ収集させる (2026-09-18 に torch を落とすまでは、torch が同梱していた
     # 同じDLL群が torch 経由で収集されていた)。実行時のDLL検索パス登録は
     # src-python/utils.py の _registerBundledCudaLibraries が行う。
-    hiddenimports=['faster_whisper.vad', 'models.transcription.audio_pipeline', 'rapidocr', 'cv2', 'models.ocr', 'windows_capture',
+    hiddenimports=['faster_whisper.vad', 'models.transcription.audio_pipeline', 'rapidocr', 'rapidocr.inference_engine.onnxruntime', 'cv2', 'models.ocr', 'windows_capture',
                    'nvidia.cublas', 'nvidia.cudnn'],
     hookspath=[],
     hooksconfig={},
