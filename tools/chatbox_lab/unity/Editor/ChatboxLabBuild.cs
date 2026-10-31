@@ -32,14 +32,32 @@ public static class ChatboxLabBuild
     {
         if (EditorSceneManager.GetActiveScene().path != ChatboxLabSceneBuilder.ScenePath)
             EditorSceneManager.OpenScene(ChatboxLabSceneBuilder.ScenePath);
-        if (!VRCSdkControlPanel.TryGetBuilder<IVRCSdkWorldBuilderApi>(out var builder))
+        // The panel finds the scene's descriptor only while it is open and has
+        // redrawn its Builder tab, so open it and wait for that first.
+        var panel = EditorWindow.GetWindow<VRCSdkControlPanel>();
+        panel.Show();
+        panel.Focus();
+        IVRCSdkWorldBuilderApi builder = null;
+        Exception last = null;
+        for (int attempt = 0; attempt < 40; attempt++)
         {
-            EditorWindow.GetWindow<VRCSdkControlPanel>().Show();
-            throw new InvalidOperationException("Open VRChat SDK > Show Control Panel, log in, then build again.");
+            panel.Repaint();
+            await Task.Delay(500);
+            if (!VRCSdkControlPanel.TryGetBuilder(out builder)) continue;
+            try
+            {
+                string bundle = await builder.Build();
+                Directory.CreateDirectory(Path.GetDirectoryName(Output));
+                File.Copy(bundle, Output, true);
+                return Output;
+            }
+            catch (BuilderException error) when (error.Message.Contains("Open the SDK panel"))
+            {
+                last = error;
+            }
         }
-        string bundle = await builder.Build();
-        Directory.CreateDirectory(Path.GetDirectoryName(Output));
-        File.Copy(bundle, Output, true);
-        return Output;
+        throw new InvalidOperationException(builder == null
+            ? "Sign in under VRChat SDK > Show Control Panel, then build again."
+            : "The SDK panel did not pick up the scene; open its Builder tab and build again.", last);
     }
 }
