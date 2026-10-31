@@ -126,6 +126,7 @@ class Downloads:
         staging = None
         lease = RootLease(self.root)
         job = self.jobs[entry.id]
+        terminal = None
         try:
             directory(self.root / entry.id)
             lease.acquire()
@@ -178,24 +179,28 @@ class Downloads:
                 job.update(phase='ready', received_bytes=job['total_bytes'],
                            paths={a.role: str(final / a.filename) for a in entry.artifacts})
         except Cancelled:
-            with self.lock: job.update(phase='cancelled', paths={})
+            terminal = dict(phase='cancelled', paths={})
         except Exception as error:
             known = {'insufficient_space', 'size_mismatch', 'hash_mismatch', 'unsafe_destination',
                      'destination_exists', 'download_url_rejected', 'download_http_error', 'download_busy'}
             code = str(error) if str(error) in known else 'download_failed'
             if isinstance(error, OSError) and error.errno == errno.ENOSPC:
                 code = 'insufficient_space'
-            with self.lock:
-                job.update(phase='cancelled' if event.is_set() else 'failed',
-                           error_code=None if event.is_set() else code, paths={})
+            terminal = dict(phase='cancelled' if event.is_set() else 'failed',
+                            error_code=None if event.is_set() else code, paths={})
         finally:
             if staging is not None:
                 try:
                     shutil.rmtree(staging)
                 except OSError:
-                    with self.lock: job.update(phase='failed', error_code='partial_cleanup_failed', paths={})
+                    terminal = dict(phase='failed', error_code='partial_cleanup_failed', paths={})
             lease.close()
-            with self.lock: self.response = None
+            with self.lock:
+                self.response = None
+                # Report a failure or cancellation only once its partial files
+                # are gone, so a finished job never leaves staging behind.
+                if terminal is not None:
+                    job.update(terminal)
 
     def apply(self, id, job_id, callback):
         with self.lock:

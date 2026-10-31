@@ -3,6 +3,9 @@ name: Validate VRCT-VOX distribution
 
 on:
   workflow_dispatch:
+  # Release pull requests build and inspect the Windows candidate too.
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
