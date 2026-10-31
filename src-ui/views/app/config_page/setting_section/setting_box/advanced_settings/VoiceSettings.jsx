@@ -30,6 +30,8 @@ export const VoiceSettings = () => {
         </select>
     </label>;
     const deviceList = devices.devices || [];
+    // The monitor never offers the virtual microphone's own endpoints or output.
+    const monitorList = deviceList.filter(d => !d.id.startsWith("vrct.") && d.id !== (draft.routing === "managed" ? "" : draft.output_device));
     return <section className={styles.container} aria-label={t("voice.title")} data-setting-id="tts_settings">
         <SectionLabelComponent label="TTS" />
         <p>{t("voice_ui.tts_description")}</p>
@@ -52,6 +54,23 @@ export const VoiceSettings = () => {
                 </select></label>
                 <p>{t("voice_ui.output_hint")}</p>
                 <div className={styles.actions}><button type="button" onClick={() => send("/get/data/voice_output_devices")}>{t("voice.refresh")}</button></div>
+                <fieldset aria-label={t("voice.monitor")}>
+                    <legend>{t("voice.monitor")}</legend>
+                    <label>{t("voice.monitor")}<select aria-label={t("voice.monitor")} value={draft.monitor || "off"} onChange={e => field("monitor", e.target.value)}>
+                        <option value="off">{t("voice.monitor_off")}</option><option value="on">{t("voice.monitor_on")}</option>
+                    </select></label>
+                    <label>{t("voice.monitor_device")}<select aria-label={t("voice.monitor_device")} disabled={draft.monitor !== "on"} value={draft.monitor_device || ""}
+                        onChange={e => field("monitor_device", e.target.value)}>
+                        <option value="">{t("voice.monitor_default")}</option>
+                        {draft.monitor_device && !monitorList.some(d => d.id === draft.monitor_device) &&
+                            <option value={draft.monitor_device}>{t("voice.disconnected")}: {draft.monitor_device}</option>}
+                        {monitorList.map(device => <option key={device.id} value={device.id}>{device.label}</option>)}
+                    </select></label>
+                    <label>{t("voice.monitor_volume")}: {draft.monitor_volume ?? "100"}%<input type="range" min="0" max="100" step="5" aria-label={t("voice.monitor_volume")}
+                        disabled={draft.monitor !== "on"} value={draft.monitor_volume ?? "100"} onChange={e => field("monitor_volume", String(e.target.value))} /></label>
+                    <p>{t("voice.monitor_hint")}</p>
+                    {status.monitor_error && <p role="status">{t(`voice.monitor_errors.${status.monitor_error}`, { defaultValue: t("voice.monitor_error") })}</p>}
+                </fieldset>
                 {["japanese", "multilingual"].map(role => <fieldset key={role} aria-label={`${t(`speech_servers.${role}`)} · ${t("voice.title")}`}>
                     <legend>{t(`speech_servers.${role}`)}</legend>
                     {server(role)}{draft[`${role}_server`] !== "bundled" && input(`${role}_url`)}{input(`${role}_voice`)}
