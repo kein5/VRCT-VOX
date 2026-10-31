@@ -1,4 +1,9 @@
-# VRCT-VOX
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../brand/logo-ko-on-dark.svg">
+    <img src="../brand/logo-ko-on-light.svg" width="800" alt="VRCT-VOX: 음성 인식, 음성 합성, 음성 변환, 문자 인식, 번역">
+  </picture>
+</h1>
 
 VRCT-VOX는 [VRCT](https://github.com/misyaguziya/VRCT)를 기반으로 한 독립적인 개발 fork이며 공식 VRCT 배포판이 아닙니다.
 
