@@ -1,6 +1,6 @@
-# imozuru式調査記録 — VRCT.cpp低遅延音声統合
+# imozuru式調査記録 — VRCT-VOX低遅延音声統合
 
-対象: 2026-10-27 / 質問: 「フォークしたVRCT.cppにTTS・リアルタイムASR・翻訳・VCを追加し、直接音声チャットでもVCを利用できる低遅延システムを作るには、どの実装境界と技術を選ぶべきか」
+対象: 2026-10-27 / 質問: 「フォークしたVRCT-VOXにTTS・リアルタイムASR・翻訳・VCを追加し、直接音声チャットでもVCを利用できる低遅延システムを作るには、どの実装境界と技術を選ぶべきか」
 
 ## 調査の論点（6つ）
 
@@ -25,10 +25,10 @@
 
 | 種別 | 原典 | 関連論点と所在 |
 |---|---|---|
-| 〔公式〕 | [フォークVRCT pipeline](https://github.com/kein5/VRCT.cpp/blob/develop/src-python/models/message_pipeline.py#L81-L178) | 2: MIC/SPEAKER/CHAT spec |
-| 〔公式〕 | [フォークVRCT controller](https://github.com/kein5/VRCT.cpp/blob/develop/src-python/controller.py#L967-L1215) | 2: `_processMessage` |
-| 〔公式〕 | [フォークVRCT ASR provider](https://github.com/kein5/VRCT.cpp/blob/develop/src-python/models/transcription/transcription_providers.py#L182-L250) | 2: REST引数・戻り値 |
-| 〔公式〕 | [フォークVRCT ASR pipeline](https://github.com/kein5/VRCT.cpp/blob/develop/src-python/models/transcription/transcription_transcriber.py#L1-L30) | 2: 暫定結果方式の違い |
+| 〔公式〕 | [フォークVRCT pipeline](https://github.com/kein5/VRCT-VOX/blob/develop/src-python/models/message_pipeline.py#L81-L178) | 2: MIC/SPEAKER/CHAT spec |
+| 〔公式〕 | [フォークVRCT controller](https://github.com/kein5/VRCT-VOX/blob/develop/src-python/controller.py#L967-L1215) | 2: `_processMessage` |
+| 〔公式〕 | [フォークVRCT ASR provider](https://github.com/kein5/VRCT-VOX/blob/develop/src-python/models/transcription/transcription_providers.py#L182-L250) | 2: REST引数・戻り値 |
+| 〔公式〕 | [フォークVRCT ASR pipeline](https://github.com/kein5/VRCT-VOX/blob/develop/src-python/models/transcription/transcription_transcriber.py#L1-L30) | 2: 暫定結果方式の違い |
 | 〔公式〕 | [VRCT-TTS](https://github.com/misyaguziya/VRCT-TTS/blob/master/README.md) | 1, 2: WebSocket→音声出力の先行実装 |
 | 〔公式〕 | [speech.cpp API](https://github.com/nyosegawa/speech.cpp/blob/main/docs/server.md#L69-L110) | 3: TTS, PCM stream, concurrency |
 | 〔公式〕 | [speech.cpp realtime ASR](https://github.com/nyosegawa/speech.cpp/blob/main/docs/server.md#L224-L310) | 3: session, VAD, delta/completed |
@@ -38,7 +38,7 @@
 | 〔公式〕 | [Seed-VC LICENSE](https://github.com/jiaheguo521/seed-vc-realtime/blob/main/LICENSE) | 4, 6: GPL-3.0 |
 | 〔公式〕 | [PipeWire loopback](https://docs.pipewire.org/page_module_loopback.html) | 5: virtual sink/source |
 | 〔公式〕 | [VRChat OSC](https://docs.vrchat.com/docs/osc-as-input-controller) | 5: chatbox/input, input/Voice |
-| 〔公式〕 | [フォークNOTICE](https://github.com/kein5/VRCT.cpp/blob/develop/NOTICE.md#L12-L50) | 6: OCR学習済みモデル配布制限 |
+| 〔公式〕 | [フォークNOTICE](https://github.com/kein5/VRCT-VOX/blob/develop/NOTICE.md#L12-L50) | 6: OCR学習済みモデル配布制限 |
 | 〔公式〕 | [imozuru SKILL](https://github.com/MaryCache/imozuru/blob/main/skills/imozuru/SKILL.md) | 調査方式 |
 
 ## たどった経路（imozuru）

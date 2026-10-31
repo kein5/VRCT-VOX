@@ -1,4 +1,4 @@
-# Steam Frame接続中のVRCT-TTS実機試験
+# Steam Frame接続中のVRCT-VOX実機試験
 
 この試験は、本番AppImageのGUIから実音声モデルを呼び、生成音声をmanaged仮想マイクへ出し、実VRChatの入力接続を確認する。VRChat内の録音・再生、他プレイヤーへの到達、HMD内のQuickChat入力は別の検証項目である。
 
@@ -12,7 +12,7 @@
 
 ```sh
 .venv_linux/bin/python tools/native_frame_acceptance.py \
-  --app /absolute/path/to/VRCT-TTS.AppImage \
+  --app /absolute/path/to/VRCT-VOX.AppImage \
   --output /absolute/path/to/new-results-directory \
   --server http://127.0.0.1:PORT \
   --vrchat-pid PID \

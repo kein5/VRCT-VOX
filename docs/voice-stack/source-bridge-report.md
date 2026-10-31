@@ -102,7 +102,7 @@ Importantは「生成threadがprctl前に終了すると、同じprocessの別th
 - Windows、物理マイク、host/VRChat/HMDはこの試験の代替にしない。
 - 別PID namespace・proxy・FD転送・第三者によるOS配線操作は対象外。native同一namespaceが前提。
 - P1のgate以外は過去の独立レビューを維持し、後続の全体受入れで再確認する。
-- 改名はroot担当がrepository IDとfork関係を確認済み。上流への連絡・PRは最新指示により自動実行しない。
+- 上流への連絡・PRは最新指示により自動実行しない。
 - 既知16失敗はbaselineと同じと確認したが、P5の未完事項として残す。3試行から性能一般化しない。
 
 採用の費用は、監視用processが1個増え、古いkernelではこの機能を開始できないこと。

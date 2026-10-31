@@ -5,7 +5,7 @@
 **Goal:** identityと元のcycle時刻を保持したLinux OS captureをRealtimeIngressへ接続する。
 **Architecture:** libpipewire mainloop helper→bounded timestamped PCM pipe→Python parser/20ms assembler→既存Ingress。推論/UIとcaptureを別に保つ。
 **Tech Stack:** system PipeWire1.6.10、C11、Python3.11/uv、既存numpy/soxr/asyncio。
-**Spec:** [capture境界設計](../specs/2026-10-28-linux-realtime-capture.md)、[仕様§5/P3](../../voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md)。
+**Spec:** [capture境界設計](../specs/2026-10-28-linux-realtime-capture.md)、[仕様§5/P3](../../voice-stack/spec/codex-implementation-spec.md)。
 
 ## Global Constraints
 

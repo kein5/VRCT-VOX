@@ -4,7 +4,7 @@
 
 ## 固定3モデル版のAppImage
 
-`build/tts-model-downloads-2026-10-30-artifacts/VRCT-TTS-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
+`build/tts-model-downloads-2026-10-30-artifacts/VRCT-VOX-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
 
 SHA-256: `f5d567ad54265253e08e29cf38d174feb908896db99213bdbda1a174df2f11e4`。
 この版はIrodori F16・Qwen Q8・RVC Saishoの3候補で、後続のGPU/VRAM案内と追加量子化は含まない。
@@ -64,7 +64,7 @@ Qwenは24 kHz、Irodoriは48 kHzで専用graphと録音rateを一致させた。
 
 ## GPU案内を含む新AppImage
 
-`build/gpu-model-guidance-2026-10-30-artifacts/VRCT-TTS-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
+`build/gpu-model-guidance-2026-10-30-artifacts/VRCT-VOX-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
 SHA-256: `3c034035748633fa4e11d56c09379bd8dfe751dbf86b62aee0d1c3945a33036a`。catalog版2026-10-30.2。ビルド前後の記録対象543件のhash一致を確認。この記録にはintegrations配下を含めていなかったため、全製品入力を網羅した記録ではない。旧f5d567版は保持。
 
 `native-guidance-final-2` は1 PASS（41.36秒）。実Vulkan0行としてRTX 4080 SUPER、空き13.31 GiB/総15.99 GiBを観測し、標準推奨からIrodori Q8とQwen Q5を手動選択した。実HF取得済みファイルを試験config下に事前配置し、製品の全size/hash検証→別Apply→同梱の日本語/多言語サーバーの起動・停止を確認。パス以外の保存値を保持し、再起動時はサーバーOFF/モデルパス保持。これはcache検証であり、再度のネットワーク転送ではない。
@@ -83,7 +83,7 @@ SHA-256: `3c034035748633fa4e11d56c09379bd8dfe751dbf86b62aee0d1c3945a33036a`。ca
 
 ## RVC検索修正を含む最終配布候補
 
-`build/gpu-model-guidance-rvc-fixed-2026-10-30-artifacts/VRCT-TTS-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
+`build/gpu-model-guidance-rvc-fixed-2026-10-30-artifacts/VRCT-VOX-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
 SHA-256: `b8050d10c7243da5d57dda92d09784912947ad6516eccde152d11e4ef3bb4fe0`。
 
 補強した `native-guidance-rvc-strict-2` は旧3c034035版でFAILとなった。ミュート中の非ゼロ入力は出力されなかったが、入力完了より前にRVCワーカーが停止していた。これは遮断の全体合格にはしない。診断でSaishoのIVF検索が近傍8件を集められず、欠落ID=-1を拒否して終了していたことを確認した。詳細と原典は[RVC検索修正記録](rvc-index-search-report.md)。旧保存結果は保持した。

@@ -1,6 +1,6 @@
 # 設計評価の出典・調査記録
 
-対象: [2026-10-27の設計評価](architecture-evaluation-2026-10-27.md)。コード基準は`1f7900efb705965c32e5dcae1880913763c2ad40`。仕様書3点の原本は`/data/projects/VRCT.cpp/`で読んだ。過去のP1試験は保存済みJSON/CSVとphase reportを参照し、今回再実行したとは扱っていない。
+対象: [2026-10-27の設計評価](architecture-evaluation-2026-10-27.md)。コード基準は`1f7900efb705965c32e5dcae1880913763c2ad40`。仕様書3点の原本は``で読んだ。過去のP1試験は保存済みJSON/CSVとphase reportを参照し、今回再実行したとは扱っていない。
 
 取得した原典の所在・保存表現のSHA-256・時刻・使用スキルのhashは[manifest](architecture-evaluation-source-manifest.json)に記録した。外部資料のmain/master URLは可変であり、hashは保存した文書を識別する。配布バイナリの固定commitや将来のAPI互換性を証明しない。HTMLは本文を変換した表現のhash、PDFは原本と抽出textそれぞれのhashである。
 

@@ -1,8 +1,8 @@
-# VRCT.cpp 音声統合のアーキテクチャ評価
+# VRCT-VOX 音声統合のアーキテクチャ評価
 
 評価日: 2026-10-27。対象コード: `1f7900ef`。状態: **設計提案。実装の承認・完了・性能保証ではない。**
 
-要求の基準は提供された `VRCT_cpp_Codex_Implementation_Spec.md`、`VRCT_cpp_CODEX_START.md`、`VRCT_cpp_imozuru_evidence_map.md`。この評価では、それらの実装順序・境界も再検討する。製品コード、依存関係、稼働中の音声経路は変更せず、新しい実機実験も行っていない。
+要求の基準は提供された `codex-implementation-spec.md`、`codex-start.md`、`imozuru-evidence-map.md`。この評価では、それらの実装順序・境界も再検討する。製品コード、依存関係、稼働中の音声経路は変更せず、新しい実機実験も行っていない。
 
 関連成果物: [PoCと判定条件](architecture-evaluation-poc.md)、[ADR 004案](adr-004-audio-integration-boundaries.md)、[出典・調査記録](architecture-evaluation-sources.md)。既存の[実装記録](phase-report.md)と[計測記録](benchmarks.md)は履歴として保持する。
 
@@ -30,7 +30,7 @@
 
 ## 3. 現在の構造
 
-VRCT.cppは現時点でC++一体型アプリではない。React/JotaiのUI、TauriのRustシェル、Python sidecarが主構成で、P1が外部speech.cppを呼ぶ。
+VRCT-VOXは現時点でC++一体型アプリではない。React/JotaiのUI、TauriのRustシェル、Python sidecarが主構成で、P1が外部speech.cppを呼ぶ。
 
 ```mermaid
 flowchart TB

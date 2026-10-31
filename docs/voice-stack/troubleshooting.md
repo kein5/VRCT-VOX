@@ -11,7 +11,7 @@
 | `audio_devices_unavailable` | WindowsはPyAudioWPatch、Linuxはpw-dumpとユーザーのPipeWireセッション |
 | `output_missing*` / `output_disconnected` | 一覧更新・明示再選択。既定デバイスへ自動切替しない |
 | `output_stalled` / `output_drain_timeout` | PipeWireグラフのsink/source接続、VRChat入力選択 |
-| 二重発声 | 旧VRCT-TTS等の外部読み上げをOFF。同じ文でも別IDの新規送信は別発声 |
+| 二重発声 | 外部の読み上げツール（上流作者のVRCT-TTSなど）をOFF。同じ文でも別IDの新規送信は別発声 |
 | 待機中だが発声なし | キューoverflow/5秒超過は破棄。`/get/data/voice_status`のdroppedを確認 |
 | VRChatメーターは動くがテストは無音 | マイクテストは短く録音して再生するため、入力が来ている間に`New Test`を開始。メニュー音、VRChat Master/マイク音量、OS出力のミュートも確認 |
 

@@ -5,7 +5,7 @@
 **Goal:** 導入済み認識モデルを使い、既存APIの未対応引数を送らないspeech.cpp専用REST接続を自動検証する。
 **Architecture:** 外部speech.cppサーバへlocalhost限定HTTP。既存Whisper/OpenAI providerは変更しない。REST部品とファイル入力CLIを先に検証し、Realtime/capture/UI/final発火は次の独立計画へ。
 **Tech Stack:** uv/Python3.11、標準HTTP/WAV、既存AudioFrame/CancelToken、speech.cpp0.9.0と既存ReazonSpeech GGUF。
-**Spec:** [仕様§5 ASR/P3](../../voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md)、[公式REST契約](https://github.com/nyosegawa/speech.cpp/blob/main/docs/server.md)。
+**Spec:** [仕様§5 ASR/P3](../../voice-stack/spec/codex-implementation-spec.md)、[公式REST契約](https://github.com/nyosegawa/speech.cpp/blob/main/docs/server.md)。
 
 ## Context / constraints
 

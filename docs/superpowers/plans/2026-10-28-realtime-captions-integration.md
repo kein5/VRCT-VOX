@@ -5,7 +5,7 @@
 **Goal:** LinuxのRealtime ASRを本番設定・字幕置換・確定翻訳へ接続し、legacyと切替可能にする。
 **Architecture:** source別session ownerがcapture/Ingress/WSを管理。bounded update queueと独立final workerでUI/翻訳を分離し、namespaceを停止時に無効化する。
 **Tech Stack:** Python3.11/uv、既存speech.cpp/PipeWire/soxr、React/Jotai、既存Controller/overlay/IPC。
-**Spec:** [設計](../specs/2026-10-28-realtime-captions-integration.md)、[要件P3/§3–5](../../voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md)。
+**Spec:** [設計](../specs/2026-10-28-realtime-captions-integration.md)、[要件P3/§3–5](../../voice-stack/spec/codex-implementation-spec.md)。
 
 ## Global Constraints
 

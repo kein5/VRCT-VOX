@@ -1,9 +1,9 @@
-# VRCT.cpp — 低遅延音声統合 実装仕様書
+# VRCT-VOX — 低遅延音声統合 実装仕様書
 
-作成日: 2026-10-27 / 対象リポジトリ: https://github.com/kein5/VRCT.cpp
+作成日: 2026-10-27 / 対象リポジトリ: https://github.com/kein5/VRCT-VOX
 基準: `develop` / commit `79419a1f2ce78d38993b0f33e273155667eb0b6a`（調査時点で upstream `misyaguziya/VRCT` の `develop` と同一）
 関連実装: [speech.cpp](https://github.com/nyosegawa/speech.cpp)、[VRCT-TTS](https://github.com/misyaguziya/VRCT-TTS)
-調査方法: [imozuru](https://github.com/MaryCache/imozuru) の「問い→2方向の探索→一次資料と関連実装をたどる→各論点の根拠確認→判断」を適用。根拠の所在と残課題は別紙 `VRCT_cpp_imozuru_evidence_map.md` を参照。
+調査方法: [imozuru](https://github.com/MaryCache/imozuru) の「問い→2方向の探索→一次資料と関連実装をたどる→各論点の根拠確認→判断」を適用。根拠の所在と残課題は別紙 `imozuru-evidence-map.md` を参照。
 
 > この文書は **Codexに渡して実装させる仕様書**。既存コードに確認できた事実と、これから作る設計・目標値を分けて記す。機能やAPIの存在を仮定しない。以下のパスは原則フォークの`develop`相対パス。
 
@@ -22,7 +22,7 @@
 
 ### 非目標（今回のスコープ外）
 
-- VRCT本体を全面的にC++へ書き換えない。フォーク名「VRCT.cpp」は実装言語の変更指示ではない。
+- VRCT本体を全面的にC++へ書き換えない。
 - `speech.cpp`に存在しない生音声→生音声Voice Conversionを実装済みとして扱わない。
 - 既存VRCT翻訳器を独自LLMへ置き換えない。既存のクラウド/ローカルプロバイダを使う。
 - VRChat純正Chatboxが送信した任意の文字列をOSC経由で読み戻せると仮定しない。自分のVRCT入力欄の送信文は取得できる。
@@ -267,7 +267,7 @@ docs/voice-stack/
 - `speech.cpp`の`serve`は**無認証**。デフォルト`127.0.0.1`で待ち受け、0.0.0.0公開を既定にしない。LAN接続はTLS/認証の追加なしに公開しない。VRCT既存WebSocketトークン方式を無効化しない。
 - モデル取得はユーザー同意のうえ、配布元・バージョン・モデルID/ハッシュを記録。リモートコード実行を要求する不明なモデルや、許諾不明の音声モデルを自動実行しない。
 - ユーザーの録音・学習・参照音声は本人または話者の同意が必要。モデルカードの音声クローン禁止用途・ディープフェイク禁止事項等を優先。
-- `VRCT.cpp/NOTICE.md`に従い、**`src-python/models/ocr/onnx/chatbox_yolox_tiny.onnx`をフォーク独自のビルド成果物へ同梱しない**。開発用フォークとしての実行は認められているが、独自リリース配布は別。ビルド/CIで存在検査と除外テストを加え、モデル不在時のUI機能低下を明示。
+- `NOTICE.md`に従い、**`src-python/models/ocr/onnx/chatbox_yolox_tiny.onnx`をフォーク独自のビルド成果物へ同梱しない**。開発用フォークとしての実行は認められているが、独自リリース配布は別。ビルド/CIで存在検査と除外テストを加え、モデル不在時のUI機能低下を明示。
 - Seed-VC RealtimeのコードはGPL-3.0。MIT VRCTに直接コピー/リンクしてよいとは即断しない。初回は別プロセスとしてユーザーが別途インストールする選択肢とし、独自バイナリ同梱・コード取り込みは法的/ライセンス条件の再確認をゲートにする。
 - VCClientのBeatrice等はモデル・利用条件が異なる。OSS表記や商用可否をモデル単位で確認する。
 - フォーク独自のリリースではアプリ名・バンドル識別子・publisher表示を本家の公式配布に見せかけないよう整備する。既存ライセンス・NOTICE・帰属を維持。
@@ -291,12 +291,12 @@ docs/voice-stack/
 ## 13. 原典（先に参照すること）
 
 - imozuruスキル: https://github.com/MaryCache/imozuru/blob/main/skills/imozuru/SKILL.md
-- フォーク pipeline: https://github.com/kein5/VRCT.cpp/blob/develop/src-python/models/message_pipeline.py#L81-L178
-- フォーク Controller: https://github.com/kein5/VRCT.cpp/blob/develop/src-python/controller.py#L967-L1215
-- フォーク既存STT: https://github.com/kein5/VRCT.cpp/blob/develop/src-python/models/transcription/transcription_providers.py#L182-L250
-- フォークASRパイプライン: https://github.com/kein5/VRCT.cpp/blob/develop/src-python/models/transcription/transcription_transcriber.py#L1-L30
-- フォークWebSocket: https://github.com/kein5/VRCT.cpp/blob/develop/src-python/models/websocket/websocket_server.py
-- フォークライセンス: https://github.com/kein5/VRCT.cpp/blob/develop/NOTICE.md#L12-L50
+- フォーク pipeline: https://github.com/kein5/VRCT-VOX/blob/develop/src-python/models/message_pipeline.py#L81-L178
+- フォーク Controller: https://github.com/kein5/VRCT-VOX/blob/develop/src-python/controller.py#L967-L1215
+- フォーク既存STT: https://github.com/kein5/VRCT-VOX/blob/develop/src-python/models/transcription/transcription_providers.py#L182-L250
+- フォークASRパイプライン: https://github.com/kein5/VRCT-VOX/blob/develop/src-python/models/transcription/transcription_transcriber.py#L1-L30
+- フォークWebSocket: https://github.com/kein5/VRCT-VOX/blob/develop/src-python/models/websocket/websocket_server.py
+- フォークライセンス: https://github.com/kein5/VRCT-VOX/blob/develop/NOTICE.md#L12-L50
 - VRCT-TTS: https://github.com/misyaguziya/VRCT-TTS/blob/master/README.md
 - speech.cpp TTS/ASR API: https://github.com/nyosegawa/speech.cpp/blob/main/docs/server.md
 - speech.cpp Irodoriモデル特性: https://github.com/nyosegawa/speech.cpp/blob/main/docs/models/irodori-tts.md

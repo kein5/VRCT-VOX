@@ -5,7 +5,7 @@
 **Goal:** レビュー済みSourceBridgeを本番Controller/UIへつなぎ、明示選択した入力の転送・停止を使えるようにする。
 **Architecture:** 既存ControllerにSourceBridgeを1個追加。専用mode coordinatorやPCM daemonを増やさない。選択sourceと開始世代を同じlockで採用し、main receiverの停止は通常queueを迂回。TTS/既存OSC契約は維持。
 **Tech Stack:** Python/uv、React/Jotai、既存stdio IPC、Linux PipeWire、Tauri native試験。
-**Spec:** [提供仕様P2](../../voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md)、[ADR006](../../voice-stack/adr-006-external-source-health.md)、[接続基盤の結果](../../voice-stack/source-bridge-report.md)。
+**Spec:** [提供仕様P2](../../voice-stack/spec/codex-implementation-spec.md)、[ADR006](../../voice-stack/adr-006-external-source-health.md)、[接続基盤の結果](../../voice-stack/source-bridge-report.md)。
 
 ## 設計判断と境界
 

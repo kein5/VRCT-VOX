@@ -8,7 +8,7 @@
 これはP5全体の完成ではない。GUIの所有サーバー管理、アプリ識別変更、Linuxパッケージ、
 更新経路、Windows実機受入れは後続工程として残す。
 
-基準: [実装仕様](../../voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md) §§7–10、
+基準: [実装仕様](../../voice-stack/spec/codex-implementation-spec.md) §§7–10、
 [追加承認](../../voice-stack/completion-ledger.md)のP5要件。
 通常の実装・試験・ローカルコミットを閉ループで進める既存指示に従う。
 モデル取得、公開、上流連絡、PRはこの作業に含めない。
@@ -82,7 +82,7 @@ miniaudioは原文の二重ライセンスを保持する。GCCランタイム�
 原典: [GCC 11.4 COPYING.RUNTIME](https://github.com/gcc-mirror/gcc/blob/releases/gcc-11.4.0/COPYING.RUNTIME)、
 [COPYING3](https://github.com/gcc-mirror/gcc/blob/releases/gcc-11.4.0/COPYING3)。
 OSのlibc/Vulkan loader/driverはこの部品では再配布しない。
-本工程の確認だけでVRCT-TTS全体の最終ライセンス監査が済んだとは扱わない。
+本工程の確認だけでVRCT-VOX全体の最終ライセンス監査が済んだとは扱わない。
 
 ## 受入れと失敗時
 

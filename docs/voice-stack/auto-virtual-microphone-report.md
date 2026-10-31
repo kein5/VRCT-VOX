@@ -36,7 +36,7 @@ RVC/Seed双方の外部Pythonが、ソースcheckoutなしで起動できる回�
 
 ## 成果物
 
-- 最新AppImage: `build/bluetooth-rvc-fix-2026-10-30-artifacts/VRCT-TTS-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
+- 最新AppImage: `build/bluetooth-rvc-fix-2026-10-30-artifacts/VRCT-VOX-3.6.0-beta.1-linux-x64-vulkan-release.AppImage`
 - SHA256: `ec302690efae030671bd957cb90d6f56168965435507ba9feba9327bb754306c`
 - 前回の設定で起動: 同フォルダ `run-with-test-settings.sh`
 - 旧同梱修正版は `build/auto-microphone-rvc-fix-2026-10-30-artifacts/` に保持。Bluetooth開始修正を含まない。

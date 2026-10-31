@@ -126,7 +126,7 @@
     "template_calibration": {
       "template_pair_correlation": 0.3008371359139349
     },
-    "temporary_config_name": "99-vrct-tts-fixed-20261027.conf",
+    "temporary_config_name": "99-vrct-vox-fixed-20261027.conf",
     "temporary_config_sha256": "c74ee30f6fb374b365c73d504895d30d6a0f6347e472ed2c8e01009e7ed35e53",
     "setup_observations": [
       "KWin active VRChat window did not match XWayland keyboard focus. Focused the PID-verified VRChat X11 window; no test audio had been sent.",

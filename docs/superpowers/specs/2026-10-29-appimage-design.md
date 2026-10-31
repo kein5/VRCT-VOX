@@ -10,8 +10,8 @@ changing the pinned speech.cpp hash. Wrapping the tar without GUI dependencies
 would leave WebKit/GTK installation to users. Select **two-stage linuxdeploy**:
 bundle GUI/WebKit/GTK first, then add the byte-identical frozen backend privately.
 
-Layout: GUI `usr/bin/vrct-tts`, sidecar launcher `usr/bin/vrct-tts-sidecar`, frozen
-sidecar and `_internal` under `usr/lib/vrct-tts`. AppRun saves the host library path
+Layout: GUI `usr/bin/vrct-vox`, sidecar launcher `usr/bin/vrct-vox-sidecar`, frozen
+sidecar and `_internal` under `usr/lib/vrct-vox`. AppRun saves the host library path
 before GUI hooks; the sidecar launcher restores it before entering PyInstaller.
 No GUI library overrides may leak to external VC/PipeWire/speech processes.
 The wrapper forwards arguments and handles spaces/relocation. XDG state stays external.

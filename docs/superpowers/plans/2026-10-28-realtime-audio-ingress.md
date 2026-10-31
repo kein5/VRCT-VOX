@@ -5,7 +5,7 @@
 **Goal:** 連続PCMの24kHz変換と有界入力queueを作り、実Realtimeへ流す。
 **Architecture:** 短い同期capture push→有界queue→単一async workerで連続resample→既存SpeechCppRealtime.feed。物理captureとUIは次工程。
 **Tech Stack:** uv/Python3.11、numpy1.26.4、固定soxr1.1.0（取得前に公式license確認）、既存asyncio。
-**Spec:** [入力境界設計](../specs/2026-10-28-realtime-audio-ingress.md)、[上位仕様§5/P3](../../voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md)。
+**Spec:** [入力境界設計](../specs/2026-10-28-realtime-audio-ingress.md)、[上位仕様§5/P3](../../voice-stack/spec/codex-implementation-spec.md)。
 
 ## Global Constraints
 

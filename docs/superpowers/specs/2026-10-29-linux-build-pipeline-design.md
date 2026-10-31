@@ -23,9 +23,9 @@
 
 ## Runtime layout and paths
 
-`VRCT-TTS/vrct-tts`, `vrct-tts-sidecar`, `_internal/`（Python/runtime/資源）、
+`VRCT-VOX/vrct-vox`, `vrct-vox-sidecar`, `_internal/`（Python/runtime/資源）、
 `_internal/build/`（native helpers/speechcpp）、`_internal/integrations/`（外部VC接続ソース/通知）。
-本体は不変。Linux frozenだけconfig/log/data/cacheをXDGのvrct-tts専用領域へ置く。
+本体は不変。Linux frozenだけconfig/log/data/cacheをXDGのvrct-vox専用領域へ置く。
 既存`VRCT_CONFIG_DIR` overrideを保持し、開発/Windowsの既定パスは変更しない。
 `PATH_LOCAL`は既存資源の基準として保持、重み等の可変用途だけ`PATH_DATA`へ分離する。
 native helperの場所は`runtime_paths.resource_root()`から解決。外部プロセスへPyInstallerが

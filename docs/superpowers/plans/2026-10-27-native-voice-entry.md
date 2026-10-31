@@ -8,7 +8,7 @@
 
 **Tech Stack:** Rust/Tauri 2.5.1、React、uv/CPython 3.11、PipeWire、既存HTTP PCM。
 
-**Spec:** `docs/voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md` §0/5/6/9/10。全体の残要件は`docs/voice-stack/completion-ledger.md`。
+**Spec:** `docs/voice-stack/spec/codex-implementation-spec.md` §0/5/6/9/10。全体の残要件は`docs/voice-stack/completion-ledger.md`。
 
 ## Global Constraints
 

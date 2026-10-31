@@ -1,23 +1,20 @@
-# VRCT-TTSの公開と上流への提案
-現在のプロジェクト名はVRCT-VOXです。この文書には改名前の判断と試験記録を残しています。現在の名称・配布物・設定の互換性は[改名と互換性](project-rename.md)を参照してください。
+# VRCT-VOXの公開と上流への提案
+現在の名称・配布物・識別子は[名称と識別子](project-rename.md)を参照してください。
 
-2026-10-28のユーザー指示: 開発を継続し、リポジトリ名をVRCT.cppから**VRCT-TTS**へ変更する。
-予定機能が完成した後に成果を公開する。上流への取り込み打診は将来の希望として保持する。
+2026-10-28のユーザー指示: 開発を継続し、予定機能が完成した後に成果を公開する。上流への取り込み打診は将来の希望として保持する。
 
 **同日追加指示（こちらが優先）:** 上流への連絡・取り込みの打診・PR作成（draftを含む）は、
 全機能が完成しても自動実行しない。実行前にユーザーの明示的な指示を必要とする。
 ローカルで比較・提案文・変更分割案を準備することと、外部へ送ることを区別する。
 
-GitHub上の`kein5/VRCT.cpp`を[kein5/VRCT-TTS](https://github.com/kein5/VRCT-TTS)へ改名した。
-repository IDは1435087352のまま、fork元は[misyaguziya/VRCT](https://github.com/misyaguziya/VRCT)、default branchはdevelop。
-改名前から公開リポジトリだったため、これは公開設定の変更ではない。
-ローカルのoriginを新URLへ更新し、fork元をupstreamに登録した。worktreeのディレクトリと履歴は維持する。
-GitHub連携には改名機能がなかったため、同じ所有者の認証を確認したghからnameだけを変更した。
+リポジトリは[kein5/VRCT-VOX](https://github.com/kein5/VRCT-VOX)。repository IDは1435087352、
+fork元は[misyaguziya/VRCT](https://github.com/misyaguziya/VRCT)、default branchはdevelop。
+ローカルのoriginはこのURL、fork元はupstreamとして登録している。
 
 ## 開発中の扱い
 
-現在の音声機能はローカルのレビュー可能なコミットで保持する。改名時点ではpush・release・上流への連絡はしていない。
-既存の`VRCT`内部識別子、設定形式、IPC/OSC契約をリポジトリ改名だけで一括置換しない。
+現在の音声機能はレビュー可能なコミットで保持する。上流への連絡はしていない。
+既存の`VRCT`内部識別子、設定形式、IPC/OSC契約は名称の変更だけを理由に一括置換しない。
 配布アプリ名とfork固有identifierはP5でインストール先・設定移行・既存VRCTとの共存を確認して揃える。
 提供された仕様原本のファイル名や過去の検証記録は原本・履歴として残す。
 

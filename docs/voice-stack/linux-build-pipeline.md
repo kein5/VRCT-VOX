@@ -85,9 +85,9 @@ ELF dependencies. This is a portable directory layout, **not** an AppImage or a
 promise of compatibility with all distributions. A build made on CachyOS may
 require newer glibc than the Ubuntu CI build; consult its manifest.
 
-Frozen Linux settings/logs go to `$XDG_CONFIG_HOME/vrct-tts` (default `~/.config/vrct-tts`),
-weights and other writable data to `$XDG_DATA_HOME/vrct-tts` (default `~/.local/share/vrct-tts`),
-and caches to `$XDG_CACHE_HOME/vrct-tts` (default `~/.cache/vrct-tts`). Explicit
+Frozen Linux settings/logs go to `$XDG_CONFIG_HOME/vrct-vox` (default `~/.config/vrct-vox`),
+weights and other writable data to `$XDG_DATA_HOME/vrct-vox` (default `~/.local/share/vrct-vox`),
+and caches to `$XDG_CACHE_HOME/vrct-vox` (default `~/.cache/vrct-vox`). Explicit
 `VRCT_CONFIG_DIR`, `VRCT_DATA_DIR`, `VRCT_CACHE_DIR` override those directories.
 An explicitly supplied `HF_HOME` is respected. Existing development/Windows paths are unchanged.
 

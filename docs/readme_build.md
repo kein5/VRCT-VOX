@@ -98,7 +98,7 @@ npm run update-version
 
 Python依存の問題は、選択した仮想環境とrequirementsの対応から確認します。Tauriの失敗はRust・C++ツールとsidecarの配置、画面だけの失敗は`npm run vite-build`の出力を確認します。CUDAの失敗では、ドライバーとCUDA版の仮想環境を確認してください。ビルド用のスペックファイルは`spec/backend.spec`、`spec/backend_cuda.spec`、`spec/backend_linux.spec`です。
 
-旧版の設定保存先とアプリIDは維持します。[改名と互換性](voice-stack/project-rename.md)を参照してください。元の[LICENSE](../LICENSE)と[NOTICE](../NOTICE.md)を保持し、同梱ライブラリとモデルの条件はそれぞれ確認します。
+設定保存先とアプリIDは[名称と識別子](voice-stack/project-rename.md)を参照してください。元の[LICENSE](../LICENSE)と[NOTICE](../NOTICE.md)を保持し、同梱ライブラリとモデルの条件はそれぞれ確認します。
 
 ## 共通の開発コマンドと下書き作成
 

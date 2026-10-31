@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python3.11/uv、system PipeWire/WirePlumber、既存C gate、libc parent-death signal、pytest。
 
-**Spec:** [機能仕様P2](../../voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md)、[ADR006](../../voice-stack/adr-006-external-source-health.md)。
+**Spec:** [機能仕様P2](../../voice-stack/spec/codex-implementation-spec.md)、[ADR006](../../voice-stack/adr-006-external-source-health.md)。
 
 ## Global Constraints
 

@@ -27,7 +27,7 @@ Windows Job Objectの処理は維持する。
 
 元コミット`66b16e6d`から`utils/dev_sidecar/src/main.rs`とモデル不要のprocess契約テストを抽出。
 [レビュー用patch](upstream-candidates/02-unix-dev-sidecar.patch)。当時の本家側名称を保持しており、
-今回の`vrct-tts-sidecar`への改名は含めない。本forkで11件のLinux実プロセステストが成功。
+今回の`vrct-vox-sidecar`への改名は含めない。本forkで11件のLinux実プロセステストが成功。
 適用先でのWindows CIと、現行上流のvenv選択仕様との照合が必要。
 
 ## 次に独立化できる候補
@@ -35,7 +35,7 @@ Windows Job Objectの処理は維持する。
 - `c8dcc42a`の残り: Windows APIを境界で差し替え、Linuxでも契約テストを実行する修正。
   `platform_test_support.py`を含む小さなテスト移植PRに分ける。
 - `22ef68f2`のDPMSガード: KDE消灯中の描画停止をアプリ不具合と誤判定しないGUI試験補助。
-  VRCT-TTS音声試験とは切り離した最小再現・ガードを提案候補にする。
+  VRCT-VOX音声試験とは切り離した最小再現・ガードを提案候補にする。
 
 `speech.cpp`管理、VC、ASR字幕、翻訳発声、今回のfork配布設定は別の機能群。
 採用を前提とした一括PRにしない。`integrations/seed_vc`のGPL表示や依存・モデルの条件を

@@ -299,21 +299,21 @@
       "pinned_commit": null
     },
     {
-      "name": "VRCT_cpp_CODEX_START",
-      "origin": "/data/projects/VRCT.cpp/VRCT_cpp_CODEX_START.md",
-      "local_file": "/tmp/vrct-architecture-review/research/sources/VRCT_cpp_CODEX_START.md",
+      "name": "codex-start",
+      "origin": "docs/voice-stack/spec/codex-start.md",
+      "local_file": "/tmp/vrct-architecture-review/research/sources/codex-start.md",
       "sha256": "d16273d8b35a15d2a066ccaa0ffb8cf96b4b51bdcd61d225c508c9be89e3a7d2"
     },
     {
-      "name": "VRCT_cpp_Codex_Implementation_Spec",
-      "origin": "/data/projects/VRCT.cpp/VRCT_cpp_Codex_Implementation_Spec.md",
-      "local_file": "/tmp/vrct-architecture-review/research/sources/VRCT_cpp_Codex_Implementation_Spec.md",
+      "name": "codex-implementation-spec",
+      "origin": "docs/voice-stack/spec/codex-implementation-spec.md",
+      "local_file": "/tmp/vrct-architecture-review/research/sources/codex-implementation-spec.md",
       "sha256": "3a00ee4fd8d2c0d5f0424bb41bb7a94330012384d934fb2878daa703c11a2f64"
     },
     {
-      "name": "VRCT_cpp_imozuru_evidence_map",
-      "origin": "/data/projects/VRCT.cpp/VRCT_cpp_imozuru_evidence_map.md",
-      "local_file": "/tmp/vrct-architecture-review/research/sources/VRCT_cpp_imozuru_evidence_map.md",
+      "name": "imozuru-evidence-map",
+      "origin": "docs/voice-stack/spec/imozuru-evidence-map.md",
+      "local_file": "/tmp/vrct-architecture-review/research/sources/imozuru-evidence-map.md",
       "sha256": "28345f05c1135217cd9b944f978972877a8ba3349194e94558650892b9e646e6"
     },
     {

@@ -1,6 +1,6 @@
 # Realtime音声入力の変換と滞留制限
 
-上位仕様は`docs/voice-stack/spec/VRCT_cpp_Codex_Implementation_Spec.md`の§5/P3。
+上位仕様は`docs/voice-stack/spec/codex-implementation-spec.md`の§5/P3。
 既存のbatch/VAD recorderは発話区間を作ってからqueueへ渡すため、そのqueueをRealtimeへ流用すると二重VADと遅延が残る。
 この工程は連続PCMの入力境界を作り、既存合成WAV→新境界→実Realtimeの成果物を残す。
 物理capture/UIへの接続は次工程。新規録音は行わない。
