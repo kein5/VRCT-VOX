@@ -355,7 +355,8 @@ class Controller:
         self.speech_servers = SpeechServers(on_end=self._speechServerEnded)
         voice_settings = getattr(self._config, "VOICE_SETTINGS", {})
         self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings if isinstance(voice_settings, dict) else {}),
-                                          resolve_server=self._ttsSpeechServer, enabled=False)
+                                          resolve_server=self._ttsSpeechServer, enabled=False,
+                                          on_monitor_error=self._voiceMonitorFailed)
         config_path = getattr(self._config, '_PATH_CONFIG', 'config.json')
         if not isinstance(config_path, (str, Path)):
             config_path = 'config.json'
@@ -1926,6 +1927,11 @@ class Controller:
             return
         # UI は既存の disable endpoint の run 通知を状態更新として処理する。
         self.run(200, endpoint, False)
+
+    @staticmethod
+    def _voiceMonitorFailed(code):
+        # Monitor thread; the code is a fixed identifier, never a device name.
+        printLog("[voice] monitor output unavailable", code)
 
     def getVoiceSettings(self, *args, **kwargs) -> dict:
         return {"status": 200, "result": config.VOICE_SETTINGS}

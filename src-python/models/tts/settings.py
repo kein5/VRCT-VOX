@@ -54,10 +54,19 @@ class VoiceSettings:
     multilingual_instructions: str = ""
     output_device: str = ""
     routing: str = "external"  # external | managed (Linux daemon-owned route)
+    # Optional local copy of the same speech; "" is the OS default output.
+    monitor: str = "off"  # off | on
+    monitor_device: str = ""
+    monitor_volume: str = "100"  # 0-100 percent, attenuation only
 
     @property
     def playback_device(self):
         return "vrct.managed.tts" if self.routing == "managed" else self.output_device
+
+    @property
+    def monitor_choice(self):
+        """(device, volume) when the monitor is enabled, otherwise None."""
+        return (self.monitor_device, int(self.monitor_volume)) if self.monitor == "on" else None
 
     @classmethod
     def from_dict(cls, value):
@@ -89,6 +98,16 @@ class VoiceSettings:
                 raise ValueError("Invalid voice name")
         if len(settings.output_device) > 512 or any(ord(c) < 32 for c in settings.output_device):
             raise ValueError("Invalid output device")
+        if (settings.monitor not in ("off", "on") or len(settings.monitor_device) > 512
+                or any(ord(c) < 32 for c in settings.monitor_device)
+                or not re.fullmatch(r'[0-9]{1,3}', settings.monitor_volume) or int(settings.monitor_volume) > 100):
+            raise ValueError("Invalid monitor output")
+        # The monitor must never be (or feed) the virtual microphone itself.
+        monitor_device = settings.monitor_device
+        if settings.monitor == "on" and monitor_device and (
+                monitor_device.startswith(('vrct.managed.', 'vrct.source-bridge.'))
+                or monitor_device == settings.playback_device):
+            raise ValueError("Monitor output must differ from the virtual microphone output")
         if (settings.mode != "off" or settings.mic_mode != "off") and not settings.playback_device.strip():
             raise ValueError("Select a virtual microphone output before enabling TTS")
         if settings.mic_mode != "off" and settings.direct_policy == "suppress" and settings.routing != "managed":
