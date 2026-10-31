@@ -490,11 +490,11 @@ class TestPinnedVersionDownload(_EnabledUpdaterTests):
 
     @patch("model.Popen")
     @patch("model.requests_get")
-    def test_refuses_versions_older_than_3_6_0(
+    def test_refuses_versions_older_than_the_supported_floor(
         self, requests_get: Mock, popen: Mock
     ) -> None:
-        # 3.6.0 未満には版の切り替え UI が無く、入れると戻れなくなる
-        self.assertEqual(Model.updateSoftware("3.5.1"), SETUP_DOWNLOAD_FAILED)
+        # VRCT-VOX 0.1.0 未満には版の切り替え UI が無く、入れると戻れなくなる
+        self.assertEqual(Model.updateSoftware("0.0.9"), SETUP_DOWNLOAD_FAILED)
 
         requests_get.assert_not_called()
         popen.assert_not_called()
@@ -561,19 +561,19 @@ class ListAvailableReleasesTests(_EnabledUpdaterTests):
 
     @patch("model.errorLogging")
     @patch("model.requests_get")
-    def test_hides_releases_older_than_3_6_0_but_keeps_its_betas(
+    def test_hides_releases_older_than_the_floor_but_keeps_its_betas(
         self,
         requests_get: Mock,
         error_logging: Mock,
     ) -> None:
         requests_get.return_value = _make_json_response([
             {"name": name, "tag_name": f"v{name}", "prerelease": "-" in name, "draft": False}
-            for name in ["3.6.1", "3.6.0", "3.6.0-beta.1", "3.5.1", "3.5.1-beta.1", "3.4.3"]
+            for name in ["0.2.0", "0.1.0", "0.1.0-beta.1", "0.0.9", "0.0.9-beta.1", "0.0.1"]
         ])
 
         versions = [r.version for r in Model.listAvailableReleases()]
 
-        self.assertEqual(versions, ["3.6.1", "3.6.0", "3.6.0-beta.1"])
+        self.assertEqual(versions, ["0.2.0", "0.1.0", "0.1.0-beta.1"])
         error_logging.assert_not_called()
 
 
