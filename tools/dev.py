@@ -416,10 +416,12 @@ def setup(args, root):
             f"net.offline={'true' if args.offline else 'false'}", "fetch", "--locked",
             "--manifest-path", "src-tauri/Cargo.toml"])], root, dry_run=args.dry_run)
     if args.scope == "backend" and sys.platform != "linux":
-        raise DevError("Automated backend setup currently uses the Linux lock. Windows: use the existing runtime setup guide; headless/ui/browser setup works on both platforms.")
+        raise DevError("Automated backend setup currently builds the Linux packaging environment. Windows: run bat\\install.bat (uv sync); headless/ui/browser setup works on both platforms.")
     uv = ["uv", *(["--offline"] if args.offline else [])]
-    requirement = {"headless": "requirements-voice-test.txt", "browser": "requirements-voice-ui-test.txt",
-                   "backend": "requirements-linux-build.lock"}[args.scope]
+    # Every scope installs an exact subset of uv.lock (pyproject.toml groups).
+    groups = {"headless": ["--only-group", "voice-test"], "browser": ["--only-group", "voice-ui-test"],
+              "backend": ["--group", "dev", "--group", "linux-build"]}[args.scope]
+    requirement = f"build/dev/{args.scope}-requirements.txt"
     target = root / f"build/dev/{args.scope}-venv"
     python = choose_python(root, args.python) if args.python else str(env_python(target))
     if args.python:
@@ -443,11 +445,16 @@ def setup(args, root):
                 return result
             if not args.dry_run:
                 (target / OWNER_FILE).write_text(OWNER, encoding="utf8")
-    # Only the backend has a complete transitive lock. Headless/browser files
-    # contain direct requirements, so sync would omit pytest/requests deps.
-    method = "sync" if args.scope == "backend" else "install"
-    return execute([Step("Python dependencies", [*uv, "pip", method, "--python", python,
-        "-r", requirement])], root, dry_run=args.dry_run)
+    # The export is a complete transitive set. Owned environments are synced
+    # to it exactly; an explicit existing environment only gains packages.
+    method = "install" if args.python else "sync"
+    return execute([
+        Step("locked requirements", [*uv, "export", "--quiet", "--frozen", "--no-hashes", "--no-header",
+            "--no-annotate", "--format", "requirements-txt", "--no-emit-project", *groups,
+            "--output-file", requirement]),
+        Step("Python dependencies", [*uv, "pip", method, "--python", python,
+            *([] if method == "sync" else ["-r"]), requirement]),
+    ], root, dry_run=args.dry_run)
 
 
 def parser():

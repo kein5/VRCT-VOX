@@ -1,0 +1,145 @@
+# Python dependencies of the VRCT-VOX backend, resolved by uv into uv.lock.
+#
+#   uv sync                          # .venv: the CPU build environment
+#   UV_PROJECT_ENVIRONMENT=.venv_cuda uv sync --extra cuda
+#   uv sync --only-group voice-test  # model-free contract tests only
+#
+# The version follows package.json; utils/update_version.py updates it and
+# uv.lock together.
+[project]
+name = "vrct-vox"
+version = "0.1.0"
+description = "VRCT-VOX backend: speech, voice conversion and translated chat"
+requires-python = "==3.11.*"
+dependencies = [
+    # NOTE: torch was dropped on 2026-09-18. It was pulled in by EasyOCR (now
+    # replaced by RapidOCR) and used only to enumerate CUDA devices, which
+    # ctranslate2 and the CUDA driver API can do by themselves (see
+    # src-python/utils.py). The GPU build gets its cuBLAS/cuDNN from the
+    # nvidia-*-cu12 wheels of the `cuda` extra instead.
+    "faster-whisper==1.1.1",
+    "ctranslate2==4.6.0",
+    "transformers==4.40.2",
+    "pillow==10.0.0",
+    "PyAudioWPatch==0.2.12.6 ; sys_platform=='win32'",
+    "python-osc==1.9.0",
+    "PyYAML==6.0.2",
+    "deepl==1.22.0",
+    "flashtext==2.7",
+    "pyinstaller==6.10.0",
+    "numpy==1.26.4",
+    "soxr==1.1.0",  # Streaming ASR resampling; LGPL-2.1-or-later, see docs/voice-stack/licensing.md.
+    "sentencepiece==0.2.1",  # PYSEC-2026-1909 fixed in 0.2.1
+    "openvr==1.26.701",
+    # VR UI overlay texture (models/overlay/overlay.py). Were imported but not
+    # declared here; pinned to the versions already verified working in .venv.
+    "glfw==2.7.0",
+    "PyOpenGL==3.1.7",
+    # VR UI window capture (Windows.Graphics.Capture). Like rapidocr it requires
+    # opencv-python, which tool.uv.exclude-dependencies drops; numpy and cv2
+    # (opencv-python-headless) are listed elsewhere in this file.
+    # Optional at runtime: without it the overlay falls back to PrintWindow.
+    "windows-capture==2.0.1 ; sys_platform=='win32'",
+    "pydub==0.25.1",
+    "psutil==5.9.8",
+    "pycaw==20240210 ; sys_platform=='win32'",
+    "websockets==15.0.1",
+    "huggingface_hub==0.32.2",
+    "hf-xet==1.1.2",
+    # NOTE: PYSEC-2026-3447 is fixed in setuptools 83.0.0, but setuptools removed
+    # the pkg_resources module entirely in 82.0.0, and both openvr and
+    # ctranslate2 still `import pkg_resources` at import time - bumping past
+    # 81.x breaks the app outright (verified: 32 test files fail to even collect).
+    # Stays pinned below the vulnerable-but-still-supported line until openvr/
+    # ctranslate2 drop their pkg_resources dependency upstream.
+    "setuptools==80.8.0",
+    "langchain-openai==0.3.32",
+    "langchain-google-genai==2.1.10",
+    "google-genai==1.45.0",
+    "grpcio==1.83.1",  # >=1.83.0: google-auth PQC support (min requirement from 2026-10)
+    "langchain-ollama==0.3.10",
+    "SudachiPy==0.6.10",
+    "SudachiDict-core==20250825",
+    "SudachiDict-full==20250825",
+    "aiohttp==3.14.3",
+    # requests is imported directly; urllib3/certifi are its transitive deps that
+    # are also used at runtime. pyperclip is imported directly too. None of these
+    # were declared here before (backend review 2026-08-27, phase 3 item 28) -
+    # pinned to the versions already verified working, so pip-audit can check them
+    # (`uv export --no-hashes --format requirements-txt | pip-audit -r /dev/stdin`).
+    "requests==2.34.2",
+    "urllib3==2.7.0",  # PYSEC-2026-141/1994/1996/1998 fixed by 2.6.0-2.7.0
+    "certifi==2025.8.3",
+    "pyperclip==1.11.0",
+    # Git dependencies are pinned to a commit SHA instead of a tag (tags are
+    # mutable, backend review 2026-08-27 phase 3 item 28). Each SHA is the commit
+    # the corresponding tag pointed to as of 2026-09-04 (verified via
+    # `git ls-remote --tags`).
+    "SpeechRecognition @ git+https://github.com/misyaguziya/custom_speech_recognition@afae7ff78cd5da36e864122f16972d2b0044e03f",  # tag: 3.10.4.5
+    "tinyoscquery @ git+https://github.com/cyberkitsune/tinyoscquery@5765a85b0d83da41b8266f75dfd3c99f0dec4411",  # tag: 0.1.3
+    "aptabase==0.1.0",
+    # OCR: RapidOCR (PP-OCR on ONNX). Replaced EasyOCR on 2026-09-18.
+    # Accuracy (95 training images, CER): EasyOCR 0.69 -> PP-OCRv6 small 0.27.
+    # EasyOCR required torch and pulled in torch(1.2GB)+scipy+scikit-image.
+    # NOTE: rapidocr requires opencv-python, but this app uses
+    # opencv-python-headless; tool.uv.exclude-dependencies drops opencv-python
+    # and rapidocr's other dependencies are listed explicitly below.
+    # Optional Windows window-capture OCR; not part of Linux voice startup.
+    "rapidocr==3.9.2 ; sys_platform == 'win32'",
+    "opencv-python-headless==4.10.0.84",
+    "omegaconf==2.3.1",
+    "colorlog==6.12.0",
+    "pyclipper==1.4.0",
+    "shapely==2.1.2",
+    "python-bidi==0.6.11",
+]
+
+[project.optional-dependencies]
+# The GPU (CUDA) build: everything above plus the CUDA math libraries that
+# ctranslate2 loads at runtime.
+cuda = [
+    "nvidia-cublas-cu12==12.8.4.1",
+    "nvidia-cudnn-cu12==9.7.1.26",
+]
+
+[dependency-groups]
+dev = [
+    "ruff==0.14.4",
+    "pytest==8.4.2",
+]
+# Linux packaging (tools/build_linux.py) adds this to the project and dev.
+linux-build = [
+    "pyinstaller-hooks-contrib==2026.9",
+]
+# Model-free headless tests and Controller contracts with OS/model services
+# injected; installed alone with --only-group.
+voice-test = [
+    "pytest==8.4.2",
+    "requests==2.34.2",
+    "PyYAML==6.0.2",
+    "ruff==0.14.4",
+    "numpy==1.26.4",
+    "soxr==1.1.0",
+    "psutil==5.9.8",
+    "pillow==10.0.0",
+    "websockets==15.0.1",
+    "tqdm==4.70.1",
+]
+# Optional browser/stdio fixtures, never bundled with VRCT-VOX.
+voice-ui-test = [
+    {include-group = "voice-test"},
+    "playwright==1.64.1",
+    "python-osc==1.9.0",
+]
+
+[tool.uv]
+# The backend is an application, not an installable package.
+package = false
+# Released platforms only: Windows x64 and Linux x86_64.
+environments = [
+    "sys_platform == 'win32' and platform_machine == 'AMD64'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+# rapidocr and windows-capture require opencv-python, which provides the same
+# cv2 module as the opencv-python-headless pinned above.
+exclude-dependencies = ["opencv-python"]

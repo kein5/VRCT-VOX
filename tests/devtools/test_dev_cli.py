@@ -28,7 +28,7 @@ class DeveloperCLITests(unittest.TestCase):
         self.root = Path(self.tmp.name)
         (self.root / "package.json").write_text('{"name":"vrct-vox"}')
         (self.root / "package-lock.json").write_text('{}')
-        (self.root / "requirements-voice-test.txt").write_text('pytest==8.4.2\n')
+        (self.root / "pyproject.toml").write_text('[project]\nname = "vrct-vox"\n')
 
     def call(self, *args):
         output = io.StringIO()
@@ -50,16 +50,17 @@ class DeveloperCLITests(unittest.TestCase):
         with patch.dict(os.environ, {"PATH": ""}):
             code, output = self.call("setup", "--scope", "headless", "--dry-run")
         self.assertEqual(code, 0)
-        self.assertIn("requirements-voice-test.txt", output)
+        self.assertIn("--only-group voice-test", output)
         self.assertIn("--python", output)
         self.assertFalse((self.root / "build").exists())
 
-    def test_headless_resolves_transitive_dependencies_from_non_lock_requirements(self):
-        # pytest needs pluggy/packaging: pip sync accepts a complete lock and
-        # would leave this existing direct-only requirements list incomplete.
+    def test_headless_syncs_an_exact_export_of_the_lock(self):
+        # uv export emits the full transitive set (pytest's pluggy etc.), so the
+        # owned environment can be synced to it exactly without re-resolving.
         code, output = self.call("setup", "--scope", "headless", "--dry-run")
         self.assertEqual(code, 0)
-        self.assertIn("pip install", output)
+        self.assertIn("export --frozen", output)
+        self.assertIn("pip sync", output)
 
     def test_missing_python_dependency_is_a_prerequisite_error(self):
         target = self.root / "build/dev/headless-venv"
@@ -118,7 +119,7 @@ class DeveloperCLITests(unittest.TestCase):
         code, output = self.call("setup", "--scope", "browser", "--python",
             sys.executable, "--dry-run")
         self.assertEqual(code, 0)
-        self.assertIn("requirements-voice-ui-test.txt", output)
+        self.assertIn("--only-group voice-ui-test", output)
         self.assertIn("pip install", output)
         self.assertNotIn("pip sync", output)
         self.assertNotIn("--with-deps", output)
