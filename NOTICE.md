@@ -105,7 +105,7 @@ them, as stated above; the table is kept for attribution.
 | RapidOCR and the PP-OCR ONNX models it ships, fetched by `tools/fetch_ocr_models.py` | 3.9.2 | Apache-2.0 |
 
 This table covers **model weights** only. Python package
-dependencies are listed in `requirements.txt` / `requirements_cuda.txt` and
+dependencies are listed in `pyproject.toml` (resolved in `uv.lock`) and
 carry their own licenses; JavaScript and Rust dependencies are listed in
 `package.json` and `src-tauri/Cargo.toml`.
 

@@ -8,7 +8,7 @@
 # uv.lock together.
 [project]
 name = "vrct-vox"
-version = "0.1.0"
+version = "0.1.0-beta.1"
 description = "VRCT-VOX backend: speech, voice conversion and translated chat"
 requires-python = "==3.11.*"
 dependencies = [
@@ -18,9 +18,9 @@ dependencies = [
     # src-python/utils.py). The GPU build gets its cuBLAS/cuDNN from the
     # nvidia-*-cu12 wheels of the `cuda` extra instead.
     "faster-whisper==1.1.1",
-    "ctranslate2==4.6.0",
-    "transformers==4.40.2",
-    "pillow==10.0.0",
+    "ctranslate2==4.8.4",
+    "transformers==5.22.1",
+    "pillow==13.0.0",
     "PyAudioWPatch==0.2.12.6 ; sys_platform=='win32'",
     "python-osc==1.9.0",
     "PyYAML==6.0.2",
@@ -30,7 +30,7 @@ dependencies = [
     "numpy==1.26.4",
     "soxr==1.1.0",  # Streaming ASR resampling; LGPL-2.1-or-later, see docs/voice-stack/licensing.md.
     "sentencepiece==0.2.1",  # PYSEC-2026-1909 fixed in 0.2.1
-    "openvr==1.26.701",
+    "openvr==2.12.1401",
     # VR UI overlay texture (models/overlay/overlay.py). Were imported but not
     # declared here; pinned to the versions already verified working in .venv.
     "glfw==2.7.0",
@@ -44,32 +44,34 @@ dependencies = [
     "psutil==5.9.8",
     "pycaw==20240210 ; sys_platform=='win32'",
     "websockets==15.0.1",
-    "huggingface_hub==0.32.2",
-    "hf-xet==1.1.2",
+    "huggingface_hub==2.4.0",
+    "hf-xet==1.8.0",
     # NOTE: PYSEC-2026-3447 is fixed in setuptools 83.0.0, but setuptools removed
     # the pkg_resources module entirely in 82.0.0, and both openvr and
     # ctranslate2 still `import pkg_resources` at import time - bumping past
     # 81.x breaks the app outright (verified: 32 test files fail to even collect).
     # Stays pinned below the vulnerable-but-still-supported line until openvr/
     # ctranslate2 drop their pkg_resources dependency upstream.
-    "setuptools==80.8.0",
-    "langchain-openai==0.3.32",
-    "langchain-google-genai==2.1.10",
-    "google-genai==1.45.0",
+    "setuptools==84.2.1",
+    "langchain-openai==1.7.3",
+    # Imported directly (OpenAI-compatible transcription and translation).
+    "openai==3.42.0",
+    "langchain-google-genai==4.4.2",
+    "google-genai==2.34.0",
     "grpcio==1.83.1",  # >=1.83.0: google-auth PQC support (min requirement from 2026-10)
-    "langchain-ollama==0.3.10",
+    "langchain-ollama==1.1.0",
     "SudachiPy==0.6.10",
     "SudachiDict-core==20250825",
     "SudachiDict-full==20250825",
-    "aiohttp==3.14.3",
+    "aiohttp==3.14.5",
     # requests is imported directly; urllib3/certifi are its transitive deps that
     # are also used at runtime. pyperclip is imported directly too. None of these
     # were declared here before (backend review 2026-08-27, phase 3 item 28) -
     # pinned to the versions already verified working, so pip-audit can check them
     # (`uv export --no-hashes --format requirements-txt | pip-audit -r /dev/stdin`).
     "requests==2.34.2",
-    "urllib3==2.7.0",  # PYSEC-2026-141/1994/1996/1998 fixed by 2.6.0-2.7.0
-    "certifi==2025.8.3",
+    "urllib3==2.8.0",  # PYSEC-2026-141/1994/1996/1998 fixed by 2.6.0-2.7.0
+    "certifi==2026.10.23",
     "pyperclip==1.11.0",
     # Git dependencies are pinned to a commit SHA instead of a tag (tags are
     # mutable, backend review 2026-08-27 phase 3 item 28). Each SHA is the commit
@@ -105,7 +107,7 @@ cuda = [
 [dependency-groups]
 dev = [
     "ruff==0.14.4",
-    "pytest==8.4.2",
+    "pytest==9.2.0",
 ]
 # Linux packaging (tools/build_linux.py) adds this to the project and dev.
 linux-build = [
@@ -114,14 +116,14 @@ linux-build = [
 # Model-free headless tests and Controller contracts with OS/model services
 # injected; installed alone with --only-group.
 voice-test = [
-    "pytest==8.4.2",
+    "pytest==9.2.0",
     "requests==2.34.2",
     "PyYAML==6.0.2",
     "ruff==0.14.4",
     "numpy==1.26.4",
     "soxr==1.1.0",
     "psutil==5.9.8",
-    "pillow==10.0.0",
+    "pillow==13.0.0",
     "websockets==15.0.1",
     "tqdm==4.70.1",
 ]
@@ -143,3 +145,6 @@ environments = [
 # rapidocr and windows-capture require opencv-python, which provides the same
 # cv2 module as the opencv-python-headless pinned above.
 exclude-dependencies = ["opencv-python"]
+# tinyoscquery pins zeroconf==0.39.1, which has known vulnerabilities; the
+# API it uses (Zeroconf, ServiceInfo, ServiceBrowser) is unchanged since.
+override-dependencies = ["zeroconf==0.152.0"]

@@ -245,4 +245,7 @@ def test_actual_sdk_request_and_response_using_in_memory_transport(tmp_path):
     assert raw["finish_reason"] == "STOP" and raw["usage"]["prompt_token_count"] == 42
     assert jobs.validate_boxes(json.loads(raw["text"])) == [box()]
     assert requests[0]["generationConfig"]["responseJsonSchema"] == jobs.SCHEMA
-    assert requests[0]["contents"][0]["parts"][0]["inlineData"]["mimeType"] == "image/png"
+    # google-genai 2.x serializes this field as mime_type; the API accepts both
+    # proto3 JSON spellings.
+    inline = requests[0]["contents"][0]["parts"][0]["inlineData"]
+    assert inline.get("mimeType", inline.get("mime_type")) == "image/png"

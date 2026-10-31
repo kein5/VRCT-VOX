@@ -59,7 +59,7 @@ class DeveloperCLITests(unittest.TestCase):
         # owned environment can be synced to it exactly without re-resolving.
         code, output = self.call("setup", "--scope", "headless", "--dry-run")
         self.assertEqual(code, 0)
-        self.assertIn("export --frozen", output)
+        self.assertIn("export --quiet --frozen", output)
         self.assertIn("pip sync", output)
 
     def test_missing_python_dependency_is_a_prerequisite_error(self):

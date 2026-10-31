@@ -4,7 +4,7 @@ Windows向けのビルド手順と、現在のCIを説明します。Linuxでは
 
 ## Windowsの準備
 
-Node.jsとnpm、Python 3.11、Rust、Git、TauriのWindowsビルドに必要なVisual Studio C++ツールを用意します。CIのNode.jsは22.15.0です。依存関係は`package-lock.json`、`requirements.txt`、`requirements_cuda.txt`、`src-tauri/Cargo.lock`で管理しています。
+Node.jsとnpm、Python 3.11、Rust、Git、TauriのWindowsビルドに必要なVisual Studio C++ツールを用意します。CIのNode.jsは22.15.0です。Pythonの依存関係は[uv](https://docs.astral.sh/uv/getting-started/installation/)で管理するため、uvも用意します。依存関係は`package-lock.json`、`pyproject.toml`と`uv.lock`、`src-tauri/Cargo.lock`で管理しています。
 
 ```sh
 git clone https://github.com/kein5/VRCT-VOX.git
@@ -13,9 +13,9 @@ npm ci
 npm run setup-python
 ```
 
-`setup-python`は`.venv`と`.venv_cuda`を作り直し、標準版とCUDA版の依存関係を入れます。既存の同名環境も削除するため、個別に追加した依存関係があれば先に記録してください。
+`setup-python`は`uv sync --frozen`で`.venv`（標準版）と`.venv_cuda`（`cuda`のextra付き）を`uv.lock`のとおりに同期します。ロックにないパッケージは削除されるため、個別に追加した依存関係があれば先に記録してください。
 
-CUDA版は対応するNVIDIAドライバーを使います。cuBLAS・cuDNNは`requirements_cuda.txt`の`nvidia-*-cu12`パッケージから同梱するため、CUDA Toolkitを別に入れる必要はありません。モデルの取得と本体のビルドは別の操作です。
+CUDA版は対応するNVIDIAドライバーを使います。cuBLAS・cuDNNは`pyproject.toml`の`cuda` extraにある`nvidia-*-cu12`パッケージから同梱するため、CUDA Toolkitを別に入れる必要はありません。モデルの取得と本体のビルドは別の操作です。
 
 ## 開発時の起動
 

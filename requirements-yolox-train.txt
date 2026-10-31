@@ -1,5 +1,5 @@
 # Chat bubble detector (YOLOX-Tiny) training environment. Dev machine only; not shipped with VRCT.
-# CUDA 12.8 wheel (RTX 2080 Ti / sm_75). Same torch series as requirements_cuda.txt.
+# CUDA 12.8 wheel (RTX 2080 Ti / sm_75). Matches the CUDA 12 series of the backend's cuda extra (pyproject.toml).
 --extra-index-url https://download.pytorch.org/whl/cu128
 torch==2.7.0
 torchvision==0.22.0
@@ -24,7 +24,7 @@ tensorboard==2.21.0
 pycocotools==2.0.11
 
 # ONNX export. onnxruntime is only used to check the exported model here;
-# VRCT ships its own copy through requirements.txt.
+# VRCT ships its own copy through pyproject.toml.
 onnx==1.23.0
 onnxsim==0.7.3
 onnxruntime==1.30.0

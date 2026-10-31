@@ -1,13 +1,12 @@
-"""bat/*.bat と requirements*.txt が ASCII のみ・制御文字なしであることを保証する。
+"""bat/*.bat が ASCII のみ・制御文字なしであることを保証する。
 
 これらのファイルは UTF-8 前提では読まれない。
 
 - cmd.exe は .bat をコンソールの OEM コードページ (日本語環境では CP932) で
   読む。BOM 無し UTF-8 の日本語は CP932 としてデコードできないバイト列になり、
   REM 行が化ける。
-- pip-audit の requirements パーサは OS ロケールのコードページでファイルを
-  デコードする (docs/backend_review_2026-08-27.md 項目28 で実測済み。
-  requirements.txt のコメントに ASCII-only の NOTE がある)。
+- Python の依存関係は pyproject.toml / uv.lock (UTF-8 の TOML) に移したため、
+  かつての requirements*.txt (pip-audit が OS ロケールで読んでいた) は対象外になった。
 
 制御文字を弾くのは別種の事故を止めるため。`tools\\fetch_ocr_models.py` のような
 Windows パスを、エスケープを解釈する経路 (Python の文字列リテラル、クォート無し
@@ -22,9 +21,9 @@ import unittest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# install.bat が pip に渡す2つだけを対象にする。requirements-yolox-train.txt など
-# 学習ツール用のファイルは配布物にもインストーラにも関わらないので対象外。
-TARGETS = ("bat/*.bat", "requirements.txt", "requirements_cuda.txt")
+# requirements-yolox-train.txt など学習ツール用のファイルは配布物にも
+# インストーラにも関わらないので対象外。
+TARGETS = ("bat/*.bat",)
 
 # 改行だけ許可する。.bat と requirements にタブが必要な場面は無く、タブを許すと
 # `\t` を含むパスの取り違え (例: tools\test.py) を見逃す。
