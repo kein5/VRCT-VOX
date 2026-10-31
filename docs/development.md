@@ -45,11 +45,11 @@ Linuxのトレイ用ライブラリは `ayatana-appindicator3-0.1` または `ap
 | `rust` | `cargo fetch --locked` でCargo.lockに従う依存を取得 |
 | `sidecar` | Unixで既存Rustソースをコンパイルし、Tauri開発用wrapperと必要なplaceholderを準備 |
 
-専用venvには所有マーカーを保存します。同じ場所にマーカーのない既存ディレクトリやシンボリックリンクがある場合は停止し、削除しません。`headless` と `browser` のrequirementsは直接依存の一覧なので、`uv pip install` で間接依存も解決します。完全なlockがあるLinux backendだけは `uv pip sync` を使います。[uvの環境指定](https://docs.astral.sh/uv/pip/environments/)と[依存の固定・同期](https://docs.astral.sh/uv/pip/compile/)に沿った使い分けです。
+専用venvには所有マーカーを保存します。同じ場所にマーカーのない既存ディレクトリやシンボリックリンクがある場合は停止し、削除しません。Pythonのスコープはいずれも、`uv.lock` から間接依存まで含む一覧を `uv export` で `build/dev/<scope>-requirements.txt` に書き出し、専用venvへ `uv pip sync` で同期します。`--python` で既存venvを指定した場合（`browser` のみ）は `uv pip install -r` で追加し、ほかのパッケージは削除しません。[uvの環境指定](https://docs.astral.sh/uv/pip/environments/)と[依存の固定・同期](https://docs.astral.sh/uv/pip/compile/)を参照してください。
 
 `setup --scope ui` は既存の `node_modules` をnpmの仕様どおり作り直します。package.jsonとpackage-lock.jsonに不一致があれば失敗し、lockを更新しません。[npm ciの仕様](https://docs.npmjs.com/cli/v11/commands/npm-ci)を参照してください。
 
-Windowsでも `headless`、`ui`、`browser`、`rust` は同じ入口です。backend自動準備は現在Linuxのlockを使うため、Windowsでは診断を出して終了します。既存のWindows全体セットアップは `npm run setup-python` ですが、現在のbatは `.venv` と `.venv_cuda` を作り直します。既存環境を保持したい場合には実行せず、利用できる環境を `--python` で検証に渡してください。
+Windowsでも `headless`、`ui`、`browser`、`rust` は同じ入口です。backend自動準備は現在Linuxのlockを使うため、Windowsでは診断を出して終了します。Windowsの全体セットアップは `npm run setup-python` です。このbatは `uv sync --frozen` で `.venv` と `.venv_cuda` を `uv.lock` に合わせるため、lockにないパッケージは削除されます。既存環境を保持したい場合には実行せず、利用できる環境を `--python` で検証に渡してください。
 
 ### Tauri開発用sidecarを準備する
 
@@ -171,4 +171,4 @@ python tools/build_voice_gate.py
 python tools/dev.py check --scope voice
 ```
 
-npmとCargoは既存のlockを使います。Linux backendは完全な依存一覧を使い、headless/browserは直接依存を固定しています。後者の間接依存、Pythonのpatch版、Rust、OSライブラリまではこのCLIで完全固定しません。同じビット列の配布物や全機種での動作を保証するものではありません。検証記録には `doctor --json` の結果、実行scope、commit、OSを併記します。
+npm、Cargo、Pythonはそれぞれ `package-lock.json`、`Cargo.lock`、`uv.lock` を使います。Pythonの書き出しにはハッシュを含めないため、wheelのハッシュ照合はしません。Python本体のpatch版、Rust、OSライブラリもこのCLIでは固定しません。同じビット列の配布物や全機種での動作を保証するものではありません。検証記録には `doctor --json` の結果、実行scope、commit、OSを併記します。
