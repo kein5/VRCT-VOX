@@ -53,6 +53,13 @@ jobs:
       SPEECH_VARIANT: ${{ inputs.speech_variant || 'linux-x64-vulkan' }}
       UV_PYTHON: '3.11'
     steps:
+      # The tar.gz, the AppDir and the AppImage together nearly fill the
+      # runner disk; drop preinstalled SDKs this job never uses.
+      - name: Free runner disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
