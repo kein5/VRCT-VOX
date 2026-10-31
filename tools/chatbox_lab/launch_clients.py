@@ -102,6 +102,21 @@ def launch(args):
 def stop(_args):
     if not STATE.is_file():
         return
+    # Wine reparents VRChat.exe away from the launcher, so find the clients by
+    # their profile argument as well as by the launcher's process group.
+    profiles = {f'--profile={c["profile"]}' for c in json.loads(STATE.read_text())['clients']}
+    for proc in Path('/proc').iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            argv = (proc / 'cmdline').read_bytes().decode(errors='replace').split('\0')
+        except OSError:
+            continue
+        if any(a.lower().endswith('vrchat.exe') for a in argv) and profiles & set(argv):
+            try:
+                os.kill(int(proc.name), signal.SIGTERM)
+            except ProcessLookupError:
+                pass
     for client in json.loads(STATE.read_text())['clients']:
         try:
             os.killpg(client['pid'], signal.SIGTERM)
