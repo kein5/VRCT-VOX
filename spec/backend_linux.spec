@@ -31,13 +31,16 @@ for package in ('ctranslate2', 'transformers', 'faster-whisper', 'huggingface-hu
                 'packaging', 'filelock', 'tqdm', 'pyyaml'):
     datas += copy_metadata(package)
 
-a = Analysis([str(root / 'src-python/mainloop.py')], pathex=[str(root / 'src-python')],
+# The PyAV stand-in comes first so its GPL x264/x265 libraries stay out (see the stub).
+a = Analysis([str(root / 'src-python/mainloop.py')], pathex=[str(root / 'packaging/pyinstaller-stubs'), str(root / 'src-python')],
     binaries=binaries, datas=datas,
     hiddenimports=['models.voice_conversion.router_worker',
                    'faster_whisper.vad', 'cv2', 'models.ocr'],
     hookspath=[], hooksconfig={}, runtime_hooks=[],
     excludes=['pandas', 'matplotlib', 'PyQt5', 'torch', 'tensorflow', 'rapidocr',
-              'windows_capture', 'pytest', 'ruff'], noarchive=False, optimize=0)
+              'windows_capture', 'pytest', 'ruff'], noarchive=False, optimize=0,
+    # LGPL Python code stays as replaceable source files outside the PYZ archive.
+    module_collection_mode={'zeroconf': 'py', 'bidi': 'py'})
 a.datas = filter_toc(a.datas)
 a.binaries = filter_toc(a.binaries)
 pyz = PYZ(a.pure)
