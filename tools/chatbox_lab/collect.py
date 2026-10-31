@@ -10,23 +10,21 @@ with no chatbox are saved too, as negatives.
 With --avatar-every, the speaker switches to a random avatar from the ones
 this account has worn (VRChat keeps an OSC config for each) every N
 messages. VRChat only switches to avatars the account may use; the switch
-is confirmed by the /avatar/change that VRChat sends back, and avatars
-that do not switch are skipped.
+is confirmed from the speaker's VRChat log, avatars that do not switch are
+skipped, and the avatar worn at the start is restored at the end.
 
 Run only in the lab's own local test instance: never capture other people.
 """
 import argparse
 import json
 import random
+import re
 import sys
-import threading
 import time
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from pythonosc.dispatcher import Dispatcher
-from pythonosc.osc_server import ThreadingOSCUDPServer
 from pythonosc.udp_client import SimpleUDPClient
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -65,47 +63,81 @@ class CameraWindow(X11WindowCapture):
         if self._open() is None:
             return None
         self._begin()
+        # The client also owns hidden helper windows; take its largest viewable one.
+        best, best_area = None, 0
         for window in self._candidates():
             pid = self._pid(window)
             try:
                 command = Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0')
             except OSError:
                 continue
-            if f'--profile={self.profile}'.encode() in command:
-                return window
-        return None
+            attributes = self._viewable(window)
+            if f'--profile={self.profile}'.encode() in command and attributes is not None:
+                area = attributes.width * attributes.height
+                if area > best_area:
+                    best, best_area = window, area
+        return best
+
+
+def avatar_names():
+    """Avatars this PC's account has worn, by id: VRChat writes an OSC config for each."""
+    names = {}
+    for path in (VRCHAT_DATA / 'OSC').glob('usr_*/Avatars/avtr_*.json'):
+        try:
+            names[path.stem] = json.loads(path.read_text(encoding='utf-8-sig')).get('name') or ''
+        except (OSError, ValueError):
+            continue
+    return names
 
 
 def known_avatars():
-    """Avatars this PC's account has worn: VRChat writes an OSC config for each."""
-    return sorted(path.stem for path in (VRCHAT_DATA / 'OSC').glob('usr_*/Avatars/avtr_*.json'))
+    return sorted(avatar for avatar, name in avatar_names().items() if name)
 
 
 class AvatarSwitcher:
-    """Switch the speaker's avatar and wait for VRChat to confirm it."""
+    """Switch the speaker's avatar and confirm it from the speaker's VRChat log.
 
-    def __init__(self, osc: SimpleUDPClient, listen_port: int):
+    VRChat does not answer /avatar/change over OSC here, but its log says
+    "Switching <user> to avatar <name>" when it switches (the name comes from
+    the avatar's OSC config) and "did not pass initial checks" when it cannot
+    be used. Switching changes the account's current avatar, so the one worn
+    at the start is restored at the end.
+    """
+
+    def __init__(self, osc: SimpleUDPClient, profile: int = 0):
         self.osc = osc
-        self.current = None
-        self.changed = threading.Event()
-        dispatcher = Dispatcher()
-        dispatcher.map('/avatar/change', self._on_change)
-        self.server = ThreadingOSCUDPServer(('127.0.0.1', listen_port), dispatcher)
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        logs = sorted(VRCHAT_DATA.glob('output_log_*.txt'), key=lambda p: p.stat().st_mtime, reverse=True)
+        marker = f'Arg: --profile={profile}'
+        self.log = next(p for p in logs if marker in p.read_text(errors='replace')[:20000])
+        names = avatar_names()
+        worn = re.findall(r'Switching \S+ to avatar (.+)', self.log.read_text(errors='replace'))
+        by_name = {name: avatar for avatar, name in names.items()}
+        self.original = by_name.get(worn[-1].strip()) if worn else None
+        self.names = names
 
-    def _on_change(self, _address, avatar_id, *_rest):
-        self.current = avatar_id
-        self.changed.set()
-
-    def switch(self, avatar_id: str, timeout: float = 20.0) -> bool:
-        self.changed.clear()
+    def switch(self, avatar_id: str, timeout: float = 30.0) -> bool:
+        offset = self.log.stat().st_size
         self.osc.send_message('/avatar/change', avatar_id)
         end = time.monotonic() + timeout
+        switched_at = None
         while time.monotonic() < end:
-            if self.changed.wait(max(0.0, end - time.monotonic())) and self.current == avatar_id:
+            time.sleep(0.5)
+            with open(self.log, encoding='utf-8', errors='replace') as log:
+                log.seek(offset)
+                tail = log.read()
+            if f"'{avatar_id}' did not pass" in tail:
+                return False
+            name = self.names.get(avatar_id)
+            if switched_at is None and name and f'to avatar {name}' in tail:
+                switched_at = time.monotonic()
+            # A rejected avatar is reported right after the switch line.
+            if switched_at is not None and time.monotonic() - switched_at >= 3.0:
                 return True
-            self.changed.clear()
         return False
+
+    def restore(self) -> None:
+        if self.original:
+            self.switch(self.original)
 
 
 def capture(camera: CameraWindow, retries: int = 5):
@@ -124,6 +156,7 @@ def main():
     parser.add_argument('--interval', type=float, default=2.5, help='seconds between chat messages (OSC is rate limited)')
     parser.add_argument('--negative-every', type=int, default=5, help='capture a frame without chatbox every N messages')
     parser.add_argument('--avatar-every', type=int, default=0, help='switch to a random avatar every N messages')
+    parser.add_argument('--restore-avatar', default=None, help='avatar to wear afterwards (default: the one worn at start)')
     parser.add_argument('--seed', type=int, default=None)
     args = parser.parse_args()
 
@@ -139,7 +172,18 @@ def main():
     out.mkdir(parents=True)
     rng = random.Random(args.seed)
     avatars = known_avatars() if args.avatar_every else []
-    switcher = AvatarSwitcher(osc, speaker['osc_out']) if avatars else None
+    switcher = AvatarSwitcher(osc, speaker['profile']) if avatars else None
+    if switcher and args.restore_avatar:
+        switcher.original = args.restore_avatar
+    try:
+        collect(args, osc, camera, out, rng, avatars, switcher)
+    finally:
+        osc.send_message('/chatbox/input', ['', True, False])
+        if switcher:
+            switcher.restore()
+
+
+def collect(args, osc, camera, out, rng, avatars, switcher):
     avatar = None
     end = time.monotonic() + args.minutes * 60
     count = 0
@@ -165,7 +209,6 @@ def main():
                 index.flush()
             count += 1
             time.sleep(max(0.0, args.interval - 1.2))
-    osc.send_message('/chatbox/input', ['', True, False])
     print(f'{count} frames in {out}')
 
 
