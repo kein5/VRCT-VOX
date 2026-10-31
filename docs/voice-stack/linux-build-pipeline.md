@@ -1,6 +1,6 @@
 # Linux build pipeline
 
-`tools/build_linux.py` builds an **unpublished x86_64 candidate**: frozen Python sidecar,
+`tools/build_linux.py` builds an x86_64 candidate: frozen Python sidecar,
 Tauri frontend, four C audio helpers and pinned speech.cpp 0.10.0 CPU or Vulkan.
 The default output is a `tar.gz`, SHA-256 sidecar and JSON file inventory. Use tar with symlink
 preservation; copying only the executable or flattening `_internal` is unsupported.
@@ -10,8 +10,10 @@ see [AppImage build and acceptance](appimage.md). The CI builds both formats.
 The GitHub Actions workflow `VRCT-VOX Linux candidate (no publication)` targets Ubuntu 24.04.
 It runs on relevant pull requests or manual dispatch, tests the relocated package,
 and the AppImage extraction fallback, then retains successful candidates for seven days. It has `contents: read`, no
-publishing credentials and no release/AUR/upstream actions. Creating the workflow
-does not mean a hosted run has already passed.
+publishing credentials and no release/AUR actions. The Linux packages of the
+[`v0.1.0-beta.1` prerelease](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.1)
+are candidates from this workflow, published through the
+[release draft gate](release-candidates.md). A local build is an unpublished candidate.
 
 ## Build locally
 
@@ -129,7 +131,8 @@ explicitly subject to the final attribution audit. OCR weights are excluded rega
 
 ## Remaining release gates
 
-- Hosted Ubuntu workflow and clean-distribution runtime acceptance must actually run.
+- The hosted Ubuntu workflow runs for every candidate. Runtime acceptance on clean
+  installations of other distributions remains a release gate.
 - All bundled native/Python/Rust/frontend components need a completed license/SBOM
   audit, including GPL/LGPL corresponding-source/relink obligations, and the
   user-requested Trail of Bits Skills security review. Collected notices alone
@@ -137,7 +140,7 @@ explicitly subject to the final attribution audit. OCR weights are excluded rega
 - Real model, listening quality, physical latency, Windows and cross-distribution
   tests retain their existing acceptance status; these smoke tests do not replace them.
 - AUR needs a real approved release URL/hash, PKGBUILD/.SRCINFO, clean-chroot and
-  install/update/remove tests. No AUR submission or upstream PR is performed here.
+  install/update/remove tests. No AUR submission is performed here.
 
 ## Primary evidence
 

@@ -72,21 +72,21 @@ WindowsのZIPには`vrct-vox.exe`、`vrct-vox-sidecar.exe`、依存ファイル�
 
 ## バージョン管理
 
-バージョンは`package.json`で管理し、次のコマンドで`src-tauri/tauri.conf.json`と`src-python/config.py`へ同期します。通常のビルドコマンドでも同期処理を実行します。
+バージョンは`package.json`で管理し、次のコマンドで`src-tauri/tauri.conf.json`、`src-python/config.py`、`pyproject.toml`へ同期します。`pyproject.toml`の版が変わったときは`uv lock`も実行して`uv.lock`を更新します。通常のビルドコマンドでも同期処理を実行します。
 
 ```sh
 npm run update-version
 ```
 
-`3.6.0-beta.1`のような識別子も使えます。バージョン文字列だけで公開や配布先の切り替えは行いません。ZIP名はバージョンを含まない固定名で、NSIS・Linux候補のファイル名にはバージョンが入ります。
+版は上流VRCT（3.x）とは別に0.1.0から数えます。`0.1.0-beta.1`のような識別子も使えます。バージョン文字列だけで公開や配布先の切り替えは行いません。ZIP名はバージョンを含まない固定名で、NSIS・Linux候補のファイル名にはバージョンが入ります。
 
 ## CIと公開先
 
-[voice-tests.yml](../.github/workflows/voice-tests.yml)はpushとpull requestで回帰試験を実行します。[build-linux.yml](../.github/workflows/build-linux.yml)は対象ファイルのpull requestと手動実行に対応し、Linux候補を作成・検査します。[release.yml](../.github/workflows/release.yml)は手動でWindows候補を作成・検査するワークフローです。
+[voice-tests.yml](../.github/workflows/voice-tests.yml)はpushとpull requestで回帰試験を実行します。[build-linux.yml](../.github/workflows/build-linux.yml)は対象ファイルのpull requestと手動実行に対応し、Linux候補を作成・検査します。[release.yml](../.github/workflows/release.yml)はWindows候補を作成・検査するワークフローで、手動実行とmain宛てのpull requestで動きます。CPU版とCUDA版は並列のジョブでビルドし、最後のジョブで両方を検査します。[prepare-release.yml](../.github/workflows/prepare-release.yml)は、検査済みの候補からリリースの下書きを作る手動のワークフローです。
 
 ビルド候補はGitHub Actionsの成果物として保存します。これらのワークフローはGitHub ReleasesやHugging Faceへ自動公開しません。タグをpushしても公開処理は始まりません。権限は`contents: read`で、本家の公開用キーやテレメトリー用キーは使いません。
 
-配布先は[kein5/VRCT-VOX Releases](https://github.com/kein5/VRCT-VOX/releases)です。WindowsのNSISインストーラーは、このリポジトリのリリースから`VRCT-VOX.zip`または`VRCT-VOX_cuda.zip`を取得します。候補をビルドしただけでは、そのURLにファイルは存在しません。アプリ内更新は無効です。
+配布先は[kein5/VRCT-VOX Releases](https://github.com/kein5/VRCT-VOX/releases)です。最初の公開版は`v0.1.0-beta.1`（プレリリース、developから作成）です。WindowsのNSISインストーラーは、このリポジトリのリリースから`VRCT-VOX.zip`または`VRCT-VOX_cuda.zip`を取得します。候補をビルドしただけでは、そのURLにファイルは存在しません。アプリ内更新は無効です。
 
 公開前に[配布検査](voice-stack/fork-distribution-isolation.md)とライセンス監査を行います。ローカルで作った候補と公開済みリリースは区別します。上流への連絡やPRの扱いは[公開方針](voice-stack/publication-and-upstream.md)を参照してください。
 
@@ -96,7 +96,7 @@ npm run update-version
 
 `npm run task-kill`は実行中の`vrct-vox-sidecar.exe`を強制終了します。保存や変換の途中で実行しないでください。
 
-Python依存の問題は、選択した仮想環境とrequirementsの対応から確認します。Tauriの失敗はRust・C++ツールとsidecarの配置、画面だけの失敗は`npm run vite-build`の出力を確認します。CUDAの失敗では、ドライバーとCUDA版の仮想環境を確認してください。ビルド用のスペックファイルは`spec/backend.spec`、`spec/backend_cuda.spec`、`spec/backend_linux.spec`です。
+Python依存の問題は、選択した仮想環境が`uv.lock`と一致しているかを確認します。`npm run setup-python`で同期し直せます。Tauriの失敗はRust・C++ツールとsidecarの配置、画面だけの失敗は`npm run vite-build`の出力を確認します。CUDAの失敗では、ドライバーとCUDA版の仮想環境を確認してください。ビルド用のスペックファイルは`spec/backend.spec`、`spec/backend_cuda.spec`、`spec/backend_linux.spec`です。
 
 設定保存先とアプリIDは[名称と識別子](voice-stack/project-rename.md)を参照してください。元の[LICENSE](../LICENSE)と[NOTICE](../NOTICE.md)を保持し、同梱ライブラリとモデルの条件はそれぞれ確認します。
 

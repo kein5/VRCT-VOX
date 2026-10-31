@@ -1,6 +1,6 @@
 # VRCT-VOXの名称と識別子
 
-VRCT-VOXは[misyaguziya/VRCT](https://github.com/misyaguziya/VRCT)を基にしたforkです。上流のVRCTと、上流の作者による別プロジェクト[VRCT-TTS](https://github.com/misyaguziya/VRCT-TTS)の名称は変更しません。
+VRCT-VOXは[misyaguziya/VRCT](https://github.com/misyaguziya/VRCT)を基にした派生プロジェクトです（MIT）。2026-10-31にGitHubのfork networkから外れましたが、元のライセンスと帰属表示は維持します。上流のVRCTと、上流の作者による別プロジェクト[VRCT-TTS](https://github.com/misyaguziya/VRCT-TTS)の名称は変更しません。
 
 ## 名称
 
@@ -37,4 +37,4 @@ WindowsのNSISテンプレートは上記のレジストリキーから前回の
 
 ## 公開
 
-CIは[ビルドガイド](../readme_build.md)のとおり、試験と配布候補の作成を行います。GitHub Releasesの下書きは[手動の検証ゲート](release-candidates.md)から作成できます。自動公開とHugging Faceへのアップロードは無効のままです。元のライセンス・著作権・謝辞は維持します。
+CIは[ビルドガイド](../readme_build.md)のとおり、試験と配布候補の作成を行います。GitHub Releasesの下書きは[手動の検証ゲート](release-candidates.md)から作成し、保守担当者が確認して公開します。最初の公開版は`v0.1.0-beta.1`（プレリリース）です。版は上流VRCT（3.x）とは別に0.1.0から数えます。自動公開とHugging Faceへのアップロードは無効のままです。元のライセンス・著作権・謝辞は維持します。

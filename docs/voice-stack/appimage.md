@@ -1,7 +1,10 @@
 # Linux AppImage candidate
 
-The Linux builder can also produce an **unpublished x86_64 AppImage** containing
-the release GUI, frozen Python sidecar, four audio helpers and pinned speech.cpp.
+The Linux builder can also produce an x86_64 AppImage containing the release GUI,
+frozen Python sidecar, four audio helpers and pinned speech.cpp. The
+[`v0.1.0-beta.1` prerelease](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.1)
+ships an AppImage built by the hosted Linux candidate workflow; an image you
+build locally is an unpublished candidate.
 It deploys GTK/WebKit dependencies before adding the backend, so GUI library
 rewriting never changes the inference executable or frozen backend bytes.
 
@@ -79,6 +82,13 @@ Other GPUs retain their default. An explicit `WEBKIT_DISABLE_DMABUF_RENDERER=0`
 requests the original path. This is unrelated to the earlier DPMS-off failure.
 See [Tauri's graphics guidance](https://v2.tauri.app/develop/debug/linux-graphics/).
 
+The image loads only its bundled GTK input method modules, which have no fcitx
+or ibus module. When `XMODIFIERS` is unset and fcitx/fcitx5 or ibus-daemon is
+running, the launcher sets `XMODIFIERS` to that input method and selects GTK's
+XIM module, so Mozc and other host input methods can type into the window.
+A user-set `XMODIFIERS` is kept. The sidecar gets the host's original
+`GTK_IM_MODULE` and `XMODIFIERS` back.
+
 With the NVIDIA fallback active, the main window is also made opaque. The
 original transparent window lost its contents during ordinary startup/hover on
 this host, despite passing the initial WebDriver screenshot tests. Disabling
@@ -110,9 +120,9 @@ routing case needs WirePlumber 0.5. It records no physical microphone and uses
 no inference models. The CI uses Xvfb and tests extraction; it does not claim
 FUSE, physical audio or private routing acceptance on Ubuntu 24.04.
 
-The local build uses CachyOS/glibc 2.44 and includes GLIBC_2.44 references. It is
-not an Ubuntu-compatible release. The hosted Ubuntu workflow and other target
-machines must be tested separately. Host kernel/glibc, GPU drivers, PipeWire and
+A local build on CachyOS/glibc 2.44 includes GLIBC_2.44 references and does not
+run on older distributions. Release images come from the hosted Ubuntu 24.04
+workflow; other target machines must be tested separately. Host kernel/glibc, GPU drivers, PipeWire and
 command-line audio tools remain requirements. Owned audio helpers currently need
 Linux >=6.9. AppImage does not remove these requirements.
 
@@ -126,7 +136,8 @@ all libraries copied into the image. patchelf is a build tool only and is not
 shipped in the runtime tree.
 
 The workflow uploads a candidate only after its build and acceptance steps pass.
-It has no release publisher, AUR submission or upstream contact. See
+It has no release publisher or AUR submission; release drafts are made separately
+as described in [release candidates](release-candidates.md). See
 [the local results](appimage-results.json) for measured results and remaining limits.
 
 ## Investigation evidence

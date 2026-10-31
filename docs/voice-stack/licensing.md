@@ -3,11 +3,13 @@
 2026-10-27に提供されたevidence mapと以下の一次資料を参照。
 この冒頭表は初期調査時点の記録。後日、ユーザー承認済みの開発用モデル取得とSeed外部worker実装を行った。配布許可とは区別し、各PoC報告と下記追記を参照。
 
+2026-10-31に`v0.1.0-beta.1`（プレリリース）を公開した。Linux配布物（tar.gz・AppImage）には固定speech.cpp 0.10.0の実行ファイルと通知を同梱した。Windows版には同梱していない。配布物のLGPL/GPL部品は[NOTICE](../../NOTICE.md#lgpl-and-gpl-components-in-vrct-vox-builds)に記載。以下の各節は日付ごとの記録で、「未公開」「次工程」などはその時点の状態を表す。
+
 | 対象 | 確認した根拠 | 今回の扱い |
 |---|---|---|
 | VRCTコード | [LICENSE](../../LICENSE), [NOTICE](../../NOTICE.md) | MIT帰属を維持 |
 | upstream OCR検出重み | [モデルライセンス](../../src-python/models/ocr/onnx/LICENSE.txt) | fork成果物から除外。ソース内の開発用ファイルは保持 |
-| speech.cpp | [検証済みv0.10.0のMIT](https://github.com/nyosegawa/speech.cpp/blob/v0.10.0/LICENSE) | 2026-10-29承認後、固定CPU/Vulkan実行ファイルと依存通知の配布部品を作成・検証。GUI/アプリ全体への同梱は次工程、未公開。下記追記参照 |
+| speech.cpp | [検証済みv0.10.0のMIT](https://github.com/nyosegawa/speech.cpp/blob/v0.10.0/LICENSE) | 2026-10-29承認後、固定CPU/Vulkan実行ファイルと依存通知の配布部品を作成・検証。Linux配布物に同梱し、0.1.0-beta.1で公開。下記追記参照 |
 | Irodori v4.1 Small MF | [モデルカード](https://huggingface.co/Aratako/Irodori-TTS-v4.1-Small-MF) | 日本語のみ。MIT表示に加え、声の本人の明示同意・なりすまし/誤情報禁止の記載を確認。ユーザー管理のvoiceだけ利用 |
 | Irodori Large | [モデル説明](https://github.com/nyosegawa/speech.cpp/blob/main/docs/models/irodori-tts.md) | Smallと条件を混同しない。今回は同梱・検証なし |
 | Qwen3-TTS | [モデル説明](https://github.com/nyosegawa/speech.cpp/tree/main/docs/models) | ユーザーが選んだ重みの条件・hashを実機導入時に記録。モデル取得なし |
