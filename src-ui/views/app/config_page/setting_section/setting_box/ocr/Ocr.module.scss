@@ -38,6 +38,22 @@
     gap: .6rem;
 }
 
+.detector {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 1.6rem;
+    border-bottom: .1rem solid var(--dark_800_color, #34363b);
+    // The download section below the status draws its own divider; one is enough.
+    &:has(> section) { padding-bottom: 0; border-bottom: 0; }
+}
+
+.detectorStatus {
+    font-size: 1.2rem;
+    line-height: 1.6;
+    color: var(--dark_400_color, #9ca3af);
+    &[data-state="on"] { color: var(--primary_300_color); }
+}
+
 .region {
     display: flex;
     flex-direction: column;
