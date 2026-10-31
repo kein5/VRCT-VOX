@@ -239,3 +239,54 @@ def test_silent_pcm_does_not_disable_start_deadline(pcm_server):
         finally:
             release.set()
             assert bus.close()
+
+
+def test_start_expiry_waits_again_when_the_timer_wakes_early(monkeypatch):
+    # Windows timed waits can return up to a timer tick before the deadline.
+    import models.tts.tts_scheduler as scheduler
+
+    clock = [0.0]
+    monkeypatch.setattr(scheduler, "monotonic", lambda: clock[0])
+
+    class EarlyWake:
+        def __init__(self):
+            self.waits = []
+            self.stopped = False
+
+        def is_set(self):
+            return self.stopped
+
+        def set(self):
+            self.stopped = True
+
+        def wait(self, timeout):
+            self.waits.append(timeout)
+            clock[0] += timeout - 0.0156 if len(self.waits) == 1 else timeout
+            return False
+
+    class Token:
+        expired = 0
+
+        def expire_start(self):
+            assert clock[0] >= 1.0, "expired before the deadline"
+            Token.expired += 1
+
+    expiry = scheduler.StartExpiry(Token(), 1.0)
+    expiry._stopped = EarlyWake()
+    expiry._run()
+    assert Token.expired == 1
+    assert len(expiry._stopped.waits) == 2  # the early wake was waited out
+
+
+def test_start_expiry_cancel_stops_without_expiring():
+    import models.tts.tts_scheduler as scheduler
+    from time import monotonic
+
+    class Token:
+        def expire_start(self):
+            raise AssertionError("cancelled expiry must not fire")
+
+    expiry = scheduler.StartExpiry(Token(), monotonic() + 30).start()
+    expiry.cancel()
+    expiry._thread.join(1)
+    assert not expiry._thread.is_alive()
