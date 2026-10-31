@@ -96,7 +96,9 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
             {rvc && draft.rvc_index_rate > 0 && !draft.rvc_index && <p role="alert">{t("voice_ui.rvc_index_required")}</p>}
         </>}
         </fieldset>
-        {rvc && <ModelDownloads targets={["rvc"]} blocked={dirty || busy || saving}
+        {/* Other unsaved edits survive an apply; only edited model or index paths conflict. */}
+        {rvc && <ModelDownloads targets={["rvc"]} blocked={busy || saving ? "busy" :
+            draft.rvc_model !== saved.rvc_model || draft.rvc_index !== saved.rvc_index ? "edited" : false}
             expected={{ rvc: { model: directState.settings?.rvc_model || "", index: directState.settings?.rvc_index || "" } }} />}
         <div className={styles.actions}>
             <button className={styles.primary} type="button" disabled={busy || (!dirty && !needsSelection) || saving || !validNumbers}

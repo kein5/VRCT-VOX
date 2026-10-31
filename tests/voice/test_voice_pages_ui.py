@@ -6,6 +6,7 @@ import os
 from urllib.parse import urlsplit
 
 import pytest
+from models.model_downloads.manager import Downloads
 from models.tts.settings import VoiceSettings
 from test_speech_servers_ui import ui as ui
 
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def pages(ui, request):
+def pages(ui, request, tmp_path):
     page, peer, reply = ui
     original_url = page.url
     page.goto("about:blank")
@@ -60,6 +61,8 @@ def pages(ui, request):
             rvc_index_rate=0,
         ),
     )
+    peer.catalog = Downloads(tmp_path / "models").catalog()
+    peer.download_jobs = {}
     peer.sources = [
         dict(
             label="Test microphone",
@@ -152,6 +155,17 @@ def pages(ui, request):
         elif ep == "/set/data/direct_voice_settings":
             peer.direct["settings"] = data
             reply(ep, dict(peer.direct, observation_id=observation))
+        elif ep == "/get/data/model_download_catalog":
+            reply(ep, peer.catalog)
+        elif ep == "/get/data/model_download_state":
+            reply(ep, dict(observation_id=observation, jobs=peer.download_jobs))
+        elif ep == "/run/apply_model_download":
+            job = peer.download_jobs[data["id"]]
+            peer.direct["settings"].update(
+                rvc_model=job["paths"]["model"], rvc_index=job["paths"]["index"]
+            )
+            job["phase"] = "applied"
+            reply(ep, dict(observation_id=observation, jobs=peer.download_jobs))
         else:
             # Existing speech/ASR fixture handles the other production endpoints.
             peer.sent.pop()
@@ -258,6 +272,42 @@ def test_rvc_can_prepare_route_without_losing_model_or_output_settings(pages):
     )
     expect(page.get_by_role("alert").filter(has_text="pw-loopback")).to_be_visible()
     expect(page.get_by_role("button", name="Resume voice", exact=True)).to_be_disabled()
+
+
+def test_rvc_download_applies_without_saving_other_edits_first(pages):
+    from playwright.sync_api import expect
+
+    # Regression: an unsaved runtime folder used to disable Apply until saved.
+    page, peer, reply = pages
+    page.get_by_role("button", name="RVC", exact=True).click()
+    runtime = page.get_by_label("RVC runtime folder", exact=True)
+    runtime.fill("/unsaved/runtime")
+    paths = dict(model="/verified/saisho.pth", index="/verified/saisho.index")
+    peer.download_jobs["rvc-saisho"] = dict(
+        job_id="job1", phase="ready", received_bytes=1, total_bytes=1,
+        paths=paths, error_code=None,
+    )
+    reply(
+        "/get/data/model_download_state",
+        dict(observation_id="100000", jobs=peer.download_jobs),
+    )
+    apply = page.get_by_role("button", name="Apply model path", exact=True)
+    expect(apply).to_be_enabled()
+    apply.click()
+    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_have_value(
+        paths["model"]
+    )
+    expect(
+        page.get_by_label("RVC retrieval index (.index, optional)", exact=True)
+    ).to_have_value(paths["index"])
+    expect(runtime).to_have_value("/unsaved/runtime")
+    expect(page.get_by_text("Unsaved changes", exact=True)).to_be_visible()
+    assert next(data for ep, data in peer.sent if ep == "/run/apply_model_download")[
+        "expected"
+    ] == {"model": "", "index": ""}
+    assert peer.direct["settings"]["rvc_runtime"] == ""
+    assert not any(ep == "/set/data/direct_voice_settings" for ep, _ in peer.sent)
+    assert not any(ep == "/run/start_direct_voice" for ep, _ in peer.sent)
 
 
 def test_unsaved_changes_require_ack_and_navigation_confirmation(pages):
