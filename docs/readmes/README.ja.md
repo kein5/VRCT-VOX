@@ -1,4 +1,9 @@
-# VRCT-VOX
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="../brand/logo-ja-on-dark.svg">
+    <img src="../brand/logo-ja-on-light.svg" width="800" alt="VRCT-VOX：音声認識、音声合成、声質変換、文字認識、翻訳">
+  </picture>
+</h1>
 
 [English](/docs/readmes/README.en.md)
 
