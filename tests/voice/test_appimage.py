@@ -57,6 +57,40 @@ exec "$APPDIR/usr/bin/vrct-vox-sidecar" "$@"
                                         'ld': library_path, 'gio': '/host/gio', 'xdg': host_data, 'orig': None}
 
 
+@pytest.mark.parametrize(('host', 'daemon', 'gui', 'sidecar'), [
+    ({}, 'fcitx5', {'GTK_IM_MODULE': 'xim', 'XMODIFIERS': '@im=fcitx'}, {}),
+    ({'GTK_IM_MODULE': 'fcitx'}, 'fcitx5', {'GTK_IM_MODULE': 'xim', 'XMODIFIERS': '@im=fcitx'}, {'GTK_IM_MODULE': 'fcitx'}),
+    ({}, 'ibus-daemon', {'GTK_IM_MODULE': 'xim', 'XMODIFIERS': '@im=ibus'}, {}),
+    ({'XMODIFIERS': '@im=custom'}, 'fcitx5', {'GTK_IM_MODULE': 'xim', 'XMODIFIERS': '@im=custom'}, {'XMODIFIERS': '@im=custom'}),
+    ({'GTK_IM_MODULE': 'simple'}, 'fcitx5', {'GTK_IM_MODULE': 'simple', 'XMODIFIERS': '@im=fcitx'}, {'GTK_IM_MODULE': 'simple'}),
+    ({}, None, {}, {}),
+])
+def test_gui_reaches_host_input_method_over_xim(tmp_path, host, daemon, gui, sidecar):
+    from tools.build_appimage import install_launchers
+    appdir = tmp_path / 'App.AppDir'
+    (appdir / 'usr/bin').mkdir(parents=True)
+    (appdir / 'usr/lib/vrct-vox').mkdir(parents=True)
+    report = 'import json,os,sys; print(json.dumps({k: os.environ[k] for k in ("GTK_IM_MODULE", "XMODIFIERS") if k in os.environ}))'
+    (appdir / 'AppRun').write_text(f'#!/bin/sh\n{sys.executable} -c \'{report}\'\nexec "$APPDIR/usr/bin/vrct-vox-sidecar"\n')
+    (appdir / 'AppRun').chmod(0o755)
+    (appdir / 'apprun-hooks').mkdir()
+    (appdir / 'vrct-vox.png').write_bytes(b'icon')
+    target = appdir / 'usr/lib/vrct-vox/vrct-vox-sidecar'
+    target.write_text(f'#!{sys.executable}\n{report}\n')
+    target.chmod(0o755)
+    install_launchers(appdir)
+    # A stand-in pgrep reports which input method daemon is running.
+    tools = tmp_path / 'bin'
+    tools.mkdir()
+    (tools / 'pgrep').write_text(f'#!/bin/sh\ntest "$2" = "{daemon}"\n')
+    (tools / 'pgrep').chmod(0o755)
+    env = {k: v for k, v in os.environ.items() if k not in ('GTK_IM_MODULE', 'XMODIFIERS')}
+    env.update(host, PATH=f'{tools}:{env["PATH"]}')
+    lines = subprocess.run([str(appdir / 'AppRun')], env=env, check=True, text=True,
+                           capture_output=True).stdout.splitlines()
+    assert [json.loads(line) for line in lines] == [gui, sidecar]
+
+
 def test_directory_links_require_explicit_appdir_mode(tmp_path):
     from tools.linux_package import check_tree
     (tmp_path / 'lib').mkdir()
