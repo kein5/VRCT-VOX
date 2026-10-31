@@ -183,6 +183,16 @@ update_modal:
     warn_switch_channel: "You are switching to the {{channel}} channel. Future update notifications will follow {{channel}} releases."
 
 config_page:
+    about_vrct:
+        summary: "Speech recognition (ASR), text to speech (TTS), voice conversion (RVC), screen chat reading (OCR) and translation for VRChat, in one app."
+        fork_notice: "VRCT-VOX is an independent fork of VRCT developed by kein5. It is not an official VRCT release. Please report problems and questions to VRCT-VOX Issues, not to the original VRCT developers."
+        links:
+            repository: "GitHub"
+            releases: "Releases"
+            issues: "Report a problem (Issues)"
+            licenses: "Licenses and notices"
+        original_heading: "Original VRCT"
+        original_desc: "VRCT-VOX is built on VRCT. Thanks to the VRCT developers, contributors and everyone who supported it."
     search:
         placeholder: "Search settings..."
         no_results: "No matching settings found"

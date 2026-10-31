@@ -3,7 +3,7 @@ set -eu
 APPDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 export APPDIR
 # Keep the host environment before linuxdeploy's GUI hooks modify it.
-for name in LD_LIBRARY_PATH PATH GIO_EXTRA_MODULES GSETTINGS_SCHEMA_DIR GTK_PATH GTK_EXE_PREFIX GTK_DATA_PREFIX GTK_IM_MODULE_FILE GTK_THEME GDK_PIXBUF_MODULE_FILE GI_TYPELIB_PATH XDG_DATA_DIRS GDK_BACKEND WEBKIT_DISABLE_DMABUF_RENDERER; do
+for name in LD_LIBRARY_PATH PATH GIO_EXTRA_MODULES GSETTINGS_SCHEMA_DIR GTK_PATH GTK_EXE_PREFIX GTK_DATA_PREFIX GTK_IM_MODULE_FILE GTK_THEME GDK_PIXBUF_MODULE_FILE GI_TYPELIB_PATH XDG_DATA_DIRS GDK_BACKEND WEBKIT_DISABLE_DMABUF_RENDERER GTK_IM_MODULE XMODIFIERS; do
     eval 'present=${'"$name"'+x}'
     eval 'value=${'"$name"'-}'
     export "VRCT_APPIMAGE_HOST_${name}_SET=$present"
@@ -14,6 +14,18 @@ done
 if [ -d /sys/module/nvidia ] && [ "${WEBKIT_DISABLE_DMABUF_RENDERER+x}" != x ]; then
     export WEBKIT_DISABLE_DMABUF_RENDERER=1
 fi
+# GTK runs on X11 here and loads only the bundled input method modules, which
+# do not include fcitx or ibus. Reach the host input method over XIM instead.
+if [ -z "${XMODIFIERS-}" ] && command -v pgrep >/dev/null 2>&1; then
+    if pgrep -x fcitx5 >/dev/null 2>&1 || pgrep -x fcitx >/dev/null 2>&1; then
+        export XMODIFIERS=@im=fcitx
+    elif pgrep -x ibus-daemon >/dev/null 2>&1; then
+        export XMODIFIERS=@im=ibus
+    fi
+fi
+case "${GTK_IM_MODULE-}" in
+    ''|fcitx|fcitx5|ibus|wayland) [ -z "${XMODIFIERS-}" ] || export GTK_IM_MODULE=xim ;;
+esac
 # Isolate GUI libraries from the frozen sidecar's loader environment.
 export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export PATH="$APPDIR/usr/bin:$PATH"

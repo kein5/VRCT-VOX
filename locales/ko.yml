@@ -97,6 +97,16 @@ update_modal:
     warn_switch_channel: "{{channel}} 채널로 전환됩니다. 이후 업데이트 알림도 {{channel}}을 기준으로 합니다."
 
 config_page:
+    about_vrct:
+        summary: "음성 인식(ASR), 음성 합성(TTS), 음성 변환(RVC), 채팅 읽기(OCR), 번역을 VRChat용으로 하나에 담은 앱입니다."
+        fork_notice: "VRCT-VOX는 kein5가 개발하는 VRCT의 독립 fork이며 공식 VRCT 배포판이 아닙니다. 문제와 질문은 원본 VRCT 개발자가 아닌 VRCT-VOX Issues에 보내 주세요."
+        links:
+            repository: "GitHub"
+            releases: "릴리스"
+            issues: "문제 보고 (Issues)"
+            licenses: "라이선스 및 고지"
+        original_heading: "원본 VRCT"
+        original_desc: "VRCT-VOX는 VRCT를 바탕으로 만들어졌습니다. VRCT 개발자, 기여자, 그리고 응원해 주신 모든 분께 감사드립니다."
     search:
         placeholder: "설정 검색..."
         no_results: "일치하는 설정이 없습니다"

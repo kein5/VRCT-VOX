@@ -1,8 +1,8 @@
-"""Build the README logos and the Tauri app icons from docs/brand.
+"""Build the README and About page logos and the Tauri app icons from docs/brand.
 
     uv run --no-project --with pillow --with fonttools python tools/brand_assets.py
 
-Needs rsvg-convert and Noto Sans CJK Bold (JP and TC faces) for the CJK labels.
+Needs rsvg-convert and Noto Sans CJK Bold for the CJK and Hangul labels.
 Labels are converted to outlines, so the SVGs render the same without fonts.
 """
 import re
@@ -19,6 +19,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 BRAND = ROOT / 'docs/brand'
 ICONS = ROOT / 'src-tauri/icons'
+UI_LOGOS = ROOT / 'src-ui/views/assets/brand'
 FONT = Path('/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc')
 
 # Hand-drawn letters on a 64 x 80 cell with an 80-unit advance.
@@ -40,13 +41,17 @@ FEATURES = ('asr', 'tts', 'rvc', 'ocr', 'translate')
 LABELS = {
     'en': ('ASR', 'TTS', 'RVC', 'OCR', 'TRANSLATE'),
     'ja': ('音声認識', '音声合成', '声質変換', '文字認識', '翻訳'),
+    'ko': ('음성인식', '음성합성', '음성변환', '문자인식', '번역'),
     'zh-Hant': ('語音辨識', '語音合成', '聲音轉換', '文字辨識', '翻譯'),
+    'zh-Hans': ('语音识别', '语音合成', '声音转换', '文字识别', '翻译'),
 }
-FACES = {'ja': 'Noto Sans CJK JP', 'zh-Hant': 'Noto Sans CJK TC'}
+FACES = {'ja': 'Noto Sans CJK JP', 'ko': 'Noto Sans CJK KR', 'zh-Hant': 'Noto Sans CJK TC', 'zh-Hans': 'Noto Sans CJK SC'}
 DESCRIPTIONS = {
     'en': 'VRCT-VOX: speech recognition, text to speech, voice conversion, screen text reading and translation.',
     'ja': 'VRCT-VOX：音声認識、音声合成、声質変換、文字認識、翻訳。',
+    'ko': 'VRCT-VOX: 음성 인식, 음성 합성, 음성 변환, 문자 인식, 번역.',
     'zh-Hant': 'VRCT-VOX：語音辨識、語音合成、聲音轉換、文字辨識、翻譯。',
+    'zh-Hans': 'VRCT-VOX：语音识别、语音合成、声音转换、文字识别、翻译。',
 }
 THEMES = {'dark': ('#F5F5F7', '#B9D8FF'), 'light': ('#13161C', '#174899')}
 
@@ -143,9 +148,13 @@ def main():
     glyphs = {name: inner((BRAND / 'glyphs' / f'{name}.svg').read_text()).replace('scale(1.0)', 'scale(1)')
               for name in FEATURES}
     icon_small = inner((BRAND / 'icon-small.svg').read_text())
+    UI_LOGOS.mkdir(exist_ok=True)
     for lang in LABELS:
         for theme in THEMES:
             (BRAND / f'logo-{lang}-on-{theme}.svg').write_text(logo(lang, theme, glyphs, icon_small))
+        # The app UI is dark only.
+        (UI_LOGOS / f'logo-{lang}.svg').write_text(logo(lang, 'dark', glyphs, icon_small))
+    (UI_LOGOS / 'icon-small.svg').write_text((BRAND / 'icon-small.svg').read_text())
     icons()
 
 
