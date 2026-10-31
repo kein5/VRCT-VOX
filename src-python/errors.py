@@ -84,6 +84,10 @@ class ErrorCode(str, Enum):
     TRANSCRIPTION_VRAM_SPEAKER = "TRANSCRIPTION_VRAM_SPEAKER"
     TRANSCRIPTION_SEND_DISABLED_VRAM = "TRANSCRIPTION_SEND_DISABLED_VRAM"
     TRANSCRIPTION_RECEIVE_DISABLED_VRAM = "TRANSCRIPTION_RECEIVE_DISABLED_VRAM"
+    # Linux の Mic/Speaker トグルが使う realtime 認識の準備ができていない、
+    # または動作中に止まった。details.reason に不足している項目のコードが入る。
+    TRANSCRIPTION_SEND_NOT_READY = "TRANSCRIPTION_SEND_NOT_READY"
+    TRANSCRIPTION_RECEIVE_NOT_READY = "TRANSCRIPTION_RECEIVE_NOT_READY"
     TRANSCRIPTION_API_AUTH_FAILED = "TRANSCRIPTION_API_AUTH_FAILED"
     TRANSCRIPTION_API_RATE_LIMITED = "TRANSCRIPTION_API_RATE_LIMITED"
     TRANSCRIPTION_API_TIMEOUT = "TRANSCRIPTION_API_TIMEOUT"
@@ -408,6 +412,18 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "category": ErrorCategory.TRANSCRIPTION,
         "message": "Transcription receive disabled due to VRAM overflow",
         "severity": "critical",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSCRIPTION_SEND_NOT_READY: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "Realtime microphone recognition is not ready",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSCRIPTION_RECEIVE_NOT_READY: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "Realtime speaker recognition is not ready",
+        "severity": "error",
         "user_action_required": True,
     },
     ErrorCode.TRANSCRIPTION_API_AUTH_FAILED: {

@@ -144,7 +144,13 @@ class TestRecognitionErrorVisibility(unittest.TestCase):
 
 
 class TestTranscriptionEnableFailureState(unittest.TestCase):
+    """Legacy recorder contract. On Linux the toggles drive realtime ASR instead
+    (tests/voice/test_realtime_toggles.py), so pin the Windows path here."""
+
     def setUp(self) -> None:
+        platform = patch("controller.sys.platform", "win32")
+        platform.start()
+        self.addCleanup(platform.stop)
         self.controller = Controller.__new__(Controller)
         self.controller._initRealtimeASR({})
         self.controller.mic_lifecycle_lock = Lock()

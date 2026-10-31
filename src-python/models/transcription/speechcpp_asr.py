@@ -30,6 +30,20 @@ class RecognitionModel:
     id: str
     languages: tuple[str, ...]
     accepts_language: bool
+    # The language option defaults to "auto" and chooses among several
+    # languages (Qwen3-ASR). Haas-ja also defaults to "auto" but has one.
+    detects_language: bool = False
+    # The request option names it takes, such as keywords (Haas) or prompt (Qwen3-ASR).
+    options: tuple[str, ...] = ()
+
+
+def _detects(options):
+    for option in options:
+        if option.get('name') == 'language':
+            choices = option.get('choices')
+            return (option.get('default') == 'auto' and isinstance(choices, list)
+                    and len({v for v in choices if isinstance(v, str)}) > 1)
+    return False
 
 
 @dataclass(frozen=True)
@@ -159,7 +173,9 @@ class SpeechCppASR:
                     or not isinstance(options, list) or not all(isinstance(v, dict) for v in options)):
                 raise ASRError('invalid_models')
             ids.add(name)
-            models.append(RecognitionModel(name, tuple(languages), any(v.get('name') == 'language' for v in options)))
+            models.append(RecognitionModel(name, tuple(languages), any(v.get('name') == 'language' for v in options),
+                                           _detects(options),
+                                           tuple(v['name'] for v in options if isinstance(v.get('name'), str))))
         return tuple(models)
 
     def recognizers(self, cancel_token=None):

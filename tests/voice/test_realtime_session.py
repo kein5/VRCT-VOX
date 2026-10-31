@@ -50,7 +50,7 @@ class Dependencies:
 
         return REST()
 
-    def client(self, url, model, language, source):
+    def client(self, url, model, language, source, options=None):
         owner = self
 
         class Client:

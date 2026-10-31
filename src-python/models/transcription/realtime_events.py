@@ -1,5 +1,6 @@
 """Single-loop, bounded subtitle state; no audio, translation, OSC or TTS."""
 from collections import OrderedDict
+import re
 from dataclasses import dataclass, field
 
 PREFIX = 'conversation.item.input_audio_transcription.'
@@ -17,6 +18,9 @@ class TranscriptUpdate:
     # Transport receipt, not acoustic capture or utterance-end time. The pure
     # reducer leaves this unset; the transport stamps it before queueing.
     received_ns: int = field(default=0, compare=False)
+    # The code a final reports in "languages" (speech.cpp 0.10.0), else ''.
+    # Detected by the model, not a confidence: only a translation source hint.
+    language: str = field(default='', compare=False)
 
 
 @dataclass
@@ -46,12 +50,18 @@ class TranscriptEvents:
         while len(history) > limit:
             history.popitem(last=False)
 
-    def _emit(self, item_id, text, state):
+    def _emit(self, item_id, text, state, language=''):
         pending = self._pending[item_id]
         pending.text = text
         pending.revision += 1
         return TranscriptUpdate(self.source, self.namespace, item_id,
-            pending.revision, text, state == 'final', state)
+            pending.revision, text, state == 'final', state, language=language)
+
+    @staticmethod
+    def _detected(event):
+        rows = event.get('languages')
+        code = rows[0].get('code') if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
+        return code if isinstance(code, str) and re.fullmatch(r'[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?', code) else ''
 
     def _retire(self, item_id):
         self._pending.pop(item_id, None)
@@ -129,7 +139,7 @@ class TranscriptEvents:
         if len(text) > 4000:
             self._fail('text_limit')
         state = 'partial' if kind == PREFIX + 'delta' else 'final'
-        update = self._emit(item_id, text, state)
+        update = self._emit(item_id, text, state, self._detected(event) if state == 'final' else '')
         if state == 'final':
             self._retire(item_id)
         return (update,)
