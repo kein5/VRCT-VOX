@@ -1,8 +1,9 @@
 """Reviewed public artifacts; update revision, bytes and hash together, never at runtime."""
 from dataclasses import dataclass, replace
 import re
+from urllib.parse import quote
 
-CATALOG_VERSION = '2026-11-01.1'
+CATALOG_VERSION = '2026-11-01.2'
 
 
 @dataclass(frozen=True)
@@ -11,6 +12,9 @@ class Artifact:
     size: int
     sha256: str
     role: str
+    # (repo, revision, path) when the file comes from another pinned repository
+    # or has a different name there. Empty: <model.repo>@<model.revision>/<filename>.
+    remote: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -88,10 +92,71 @@ CATALOG = (*CATALOG,
                  '4bb9ba9e822ab614798c416c7f0187994f349be41221966fa911aca24f237930', 'model'),)))
 
 
-TARGETS = ('japanese', 'multilingual', 'asr', 'vad', 'rvc')
+TARGETS = ('japanese', 'multilingual', 'asr', 'vad', 'rvc', 'ocr')
 # Where an applied file goes: (speech server profile, settings field). RVC is separate.
 SPEECH_FIELDS = {'japanese': ('japanese', 'model'), 'multilingual': ('multilingual', 'model'),
                  'asr': ('asr', 'model'), 'vad': ('asr', 'vad_model')}
+
+
+# --- OCR (chat reading) models: begin -----------------------------------------
+# Official PaddleOCR ONNX exports, Apache-2.0. One entry per download the user
+# consents to; det and rec live in separate upstream repos, so their files carry
+# remote pins and are stored under local names. RapidOCR needs the recogniser's
+# character list, which PaddleOCR ships in inference.yml (PostProcess.character_dict).
+# Changing any pin below changes the files in <id>/<revision>/: bump the id too.
+OCR_DET_REPO, OCR_DET_REV = 'PaddlePaddle/PP-OCRv6_small_det_onnx', '28fe5895c24fd108c19eb3e8479f4ab385fbfc62'
+OCR_REC_REPO, OCR_REC_REV = 'PaddlePaddle/PP-OCRv6_small_rec_onnx', 'b8f84f0b80c529de40b4fbb3544b84fa7233a513'
+APACHE_2 = 'https://www.apache.org/licenses/LICENSE-2.0'
+
+
+def _ocr_script(id, name, repo, revision, onnx, yml):
+    return Model(id, 'ocr', name, 'PaddlePaddle (PaddleOCR)', repo, revision, 'Apache-2.0', (
+        f'https://huggingface.co/{repo}/blob/{revision}/README.md', APACHE_2), 'ppocr', (
+        Artifact('rec.onnx', onnx[0], onnx[1], 'rec', (repo, revision, 'inference.onnx')),
+        Artifact('rec.yml', yml[0], yml[1], 'dict', (repo, revision, 'inference.yml'))))
+
+
+OCR_CATALOG = (
+    Model('ppocrv6-small', 'ocr', 'PP-OCRv6 small · Japanese, English, Chinese, Latin', 'PaddlePaddle (PaddleOCR)',
+          OCR_REC_REPO, OCR_REC_REV, 'Apache-2.0', (
+              f'https://huggingface.co/{OCR_REC_REPO}/blob/{OCR_REC_REV}/README.md',
+              f'https://huggingface.co/{OCR_DET_REPO}/blob/{OCR_DET_REV}/README.md', APACHE_2),
+          'ppocr', (
+              Artifact('det.onnx', 9880512, 'd73e0058b7a8086bbd57f3d10b8bcd4ff95363f67e06e2762b5e814fe9c9410e', 'det',
+                       (OCR_DET_REPO, OCR_DET_REV, 'inference.onnx')),
+              Artifact('rec.onnx', 21159378, '5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634', 'rec',
+                       (OCR_REC_REPO, OCR_REC_REV, 'inference.onnx')),
+              Artifact('rec.yml', 150579, 'ab078671bb49f06228eadccd34f1bb501e157f7a047095ffb943ba81512c77d1', 'dict',
+                       (OCR_REC_REPO, OCR_REC_REV, 'inference.yml')))),
+    # Scripts PP-OCRv6 small does not cover. They reuse the detector above.
+    _ocr_script('ppocrv5-korean', 'PP-OCRv5 mobile · Korean', 'PaddlePaddle/korean_PP-OCRv5_mobile_rec_onnx',
+                '5c6f574b8e2230adf4287b33e736d71b9fabd28e',
+                (13418787, '92f0b7785e64fc9090106a241cf4c1eb97472824558272751b88a2a4476d3a08'),
+                (96039, 'f757fa1c40e99edcf27e9cce879b93eb2a51fa46f5ef39095689b8c37dd75998')),
+    _ocr_script('ppocrv5-cyrillic', 'PP-OCRv5 mobile · Cyrillic', 'PaddlePaddle/cyrillic_PP-OCRv5_mobile_rec_onnx',
+                '2cef88145434beb8afa9dd82d77d799eb1ad7b29',
+                (8048799, '5371ee1ddaa7983cc62d0818d99e982b6804638c85e4f960d59a574094e172e5'),
+                (6991, '5c76cc91fa98410178a09f498db10050d0ec1634a660053d3005ab7be581f501')),
+    _ocr_script('ppocrv5-thai', 'PP-OCRv5 mobile · Thai', 'PaddlePaddle/th_PP-OCRv5_mobile_rec_onnx',
+                '1d4adbbafb1034a2fd6618498575b81ea7b69f69',
+                (7891015, '27618be66018f8598ac0a526a593f9f1cebf794e7eded93428e8fb016e537f5f'),
+                (4667, 'f6ba7fefc38ca1ff398ddafa75d67d16e0b3757c4e6c833adffee98a981766c9')),
+    _ocr_script('ppocrv5-arabic', 'PP-OCRv5 mobile · Arabic', 'PaddlePaddle/arabic_PP-OCRv5_mobile_rec_onnx',
+                '14aaedcd75825982689ecf5cd64ab33ee083215a',
+                (7998947, '799113ebf267fbe742deb99eb36e8d42c9ddc5291ceacf92add41b4d52a59110'),
+                (6165, '21368419e6c016c31db55d316d59e11c128e1913e6e6fe10287084710043d3a6')),
+    _ocr_script('ppocrv5-devanagari', 'PP-OCRv5 mobile · Devanagari', 'PaddlePaddle/devanagari_PP-OCRv5_mobile_rec_onnx',
+                '251aec19e36739540d35e2cc943f6aa7503b98e5',
+                (7912311, 'cb789212ce96c69d3e74728ae4309d179281d68cb3945d0616b67cafab41c986'),
+                (5027, '9bd172dd26440c8ce94d1cde5d5baea6aefdc7cf3c5c8492e0beedef656d4e54')),
+)
+CATALOG = (*CATALOG, *OCR_CATALOG)
+# --- OCR (chat reading) models: end -------------------------------------------
+
+
+def artifact_url(model, artifact):
+    repo, revision, path = artifact.remote or (model.repo, model.revision, artifact.filename)
+    return f'https://huggingface.co/{repo}/resolve/{revision}/{quote(path)}'
 
 
 def validate_catalog(catalog):
@@ -104,10 +169,23 @@ def validate_catalog(catalog):
             raise ValueError('catalog_invalid')
         ids.add(model.id)
         names, roles = set(), set()
+        ocr = model.target == 'ocr'
+        suffixes, allowed_roles = (('onnx', 'yml'), ('det', 'rec', 'dict')) if ocr else (('gguf', 'pth', 'index'), ('model', 'index'))
         for artifact in model.artifacts:
-            if (not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]*\.(gguf|pth|index)', artifact.filename) or '..' in artifact.filename
-                    or artifact.filename in names or artifact.role in roles or artifact.role not in ('model', 'index')
+            if (not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]*\.(' + '|'.join(suffixes) + ')', artifact.filename)
+                    or '..' in artifact.filename
+                    or artifact.filename in names or artifact.role in roles or artifact.role not in allowed_roles
                     or type(artifact.size) is not int or artifact.size <= 0
-                    or not re.fullmatch(r'[0-9a-f]{64}', artifact.sha256)):
+                    or not re.fullmatch(r'[0-9a-f]{64}', artifact.sha256)
+                    or not _valid_remote(artifact.remote)):
                 raise ValueError('catalog_invalid')
             names.add(artifact.filename); roles.add(artifact.role)
+
+
+def _valid_remote(remote):
+    if remote == ():
+        return True
+    return (isinstance(remote, tuple) and len(remote) == 3 and all(isinstance(part, str) for part in remote)
+            and re.fullmatch(r'[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+', remote[0]) is not None
+            and re.fullmatch(r'[0-9a-f]{40}', remote[1]) is not None
+            and re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]*', remote[2]) is not None and '..' not in remote[2])

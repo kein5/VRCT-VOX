@@ -340,11 +340,12 @@ def test_catalog_contains_pinned_artifacts_and_no_private_model():
     from models.model_downloads.catalog import CATALOG, validate_catalog
 
     validate_catalog(CATALOG)
-    assert {m.target for m in CATALOG} == {"japanese", "multilingual", "asr", "vad", "rvc"}
+    assert {m.target for m in CATALOG} == {"japanese", "multilingual", "asr", "vad", "rvc", "ocr"}
     assert "Mia" not in repr(CATALOG)
     for m in CATALOG:
+        pins = {m.revision, *(a.remote[1] for a in m.artifacts if a.remote)}
         assert m.licenses and all(
-            "/" + m.revision + "/" in url
+            any("/" + pin + "/" in url for pin in pins)
             or url.startswith(
                 ("https://creativecommons.org/", "https://www.apache.org/licenses/")
             )
