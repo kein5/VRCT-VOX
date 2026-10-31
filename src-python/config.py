@@ -1080,7 +1080,7 @@ class Config:
 
     def init_config(self):
         # Read Only
-        self._VERSION = "3.6.0-beta.1"
+        self._VERSION = "0.1.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1095,10 +1095,11 @@ class Config:
         os_makedirs(self._PATH_LOGS, exist_ok=True)
         self._GITHUB_URL = "https://api.github.com/repos/kein5/VRCT-VOX/releases/latest"
         self._GITHUB_RELEASES_LIST_URL = "https://api.github.com/repos/kein5/VRCT-VOX/releases"
-        # The version picker UI exists from 3.6.0; older releases are hidden so
-        # users can't switch to a build they can't switch back from.
-        # Prereleases of this version (3.6.0-beta.N) are included.
-        self._MIN_SUPPORTED_VERSION = "3.6.0"
+        # VRCT-VOX numbers its own releases from 0.1.0, each with the version
+        # picker UI; older tags in this repository are hidden so users can't
+        # switch to a build they can't switch back from.
+        # Prereleases of this version (0.1.0-beta.N) are included.
+        self._MIN_SUPPORTED_VERSION = "0.1.0"
         self._SELECTABLE_RELEASE_CHANNEL_LIST = ["stable", "beta"]
         self._SELECTED_RELEASE_CHANNEL = "stable"
 

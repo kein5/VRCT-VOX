@@ -4,6 +4,18 @@ use std::io::{Error, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 mod quick_chat;
+#[cfg(target_os = "linux")]
+mod portal_shortcuts;
+#[cfg(not(target_os = "linux"))]
+mod portal_shortcuts {
+    //! The XDG GlobalShortcuts portal exists only on Linux desktops.
+    #[derive(Default)]
+    pub struct PortalShortcuts;
+    #[tauri::command]
+    pub fn portal_shortcuts_bind() -> Result<(), String> {
+        Err("portal_shortcuts_unsupported".into())
+    }
+}
 
 // WebView2は同じプロセス内の全ウィンドウで起動引数が一致している必要があるため、
 // tauri.conf.json の main ウィンドウと同じ値にする。Tauri既定の --disable-features に加えて、
@@ -124,10 +136,12 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(quick_chat::QuickChatState::default())
+        .manage(portal_shortcuts::PortalShortcuts::default())
         .invoke_handler(tauri::generate_handler![get_font_list, download_zip_asset, set_vr_panel_window,
             quick_chat::quick_chat_context, quick_chat::quick_chat_configure, quick_chat::quick_chat_submit,
             quick_chat::quick_chat_take, quick_chat::quick_chat_finish, quick_chat::quick_chat_hide,
-            quick_chat::quick_chat_show, quick_chat::quick_chat_shortcut_platform])
+            quick_chat::quick_chat_show, quick_chat::quick_chat_shortcut_platform,
+            portal_shortcuts::portal_shortcuts_bind])
         .run(context);
     match result {
         Ok(()) => startup_log("VRCT event loop ended"),

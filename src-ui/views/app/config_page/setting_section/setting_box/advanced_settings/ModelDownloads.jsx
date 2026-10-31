@@ -16,7 +16,8 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
     const [linkError, setLinkError] = useState(null);
     const [choices, setChoices] = useState({}), [reserve, setReserve] = useState('vr');
     const [, setNow] = useState(Date.now());
-    const hasTTS = targets.some(target => target !== 'rvc');
+    const ttsTargets = targets.filter(target => ['japanese', 'multilingual'].includes(target));
+    const hasTTS = ttsTargets.length > 0;
     const dialog = useRef(null);
     useEffect(() => {
         send("/get/data/model_download_catalog"); send("/get/data/model_download_state");
@@ -56,7 +57,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
             <button type="button" disabled={hardware.phase === 'probing'} onClick={() => send('/run/refresh_model_download_hardware', {})}>
                 {t('model_downloads.hardware_refresh')}</button>
             {hardware.phase === 'probing' && <p aria-busy="true">{t('model_downloads.hardware_probing')}</p>}
-            {targets.filter(target => target !== 'rvc').map(target => {
+            {ttsTargets.map(target => {
                 const hint = advice[target], rows = matching.filter(entry => entry.target === target);
                 return <div key={target}>
                     {hint.device && <p>{hint.device.name}: {hint.device.description} · {t('model_downloads.hardware_free')}: {memory(hint.device.memory_free)} / {t('model_downloads.hardware_total')}: {memory(hint.device.memory_total)}</p>}
@@ -85,6 +86,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
                     {advice[entry.target].device && advice[entry.target].device.description !== entry.guidance.validation.device && <p>{t('model_downloads.gpu_unverified')}</p>}
                 </>}
                 {entry.target === "rvc" && <p>{t("model_downloads.rvc_requirements")}</p>}
+                {entry.target === "asr" && <p>{t("model_downloads.asr_requirements")}</p>}
                 {job && <p role="status">{t(`model_downloads.phase_${job.phase}`)}</p>}
                 {active && <><progress aria-label={t("model_downloads.progress")} value={job.received_bytes} max={job.total_bytes} />
                     <p>{bytes(job.received_bytes)} / {bytes(job.total_bytes)}</p>
@@ -106,6 +108,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
             <p>{bytes(selected.total_bytes)} · {selected.license}</p>
             <p>{t(`model_downloads.notice_${selected.notice}`)}</p>
             {selected.target === "rvc" && <p>{t("model_downloads.rvc_requirements")}</p>}
+            {selected.target === "asr" && <p>{t("model_downloads.asr_requirements")}</p>}
             <p>{t("model_downloads.connection_notice")}</p>
             <p>{t("model_downloads.no_start")}</p>
             <p>{t("model_downloads.source")}: <a href={selected.source} onClick={event => openLink(event, selected.source)} target="_blank" rel="noreferrer">{selected.repo}</a></p>

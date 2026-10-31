@@ -1,6 +1,6 @@
 # 設定画面からの既定モデル取得
 
-TTSの「同梱speech.cppサーバー」内とRVC設定画面に取得UIを追加。提供元、モデル名、正確な容量、利用条件へのリンク、用途・注意、保存先を表示し、チェックボックスへの同意と開始操作を必要とする。翻訳モデルの起動時取得への同意とは独立している。
+TTS・ASRの「同梱speech.cppサーバー」内とRVC設定画面に取得UIを追加。提供元、モデル名、正確な容量、利用条件へのリンク、用途・注意、保存先を表示し、チェックボックスへの同意と開始操作を必要とする。翻訳モデルの起動時取得への同意とは独立している。
 
 同意は警告を開いた時点のカタログ版に結び付ける。更新された未確認の版で開始しない。
 
@@ -8,7 +8,7 @@ TTSの「同梱speech.cppサーバー」内とRVC設定画面に取得UIを追�
 
 ## 固定カタログ
 
-版 `2026-10-30.2`。TTSは各2候補から選択でき、RVCはSaishoの1候補。
+版 `2026-10-31.1`。TTSは各2候補から選択でき、ASRはHaas-jaの1候補、RVCはSaishoの1候補。
 
 | ID | リポジトリと固定revision | ファイル / bytes | SHA256 |
 |---|---|---|---|
@@ -18,8 +18,13 @@ TTSの「同梱speech.cppサーバー」内とRVC設定画面に取得UIを追�
 | qwen3-06b-q5 | 同上 | Qwen3-TTS-12Hz-0.6B-CustomVoice-Q5_K.gguf / 873894144 | 4bb9ba9e822ab614798c416c7f0187994f349be41221966fa911aca24f237930 |
 | rvc-saisho | Saisho-Utane/Saisho-Model-RVC @ 7a61b17e4f014fc5013a489f2b5cd3a7ee9e2b1a | model.pth / 57577658 | 82312a29a3996a451aaa3d3776566cec85b47b5414fce53da82b2d66b04f3d35 |
 | rvc-saisho | 同上 | model.index / 278065619 | e9f7396e5db3077274c720d055e43abb8f1eac5609cbdf48b198ca4f4a35cad5 |
+| haas-ja-q8 | sakasegawa/Haas-ja-v1.0-GGUF @ 6b965d5007ba780585de51549d57a8c1c0d67c7e | Haas-616M-ja-v1.0-Q8_0.gguf / 656381472 | cd5f60b2f1c411404b83fca4a65e3ce30a26d9e951b6a346529e65f22758afeb |
 
 [Irodoriカード](https://huggingface.co/sakasegawa/Irodori-TTS-v4.1-Small-MF-GGUF/blob/9db7da1bec3d1069ef8e29732e0497be60c7b047/README.md)と[Qwenカード](https://huggingface.co/sakasegawa/Qwen3-TTS-12Hz-0.6B-CustomVoice-GGUF/blob/fd9df9364613a92a86b4137074bc281204823033/README.md)から元モデルへたどり、speech.cpp v0.9.0の[Irodori](https://github.com/nyosegawa/speech.cpp/blob/v0.9.0/docs/models/irodori-tts.md)・[Qwen](https://github.com/nyosegawa/speech.cpp/blob/v0.9.0/docs/models/qwen3-tts.md)資料と照合した。専用GGUFはcodecを含む。IrodoriはMITとcodec基盤Apache-2.0、提供元の無断模倣・誤情報生成禁止なども表示。QwenはApache-2.0。
+
+[Haas-jaカード](https://huggingface.co/sakasegawa/Haas-ja-v1.0-GGUF/blob/6b965d5007ba780585de51549d57a8c1c0d67c7e/README.md)から元モデル[third-intelligence/Haas-ja-v1.0](https://huggingface.co/third-intelligence/Haas-ja-v1.0)へたどり、speech.cpp v0.10.0の[FastConformer資料](https://github.com/nyosegawa/speech.cpp/blob/v0.10.0/docs/models/fastconformer.md)と照合した。Apache-2.0。このrevisionのファイルはspeech.cpp 0.9.4以降が必要で、同梱0.10.0で読める。ASRサーバーにはVADモデルも必要だが、カタログには含めず従来どおりパスを指定する。HaasはGPU推奨量の実測をVRCT側で記録していないため、ハードウェア推奨の対象にしない。
+
+2026-10-31、同梱0.10.0 Vulkan版とHaas Q8_0・Silero v6.2で、`SpeechServer`経由のGPU/CPU起動、`/v1/models`での認識モデル列挙、REST認識、Realtime（サーバーVADあり/なし）のライブ試験を実行しPASS。入力はIrodori MFで合成した日本語2文で、認識精度の評価ではない。
 
 [Saisho作者カード](https://huggingface.co/Saisho-Utane/Saisho-Model-RVC/blob/7a61b17e4f014fc5013a489f2b5cd3a7ee9e2b1a/README.md)は本人の声・自前データセット・CC BY 4.0・帰属必須を明記。Voice model created by **Saisho Utane** — [作者](https://huggingface.co/Saisho-Utane) — Used under the [CC BY 4.0 license](https://creativecommons.org/licenses/by/4.0/). 本アプリはモデルを改変しない。モデル利用者にも公開物や説明でのクレジット、ライセンスへのリンク、改変表示を案内する。Mia2026はカタログに含めない。
 

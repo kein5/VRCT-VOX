@@ -15,7 +15,7 @@ import {
 import { ToggleSwitch } from "../../../../common_components/toggle_switch/ToggleSwitch";
 
 export const MainFunctionSwitch = () => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
 
     const {
         toggleTranslation, currentTranslationStatus,
@@ -27,7 +27,12 @@ export const MainFunctionSwitch = () => {
 
     const voice = useVoice();
     const { showNotification_Error } = useNotificationStatus();
-    const notify = (code, page) => showNotification_Error(`${code} · ${t("voice_ui.check_settings", { page })}`);
+    // Known codes get their next step; the code stays visible for support.
+    const notify = (code, page) => {
+        const key = `voice_ui.errors.${code}`;
+        showNotification_Error(/^[a-z0-9_]+$/.test(code) && i18n.exists(key)
+            ? `${t(key)} (${code})` : `${code} · ${t("voice_ui.check_settings", { page })}`);
+    };
     useEffect(() => { if (voice.ttsError) notify(voice.ttsError, "TTS"); }, [voice.ttsError]);
     useEffect(() => { if (voice.directError) notify(voice.directError, "RVC"); }, [voice.directError]);
     const rvcOwnsInput = voice.directOwner === "rvc";

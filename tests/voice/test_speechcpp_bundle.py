@@ -195,7 +195,7 @@ def test_downloader_verifies_exact_bytes_before_completion(tmp_path, body):
         assert not dest.exists()
     assert (
         calls[0][0]
-        == "https://github.com/nyosegawa/speech.cpp/releases/download/v0.9.0/speech-0.9.0-linux-x64-cpu.zip"
+        == "https://github.com/nyosegawa/speech.cpp/releases/download/v0.10.0/speech-0.10.0-linux-x64-cpu.zip"
     )
     assert not list(tmp_path.glob("*.part"))
 

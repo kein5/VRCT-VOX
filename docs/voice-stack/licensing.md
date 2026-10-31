@@ -7,7 +7,7 @@
 |---|---|---|
 | VRCTコード | [LICENSE](../../LICENSE), [NOTICE](../../NOTICE.md) | MIT帰属を維持 |
 | upstream OCR検出重み | [モデルライセンス](../../src-python/models/ocr/onnx/LICENSE.txt) | fork成果物から除外。ソース内の開発用ファイルは保持 |
-| speech.cpp | [検証済みv0.9.0のMIT](https://github.com/nyosegawa/speech.cpp/blob/v0.9.0/LICENSE) | 2026-10-29承認後、固定CPU/Vulkan実行ファイルと依存通知の配布部品を作成・検証。GUI/アプリ全体への同梱は次工程、未公開。下記追記参照 |
+| speech.cpp | [検証済みv0.10.0のMIT](https://github.com/nyosegawa/speech.cpp/blob/v0.10.0/LICENSE) | 2026-10-29承認後、固定CPU/Vulkan実行ファイルと依存通知の配布部品を作成・検証。GUI/アプリ全体への同梱は次工程、未公開。下記追記参照 |
 | Irodori v4.1 Small MF | [モデルカード](https://huggingface.co/Aratako/Irodori-TTS-v4.1-Small-MF) | 日本語のみ。MIT表示に加え、声の本人の明示同意・なりすまし/誤情報禁止の記載を確認。ユーザー管理のvoiceだけ利用 |
 | Irodori Large | [モデル説明](https://github.com/nyosegawa/speech.cpp/blob/main/docs/models/irodori-tts.md) | Smallと条件を混同しない。今回は同梱・検証なし |
 | Qwen3-TTS | [モデル説明](https://github.com/nyosegawa/speech.cpp/tree/main/docs/models) | ユーザーが選んだ重みの条件・hashを実機導入時に記録。モデル取得なし |
@@ -107,3 +107,5 @@ miniaudioの二重ライセンス、静的GCCランタイムのGPLv3＋Runtime L
 実行ファイル全体をspeech.cppのMITだけで説明しない。OSのlibc/Vulkan loader/driverは部品外。
 モデル・参照音声・Mia2026・VC runtimeは含まない。ライセンス文の欠落/改ざんを自動検査する。
 この部品の確認をアプリ全体・別VCランタイムの配布監査完了とは扱わない。未公開。
+
+2026-10-31に固定版を0.10.0（commit 06590811a90041f935a470ba0e2b85346d2fc041）へ更新。speech.cpp/cpp-httplib/miniaudio/GGMLのライセンス文は0.9.0と同一で、vendorは無変更、GGMLはsubmodule 700c9d743ed7cc583c0f1b6507afebb6c0e88bc0へ更新。公式Vulkan実行ファイルのGCCは同じUbuntu 11.4.0-1ubuntu1~22.04.3。新規に同梱する第三者コードはない。

@@ -20,8 +20,8 @@ ROOT=resource_root()
 BUNDLE=ROOT/'build/speechcpp'
 HELPER=ROOT/'build/vrct-vc-worker'
 START_TIMEOUT=120.0
-HASHES={'linux-x64-cpu':'394fd7c0636143fa96fc961af55f1bcdcf71fa557e4c210e231eb253a97353d8',
-        'linux-x64-vulkan':'800e9bae0057a7ce2b63dde01a71bf83653ffbd70eb83f8bea3e8fd944f678e7'}
+HASHES={'linux-x64-cpu':'7a9c6caa705f56bd52db1fa1a2d8317e5e07da6a291d2dfa37f4e9bb0e55654a',
+        'linux-x64-vulkan':'410edfb9fd1e74112627d17a33ca0d30cb24ac88890f8fc3bcfb8e7a3ad8d1bc'}
 READY=re.compile(rb'API at http://127\.0\.0\.1:([0-9]{1,5})/v1(?:;|$)')
 ANSI=re.compile(rb'\x1b\[[0-9;]*m')
 
@@ -34,7 +34,7 @@ def bundled_binary():
                 or not stat.S_ISREG(binary.lstat().st_mode) or not os.access(binary,os.X_OK)):
             raise ValueError()
         data=json.loads(meta.read_text())
-        if type(data['schema']) is not int or data['schema']!=1 or data['version']!='0.9.0':
+        if type(data['schema']) is not int or data['schema']!=1 or data['version']!='0.10.0':
             raise ValueError()
         expected=HASHES[data['variant']]
         digest=hashlib.sha256()

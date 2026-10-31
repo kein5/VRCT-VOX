@@ -696,7 +696,6 @@ quick_chat:
     open: "開啟輸入視窗"
     shortcut_hint: "可設定開啟輸入視窗的快捷鍵，預設不分配按鍵。按 Esc 關閉後仍保留草稿。"
     clear_shortcut: "清除快捷鍵：{{action}}"
-    wayland_unavailable: "原生 Wayland 模式無法使用全域快捷鍵。此版本尚未接入 GlobalShortcuts portal。可透過按鈕開啟輸入視窗。"
     xwayland_hint: "在 XWayland 下，其他 Wayland 應用程式使用中時，桌面可能會限制快捷鍵或焦點切換。"
     platform_unknown: "無法偵測快捷鍵支援環境。請重新開啟設定。"
     open_failed: "無法開啟輸入視窗或切換輸入焦點。請從快捷鍵設定中重試。"

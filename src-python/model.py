@@ -1750,9 +1750,9 @@ class Model:
 
     @staticmethod
     def _isVersionSupported(version_str: str) -> bool:
-        # Releases without the version picker UI (< 3.6.0) stay out of both the
+        # Releases older than MIN_SUPPORTED_VERSION stay out of both the
         # update-check comparison and the version picker. Compare release
-        # numbers only so 3.6.0-beta.N (which sorts below 3.6.0) still counts.
+        # numbers only so X.Y.Z-beta.N (which sorts below X.Y.Z) still counts.
         try:
             return parse(version_str).release >= parse(config.MIN_SUPPORTED_VERSION).release
         except Exception:
