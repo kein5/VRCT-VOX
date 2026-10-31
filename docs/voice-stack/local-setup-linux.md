@@ -1,8 +1,11 @@
 # P1 Linux / CachyOS / WiVRn
 
+このページはソースcheckoutでの開発・CLI試験の手順。配布版のLinuxアプリは
+[AppImageガイド](appimage.md)と[Linuxビルド手順](linux-build-pipeline.md)を参照。
+
 ヘッドレスCLIはWindowsのPyAudioWPatch/pycaw/windows-captureをimportしない。
 Pythonは標準ライブラリだけで発声でき、`pw-cat` / `pw-dump` が必要。
-VRCT全GUIのLinux互換化はP5。以下のCLI→仮想マイク→VRChat desktopの経路は、
+検証の記載は、2026-10-27以降の各作業時点のもの。以下のCLI→仮想マイク→VRChat desktopの経路は、
 ユーザーが内蔵マイクテストの再生で声を確認済み。途中停止後のメーター停止も確認。
 実VRCTアプリからVRChatの音声・OSCへ同時配信する一連の動作、他ユーザーでの受信、HMDは未検証。
 取得済みIrodori MF / speech.cpp 0.8.11の単発PoCと、0.9.0の専用PipeWireグラフでの
@@ -26,12 +29,13 @@ Tauri画面・音声入出力はこの試験の範囲外。[継続記録](comple
 ```sh
 uv venv --python 3.11 .venv_linux
 UV_PROJECT_ENVIRONMENT=.venv_linux uv sync --frozen --python 3.11
-mkdir -p src-tauri/bin/_internal
-rustc --edition=2021 utils/dev_sidecar/src/main.rs -o src-tauri/bin/VRCT-sidecar-x86_64-unknown-linux-gnu
+python tools/dev.py setup --scope sidecar
 ```
 
-Windows専用の3依存はrequirementsのOS markerで選択する。Linuxでは任意OCRのRapidOCRをexcludeし、
-同じ`cv2`を提供する2種類のOpenCVの同時導入を避ける。Linuxの従来ASR録音・画面OCR・VRパネルcaptureは未対応。
+sidecarは `src-tauri/bin/vrct-vox-sidecar-x86_64-unknown-linux-gnu` に作られる。詳しくは[開発ガイド](../development.md#tauri開発用sidecarを準備する)を参照。
+
+Windows専用の3依存は`pyproject.toml`のOS markerで選択する。任意OCRのRapidOCRもWindows専用のmarkerでLinuxには入らない。
+`opencv-python`は`tool.uv.exclude-dependencies`で除き、同じ`cv2`を提供する2種類のOpenCVの同時導入を避ける。Linuxの従来ASR録音・画面OCR・VRパネルcaptureは未対応。
 この手順はPython依存のみを取得し、ASR/TTS/VC重みの取得スクリプトは実行しない。
 Pythonの取得・package通信にはネットワークが必要。システムのGTK/WebKitGTK依存は
 [Tauri公式の準備手順](https://v2.tauri.app/start/prerequisites/)を参照。
