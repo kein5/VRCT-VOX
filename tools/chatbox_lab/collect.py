@@ -281,7 +281,8 @@ def collect(args, osc, camera, out, rng, avatars, switcher):
             frame = capture(camera)
             if frame is not None:
                 name = f'{count:06d}.png'
-                Image.fromarray(np.ascontiguousarray(frame[..., :3])).save(out / name)
+                # The capture is BGR (OpenCV's order); PNG files are RGB.
+                Image.fromarray(np.ascontiguousarray(frame[..., 2::-1])).save(out / name)
                 index.write(json.dumps({'file': name, 'text': text, 'time': time.time(), 'avatar': avatar,
                                         'shape': list(frame.shape)}, ensure_ascii=False) + '\n')
                 index.flush()
