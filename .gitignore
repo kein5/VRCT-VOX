@@ -14,6 +14,8 @@ logs/
 .venv_linux
 .venv-collector/
 weights/
+# Models a development run downloads next to the source tree
+src-python/downloaded_models/
 # Local evaluation dataset archives (never commit downloaded speech data)
 common-voice-scripted-speech-*.tar.gz
 .vscode
