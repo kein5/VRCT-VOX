@@ -81,7 +81,8 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
                     <option value="rvc">RVC</option>
                 </select>
             </label>}
-            <p>{t(rvc ? "voice.vc_rvc_hint" : "voice.vc_hint")}</p>
+            {/* The RVC page already opens with the RVC hint. */}
+            {variant !== "rvc" && <p>{t(rvc ? "voice.vc_rvc_hint" : "voice.vc_hint")}</p>}
             {(rvc ? ["rvc_runtime", "rvc_model", "rvc_index"] : ["runtime", "reference"]).map(name => <label key={name}>{t(`voice.vc_${name}`)}
                 <input type="text" value={draft[name]} disabled={busy} maxLength={4096}
                     onChange={e => setDraft({ ...draft, [name]: e.target.value })} />
