@@ -23,7 +23,7 @@ RVC still needs an external runtime, HuBERT and RMVPE. See [model downloads](/do
 
 ## Status and downloads
 
-The current release is **[0.1.0-beta.1](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.1)**, a prerelease. Versions count from 0.1.0, separately from upstream VRCT 3.x. Betas are published from `develop`, stable releases from `main`.
+The current release is **[0.1.0-beta.2](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.2)**, a prerelease. Versions count from 0.1.0, separately from upstream VRCT 3.x. Betas are published from `develop`, stable releases from `main`.
 
 - **Linux:** AppImage and tar.gz (x64, Vulkan). These have been tested with real models on CachyOS (KDE Plasma Wayland).
 - **Windows:** installer and zip (CPU), and a CUDA zip. These come from automated builds and package checks only; they have not been tested on a real Windows PC yet. They are not code-signed, so SmartScreen warns on first launch.
