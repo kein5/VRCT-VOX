@@ -5,6 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useModelDownloads } from "../../../../../../logics/voice/useModelDownloads";
 import { modelAdvice } from "../../../../../../logics/voice/modelHardwareAdvice";
 import styles from "./VoiceSettings.module.scss";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
 
 const activePhases = ["queued", "downloading", "verifying", "cancelling"];
 const bytes = value => `${Number(value).toLocaleString("en-US")} bytes (${(value / 1073741824).toFixed(2)} GiB)`;
@@ -28,7 +29,8 @@ export const HardwareReadout = ({ reserve, setReserve }) => {
     // The device line uses the same pick as the per-engine advice (first GPU).
     const reading = modelAdvice([], hardware, { now: Date.now(), reserveBytes: reserveBytes(reserve) });
     const memory = value => Number.isFinite(value) ? gib(value) : t('model_downloads.hardware_unknown');
-    return <div className={styles.readout} aria-label={t('model_downloads.hardware_title')} role="group">
+    return <div className={styles.hardware} aria-label={t('model_downloads.hardware_title')} role="group">
+        <h4>{t('model_downloads.hardware_title')}</h4>
         <label>{t('model_downloads.headroom')}<select aria-label={t('model_downloads.headroom')} value={reserve} onChange={event => setReserve(event.target.value)}>
             <option value="vr">{t('model_downloads.headroom_vr')}</option>
             <option value="alone">{t('model_downloads.headroom_alone')}</option>
@@ -38,9 +40,11 @@ export const HardwareReadout = ({ reserve, setReserve }) => {
                 {t('model_downloads.hardware_refresh')}</button>
             {hardware.phase === 'probing' && <span aria-busy="true">{t('model_downloads.hardware_probing')}</span>}
         </div>
-        {reading.device && <p>{reading.device.name}: {reading.device.description} · {t('model_downloads.hardware_free')}: {memory(reading.device.memory_free)} / {t('model_downloads.hardware_total')}: {memory(reading.device.memory_total)}</p>}
-        {hardware.measured_at_ms && <p>{t('model_downloads.hardware_measured')}: {new Date(hardware.measured_at_ms).toLocaleTimeString()}</p>}
-        {reading.multiple && <p>{t('model_downloads.multiple_gpus')}</p>}
+        {(reading.device || hardware.measured_at_ms) && <EnvReadout live={false}>
+            {reading.device && <p>{reading.device.name}: {reading.device.description} · {t('model_downloads.hardware_free')}: {memory(reading.device.memory_free)} / {t('model_downloads.hardware_total')}: {memory(reading.device.memory_total)}</p>}
+            {hardware.measured_at_ms && <p>{t('model_downloads.hardware_measured')}: {new Date(hardware.measured_at_ms).toLocaleTimeString()}</p>}
+            {reading.multiple && <p>{t('model_downloads.multiple_gpus')}</p>}
+        </EnvReadout>}
         <details className={styles.more}><summary>{t('model_downloads.memory_boundary_summary')}</summary>
             <p>{t('model_downloads.memory_boundary')}</p>
         </details>
@@ -132,9 +136,10 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
                 {entry.target === "rvc" && <p>{t("model_downloads.rvc_requirements")}</p>}
                 {entry.target === "asr" && <p>{t("model_downloads.asr_requirements")}</p>}
                 {entry.target === "vad" && <p>{t("model_downloads.vad_requirements")}</p>}
-                {job && <p role="status">{t(`model_downloads.phase_${job.phase}`)}</p>}
+                {job && <EnvReadout tone={job.phase === "ready" ? "active" : job.phase === "failed" ? "failed" : "neutral"}>
+                    <p>{t(`model_downloads.phase_${job.phase}`)}{active && ` · ${gib(job.received_bytes)} / ${gib(job.total_bytes)}`}</p>
+                </EnvReadout>}
                 {active && <><progress aria-label={t("model_downloads.progress")} value={job.received_bytes} max={job.total_bytes} />
-                    <p>{gib(job.received_bytes)} / {gib(job.total_bytes)}</p>
                     <button type="button" disabled={!!pending || job.phase === "cancelling"}
                         onClick={() => request("/run/cancel_model_download", entry, job)}>{t("model_downloads.cancel")}</button></>}
                 {job?.error_code && <p role="alert">{failure(job.error_code)}</p>}

@@ -4,6 +4,11 @@ import { useSpeechServers } from "../../../../../../logics/voice/useSpeechServer
 import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
 import styles from "./VoiceSettings.module.scss";
 import { ModelDownloads, HardwareReadout } from "./ModelDownloads";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
+
+// Readout tone for a server state; the state text itself always says it.
+const serverTone = (owner, pending) => pending || ["preparing", "stopping"].includes(owner?.state) ? "warning" :
+    owner?.error_code || owner?.state === "failed" ? "failed" : owner?.state === "ready" ? "active" : "neutral";
 
 export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }) => {
     const { t } = useI18n();
@@ -77,8 +82,10 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                         (name === "asr" && !row.vad_model.trim()) || owner?.error_code === "speech_server_cleanup_unconfirmed"}
                         onClick={() => send("/run/start_speech_server", { profile: name, generation: owner.generation })}>{t("speech_servers.start")}</button>
                     <button type="button" onClick={() => send("/run/stop_speech_server", { profile: name })}>{t("speech_servers.stop")}</button></div>
-                    <p role="status">{stateText}</p>
-                    {owner?.low_latency && <p role="status">{t(`speech_servers.low_latency_${owner.low_latency.state}`)}</p>}
+                    <EnvReadout tone={serverTone(owner, pending[name])}>
+                        <p>{stateText}</p>
+                        {owner?.low_latency && <p>{t(`speech_servers.low_latency_${owner.low_latency.state}`)}</p>}
+                    </EnvReadout>
                     {owner?.low_latency?.error_code && <p role="alert">{t("speech_servers.low_latency_failed")}</p>}
                     {owner?.error_code && <p role="alert">{owner.error_code === "speech_server_out_of_memory" && <>{t("voice_ui.memory_error")} </>}{owner.error_code}</p>}
                 </fieldset>;

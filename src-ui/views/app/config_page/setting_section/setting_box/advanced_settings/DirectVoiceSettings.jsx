@@ -7,6 +7,7 @@ import { useI18n } from "@useI18n";
 import { useVoice, sourceKey as key } from "../../../../../../logics/voice/useVoice";
 import { ModelDownloads } from "./ModelDownloads";
 import { StatusLine } from "./StatusLine";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
 
 const defaults = { mode: "passthrough", runtime: "", reference: "", engine: "seed-vc",
     rvc_runtime: "", rvc_model: "", rvc_index: "", rvc_pitch: 0, rvc_index_rate: 0 };
@@ -131,7 +132,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
         <button type="button" disabled={!ownsInput || !busy} onClick={() => send("/run/stop_direct_voice")}>{t("voice.input_stop")}</button>
         {/* The TTS monitor setting also covers converted voice; it is fixed at Start. */}
         <p>{t(!converted ? "voice.vc_monitor_passthrough" : settings?.monitor === "on" ? "voice.vc_monitor_on" : "voice.vc_monitor_off")}</p>
-        {directState.monitor_error && <p role="status">{t(`voice.monitor_errors.${directState.monitor_error}`, { defaultValue: t("voice.monitor_error") })}</p>}
+        {directState.monitor_error && <EnvReadout tone="failed"><p>{t(`voice.monitor_errors.${directState.monitor_error}`, { defaultValue: t("voice.monitor_error") })}</p></EnvReadout>}
         <p>{t("voice.input_scope")}</p>
         {unavailable && <p role="alert">{t("voice.input_error")}: {unavailable}</p>}
     </section>;

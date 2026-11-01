@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useI18n } from "@useI18n";
 import { useVoice } from "../../../../../../logics/voice/useVoice";
 import { useSpeechServers } from "../../../../../../logics/voice/useSpeechServers";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
 
 export const validGenerationOptions = draft => ["japanese", "multilingual"].every(role => {
     const seed = draft[`${role}_seed`] || "", instruction = draft[`${role}_instructions`] || "";
@@ -44,7 +45,7 @@ export const GenerationOptions = ({ role, draft, field }) => {
         <label>{t("voice_ui.instruction")}<textarea aria-label={t("voice_ui.instruction")} value={instructions} maxLength={8000} rows={3}
             onChange={e => field(instructionKey, e.target.value)} /></label>
         <p>{t("voice_ui.instruction_hint", { count: Array.from(instructions).length })}</p>
-        <p role="status">{t("voice_ui.option_support", { seed: support(options?.seed), instruction: support(options?.instructions) })}{options?.model ? ` · ${options.model}` : ""}</p>
+        <EnvReadout><p>{t("voice_ui.option_support", { seed: support(options?.seed), instruction: support(options?.instructions) })}{options?.model ? ` · ${options.model}` : ""}</p></EnvReadout>
         {(fixed || instructions.trim()) && (!options || (fixed && !options.seed) || (instructions.trim() && !options.instructions)) &&
             <p>{t("voice_ui.options_warning")}</p>}
         {options?.seed && fixed && /^[0-9]{1,16}$/.test(seed) &&

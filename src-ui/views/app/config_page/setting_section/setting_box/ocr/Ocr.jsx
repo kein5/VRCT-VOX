@@ -22,6 +22,7 @@ import {
 
 import { SectionLabelComponent } from "../_components";
 import { OcrModels } from "./OcrModels";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
 
 export const Ocr = () => {
     return (
@@ -50,10 +51,10 @@ const Main_Container = () => {
     return (
         <div>
             <SectionLabelComponent label={t("config_page.ocr.section_title")} desc={t("config_page.ocr.section_desc")} />
-            <div className={styles.readiness} data-ready={summary.ok}>
-                <p role="status">{t(summary.key, summary.params)}</p>
-                <button type="button" onClick={refresh}>{t("config_page.ocr.models.refresh")}</button>
-            </div>
+            <EnvReadout className={styles.readiness} tone={summary.ok ? "active" : "warning"}
+                actions={<button type="button" onClick={refresh}>{t("config_page.ocr.models.refresh")}</button>}>
+                <p>{t(summary.key, summary.params)}</p>
+            </EnvReadout>
             <OcrSourceLanguage_Box />
             {readiness && readiness.required_models.length > 0 &&
                 <OcrModels required={readiness.required_models} missing={readiness.missing_models} onChanged={refresh} />}

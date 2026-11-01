@@ -5,6 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useModelDownloads } from "../../../../../../logics/voice/useModelDownloads";
 import voiceStyles from "../advanced_settings/VoiceSettings.module.scss";
 import styles from "./Ocr.module.scss";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
 
 const activePhases = ["queued", "downloading", "verifying", "cancelling"];
 const megabytes = value => `${(Number(value) / 1048576).toFixed(1)} MB`;
@@ -50,7 +51,9 @@ export const OcrModels = ({ required, missing, onChanged }) => {
             return <div key={entry.id} className={styles.modelRow}>
                 <strong>{entry.name}</strong>
                 <p>{entry.provider} · {megabytes(entry.total_bytes)} · {entry.license} · {t("config_page.ocr.models.required")}</p>
-                <p role="status">{installed ? t("config_page.ocr.models.installed") : job ? t(`model_downloads.phase_${job.phase}`) : t("config_page.ocr.models.missing")}</p>
+                <EnvReadout tone={installed ? "active" : job?.phase === "failed" ? "failed" : "warning"}>
+                    <p>{installed ? t("config_page.ocr.models.installed") : job ? t(`model_downloads.phase_${job.phase}`) : t("config_page.ocr.models.missing")}</p>
+                </EnvReadout>
                 {active && <><progress aria-label={t("model_downloads.progress")} value={job.received_bytes} max={job.total_bytes} />
                     <button type="button" disabled={!!pending || job.phase === "cancelling"}
                         onClick={() => send("/run/cancel_model_download", { id: entry.id, job_id: job.job_id })}>{t("model_downloads.cancel")}</button></>}

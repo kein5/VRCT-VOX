@@ -3,6 +3,7 @@ import { useI18n } from "@useI18n";
 import { useRealtimeASR } from "../../../../../../logics/transcription/useRealtimeASR";
 import { useSpeechServers } from "../../../../../../logics/voice/useSpeechServers";
 import styles from "../advanced_settings/VoiceSettings.module.scss";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
 
 const key = endpoint => endpoint ? JSON.stringify([endpoint.cookie, endpoint.serial, endpoint.name, endpoint.media_class]) : "";
 // Select value for "follow the system default"; never a JSON endpoint key.
@@ -91,7 +92,10 @@ export const RealtimeASRSettings = () => {
                         !owner || owner.requested || !!endpoints[source]?.error_code}
                         onClick={() => send("/run/start_realtime_asr", { source })}>{t(`realtime.start_${source}`)}</button>
                     <button type="button" onClick={() => send("/run/stop_realtime_asr", { source })}>{t(`realtime.stop_${source}`)}</button>
-                    <p role="status">{t(`realtime.state_${owner?.state ?? "unknown"}`)}</p>
+                    <EnvReadout tone={owner?.state === "ready" ? "active" : owner?.state === "failed" ? "failed" :
+                        ["starting", "stopping"].includes(owner?.state) ? "warning" : "neutral"}>
+                        <p>{t(`realtime.state_${owner?.state ?? "unknown"}`)}</p>
+                    </EnvReadout>
                     {failure && <p role="alert">{failure}</p>}
                 </fieldset>;
             })}
