@@ -7,6 +7,7 @@ weights (train/yolox_tiny.pth). Adapted from upstream VRCT's
 tools/yolox_chatbox_train.py (MIT).
 """
 import argparse
+import os
 import random
 import warnings
 from pathlib import Path
@@ -33,6 +34,10 @@ def main():
     args.experiment_name, args.devices, args.start_epoch, args.occupy = None, 1, None, False
     args.cache, args.logger, args.num_machines, args.machine_rank = None, 'tensorboard', 1, 0
     args.dist_backend, args.dist_url, args.name = 'nccl', None, None
+    if args.resume:
+        # YOLOX's checkpoints hold the optimizer state, which PyTorch 2.6+'s
+        # weights-only torch.load refuses. They are this lab's own files.
+        os.environ.setdefault('TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD', '1')
 
     configure_module()
     exp = get_exp(args.exp_file, None)
