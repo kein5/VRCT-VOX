@@ -131,3 +131,16 @@ def test_model_warning_in_styled_screen_keeps_explicit_consent(studio):
     page.keyboard.press("Escape")
     expect(dialog).not_to_be_visible()
     assert not any(ep == "/run/start_model_download" for ep, _ in peer.sent)
+
+
+def test_settings_checkboxes_are_reachable_from_the_keyboard(studio):
+    from playwright.sync_api import expect
+
+    page, _ = studio
+    page.get_by_role("button", name="設定を開く", exact=True).click()
+    page.get_by_role("button", name="その他", exact=True).click()
+    # The drawn box replaces the native one, but the input stays in the tab order.
+    box = page.get_by_role("checkbox").first
+    expect(box).to_be_attached()
+    box.focus()
+    expect(box).to_be_focused()
