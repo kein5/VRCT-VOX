@@ -6,10 +6,10 @@
     color: var(--dark_200_color, #e5e7eb);
     border-bottom: .1rem solid var(--dark_800_color, #34363b);
     form, fieldset { display: grid; gap: 1.2rem; min-width: 0; }
-    fieldset { border: .1rem solid var(--dark_700_color, #4b5058); border-radius: var(--vox_radius, .8rem); padding: 1.4rem; }
+    fieldset { border: .1rem solid var(--dark_800_color, #344662); border-radius: var(--vox_radius, .8rem); padding: 1.6rem; }
     fieldset.fields { border: 0; padding: 0; margin: 0; }
-    legend { font-weight: 600; padding: 0 .5rem; }
-    label { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 1.6fr); gap: 1.6rem; align-items: center; padding: .6rem 0; }
+    legend { font-weight: 600; padding: 0 .4rem; }
+    label { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 1.6fr); gap: 1.6rem; align-items: center; padding: .4rem 0; }
     input, select, textarea, button { box-sizing: border-box; font: inherit; min-height: 4rem; padding: .9rem 1.2rem; color: inherit; border-radius: var(--vox_radius, .8rem); }
     input, select, textarea { width: 100%; min-width: 0; background: var(--vox_surface, #18253b); border: .1rem solid var(--dark_650_color, #5e6570); }
     select option { color: var(--dark_200_color, #e5e7eb); background: var(--vox_surface, #18253b); }
@@ -20,15 +20,23 @@
     button.primary:hover:enabled { background: var(--primary_550_color, #3470e8); }
     :focus-visible { outline: .2rem solid var(--primary_200_color, #80cbc4); outline-offset: .3rem; }
     :disabled { opacity: .6; cursor: not-allowed; }
-    h3, h4 { font-size: 1.6rem; font-weight: 650; }
+    h3, h4 { font-size: 1.6rem; font-weight: 600; }
     p { line-height: 1.6; overflow-wrap: anywhere; }
-    summary { cursor: pointer; padding: 1rem 0; font-weight: 600; }
-    [role="alert"] { border: .1rem solid var(--warning_color); border-radius: var(--vox_radius); padding: 1rem 1.2rem; overflow-wrap: anywhere; }
+    summary { cursor: pointer; padding: .8rem 0; font-weight: 600; }
+    details.more { color: var(--dark_400_color, #adbed6); }
+    details.more summary { padding: .4rem 0; font-weight: 400; font-size: 1.3rem; }
+    [role="alert"] { border: .1rem solid var(--warning_color); border-radius: var(--vox_radius); padding: .8rem 1.2rem; overflow-wrap: anywhere; }
     label.checkLabel { display: flex; align-items: flex-start; gap: 1.2rem; cursor: pointer; }
     input[type="checkbox"] { appearance: auto; -webkit-appearance: checkbox; accent-color: var(--primary_400_color); width: 2rem; height: 2rem; min-height: 2rem; padding: 0; margin-top: .2rem; flex-shrink: 0; }
-    dialog { max-width: min(46rem, 85vw); padding: 2.4rem; border: .1rem solid var(--dark_600_color, #555d69); border-radius: .6rem; background: var(--dark_875_color, #282a2e); color: inherit; }
+    dialog { max-width: min(46rem, 85vw); padding: 2.4rem; border: .1rem solid var(--dark_600_color, #555d69); border-radius: 1.2rem; background: var(--dark_875_color, #282a2e); color: inherit; }
     dialog::backdrop { background: #0009; }
-    dialog button { margin: 1rem .8rem 0 0; }
-    @media (max-width: 700px) { label { grid-template-columns: 1fr; gap: .6rem; } }
+    dialog button { margin: .8rem .8rem 0 0; }
+    @media (max-width: 700px) { label { grid-template-columns: 1fr; gap: .8rem; } }
 }
-.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem; }
+.statusLine { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem 1.6rem; padding: .8rem 1.2rem; border: .1rem solid var(--dark_800_color); border-radius: var(--vox_radius); background: var(--dark_900_color); }
+.statusText { display: flex; align-items: center; gap: .8rem; margin: 0; }
+.statusDot { width: .8rem; height: .8rem; border-radius: 50%; flex-shrink: 0; background: var(--dark_600_color); }
+.tone_active .statusDot { background: var(--primary_400_color); }
+.tone_pending .statusDot { background: var(--warning_color); }
+.tone_failed .statusDot { background: var(--error_bc_color); }

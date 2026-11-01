@@ -5,6 +5,7 @@ import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraf
 import { GenerationOptions, validGenerationOptions } from "../tts/GenerationOptions";
 import { VoiceRouteSummary } from "../device/VoiceRouteSettings";
 import { SectionLabelComponent } from "../_components/section_label_component/SectionLabelComponent";
+import { StatusLine } from "./StatusLine";
 import styles from "./VoiceSettings.module.scss";
 
 export const VoiceSettings = () => {
@@ -42,6 +43,10 @@ export const VoiceSettings = () => {
     const monitorList = deviceList.filter(d => !d.id.startsWith("vrct.") && d.id !== (draft.routing === "managed" ? "" : draft.output_device));
     return <section className={styles.container} aria-label={t("voice.title")} data-setting-id="tts_settings">
         <SectionLabelComponent label="TTS" />
+        <StatusLine tone={status.active ? "active" : "idle"}
+            actions={<button type="button" onClick={() => send("/run/stop_voice")}>{t("voice.stop")}</button>}>
+            {t(status.active ? "voice.playing" : "voice.idle")} · {t("voice.queued")}: {status.queued ?? 0}
+        </StatusLine>
         <p>{t("voice_ui.tts_description")}</p>
         <VoiceRouteSummary />
         <form onSubmit={e => { e.preventDefault(); if (form.dirty && validGenerationOptions(draft)) form.submit(value => send("/set/data/voice_settings", value)); }}>
@@ -97,8 +102,6 @@ export const VoiceSettings = () => {
         </form>
         {!validGenerationOptions(draft) && <p role="alert">{t("voice_ui.invalid_options")}</p>}
         {form.navigationDialog}
-        <div className={styles.actions}><button type="button" onClick={() => send("/run/stop_voice")}>{t("voice.stop")}</button>
-            <span>{t(status.active ? "voice.playing" : "voice.idle")} · {t("voice.queued")}: {status.queued ?? 0}</span></div>
         {(error || status.last_error || devices.error) && <p role="alert">{t("voice.error")}: {error || status.last_error || devices.error}</p>}
     </section>;
 };

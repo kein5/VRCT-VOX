@@ -8,6 +8,8 @@ import styles from "./VoiceSettings.module.scss";
 
 const activePhases = ["queued", "downloading", "verifying", "cancelling"];
 const bytes = value => `${Number(value).toLocaleString("en-US")} bytes (${(value / 1073741824).toFixed(2)} GiB)`;
+// The page lists sizes in GiB; the consent dialog keeps the exact byte counts.
+const gib = value => `${(value / 1073741824).toFixed(2)} GiB`;
 
 export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode = 'auto' }) => {
     const { t } = useI18n();
@@ -72,7 +74,9 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
                     {hint.recommended && choice(target) !== hint.recommended && <p>{t('model_downloads.manual_choice')}</p>}
                 </div>;
             })}
-            <p>{t('model_downloads.memory_boundary')}</p>
+            <details className={styles.more}><summary>{t('model_downloads.memory_boundary_summary')}</summary>
+                <p>{t('model_downloads.memory_boundary')}</p>
+            </details>
         </>}
         {targets.includes("asr") && <p>{t("model_downloads.asr_choice")}</p>}
         {/* TTS variants are one choice per target; ASR and VAD entries are different models, so list them all. */}
@@ -80,19 +84,19 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
             const job = state.jobs[entry.id], active = activePhases.includes(job?.phase);
             return <div key={entry.id}>
                 <strong>{entry.name}</strong>
-                <p>{entry.provider} · {bytes(entry.total_bytes)} · {entry.license}</p>
-                {entry.guidance?.reference_memory_bytes && <>
+                <p>{entry.provider} · {gib(entry.total_bytes)} · {entry.license}</p>
+                {entry.guidance?.reference_memory_bytes && <details className={styles.more}><summary>{t('model_downloads.guidance_summary')}</summary>
                     <p>{t(`model_downloads.tier_${entry.guidance.tier}`)} · {t('model_downloads.memory_reference')}: {memory(entry.guidance.reference_memory_bytes)}</p>
                     <p>{t(`model_downloads.validation_${entry.guidance.validation.state}`)} {entry.guidance.validation.device ?? ''}</p>
                     {entry.guidance.validation.scope && <p>{t(`model_downloads.scope_${entry.guidance.validation.scope}`)}</p>}
                     {advice[entry.target].device && advice[entry.target].device.description !== entry.guidance.validation.device && <p>{t('model_downloads.gpu_unverified')}</p>}
-                </>}
+                </details>}
                 {entry.target === "rvc" && <p>{t("model_downloads.rvc_requirements")}</p>}
                 {entry.target === "asr" && <p>{t("model_downloads.asr_requirements")}</p>}
                 {entry.target === "vad" && <p>{t("model_downloads.vad_requirements")}</p>}
                 {job && <p role="status">{t(`model_downloads.phase_${job.phase}`)}</p>}
                 {active && <><progress aria-label={t("model_downloads.progress")} value={job.received_bytes} max={job.total_bytes} />
-                    <p>{bytes(job.received_bytes)} / {bytes(job.total_bytes)}</p>
+                    <p>{gib(job.received_bytes)} / {gib(job.total_bytes)}</p>
                     <button type="button" disabled={!!pending || job.phase === "cancelling"}
                         onClick={() => request("/run/cancel_model_download", entry, job)}>{t("model_downloads.cancel")}</button></>}
                 {job?.error_code && <p role="alert">{failure(job.error_code)}</p>}
