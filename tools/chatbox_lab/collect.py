@@ -194,8 +194,14 @@ class AvatarSwitcher:
         return False
 
     def restore(self) -> None:
-        if self.original:
-            self.switch(self.original)
+        # Right after a switch VRChat may still be loading and ignore the change.
+        if not self.original:
+            return
+        for _ in range(3):
+            if self.switch(self.original):
+                return
+            time.sleep(10.0)
+        print(f'could not switch back to {self.names.get(self.original, self.original)}; change it by hand', flush=True)
 
 
 def capture(camera: CameraWindow, retries: int = 5):
