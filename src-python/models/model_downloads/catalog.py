@@ -3,7 +3,7 @@ from dataclasses import dataclass, replace
 import re
 from urllib.parse import quote
 
-CATALOG_VERSION = '2026-11-01.3'
+CATALOG_VERSION = '2026-11-01.4'
 
 
 @dataclass(frozen=True)
@@ -157,16 +157,14 @@ CATALOG = (*CATALOG, *OCR_CATALOG)
 # (models/ocr/onnx/chatbox_yolox_tiny.onnx), which may never be offered here:
 # the file name differs on purpose, and models/ocr/ocr_chatbox_detector.py only
 # loads this entry's hash-verified download.
-# TODO(after upload): DETECTOR_REPO and DETECTOR_REVISION are placeholders. Set
-# them to the Hugging Face repository and the commit that holds the file, then
-# bump CATALOG_VERSION. Size and hash come from the trained file; if the upload
-# is re-exported, measure both again. Until then the download fails (404).
+# Published by the maintainer from tools/chatbox_lab. A new upload needs a new
+# revision, size and hash here, and a CATALOG_VERSION bump.
 DETECTOR_MODEL_ID = 'vrct-vox-chatbox-detector'
 DETECTOR_FILE_NAME = 'vrct_vox_chatbox_yolox_tiny.onnx'
-DETECTOR_REPO = 'PLACEHOLDER/vrct-vox-chatbox-detector'
-DETECTOR_REVISION = '0000000000000000000000000000000000000000'
+DETECTOR_REPO = 'kein5/vrct-vox-chatbox-detector'
+DETECTOR_REVISION = '9c460bf687da59e069ed76f8ee9cd3157dab7ae1'
 DETECTOR_SIZE = 20184371
-DETECTOR_SHA256 = '6c13ce1425d6e1cc7da82199fd0d566b0eb2f7e119dfd07d4a4e490109755838'
+DETECTOR_SHA256 = '2fab797de821cc5d1985ede27acc55dd97ea46a1ce2b6aee5c775347e5a501f6'
 DETECTOR_CATALOG = (
     Model(DETECTOR_MODEL_ID, 'ocr', 'VRCT-VOX chatbox detector · YOLOX-Tiny', 'VRCT-VOX',
           DETECTOR_REPO, DETECTOR_REVISION, 'MIT', (

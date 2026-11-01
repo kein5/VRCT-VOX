@@ -107,8 +107,9 @@ them, as stated above; the table is kept for attribution.
 
 VRCT-VOX's own chat-bubble detector, `vrct_vox_chatbox_yolox_tiny.onnx`, is a
 separate model: a YOLOX-Tiny trained from VRCT-VOX's own frames with
-`tools/chatbox_lab`, published under MIT. It is not derived from the upstream
-model or its outputs. It is not shipped either; it is downloaded only after the
+`tools/chatbox_lab` from Megvii's COCO weights (Apache-2.0), published under
+MIT at [kein5/vrct-vox-chatbox-detector](https://huggingface.co/kein5/vrct-vox-chatbox-detector).
+It is not derived from the upstream model or its outputs. It is not shipped either; it is downloaded only after the
 user agrees in Config → Chat Transcribe (catalog entry `vrct-vox-chatbox-detector`).
 
 ## Downloadable CTranslate2 translation weights

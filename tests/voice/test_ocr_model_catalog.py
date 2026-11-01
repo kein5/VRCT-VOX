@@ -3,6 +3,7 @@
 from dataclasses import replace
 import hashlib
 import io
+import re
 from pathlib import Path
 import time
 
@@ -64,16 +65,16 @@ def test_own_detector_entry_matches_its_constants():
         (DETECTOR_FILE_NAME, DETECTOR_SIZE, DETECTOR_SHA256, "detector", ())]
     # Measured from the trained file (tools/chatbox_lab, vrct_vox_chatbox_yolox_tiny.onnx).
     assert (DETECTOR_SIZE, DETECTOR_SHA256) == (
-        20184371, "6c13ce1425d6e1cc7da82199fd0d566b0eb2f7e119dfd07d4a4e490109755838")
+        20184371, "2fab797de821cc5d1985ede27acc55dd97ea46a1ce2b6aee5c775347e5a501f6")
     assert artifact_url(entry, entry.artifacts[0]) == (
         f"https://huggingface.co/{DETECTOR_REPO}/resolve/{DETECTOR_REVISION}/{DETECTOR_FILE_NAME}")
     assert all(url.startswith(f"https://huggingface.co/{DETECTOR_REPO}/blob/{DETECTOR_REVISION}/")
                for url in entry.licenses)
     assert any(url.endswith("/LICENSE") for url in entry.licenses)
-    # The placeholder pins are replaced together after the upload (catalog.py TODO).
-    placeholder = DETECTOR_REVISION == "0" * 40
-    assert placeholder == DETECTOR_REPO.startswith("PLACEHOLDER/")
-    assert CATALOG_VERSION != "2026-11-01.2"  # The OCR block changed: stale consent must fail.
+    assert re.fullmatch(r"[0-9a-f]{40}", DETECTOR_REVISION) and DETECTOR_REVISION != "0" * 40
+    assert not DETECTOR_REPO.startswith("PLACEHOLDER/")
+    # The detector pins changed after the upload: stale consent must fail.
+    assert CATALOG_VERSION not in ("2026-11-01.2", "2026-11-01.3")
 
 
 def test_own_detector_is_offered_with_its_size_and_destination(tmp_path):
