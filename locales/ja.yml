@@ -854,6 +854,8 @@ realtime_toggle:
   realtime_capture_failed: "音声の取り込みが止まりました。デバイスが外れたか変わった可能性があります。確認してから、もう一度オンにしてください。"
 
 speech_servers:
+    model_set: "モデル設定済み"
+    model_unset: "モデル未設定"
     title: "同梱speech.cppサーバー"
     help: "利用許諾のあるGGUFモデルを指定するか、既定モデルを取得します。保存してもモデルは読み込まれず、サーバーは必要なときに起動します。ASRにはVADモデルも必要です。声ファイルは声名「custom」で使えます。TTSサーバーを止めると読み上げ待ちは消え、ASRを止めると字幕が終わります。アプリを再起動するとすべて停止します。"
     japanese: "日本語TTS"
@@ -989,6 +991,7 @@ voice_setup_errors:
     managed_setup_manual_config_pending: "以前の手動PipeWire設定がまだ有効になっていません。二重作成を避けるため、以前の設定を有効化するか整理してください。"
 
 model_downloads:
+    hardware_title: "GPUとメモリ"
     title: "既定モデルのダウンロード"
     loading: "モデル一覧を読み込んでいます…"
     link_error: "ブラウザでリンクを開けませんでした。表示されたURLをコピーして開いてください。"

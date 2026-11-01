@@ -854,6 +854,8 @@ realtime_toggle:
   realtime_capture_failed: "Audio capture stopped. The device may have been unplugged or changed; check it and turn this on again."
 
 speech_servers:
+    model_set: "Model set"
+    model_unset: "No model set"
     title: "Bundled speech.cpp servers"
     help: "Choose existing GGUF files you have permission to use. Saving does not load models; start each server when needed. ASR needs a VAD model. An optional voice file is registered as custom. Stopping a TTS server clears the shared speech queue; stopping ASR ends its captions. Servers stay off after restarting the app."
     japanese: "Japanese TTS"
@@ -989,6 +991,7 @@ voice_setup_errors:
     managed_setup_manual_config_pending: "An existing manual PipeWire configuration is not active yet. Do not create a second route; activate or remove the old configuration first."
 
 model_downloads:
+    hardware_title: "GPU and memory"
     title: "Download a default model"
     loading: "Loading the model catalog…"
     link_error: "Could not open the link in your browser. Copy the displayed URL to open it manually."

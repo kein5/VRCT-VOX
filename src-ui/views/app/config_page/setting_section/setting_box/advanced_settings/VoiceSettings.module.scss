@@ -34,6 +34,8 @@
     @media (max-width: 700px) { label { grid-template-columns: 1fr; gap: .8rem; } }
 }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem; }
+.readout { display: grid; gap: .8rem; padding: 1.2rem 1.6rem; border: .1rem solid var(--dark_800_color); border-radius: var(--vox_radius); }
+.readout p { margin: 0; color: var(--dark_450_color); }
 .statusLine { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem 1.6rem; padding: .8rem 1.2rem; border: .1rem solid var(--dark_800_color); border-radius: var(--vox_radius); background: var(--dark_900_color); }
 .statusText { display: flex; align-items: center; gap: .8rem; margin: 0; }
 .statusDot { width: .8rem; height: .8rem; border-radius: 50%; flex-shrink: 0; background: var(--dark_600_color); }

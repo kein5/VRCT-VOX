@@ -5,6 +5,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
+from ui_details import open_engine_settings
 
 from test_model_downloads_ui import ui as ui
 
@@ -121,6 +122,7 @@ def test_model_warning_in_styled_screen_keeps_explicit_consent(studio):
     page, peer = studio
     page.get_by_role("button", name="設定を開く", exact=True).click()
     page.get_by_role("button", name="TTS", exact=True).click()
+    open_engine_settings(page)
     page.get_by_role("button", name="取得内容を確認", exact=True).first.click()
     dialog = page.get_by_role("dialog")
     expect(dialog).to_be_visible()
