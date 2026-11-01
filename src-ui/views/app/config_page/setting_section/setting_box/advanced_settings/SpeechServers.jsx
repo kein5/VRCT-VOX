@@ -5,6 +5,7 @@ import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraf
 import styles from "./VoiceSettings.module.scss";
 import { ModelDownloads, HardwareReadout } from "./ModelDownloads";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { SetupSection } from "../_components/setup_section/SetupSection";
 import { Description } from "../_components/description/Description";
 import { FormRow } from "../_components/form_row/FormRow";
 
@@ -21,8 +22,6 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
         write: value => send("/set/data/speech_server_settings", value) });
     const { draft, setDraft, saving, dirty } = form;
     const pendingKey = JSON.stringify(pending);
-    // One-time setup stays folded; the summary says enough to leave it so.
-    const [opened, setOpened] = useState(false);
     // TTS engines on one page share one GPU/memory reading and headroom choice.
     const [reserve, setReserve] = useState('vr');
     const tts = profiles.some(name => ["japanese", "multilingual"].includes(name));
@@ -46,9 +45,7 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
     const attention = profiles.some(name => !!state[name]?.error_code || !!state[name]?.low_latency?.error_code);
     const summary = profiles.map(name => `${t(`speech_servers.${name}`)}: ${t(configured(name) ? "speech_servers.model_set" : "speech_servers.model_unset")} · ${stateText(name)}`).join(" / ");
     return <section className={styles.container} aria-label={t("speech_servers.title")}>
-        <details className={styles.setup} open={opened || attention} onToggle={event => setOpened(event.currentTarget.open)}>
-        <summary><span className={styles.setupTitle}>{t("speech_servers.setup_title")}</span><span className={styles.setupStatus}>{summary}</span></summary>
-        <div className={styles.setupBody}>
+        <SetupSection title={t("speech_servers.setup_title")} status={summary} attention={attention}>
         <Description text={t("speech_servers.help")} />
         {tts && <HardwareReadout reserve={reserve} setReserve={setReserve} />}
         {draft && <form onSubmit={event => {
@@ -96,8 +93,7 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
             })}
         </form>}
         <button type="button" disabled={dirty || saving} onClick={() => { send("/get/data/speech_server_settings"); send("/get/data/speech_server_state"); }}>{t("speech_servers.reload")}</button>
-        </div>
-        </details>
+        </SetupSection>
         {/* The unsaved-changes dialog stays outside the fold so it shows while folded. */}
         {form.navigationDialog}
         {error && <p role="alert">{error}</p>}

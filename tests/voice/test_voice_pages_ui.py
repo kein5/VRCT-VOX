@@ -6,6 +6,7 @@ import os
 from urllib.parse import urlsplit
 
 import pytest
+from ui_details import open_setup
 from ui_details import open_engine_settings
 from models.model_downloads.manager import Downloads
 from models.tts.settings import VoiceSettings
@@ -194,7 +195,7 @@ def test_separate_pages_search_and_asr_placement(pages):
     expect(page.get_by_label("Chat voice", exact=True)).to_be_visible()
     expect(page.get_by_role("group", name="ASR + VAD", exact=True)).to_have_count(0)
     page.get_by_role("button", name="RVC", exact=True).click()
-    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_be_visible()
+    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_have_count(1)
     expect(page.get_by_label("Chat voice", exact=True)).to_have_count(0)
     page.get_by_role("button", name="Advanced", exact=True).click()
     expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_have_count(0)
@@ -208,7 +209,7 @@ def test_separate_pages_search_and_asr_placement(pages):
     # The Device page Mic selection is also the RVC input on Linux, so it is found too.
     expect(results.filter(has_text="Device: Mic Device")).to_be_visible()
     results.filter(has_text="RVC: RVC").click()
-    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_be_visible()
+    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_have_count(1)
     assert not any(ep.startswith("/run/start_") for ep, _ in peer.sent)
 
 
@@ -252,6 +253,7 @@ def test_rvc_can_prepare_route_without_losing_model_or_output_settings(pages):
     page.get_by_label("Input to forward", exact=True).select_option(
         label="Test microphone"
     )
+    open_setup(page)
     model = page.get_by_label("Permitted RVC model (.pth)", exact=True)
     model.fill("/permitted/model.pth")
     previous = dict(peer.voice)
@@ -290,6 +292,7 @@ def test_rvc_download_applies_without_saving_other_edits_first(pages):
     # Regression: an unsaved runtime folder used to disable Apply until saved.
     page, peer, reply = pages
     page.get_by_role("button", name="RVC", exact=True).click()
+    open_setup(page)
     runtime = page.get_by_label("RVC runtime folder", exact=True)
     runtime.fill("/unsaved/runtime")
     paths = dict(model="/verified/saisho.pth", index="/verified/saisho.index")
@@ -347,7 +350,7 @@ def test_unsaved_changes_require_ack_and_navigation_confirmation(pages):
     reply("/set/data/voice_settings", peer.voice)
     expect(save).to_be_disabled()
     page.get_by_role("button", name="RVC", exact=True).click()
-    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_be_visible()
+    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_have_count(1)
 
 
 def test_input_identity_survives_pages_and_stale_state(pages):
@@ -503,3 +506,24 @@ def test_rows_keep_the_description_under_the_label_and_linked_to_the_control(pag
     assert description.evaluate("(node, control) => !!(node.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING)",
                                 device.element_handle())
     expect(description).to_contain_text("headphones")
+
+
+def test_disabled_actions_say_what_they_wait_for(pages):
+    from playwright.sync_api import expect
+
+    page, peer, _ = pages
+    page.get_by_role("button", name="RVC", exact=True).click()
+    start = page.get_by_role("button", name="Start input forwarding", exact=True)
+    expect(start).to_be_disabled()
+    reason = page.locator(f'[id="{start.get_attribute("aria-describedby")}"]')
+    expect(reason).to_have_text("To start, prepare the virtual mic in the setup section below")
+    # Setup is folded with a status line; preparing the mic happens inside it.
+    summary = page.locator("details[data-setup] > summary")
+    expect(summary).to_contain_text("Models and runtime")
+    expect(summary).to_contain_text("Virtual mic not prepared")
+    page.get_by_role("button", name="TTS", exact=True).click()
+    check = page.get_by_role("group", name="Multilingual TTS · Text to voice (speech.cpp)", exact=True).get_by_role(
+        "button", name="Check model options", exact=True)
+    assert peer.voice["multilingual_url"] == ""
+    expect(check).to_be_disabled()
+    expect(page.locator(f'[id="{check.get_attribute("aria-describedby")}"]')).to_have_text("Enter and save the server URL to check")

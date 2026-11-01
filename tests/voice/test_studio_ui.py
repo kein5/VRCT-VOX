@@ -174,3 +174,15 @@ def test_settings_top_bar_stops_speech_and_mutes_without_starting_anything(studi
     # Only the stop and mute requests: nothing resumed, started or rerouted.
     assert requests() == ["/run/stop_voice", "/run/mute_voice"]
     expect(stop).to_be_visible()
+
+
+def test_translation_model_setup_is_folded_with_its_status(studio):
+    from playwright.sync_api import expect
+
+    page, _ = studio
+    page.get_by_role("button", name="設定を開く", exact=True).click()
+    page.get_by_role("button", name="翻訳", exact=True).click()
+    setup = page.locator("details[data-setup]")
+    expect(setup).to_have_count(1)
+    expect(setup.locator("summary")).to_contain_text("モデルと処理デバイス")
+    expect(setup).not_to_have_attribute("open", "")

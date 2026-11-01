@@ -12,6 +12,7 @@ import subprocess
 import time
 
 import pytest
+from ui_details import open_setup
 
 from models.tts.settings import VoiceSettings
 from models.voice_conversion.settings import DirectSettings
@@ -152,6 +153,7 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         expect(page.get_by_text('Input forwarding stopped', exact=True)).to_be_visible()
         mode = page.get_by_role('combobox', name='Direct voice mode', exact=True)
         mode.select_option('converted')
+        open_setup(page)
         page.get_by_role('textbox', name='Seed runtime folder', exact=True).fill('/allowed/runtime')
         page.get_by_role('textbox', name='Permitted reference WAV', exact=True).fill('/allowed/reference.wav')
         expect(start).to_be_disabled()  # Unsaved intent cannot start a different producer.
@@ -160,6 +162,7 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         assert len([r for r in sent if r['endpoint'] == '/run/start_direct_voice']) == 2
         page.reload()
         expect(mode).to_have_value('converted')
+        open_setup(page)
         expect(page.get_by_role('textbox', name='Seed runtime folder', exact=True)).to_have_value('/allowed/runtime')
         expect(start).to_be_disabled()  # Input selection is never restored.
         selector.select_option(replacement)

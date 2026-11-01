@@ -317,6 +317,9 @@ config_page:
             label: "UI Language"
 
     translation:
+        setup_title: "Model and device"
+        setup_downloaded: "downloaded"
+        setup_not_downloaded: "not downloaded"
         section_label_ai_translation: "AI Translation (Local)"
         section_label_external_api: "External Translation API"
         section_label_local_llm: "Local LLM & Compatible Server"
@@ -897,6 +900,21 @@ fork_distribution:
     releases: "VRCT-VOX releases"
 
 voice_ui:
+    check_needs_url: "Enter and save the server URL to check"
+    check_needs_server: "Start the bundled server to check"
+    setup_rvc: "Models and runtime"
+    setup_input: "Input forwarding setup"
+    runtime_set: "Runtime set"
+    runtime_unset: "No runtime set"
+    mic_ready: "Virtual mic ready"
+    mic_unready: "Virtual mic not prepared"
+    start_needs_mic: "To start, prepare the virtual mic in the setup section below"
+    start_needs_input: "To start, choose the input to forward"
+    start_needs_setup: "To start, set the conversion model and runtime"
+    start_needs_save: "To start, save your changes"
+    start_waiting_route: "Checking the virtual mic"
+    start_input_unavailable: "The input list is unavailable; refresh it"
+    start_running: "Forwarding"
     mute_row: "Mute"
     monitor_heading: "Monitor"
     topbar_stop: "Stop speech"

@@ -317,6 +317,9 @@ config_page:
             label: "UIの言語"
 
     translation:
+        setup_title: "モデルと処理デバイス"
+        setup_downloaded: "ダウンロード済み"
+        setup_not_downloaded: "未ダウンロード"
         section_label_ai_translation: "AI翻訳（ローカル）"
         section_label_external_api: "外部翻訳API"
         section_label_local_llm: "ローカルLLM・互換サーバー"
@@ -897,6 +900,21 @@ fork_distribution:
     releases: "VRCT-VOXの配布ページ"
 
 voice_ui:
+    check_needs_url: "サーバーURLを入力して保存すると確認できます"
+    check_needs_server: "同梱サーバーが起動すると確認できます"
+    setup_rvc: "モデルと実行環境"
+    setup_input: "入力の転送の準備"
+    runtime_set: "実行環境設定済み"
+    runtime_unset: "実行環境未設定"
+    mic_ready: "仮想マイク準備済み"
+    mic_unready: "仮想マイク未準備"
+    start_needs_mic: "開始するには、下の準備の欄で仮想マイクを準備してください"
+    start_needs_input: "開始するには、転送する入力を選んでください"
+    start_needs_setup: "開始するには、変換のモデルと実行環境を設定してください"
+    start_needs_save: "開始するには、変更を保存してください"
+    start_waiting_route: "仮想マイクの状態を確認しています"
+    start_input_unavailable: "入力の一覧を取得できません。入力一覧を更新してください"
+    start_running: "転送中です"
     mute_row: "ミュート"
     monitor_heading: "モニター"
     topbar_stop: "読み上げを停止"
