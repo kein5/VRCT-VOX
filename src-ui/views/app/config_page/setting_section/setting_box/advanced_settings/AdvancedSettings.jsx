@@ -24,11 +24,17 @@ import CopyThinSvg from "@images/copy_thin.svg?react";
 import CheckMarkSvg from "@images/check_mark.svg?react";
 
 export const AdvancedSettings = () => {
+    const { t } = useI18n();
+
     return (
         <div className={styles.container}>
             <div>
+                <SectionLabelComponent label={t("config_page.advanced_settings.section_label_osc")} />
                 <OscIpAddressContainer />
                 <OscPortContainer />
+            </div>
+            <div>
+                <SectionLabelComponent label={t("config_page.advanced_settings.section_label_config_file")} />
                 <OpenConfigFolderContainer />
             </div>
             <WebsocketContainer />
@@ -46,6 +52,7 @@ const OscIpAddressContainer = () => {
         variable: currentOscIpAddress.data,
         state: currentOscIpAddress.state,
         setFunction: setOscIpAddress,
+        label: t("config_page.advanced_settings.osc_ip_address.label"),
     });
 
     return (
@@ -68,6 +75,7 @@ const OscPortContainer = () => {
         variable: currentOscPort.data,
         state: currentOscPort.state,
         setFunction: setOscPort,
+        label: t("config_page.advanced_settings.osc_port.label"),
     });
 
     const onChangeFunction = (value) => {
@@ -145,6 +153,7 @@ const WebsocketHostContainer = () => {
         variable: currentWebsocketHost.data,
         state: currentWebsocketHost.state,
         setFunction: setWebsocketHost,
+        label: t("config_page.advanced_settings.websocket_host.label"),
     });
 
     return (
@@ -167,6 +176,7 @@ const WebsocketPortContainer = () => {
         variable: currentWebsocketPort.data,
         state: currentWebsocketPort.state,
         setFunction: setWebsocketPort,
+        label: t("config_page.advanced_settings.websocket_port.label"),
     });
 
     const onChangeFunction = (value) => {
@@ -272,6 +282,7 @@ const ObsBrowserSourcePortContainer = () => {
         variable: currentObsBrowserSourcePort.data,
         state: currentObsBrowserSourcePort.state,
         setFunction: setObsBrowserSourcePort,
+        label: t("config_page.advanced_settings.obs_browser_source_port.label"),
     });
 
     const onChangeFunction = (value) => {
@@ -299,6 +310,7 @@ const ObsBrowserSourceMaxMessagesContainer = () => {
         variable: currentObsBrowserSourceMaxMessages.data,
         state: currentObsBrowserSourceMaxMessages.state,
         setFunction: setObsBrowserSourceMaxMessages,
+        label: t("config_page.advanced_settings.obs_browser_source_max_messages.label"),
     });
 
     const onChangeFunction = (value) => {
@@ -326,6 +338,7 @@ const ObsBrowserSourceDisplayDurationContainer = () => {
         variable: currentObsBrowserSourceDisplayDuration.data,
         state: currentObsBrowserSourceDisplayDuration.state,
         setFunction: setObsBrowserSourceDisplayDuration,
+        label: t("config_page.advanced_settings.obs_browser_source_display_duration.label"),
     });
 
     const onChangeFunction = (value) => {
@@ -353,6 +366,7 @@ const ObsBrowserSourceFadeoutDurationContainer = () => {
         variable: currentObsBrowserSourceFadeoutDuration.data,
         state: currentObsBrowserSourceFadeoutDuration.state,
         setFunction: setObsBrowserSourceFadeoutDuration,
+        label: t("config_page.advanced_settings.obs_browser_source_fadeout_duration.label"),
     });
 
     const onChangeFunction = (value) => {
@@ -380,6 +394,7 @@ const ObsBrowserSourceFontSizeContainer = () => {
         variable: currentObsBrowserSourceFontSize.data,
         state: currentObsBrowserSourceFontSize.state,
         setFunction: setObsBrowserSourceFontSize,
+        label: t("config_page.advanced_settings.obs_browser_source_font_size.label"),
     });
 
     const onChangeFunction = (value) => {
@@ -407,6 +422,7 @@ const ObsBrowserSourceFontColorContainer = () => {
         variable: currentObsBrowserSourceFontColor.data,
         state: currentObsBrowserSourceFontColor.state,
         setFunction: setObsBrowserSourceFontColor,
+        label: t("config_page.advanced_settings.obs_browser_source_font_color.label"),
     });
 
     return (
@@ -429,6 +445,7 @@ const ObsBrowserSourceFontOutlineThicknessContainer = () => {
         variable: currentObsBrowserSourceFontOutlineThickness.data,
         state: currentObsBrowserSourceFontOutlineThickness.state,
         setFunction: setObsBrowserSourceFontOutlineThickness,
+        label: t("config_page.advanced_settings.obs_browser_source_font_outline_thickness.label"),
     });
 
     const onChangeFunction = (value) => {
@@ -456,6 +473,7 @@ const ObsBrowserSourceFontOutlineColorContainer = () => {
         variable: currentObsBrowserSourceFontOutlineColor.data,
         state: currentObsBrowserSourceFontOutlineColor.state,
         setFunction: setObsBrowserSourceFontOutlineColor,
+        label: t("config_page.advanced_settings.obs_browser_source_font_outline_color.label"),
     });
 
     return (

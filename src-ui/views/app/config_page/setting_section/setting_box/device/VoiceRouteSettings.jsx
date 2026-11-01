@@ -21,7 +21,7 @@ export const VoiceRouteControls = () => {
     const { route, error, send } = useVoice();
     const problem = error || route.error;
     return <>
-        <FormRow group label={t("voice_ui.mute_row")} description={t(route.managed ? "voice.mute_scope_managed" : "voice.mute_scope_external")}>
+        <FormRow group label={t("voice_ui.mute_row")} description={t("voice_ui.mute_row_description", { scope: t(route.managed ? "voice.mute_scope_managed" : "voice.mute_scope_external") })}>
             <button type="button" onClick={() => send("/run/mute_voice")}>{t("voice.mute")}</button>
             <button type="button" disabled={!route.ready || route.pending || !route.requested_muted} onClick={() => send("/run/resume_voice")}>{t("voice.resume")}</button>
         </FormRow>

@@ -3,7 +3,6 @@ import { HexColorPicker } from "react-colorful";
 
 import styles from "./ColorEntryWithSaveButton.module.scss";
 import { _Entry } from "../_atoms/_entry/_Entry";
-import { _SaveButton } from "../_atoms/_save_button/_SaveButton";
 import { clsx } from "clsx";
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
@@ -141,7 +140,6 @@ export const ColorEntryWithSaveButton = (props) => {
                     </div>
                 )}
             </div>
-            <_SaveButton onClick={saveFunction} is_disabled={is_disabled} />
         </div>
     );
 };

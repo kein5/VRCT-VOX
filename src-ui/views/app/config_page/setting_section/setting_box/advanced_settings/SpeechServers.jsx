@@ -88,7 +88,8 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                         {owner?.low_latency && <p>{t(`speech_servers.low_latency_${owner.low_latency.state}`)}</p>}
                     </EnvReadout>
                     {owner?.low_latency?.error_code && <p role="alert">{t("speech_servers.low_latency_failed")}</p>}
-                    {owner?.error_code && <p role="alert">{owner.error_code === "speech_server_out_of_memory" && <>{t("voice_ui.memory_error")} </>}{owner.error_code}</p>}
+                    {/* The message says what to do; the code stays for reports. */}
+                    {owner?.error_code && <p role="alert">{t(`speech_servers.errors.${owner.error_code}`, { defaultValue: "" })} <code className={styles.error_code}>{owner.error_code}</code></p>}
                 </fieldset>;
             })}
         </form>}

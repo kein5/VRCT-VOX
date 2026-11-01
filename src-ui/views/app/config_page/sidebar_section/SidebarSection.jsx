@@ -8,6 +8,8 @@ import {
 } from "@store";
 
 import MicSvg from "@images/mic.svg?react";
+import TtsSpeakerSvg from "@images/tts_speaker.svg?react";
+import VoiceConversionSvg from "@images/voice_conversion.svg?react";
 import AppearanceSvg from "@images/mui_palette.svg?react";
 import TranslationSvg from "@images/translation.svg?react";
 import GraphicEqSvg from "@images/mui_graphic_eq.svg?react";
@@ -49,12 +51,12 @@ export const SidebarSection = () => {
                         <Tab tab_id="transcription" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="ocr" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="vr" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
-                        <Tab tab_id="others" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="hotkeys" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="tts" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="rvc" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="advanced_settings" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="updater" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
+                        <Tab tab_id="others" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                     </div>
                     <div className={styles.separated_tabs_wrapper}>
                         <Tab tab_id="about_vrct" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
@@ -68,8 +70,8 @@ export const SidebarSection = () => {
 
 export const TabIcon = ({ tab_id, className }) => {
     switch (tab_id) {
-        case "tts": return <GraphicEqSvg className={className} />;
-        case "rvc": return <MicSvg className={className} />;
+        case "tts": return <TtsSpeakerSvg className={className} />;
+        case "rvc": return <VoiceConversionSvg className={className} />;
         case "device": return <MicSvg className={className} />;
         case "appearance": return <AppearanceSvg className={clsx(className, styles.mui_icon)} />;
         case "translation": return <TranslationSvg className={className} />;

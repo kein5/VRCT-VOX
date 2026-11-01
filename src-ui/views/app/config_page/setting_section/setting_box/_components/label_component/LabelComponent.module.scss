@@ -2,6 +2,9 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    // A wide control (slider, radio group) must not squeeze the label down to
+    // one or two characters per line.
+    min-width: min(16rem, 100%);
     max-width: 38rem;
     overflow-wrap: break-word;
 }

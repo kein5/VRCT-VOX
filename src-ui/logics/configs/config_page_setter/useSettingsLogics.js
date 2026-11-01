@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, useId } from "react";
 import * as stores from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useNotificationStatus } from "@logics_common";
 import { arrayToObject, arrayToIdLabel, transformToIndexedArray } from "@utils";
+import { setSaveBarEntry } from "../../voice/saveBar";
 
 const transformResponse = (transformName, payload) => {
     if (!transformName) return payload;
@@ -350,19 +351,25 @@ export const useSliderLogic = ({
 };
 
 
+// A text field saved from the config page top bar, like every other settings
+// form; `label` names it in the bar's list of changes. Enter still saves the
+// one field.
 export const useSaveButtonLogic = ({
     variable,
     state,
     setFunction,
-    deleteFunction
+    deleteFunction,
+    label,
 }) => {
     const [input_value, setInputValue] = useState(variable);
+    const [submitted, setSubmitted] = useState(false);
 
     const onChangeFunction = (value) => {
         setInputValue(value);
     };
 
     const saveFunction = () => {
+        setSubmitted(true);
         if (input_value === "" || input_value === null) {
             if (typeof deleteFunction === "function") {
                 return deleteFunction();
@@ -375,8 +382,23 @@ export const useSaveButtonLogic = ({
     useEffect(() => {
         if (state === "pending") return;
         setInputValue(variable);
-
+        setSubmitted(false);
     }, [variable, state]);
+
+    // Loading is also "pending"; only a save sent from here shows as saving.
+    const saving = submitted && state === "pending";
+    const dirty = !saving && String(input_value ?? "") !== String(variable ?? "");
+    const id = useId();
+    const latest = useRef();
+    latest.current = { saveFunction, discard: () => setInputValue(variable) };
+    useEffect(() => {
+        setSaveBarEntry(id, {
+            dirty, saving, saveState: saving ? "saving" : dirty ? "unsaved" : "saved",
+            changes: dirty && label ? [label] : [], canSave: state !== "pending",
+            save: () => latest.current.saveFunction(), discard: () => latest.current.discard(),
+        });
+    }, [id, dirty, saving, label, state]);
+    useEffect(() => () => setSaveBarEntry(id, null), [id]);
 
     return {
         variable: input_value,

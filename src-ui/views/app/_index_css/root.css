@@ -11,6 +11,7 @@
     user-select: none;
     &::-webkit-scrollbar {
         width: 0.8rem;
+        height: 0.8rem;
     }
     &::-webkit-scrollbar-track {
         background-color: var(--dark_925_color);

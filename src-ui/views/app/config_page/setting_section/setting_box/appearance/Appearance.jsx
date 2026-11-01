@@ -20,17 +20,29 @@ import {
     CheckboxContainer,
 } from "../_templates/Templates";
 
+import {
+    SectionLabelComponent,
+} from "../_components";
+
 export const Appearance = () => {
+    const { t } = useI18n();
+
     return (
-        <>
-            <UiLanguageContainer />
-            <UiScalingContainer />
-            <MessageLogUiScalingContainer />
-            <SendMessageButtonTypeContainer />
-            <ShowResendButtonContainer />
-            <FontFamilyContainer />
-            <TransparencyContainer />
-        </>
+        <div className={styles.container}>
+            <div>
+                <SectionLabelComponent label={t("config_page.appearance.section_label_display")} />
+                <UiLanguageContainer />
+                <UiScalingContainer />
+                <MessageLogUiScalingContainer />
+                <FontFamilyContainer />
+                <TransparencyContainer />
+            </div>
+            <div>
+                <SectionLabelComponent label={t("config_page.appearance.section_label_send_buttons")} />
+                <SendMessageButtonTypeContainer />
+                <ShowResendButtonContainer />
+            </div>
+        </div>
     );
 };
 

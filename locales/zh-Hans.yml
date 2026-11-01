@@ -185,6 +185,8 @@ config_page:
             desc_for_vad: "使用AI(Silero VAD)检测他人语音，每次说完话就将音频发送至语音识别。可减少拾取BGM和游戏音效的情况。"
 
     appearance:
+        section_label_display: "显示"
+        section_label_send_buttons: "发送按钮"
         transparency:
             label: "透明度"
             desc: "更改主视窗透明度"
@@ -349,6 +351,7 @@ config_page:
         fadeout_duration: "渐隐持续时间"
         common_settings: "通用设置"
         vr_ui_beta: "VR UI（测试版）"
+        section_label_overlay: "字幕叠加层"
         tracker: "显示追踪器的位置"
         hmd: "HMD"
         left_hand: "左手"
@@ -368,6 +371,9 @@ config_page:
     others:
         section_label_sounds: "声音"
         section_label_message_formats: "消息格式"
+        section_label_sending: "发送与日志"
+        section_label_reading_aids: "平假名・罗马字"
+        section_label_models: "模型"
         auto_clear_the_message_box:
             label: "发言后自动清空chatbox"
         send_only_translated_messages:
@@ -463,6 +469,8 @@ config_page:
     hotkeys:
         input_placeholder: "请输入按键组合"
         disabled_notice: "※打开设置页面时，为防止误操作，快捷键功能会暂时禁用。"
+        section_label_quick_chat: "快捷聊天"
+        section_label_toggles: "窗口与功能切换"
         error_in_use: "“{{action_name}}”的快捷键（{{hotkey}}）已在其他位置使用，无法注册。"
         error_failed_to_register_at_launch: "“{{action_name}}”的快捷键（{{hotkey}}）正被其他应用程序使用，无法启用。"
         toggle_vrct_visibility:
@@ -475,6 +483,8 @@ config_page:
             label: "切换「{{transcription_receive}}」开/关"
 
     advanced_settings:
+        section_label_osc: "OSC"
+        section_label_config_file: "配置文件"
         osc_ip_address:
             label: "OSC IP 地址"
         osc_port:

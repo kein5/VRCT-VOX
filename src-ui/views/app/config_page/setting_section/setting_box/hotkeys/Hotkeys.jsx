@@ -6,17 +6,19 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useIsOpenedConfigPage } from "@logics_common";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { SectionLabelComponent } from "../_components";
 export const Hotkeys = () => {
     const { t } = useI18n();
     return (
         <div className={styles.container}>
             <p className={styles.disabled_notice}>{t("config_page.hotkeys.disabled_notice")}</p>
-            <HotkeysBoxContainer />
+            <QuickChatHotkeyContainer />
+            <ToggleHotkeysContainer />
         </div>
     );
 };
 
-const HotkeysBoxContainer = () => {
+const QuickChatHotkeyContainer = () => {
     const { t } = useI18n();
     const { currentHotkeys, setHotkeys, openQuickChat } = useHotkeys();
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
@@ -27,6 +29,7 @@ const HotkeysBoxContainer = () => {
 
     return (
         <div className={styles.container}>
+            <SectionLabelComponent label={t("config_page.hotkeys.section_label_quick_chat")} />
             <HotkeysEntryContainer
                 label={t("quick_chat.label")}
                 hotkey_id="open_quick_chat"
@@ -41,6 +44,17 @@ const HotkeysBoxContainer = () => {
             <button type="button" className={styles.open_quick_chat} onClick={() => { setIsOpenedConfigPage(false); openQuickChat(); }}>
                 {t("quick_chat.open")}
             </button>
+        </div>
+    );
+};
+
+const ToggleHotkeysContainer = () => {
+    const { t } = useI18n();
+    const { currentHotkeys, setHotkeys } = useHotkeys();
+
+    return (
+        <div className={styles.container}>
+            <SectionLabelComponent label={t("config_page.hotkeys.section_label_toggles")} />
             <HotkeysEntryContainer
                 label={t("config_page.hotkeys.toggle_vrct_visibility.label")}
                 hotkey_id="toggle_vrct_visibility"

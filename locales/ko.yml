@@ -185,6 +185,8 @@ config_page:
             desc_for_vad: "AI(Silero VAD)로 사람의 목소리를 감지해, 말이 끝날 때마다 음성 인식으로 보냅니다. 배경 음악이나 게임 소리를 잘못 인식하는 일이 줄어듭니다."
 
     appearance:
+        section_label_display: "표시"
+        section_label_send_buttons: "전송 버튼"
         transparency:
             label: "투명도"
             desc: "메인 화면의 투명도를 변경합니다."
@@ -355,6 +357,7 @@ config_page:
         fadeout_duration: "페이드 아웃 시간"
         common_settings: "공통 설정"
         vr_ui_beta: "VR UI (베타)"
+        section_label_overlay: "자막 오버레이"
         tracker: "표시할 트래커의 위치"
         hmd: "HMD"
         left_hand: "왼손"
@@ -374,6 +377,9 @@ config_page:
     others:
         section_label_sounds: "사운드"
         section_label_message_formats: "메시지 형식"
+        section_label_sending: "전송 및 로그"
+        section_label_reading_aids: "히라가나·로마자"
+        section_label_models: "모델"
         auto_clear_the_message_box:
             label: "전송 후 입력창 비우기"
         send_only_translated_messages:
@@ -469,6 +475,8 @@ config_page:
     hotkeys:
         input_placeholder: "키 조합을 입력하세요"
         disabled_notice: "※설정 화면이 열려 있는 동안에는 오작동을 방지하기 위해 단축키 기능이 일시적으로 비활성화됩니다."
+        section_label_quick_chat: "빠른 채팅"
+        section_label_toggles: "창 및 기능 전환"
         error_in_use: "\"{{action_name}}\" 단축키({{hotkey}})가 이미 다른 곳에서 사용 중이므로 등록할 수 없습니다."
         error_failed_to_register_at_launch: "\"{{action_name}}\" 단축키({{hotkey}})가 다른 애플리케이션에서 사용 중이므로 사용할 수 없습니다."
         toggle_vrct_visibility:
@@ -481,6 +489,8 @@ config_page:
             label: "'{{transcription_receive}}' 켜기/끄기 전환"
 
     advanced_settings:
+        section_label_osc: "OSC"
+        section_label_config_file: "설정 파일"
         osc_ip_address:
             label: "OSC IP 주소"
         osc_port:

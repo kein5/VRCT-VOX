@@ -278,6 +278,7 @@ const DeepLAuthKey_Box = () => {
         state: currentDeepLAuthKey.state,
         setFunction: setDeepLAuthKey,
         deleteFunction: deleteDeepLAuthKey,
+        label: t("config_page.translation.deepl_auth_key.label"),
     });
 
     return (
@@ -307,6 +308,7 @@ const PlamoAuthKey_Box = () => {
         state: currentPlamoAuthKey.state,
         setFunction: setPlamoAuthKey,
         deleteFunction: deletePlamoAuthKey,
+        label: t("config_page.translation.plamo_auth_key.label"),
     });
 
     return (
@@ -368,6 +370,7 @@ const GeminiAuthKey_Box = () => {
         state: currentGeminiAuthKey.state,
         setFunction: setGeminiAuthKey,
         deleteFunction: deleteGeminiAuthKey,
+        label: t("config_page.translation.gemini_auth_key.label"),
     });
 
     return (
@@ -428,6 +431,7 @@ const OpenAIAuthKey_Box = () => {
         state: currentOpenAIAuthKey.state,
         setFunction: setOpenAIAuthKey,
         deleteFunction: deleteOpenAIAuthKey,
+        label: t("config_page.translation.openai_auth_key.label"),
     });
 
     return (
@@ -488,6 +492,7 @@ const GroqAuthKey_Box = () => {
         state: currentGroqAuthKey.state,
         setFunction: setGroqAuthKey,
         deleteFunction: deleteGroqAuthKey,
+        label: t("config_page.translation.groq_auth_key.label"),
     });
 
     return (
@@ -548,6 +553,7 @@ const OpenRouterAuthKey_Box = () => {
         state: currentOpenRouterAuthKey.state,
         setFunction: setOpenRouterAuthKey,
         deleteFunction: deleteOpenRouterAuthKey,
+        label: t("config_page.translation.openrouter_auth_key.label"),
     });
 
     return (
@@ -624,6 +630,7 @@ const LMStudioURL_Box = () => {
         state: currentLMStudioURL.state,
         setFunction: setLMStudioURL,
         deleteFunction: deleteLMStudioURL,
+        label: "LM Studio URL",
     });
 
     return (
@@ -731,6 +738,7 @@ const OpenAICompatibleURL_Box = () => {
         variable: currentOpenAICompatibleURL.data,
         state: currentOpenAICompatibleURL.state,
         setFunction: setOpenAICompatibleURL,
+        label: t("config_page.translation.openai_compatible_url.label"),
     });
 
     return (
@@ -760,6 +768,7 @@ const OpenAICompatibleAuthKey_Box = () => {
         state: currentOpenAICompatibleAuthKey.state,
         setFunction: setOpenAICompatibleAuthKey,
         deleteFunction: deleteOpenAICompatibleAuthKey,
+        label: t("config_page.translation.openai_compatible_auth_key.label"),
     });
 
     return (

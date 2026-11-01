@@ -7,8 +7,9 @@ import { useSaveBarEntries } from "../../../../logics/voice/saveBar";
 import { useVoice } from "../../../../logics/voice/useVoice";
 import ArrowLeftSvg from "@images/arrow_left.svg?react";
 
-// Save and discard for every settings form on the open page, with the changed
-// fields listed, so the save button is always in the same place.
+// Save and discard for every settings form on the open page, so the save
+// button is always in the same place. The bar counts the changes; the page
+// marks the changed rows, and the names are in the tooltip and for screen readers.
 export const SaveBar = () => {
     const { t } = useI18n();
     const entries = useSaveBarEntries();
@@ -18,16 +19,20 @@ export const SaveBar = () => {
     const failed = entries.some(entry => entry.saveState === "save_failed");
     const changes = [...new Set(dirty.flatMap(entry => entry.changes))];
     const state = saving ? "saving" : failed ? "save_failed" : dirty.length ? "unsaved" : "saved";
+    const count = Math.max(changes.length, dirty.length);
     return <div className={clsx(styles.save_bar, { [styles.is_dirty]: dirty.length > 0 })} role="region" aria-label={t("voice_ui.save_bar")}>
-        <div className={styles.summary}>
+        <div className={styles.summary} title={changes.length ? changes.join("\n") : undefined}>
             <span role="status" className={clsx(styles.state, { [styles.is_failed]: failed })}>{t(`voice_ui.${state}`)}</span>
-            {changes.length > 0 && <ul className={styles.changes} aria-label={t("voice_ui.changed_items")} title={changes.join("\n")}>
+            {state === "unsaved" && <span className={styles.count} aria-hidden="true">{t("voice_ui.unsaved_count", { count })}</span>}
+            {changes.length > 0 && <ul className={styles.changes} aria-label={t("voice_ui.changed_items")}>
                 {changes.map(change => <li key={change}>{change}</li>)}
             </ul>}
         </div>
-        <button type="button" className={styles.discard} disabled={saving || !dirty.length}
-            onClick={() => dirty.forEach(entry => entry.discard())}>{t("voice_ui.discard")}</button>
+        {/* Narrow windows draw data-short instead; the text and the accessible name stay the full words. */}
+        <button type="button" className={styles.discard} disabled={saving || !dirty.length} aria-label={t("voice_ui.discard")}
+            data-short={t("voice_ui.discard_short")} onClick={() => dirty.forEach(entry => entry.discard())}>{t("voice_ui.discard")}</button>
         <button type="button" className={styles.save} disabled={saving || !dirty.length || dirty.some(entry => !entry.canSave)}
+            aria-label={t(saving ? "voice.saving" : "voice_ui.save_changes")} data-short={t(saving ? "voice.saving" : "voice_ui.save_changes_short")}
             onClick={() => dirty.forEach(entry => entry.save())}>{t(saving ? "voice.saving" : "voice_ui.save_changes")}</button>
     </div>;
 };
@@ -63,7 +68,7 @@ export const StopActions = () => {
             onClick={() => send(muted ? "/run/resume_voice" : "/run/mute_voice")}>
             <span className={styles.long} aria-hidden="true">{mute}</span>
             <span className={styles.short} aria-hidden="true">{t("voice_ui.topbar_mute_short")}</span>
-            {muted && <span className={styles.state} aria-hidden="true">{t("voice_ui.topbar_muted")}</span>}
+            {muted && <span className={styles.muted_badge} aria-hidden="true">{t("voice_ui.topbar_muted")}</span>}
         </button>
     </div>;
 };

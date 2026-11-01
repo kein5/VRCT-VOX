@@ -7,12 +7,15 @@
 
 .save_bar { flex: 1; min-width: 0; display: flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .4rem .4rem .4rem 1.4rem; border-radius: var(--vox_radius); background: var(--dark_900_color); border: .1rem solid var(--dark_800_color); }
 .save_bar.is_dirty { border-color: var(--primary_500_color); }
-.summary { flex: 1; min-width: 0; display: flex; align-items: center; gap: 1rem; overflow: hidden; }
-.state { flex-shrink: 0; font-size: 1.3rem; color: var(--dark_400_color); }
+// The state word never truncates; the list of changed fields gives way first.
+.summary { flex: 1; display: flex; align-items: center; gap: 1rem; }
+.state { flex-shrink: 0; white-space: nowrap; font-size: 1.3rem; color: var(--dark_400_color); }
 .is_dirty .state { color: var(--primary_200_color); }
 .state.is_failed { color: var(--error_bc_color); }
-.changes { display: flex; gap: .6rem; min-width: 0; overflow: hidden; margin: 0; padding: 0; list-style: none; }
-.changes li { flex-shrink: 0; max-width: 24rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: .2rem .8rem; border-radius: .4rem; font-size: 1.2rem; color: var(--dark_200_color); background: var(--dark_800_color); }
+.count { flex-shrink: 0; white-space: nowrap; padding: .1rem .7rem; border-radius: .4rem; font-size: 1.2rem; font-variant-numeric: tabular-nums; color: var(--dark_50_color, #fff); background: var(--primary_600_color); }
+// The changed names never fit the bar in every language; they stay readable
+// for screen readers, and the page marks the rows themselves.
+.changes { position: absolute; width: .1rem; height: .1rem; margin: -.1rem; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; list-style: none; }
 .discard, .save { flex-shrink: 0; min-height: 3.2rem; padding: .4rem 1.4rem; border-radius: var(--vox_radius); font-size: 1.4rem; cursor: pointer; }
 .discard { color: var(--dark_200_color); background: var(--dark_850_color); }
 .discard:hover:not(:disabled) { background: var(--dark_800_color); }
@@ -30,6 +33,8 @@
 @media (max-width: 1100px) {
     .stop .long { display: none; }
     .stop .short { display: inline; }
+    .discard, .save { font-size: 0; }
+    .discard::after, .save::after { content: attr(data-short); font-size: 1.4rem; }
 }
 // Narrow windows: stop actions keep the first row on the right, clear of the
 // sidebar search; the save bar and back button take the second row.
@@ -42,4 +47,4 @@
 // Muted is a reported state worth seeing from every page; the text says it too.
 .stop.is_pressed { color: var(--vox_state_warning); border-color: var(--vox_state_warning); background: var(--dark_900_color); }
 .stop:disabled { opacity: .6; cursor: not-allowed; }
-.state { padding: .1rem .6rem; border-radius: .4rem; font-size: 1.2rem; color: var(--dark_1000_color); background: var(--vox_state_warning); }
+.muted_badge { padding: .1rem .6rem; border-radius: .4rem; font-size: 1.2rem; color: var(--dark_1000_color); background: var(--vox_state_warning); }
