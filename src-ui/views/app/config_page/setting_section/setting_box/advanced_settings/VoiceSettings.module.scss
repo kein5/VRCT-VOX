@@ -9,7 +9,7 @@
     fieldset { border: .1rem solid var(--dark_800_color, #344662); border-radius: var(--vox_radius, .8rem); padding: 1.6rem; }
     fieldset.fields { border: 0; padding: 0; margin: 0; }
     // A group inside a section: space and a subheading, no frame. Frames stay for real units (one server).
-    fieldset.group { border: 0; padding: 0; margin: 0; }
+    fieldset.group { border: 0; padding: 0; margin: 1.2rem 0 0; }
     // Subheading role (DESIGN.md): 1.5rem / 600, secondary text, 24px above and 8px below.
     legend, h3, h4 { font-size: 1.5rem; font-weight: 600; line-height: 1.4; color: var(--vox_secondary_text); text-wrap: balance; }
     legend { padding: 0 .4rem; }

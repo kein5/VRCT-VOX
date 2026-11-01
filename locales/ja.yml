@@ -897,6 +897,8 @@ fork_distribution:
     releases: "VRCT-VOXの配布ページ"
 
 voice_ui:
+    topbar_stop_short: "停止"
+    topbar_mute_short: "ミュート"
     details: "詳細"
     voice_unset: "未設定"
     stop_actions: "停止"

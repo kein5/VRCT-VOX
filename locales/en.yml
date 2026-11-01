@@ -897,6 +897,8 @@ fork_distribution:
     releases: "VRCT-VOX releases"
 
 voice_ui:
+    topbar_stop_short: "Stop"
+    topbar_mute_short: "Mute"
     details: "Details"
     voice_unset: "Not set"
     stop_actions: "Stop"

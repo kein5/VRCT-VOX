@@ -40,11 +40,18 @@ export const StopActions = () => {
     const queued = status.queued ?? 0;
     const speaking = !!status.active || queued > 0;
     return <div className={styles.stop_actions} role="group" aria-label={t("voice_ui.stop_actions")}>
+        {/* Narrow windows show the short word, which stays part of the accessible name. */}
         <button type="button" className={clsx(styles.stop, { [styles.is_attention]: speaking })} title={t("voice.stop")}
+            aria-label={queued > 0 ? `${t("voice_ui.topbar_stop")} ${t("voice_ui.topbar_queued", { count: queued })}` : t("voice_ui.topbar_stop")}
             onClick={() => send("/run/stop_voice")}>
-            {t("voice_ui.topbar_stop")}{queued > 0 && <span className={styles.count}>{t("voice_ui.topbar_queued", { count: queued })}</span>}
+            <span className={styles.long} aria-hidden="true">{t("voice_ui.topbar_stop")}</span>
+            <span className={styles.short} aria-hidden="true">{t("voice_ui.topbar_stop_short")}</span>
+            {queued > 0 && <span className={styles.count} aria-hidden="true">{t("voice_ui.topbar_queued", { count: queued })}</span>}
         </button>
-        <button type="button" className={styles.stop} title={t("voice.mute")} onClick={() => send("/run/mute_voice")}>{t("voice_ui.topbar_mute")}</button>
+        <button type="button" className={styles.stop} title={t("voice.mute")} aria-label={t("voice_ui.topbar_mute")} onClick={() => send("/run/mute_voice")}>
+            <span className={styles.long} aria-hidden="true">{t("voice_ui.topbar_mute")}</span>
+            <span className={styles.short} aria-hidden="true">{t("voice_ui.topbar_mute_short")}</span>
+        </button>
     </div>;
 };
 
