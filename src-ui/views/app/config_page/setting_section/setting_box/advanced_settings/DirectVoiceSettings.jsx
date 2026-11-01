@@ -8,6 +8,7 @@ import { useVoice, sourceKey as key } from "../../../../../../logics/voice/useVo
 import { ModelDownloads } from "./ModelDownloads";
 import { StatusLine } from "./StatusLine";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { Description } from "../_components/description/Description";
 
 const defaults = { mode: "passthrough", runtime: "", reference: "", engine: "seed-vc",
     rvc_runtime: "", rvc_model: "", rvc_index: "", rvc_pitch: 0, rvc_index_rate: 0 };
@@ -70,7 +71,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
         <SectionLabelComponent label={variant === "rvc" ? "RVC" : t("voice.input_title")} />
         <StatusLine tone={tone}>{t(status)}</StatusLine>
         <VoiceRouteSummary />
-        <p>{t(variant === "rvc" ? "voice.vc_rvc_hint" : "voice.input_description")}</p>
+        <Description text={t(variant === "rvc" ? "voice.vc_rvc_hint" : "voice.input_description")} />
         {busy && !ownsInput && <p role="alert">{t("voice_ui.input_conflict")}</p>}
         <fieldset className={styles.fields} disabled={saving}>
         {variant !== "rvc" && <label>{t("voice.direct_mode")}
@@ -87,7 +88,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
                 </select>
             </label>}
             {/* The RVC page already opens with the RVC hint. */}
-            {variant !== "rvc" && <p>{t(rvc ? "voice.vc_rvc_hint" : "voice.vc_hint")}</p>}
+            {variant !== "rvc" && <Description text={t(rvc ? "voice.vc_rvc_hint" : "voice.vc_hint")} />}
             {(rvc ? ["rvc_runtime", "rvc_model", "rvc_index"] : ["runtime", "reference"]).map(name => <label key={name}>{t(`voice.vc_${name}`)}
                 <input type="text" value={draft[name]} disabled={busy} maxLength={4096}
                     onChange={e => setDraft({ ...draft, [name]: e.target.value })} />
@@ -117,8 +118,8 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
             </select>
         </label>
         <button type="button" onClick={() => send("/get/data/direct_voice_sources")}>{t("voice.refresh_inputs")}</button>
-        <p>{t("voice.input_selection_hint")}</p>
-        {!managed && <><p>{t("voice.input_requires_managed")}</p>
+        <Description text={t("voice.input_selection_hint")} />
+        {!managed && <><Description text={t("voice.input_requires_managed")} />
             <button type="button" disabled={!settings || busy || saving}
                 onClick={() => send("/set/data/voice_settings", { ...settings, routing: "managed" })}>{t("voice.prepare_microphone")}</button>
             {error && <p role="alert">{t(`voice_setup_errors.${error}`, { defaultValue: error })}</p>}
@@ -133,7 +134,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
         {/* The TTS monitor setting also covers converted voice; it is fixed at Start. */}
         <p>{t(!converted ? "voice.vc_monitor_passthrough" : settings?.monitor === "on" ? "voice.vc_monitor_on" : "voice.vc_monitor_off")}</p>
         {directState.monitor_error && <EnvReadout tone="failed"><p>{t(`voice.monitor_errors.${directState.monitor_error}`, { defaultValue: t("voice.monitor_error") })}</p></EnvReadout>}
-        <p>{t("voice.input_scope")}</p>
+        <Description text={t("voice.input_scope")} />
         {unavailable && <p role="alert">{t("voice.input_error")}: {unavailable}</p>}
     </section>;
 };

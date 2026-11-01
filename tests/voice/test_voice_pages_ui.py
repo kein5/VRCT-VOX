@@ -440,3 +440,23 @@ def test_discard_before_closing_restores_mounted_form(pages):
     ).to_be_disabled()
     page.get_by_role("button", name="RVC", exact=True).click()
     expect(page.get_by_role("dialog")).to_have_count(0)
+
+
+def test_unset_voice_name_reads_as_not_set_and_stays_none(pages):
+    from playwright.sync_api import expect
+
+    page, peer, _ = pages
+    page.get_by_role("button", name="TTS", exact=True).click()
+    voice = page.get_by_label("Japanese voice name", exact=True)
+    # "none" is the stored "no particular voice": shown as unset, not as a name.
+    assert peer.voice["japanese_voice"] == "none"
+    expect(voice).to_have_value("")
+    expect(voice).to_have_attribute("placeholder", "Not set")
+    voice.fill("kei")
+    # Clearing the field goes back to "none", so nothing is left to save.
+    voice.fill("")
+    expect(page.get_by_role("button", name="Save changes", exact=True)).to_be_disabled()
+    voice.fill("kei")
+    page.get_by_role("button", name="Save changes", exact=True).click()
+    expect(page.get_by_role("button", name="Save changes", exact=True)).to_be_disabled()
+    assert peer.voice["japanese_voice"] == "kei"

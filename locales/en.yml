@@ -897,6 +897,8 @@ fork_distribution:
     releases: "VRCT-VOX releases"
 
 voice_ui:
+    details: "Details"
+    voice_unset: "Not set"
     stop_actions: "Stop"
     topbar_stop: "Stop speech"
     topbar_queued: "{{count}} waiting"

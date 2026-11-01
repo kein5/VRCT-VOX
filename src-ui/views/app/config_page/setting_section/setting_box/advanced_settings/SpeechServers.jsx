@@ -5,6 +5,7 @@ import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraf
 import styles from "./VoiceSettings.module.scss";
 import { ModelDownloads, HardwareReadout } from "./ModelDownloads";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { Description } from "../_components/description/Description";
 
 // Readout tone for a server state; the state text itself always says it.
 const serverTone = (owner, pending) => pending || ["preparing", "stopping"].includes(owner?.state) ? "warning" :
@@ -47,7 +48,7 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
         <details className={styles.setup} open={opened || attention} onToggle={event => setOpened(event.currentTarget.open)}>
         <summary><span className={styles.setupTitle}>{t("speech_servers.setup_title")}</span><span className={styles.setupStatus}>{summary}</span></summary>
         <div className={styles.setupBody}>
-        <p>{t("speech_servers.help")}</p>
+        <Description text={t("speech_servers.help")} />
         {tts && <HardwareReadout reserve={reserve} setReserve={setReserve} />}
         {draft && <form onSubmit={event => {
             event.preventDefault(); if (dirty) form.submit(value => send("/set/data/speech_server_settings", value));
@@ -77,12 +78,12 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                     {name === "japanese" && <>
                         <label className={styles.checkLabel}><input type="checkbox" checked={!!row.low_latency} disabled={busy}
                             onChange={event => field(name, "low_latency", event.target.checked)} />{t("speech_servers.low_latency")}</label>
-                        <p>{t("speech_servers.low_latency_help")}</p>
+                        <Description text={t("speech_servers.low_latency_help")} />
                     </>}
-                    <div className={styles.actions}><button type="button" disabled={dirty || saving || busy || !row.model.trim() ||
+                    <div className={styles.actions}><button type="button" className="primary" disabled={dirty || saving || busy || !row.model.trim() ||
                         (name === "asr" && !row.vad_model.trim()) || owner?.error_code === "speech_server_cleanup_unconfirmed"}
                         onClick={() => send("/run/start_speech_server", { profile: name, generation: owner.generation })}>{t("speech_servers.start")}</button>
-                    <button type="button" onClick={() => send("/run/stop_speech_server", { profile: name })}>{t("speech_servers.stop")}</button></div>
+                    <button type="button" className={styles.quiet} onClick={() => send("/run/stop_speech_server", { profile: name })}>{t("speech_servers.stop")}</button></div>
                     <EnvReadout tone={serverTone(owner, pending[name])}>
                         <p>{stateText(name)}</p>
                         {owner?.low_latency && <p>{t(`speech_servers.low_latency_${owner.low_latency.state}`)}</p>}
