@@ -42,7 +42,7 @@ jobs:
         with:
           path: site/.vitepress/dist
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
+    if: github.repository == 'kein5/VRCT-VOX' && github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10

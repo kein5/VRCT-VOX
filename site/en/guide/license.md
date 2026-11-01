@@ -14,7 +14,7 @@ Models are not packaged; you download them after agreeing. Each model has its ow
 - NLLB translation models are non-commercial (CC-BY-NC-4.0).
 - Using Saisho Utane's RVC model (CC BY 4.0) in published work requires credit.
 
-Upstream VRCT's chat-bubble detector may not be shipped in a derivative's release, so VRCT-VOX packages do not include it. The Mia2026 test voice is for local testing only and is never distributed.
+Upstream VRCT's chat-bubble detector may not be shipped in a derivative's release, so VRCT-VOX packages do not include it. VRCT-VOX's own chatbox detector for chat reading was trained separately and is published under MIT; it is not shipped either and is downloaded only after you agree. The Mia2026 test voice is for local testing only and is never distributed.
 
 ## Credits
 

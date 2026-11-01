@@ -19,10 +19,15 @@ Reads the text of chatboxes shown on the VRChat screen, so it can be logged or t
 - **Reading area**: the part of the VRChat window to read. Enclosing only where chatboxes appear is faster and picks up less world text. The default is the whole window.
 - **Only read chatbox-style text**: keeps only light text on a dark panel, as VRChat's chatbox looks. Turn it off if chatboxes are missed; then world signs and menus are read too.
 
-<!-- TODO(#22): VRCT-VOX's own chatbox detector arrives with PR #22. Once it is merged, replace the note below with a description. -->
-::: info Chatbox detector (planned)
-VRCT-VOX's own chatbox detection model is planned as a consented download. It is not part of this version yet.
-:::
+## Chatbox detector
+
+With "Use the chatbox detector (recommended when installed)" on, VRCT-VOX's own detection model finds each chatbox before it is read. Fewer chatboxes are missed and less world text is misread.
+
+- The model is optional. Without it, chatboxes are found within the reading area.
+- The model is a YOLOX-Tiny (about 19 MB, MIT) published on [Hugging Face](https://huggingface.co/kein5/vrct-vox-chatbox-detector). It was trained on VRCT-VOX's own screenshots; it is not the upstream VRCT model.
+- Download it from "Chatbox detector" on the same page after reviewing its terms and agreeing ([Model downloads](../guide/models)). The file is used only when its hash matches.
+- It runs on this computer's CPU; screen contents are never sent anywhere.
+- The reading area and "Only read chatbox-style text" still apply when the detector is used.
 
 ## Supported environments
 
