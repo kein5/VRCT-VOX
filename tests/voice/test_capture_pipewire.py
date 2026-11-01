@@ -17,6 +17,15 @@ def module():
     return importlib.import_module("models.transcription.capture_pipewire")
 
 
+@pytest.fixture
+def native_helper():
+    """The PipeWire capture helper is a build output; without it capture only says asr_capture_failed."""
+    helper = module().HELPER
+    if not helper.is_file():
+        pytest.fail(f"{helper} is missing; build it with: python tools/build_voice_gate.py")
+    return helper
+
+
 @pytest.mark.parametrize(
     "source,endpoint",
     [
@@ -39,7 +48,7 @@ def test_invalid_identity_is_rejected_before_start(source, endpoint):
 
 
 @pytest.mark.parametrize("kind", ["mic", "speaker"])
-def test_owned_capture_delivers_20ms_frames_and_stop_discards_tail(kind):
+def test_owned_capture_delivers_20ms_frames_and_stop_discards_tail(kind, native_helper):
     m = module()
     from tools.voice_acceptance import private_graph, loopback, nodes, wait_for
     from tools.voice_b_poc import Producer
@@ -80,7 +89,7 @@ def test_owned_capture_delivers_20ms_frames_and_stop_discards_tail(kind):
 
 
 @pytest.mark.parametrize("fault", ["recreated", "removed", "consumer", "latency"])
-def test_capture_stale_identity_disconnect_and_consumer_rejection_fail_closed(fault):
+def test_capture_stale_identity_disconnect_and_consumer_rejection_fail_closed(fault, native_helper):
     m = module()
     from tools.voice_acceptance import (
         private_graph,
@@ -130,7 +139,7 @@ def test_capture_stale_identity_disconnect_and_consumer_rejection_fail_closed(fa
             capture.stop()
 
 
-def test_stop_during_blocked_consumer_reaps_native_capture():
+def test_stop_during_blocked_consumer_reaps_native_capture(native_helper):
     m = module()
     from tools.voice_acceptance import private_graph, loopback, nodes, wait_for
 
