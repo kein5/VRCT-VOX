@@ -187,6 +187,10 @@ class SpeechServer:
                 if exited: raise _Failure(exit_error)
         except _Failure as exc:
             failure=str(exc)
+        except RuntimeError as exc:
+            # bundled_binary() names a missing or tampered bundle; keep that
+            # distinct from a launch that failed for another reason.
+            failure=str(exc) if str(exc)=='speech_bundle_missing_or_invalid' else 'speech_server_launch_failed'
         except Exception:
             failure='speech_server_launch_failed'
         finally:
