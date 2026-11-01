@@ -897,6 +897,8 @@ fork_distribution:
     releases: "VRCT-VOX releases"
 
 voice_ui:
+    mute_row: "Mute"
+    monitor_heading: "Monitor"
     topbar_stop: "Stop speech"
     topbar_stop_count: "Stop speech ({{count}})"
     topbar_stop_short: "Stop"

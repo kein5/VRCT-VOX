@@ -9,6 +9,7 @@ import { StatusLine } from "./StatusLine";
 import styles from "./VoiceSettings.module.scss";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
 import { Description } from "../_components/description/Description";
+import { FormRow } from "../_components/form_row/FormRow";
 
 export const VoiceSettings = () => {
     const { t } = useI18n();
@@ -64,17 +65,19 @@ export const VoiceSettings = () => {
                     value={draft.target_slot} onChange={e => field("target_slot", e.target.value)}>
                     {["1", "2", "3"].map(slot => <option key={slot}>{slot}</option>)}
                 </select></label>
-                <label>{t("voice.output_device")}<select aria-label={t("voice.output_device")} disabled={draft.routing === "managed"} value={draft.output_device}
-                    onChange={e => field("output_device", e.target.value)}>
-                    <option value="">{t("voice.select_output")}</option>
-                    {draft.output_device && !deviceList.some(d => d.id === draft.output_device) &&
-                        <option value={draft.output_device}>{t("voice.disconnected")}: {draft.output_device}</option>}
-                    {deviceList.map(device => <option key={device.id} value={device.id}>{device.label}</option>)}
-                </select></label>
-                <Description text={t("voice_ui.output_hint")} />
-                <div className={styles.actions}><button type="button" onClick={() => send("/get/data/voice_output_devices")}>{t("voice.refresh")}</button></div>
-                <fieldset className={styles.group} aria-label={t("voice.monitor")}>
-                    <legend>{t("voice.monitor")}</legend>
+                <FormRow label={t("voice.output_device")} description={t("voice_ui.output_hint")}
+                    actions={<button type="button" onClick={() => send("/get/data/voice_output_devices")}>{t("voice.refresh")}</button>}>
+                    <select aria-label={t("voice.output_device")} disabled={draft.routing === "managed"} value={draft.output_device}
+                        onChange={e => field("output_device", e.target.value)}>
+                        <option value="">{t("voice.select_output")}</option>
+                        {draft.output_device && !deviceList.some(d => d.id === draft.output_device) &&
+                            <option value={draft.output_device}>{t("voice.disconnected")}: {draft.output_device}</option>}
+                        {deviceList.map(device => <option key={device.id} value={device.id}>{device.label}</option>)}
+                    </select>
+                </FormRow>
+                <fieldset className={styles.group} aria-label={t("voice_ui.monitor_heading")}>
+                    <legend>{t("voice_ui.monitor_heading")}</legend>
+                    <Description text={t("voice.monitor_hint")} />
                     <label>{t("voice.monitor")}<select aria-label={t("voice.monitor")} value={draft.monitor || "off"} onChange={e => field("monitor", e.target.value)}>
                         <option value="off">{t("voice.monitor_off")}</option><option value="on">{t("voice.monitor_on")}</option>
                     </select></label>
@@ -87,7 +90,6 @@ export const VoiceSettings = () => {
                     </select></label>
                     <label>{t("voice.monitor_volume")}: {draft.monitor_volume ?? "100"}%<input type="range" min="0" max="100" step="5" aria-label={t("voice.monitor_volume")}
                         disabled={draft.monitor !== "on"} value={draft.monitor_volume ?? "100"} onChange={e => field("monitor_volume", String(e.target.value))} /></label>
-                    <Description text={t("voice.monitor_hint")} />
                     {status.monitor_error && <EnvReadout tone="failed"><p>{t(`voice.monitor_errors.${status.monitor_error}`, { defaultValue: t("voice.monitor_error") })}</p></EnvReadout>}
                 </fieldset>
                 {["japanese", "multilingual"].map(role => <fieldset key={role} className={styles.group} aria-label={`${t(`speech_servers.${role}`)} · ${t("voice.title")}`}>
@@ -96,13 +98,15 @@ export const VoiceSettings = () => {
                     <GenerationOptions role={role} draft={draft} field={field} />
                 </fieldset>)}
                 <details><summary>{t("voice.mic_mode")}</summary>
-                    <label>{t("voice.mic_mode")}<select aria-label={t("voice.mic_mode")} value={draft.mic_mode || "off"} onChange={e => field("mic_mode", e.target.value)}>
-                        <option value="off">{t("voice.off")}</option><option value="translated">{t("voice.mic_translated")}</option>
-                    </select></label>
+                    <FormRow label={t("voice.mic_mode")} description={t("voice.mic_hint")}>
+                        <select aria-label={t("voice.mic_mode")} value={draft.mic_mode || "off"} onChange={e => field("mic_mode", e.target.value)}>
+                            <option value="off">{t("voice.off")}</option><option value="translated">{t("voice.mic_translated")}</option>
+                        </select>
+                    </FormRow>
                     <label>{t("voice.direct_policy")}<select aria-label={t("voice.direct_policy")} disabled={draft.mic_mode !== "translated"} value={draft.direct_policy || "suppress"}
                         onChange={e => field("direct_policy", e.target.value)}>
                         <option value="suppress">{t("voice.direct_suppress")}</option><option value="mix">{t("voice.direct_mix")}</option>
-                    </select></label><Description text={t("voice.mic_hint")} />
+                    </select></label>
                 </details>
             </fieldset>
         </form>

@@ -9,6 +9,7 @@ import { ModelDownloads } from "./ModelDownloads";
 import { StatusLine } from "./StatusLine";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
 import { Description } from "../_components/description/Description";
+import { FormRow } from "../_components/form_row/FormRow";
 
 const defaults = { mode: "passthrough", runtime: "", reference: "", engine: "seed-vc",
     rvc_runtime: "", rvc_model: "", rvc_index: "", rvc_pitch: 0, rvc_index_rate: 0 };
@@ -110,15 +111,14 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
             draft.rvc_model !== saved.rvc_model || draft.rvc_index !== saved.rvc_index ? "edited" : false}
             expected={{ rvc: { model: directState.settings?.rvc_model || "", index: directState.settings?.rvc_index || "" } }} />}
         {form.navigationDialog}
-        <label>{t("voice.input_source")}
+        <FormRow label={t("voice.input_source")} description={t("voice.input_selection_hint")}
+            actions={<button type="button" onClick={() => send("/get/data/direct_voice_sources")}>{t("voice.refresh_inputs")}</button>}>
             <select aria-label={t("voice.input_source")} value={selected} disabled={busy} onChange={e => setSelected(e.target.value)}>
                 <option value="">{t("voice.select_input")}</option>
                 {selected && !source && <option value={selected}>{t("voice.disconnected")}</option>}
                 {sources.map(item => <option key={key(item.id)} value={key(item.id)}>{item.label}</option>)}
             </select>
-        </label>
-        <button type="button" onClick={() => send("/get/data/direct_voice_sources")}>{t("voice.refresh_inputs")}</button>
-        <Description text={t("voice.input_selection_hint")} />
+        </FormRow>
         {!managed && <><Description text={t("voice.input_requires_managed")} />
             <button type="button" disabled={!settings || busy || saving}
                 onClick={() => send("/set/data/voice_settings", { ...settings, routing: "managed" })}>{t("voice.prepare_microphone")}</button>

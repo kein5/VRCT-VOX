@@ -3,11 +3,13 @@ import { splitDescription } from "../../../../../../../logics/configs/descriptio
 import styles from "./Description.module.scss";
 
 // General description role (DESIGN.md): one visible sentence, the rest under "詳細".
-export const Description = ({ text, className }) => {
+// `id` lets a control point at it with aria-describedby; `fold={false}` keeps
+// text that changes as you type (a character count) in view.
+export const Description = ({ text, className, id, fold = true }) => {
     const { t } = useI18n();
-    const [first, rest] = splitDescription(text);
-    if (!rest) return <p className={className}>{first}</p>;
-    return <div className={styles.description}>
+    const [first, rest] = fold ? splitDescription(text) : [text, ""];
+    if (!rest) return <p id={id} className={className}>{first}</p>;
+    return <div id={id} className={styles.description}>
         <p className={className}>{first}</p>
         <details className={styles.more}>
             <summary>{t("voice_ui.details")}</summary>

@@ -487,3 +487,19 @@ def test_top_bar_mute_shows_the_reported_state_and_names_what_it_silences(pages)
     reply("/get/data/voice_route", dict(observation_id="901", managed=True, ready=False, pending=True,
                                         requested_muted=True, observed_muted=True))
     expect(mic).to_be_disabled()
+
+
+def test_rows_keep_the_description_under_the_label_and_linked_to_the_control(pages):
+    from playwright.sync_api import expect
+
+    page, _, _ = pages
+    page.get_by_role("button", name="TTS", exact=True).click()
+    device = page.get_by_label("Output device", exact=True)
+    expect(device).to_be_visible()
+    description_id = device.get_attribute("aria-describedby")
+    assert description_id
+    description = page.locator(f'[id="{description_id}"]')
+    # The description sits under the label, before the control in reading order.
+    assert description.evaluate("(node, control) => !!(node.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING)",
+                                device.element_handle())
+    expect(description).to_contain_text("headphones")

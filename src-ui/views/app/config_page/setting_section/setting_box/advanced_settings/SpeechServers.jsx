@@ -6,6 +6,7 @@ import styles from "./VoiceSettings.module.scss";
 import { ModelDownloads, HardwareReadout } from "./ModelDownloads";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
 import { Description } from "../_components/description/Description";
+import { FormRow } from "../_components/form_row/FormRow";
 
 // Readout tone for a server state; the state text itself always says it.
 const serverTone = (owner, pending) => pending || ["preparing", "stopping"].includes(owner?.state) ? "warning" :
@@ -76,9 +77,10 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                         {["auto", "cpu", "gpu"].map(device => <option key={device} value={device}>{t(`speech_servers.${device}`)}</option>)}
                     </select></label>
                     {name === "japanese" && <>
-                        <label className={styles.checkLabel}><input type="checkbox" checked={!!row.low_latency} disabled={busy}
-                            onChange={event => field(name, "low_latency", event.target.checked)} />{t("speech_servers.low_latency")}</label>
-                        <Description text={t("speech_servers.low_latency_help")} />
+                        <FormRow label={t("speech_servers.low_latency")} description={t("speech_servers.low_latency_help")}>
+                            <input type="checkbox" checked={!!row.low_latency} disabled={busy}
+                                onChange={event => field(name, "low_latency", event.target.checked)} />
+                        </FormRow>
                     </>}
                     <div className={styles.actions}><button type="button" className="primary" disabled={dirty || saving || busy || !row.model.trim() ||
                         (name === "asr" && !row.vad_model.trim()) || owner?.error_code === "speech_server_cleanup_unconfirmed"}
