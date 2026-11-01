@@ -1,11 +1,12 @@
 """Detect VRChat chat-bubble regions with a fine-tuned YOLOX-Tiny (ONNX).
 
-VRCT-VOX does not use this: the model (onnx/chatbox_yolox_tiny.onnx) may not
-ship in fork builds or be downloaded for fork users, and its outputs may not
-train a replacement (onnx/NOTICE.txt). OcrPipeline reads without a detector
-(ocr_detection.py) and accepts a future VRCT-VOX detector with the same
-isAvailable()/loadModel()/detect() shape as this class. Kept for upstream
-parity and its tests.
+VRCT-VOX never runs the upstream model (onnx/chatbox_yolox_tiny.onnx): it may
+not ship in fork builds or be downloaded for fork users, and its outputs may
+not train a replacement (onnx/NOTICE.txt). This class runs VRCT-VOX's own
+detector instead, which has the same layout. ocr_chatbox_detector.py is the
+only place that constructs it, always with the hash-verified download's path,
+because model_path=None falls back to findModelPath() (the upstream file).
+Without that download OcrPipeline reads without a detector (ocr_detection.py).
 
 色/輪郭のヒューリスティックは実機で反証された(ワールドのUIパネル文字や
 岩・木目を吹き出しと誤認する)ため、収集したVRChatのスクリーンショットで

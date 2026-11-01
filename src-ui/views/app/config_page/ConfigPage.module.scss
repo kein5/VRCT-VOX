@@ -39,4 +39,6 @@
     height: 100%;
     display: flex;
     padding-top: var(--config_page_content_padding_top);
+    // The top bar wraps to a second row in narrow windows (Topbar.module.scss).
+    @media (max-width: 800px) { padding-top: calc(var(--config_page_content_padding_top) + 4.8rem); }
 }

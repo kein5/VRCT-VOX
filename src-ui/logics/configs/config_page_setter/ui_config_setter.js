@@ -696,6 +696,15 @@ export const SETTINGS_ARRAY = [
         base_endpoint_name: "ocr_chatbox_filter",
     },
     {
+        // Only takes effect once the detector download is present (see readiness).
+        Category: "Ocr",
+        Base_Name: "OcrUseChatboxDetector",
+        default_value: true,
+        ui_template_id: "toggle",
+        logics_template_id: "toggle_enable_disable",
+        base_endpoint_name: "ocr_use_chatbox_detector",
+    },
+    {
         // Probes the window; requested by the OCR page, not at start-up.
         Category: "Ocr",
         Base_Name: "OcrReadiness",

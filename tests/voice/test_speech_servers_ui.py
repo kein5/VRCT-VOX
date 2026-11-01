@@ -11,6 +11,7 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from ui_details import open_engine_settings
 
 from models.speech_server.settings import normalize_settings
 from models.transcription.realtime_settings import normalize_settings as asr_settings
@@ -132,6 +133,7 @@ def ui(tmp_path):
         page.on('requestfailed', lambda request: pending_requests.discard(request.url))
         try:
             page.goto(f'http://127.0.0.1:{port}/tests/voice/speech-ui-entry/')
+            open_engine_settings(page)
         except Exception:
             print('Unfinished navigation resources:', sorted(pending_requests))
             print('Document state:', page.evaluate('document.readyState'))
@@ -246,3 +248,29 @@ def test_endpoint_selection_retains_external_urls_and_rejects_old_model_lists(ui
     received = reply('/get/data/realtime_asr_models', dict(server='bundled', configured_url=peer.asr['base_url'], base_url=peer.state['asr']['base_url'], server_generation=2, models=[dict(id='stale', languages=['ja'])]))
     page.wait_for_function('id => window.received.includes(id)', arg=received)
     expect(model.locator('option[value="stale"]')).to_have_count(0)
+
+
+def test_model_and_server_setup_is_folded_with_a_status_line_and_opens_on_error(ui):
+    from playwright.sync_api import expect
+    page, peer, reply = ui
+    page.reload()
+    summary = page.locator('summary').filter(has_text='Models and servers')
+    # One fold for all bundled servers; its summary says what each one is doing.
+    expect(summary).to_have_count(1)
+    expect(summary).to_contain_text('Japanese TTS: No model set · Stopped')
+    expect(summary).to_contain_text('Multilingual TTS: No model set · Stopped')
+    expect(summary).to_contain_text('ASR + VAD: No model set · Stopped')
+    model = page.get_by_role('group', name='Japanese TTS', exact=True).get_by_label('Model GGUF path', exact=True)
+    expect(model).not_to_be_visible()
+    # Two TTS engines share one GPU and memory reading.
+    expect(page.get_by_role('button', name='Refresh GPU and memory', exact=True, include_hidden=True)).to_have_count(1)
+    summary.focus()
+    page.keyboard.press('Enter')
+    expect(model).to_be_visible()
+    page.keyboard.press('Enter')
+    expect(model).not_to_be_visible()
+    # A server error is fixed in there, so the setup opens by itself.
+    peer.state['multilingual'].update(state='failed', generation=2, error_code='speech_server_exited')
+    reply('/get/data/speech_server_state', peer.state)
+    expect(summary).to_contain_text('Multilingual TTS: No model set · Failed')
+    expect(model).to_be_visible()

@@ -1,3 +1,4 @@
-.container { display: flex; align-items: center; gap: 2rem; padding: 1.6rem 0 1rem; }
-.section_label { color: var(--dark_100_color); font-size: 2rem; font-weight: 650; line-height: 1.4; }
+// Category heading role (DESIGN.md): 2rem / 600, 40px above, 16px below, hairline.
+.container { display: flex; align-items: center; gap: 2rem; padding: 4rem 0 1.6rem; }
+.section_label { color: var(--dark_200_color); font-size: 2rem; font-weight: 600; line-height: 1.4; text-wrap: balance; }
 .section_line { flex: 1; min-width: 2rem; height: .1rem; background: var(--vox_border); }

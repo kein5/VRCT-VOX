@@ -5,14 +5,16 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useModelDownloads } from "../../../../../../logics/voice/useModelDownloads";
 import voiceStyles from "../advanced_settings/VoiceSettings.module.scss";
 import styles from "./Ocr.module.scss";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
 
 const activePhases = ["queued", "downloading", "verifying", "cancelling"];
 const megabytes = value => `${(Number(value) / 1048576).toFixed(1)} MB`;
 
-// PP-OCR downloads for the current source language. Same consent flow as the
-// other default models: review source, terms, size and destination, then agree.
-// Nothing needs applying afterwards: chat reading finds verified files by id.
-export const OcrModels = ({ required, missing, onChanged }) => {
+// Chat reading downloads (PP-OCR for the current language, or the optional chatbox
+// detector). Same consent flow as the other default models: review source, terms,
+// size and destination, then agree. Nothing needs applying afterwards: chat
+// reading finds verified files by id.
+export const OcrModels = ({ ids, missing, onChanged, title, desc, note }) => {
     const { t } = useI18n();
     const { catalog, state, error, pending, send } = useModelDownloads();
     const [selected, setSelected] = useState(null), [consent, setConsent] = useState(false);
@@ -26,7 +28,7 @@ export const OcrModels = ({ required, missing, onChanged }) => {
     }, [hasCatalog, send]);
     useEffect(() => { if (selected) dialog.current?.showModal(); }, [selected]);
 
-    const entries = (catalog?.models ?? []).filter(entry => entry.target === "ocr" && required.includes(entry.id));
+    const entries = (catalog?.models ?? []).filter(entry => entry.target === "ocr" && ids.includes(entry.id));
     const readyIds = entries.filter(entry => state.jobs[entry.id]?.phase === "ready").map(entry => entry.id).join(",");
     useEffect(() => { if (readyIds) onChanged(); }, [readyIds, onChanged]);
 
@@ -40,17 +42,19 @@ export const OcrModels = ({ required, missing, onChanged }) => {
         catch { setLinkError(url); }
     };
 
-    return <section className={`${voiceStyles.container} ${styles.models}`} aria-label={t("config_page.ocr.models.title")}>
-        <h4>{t("config_page.ocr.models.title")}</h4>
-        <p>{t("config_page.ocr.models.desc")}</p>
+    return <section className={`${voiceStyles.container} ${styles.models}`} aria-label={title}>
+        <h3>{title}</h3>
+        {desc && <p>{desc}</p>}
         {!catalog && <p aria-busy="true">{t("model_downloads.loading")}</p>}
         {entries.map(entry => {
             const job = state.jobs[entry.id], active = activePhases.includes(job?.phase);
             const installed = !missing.includes(entry.id) || job?.phase === "ready";
             return <div key={entry.id} className={styles.modelRow}>
                 <strong>{entry.name}</strong>
-                <p>{entry.provider} · {megabytes(entry.total_bytes)} · {entry.license} · {t("config_page.ocr.models.required")}</p>
-                <p role="status">{installed ? t("config_page.ocr.models.installed") : job ? t(`model_downloads.phase_${job.phase}`) : t("config_page.ocr.models.missing")}</p>
+                <p>{entry.provider} · {megabytes(entry.total_bytes)} · {entry.license} · {note}</p>
+                <EnvReadout tone={installed ? "active" : job?.phase === "failed" ? "failed" : "warning"}>
+                    <p>{installed ? t("config_page.ocr.models.installed") : job ? t(`model_downloads.phase_${job.phase}`) : t("config_page.ocr.models.missing")}</p>
+                </EnvReadout>
                 {active && <><progress aria-label={t("model_downloads.progress")} value={job.received_bytes} max={job.total_bytes} />
                     <button type="button" disabled={!!pending || job.phase === "cancelling"}
                         onClick={() => send("/run/cancel_model_download", { id: entry.id, job_id: job.job_id })}>{t("model_downloads.cancel")}</button></>}
@@ -69,7 +73,7 @@ export const OcrModels = ({ required, missing, onChanged }) => {
             <p>{t("model_downloads.source")}: {(selected.sources ?? [selected.source]).map(url =>
                 <span key={url}> <a href={url} onClick={event => openLink(event, url)} target="_blank" rel="noreferrer">{url.replace("https://huggingface.co/", "").replace(/\/tree\/.*/, "")}</a> </span>)}</p>
             <p>{t("model_downloads.license_links")}: {selected.licenses.map((url, i) =>
-                <span key={url}> <a href={url} onClick={event => openLink(event, url)} target="_blank" rel="noreferrer">{new URL(url).hostname === "www.apache.org" ? selected.license : `${t("model_downloads.model_card")} (${i + 1})`}</a> </span>)}</p>
+                <span key={url}> <a href={url} onClick={event => openLink(event, url)} target="_blank" rel="noreferrer">{new URL(url).hostname === "www.apache.org" || url.endsWith("/LICENSE") ? selected.license : `${t("model_downloads.model_card")} (${i + 1})`}</a> </span>)}</p>
             {linkError && <div role="alert"><p>{t("model_downloads.link_error")}</p><code style={{ overflowWrap: "anywhere" }}>{linkError}</code></div>}
             <p>{t("model_downloads.destination")}: <code style={{ overflowWrap: "anywhere" }}>{selected.destination}</code></p>
             <ul>{selected.artifacts.map(file => <li key={file.filename}>{file.filename} · {Number(file.size).toLocaleString("en-US")} bytes</li>)}</ul>

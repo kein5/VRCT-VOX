@@ -36,7 +36,7 @@ from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, 
 from models.model_downloads.manager import Downloads
 from models.model_downloads.catalog import SPEECH_FIELDS as SPEECH_DOWNLOAD_FIELDS
 from models.model_downloads.hardware import HardwareProbe
-from models.ocr import ocr_capture, ocr_languages, ocr_models
+from models.ocr import ocr_capture, ocr_chatbox_detector, ocr_languages, ocr_models
 from models.ocr import ocr_engine_rapidocr as ocr_engine
 from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
 from models.tts.message_hook import chat_event, microphone_event
@@ -316,6 +316,7 @@ _SIMPLE_CONFIG_GETTERS = {
     "getOcrBubbleMinTextLength": "OCR_BUBBLE_MIN_TEXT_LENGTH",
     "getOcrCaptureRegion": "OCR_CAPTURE_REGION",
     "getOcrChatboxFilter": "OCR_CHATBOX_FILTER",
+    "getOcrUseChatboxDetector": "OCR_USE_CHATBOX_DETECTOR",
 }
 
 # 起動時のエンジンの確認で、選んだモデルの設定とクライアントの生成に使う Model のメソッド名 (モデル一覧を持つエンジン)
@@ -5111,6 +5112,10 @@ class Controller:
             "missing_models": missing,
             "capture": capture,
             "window_title": config.OCR_WINDOW_TITLE,
+            # Optional: VRCT-VOX's chatbox detector. Never a blocker for reading.
+            "detector_model": ocr_chatbox_detector.DETECTOR_MODEL_ID,
+            "detector_installed": ocr_chatbox_detector.isDetectorInstalled(root),
+            "detector_enabled": config.OCR_USE_CHATBOX_DETECTOR is True,
         }}
 
     @staticmethod
@@ -5839,6 +5844,18 @@ class Controller:
         config.OCR_CHATBOX_FILTER = False
         model.updateOCRCaptureSettings()
         return {"status":200, "result":config.OCR_CHATBOX_FILTER}
+
+    @staticmethod
+    def setEnableOcrUseChatboxDetector(*args, **kwargs) -> dict:
+        config.OCR_USE_CHATBOX_DETECTOR = True
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_USE_CHATBOX_DETECTOR}
+
+    @staticmethod
+    def setDisableOcrUseChatboxDetector(*args, **kwargs) -> dict:
+        config.OCR_USE_CHATBOX_DETECTOR = False
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_USE_CHATBOX_DETECTOR}
 
     def initializationProgress(self, progress):
         self.run(200, self.run_mapping["initialization_progress"], progress)

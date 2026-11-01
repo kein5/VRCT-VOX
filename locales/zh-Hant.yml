@@ -692,7 +692,6 @@ voice_ui:
     keep_editing: "繼續編輯"
     discard_leave: "放棄並離開"
     input_conflict: "另一個直接語音引擎正在執行。請先在其設定頁面停止。"
-    engine_settings: "引擎設定"
     memory_error: "記憶體不足。請停止其他GPU應用程式，或選擇CPU並儲存，再重新啟動伺服器。"
     check_settings: "請檢查{{page}}設定。"
     state_unknown: "尚未確認狀態，請在後端連線後重試。"

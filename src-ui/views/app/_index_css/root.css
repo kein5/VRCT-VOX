@@ -66,23 +66,19 @@ input[type="number"] {
 /* 設定検索ヒット時のハイライトアニメーション */
 @keyframes search_target_pulse {
     0% {
-        box-shadow: 0 0 0 0 rgba(91, 146, 255, 0);
+        outline: .2rem solid transparent;
         background-color: transparent;
     }
-    15% {
-        box-shadow: 0 0 0 0.3rem rgba(91, 146, 255, 0.7), 0 0 1.6rem rgba(91, 146, 255, 0.35);
-        background-color: rgba(91, 146, 255, 0.16);
-        border-radius: 0.6rem;
-    }
-    45% {
-        box-shadow: 0 0 0 0.5rem rgba(91, 146, 255, 0.45), 0 0 1.2rem rgba(91, 146, 255, 0.25);
-        background-color: rgba(91, 146, 255, 0.12);
-        border-radius: 0.6rem;
+    15%, 45% {
+        outline: .2rem solid var(--vox_readout_rule);
+        outline-offset: .2rem;
+        background-color: var(--vox_highlight_tint);
+        border-radius: var(--vox_radius);
     }
     100% {
-        box-shadow: 0 0 0 0 rgba(91, 146, 255, 0);
+        outline: .2rem solid transparent;
         background-color: transparent;
-        border-radius: 0.6rem;
+        border-radius: var(--vox_radius);
     }
 }
 

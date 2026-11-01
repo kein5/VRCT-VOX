@@ -105,6 +105,13 @@ them, as stated above; the table is kept for attribution.
 | RapidOCR (code and YAML config only; its bundled PP-OCR weights are stripped from builds) | 3.9.2 | Apache-2.0 |
 | PaddleOCR PP-OCRv6 small det/rec and PP-OCRv5 mobile script recognisers (official ONNX exports by PaddlePaddle on Hugging Face; not shipped, downloaded only after the user agrees in Config → Chat Transcribe) | pinned revisions in `src-python/models/model_downloads/catalog.py` | Apache-2.0 |
 
+VRCT-VOX's own chat-bubble detector, `vrct_vox_chatbox_yolox_tiny.onnx`, is a
+separate model: a YOLOX-Tiny trained from VRCT-VOX's own frames with
+`tools/chatbox_lab` from Megvii's COCO weights (Apache-2.0), published under
+MIT at [kein5/vrct-vox-chatbox-detector](https://huggingface.co/kein5/vrct-vox-chatbox-detector).
+It is not derived from the upstream model or its outputs. It is not shipped either; it is downloaded only after the
+user agrees in Config → Chat Transcribe (catalog entry `vrct-vox-chatbox-detector`).
+
 ## Downloadable CTranslate2 translation weights
 
 None of these weights ship with VRCT-VOX. The app downloads the selected one

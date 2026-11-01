@@ -12,6 +12,7 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from ui_details import open_engine_settings
 from models.speech_server.settings import normalize_settings
 from models.model_downloads.manager import Downloads
 
@@ -157,6 +158,7 @@ def ui(tmp_path):
         page.expose_function("sidecarWrite", write)
         page.expose_function("sidecarRead", read)
         page.goto(f"http://127.0.0.1:{port}/tests/voice/model-download-ui-entry/")
+        open_engine_settings(page)
         yield page, peer, reply, state
         assert not peer.errors
 
@@ -425,6 +427,7 @@ def test_asr_profile_offers_haas_without_hardware_advice(ui):
 
     page, peer, _, _ = ui
     page.goto(page.url + "?view=asr")
+    open_engine_settings(page)
     expect(page.get_by_text("Haas-ja v1.0 · Q8_0", exact=True)).to_be_visible()
     expect(page.get_by_text("Irodori-TTS v4.1 Small MF · F16", exact=True)).to_have_count(0)
     expect(page.get_by_label("Memory headroom", exact=True)).to_have_count(0)

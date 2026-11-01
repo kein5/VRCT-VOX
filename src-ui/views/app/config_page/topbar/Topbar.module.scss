@@ -19,3 +19,27 @@
 .save { color: var(--dark_50_color, #fff); background: var(--primary_600_color); }
 .save:hover:not(:disabled) { background: var(--primary_550_color); }
 .discard:disabled, .save:disabled { opacity: .45; cursor: default; }
+
+.stop_actions { display: flex; align-items: center; gap: .8rem; flex-shrink: 0; }
+.stop { display: inline-flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .8rem 1.2rem; border-radius: var(--vox_radius); font-size: 1.4rem; color: var(--dark_200_color); background: var(--dark_900_color); border: .1rem solid var(--dark_800_color); cursor: pointer; white-space: nowrap; transition: background-color .12s ease, border-color .12s ease, color .12s ease; }
+.stop:hover { background: var(--dark_850_color); }
+.stop:focus-visible, .back:focus-visible, .discard:focus-visible, .save:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }
+// Amber only while something is being spoken or waits in the queue.
+.stop.is_attention { color: var(--vox_state_warning); border-color: var(--vox_state_warning); }
+.short { display: none; }
+@media (max-width: 1100px) {
+    .stop .long { display: none; }
+    .stop .short { display: inline; }
+}
+// Narrow windows: stop actions keep the first row on the right, clear of the
+// sidebar search; the save bar and back button take the second row.
+@media (max-width: 800px) {
+    .container { flex-wrap: wrap; row-gap: .8rem; }
+    .stop_actions { flex-basis: 100%; justify-content: flex-end; }
+}
+.save_slot { flex: 1; min-width: 0; display: flex; }
+.stop { font-variant-numeric: tabular-nums; }
+// Muted is a reported state worth seeing from every page; the text says it too.
+.stop.is_pressed { color: var(--vox_state_warning); border-color: var(--vox_state_warning); background: var(--dark_900_color); }
+.stop:disabled { opacity: .6; cursor: not-allowed; }
+.state { padding: .1rem .6rem; border-radius: .4rem; font-size: 1.2rem; color: var(--dark_1000_color); background: var(--vox_state_warning); }

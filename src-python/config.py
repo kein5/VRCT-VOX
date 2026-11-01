@@ -1109,10 +1109,13 @@ class Config:
     OCR_POLL_INTERVAL_MS = ManagedProperty('OCR_POLL_INTERVAL_MS', type_=int, allowed=lambda v, inst: 100 <= v <= 5000)
     OCR_MIN_CONFIDENCE = ManagedProperty('OCR_MIN_CONFIDENCE', type_=(int, float), allowed=lambda v, inst: 0.1 <= v <= 0.99)
     OCR_BUBBLE_MIN_TEXT_LENGTH = ManagedProperty('OCR_BUBBLE_MIN_TEXT_LENGTH', type_=int, allowed=lambda v, inst: 1 <= v <= 50)
-    # Detector-free reading: the part of the window to read, and whether to keep
-    # only chatbox-style text (light glyphs on a dark panel). See ocr_detection.py.
+    # The part of the window to read, and whether to keep only chatbox-style text
+    # (light glyphs on a dark panel); both apply with or without the detector.
+    # The detector switch only matters once its verified download is present.
+    # See ocr_detection.py and ocr_chatbox_detector.py.
     OCR_CAPTURE_REGION = ManagedProperty('OCR_CAPTURE_REGION', type_=dict, allowed=_ocr_capture_region_validator)
     OCR_CHATBOX_FILTER = ManagedProperty('OCR_CHATBOX_FILTER', type_=bool)
+    OCR_USE_CHATBOX_DETECTOR = ManagedProperty('OCR_USE_CHATBOX_DETECTOR', type_=bool)
 
     def init_config(self):
         # Read Only
@@ -1466,6 +1469,9 @@ class Config:
         # Whole window until the user narrows it.
         self._OCR_CAPTURE_REGION = {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
         self._OCR_CHATBOX_FILTER = True
+        # VRCT-VOX's chatbox detector is used whenever its verified download is present,
+        # unless turned off here. Without the download this has no effect.
+        self._OCR_USE_CHATBOX_DETECTOR = True
 
     def load_config(self):
         self._config_data = {}

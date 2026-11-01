@@ -48,3 +48,13 @@ export const readinessSummary = readiness => {
     }
     return { key: "config_page.ocr.readiness.ready", params: {}, ok: true };
 };
+
+// The optional chatbox detector: whether it is downloaded and in use. Never blocks reading.
+// `enabled` is the switch as the page knows it (it may be newer than the readiness reply).
+export const detectorStatus = (readiness, enabled) => {
+    if (!readiness || typeof readiness.detector_model !== "string") return null;
+    const installed = readiness.detector_installed === true;
+    const on = installed && (enabled ?? readiness.detector_enabled) !== false;
+    const state = !installed ? "missing" : on ? "on" : "off";
+    return { model: readiness.detector_model, installed, on, key: `config_page.ocr.detector.status_${state}` };
+};

@@ -3,6 +3,7 @@
 import copy
 import os
 import pytest
+from ui_details import open_setup
 from test_voice_pages_ui import pages as pages, ui as ui
 
 # Shared pytest fixtures are intentionally re-exported for discovery.
@@ -168,6 +169,7 @@ def test_rvc_numbers_preserve_seed_paths_and_lock_during_start(pages):
     for valid in ("-24", "24"):
         pitch.fill(valid)
         expect(save).to_be_enabled()
+    open_setup(page)
     page.get_by_label("RVC runtime folder", exact=True).fill("/rvc/runtime")
     page.get_by_label("Permitted RVC model (.pth)", exact=True).fill(
         "/rvc/permitted.pth"

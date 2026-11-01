@@ -3,7 +3,7 @@ from dataclasses import dataclass, replace
 import re
 from urllib.parse import quote
 
-CATALOG_VERSION = '2026-11-01.2'
+CATALOG_VERSION = '2026-11-01.6'
 
 
 @dataclass(frozen=True)
@@ -151,6 +151,28 @@ OCR_CATALOG = (
                 (5027, '9bd172dd26440c8ce94d1cde5d5baea6aefdc7cf3c5c8492e0beedef656d4e54')),
 )
 CATALOG = (*CATALOG, *OCR_CATALOG)
+
+# VRCT-VOX's own chatbox detector (YOLOX-Tiny, MIT), trained from VRCT-VOX's own
+# frames with tools/chatbox_lab. It is not the upstream VRCT detector
+# (models/ocr/onnx/chatbox_yolox_tiny.onnx), which may never be offered here:
+# the file name differs on purpose, and models/ocr/ocr_chatbox_detector.py only
+# loads this entry's hash-verified download.
+# Published by the maintainer from tools/chatbox_lab. A new upload needs a new
+# revision, size and hash here, and a CATALOG_VERSION bump.
+DETECTOR_MODEL_ID = 'vrct-vox-chatbox-detector'
+DETECTOR_FILE_NAME = 'vrct_vox_chatbox_yolox_tiny.onnx'
+DETECTOR_REPO = 'kein5/vrct-vox-chatbox-detector'
+DETECTOR_REVISION = 'd3f89ea1971dd38acfc1f5304cdd49ffc00a3deb'
+DETECTOR_SIZE = 20184371
+DETECTOR_SHA256 = '9b294401df61335ee2a2b83b2225b3034c33ba934d2870b132e19ae864f2b3ec'
+DETECTOR_CATALOG = (
+    Model(DETECTOR_MODEL_ID, 'ocr', 'VRCT-VOX chatbox detector · YOLOX-Tiny', 'VRCT-VOX',
+          DETECTOR_REPO, DETECTOR_REVISION, 'MIT', (
+              f'https://huggingface.co/{DETECTOR_REPO}/blob/{DETECTOR_REVISION}/README.md',
+              f'https://huggingface.co/{DETECTOR_REPO}/blob/{DETECTOR_REVISION}/LICENSE'),
+          'chatbox', (Artifact(DETECTOR_FILE_NAME, DETECTOR_SIZE, DETECTOR_SHA256, 'detector'),)),
+)
+CATALOG = (*CATALOG, *DETECTOR_CATALOG)
 # --- OCR (chat reading) models: end -------------------------------------------
 
 
@@ -170,7 +192,7 @@ def validate_catalog(catalog):
         ids.add(model.id)
         names, roles = set(), set()
         ocr = model.target == 'ocr'
-        suffixes, allowed_roles = (('onnx', 'yml'), ('det', 'rec', 'dict')) if ocr else (('gguf', 'pth', 'index'), ('model', 'index'))
+        suffixes, allowed_roles = (('onnx', 'yml'), ('det', 'rec', 'dict', 'detector')) if ocr else (('gguf', 'pth', 'index'), ('model', 'index'))
         for artifact in model.artifacts:
             if (not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]*\.(' + '|'.join(suffixes) + ')', artifact.filename)
                     or '..' in artifact.filename

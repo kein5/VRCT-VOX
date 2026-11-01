@@ -6,10 +6,12 @@ VRChatの画面上に浮かぶチャット吹き出し（他プレイヤーの�
 
 出力先はメインメッセージログと SteamVR オーバーレイの2系統。VRChatの OSC チャットボックス（`/chatbox/input`）へは**送信しません**（他人の発言を自分のチャットボックスに垂れ流すのはユーザー体験・コミュニティ規範の両面で不適切なため、初版で明示的に封印）。
 
-> **VRCT-VOX:** 上流の吹き出し検出モデル (下記 ocr_bubble_detector.py) は使わない。検出器なしで
-> 読む方法 (読み取り範囲 + PP-OCR の行検出 + チャットボックスの見た目判定)、Linux の
-> X11/XWayland キャプチャ、同意を得たモデルのダウンロード、未実装の Wayland portal 経路の計画は
-> [ocr-linux-capture.md](ocr-linux-capture.md) を参照。
+> **VRCT-VOX:** 上流の吹き出し検出モデル (`onnx/chatbox_yolox_tiny.onnx`) は使わない。
+> 代わりに VRCT-VOX 独自の検出器 (`vrct_vox_chatbox_yolox_tiny.onnx`、MIT、任意のダウンロード) を
+> ocr_bubble_detector.py の `BubbleDetector` で動かす。構築は ocr_chatbox_detector.py だけが行い、
+> ハッシュ検証済みのダウンロードのパスしか渡さない。検出器なしで読む方法 (読み取り範囲 + PP-OCR の
+> 行検出 + チャットボックスの見た目判定)、Linux の X11/XWayland キャプチャ、同意を得たモデルの
+> ダウンロード、未実装の Wayland portal 経路の計画は [ocr-linux-capture.md](ocr-linux-capture.md) を参照。
 
 ## 主要コンポーネント
 

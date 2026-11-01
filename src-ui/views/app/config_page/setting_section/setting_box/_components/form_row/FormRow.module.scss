@@ -1,0 +1,35 @@
+// Same columns as the label rows on the voice pages, so both read as one grammar.
+.row {
+    display: grid;
+    grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 1.6fr);
+    gap: 1.6rem;
+    align-items: start;
+    padding: .4rem 0;
+    min-width: 0;
+}
+
+.text { display: grid; gap: .4rem; min-width: 0; padding-top: .9rem; }
+
+// Item label role; page styles for plain <label> rows must not apply here.
+.row .label {
+    display: block;
+    padding: 0;
+    font-size: 1.4rem;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--dark_200_color);
+    text-wrap: pretty;
+}
+
+// General description role.
+.row .description { font-size: 1.2rem; line-height: 1.6; color: var(--vox_description_text); margin: 0; }
+
+.control { display: grid; gap: .8rem; justify-items: start; min-width: 0; }
+.control > select, .control > input:not([type="checkbox"]), .control > textarea { width: 100%; }
+
+.group { display: flex; flex-wrap: wrap; gap: .8rem; }
+
+@media (max-width: 700px) {
+    .row { grid-template-columns: 1fr; gap: .8rem; }
+    .text { padding-top: 0; }
+}

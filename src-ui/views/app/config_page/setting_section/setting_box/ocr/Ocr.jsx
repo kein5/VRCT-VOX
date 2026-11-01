@@ -5,6 +5,7 @@ import styles from "./Ocr.module.scss";
 import { useOcr } from "@logics_configs";
 import { useSaveButtonLogic } from "@logics_configs";
 import {
+    detectorStatus,
     FULL_REGION,
     isFullRegion,
     normalizeRegion,
@@ -22,6 +23,7 @@ import {
 
 import { SectionLabelComponent } from "../_components";
 import { OcrModels } from "./OcrModels";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
 
 export const Ocr = () => {
     return (
@@ -50,13 +52,15 @@ const Main_Container = () => {
     return (
         <div>
             <SectionLabelComponent label={t("config_page.ocr.section_title")} desc={t("config_page.ocr.section_desc")} />
-            <div className={styles.readiness} data-ready={summary.ok}>
-                <p role="status">{t(summary.key, summary.params)}</p>
-                <button type="button" onClick={refresh}>{t("config_page.ocr.models.refresh")}</button>
-            </div>
+            <EnvReadout className={styles.readiness} tone={summary.ok ? "active" : "warning"}
+                actions={<button type="button" onClick={refresh}>{t("config_page.ocr.models.refresh")}</button>}>
+                <p>{t(summary.key, summary.params)}</p>
+            </EnvReadout>
             <OcrSourceLanguage_Box />
             {readiness && readiness.required_models.length > 0 &&
-                <OcrModels required={readiness.required_models} missing={readiness.missing_models} onChanged={refresh} />}
+                <OcrModels ids={readiness.required_models} missing={readiness.missing_models} onChanged={refresh}
+                    title={t("config_page.ocr.models.title")} desc={t("config_page.ocr.models.desc")}
+                    note={t("config_page.ocr.models.required")} />}
         </div>
     );
 };
@@ -66,8 +70,37 @@ const Detection_Container = () => {
     return (
         <div>
             <SectionLabelComponent label={t("config_page.ocr.detection")} />
+            <OcrChatboxDetector_Box />
             <OcrCaptureRegion_Box />
             <OcrChatboxFilter_Box />
+        </div>
+    );
+};
+
+// VRCT-VOX's own chatbox detector: optional download, then a switch (on by default).
+const OcrChatboxDetector_Box = () => {
+    const { t } = useI18n();
+    const { currentOcrReadiness, getOcrReadiness, currentOcrUseChatboxDetector, toggleOcrUseChatboxDetector } = useOcr();
+    const getReadiness = useRef(getOcrReadiness);
+    getReadiness.current = getOcrReadiness;
+    const refresh = useCallback(() => getReadiness.current(), []);
+    const readiness = currentOcrReadiness.data;
+    const status = detectorStatus(readiness, currentOcrUseChatboxDetector.data);
+    if (!status) return null;
+    return (
+        <div className={styles.detector}>
+            <CheckboxContainer
+                setting_id="ocr_use_chatbox_detector"
+                label={t("config_page.ocr.detector.label")}
+                desc={t("config_page.ocr.detector.desc")}
+                variable={{ ...currentOcrUseChatboxDetector, data: status.on }}
+                is_available={status.installed}
+                toggleFunction={status.installed ? toggleOcrUseChatboxDetector : undefined}
+            />
+            <p role="status" className={styles.detectorStatus} data-state={status.on ? "on" : "off"}>{t(status.key)}</p>
+            {!status.installed &&
+                <OcrModels ids={[status.model]} missing={[status.model]} onChanged={refresh}
+                    title={t("config_page.ocr.detector.models_title")} note={t("config_page.ocr.detector.optional")} />}
         </div>
     );
 };

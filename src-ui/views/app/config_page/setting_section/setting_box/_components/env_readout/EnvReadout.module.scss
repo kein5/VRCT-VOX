@@ -1,0 +1,36 @@
+.readout {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.8rem 1.6rem;
+    padding: 0.8rem 1.2rem;
+    background: var(--vox_surface);
+    border-left: 0.3rem solid var(--vox_readout_rule);
+    border-radius: var(--vox_radius);
+    font-size: 1.3rem;
+    font-weight: 500;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+    color: var(--dark_200_color);
+    min-width: 0;
+}
+
+.text {
+    display: grid;
+    gap: 0.4rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+// Page styles also set paragraphs; the readout's own role wins inside it.
+.readout .text p { margin: 0; font: inherit; color: inherit; line-height: inherit; }
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+}
+
+.active { border-left-color: var(--vox_state_active); .text { color: var(--vox_state_active); } }
+.warning { border-left-color: var(--vox_state_warning); .text { color: var(--vox_state_warning); } }
+.failed { border-left-color: var(--vox_state_failed); .text { color: var(--vox_state_failed); } }
