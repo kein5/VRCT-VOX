@@ -16,8 +16,30 @@ VRChat ウィンドウ ──(X11/XWayland: ocr_capture_x11.py)──▶ BGR フ
 
 上流の吹き出し検出モデル (`onnx/chatbox_yolox_tiny.onnx`) は使わない。フォークの
 ビルドへの同梱・ユーザー向けのダウンロード・出力を使った学習のいずれも許されていない
-(`onnx/NOTICE.txt`)。将来 VRCT-VOX 独自の検出器ができたら `OcrPipeline(detector=...)`
-へ渡す (`isAvailable()` / `loadModel()` / `detect(frame) -> [(bbox, crop)]`)。
+(`onnx/NOTICE.txt`)。
+
+## VRCT-VOX の検出器 (ocr_chatbox_detector.py)
+
+VRCT-VOX 自身のフレームで学習した YOLOX-Tiny (`tools/chatbox_lab`、MIT) を、カタログの
+`vrct-vox-chatbox-detector` から同意を得てダウンロードする。上流と同じ入出力なので
+`BubbleDetector` がそのまま動かす。
+
+- 使う条件: ダウンロード済みで、サイズと sha256 がカタログと一致し、Config の
+  「チャットボックス検出器を使う」(`OCR_USE_CHATBOX_DETECTOR`、既定オン) がオン。
+  どれかが欠ければ下の検出器なしの読み取りになる。切り替えは実行中にも効く。
+- 上流モデルを読まないための制約: `BubbleDetector` を作るのは ocr_chatbox_detector.py だけ。
+  `ocr_models.resolveArtifact` が検証したパス以外、`vrct_vox_chatbox_yolox_tiny.onnx` 以外の
+  名前、同梱の `onnx/` ディレクトリ内のファイルは拒否する。`findModelPath()` は呼ばない
+  (`model_path=None` だと上流のファイルへ落ちるため)。ビルドには入らない
+  (`tools/distribution_policy.py` が `chatbox_yolox` を含む名前を拒否する)。
+- 検出はフレーム全体で行い (学習時と同じ縮尺)、中心が読み取り範囲に入る検出だけを残す。
+  検出ごとに切り出して OCR し、1つの吹き出しを1件として送る。チャットボックスの見た目判定は
+  切り出しごとに掛ける。chatbox_lab の val (41個) では、検出器は conf 0.7 で 39 個を見つけ、
+  余分な検出は 1 件 (ラベルの箱が文字にぴったりで IoU が足りなかった本物の吹き出し)、CPU で 39 ms。
+  見た目判定で落ちたのは消えかけて灰色になった吹き出し 1 件だけで、明るいうちに読み終えている。
+- 実モデルの確認 (任意): `VRCT_CHATBOX_DETECTOR=<onnx>` を設定して
+  `src-python/test/test_ocr_chatbox_detector.py` を実行する。`VRCT_OCR_MODEL_ROOT` も設定すると
+  PP-OCR で読んだ文字が送信した文と一致するかも確かめる。
 
 ## 検出器なしの読み取り (ocr_detection.py)
 

@@ -54,10 +54,12 @@ def ui(tmp_path):
         page.set_default_timeout(5000)
         catalog = Downloads(tmp_path / "models").catalog()
         peer = SimpleNamespace(sent=[], replies=[], errors=[], sequence=0, jobs={}, catalog=catalog,
-                               region={"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}, chatbox=True,
+                               region={"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}, chatbox=True, detector=True,
                                readiness=dict(engine=True, language="auto", language_supported=True,
                                               required_models=["ppocrv6-small"], missing_models=["ppocrv6-small"],
-                                              capture="window_not_found", window_title="VRChat"))
+                                              capture="window_not_found", window_title="VRChat",
+                                              detector_model="vrct-vox-chatbox-detector", detector_installed=False,
+                                              detector_enabled=True))
         page.on("pageerror", lambda error: peer.errors.append(str(error)))
 
         def reply(endpoint, result, status=200):
@@ -90,6 +92,10 @@ def ui(tmp_path):
             elif ep in ("/set/enable/ocr_chatbox_filter", "/set/disable/ocr_chatbox_filter"):
                 peer.chatbox = ep.startswith("/set/enable")
                 reply(ep, peer.chatbox)
+            elif ep in ("/set/enable/ocr_use_chatbox_detector", "/set/disable/ocr_use_chatbox_detector"):
+                peer.detector = ep.startswith("/set/enable")
+                peer.readiness["detector_enabled"] = peer.detector
+                reply(ep, peer.detector)
 
         def read():
             result, peer.replies = peer.replies, []
@@ -102,6 +108,7 @@ def ui(tmp_path):
                                 ("/get/data/ocr_window_title", "VRChat"),
                                 ("/get/data/ocr_capture_region", peer.region),
                                 ("/get/data/ocr_chatbox_filter", True),
+                                ("/get/data/ocr_use_chatbox_detector", True),
                                 ("/get/data/ocr_poll_interval_ms", 750),
                                 ("/get/data/ocr_min_confidence", 0.85),
                                 ("/get/data/ocr_bubble_min_text_length", 2)):
@@ -118,10 +125,11 @@ def test_readiness_names_what_is_missing_and_download_needs_consent(ui):
     from playwright.sync_api import expect
 
     page, peer, reply, state = ui
+    models = page.get_by_role("region", name="Recognition models")
     expect(page.get_by_text("Download the recognition models below", exact=False)).to_be_visible()
-    expect(page.get_by_text("PP-OCRv6 small", exact=False)).to_be_visible()
-    expect(page.get_by_text("Not downloaded", exact=True)).to_be_visible()
-    page.get_by_role("button", name="Review download", exact=True).click()
+    expect(models.get_by_text("PP-OCRv6 small", exact=False)).to_be_visible()
+    expect(models.get_by_text("Not downloaded", exact=True)).to_be_visible()
+    models.get_by_role("button", name="Review download", exact=True).click()
     dialog = page.get_by_role("dialog")
     expect(dialog).to_contain_text("Apache-2.0")
     expect(dialog).to_contain_text("PaddlePaddle/PP-OCRv6_small_det_onnx")
@@ -142,7 +150,51 @@ def test_readiness_names_what_is_missing_and_download_needs_consent(ui):
     reply("/get/data/model_download_state", state())
     expect(page.get_by_text("The 'VRChat' window was not found", exact=False)).to_be_visible()
     assert sum(ep == "/get/data/ocr_readiness" for ep, _ in peer.sent) > asked
-    expect(page.get_by_text("Downloaded", exact=True)).to_be_visible()
+    expect(models.get_by_text("Downloaded", exact=True)).to_be_visible()
+
+
+def test_chatbox_detector_is_an_optional_consented_download_with_a_switch(ui):
+    from playwright.sync_api import expect
+
+    page, peer, reply, state = ui
+    detector = page.get_by_role("region", name="Chatbox detector")
+    status = page.get_by_text("Not downloaded. Chat reading works without it", exact=False)
+    expect(status).to_be_visible()
+    expect(detector.get_by_text("VRCT-VOX chatbox detector", exact=False)).to_be_visible()
+    expect(detector.get_by_text("Optional, recommended", exact=False)).to_be_visible()
+    # Not installed: the switch shows off, takes no pointer input, and even a click event sends nothing.
+    switch = page.locator('[data-setting-label="Use the chatbox detector (recommended when installed)"]')
+    expect(switch.locator("input[type=checkbox]")).not_to_be_checked()
+    switch.locator("input[type=checkbox]").dispatch_event("click")
+    page.wait_for_timeout(200)
+    assert not any("ocr_use_chatbox_detector" in ep and ep.startswith("/set/") for ep, _ in peer.sent)
+
+    detector.get_by_role("button", name="Review download", exact=True).click()
+    dialog = page.get_by_role("dialog")
+    expect(dialog).to_contain_text("MIT")
+    expect(dialog).to_contain_text("VRCT-VOX's own chatbox detector")
+    # One file, ours (never the upstream chatbox_yolox_tiny.onnx).
+    expect(dialog.get_by_role("listitem")).to_have_text(["vrct_vox_chatbox_yolox_tiny.onnx · 20,184,371 bytes"])
+    start = dialog.get_by_role("button", name="Agree and download", exact=True)
+    expect(start).to_be_disabled()
+    dialog.get_by_role("checkbox").check()
+    start.click()
+    assert [d for ep, d in peer.sent if ep == "/run/start_model_download"][0]["id"] == "vrct-vox-chatbox-detector"
+
+    # Verified download: readiness reports it installed, and it is in use by default.
+    peer.jobs["vrct-vox-chatbox-detector"].update(phase="ready")
+    peer.readiness.update(detector_installed=True)
+    reply("/get/data/model_download_state", state())
+    expect(page.get_by_text("In use: the detector finds each chatbox", exact=False)).to_be_visible()
+    expect(switch.locator("input[type=checkbox]")).to_be_checked()
+    expect(page.get_by_role("region", name="Chatbox detector")).to_have_count(0)
+    switch.locator("label").click()
+    for _ in range(60):
+        if peer.detector is False:
+            break
+        page.wait_for_timeout(50)
+    assert peer.detector is False
+    expect(page.get_by_text("Downloaded but turned off", exact=False)).to_be_visible()
 
 
 def test_region_reset_and_chatbox_filter_reach_the_backend(ui):

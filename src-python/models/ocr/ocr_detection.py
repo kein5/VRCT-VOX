@@ -2,8 +2,8 @@
 
 The upstream chat-bubble detector (onnx/chatbox_yolox_tiny.onnx) may not ship
 in VRCT-VOX or be downloaded for its users, and its outputs may not be used to
-train a replacement. Until a VRCT-VOX detector exists, bubbles are found
-without one:
+train a replacement. VRCT-VOX's own detector (ocr_chatbox_detector.py) is an
+optional download; without it, bubbles are found like this:
 
 1. Region. The user sets a rectangle in relative window coordinates
    (Config → Chat reading). Only that part of the frame is read; the default
@@ -25,7 +25,9 @@ read as text; they never propose regions.
 
 The pipeline treats the candidate source as pluggable: anything with
 isAvailable(), loadModel() and detect(frame) -> [(bbox, crop), ...] works.
-A future detector returns one crop per bubble and leaves splits_bubbles False.
+A detector returns one crop per bubble and leaves splits_bubbles False; the
+pipeline then keeps the detections whose centre lies in the region (1.) and
+applies the style check (4.) to each crop.
 """
 
 from __future__ import annotations

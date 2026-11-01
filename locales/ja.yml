@@ -572,6 +572,14 @@ config_page:
         chatbox_filter:
             label: "チャットボックスらしい文字だけ読む"
             desc: "VRChatのチャットボックスと同じ、暗い板の上の明るい文字だけを残します。吹き出しを取りこぼすときはオフにしてください。オフにするとワールド内の看板やメニューの文字も読み取ります。"
+        detector:
+            label: "チャットボックス検出器を使う（ダウンロード済みなら推奨）"
+            desc: "VRCT-VOX独自の検出モデル（約19 MB、CPUで動作）で吹き出しを1つずつ見つけて読みます。読み取り範囲と「チャットボックスらしい文字だけ読む」はそのまま効きます。モデルがなければ、読み取り範囲の中から吹き出しを探します。"
+            models_title: "チャットボックス検出器"
+            optional: "任意・推奨"
+            status_on: "使用中です。検出器が見つけた吹き出しを1つずつ読みます。"
+            status_off: "ダウンロード済みですがオフです。読み取り範囲の中から吹き出しを探します。"
+            status_missing: "未ダウンロードです。なくても読み取れますが、下からダウンロードすると吹き出しの取りこぼしやワールド内の文字の誤読が減ります。"
         models:
             title: "認識モデル"
             desc: "チャット読み取りはPaddleOCRのモデルをこのPCで動かします。条件を確認して同意するまでダウンロードはしません。"
@@ -1013,6 +1021,7 @@ model_downloads:
     notice_qwen: "speech.cpp 0.9.0用、9種類の話者を持つ多言語TTSです。Apache-2.0です。モデルと生成音声を適切に利用し、第三者の権利を尊重してください。"
     notice_rvc: "モデルカードでは作者本人の声で学習したRVC v2音声変換モデルと説明されています。CC BY 4.0の帰属表示が必要です：Voice model created by Saisho Utane — https://huggingface.co/Saisho-Utane — Used under the CC BY 4.0 license. 公開コンテンツやプロジェクトの説明にクレジットとライセンスへのリンクを記載し、変更した場合は明示してください。このランタイムでの変換品質はまだ検証していません。"
     notice_ppocr: "チャット読み取り用の文字検出・認識モデルです。PaddleOCR（PaddlePaddle）提供、Apache-2.0です。このPCのCPUで動き、画面の内容を送信することはありません。"
+    notice_chatbox: "チャット読み取り用の、VRCT-VOX独自の吹き出し検出モデル（YOLOX-Tiny）です。VRCT-VOX自身のスクリーンショットで学習し、MITで公開しています。このPCのCPUで動き、画面の内容を送信することはありません。"
     notice_haas: "speech.cpp 0.9.4以降用の、句読点付きで書き起こす日本語音声認識モデルです。Third Intelligence提供、sakasegawa変換、Apache-2.0です。利用前にモデルカードを確認してください。"
     rvc_requirements: "取得するのはRVC音声モデルとindexだけです。変換には、別途準備したRVCランタイム・Python環境・HuBERT・RMVPEが必要です。取得完了だけでは変換の準備完了になりません。"
     notice_qwen_asr: "speech.cpp 0.7.0以降用の、30言語を認識し話している言語を自動で判定する音声認識モデルです。Qwenチーム提供、sakasegawa変換、Apache-2.0です。利用前にモデルカードを確認してください。"

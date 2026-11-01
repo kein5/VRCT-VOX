@@ -679,6 +679,9 @@ mapping = {
     "/get/data/ocr_chatbox_filter": {"status": True, "variable":controller.getOcrChatboxFilter},
     "/set/enable/ocr_chatbox_filter": {"status": True, "variable":controller.setEnableOcrChatboxFilter},
     "/set/disable/ocr_chatbox_filter": {"status": True, "variable":controller.setDisableOcrChatboxFilter},
+    "/get/data/ocr_use_chatbox_detector": {"status": True, "variable":controller.getOcrUseChatboxDetector},
+    "/set/enable/ocr_use_chatbox_detector": {"status": True, "variable":controller.setEnableOcrUseChatboxDetector},
+    "/set/disable/ocr_use_chatbox_detector": {"status": True, "variable":controller.setDisableOcrUseChatboxDetector},
     "/get/data/ocr_readiness": {"status": True, "variable":controller.getOcrReadiness},
 
     # Advanced Settings

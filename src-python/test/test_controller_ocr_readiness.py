@@ -1,4 +1,4 @@
-"""Controller endpoints for detector-free chat reading: region, filter, readiness, model root."""
+"""Controller endpoints for chat reading: region, filter, detector switch, readiness, model root."""
 
 import unittest
 from pathlib import Path
@@ -15,7 +15,8 @@ class _Base(unittest.TestCase):
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
         self.controller.model_downloads = SimpleNamespace(root=Path("/tmp/vrct-test-models"))
-        for name in ("OCR_CAPTURE_REGION", "OCR_CHATBOX_FILTER", "OCR_SOURCE_LANGUAGE", "ENABLE_OCR_CAPTURE"):
+        for name in ("OCR_CAPTURE_REGION", "OCR_CHATBOX_FILTER", "OCR_SOURCE_LANGUAGE", "ENABLE_OCR_CAPTURE",
+                     "OCR_USE_CHATBOX_DETECTOR"):
             self.addCleanup(setattr, config, name, getattr(config, name))
 
 
@@ -53,6 +54,21 @@ class TestRegionAndFilter(_Base):
             self.assertEqual(self.controller.setEnableOcrChatboxFilter()["result"], True)
         self.assertEqual(update.call_count, 2)
 
+    def test_detector_switch_toggles(self) -> None:
+        with patch("controller.model.updateOCRCaptureSettings") as update:
+            self.assertEqual(self.controller.setDisableOcrUseChatboxDetector()["result"], False)
+            self.assertEqual(self.controller.getOcrUseChatboxDetector()["result"], False)
+            self.assertEqual(self.controller.setEnableOcrUseChatboxDetector()["result"], True)
+            self.assertEqual(self.controller.getOcrUseChatboxDetector()["result"], True)
+        self.assertEqual(update.call_count, 2)
+
+    def test_endpoints_are_routed(self) -> None:
+        source = (Path(__file__).resolve().parents[1] / "mainloop.py").read_text(encoding="utf-8")
+        for endpoint, handler in (("/get/data/ocr_use_chatbox_detector", "getOcrUseChatboxDetector"),
+                                  ("/set/enable/ocr_use_chatbox_detector", "setEnableOcrUseChatboxDetector"),
+                                  ("/set/disable/ocr_use_chatbox_detector", "setDisableOcrUseChatboxDetector")):
+            self.assertIn(f'"{endpoint}": {{"status": True, "variable":controller.{handler}}}', source)
+
 
 class TestReadiness(_Base):
     def test_reports_missing_models_and_window(self) -> None:
@@ -73,6 +89,24 @@ class TestReadiness(_Base):
                 patch("controller.ocr_engine.isAvailable", return_value=True):
             result = self.controller.getOcrReadiness()["result"]
         self.assertEqual((result["engine"], result["missing_models"], result["capture"]), (True, [], CAPTURE_OK))
+
+    def test_reports_the_optional_detector(self) -> None:
+        config.OCR_SOURCE_LANGUAGE = "auto"
+        config.OCR_USE_CHATBOX_DETECTOR = True
+        with patch("controller.ocr_capture.probeCapture", return_value=CAPTURE_OK), \
+                patch("controller.ocr_models.missingModels", return_value=[]), \
+                patch("controller.ocr_chatbox_detector.isDetectorInstalled", return_value=False) as installed:
+            result = self.controller.getOcrReadiness()["result"]
+        self.assertEqual(installed.call_args.args[0], Path("/tmp/vrct-test-models"))
+        self.assertEqual((result["detector_model"], result["detector_installed"], result["detector_enabled"]),
+                         ("vrct-vox-chatbox-detector", False, True))
+        # The detector is optional: it never shows up as a missing model.
+        self.assertNotIn("vrct-vox-chatbox-detector", result["required_models"] + result["missing_models"])
+        config.OCR_USE_CHATBOX_DETECTOR = False
+        with patch("controller.ocr_capture.probeCapture", return_value=CAPTURE_OK), \
+                patch("controller.ocr_chatbox_detector.isDetectorInstalled", return_value=True):
+            result = self.controller.getOcrReadiness()["result"]
+        self.assertEqual((result["detector_installed"], result["detector_enabled"]), (True, False))
 
 
 class TestStartUsesDownloads(_Base):
