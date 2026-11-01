@@ -45,3 +45,8 @@
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem; }
 // The shared GPU and memory group: space and a subheading, no frame.
 .hardware { display: grid; gap: .8rem; min-width: 0; }
+// One folded "Models and servers" section per page; its summary carries the status line.
+.setup > summary { padding: .8rem 0; text-wrap: pretty; }
+.setupTitle { font-size: 1.5rem; font-weight: 600; color: var(--dark_200_color); }
+.setupStatus { margin-left: 1.2rem; font-size: 1.3rem; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--vox_secondary_text); }
+.setupBody { display: grid; gap: 1.6rem; padding-top: .8rem; min-width: 0; }

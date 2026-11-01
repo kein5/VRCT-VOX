@@ -854,6 +854,7 @@ realtime_toggle:
   realtime_capture_failed: "音声の取り込みが止まりました。デバイスが外れたか変わった可能性があります。確認してから、もう一度オンにしてください。"
 
 speech_servers:
+    setup_title: "モデルとサーバー"
     model_set: "モデル設定済み"
     model_unset: "モデル未設定"
     title: "同梱speech.cppサーバー"
@@ -915,7 +916,6 @@ voice_ui:
     keep_editing: "編集を続ける"
     discard_leave: "破棄して移動"
     input_conflict: "別の直接音声エンジンが動作中です。切り替える前に、その設定ページで停止してください。"
-    engine_settings: "エンジン設定"
     memory_error: "メモリーが不足しています。他のGPUアプリを停止するか、CPUを選択して保存し、サーバーを再起動してください。"
     check_settings: "{{page}}設定を確認してください。"
     errors:

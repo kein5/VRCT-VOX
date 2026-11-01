@@ -6,6 +6,7 @@ import os
 from urllib.parse import urlsplit
 
 import pytest
+from ui_details import open_engine_settings
 from models.model_downloads.manager import Downloads
 from models.tts.settings import VoiceSettings
 from test_speech_servers_ui import ui as ui
@@ -199,6 +200,7 @@ def test_separate_pages_search_and_asr_placement(pages):
     expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_have_count(0)
     expect(page.get_by_label("Chat voice", exact=True)).to_have_count(0)
     page.get_by_role("button", name="Transcription", exact=True).click()
+    open_engine_settings(page)
     expect(page.get_by_role("group", name="ASR + VAD", exact=True)).to_be_visible()
     expect(page.get_by_role("group", name="Japanese TTS", exact=True)).to_have_count(0)
     page.get_by_label("Search settings", exact=True).fill("RVC")

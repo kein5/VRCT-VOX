@@ -854,6 +854,7 @@ realtime_toggle:
   realtime_capture_failed: "Audio capture stopped. The device may have been unplugged or changed; check it and turn this on again."
 
 speech_servers:
+    setup_title: "Models and servers"
     model_set: "Model set"
     model_unset: "No model set"
     title: "Bundled speech.cpp servers"
@@ -915,7 +916,6 @@ voice_ui:
     keep_editing: "Keep editing"
     discard_leave: "Discard and leave"
     input_conflict: "Another direct input engine is running. Stop it on its settings page before switching."
-    engine_settings: "Engine settings"
     memory_error: "Not enough memory. Stop other GPU applications or select CPU, save, and try Start server again."
     check_settings: "Check {{page}} settings."
     errors:

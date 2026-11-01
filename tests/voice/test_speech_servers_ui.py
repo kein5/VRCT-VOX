@@ -250,26 +250,27 @@ def test_endpoint_selection_retains_external_urls_and_rejects_old_model_lists(ui
     expect(model.locator('option[value="stale"]')).to_have_count(0)
 
 
-def test_engine_settings_start_folded_say_their_state_and_open_on_error(ui):
+def test_model_and_server_setup_is_folded_with_a_status_line_and_opens_on_error(ui):
     from playwright.sync_api import expect
     page, peer, reply = ui
     page.reload()
-    japanese = page.get_by_role('group', name='Japanese TTS', exact=True)
-    summary = japanese.locator('summary')
-    expect(summary).to_have_text('Engine settings · No model set · Stopped')
-    expect(japanese.get_by_label('Model GGUF path', exact=True)).not_to_be_visible()
-    # The start and stop actions stay outside the fold.
-    expect(japanese.get_by_role('button', name='Stop server', exact=True)).to_be_visible()
+    summary = page.locator('summary').filter(has_text='Models and servers')
+    # One fold for all bundled servers; its summary says what each one is doing.
+    expect(summary).to_have_count(1)
+    expect(summary).to_contain_text('Japanese TTS: No model set · Stopped')
+    expect(summary).to_contain_text('Multilingual TTS: No model set · Stopped')
+    expect(summary).to_contain_text('ASR + VAD: No model set · Stopped')
+    model = page.get_by_role('group', name='Japanese TTS', exact=True).get_by_label('Model GGUF path', exact=True)
+    expect(model).not_to_be_visible()
     # Two TTS engines share one GPU and memory reading.
-    expect(page.get_by_role('button', name='Refresh GPU and memory', exact=True)).to_have_count(1)
+    expect(page.get_by_role('button', name='Refresh GPU and memory', exact=True, include_hidden=True)).to_have_count(1)
     summary.focus()
     page.keyboard.press('Enter')
-    expect(japanese.get_by_label('Model GGUF path', exact=True)).to_be_visible()
+    expect(model).to_be_visible()
     page.keyboard.press('Enter')
-    expect(japanese.get_by_label('Model GGUF path', exact=True)).not_to_be_visible()
-    # A server error is fixed in these fields, so they open by themselves.
-    multilingual = page.get_by_role('group', name='Multilingual TTS', exact=True)
+    expect(model).not_to_be_visible()
+    # A server error is fixed in there, so the setup opens by itself.
     peer.state['multilingual'].update(state='failed', generation=2, error_code='speech_server_exited')
     reply('/get/data/speech_server_state', peer.state)
-    expect(multilingual.locator('summary')).to_have_text('Engine settings · No model set · Failed')
-    expect(multilingual.get_by_label('Model GGUF path', exact=True)).to_be_visible()
+    expect(summary).to_contain_text('Multilingual TTS: No model set · Failed')
+    expect(model).to_be_visible()
