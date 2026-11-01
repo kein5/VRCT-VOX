@@ -6,7 +6,6 @@ import { ui_configs } from "@ui_configs";
 import { Slider } from "../_components";
 import {
     RadioButtonContainer,
-    SwitchBoxContainer,
     CheckboxContainer,
     ActionButtonContainer,
 } from "../_templates/Templates";
@@ -54,34 +53,37 @@ export const Vr = () => {
 
     return (
         <div className={styles.container}>
-            <div className={styles.wrapper}>
-                <PageSwitcherContainer
-                    toggleFunction={toggleIsOpenedSmallSettings}
-                    is_selected={is_opened_small_settings}
-                    label_1={t("config_page.vr.single_line")}
-                    label_2={t("config_page.vr.multi_lines")}
-                />
-                {is_opened_small_settings ? (
-                    <OverlaySettingsContainer
-                        id="overlay_settings_small"
-                        ui_configs={ui_configs.overlay_small_log}
-                        default_ui_configs={ui_configs.overlay_small_log_default_settings}
-                        current_overlay_settings={currentOverlaySmallLogSettings.data}
-                        setOverlaySettings={setOverlaySmallLogSettings}
-                        current_is_enabled_overlay={currentIsEnabledOverlaySmallLog}
-                        toggle_is_enabled_overlay={toggleIsEnabledOverlaySmallLog}
+            <div className={styles.overlay_section}>
+                <SectionLabelComponent label={t("config_page.vr.section_label_overlay")} />
+                <div className={styles.wrapper}>
+                    <PageSwitcherContainer
+                        toggleFunction={toggleIsOpenedSmallSettings}
+                        is_selected={is_opened_small_settings}
+                        label_1={t("config_page.vr.single_line")}
+                        label_2={t("config_page.vr.multi_lines")}
                     />
-                ) : (
-                    <OverlaySettingsContainer
-                        id="overlay_settings_large"
-                        ui_configs={ui_configs.overlay_large_log}
-                        default_ui_configs={ui_configs.overlay_large_log_default_settings}
-                        current_overlay_settings={currentOverlayLargeLogSettings.data}
-                        setOverlaySettings={setOverlayLargeLogSettings}
-                        current_is_enabled_overlay={currentIsEnabledOverlayLargeLog}
-                        toggle_is_enabled_overlay={toggleIsEnabledOverlayLargeLog}
-                    />
-                )}
+                    {is_opened_small_settings ? (
+                        <OverlaySettingsContainer
+                            id="overlay_settings_small"
+                            ui_configs={ui_configs.overlay_small_log}
+                            default_ui_configs={ui_configs.overlay_small_log_default_settings}
+                            current_overlay_settings={currentOverlaySmallLogSettings.data}
+                            setOverlaySettings={setOverlaySmallLogSettings}
+                            current_is_enabled_overlay={currentIsEnabledOverlaySmallLog}
+                            toggle_is_enabled_overlay={toggleIsEnabledOverlaySmallLog}
+                        />
+                    ) : (
+                        <OverlaySettingsContainer
+                            id="overlay_settings_large"
+                            ui_configs={ui_configs.overlay_large_log}
+                            default_ui_configs={ui_configs.overlay_large_log_default_settings}
+                            current_overlay_settings={currentOverlayLargeLogSettings.data}
+                            setOverlaySettings={setOverlayLargeLogSettings}
+                            current_is_enabled_overlay={currentIsEnabledOverlayLargeLog}
+                            toggle_is_enabled_overlay={toggleIsEnabledOverlayLargeLog}
+                        />
+                    )}
+                </div>
             </div>
             <CommonSettingsContainer />
             <VrUiBetaContainer />
@@ -139,7 +141,7 @@ const OverlaySettingsContainer = ({
 
     return (
         <>
-            <SwitchBoxContainer
+            <CheckboxContainer
                 label={t("config_page.vr.overlay_enable")}
                 variable={current_is_enabled_overlay}
                 toggleFunction={toggle_is_enabled_overlay}

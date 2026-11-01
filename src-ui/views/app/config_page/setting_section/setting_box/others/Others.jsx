@@ -31,6 +31,7 @@ export const Others = () => {
     return (
         <div className={styles.container}>
             <div>
+                <SectionLabelComponent label={t("config_page.others.section_label_sending")} />
                 <AutoClearMessageInputBoxContainer />
                 <SendOnlyTranslatedMessagesContainer />
                 <AutoExportMessageLogsContainer />
@@ -51,10 +52,12 @@ export const Others = () => {
                 <ReceivedMessageFormatPartsContainer />
             </div>
             <div>
+                <SectionLabelComponent label={t("config_page.others.section_label_reading_aids")} />
                 <ConvertMessageToRomajiContainer />
                 <ConvertMessageToHiraganaContainer />
             </div>
             <div>
+                <SectionLabelComponent label={t("config_page.others.section_label_models")} />
                 <AutoDownloadModelsContainer />
             </div>
         </div>

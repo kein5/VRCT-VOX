@@ -295,6 +295,8 @@ config_page:
             desc_for_vad: "Detects speech using AI (Silero VAD) and sends audio to transcription each time speech ends. Reduces background music and ambient noise."
 
     appearance:
+        section_label_display: "Display"
+        section_label_send_buttons: "Send Buttons"
         transparency:
             label: "Transparency"
             desc: "Change the main window's transparency."
@@ -468,6 +470,7 @@ config_page:
         fadeout_duration: "Fadeout Duration"
         common_settings: "Common Settings"
         vr_ui_beta: "VR UI (Beta)"
+        section_label_overlay: "Subtitle Overlay"
         tracker: "Tracker"
         hmd: "HMD"
         left_hand: "Left Hand"
@@ -487,6 +490,9 @@ config_page:
     others:
         section_label_sounds: "Sounds"
         section_label_message_formats: "Message Formats"
+        section_label_sending: "Sending & Logs"
+        section_label_reading_aids: "Hiragana & Romaji"
+        section_label_models: "Models"
         auto_clear_the_message_box:
             label: "Auto Clear Message box"
         send_only_translated_messages:
@@ -621,6 +627,8 @@ config_page:
     hotkeys:
         input_placeholder: "Press a key combination"
         disabled_notice: "* Hotkeys are temporarily disabled while the settings page is open to prevent unintended actions."
+        section_label_quick_chat: "Quick Chat"
+        section_label_toggles: "Window & Feature Toggles"
         error_in_use: "The hotkey ({{hotkey}}) for \"{{action_name}}\" cannot be registered because it is already in use elsewhere."
         error_failed_to_register_at_launch: "The hotkey ({{hotkey}}) for \"{{action_name}}\" is unavailable because it is in use by another application."
         toggle_vrct_visibility:
@@ -633,6 +641,8 @@ config_page:
             label: "Toggle {{transcription_receive}}"
 
     advanced_settings:
+        section_label_osc: "OSC"
+        section_label_config_file: "Config File"
         osc_ip_address:
             label: "OSC IP Address"
         osc_port:
@@ -902,6 +912,18 @@ speech_servers:
     japanese_selection: "Japanese server"
     multilingual_selection: "Other languages server"
     asr_selection: "ASR server"
+    errors:
+        speech_bundle_missing_or_invalid: "The bundled speech.cpp is missing or fails its check. Reinstall VRCT-VOX; in a development checkout, provide build/speechcpp."
+        speech_server_launch_failed: "The server could not be started. Check the model files and the inference device, then start it again."
+        speech_server_exited: "The server stopped unexpectedly. Check the model files and the inference device, then start it again."
+        speech_server_out_of_memory: "Not enough memory. Stop other GPU applications or select CPU, save, and start the server again."
+        speech_server_start_timeout: "The model took too long to load. Choose a smaller model or another inference device, then start it again."
+        speech_server_readiness: "The server started but did not answer its health check. Start it again."
+        speech_server_model_tasks: "This model does not fit this server's task (speech or recognition). Check the model files."
+        speech_server_protocol: "The server answered in an unexpected way. Start it again."
+        speech_server_low_latency_requires_gpu_irodori: "Low-latency standby needs an Irodori model on the GPU. Turn standby off or choose the GPU."
+        speech_server_cleanup_unconfirmed: "Stopping the previous server could not be confirmed. Restart VRCT-VOX."
+        speech_server_notification_failed: "The app was not told that the server stopped. Restart VRCT-VOX."
 
 fork_distribution:
     update_policy: "Built-in updates are disabled. Update through the channel from which you installed VRCT-VOX."
@@ -924,11 +946,12 @@ voice_ui:
     start_input_unavailable: "The input list is unavailable; refresh it"
     start_running: "Forwarding"
     mute_row: "Mute"
+    mute_row_description: "{{scope}} The same as Mute at the top of the window."
     monitor_heading: "Monitor"
     topbar_stop: "Stop speech"
     topbar_stop_count: "Stop speech ({{count}})"
-    topbar_stop_short: "Stop"
-    topbar_stop_short_count: "Stop ({{count}})"
+    topbar_stop_short: "Stop speech"
+    topbar_stop_short_count: "Stop speech ({{count}})"
     topbar_mute_speech: "Mute speech"
     topbar_mute_mic: "Mute virtual mic"
     topbar_mute_short: "Mute"
@@ -945,8 +968,11 @@ voice_ui:
     discard: "Discard changes"
     save_bar: "Save settings"
     save_changes: "Save changes"
+    save_changes_short: "Save"
+    discard_short: "Discard"
     changed_items: "Changed settings"
     unsaved: "Unsaved changes"
+    unsaved_count: "{{count}}"
     saved: "Saved"
     save_failed: "Save failed — edits kept"
     saving: "Saving…"
@@ -955,7 +981,6 @@ voice_ui:
     keep_editing: "Keep editing"
     discard_leave: "Discard and leave"
     input_conflict: "Another direct input engine is running. Stop it on its settings page before switching."
-    memory_error: "Not enough memory. Stop other GPU applications or select CPU, save, and try Start server again."
     check_settings: "Check {{page}} settings."
     errors:
         voice_route_muted: "Voice output is muted. In Settings → Device → Voice route, press \"Resume voice\", then turn TTS on again."

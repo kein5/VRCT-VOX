@@ -8,6 +8,8 @@ import TranslationSvg from "@images/translation.svg?react";
 import MicSvg from "@images/mic.svg?react";
 import HeadphonesSvg from "@images/headphones.svg?react";
 import ChatTranscribeSvg from "@images/chat_transcribe.svg?react";
+import TtsSpeakerSvg from "@images/tts_speaker.svg?react";
+import VoiceConversionSvg from "@images/voice_conversion.svg?react";
 import {
     useIsMainPageCompactMode,
     useMainFunction,
@@ -91,10 +93,10 @@ export const MainFunctionSwitch = () => {
             currentState: currentOcrCaptureStatus,
             toggleFunction: toggleOcrCapture,
         },
-        { switch_id: "tts", label: "TTS", SvgComponent: HeadphonesSvg, toggleFunction: toggleTts, cancellable: true, disabled: !Number.isSafeInteger(voice.status.tts_generation),
+        { switch_id: "tts", label: "TTS", SvgComponent: TtsSpeakerSvg, toggleFunction: toggleTts, cancellable: true, disabled: !Number.isSafeInteger(voice.status.tts_generation),
           statusText: voice.ttsPending?.intent && voice.status.tts_server_starting === true ? t("voice_ui.tts_server_starting") : null,
           currentState: { data: voice.status.tts_enabled === true, state: voice.ttsPending || voice.status.tts_stopping ? "pending" : "ok" } },
-        { switch_id: "rvc", label: "RVC", SvgComponent: MicSvg, toggleFunction: toggleRvc, cancellable: true, disabled: !voice.directState.observation_id,
+        { switch_id: "rvc", label: "RVC", SvgComponent: VoiceConversionSvg, toggleFunction: toggleRvc, cancellable: true, disabled: !voice.directState.observation_id,
           currentState: { data: rvcOwnsInput && !!voice.directState.requested,
             state: rvcOwnsInput && (voice.directPending || voice.directState.pending || voice.directState.stopping) ? "pending" : "ok" } },
     ];

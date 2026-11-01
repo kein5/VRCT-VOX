@@ -240,8 +240,8 @@ class NativeWebDriver:
                     if matches_launched_app(child.exe(), child.environ(), binary,
                                             appimage=bool(os.environ.get('VRCT_TEST_APPIMAGE'))):
                         apps.append(child)
-                except psutil.NoSuchProcess:
-                    pass  # A transient launcher/helper may finish during discovery.
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass  # A transient helper may finish, or run with other credentials, during discovery.
             assert len(apps) == 1, "could not identify the owned Tauri process"
             self.app_process = apps[0]
             return self

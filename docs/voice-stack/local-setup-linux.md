@@ -34,6 +34,28 @@ python tools/dev.py setup --scope sidecar
 
 sidecarは `src-tauri/bin/vrct-vox-sidecar-x86_64-unknown-linux-gnu` に作られる。詳しくは[開発ガイド](../development.md#tauri開発用sidecarを準備する)を参照。
 
+### 同梱サーバーと音声ヘルパーを用意する
+
+開発起動のバックエンドは、同梱speech.cppサーバーと音声経路のヘルパーをソースツリーの`build/`から読む。
+新しいcheckoutやworktreeには`build/`がないので、用意しないと設定の「TTS」や「音声認識」で「サーバーを起動」を押しても失敗する。
+
+```sh
+python tools/build_voice_gate.py
+python tools/speechcpp_bundle.py --variant linux-x64-vulkan --archive /path/to/speech-0.10.0-linux-x64-vulkan.zip --output build/speechcpp
+```
+
+`build_voice_gate.py`は、`build/vrct-voice-gate`、`vrct-source-bridge`、`vrct-vc-worker`、`vrct-asr-capture`をビルドする。`libpipewire-0.3-dev`が必要。
+`vrct-vc-worker`がないと、同梱サーバーの起動は`speech_server_launch_failed`で止まる。
+
+`speechcpp_bundle.py`は、版とSHA-256を固定した書庫から、`speech`本体と同梱のライセンス文書を`build/speechcpp`に置く。
+書庫が手元になければ、`--archive`の代わりに`--download`を指定すると取得する。通信するのは`--download`を指定したときだけ。
+GPUを使わない場合は`--variant linux-x64-cpu`を選ぶ。出力先がすでにあると、上書きせずに止まる。
+Linux候補をビルド済みなら、`build/linux/resources/build/speechcpp`を`cp -a`でコピーしてもよい。
+アプリは起動のたびに版とハッシュを検査し、シンボリックリンクは受け付けないので、リンクではなくコピーにする。
+`build/speechcpp`がないか検査に合わないと、同梱サーバーの起動は`speech_bundle_missing_or_invalid`で止まる。
+
+開発起動で取得したモデルは`src-python/downloaded_models/`に保存される。このディレクトリはgitの対象外にしてある。
+
 Windows専用の3依存は`pyproject.toml`のOS markerで選択する。任意OCRのRapidOCRもWindows専用のmarkerでLinuxには入らない。
 `opencv-python`は`tool.uv.exclude-dependencies`で除き、同じ`cv2`を提供する2種類のOpenCVの同時導入を避ける。Linuxの従来ASR録音・画面OCR・VRパネルcaptureは未対応。
 この手順はPython依存のみを取得し、ASR/TTS/VC重みの取得スクリプトは実行しない。

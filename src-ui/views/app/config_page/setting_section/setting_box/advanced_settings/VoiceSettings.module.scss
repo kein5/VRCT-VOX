@@ -3,6 +3,7 @@
     gap: 1.6rem;
     padding: 2rem 0;
     min-width: 0;
+    &:has(> [data-section-label]:first-child) { padding-top: 0; }
     color: var(--dark_200_color, #e5e7eb);
     border-bottom: .1rem solid var(--dark_800_color, #34363b);
     form, fieldset { display: grid; gap: 1.2rem; min-width: 0; }
@@ -44,8 +45,22 @@
     dialog { max-width: min(46rem, 85vw); padding: 2.4rem; border: .1rem solid var(--dark_600_color, #555d69); border-radius: 1.2rem; background: var(--dark_875_color, #282a2e); color: inherit; }
     dialog::backdrop { background: #0009; }
     dialog button { margin: .8rem .8rem 0 0; }
+    // A range control looks like the shared Slider (4px track, 18px blue thumb), not a text field.
+    input[type="range"] { appearance: none; -webkit-appearance: none; height: 2.4rem; min-height: 2.4rem; padding: 0; background: transparent; border: 0; cursor: pointer; }
+    input[type="range"]::-webkit-slider-runnable-track { height: .4rem; border-radius: .2rem; background: var(--dark_825_color); }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 1.8rem; height: 1.8rem; margin-top: -.7rem; border-radius: 50%; background: var(--primary_600_color); }
+    input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 .8rem var(--primary_600_color_44); }
+    input[type="range"]::-moz-range-track { height: .4rem; border-radius: .2rem; background: var(--dark_825_color); }
+    input[type="range"]::-moz-range-thumb { width: 1.8rem; height: 1.8rem; border: 0; border-radius: 50%; background: var(--primary_600_color); }
     @media (max-width: 700px) { label { grid-template-columns: 1fr; gap: .8rem; } }
 }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem; }
+.error_code { font-size: 1.1rem; color: var(--dark_400_color); overflow-wrap: anywhere; }
+// One downloadable model: name, readout, a full-width progress bar, then its actions.
+.download_entry { display: grid; gap: .8rem; min-width: 0; }
+.progress { width: 100%; height: .6rem; appearance: none; -webkit-appearance: none; border: 0; border-radius: .3rem; overflow: hidden; background: var(--dark_825_color); }
+.progress::-webkit-progress-bar { background: var(--dark_825_color); border-radius: .3rem; }
+.progress::-webkit-progress-value { background: var(--primary_500_color); border-radius: .3rem; }
+.progress::-moz-progress-bar { background: var(--primary_500_color); border-radius: .3rem; }
 // The shared GPU and memory group: space and a subheading, no frame.
 .hardware { display: grid; gap: .8rem; min-width: 0; }

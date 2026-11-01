@@ -1,7 +1,6 @@
 import styles from "./AuthKey.module.scss";
 import { useI18n } from "@useI18n";
 import { _Entry } from "../_atoms/_entry/_Entry";
-import { _SaveButton } from "../_atoms/_save_button/_SaveButton";
 import { useState, useRef, useEffect } from "react";
 
 export const AuthKey = (props) => {
@@ -39,7 +38,6 @@ export const AuthKey = (props) => {
         <div className={styles.container}>
             <div className={styles.entry_section_wrapper}>
                 <_Entry ref={entryRef} width="24rem" onChange={onChangeEntryAuthKey} onEnterPressed={handleEnterPressed} ui_variable={props.variable} is_disabled={is_disabled}/>
-                <_SaveButton onClick={saveAuthKey} is_disabled={is_disabled} />
                 {is_editable
                 ? null
                 :

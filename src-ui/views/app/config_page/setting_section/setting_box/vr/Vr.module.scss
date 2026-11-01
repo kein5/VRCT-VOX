@@ -4,18 +4,22 @@
     align-items: center;
     justify-content: center;
     position: relative;
-    padding: 2rem;
+    padding: 0 0 2rem;
     width: 100%;
-    gap: 4rem;
 }
 
+.overlay_section {
+    width: 100%;
+}
+
+// Setting rows span the page like on every other settings page; the
+// position and rotation controls keep their own centered width.
 .wrapper {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     width: 100%;
-    max-width: 56rem;
     gap: 4rem;
 }
 
@@ -25,6 +29,7 @@
     border: 0.1rem solid var(--dark_600_color);
     border-radius: 0.4rem;
     width: 80%;
+    max-width: 44.8rem;
     align-items: center;
     justify-content: center;
     cursor: pointer;
@@ -51,7 +56,8 @@
     margin-top: 8rem;
     position: relative;
     aspect-ratio: 1 / 1;
-    width: 36%;
+    // Sized as when the overlay column was at most 56rem wide.
+    width: calc(min(100%, 56rem) * 0.36);
     max-width: 36rem;
     transform: translate(-10%);
 }
@@ -308,6 +314,7 @@
     align-items: center;
     gap: 2rem;
     width: 100%;
+    max-width: 56rem;
 }
 
 .other_controls_wrapper {

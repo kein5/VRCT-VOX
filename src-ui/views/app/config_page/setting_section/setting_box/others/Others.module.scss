@@ -1,6 +1,5 @@
 .container {
     display: flex;
-    gap: 6.4rem;
     flex-direction: column;
 }
 
@@ -18,11 +17,10 @@
     border-bottom: solid 0.1rem var(--dark_800_color);
 }
 
+// The folder button sits next to the checkbox it belongs to.
 .auto_export_message_logs_switch_section_container {
     display: flex;
-    width: 100%;
-    justify-content: space-between;
+    flex-shrink: 0;
     align-items: center;
-    align-items: center;
-    gap: 2rem;
+    gap: 1.2rem;
 }

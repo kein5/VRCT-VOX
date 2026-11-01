@@ -66,6 +66,9 @@
     &:active {
         background-color: var(--vox_rail);
     }
+    :global(html[data-last-input="pointer"]) &:focus-visible {
+        outline: none;
+    }
     &.is_selected {
         background-color: var(--primary_900_color);
         color: var(--primary_200_color);

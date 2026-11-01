@@ -4,9 +4,13 @@
     align-items: center;
     gap: 1rem;
     height: 100%;
+    // Without overflow-y: hidden the two scrollbars feed each other: the
+    // horizontal one steals height, the vertical one then steals width.
     overflow-x: auto;
+    overflow-y: hidden;
     min-width: 0;
     > * { flex-shrink: 0; }
+    &::-webkit-scrollbar { height: 0.4rem; }
 }
 
 .help_and_info_button {

@@ -6,9 +6,11 @@
 
 .platform_readout { margin: .8rem 0; }
 .quick_chat_notice { font-size: 1.2rem; line-height: 1.5; margin: .6rem 0; color: var(--dark_basic_text_color); }
+// The same secondary button as the other settings forms (VoiceSettings).
 .open_quick_chat {
-    align-self: flex-start; font-size: 1.4rem; min-height: 3.6rem; padding: .6rem 1.2rem; margin: .4rem 0 1.6rem;
-    color: var(--dark_basic_text_color); background: var(--dark_750_color); border-radius: .4rem; cursor: pointer;
+    align-self: flex-start; font-size: 1.4rem; font-weight: 600; min-height: 4rem; padding: .9rem 1.2rem; margin: .4rem 0 1.6rem;
+    color: var(--dark_200_color); background: var(--dark_850_color); border: .1rem solid transparent; border-radius: var(--vox_radius); cursor: pointer;
+    &:hover { background: var(--dark_600_color); }
     &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }
 }
 
@@ -16,5 +18,7 @@
     font-size: 1.2rem;
     font-weight: 300;
     color: var(--dark_500_color);
-    margin-bottom: 0.8rem;
+    margin-bottom: 1.6rem;
 }
+// The notice opens the page, so the first heading needs no 40px above it.
+.disabled_notice + * > [data-section-label]:first-child { padding-top: 0; }

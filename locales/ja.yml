@@ -295,6 +295,8 @@ config_page:
             desc_for_vad: "AI（Silero VAD）を用いて人の声を検出し、話し終わるごとに音声認識へ送信します。BGMやゲーム音の誤認識を抑えやすくなります。"
 
     appearance:
+        section_label_display: "表示"
+        section_label_send_buttons: "送信ボタン"
         transparency:
             label: "透明度"
             desc: "メイン画面の透明度を変更できます。"
@@ -468,6 +470,7 @@ config_page:
         fadeout_duration: "フェードアウト時間"
         common_settings: "共通設定"
         vr_ui_beta: "VR UI（β版機能）"
+        section_label_overlay: "字幕オーバーレイ"
         tracker: "表示するトラッカーの位置"
         hmd: "HMD"
         left_hand: "左手"
@@ -487,6 +490,9 @@ config_page:
     others:
         section_label_sounds: "サウンド"
         section_label_message_formats: "メッセージフォーマット"
+        section_label_sending: "送信とログ"
+        section_label_reading_aids: "ひらがな・ローマ字"
+        section_label_models: "モデル"
         auto_clear_the_message_box:
             label: "送信後はメッセージ入力欄を空にする"
         send_only_translated_messages:
@@ -621,6 +627,8 @@ config_page:
     hotkeys:
         input_placeholder: "キーの組み合わせを入力"
         disabled_notice: "※設定画面を開いている間は、キーの誤作動を防ぐためホットキー機能が一時的に無効化されます。"
+        section_label_quick_chat: "入力の小窓"
+        section_label_toggles: "ウィンドウと機能の切り替え"
         error_in_use: "「{{action_name}}」のホットキー（{{hotkey}}）は他で使用されているため登録できません。"
         error_failed_to_register_at_launch: "「{{action_name}}」のホットキー（{{hotkey}}）は他のアプリケーションで使用されているため利用できません。"
         toggle_vrct_visibility:
@@ -633,6 +641,8 @@ config_page:
             label: "「{{transcription_receive}}」 オン/オフの切り替え"
 
     advanced_settings:
+        section_label_osc: "OSC"
+        section_label_config_file: "設定ファイル"
         osc_ip_address:
             label: "OSC IP Address"
         osc_port:
@@ -902,6 +912,18 @@ speech_servers:
     japanese_selection: "日本語のサーバー"
     multilingual_selection: "その他の言語のサーバー"
     asr_selection: "ASRサーバー"
+    errors:
+        speech_bundle_missing_or_invalid: "同梱のspeech.cppが見つからないか、検査に合いません。配布版を入れ直してください。開発環境では build/speechcpp を用意してください。"
+        speech_server_launch_failed: "サーバーを起動できませんでした。モデルファイルと「推論デバイス」を確認してから、もう一度起動してください。"
+        speech_server_exited: "サーバーが予期せず停止しました。モデルファイルと「推論デバイス」を確認してから、もう一度起動してください。"
+        speech_server_out_of_memory: "メモリーが不足しています。他のGPUアプリを停止するか、CPUを選択して保存し、サーバーを再起動してください。"
+        speech_server_start_timeout: "モデルの読み込みに時間がかかりすぎました。小さいモデルか別の「推論デバイス」を選んでから、もう一度起動してください。"
+        speech_server_readiness: "サーバーが起動しましたが、応答を確認できませんでした。もう一度起動してください。"
+        speech_server_model_tasks: "このモデルはこのサーバーの用途（読み上げ・認識）に合いません。モデルファイルを確認してください。"
+        speech_server_protocol: "サーバーから想定外の応答がありました。もう一度起動してください。"
+        speech_server_low_latency_requires_gpu_irodori: "「低遅延待機」にはGPUで動くIrodoriモデルが必要です。低遅延待機を外すか、推論デバイスをGPUにしてください。"
+        speech_server_cleanup_unconfirmed: "前回のサーバーの停止を確認できません。VRCT-VOXを再起動してください。"
+        speech_server_notification_failed: "サーバーの停止をアプリに伝えられませんでした。VRCT-VOXを再起動してください。"
 
 fork_distribution:
     update_policy: "アプリ内更新は無効です。VRCT-VOXを導入した配布元から更新してください。"
@@ -924,11 +946,12 @@ voice_ui:
     start_input_unavailable: "入力の一覧を取得できません。入力一覧を更新してください"
     start_running: "転送中です"
     mute_row: "ミュート"
+    mute_row_description: "{{scope}}画面上部の「ミュート」と同じ操作です。"
     monitor_heading: "モニター"
     topbar_stop: "読み上げを停止"
     topbar_stop_count: "読み上げを停止（{{count}}）"
-    topbar_stop_short: "停止"
-    topbar_stop_short_count: "停止（{{count}}）"
+    topbar_stop_short: "読み上げ停止"
+    topbar_stop_short_count: "読み上げ停止（{{count}}）"
     topbar_mute_speech: "読み上げをミュート"
     topbar_mute_mic: "仮想マイクをミュート"
     topbar_mute_short: "ミュート"
@@ -945,8 +968,11 @@ voice_ui:
     discard: "変更を破棄"
     save_bar: "設定の保存"
     save_changes: "変更を保存"
+    save_changes_short: "保存"
+    discard_short: "破棄"
     changed_items: "変更した設定"
-    unsaved: "未保存の変更があります"
+    unsaved: "未保存の変更"
+    unsaved_count: "{{count}}件"
     saved: "保存済み"
     save_failed: "保存失敗 — 編集内容は保持されています"
     saving: "保存中…"
@@ -955,7 +981,6 @@ voice_ui:
     keep_editing: "編集を続ける"
     discard_leave: "破棄して移動"
     input_conflict: "別の直接音声エンジンが動作中です。切り替える前に、その設定ページで停止してください。"
-    memory_error: "メモリーが不足しています。他のGPUアプリを停止するか、CPUを選択して保存し、サーバーを再起動してください。"
     check_settings: "{{page}}設定を確認してください。"
     errors:
         voice_route_muted: "音声出力がミュート中です。設定の「デバイス」→「音声経路」で「音声を再開」を押してから、TTSをオンにしてください。"

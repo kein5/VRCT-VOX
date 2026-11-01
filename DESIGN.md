@@ -114,7 +114,7 @@ Settings pages use four roles, and each must be recognizable without reading it.
 
 | Role | Look | Use |
 |---|---|---|
-| Category heading | 2rem / 600, text color, 40px above and 16px below, hairline to the right | One per page section (TTS, RVC, Mic) |
+| Category heading | 2rem / 600, text color, 40px above and 16px below, hairline to the right; the first heading on a page sits right under the top bar | One per page section (TTS, RVC, Mic) |
 | Subheading | 1.5rem / 600, secondary text, 24px above and 8px below, no frame | Groups inside a section (Monitor, Japanese TTS voice) |
 | Item label | 1.4rem / 500, text color, wraps | The name of one setting |
 | General description | 1.2rem / 400, description text, at most two lines visible; the rest goes in a "詳細" disclosure | What a setting does, true on every PC |
@@ -122,7 +122,7 @@ Settings pages use four roles, and each must be recognizable without reading it.
 
 A readout states its condition in words; its color repeats the words (active blue, warning amber, failed red) and never replaces them. Frames are kept for real units, such as one server or engine; groups inside a section are separated by space and a subheading, not by nested borders. One-time setup (model files, servers, downloads) sits in one folded "モデルとサーバー" section per page with a one-line status.
 
-The settings top bar always offers the stop actions: stop TTS (clears the queue) and mute VRCT's voice output. They are quiet until there is something to stop.
+The settings top bar always offers the stop actions: stop TTS (clears the queue) and mute VRCT's voice output. They are quiet until there is something to stop. Its save bar is the one place to save: text fields register their edits there instead of carrying their own save buttons, and Enter still saves the field being edited. The bar shows the state and a count; the changed rows carry a short blue rule on their left, and the names are in the bar's tooltip and its screen-reader list.
 
 ## Elevation & Depth
 

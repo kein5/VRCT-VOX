@@ -124,7 +124,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
         {/* TTS variants are one choice per target; ASR and VAD entries are different models, so list them all. */}
         {matching.filter(entry => !ttsTargets.includes(entry.target) || entry.id === choice(entry.target) || activePhases.includes(state.jobs[entry.id]?.phase) || state.jobs[entry.id]?.phase === 'ready').map(entry => {
             const job = state.jobs[entry.id], active = activePhases.includes(job?.phase);
-            return <div key={entry.id}>
+            return <div key={entry.id} className={styles.download_entry}>
                 <strong>{entry.name}</strong>
                 <p>{entry.provider} · {gib(entry.total_bytes)} · {entry.license}</p>
                 {entry.guidance?.reference_memory_bytes && <details className={styles.more}><summary>{t('model_downloads.guidance_summary')}</summary>
@@ -139,17 +139,18 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
                 {job && <EnvReadout tone={job.phase === "ready" ? "active" : job.phase === "failed" ? "failed" : "neutral"}>
                     <p>{t(`model_downloads.phase_${job.phase}`)}{active && ` · ${gib(job.received_bytes)} / ${gib(job.total_bytes)}`}</p>
                 </EnvReadout>}
-                {active && <><progress aria-label={t("model_downloads.progress")} value={job.received_bytes} max={job.total_bytes} />
-                    <button type="button" disabled={!!pending || job.phase === "cancelling"}
-                        onClick={() => request("/run/cancel_model_download", entry, job)}>{t("model_downloads.cancel")}</button></>}
+                {/* The bar spans the entry under its readout; the actions share one row below. */}
+                {active && <progress className={styles.progress} aria-label={t("model_downloads.progress")} value={job.received_bytes} max={job.total_bytes} />}
                 {job?.error_code && <p role="alert">{failure(job.error_code)}</p>}
-                <button type="button" disabled={busy} onClick={() => { setConsent(false); setSelected({ ...entry, catalog_version: catalog.catalog_version }); }}>{t("model_downloads.review")}</button>
-                {job?.phase === "ready" && <>
-                    <p>{t("model_downloads.apply_hint")}</p>
-                    <button type="button" disabled={busy || blocked || !expected?.[entry.target]}
-                        onClick={() => send("/run/apply_model_download", { id: entry.id, job_id: job.job_id, expected: expected[entry.target] })}>{t("model_downloads.apply")}</button>
-                    {blocked && <p>{t(blocked === "edited" ? "model_downloads.blocked_edited" : "model_downloads.blocked")}</p>}
-                </>}
+                {job?.phase === "ready" && <p>{t("model_downloads.apply_hint")}</p>}
+                <div className={styles.actions}>
+                    {active && <button type="button" disabled={!!pending || job.phase === "cancelling"}
+                        onClick={() => request("/run/cancel_model_download", entry, job)}>{t("model_downloads.cancel")}</button>}
+                    {job?.phase === "ready" && <button type="button" disabled={busy || blocked || !expected?.[entry.target]}
+                        onClick={() => send("/run/apply_model_download", { id: entry.id, job_id: job.job_id, expected: expected[entry.target] })}>{t("model_downloads.apply")}</button>}
+                    <button type="button" disabled={busy} onClick={() => { setConsent(false); setSelected({ ...entry, catalog_version: catalog.catalog_version }); }}>{t("model_downloads.review")}</button>
+                </div>
+                {job?.phase === "ready" && blocked && <p>{t(blocked === "edited" ? "model_downloads.blocked_edited" : "model_downloads.blocked")}</p>}
             </div>;
         })}
         {selected && <dialog ref={dialog} aria-label={t("model_downloads.warning_title")} onCancel={close}>

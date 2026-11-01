@@ -219,6 +219,7 @@ const OcrWindowTitle_Box = () => {
         variable: currentOcrWindowTitle.data,
         state: currentOcrWindowTitle.state,
         setFunction: setOcrWindowTitle,
+        label: t("config_page.ocr.window_title.label"),
     });
 
     return (
