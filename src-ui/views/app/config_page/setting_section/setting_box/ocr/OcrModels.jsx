@@ -42,7 +42,7 @@ export const OcrModels = ({ required, missing, onChanged }) => {
     };
 
     return <section className={`${voiceStyles.container} ${styles.models}`} aria-label={t("config_page.ocr.models.title")}>
-        <h4>{t("config_page.ocr.models.title")}</h4>
+        <h3>{t("config_page.ocr.models.title")}</h3>
         <p>{t("config_page.ocr.models.desc")}</p>
         {!catalog && <p aria-busy="true">{t("model_downloads.loading")}</p>}
         {entries.map(entry => {

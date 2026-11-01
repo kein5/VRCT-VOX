@@ -96,7 +96,8 @@
         }
 
         .radio_button_desc {
-            color: var(--dark_650_color);
+            // License text must stay readable before a download: the control looks disabled, the text does not fade below 4.5:1.
+            color: var(--vox_description_text);
         }
 
         .default_badge {

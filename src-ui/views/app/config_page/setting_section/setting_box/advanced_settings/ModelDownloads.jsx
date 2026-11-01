@@ -30,7 +30,7 @@ export const HardwareReadout = ({ reserve, setReserve }) => {
     const reading = modelAdvice([], hardware, { now: Date.now(), reserveBytes: reserveBytes(reserve) });
     const memory = value => Number.isFinite(value) ? gib(value) : t('model_downloads.hardware_unknown');
     return <div className={styles.hardware} aria-label={t('model_downloads.hardware_title')} role="group">
-        <h4>{t('model_downloads.hardware_title')}</h4>
+        <h3>{t('model_downloads.hardware_title')}</h3>
         <label>{t('model_downloads.headroom')}<select aria-label={t('model_downloads.headroom')} value={reserve} onChange={event => setReserve(event.target.value)}>
             <option value="vr">{t('model_downloads.headroom_vr')}</option>
             <option value="alone">{t('model_downloads.headroom_alone')}</option>
@@ -90,7 +90,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
         ?? advice[target].recommended ?? matching.find(entry => entry.target === target)?.id;
     const memory = value => Number.isFinite(value) ? `${(value / 1024 ** 3).toFixed(2)} GiB` : t('model_downloads.hardware_unknown');
     return <section className={styles.container} aria-label={t("model_downloads.title")}>
-        <h4>{t("model_downloads.title")}</h4>
+        <h3>{t("model_downloads.title")}</h3>
         <p>{t("model_downloads.help")}</p>
         {!catalog && <p aria-busy="true">{t("model_downloads.loading")}</p>}
         {hasTTS && <>

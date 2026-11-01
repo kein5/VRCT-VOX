@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { useI18n } from "@useI18n";
 import { useVoice } from "../../../../../../logics/voice/useVoice";
 import { useSpeechServers } from "../../../../../../logics/voice/useSpeechServers";
@@ -17,6 +17,7 @@ export const GenerationOptions = ({ role, draft, field }) => {
     const { state } = useSpeechServers();
     const server = settings?.[`${role}_server`], url = settings?.[`${role}_url`];
     const owner = state[role];
+    const reasonId = useId();
     const generation = owner?.generation, phase = owner?.state;
     const canQuery = server === "bundled" ? phase === "ready" : !!url;
     useEffect(() => {
@@ -52,6 +53,9 @@ export const GenerationOptions = ({ role, draft, field }) => {
             <p>{t("voice_ui.options_warning")}</p>}
         {options?.seed && fixed && /^[0-9]{1,16}$/.test(seed) &&
             (BigInt(seed) < BigInt(options.seed.minimum) || BigInt(seed) > BigInt(options.seed.maximum)) && <p role="alert">{t("voice_ui.seed_range", options.seed)}</p>}
-        <button type="button" disabled={!canQuery} onClick={() => send("/get/data/tts_model_options", { role })}>{t("voice_ui.check_options")}</button>
+        <button type="button" disabled={!canQuery} aria-describedby={canQuery ? undefined : reasonId}
+            onClick={() => send("/get/data/tts_model_options", { role })}>{t("voice_ui.check_options")}</button>
+        {/* A disabled check says what it waits for: a saved URL, or the bundled server running. */}
+        {!canQuery && <p id={reasonId}>{t(server === "bundled" ? "voice_ui.check_needs_server" : "voice_ui.check_needs_url")}</p>}
     </>;
 };
