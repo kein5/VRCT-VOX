@@ -1,25 +1,35 @@
+// A per-field save sits next to its own field, so it stays quiet; blue is kept
+// for the page's save bar and primary actions.
 .save_button {
     padding: 0.8rem 1.2rem;
-    background-color: var(--primary_600_color);
-    border-radius: 0.4rem;
+    background-color: var(--dark_850_color);
+    border: 0.1rem solid var(--dark_775_color);
+    border-radius: 0.8rem;
     text-align: center;
     flex-shrink: 0;
-    min-width: 5.4rem;
+    min-width: 5.6rem;
     display: inline-flex;
     justify-content: center;
     align-items: center;
+    transition: background-color 0.12s ease, border-color 0.12s ease;
     &:hover {
-        background-color: var(--primary_500_color);
+        background-color: var(--dark_800_color);
+        border-color: var(--dark_700_color);
     }
     &:active {
-        background-color: var(--primary_700_color);
+        background-color: var(--dark_825_color);
+    }
+    &:focus-visible {
+        outline: 0.2rem solid var(--primary_200_color);
+        outline-offset: 0.2rem;
     }
     &.is_disabled {
         pointer-events: none;
-        background-color: var(--primary_800_color);
+        opacity: 0.6;
     }
 }
 
 .save_button_label {
     font-size: 1.4rem;
+    color: var(--dark_200_color);
 }
