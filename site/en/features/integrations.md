@@ -2,6 +2,8 @@
 
 You can pass translations and captions to streaming software or your own tools. The settings are under Settings → "Advanced". By default, both listen only on this PC (`127.0.0.1`).
 
+![Settings → Advanced](/screenshots/en/advanced.webp)
+
 ## OBS browser source
 
 "Enable OBS Browser Source" serves a page that shows translations. Each line fades out after a while.

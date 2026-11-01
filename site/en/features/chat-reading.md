@@ -2,6 +2,8 @@
 
 Reads the text of chatboxes shown on the VRChat screen, so it can be logged or translated. The settings are under Settings → "Chat Transcribe".
 
+![Settings → Chat Transcribe](/screenshots/en/chat-reading.webp)
+
 ## Setup
 
 1. On the "Chat Transcribe" page, download the recognition models. Text recognition uses PaddleOCR's PP-OCR (Apache-2.0). Check the provider, license and size, then agree and download (see [Model downloads](../guide/models)).

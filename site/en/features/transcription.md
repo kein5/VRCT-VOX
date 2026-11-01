@@ -2,6 +2,8 @@
 
 Turns your voice and other players' voices into text. The settings are under Settings → "Transcription".
 
+![Settings → Transcription](/screenshots/en/transcription.webp)
+
 ## Realtime captions (Linux)
 
 On Linux, captions come from the bundled speech.cpp speech recognition (ASR) server. They appear in the message log and in the large overlay if you enable it.

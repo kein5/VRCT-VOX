@@ -2,6 +2,8 @@
 
 Converts your microphone with an RVC or Seed-VC runtime you prepare, and sends it to the virtual microphone. Both are experimental. Check the quality and latency in your own setup before relying on them.
 
+![Settings → RVC](/screenshots/en/rvc.webp)
+
 ::: warning Linux only for now
 Voice conversion uses the managed virtual microphone (PipeWire), so it works on Linux only for now.
 :::

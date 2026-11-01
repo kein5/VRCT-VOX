@@ -2,6 +2,8 @@
 
 Translates what you type and what speech recognition turns into text. Turn it on and off with "Translation" on the main screen, and choose the engine under "Translator". The settings are under Settings → "Translation".
 
+![Settings → Translation](/screenshots/en/translation.webp)
+
 ## Local translation models (CTranslate2)
 
 Translation runs on your PC, so your text is not sent anywhere. Choose a model under "AI Translation (Local)" and get it with "Download".

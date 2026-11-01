@@ -2,6 +2,8 @@
 
 Speaks your text or its translation into a virtual microphone that VRChat uses. It turns on and off separately from sending text to the chatbox. The settings are under Settings → "TTS".
 
+![Settings → TTS](/screenshots/en/tts.webp)
+
 ## Voices
 
 Speech comes from the bundled [speech.cpp](https://github.com/nyosegawa/speech.cpp) servers.

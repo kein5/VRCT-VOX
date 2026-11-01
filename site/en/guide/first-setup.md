@@ -2,6 +2,8 @@
 
 This page sets up translating text and sending it to the VRChat chatbox. Add speech or captions afterwards with the feature guides.
 
+![The VRCT-VOX main screen](/screenshots/en/main.webp)
+
 ## 1. Turn on OSC in VRChat
 
 VRCT-VOX sends text to the VRChat chatbox over OSC. In VRChat, open the Action Menu, go to "Options" → "OSC" and choose "Enabled".

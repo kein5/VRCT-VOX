@@ -2,6 +2,8 @@
 
 入力した文章や翻訳を声にして、VRChat が使う仮想マイクへ流します。チャットボックスへの文字の送信とは別に、オンとオフを切り替えられます。設定は「設定」→「TTS」にあります。
 
+![「設定」→「TTS」の画面](/screenshots/ja/tts.webp)
+
 ## 使う声
 
 読み上げには、同梱の [speech.cpp](https://github.com/nyosegawa/speech.cpp) のサーバーを使います。

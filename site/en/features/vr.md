@@ -2,6 +2,8 @@
 
 You can read translations and captions and control features inside VR. The settings are under Settings → "VR". Both use SteamVR and come from upstream VRCT.
 
+![Settings → VR](/screenshots/en/vr.webp)
+
 ## Subtitle overlay
 
 Turn it on with "Overlay(VR)" at the top of the main screen to show translations and captions in your VR view.

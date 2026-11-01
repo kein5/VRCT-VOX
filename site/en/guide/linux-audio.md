@@ -2,6 +2,8 @@
 
 For VRChat to hear speech or converted voice, VRCT-VOX's audio has to reach VRChat's microphone input. On Linux, VRCT-VOX can create a virtual microphone (PipeWire) that it manages.
 
+![Settings → Device](/screenshots/en/device.webp)
+
 ## Using the managed virtual microphone
 
 1. Under Settings → "Device" → "Audio route", choose "Managed virtual microphone (Linux)" and save. Setup starts automatically. You can also start it with "Prepare and use virtual microphone" on the "RVC" page.

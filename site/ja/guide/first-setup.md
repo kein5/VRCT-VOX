@@ -2,6 +2,8 @@
 
 文章を翻訳して VRChat のチャットボックスへ送るところまでを設定します。読み上げや字幕は、そのあとで機能ガイドを見ながら足してください。
 
+![VRCT-VOX のメイン画面](/screenshots/ja/main.webp)
+
 ## 1. VRChat の OSC をオンにする
 
 VRCT-VOX は、OSC という仕組みで VRChat のチャットボックスへ文字を送ります。VRChat のアクションメニューから「Options」→「OSC」を開き、「Enabled」にしてください。

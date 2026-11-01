@@ -2,6 +2,8 @@
 
 ## Quick Chat
 
+![Settings → Hotkeys](/screenshots/en/hotkeys.webp)
+
 Send text from a small window without bringing the main window forward. It works even while the main window is minimized. The small window stays on top while it is open.
 
 - **Open**: assign a key to "Open quick chat" under Settings → "Hotkeys". No key is assigned at first. The "Open input window" button opens it too.
