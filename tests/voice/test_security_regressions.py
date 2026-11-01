@@ -61,6 +61,18 @@ def test_workflows_pin_external_code_and_keep_inputs_out_of_scripts(workflow):
         assert "tools.prepare_release" in commands
         assert "'--draft'" in commands
         assert "release', 'edit'" not in commands
+    elif workflow.name == "pages.yml":
+        # Deploying to GitHub Pages needs pages:write and id-token:write. Only the
+        # deploy job gets them, only on develop in this repository, never for a PR.
+        assert document["permissions"] == {"contents": "read"}
+        assert set(document["jobs"]) == {"build", "deploy"}
+        assert "permissions" not in document["jobs"]["build"]
+        deploy = document["jobs"]["deploy"]
+        assert deploy["permissions"] == {"pages": "write", "id-token": "write"}
+        assert "github.repository == 'kein5/VRCT-VOX'" in deploy["if"]
+        assert "github.ref == 'refs/heads/develop'" in deploy["if"]
+        assert "github.event_name != 'pull_request'" in deploy["if"]
+        assert all("run" not in step for step in deploy["steps"])
     else:
         assert document["permissions"] == {"contents": "read"}
         assert all("permissions" not in job for job in document["jobs"].values())
