@@ -1,9 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useSpeechServers } from "../../../../../../logics/voice/useSpeechServers";
 import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
 import styles from "./VoiceSettings.module.scss";
-import { ModelDownloads } from "./ModelDownloads";
+import { ModelDownloads, HardwareReadout } from "./ModelDownloads";
 
 export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }) => {
     const { t } = useI18n();
@@ -14,6 +14,11 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
         write: value => send("/set/data/speech_server_settings", value) });
     const { draft, setDraft, saving, dirty } = form;
     const pendingKey = JSON.stringify(pending);
+    // Engine settings start folded; the summary says enough to leave them so.
+    const [opened, setOpened] = useState({});
+    // TTS engines on one page share one GPU/memory reading and headroom choice.
+    const [reserve, setReserve] = useState('vr');
+    const tts = profiles.some(name => ["japanese", "multilingual"].includes(name));
     useEffect(() => {
         send("/get/data/speech_server_settings");
         send("/get/data/speech_server_state");
@@ -28,6 +33,7 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
     return <section className={styles.container} aria-label={t("speech_servers.title")}>
         <h3>{t("speech_servers.title")}</h3>
         <p>{t("speech_servers.help")}</p>
+        {tts && <HardwareReadout reserve={reserve} setReserve={setReserve} />}
         {draft && <form onSubmit={event => {
             event.preventDefault(); if (dirty) form.submit(value => send("/set/data/speech_server_settings", value));
         }}>
@@ -38,13 +44,21 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                     <input value={row[key]} disabled={busy} maxLength={4096} spellCheck={false}
                         onChange={event => field(name, key, event.target.value)} />
                 </label>;
+                const saved = settings.profiles[name];
+                const configured = !!saved.model.trim() && (name !== "asr" || !!saved.vad_model.trim());
+                const stateText = t(`speech_servers.state_${pending[name] ? "pending" : owner?.state ?? "unknown"}`);
+                // Open by itself only when the server reports an error to fix here.
+                const attention = !!owner?.error_code || !!owner?.low_latency?.error_code;
                 return <fieldset key={name}>
                     <legend>{t(`speech_servers.${name}`)}</legend>
-                    <details open={owner?.state !== "ready"}><summary>{t("voice_ui.engine_settings")}</summary>
+                    <details open={!!opened[name] || attention}
+                        onToggle={event => { const open = event.currentTarget.open; setOpened(previous => ({ ...previous, [name]: open })); }}>
+                        <summary>{t("voice_ui.engine_settings")} · {t(configured ? "speech_servers.model_set" : "speech_servers.model_unset")} · {stateText}</summary>
                     {input("model")}{input(name === "asr" ? "vad_model" : "voice_file")}
                     {/* Other unsaved edits survive an apply; only an edited model path conflicts. */}
                     {/* The asr profile also takes a VAD file; "expected" names the field each target replaces. */}
                     <ModelDownloads targets={name === "asr" ? ["asr", "vad"] : [name]} deviceMode={settings.profiles[name].device}
+                        reserve={name === "asr" ? undefined : reserve}
                         blocked={busy ? "busy" : row.model !== settings.profiles[name].model ||
                             (name === "asr" && row.vad_model !== settings.profiles.asr.vad_model) ? "edited" : false}
                         expected={name === "asr" ? { asr: { model: settings.profiles.asr.model }, vad: { model: settings.profiles.asr.vad_model } }
@@ -63,7 +77,7 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                         (name === "asr" && !row.vad_model.trim()) || owner?.error_code === "speech_server_cleanup_unconfirmed"}
                         onClick={() => send("/run/start_speech_server", { profile: name, generation: owner.generation })}>{t("speech_servers.start")}</button>
                     <button type="button" onClick={() => send("/run/stop_speech_server", { profile: name })}>{t("speech_servers.stop")}</button></div>
-                    <p role="status">{t(`speech_servers.state_${pending[name] ? "pending" : owner?.state ?? "unknown"}`)}</p>
+                    <p role="status">{stateText}</p>
                     {owner?.low_latency && <p role="status">{t(`speech_servers.low_latency_${owner.low_latency.state}`)}</p>}
                     {owner?.low_latency?.error_code && <p role="alert">{t("speech_servers.low_latency_failed")}</p>}
                     {owner?.error_code && <p role="alert">{owner.error_code === "speech_server_out_of_memory" && <>{t("voice_ui.memory_error")} </>}{owner.error_code}</p>}

@@ -44,7 +44,7 @@ export const GenerationOptions = ({ role, draft, field }) => {
         <label>{t("voice_ui.instruction")}<textarea aria-label={t("voice_ui.instruction")} value={instructions} maxLength={8000} rows={3}
             onChange={e => field(instructionKey, e.target.value)} /></label>
         <p>{t("voice_ui.instruction_hint", { count: Array.from(instructions).length })}</p>
-        <p role="status">Seed: {support(options?.seed)} · Instruction: {support(options?.instructions)}{options?.model ? ` · ${options.model}` : ""}</p>
+        <p role="status">{t("voice_ui.option_support", { seed: support(options?.seed), instruction: support(options?.instructions) })}{options?.model ? ` · ${options.model}` : ""}</p>
         {(fixed || instructions.trim()) && (!options || (fixed && !options.seed) || (instructions.trim() && !options.instructions)) &&
             <p>{t("voice_ui.options_warning")}</p>}
         {options?.seed && fixed && /^[0-9]{1,16}$/.test(seed) &&

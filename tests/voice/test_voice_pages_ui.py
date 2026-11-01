@@ -243,6 +243,10 @@ def test_rvc_can_prepare_route_without_losing_model_or_output_settings(pages):
 
     page, peer, reply = pages
     page.get_by_role("button", name="RVC", exact=True).click()
+    # The RVC hint opens the page once; the converted fields do not repeat it.
+    expect(
+        page.get_by_text("Use a separately installed RVC runtime", exact=False)
+    ).to_have_count(1)
     page.get_by_label("Input to forward", exact=True).select_option(
         label="Test microphone"
     )
