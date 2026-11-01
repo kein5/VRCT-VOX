@@ -79,6 +79,12 @@
     --vox_state_warning: #cb944f;
     --vox_state_failed: #f08a85;
     --vox_readout_rule: #5b92ff;
+    /* Overlays (menus, popovers) float above the page; routine forms stay flat. */
+    --vox_shadow_overlay: 0 .8rem 2.4rem #0009;
+    --vox_highlight_tint: #5b92ff29;
+    --vox_warning_tint: #cb944f26;
+    /* VRChat's own chatbox colour, for the message format preview only. */
+    --vox_chatbox_preview: #3a4554;
     --dark_50_color: #ffffff;
     --font_family: "Yu Gothic UI";
 }

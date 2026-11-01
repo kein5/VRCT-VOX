@@ -39,11 +39,19 @@ typography:
     fontSize: "1.2rem"
     fontWeight: 400
     lineHeight: 1.6
+  body-large:
+    fontSize: "1.6rem"
+    fontWeight: 400
+  title:
+    fontSize: "1.8rem"
+    fontWeight: 600
   readout:
     fontSize: "1.3rem"
     fontWeight: 500
     fontFeature: "tabular-nums"
 rounded:
+  hairline: "2px"
+  small: "4px"
   control: "8px"
   composer: "12px"
   dialog: "12px"
