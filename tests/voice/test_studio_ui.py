@@ -146,3 +146,43 @@ def test_settings_checkboxes_are_reachable_from_the_keyboard(studio):
     expect(box).to_be_attached()
     box.focus()
     expect(box).to_be_focused()
+
+
+def test_settings_top_bar_stops_speech_and_mutes_without_starting_anything(studio):
+    from playwright.sync_api import expect
+
+    page, peer = studio
+    page.get_by_role("button", name="設定を開く", exact=True).click()
+    page.get_by_role("button", name="翻訳", exact=True).click()
+    actions = page.get_by_role("group", name="停止", exact=True)
+    stop = actions.get_by_role("button", name="読み上げを停止", exact=True)
+    # The studio peer reports no route state: a plain mute, named for TTS output.
+    mute = actions.get_by_role("button", name="読み上げをミュート", exact=True)
+    expect(mute).not_to_have_attribute("aria-pressed", "true")
+    before = len(peer.sent)
+    stop.focus()
+    page.keyboard.press("Enter")
+    mute.focus()
+    page.keyboard.press("Enter")
+    def requests():
+        return [ep for ep, _ in peer.sent[before:] if ep.startswith(("/run/", "/set/"))]
+
+    for _ in range(50):
+        if len(requests()) >= 2:
+            break
+        page.wait_for_timeout(50)
+    # Only the stop and mute requests: nothing resumed, started or rerouted.
+    assert requests() == ["/run/stop_voice", "/run/mute_voice"]
+    expect(stop).to_be_visible()
+
+
+def test_translation_model_setup_is_folded_with_its_status(studio):
+    from playwright.sync_api import expect
+
+    page, _ = studio
+    page.get_by_role("button", name="設定を開く", exact=True).click()
+    page.get_by_role("button", name="翻訳", exact=True).click()
+    setup = page.locator("details[data-setup]")
+    expect(setup).to_have_count(1)
+    expect(setup.locator("summary")).to_contain_text("モデルと処理デバイス")
+    expect(setup).not_to_have_attribute("open", "")

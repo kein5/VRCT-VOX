@@ -11,6 +11,11 @@ colors:
   border: "#344662"
   text: "#edf3ff"
   secondary-text: "#adbed6"
+  description-text: "#8d9fb9"
+  state-active: "#80acff"
+  state-warning: "#cb944f"
+  state-failed: "#f08a85"
+  readout-rule: "#5b92ff"
 typography:
   body:
     fontFamily: "Configured UI font, Noto Sans, system-ui, sans-serif"
@@ -21,13 +26,41 @@ typography:
     fontFamily: "inherit"
     fontSize: "2rem"
     fontWeight: 600
+  category-heading:
+    fontSize: "2rem"
+    fontWeight: 600
+  subheading:
+    fontSize: "1.5rem"
+    fontWeight: 600
+  item-label:
+    fontSize: "1.4rem"
+    fontWeight: 500
+  description:
+    fontSize: "1.2rem"
+    fontWeight: 400
+    lineHeight: 1.6
+  body-large:
+    fontSize: "1.6rem"
+    fontWeight: 400
+  title:
+    fontSize: "1.8rem"
+    fontWeight: 600
+  readout:
+    fontSize: "1.3rem"
+    fontWeight: 500
+    fontFeature: "tabular-nums"
 rounded:
+  hairline: "2px"
+  small: "4px"
   control: "8px"
   composer: "12px"
+  dialog: "12px"
 spacing:
+  xsmall: "4px"
   small: "8px"
   medium: "16px"
   large: "24px"
+  section: "40px"
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
@@ -37,6 +70,11 @@ components:
     height: "40px"
   button-primary-hover:
     backgroundColor: "{colors.primary-hover}"
+  env-readout:
+    backgroundColor: "{colors.surface}"
+    borderLeft: "3px solid {colors.readout-rule}"
+    rounded: "{rounded.control}"
+    padding: "8px 12px"
   input:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.text}"
@@ -69,6 +107,22 @@ Keep the user's configured UI font, scaling and log-font preferences. Local Noto
 The regular main rail is 240px and the settings rail is 208px. At the existing 800px scaling-aware breakpoint, main navigation uses a 72px icon rail; settings use a 56px rail that expands for focus or hover. Small windows scroll rather than dropping controls. Top status controls can scroll horizontally when necessary.
 
 The conversation occupies the largest region. An empty state explains where to type, and the composer has a blue send action. Settings have a conventional back button, search and aligned sections. Field labels stack below 700px. Dialogs constrain their width to the viewport and keep explicit consent visible.
+
+## Roles in settings
+
+Settings pages use four roles, and each must be recognizable without reading it. The user approved these on 2026-11-01.
+
+| Role | Look | Use |
+|---|---|---|
+| Category heading | 2rem / 600, text color, 40px above and 16px below, hairline to the right | One per page section (TTS, RVC, Mic) |
+| Subheading | 1.5rem / 600, secondary text, 24px above and 8px below, no frame | Groups inside a section (Monitor, Japanese TTS voice) |
+| Item label | 1.4rem / 500, text color, wraps | The name of one setting |
+| General description | 1.2rem / 400, description text, at most two lines visible; the rest goes in a "詳細" disclosure | What a setting does, true on every PC |
+| Environment readout | 1.3rem / 500, tabular numbers, surface background, 3px left rule, 8px radius | What this PC and this session report now: GPU and memory, server state, download progress, model support |
+
+A readout states its condition in words; its color repeats the words (active blue, warning amber, failed red) and never replaces them. Frames are kept for real units, such as one server or engine; groups inside a section are separated by space and a subheading, not by nested borders. One-time setup (model files, servers, downloads) sits in one folded "モデルとサーバー" section per page with a one-line status.
+
+The settings top bar always offers the stop actions: stop TTS (clears the queue) and mute VRCT's voice output. They are quiet until there is something to stop.
 
 ## Elevation & Depth
 

@@ -5,6 +5,8 @@ import { useVoice } from "../../../../../../logics/voice/useVoice";
 import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
 import { SectionLabelComponent } from "../_components/section_label_component/SectionLabelComponent";
 import styles from "../advanced_settings/VoiceSettings.module.scss";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { FormRow } from "../_components/form_row/FormRow";
 
 export const VoiceRouteSummary = () => {
     const { t } = useI18n();
@@ -19,10 +21,13 @@ export const VoiceRouteControls = () => {
     const { route, error, send } = useVoice();
     const problem = error || route.error;
     return <>
-        <p>{t(route.managed ? "voice.mute_scope_managed" : "voice.mute_scope_external")}</p>
-        <div className={styles.actions}><button type="button" onClick={() => send("/run/mute_voice")}>{t("voice.mute")}</button>
-            <button type="button" disabled={!route.ready || route.pending || !route.requested_muted} onClick={() => send("/run/resume_voice")}>{t("voice.resume")}</button></div>
-        <p role="status">{t(route.preparing ? "voice.preparing_microphone" : route.error ? "voice.gate_error" : route.pending ? "voice.gate_pending" : !route.ready || route.observed_muted == null ? "voice.gate_unknown" : route.observed_muted ? "voice.gate_muted" : "voice.gate_open")}</p>
+        <FormRow group label={t("voice_ui.mute_row")} description={t(route.managed ? "voice.mute_scope_managed" : "voice.mute_scope_external")}>
+            <button type="button" onClick={() => send("/run/mute_voice")}>{t("voice.mute")}</button>
+            <button type="button" disabled={!route.ready || route.pending || !route.requested_muted} onClick={() => send("/run/resume_voice")}>{t("voice.resume")}</button>
+        </FormRow>
+        <EnvReadout tone={route.error ? "failed" : route.preparing || route.pending || !route.ready || route.observed_muted == null ? "neutral" : route.observed_muted ? "warning" : "active"}>
+            <p>{t(route.preparing ? "voice.preparing_microphone" : route.error ? "voice.gate_error" : route.pending ? "voice.gate_pending" : !route.ready || route.observed_muted == null ? "voice.gate_unknown" : route.observed_muted ? "voice.gate_muted" : "voice.gate_open")}</p>
+        </EnvReadout>
         {problem && <p role="alert">{t(`voice_setup_errors.${problem}`, { defaultValue: problem })}</p>}
     </>;
 };

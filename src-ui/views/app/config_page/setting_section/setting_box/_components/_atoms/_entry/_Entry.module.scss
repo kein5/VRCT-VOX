@@ -18,7 +18,7 @@
     height: 100%;
     font-size: 1.4rem;
     resize: none;
-    font-family: Arial, sans-serif;
+    font-family: inherit;
     &.is_disabled {
         color: var(--dark_500_color);
         pointer-events: none;

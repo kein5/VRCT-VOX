@@ -6,7 +6,7 @@
     justify-content: flex-end;
     padding: 0 0 0rem 1.2rem;
     color: var(--dark_500_color);
-    font-size: 1rem;
+    font-size: 1.2rem;
     height: 4.2rem; // 開閉時および全モードで高さを固定し、上のメニューを一切ずらさない
 
     &.is_compact {
@@ -42,12 +42,12 @@
 }
 
 .compact_version_label {
-    font-size: 1.05rem;
+    font-size: 1.2rem;
     white-space: nowrap;
 }
 
 .compact_badge {
-    font-size: 0.85rem;
+    font-size: 1.2rem;
     white-space: nowrap;
 }
 
@@ -72,11 +72,11 @@
 }
 
 .inline_cuda {
-    font-size: 0.95rem;
+    font-size: 1.2rem;
 }
 
 .second_line_cuda {
-    font-size: 0.95rem;
+    font-size: 1.2rem;
     white-space: nowrap;
 }
 

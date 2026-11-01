@@ -1,13 +1,14 @@
 import styles from "./LabelComponent.module.scss";
 import { _OpenWebpageButton } from "../_atoms/_open_webpage_button/_OpenWebpageButton";
 import WarningSvg from "@images/warning.svg?react";
+import { Description } from "../description/Description";
 
 export const LabelComponent = (props) => {
     return (
         <div className={styles.label_component}>
             <p className={styles.label}>{props.label}</p>
             {props.desc
-                ? <p className={styles.desc}>{props.desc}</p>
+                ? typeof props.desc === "string" ? <Description text={props.desc} className={styles.desc} /> : <p className={styles.desc}>{props.desc}</p>
                 : null
             }
             {props.add_warnings && Array.isArray(props.add_warnings) && props.add_warnings.length > 0 && (

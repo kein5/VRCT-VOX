@@ -25,6 +25,7 @@ import {
 } from "../_components";
 
 import { ComputeDevice } from "../_components/compute_device/ComputeDevice";
+import { SetupSection } from "../_components/setup_section/SetupSection";
 
 import {
     deepl_auth_key_url,
@@ -47,13 +48,25 @@ export const Translation = () => {
     );
 };
 
+// The local model and its device are set once; the summary says which model,
+// whether it is downloaded, and where it runs.
 const AITranslation_Container = () => {
     const { t } = useI18n();
+    const { currentCTranslate2WeightTypeStatus, currentSelectedCTranslate2WeightType, currentSelectedTranslationComputeDevice } = useTranslation();
+    const selected = currentSelectedCTranslate2WeightType.data;
+    const weight = (currentCTranslate2WeightTypeStatus.data || []).find(item => item.id === selected);
+    const device = currentSelectedTranslationComputeDevice.data?.device_name;
+    const status = [
+        selected ? `${selected} · ${t(weight?.is_downloaded ? "config_page.translation.setup_downloaded" : "config_page.translation.setup_not_downloaded")}` : null,
+        device || null,
+    ].filter(Boolean).join(" · ");
     return (
         <div>
             <SectionLabelComponent label={t("config_page.translation.section_label_ai_translation")} />
-            <CTranslate2WeightType_Box />
-            <TranslationComputeDevice_Box />
+            <SetupSection title={t("config_page.translation.setup_title")} status={status}>
+                <CTranslate2WeightType_Box />
+                <TranslationComputeDevice_Box />
+            </SetupSection>
         </div>
     );
 };

@@ -4,6 +4,7 @@
     flex-direction: column;
 }
 
+.platform_readout { margin: .8rem 0; }
 .quick_chat_notice { font-size: 1.2rem; line-height: 1.5; margin: .6rem 0; color: var(--dark_basic_text_color); }
 .open_quick_chat {
     align-self: flex-start; font-size: 1.4rem; min-height: 3.6rem; padding: .6rem 1.2rem; margin: .4rem 0 1.6rem;

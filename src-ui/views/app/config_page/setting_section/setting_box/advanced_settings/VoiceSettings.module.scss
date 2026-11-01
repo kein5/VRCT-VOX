@@ -8,24 +8,37 @@
     form, fieldset { display: grid; gap: 1.2rem; min-width: 0; }
     fieldset { border: .1rem solid var(--dark_800_color, #344662); border-radius: var(--vox_radius, .8rem); padding: 1.6rem; }
     fieldset.fields { border: 0; padding: 0; margin: 0; }
-    legend { font-weight: 600; padding: 0 .4rem; }
-    label { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 1.6fr); gap: 1.6rem; align-items: center; padding: .4rem 0; }
-    input, select, textarea, button { box-sizing: border-box; font: inherit; min-height: 4rem; padding: .9rem 1.2rem; color: inherit; border-radius: var(--vox_radius, .8rem); }
+    // A group inside a section: space and a subheading, no frame. Frames stay for real units (one server).
+    fieldset.group { border: 0; padding: 0; margin: 1.2rem 0 0; }
+    // Subheading role (DESIGN.md): 1.5rem / 600, secondary text, 24px above and 8px below.
+    legend, h3, h4 { font-size: 1.5rem; font-weight: 600; line-height: 1.4; color: var(--vox_secondary_text); text-wrap: balance; }
+    legend { padding: 0 .4rem; }
+    fieldset.group > legend { padding: 0; margin-bottom: .8rem; }
+    // Direct section children sit in a 16px grid gap: +8 above and -8 below give 24/8.
+    > h3, > h4 { margin: .8rem 0 -.8rem; }
+    h3, h4 { margin-top: .8rem; }
+    // Item label role: 1.4rem / 500; the control inside keeps the regular weight.
+    label { display: grid; grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 1.6fr); gap: 1.6rem; align-items: center; padding: .4rem 0; font-size: 1.4rem; font-weight: 500; }
+    input, select, textarea, button { box-sizing: border-box; font: inherit; font-weight: 400; min-height: 4rem; padding: .9rem 1.2rem; color: inherit; border-radius: var(--vox_radius, .8rem); }
     input, select, textarea { width: 100%; min-width: 0; background: var(--vox_surface, #18253b); border: .1rem solid var(--dark_650_color, #5e6570); }
     select option { color: var(--dark_200_color, #e5e7eb); background: var(--vox_surface, #18253b); }
+    input::placeholder, textarea::placeholder { color: var(--vox_description_text); opacity: 1; }
     textarea { resize: vertical; min-height: 8rem; }
     button { width: fit-content; cursor: pointer; background: var(--dark_850_color, #25364f); border: .1rem solid transparent; font-weight: 600; }
     button:hover:enabled { background: var(--dark_600_color, #555d69); }
     button.primary { background: var(--primary_600_color, #2865dc); color: var(--dark_50_color, #fff); }
     button.primary:hover:enabled { background: var(--primary_550_color, #3470e8); }
+    // A secondary action beside a primary one: an outline, not a filled button.
+    button.quiet { background: transparent; border-color: var(--dark_775_color); }
+    button.quiet:hover:enabled { background: var(--dark_850_color); }
     :focus-visible { outline: .2rem solid var(--primary_200_color, #80cbc4); outline-offset: .3rem; }
     :disabled { opacity: .6; cursor: not-allowed; }
-    h3, h4 { font-size: 1.6rem; font-weight: 600; }
-    p { line-height: 1.6; overflow-wrap: anywhere; }
+    // General description role: 1.2rem / 400 in the description color.
+    p { font-size: 1.2rem; line-height: 1.6; color: var(--vox_description_text); overflow-wrap: anywhere; text-wrap: pretty; max-width: 72ch; }
     summary { cursor: pointer; padding: .8rem 0; font-weight: 600; }
     details.more { color: var(--dark_400_color, #adbed6); }
     details.more summary { padding: .4rem 0; font-weight: 400; font-size: 1.3rem; }
-    [role="alert"] { border: .1rem solid var(--warning_color); border-radius: var(--vox_radius); padding: .8rem 1.2rem; overflow-wrap: anywhere; }
+    [role="alert"] { border: .1rem solid var(--warning_color); border-radius: var(--vox_radius); padding: .8rem 1.2rem; overflow-wrap: anywhere; font-size: 1.3rem; color: var(--dark_200_color); }
     label.checkLabel { display: flex; align-items: flex-start; gap: 1.2rem; cursor: pointer; }
     input[type="checkbox"] { appearance: auto; -webkit-appearance: checkbox; accent-color: var(--primary_400_color); width: 2rem; height: 2rem; min-height: 2rem; padding: 0; margin-top: .2rem; flex-shrink: 0; }
     dialog { max-width: min(46rem, 85vw); padding: 2.4rem; border: .1rem solid var(--dark_600_color, #555d69); border-radius: 1.2rem; background: var(--dark_875_color, #282a2e); color: inherit; }
@@ -34,11 +47,5 @@
     @media (max-width: 700px) { label { grid-template-columns: 1fr; gap: .8rem; } }
 }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem; }
-.readout { display: grid; gap: .8rem; padding: 1.2rem 1.6rem; border: .1rem solid var(--dark_800_color); border-radius: var(--vox_radius); }
-.readout p { margin: 0; color: var(--dark_450_color); }
-.statusLine { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem 1.6rem; padding: .8rem 1.2rem; border: .1rem solid var(--dark_800_color); border-radius: var(--vox_radius); background: var(--dark_900_color); }
-.statusText { display: flex; align-items: center; gap: .8rem; margin: 0; }
-.statusDot { width: .8rem; height: .8rem; border-radius: 50%; flex-shrink: 0; background: var(--dark_600_color); }
-.tone_active .statusDot { background: var(--primary_400_color); }
-.tone_pending .statusDot { background: var(--warning_color); }
-.tone_failed .statusDot { background: var(--error_bc_color); }
+// The shared GPU and memory group: space and a subheading, no frame.
+.hardware { display: grid; gap: .8rem; min-width: 0; }

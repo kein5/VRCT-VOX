@@ -698,7 +698,6 @@ voice_ui:
     keep_editing: "계속 편집"
     discard_leave: "버리고 이동"
     input_conflict: "다른 직접 음성 엔진이 실행 중입니다. 해당 설정 페이지에서 먼저 중지하세요."
-    engine_settings: "엔진 설정"
     memory_error: "메모리가 부족합니다. 다른 GPU 앱을 중지하거나 CPU를 선택해 저장한 후 서버를 다시 시작하세요."
     check_settings: "{{page}} 설정을 확인하세요."
     state_unknown: "상태를 확인하지 못했습니다. 백엔드 연결 후 다시 시도하세요."

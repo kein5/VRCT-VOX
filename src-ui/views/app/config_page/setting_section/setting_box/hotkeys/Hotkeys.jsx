@@ -5,6 +5,7 @@ import { useI18n } from "@useI18n";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useIsOpenedConfigPage } from "@logics_common";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
 export const Hotkeys = () => {
     const { t } = useI18n();
     return (
@@ -34,9 +35,9 @@ const HotkeysBoxContainer = () => {
                 setHotkeys={setHotkeys}
             />
             <p className={styles.quick_chat_notice}>{t("quick_chat.shortcut_hint")}</p>
-            {platform === "wayland" && <p role="status" className={styles.quick_chat_notice}>{t("quick_chat.wayland_portal")}</p>}
-            {platform === "xwayland" && <p role="status" className={styles.quick_chat_notice}>{t("quick_chat.xwayland_hint")}</p>}
-            {platform === "unknown" && <p role="status" className={styles.quick_chat_notice}>{t("quick_chat.platform_unknown")}</p>}
+            {["wayland", "xwayland", "unknown"].includes(platform) && <EnvReadout className={styles.platform_readout}>
+                <p>{t({ wayland: "quick_chat.wayland_portal", xwayland: "quick_chat.xwayland_hint", unknown: "quick_chat.platform_unknown" }[platform])}</p>
+            </EnvReadout>}
             <button type="button" className={styles.open_quick_chat} onClick={() => { setIsOpenedConfigPage(false); openQuickChat(); }}>
                 {t("quick_chat.open")}
             </button>
