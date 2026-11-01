@@ -3,7 +3,7 @@ from dataclasses import dataclass, replace
 import re
 from urllib.parse import quote
 
-CATALOG_VERSION = '2026-11-01.4'
+CATALOG_VERSION = '2026-11-01.5'
 
 
 @dataclass(frozen=True)
@@ -162,9 +162,9 @@ CATALOG = (*CATALOG, *OCR_CATALOG)
 DETECTOR_MODEL_ID = 'vrct-vox-chatbox-detector'
 DETECTOR_FILE_NAME = 'vrct_vox_chatbox_yolox_tiny.onnx'
 DETECTOR_REPO = 'kein5/vrct-vox-chatbox-detector'
-DETECTOR_REVISION = '9c460bf687da59e069ed76f8ee9cd3157dab7ae1'
+DETECTOR_REVISION = '475e92e0bd23de8892bc996b40b09bfb8f7f007c'
 DETECTOR_SIZE = 20184371
-DETECTOR_SHA256 = '2fab797de821cc5d1985ede27acc55dd97ea46a1ce2b6aee5c775347e5a501f6'
+DETECTOR_SHA256 = 'bc13292400d22cb7247ec29ec9f2eeb2b8032c765c0b93477fb6b5cfe1e13aba'
 DETECTOR_CATALOG = (
     Model(DETECTOR_MODEL_ID, 'ocr', 'VRCT-VOX chatbox detector · YOLOX-Tiny', 'VRCT-VOX',
           DETECTOR_REPO, DETECTOR_REVISION, 'MIT', (

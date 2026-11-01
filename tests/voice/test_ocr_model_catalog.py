@@ -65,7 +65,7 @@ def test_own_detector_entry_matches_its_constants():
         (DETECTOR_FILE_NAME, DETECTOR_SIZE, DETECTOR_SHA256, "detector", ())]
     # Measured from the trained file (tools/chatbox_lab, vrct_vox_chatbox_yolox_tiny.onnx).
     assert (DETECTOR_SIZE, DETECTOR_SHA256) == (
-        20184371, "2fab797de821cc5d1985ede27acc55dd97ea46a1ce2b6aee5c775347e5a501f6")
+        20184371, "bc13292400d22cb7247ec29ec9f2eeb2b8032c765c0b93477fb6b5cfe1e13aba")
     assert artifact_url(entry, entry.artifacts[0]) == (
         f"https://huggingface.co/{DETECTOR_REPO}/resolve/{DETECTOR_REVISION}/{DETECTOR_FILE_NAME}")
     assert all(url.startswith(f"https://huggingface.co/{DETECTOR_REPO}/blob/{DETECTOR_REVISION}/")
@@ -74,7 +74,7 @@ def test_own_detector_entry_matches_its_constants():
     assert re.fullmatch(r"[0-9a-f]{40}", DETECTOR_REVISION) and DETECTOR_REVISION != "0" * 40
     assert not DETECTOR_REPO.startswith("PLACEHOLDER/")
     # The detector pins changed after the upload: stale consent must fail.
-    assert CATALOG_VERSION not in ("2026-11-01.2", "2026-11-01.3")
+    assert CATALOG_VERSION not in ("2026-11-01.2", "2026-11-01.3", "2026-11-01.4")
 
 
 def test_own_detector_is_offered_with_its_size_and_destination(tmp_path):
