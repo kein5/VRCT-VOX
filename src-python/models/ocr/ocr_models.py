@@ -136,6 +136,23 @@ def _keysFile(root: Path, dict_yml: Path, sha256: str) -> Path:
     return target
 
 
+def resolveArtifact(root, model_id: str, role: str) -> str:
+    """Verified path of one file of a download, or OcrModelsMissing / OcrModelsInvalid.
+
+    Only catalog entries are resolved, at <root>/<id>/<revision>/<filename>,
+    and only after their size and sha256 match the catalog.
+    """
+    entry = _ENTRIES.get(model_id)
+    if entry is None or root is None or not isInstalled(root, model_id):
+        raise OcrModelsMissing((model_id,))
+    for artifact in entry.artifacts:
+        if artifact.role == role:
+            path = Path(root) / entry.id / entry.revision / artifact.filename
+            _verify(path, artifact.size, artifact.sha256)
+            return str(path)
+    raise OcrModelsMissing((model_id,))
+
+
 def resolveModelFiles(root, spec: OcrModelSpec) -> OcrModelFiles:
     """Verified paths for `spec`, or OcrModelsMissing / OcrModelsInvalid."""
     if root is None:

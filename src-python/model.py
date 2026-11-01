@@ -55,6 +55,7 @@ from models.websocket.websocket_server import WebSocketServer
 from models.obs.obs_browser_source_server import ObsBrowserSourceServer
 from models.clipboard.clipboard import Clipboard
 from models.ocr import OcrPipeline
+from models.ocr.ocr_chatbox_detector import buildChatboxDetector
 from models.ocr.ocr_languages import isSupported as isSupportedOcrLanguage
 from models.telemetry import Telemetry
 from utils import errorLogging, setupLogger, printLog, diagnosticLogPath
@@ -1048,6 +1049,8 @@ class Model:
         self.obs_browser_source_server = None
         self.clipboard = Clipboard()
         self.ocr_pipeline: Optional[OcrPipeline] = None
+        self._ocr_model_root = None
+        self._ocr_detector_path: Optional[str] = None
         self.telemetry = Telemetry()
 
         self._inited = True
@@ -2228,6 +2231,9 @@ class Model:
             printLog(f"OCR: source language {source_language!r} is not selected or not supported, refusing to start")
             raise OcrStartError(ErrorCode.OCR_DISABLED_UNSUPPORTED_LANGUAGE)
 
+        # VRCT-VOX's own chatbox detector, only from its hash-verified download.
+        self._ocr_model_root = model_root
+        detector = self._ocrChatboxDetector()
         try:
             self.ocr_pipeline = OcrPipeline(
                 callback=fnc,
@@ -2239,11 +2245,22 @@ class Model:
                 model_root=model_root,
                 region=config.OCR_CAPTURE_REGION,
                 chatbox_filter=config.OCR_CHATBOX_FILTER,
+                detector=detector,
             )
+            self._ocr_detector_path = getattr(detector, "model_path", None)
             return self.ocr_pipeline.start()
         except Exception:
             self.ocr_pipeline = None
             raise
+
+    def _ocrChatboxDetector(self):
+        """The chatbox detector to read with, or None for detector-free reading.
+
+        Used when the switch is on and the download is present and verified.
+        """
+        if config.OCR_USE_CHATBOX_DETECTOR is not True:
+            return None
+        return buildChatboxDetector(getattr(self, "_ocr_model_root", None))
 
     def updateOCRCaptureSettings(self) -> None:
         """設定変更を実行中のOCRパイプラインへ渡す。停止中なら何もしない。
@@ -2262,9 +2279,19 @@ class Model:
                 "min_text_length": config.OCR_BUBBLE_MIN_TEXT_LENGTH,
                 "region": config.OCR_CAPTURE_REGION,
                 "chatbox_filter": config.OCR_CHATBOX_FILTER,
+                **self._ocrDetectorChange(),
             })
         except Exception:
             errorLogging()
+
+    def _ocrDetectorChange(self) -> dict:
+        """{"detector": ...} when the detector to use differs from the running one."""
+        detector = self._ocrChatboxDetector()
+        path = getattr(detector, "model_path", None)
+        if path == getattr(self, "_ocr_detector_path", None):
+            return {}
+        self._ocr_detector_path = path
+        return {"detector": detector}
 
     def stopOCRCapture(self) -> None:
         self.ensure_initialized()

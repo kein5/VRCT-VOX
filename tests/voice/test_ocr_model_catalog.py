@@ -3,12 +3,15 @@
 from dataclasses import replace
 import hashlib
 import io
+import re
 from pathlib import Path
 import time
 
 import pytest
 
-from models.model_downloads.catalog import CATALOG, OCR_CATALOG, Artifact, Model, artifact_url, validate_catalog
+from models.model_downloads.catalog import (
+    CATALOG, CATALOG_VERSION, DETECTOR_CATALOG, DETECTOR_FILE_NAME, DETECTOR_MODEL_ID, DETECTOR_REPO,
+    DETECTOR_REVISION, DETECTOR_SHA256, DETECTOR_SIZE, OCR_CATALOG, Artifact, Model, artifact_url, validate_catalog)
 from models.model_downloads.manager import Downloads
 
 
@@ -24,7 +27,7 @@ VERIFIED = {
 
 def test_ocr_entries_are_pinned_official_apache_models():
     validate_catalog(CATALOG)
-    ocr = [m for m in CATALOG if m.target == "ocr"]
+    ocr = [m for m in CATALOG if m.target == "ocr" and m.id != DETECTOR_MODEL_ID]
     assert [m.id for m in ocr] == [m.id for m in OCR_CATALOG]
     assert ocr[0].id == "ppocrv6-small"
     for model in ocr:
@@ -46,7 +49,43 @@ def test_upstream_chatbox_detector_is_never_downloadable():
     for model in CATALOG:
         for artifact in model.artifacts:
             names = (artifact.filename, *artifact.remote)
-            assert not any("chatbox" in name.lower() or "yolo" in name.lower() for name in names)
+            assert not any(name.lower().startswith("chatbox_yolo") for name in names)
+            if any("chatbox" in name.lower() or "yolo" in name.lower() for name in names):
+                # Only VRCT-VOX's own detector, under its own name and repository.
+                assert (model.id, model.repo, artifact.filename, artifact.remote) == (
+                    DETECTOR_MODEL_ID, DETECTOR_REPO, DETECTOR_FILE_NAME, ())
+
+
+def test_own_detector_entry_matches_its_constants():
+    assert [m.id for m in CATALOG if m.target == "ocr"] == [*(m.id for m in OCR_CATALOG), DETECTOR_MODEL_ID]
+    (entry,) = DETECTOR_CATALOG
+    assert (entry.id, entry.target, entry.license, entry.notice) == (DETECTOR_MODEL_ID, "ocr", "MIT", "chatbox")
+    assert (entry.repo, entry.revision) == (DETECTOR_REPO, DETECTOR_REVISION)
+    assert [(a.filename, a.size, a.sha256, a.role, a.remote) for a in entry.artifacts] == [
+        (DETECTOR_FILE_NAME, DETECTOR_SIZE, DETECTOR_SHA256, "detector", ())]
+    # Measured from the trained file (tools/chatbox_lab, vrct_vox_chatbox_yolox_tiny.onnx).
+    assert (DETECTOR_SIZE, DETECTOR_SHA256) == (
+        20184371, "9b294401df61335ee2a2b83b2225b3034c33ba934d2870b132e19ae864f2b3ec")
+    assert artifact_url(entry, entry.artifacts[0]) == (
+        f"https://huggingface.co/{DETECTOR_REPO}/resolve/{DETECTOR_REVISION}/{DETECTOR_FILE_NAME}")
+    assert all(url.startswith(f"https://huggingface.co/{DETECTOR_REPO}/blob/{DETECTOR_REVISION}/")
+               for url in entry.licenses)
+    assert any(url.endswith("/LICENSE") for url in entry.licenses)
+    assert re.fullmatch(r"[0-9a-f]{40}", DETECTOR_REVISION) and DETECTOR_REVISION != "0" * 40
+    assert not DETECTOR_REPO.startswith("PLACEHOLDER/")
+    # The detector pins changed after the upload: stale consent must fail.
+    assert CATALOG_VERSION not in ("2026-11-01.2", "2026-11-01.3", "2026-11-01.4", "2026-11-01.5")
+
+
+def test_own_detector_is_offered_with_its_size_and_destination(tmp_path):
+    manager = Downloads(tmp_path / "models")
+    try:
+        row = next(m for m in manager.catalog()["models"] if m["id"] == DETECTOR_MODEL_ID)
+    finally:
+        manager.close()
+    assert row["total_bytes"] == DETECTOR_SIZE and row["license"] == "MIT"
+    assert row["sources"] == [f"https://huggingface.co/{DETECTOR_REPO}/tree/{DETECTOR_REVISION}"]
+    assert Path(row["destination"]) == tmp_path / "models" / DETECTOR_MODEL_ID / DETECTOR_REVISION
 
 
 @pytest.mark.parametrize("change", [

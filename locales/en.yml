@@ -575,6 +575,14 @@ config_page:
         chatbox_filter:
             label: "Only read chatbox-style text"
             desc: "Keep only light text on a dark panel, the way VRChat draws chatbox bubbles. Turn this off if bubbles are missed; signs and menus in the world will then be read too."
+        detector:
+            label: "Use the chatbox detector (recommended when installed)"
+            desc: "Finds each chatbox with VRCT-VOX's own detection model (about 19 MB, runs on the CPU) and reads it on its own. The reading area and the chatbox-style filter still apply. Without the model, chatboxes are found within the reading area instead."
+            models_title: "Chatbox detector"
+            optional: "Optional, recommended"
+            status_on: "In use: the detector finds each chatbox, then it is read."
+            status_off: "Downloaded but turned off. Chatboxes are found within the reading area."
+            status_missing: "Not downloaded. Chat reading works without it; download it below to miss fewer chatboxes and pick up less world text."
         models:
             title: "Recognition models"
             desc: "Chat reading runs PaddleOCR models on this computer. Nothing is downloaded until you review the terms and agree."
@@ -1048,6 +1056,7 @@ model_downloads:
     notice_qwen: "Multilingual TTS with nine preset speakers for speech.cpp 0.9.0. Apache-2.0. Use the model and generated speech responsibly and respect the rights of others."
     notice_rvc: "RVC v2 voice conversion, trained on the author's own voice according to the model card. CC BY 4.0 requires attribution: Voice model created by Saisho Utane — https://huggingface.co/Saisho-Utane — Used under the CC BY 4.0 license. Include credit in public content and project documentation, link the license, and indicate changes. Voice quality in this runtime has not yet been verified."
     notice_ppocr: "Text detection and recognition for Chat Transcribe from PaddleOCR (PaddlePaddle), Apache-2.0. Runs on this computer's CPU; screen contents are never uploaded."
+    notice_chatbox: "VRCT-VOX's own chatbox detector for Chat Transcribe (YOLOX-Tiny), trained on VRCT-VOX's own screenshots and published under MIT. Runs on this computer's CPU; screen contents are never uploaded."
     notice_haas: "Japanese speech recognition with punctuation for speech.cpp 0.9.4 or later. Apache-2.0, by Third Intelligence, converted by sakasegawa. Review the model card before use."
     rvc_requirements: "This downloads only the RVC voice model and index. Conversion also needs a separately prepared RVC runtime, Python environment, HuBERT and RMVPE assets. Download completion does not mean conversion is ready."
     notice_qwen_asr: "Speech recognition in 30 languages that detects the spoken language itself, for speech.cpp 0.7.0 or later. Apache-2.0, by the Qwen team, converted by sakasegawa. Review the model card before use."

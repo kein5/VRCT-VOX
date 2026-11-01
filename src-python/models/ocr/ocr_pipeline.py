@@ -2,8 +2,10 @@
 
 Candidates come from a pluggable source (see ocr_detection.py). Without a
 detector, the configured region is read whole and PP-OCR's text lines are
-grouped into bubbles afterwards. Models are the user's consented downloads
-(ocr_models.py); nothing is fetched here.
+grouped into bubbles afterwards. With VRCT-VOX's chatbox detector
+(ocr_chatbox_detector.py, built by the caller), each detected chatbox whose
+centre lies in the region is read on its own. Models are the user's consented
+downloads (ocr_models.py); nothing is fetched here.
 
 Runs in its own thread. The callback signature mirrors mic/speaker
 transcript callbacks so Controller.ocrMessage can reuse the same
@@ -33,7 +35,7 @@ import numpy as np
 
 from ..background_priority import BackgroundThreads, lowerCurrentThread
 from .ocr_capture import CAPTURE_OK, CAPTURE_UNAVAILABLE, OcrCapture, probeCapture
-from .ocr_detection import FULL_REGION, RegionCandidates, blockBounds, groupLines, looksLikeChatbox
+from .ocr_detection import FULL_REGION, RegionCandidates, blockBounds, groupLines, looksLikeChatbox, regionPixels
 from . import ocr_engine_rapidocr as ocr_engine
 from .ocr_languages import OcrModelSpec, resolveModelSpec
 from .ocr_models import OcrModelsInvalid, OcrModelsMissing, resolveModelFiles
@@ -170,9 +172,9 @@ class OcrPipeline:
     ) -> None:
         """detector: a candidate source with isAvailable()/loadModel()/detect().
 
-        None (the default, and the only option today) reads the configured
-        region without a detector. A future VRCT-VOX bubble detector plugs in
-        here; the upstream one must not be passed (see ocr_detection.py).
+        None (the default) reads the configured region without a detector.
+        VRCT-VOX's own detector comes from ocr_chatbox_detector.buildChatboxDetector;
+        the upstream one must never be passed (see ocr_chatbox_detector.py).
         """
         self._callback = callback
         self._source_language = source_language or "auto"
@@ -203,6 +205,11 @@ class OcrPipeline:
         self._counts = {"tick": 0, "frame": 0, "candidate": 0, "ocr": 0, "text": 0, "bubble": 0, "emit": 0}
         self._counts_since = 0.0
         self._last_tick_at = 0.0
+
+    @property
+    def detectorName(self) -> str:
+        """Which candidate source reads frames ("region" without a detector)."""
+        return getattr(self._detector, "name", "custom")
 
     def isEngineAvailable(self) -> bool:
         # 検出器は必須ではない (無ければ範囲指定+PP-OCRの行検出で読む)。
@@ -323,6 +330,8 @@ class OcrPipeline:
             self._region_source.setRegion(pending["region"])
         if "chatbox_filter" in pending:
             self._chatbox_filter = bool(pending["chatbox_filter"])
+        if "detector" in pending:
+            self._switchDetector(pending["detector"])
 
         # 言語を変えると使うモデルが変わることがある (auto/日英中+ラテンは同じモデル、
         # ハングル・キリル・タイ等はPP-OCRv5の別モデル)。同じモデルはキャッシュ
@@ -360,6 +369,49 @@ class OcrPipeline:
             except Exception:
                 errorLogging()
             self._capture = OcrCapture(window_title=self._window_title)
+
+    def _switchDetector(self, detector) -> None:
+        """検出器を差し替える (None で範囲読みへ戻す)。ワーカースレッドからのみ呼ぶ。
+
+        起動中の切り替えで読めなくなるのは避けたいので、使えない・読み込めない
+        検出器は範囲読みに戻すだけで、OCRは止めない。
+        """
+        source = detector if detector is not None else self._region_source
+        if source is not self._region_source:
+            try:
+                if not source.isAvailable():
+                    printLog(f"OCR pipeline: detector {getattr(source, 'name', '?')!r} unavailable, reading the region instead")
+                    source = self._region_source
+                else:
+                    source.loadModel()
+            except Exception:
+                errorLogging()
+                printLog("OCR pipeline: bubble detector model load failed, reading the region instead")
+                source = self._region_source
+        if source is not self._detector:
+            self._detector = source
+            printLog(f"OCR pipeline: candidates={self.detectorName}")
+
+    def _inRegion(self, candidates, frame):
+        """検出器の候補のうち、中心が読み取り範囲に入るものだけ残す。
+
+        検出はフレーム全体で行う (学習時と同じ縮尺で推論するため)。範囲の境目に
+        かかった吹き出しは切らずに丸ごと読む。
+        """
+        shape = getattr(frame, "shape", None)
+        if shape is None or len(shape) < 2:
+            return candidates
+        height, width = shape[:2]
+        x, y, w, h = regionPixels(self._region_source.region, width, height)
+        if (x, y, w, h) == (0, 0, width, height):
+            return candidates
+        kept = []
+        for candidate in candidates:
+            bx, by, bw, bh = candidate[0]
+            cx, cy = bx + bw / 2.0, by + bh / 2.0
+            if x <= cx < x + w and y <= cy < y + h:
+                kept.append(candidate)
+        return kept
 
     def _emit(self, text: str) -> None:
         try:
@@ -429,6 +481,8 @@ class OcrPipeline:
             return
         self._counts["frame"] += 1
         candidates = self._detector.detect(frame)
+        if candidates and self._detector is not self._region_source:
+            candidates = self._inRegion(candidates, frame)
         if not candidates:
             return
         self._counts["candidate"] += len(candidates)
@@ -477,11 +531,15 @@ class OcrPipeline:
         """候補1つ分のOCR行を吹き出しごとに分ける。[(行のリスト, 中心座標), ...]。
 
         検出器の候補は1つが1吹き出し。検出器なし (範囲読み) は範囲に複数の
-        吹き出しやワールドの文字が写るので、行をまとめ直し、チャットボックスの
-        見た目 (暗い板に明るい文字) でないものを落とす。
+        吹き出しやワールドの文字が写るので、行をまとめ直す。どちらも、
+        チャットボックスの見た目 (暗い板に明るい文字) でないものを落とす。
+        検出器の候補で落ちるのは、実測 (chatbox_lab のval) では消えかけて
+        灰色になった吹き出しだけだった。明るいうちに読み終えているので失うものは無い。
         """
         center = (int(bbox[0] + bbox[2] / 2), int(bbox[1] + bbox[3] / 2))
         if not splits:
+            if self._chatbox_filter and not looksLikeChatbox(crop, words):
+                return []
             return [(words, center)]
         out = []
         for block in groupLines(words):
