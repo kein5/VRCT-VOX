@@ -11,10 +11,16 @@ public class ChatboxLabDirector : UdonSharpBehaviour
 {
     public Transform[] zones;
     public float interval = 6f;
-    public float minDistance = 1.5f;
+    // Closer than this, the chatbox above the speaker's head leaves the top of
+    // the camera's view, since a desktop player cannot be pitched.
+    public float minDistance = 2.5f;
     public float maxDistance = 7f;
     public float maxAround = 70f;
     public float maxLookOffset = 25f;
+    // The camera's eye height varies; a low default avatar looked up so steeply
+    // that chatboxes were cut off.
+    public float minEyeHeight = 1.3f;
+    public float maxEyeHeight = 1.9f;
 
     [UdonSynced] private int step;
     private int appliedStep = -1;
@@ -49,6 +55,7 @@ public class ChatboxLabDirector : UdonSharpBehaviour
             local.TeleportTo(center, Quaternion.Euler(0f, speakerYaw, 0f));
             return;
         }
+        local.SetAvatarEyeHeightByMeters(Mathf.Lerp(minEyeHeight, maxEyeHeight, Rand(6)));
         float distance = Mathf.Lerp(minDistance, maxDistance, Rand(3));
         Quaternion around = Quaternion.Euler(0f, speakerYaw + (Rand(4) * 2f - 1f) * maxAround, 0f);
         Vector3 position = center + around * Vector3.forward * distance;

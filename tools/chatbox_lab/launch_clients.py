@@ -119,7 +119,9 @@ def launch(args):
         osc_in, osc_out = args.osc_base + 2 * index, args.osc_base + 2 * index + 1
         url = online_url(world_id, owner, room) if args.online else f'--url={world_url(args.world, room)}'
         command = [str(proton), 'run', str(install / args.exe), '--no-vr', f'--profile={index}',
-                   f'--osc={osc_in}:127.0.0.1:{osc_out}', url, '--enable-sdk-log-levels', '--enable-udon-debug-logging']
+                   f'--osc={osc_in}:127.0.0.1:{osc_out}', url]
+        if not args.online:
+            command += ['--enable-sdk-log-levels', '--enable-udon-debug-logging']
         # The client keeps writing after this script exits.
         with open(CACHE / f'client{index}.log', 'w') as log:
             process = subprocess.Popen(command, cwd=install, env=env, stdout=log, stderr=subprocess.STDOUT,
@@ -165,7 +167,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--clients', type=int, default=2)
     parser.add_argument('--world', type=Path, default=WORLD)
-    parser.add_argument('--exe', default='VRChat.exe')
+    parser.add_argument('--exe', default=None,
+                        help='default: VRChat.exe, or start_protected_game.exe (Easy Anti-Cheat) with --online, as Steam '
+                             'starts it; VRChat.exe alone runs in offline testing mode and cannot join online worlds')
     parser.add_argument('--osc-base', type=int, default=9100)
     parser.add_argument('--stagger', type=float, default=60.0, help='seconds before starting the camera clients')
     parser.add_argument('--add', action='store_true', help='add clients to the running instance')
@@ -173,6 +177,7 @@ def main():
     parser.add_argument('--owner', help='user id that owns the instance (default: the speaker profile\'s account)')
     parser.add_argument('--stop', action='store_true')
     args = parser.parse_args()
+    args.exe = args.exe or ('start_protected_game.exe' if args.online else 'VRChat.exe')
     (stop if args.stop else launch)(args)
 
 

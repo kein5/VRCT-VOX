@@ -12,8 +12,8 @@ this account has worn (VRChat keeps an OSC config for each) every N
 messages. VRChat only switches to avatars the account may use; the switch
 is confirmed from the speaker's VRChat log, avatars that do not switch are
 skipped, and the avatar worn at the start is restored at the end. Avatars
-that any earlier VRChat log reports as rejected or inaccessible are left out
-up front: an avatar that fails VRChat's server-side checks is shown to
+that an earlier online VRChat log reports as rejected or inaccessible are left
+out up front: an avatar that fails VRChat's server-side checks is shown to
 everyone as the error robot, so it adds nothing to the data.
 
 Run only in the lab's own local test instance: never capture other people.
@@ -98,10 +98,18 @@ REJECTED = re.compile(r"Avatar '(avtr_[0-9a-f-]+)' did not pass initial checks"
 
 
 def rejected_avatars():
-    """Avatars any VRChat log on this PC reports as failing checks or inaccessible."""
+    """Avatars VRChat logs on this PC report as failing checks or inaccessible.
+
+    Offline testing mode (the local test instance, or VRChat.exe started
+    without Easy Anti-Cheat) cannot fetch other creators' avatars at all, so
+    its logs do not count.
+    """
     rejected = set()
     for log in VRCHAT_DATA.glob('output_log_*.txt'):
-        for match in REJECTED.finditer(log.read_text(errors='replace')):
+        text = log.read_text(errors='replace')
+        if 'name=BuildAndRun' in text[:20000] or 'offline testing mode' in text:
+            continue
+        for match in REJECTED.finditer(text):
             rejected.add(match.group(1) or match.group(2))
     return rejected
 
