@@ -1,11 +1,11 @@
 # 声の変換（RVC・Seed-VC）
 
-マイクの声を、別に用意した RVC または Seed-VC の実行環境で変換し、仮想マイクへ流します。どちらも試験的な機能です。使う前に、ご自身の環境で音質と遅延を確かめてください。
+マイクの声を、別に用意したRVCまたはSeed-VCの実行環境で変換し、仮想マイクへ流します。どちらも試験的な機能です。使う前に、ご自身の環境で音質と遅延を確かめてください。
 
 ![「設定」→「RVC」の画面](/screenshots/ja/rvc.webp)
 
-::: warning いまは Linux だけです
-声の変換は、管理対象の仮想マイク（PipeWire）を使うので、いまは Linux でだけ使えます。
+::: warning いまはLinuxだけです
+声の変換は、管理対象の仮想マイク（PipeWire）を使うので、いまはLinuxでだけ使えます。
 :::
 
 ## RVC
@@ -14,29 +14,29 @@
 
 ### 用意するもの
 
-RVC のモデルだけでは動きません。次のものを別に用意する必要があります。
+RVCのモデルだけでは動きません。次のものを別に用意する必要があります。
 
-- RVC の実行環境（RVC-Project のエンジン、Python の環境）
-- HuBERT と RMVPE
+- RVCの実行環境（RVC-Projectのエンジン、Pythonの環境）
+- HuBERTとRMVPE
 - 利用が許可されている学習済みモデル（`.pth`）。必要に応じて、検索インデックス（`.index`）
 
-実行環境の作り方は、リポジトリの [integrations/rvc/README.md](https://github.com/kein5/VRCT-VOX/blob/develop/integrations/rvc/README.md) にあります。アプリはこれらを自動では取得しません。
+実行環境の作り方は、リポジトリの[integrations/rvc/README.md](https://github.com/kein5/VRCT-VOX/blob/develop/integrations/rvc/README.md)にあります。アプリはこれらを自動では取得しません。
 
-既定のモデルとして、Saisho Utane の RVC v2 モデル（CC BY 4.0、約 0.31 GiB）を「既定モデルのダウンロード」から取得できます。公開する作品や配信で使うときは、作者のクレジット表示が必要です。
+既定のモデルとして、Saisho UtaneのRVC v2モデル（CC BY 4.0、約0.31 GiB）を「既定モデルのダウンロード」から取得できます。公開する作品や配信で使うときは、作者のクレジット表示が必要です。
 
 ### 使い方
 
 1. 「RVC実行環境のフォルダ」「利用許可のあるRVCモデル（.pth）」などを入力して保存します。
 2. 「仮想マイクを準備して使用」を押します。準備が終わったら、「音声を再開」を押します。
 3. 「転送する入力」で、自分が話すマイクを選びます。初期値は「デバイス」の「マイク」で選んだマイクです。
-4. VRChat のマイクに「VRCT Managed Virtual Microphone」を選びます。
+4. VRChatのマイクに「VRCT Managed Virtual Microphone」を選びます。
 5. メイン画面の「RVC」をオンにします。
 
 ## Seed-VC
 
-「設定」→「高度な設定」→「入力音声の転送（Linux）」で、「直接音声のモード」を「ボイスチェンジャー（試験的）」にすると使えます。別に導入した Seed-VC の実行環境と、利用が許可されている参照音声（WAV）を指定します。
+「設定」→「高度な設定」→「入力音声の転送（Linux）」で、「直接音声のモード」を「ボイスチェンジャー（試験的）」にすると使えます。別に導入したSeed-VCの実行環境と、利用が許可されている参照音声（WAV）を指定します。
 
-Seed-VC は GPL-3.0 のエンジンで、対応する NVIDIA の GPU が必要です。
+Seed-VCはGPL-3.0のエンジンで、対応するNVIDIAのGPUが必要です。
 
 ## 注意
 

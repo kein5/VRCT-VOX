@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: VRCT-VOX
-  text: VRChat での会話を、翻訳・字幕・読み上げで支える
-  tagline: 翻訳、音声認識、読み上げ（TTS）、声の変換、チャット読み取りをまとめたデスクトップアプリです。VRCT の非公式な派生版で、ベータ版です。
+  text: VRChatでの会話を、翻訳・字幕・読み上げで支える
+  tagline: 翻訳、音声認識、読み上げ（TTS）、声の変換、チャット読み取りをまとめたデスクトップアプリです。VRCTの非公式な派生版で、ベータ版です。
   actions:
     - theme: brand
       text: はじめる
@@ -13,10 +13,10 @@ hero:
       link: https://github.com/kein5/VRCT-VOX/releases
 features:
   - title: 翻訳して送る
-    details: 入力した文章を翻訳して、VRChat のチャットボックスへ送ります。ローカルの翻訳モデルと外部の翻訳 API を選べます。
+    details: 入力した文章を翻訳して、VRChatのチャットボックスへ送ります。ローカルの翻訳モデルと外部の翻訳APIを選べます。
     link: /ja/features/translation
   - title: 読み上げる
-    details: 送った文章や翻訳を、同梱の speech.cpp で読み上げて仮想マイクへ流します。文字の送信とは別にオンとオフを切り替えられます。
+    details: 送った文章や翻訳を、同梱のspeech.cppで読み上げて仮想マイクへ流します。文字の送信とは別にオンとオフを切り替えられます。
     link: /ja/features/tts
   - title: 字幕にする（Linux）
     details: 自分のマイクとほかのプレイヤーの声を、同梱の音声認識サーバーで文字にします。

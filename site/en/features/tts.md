@@ -6,10 +6,7 @@ Speaks your text or its translation into a virtual microphone that VRChat uses. 
 
 ## Voices
 
-Speech comes from the bundled [speech.cpp](https://github.com/nyosegawa/speech.cpp) servers.
-
-- **Japanese**: Irodori-TTS
-- **Other languages**: Qwen3-TTS
+Speech comes from the bundled [speech.cpp](https://github.com/nyosegawa/speech.cpp) servers. Japanese is spoken with Irodori-TTS and other languages with Qwen3-TTS.
 
 Neither model is bundled. Get them with "Download a default model" under "Bundled speech.cpp servers" (see [Model downloads](../guide/models)). You can also point to GGUF files you already have.
 

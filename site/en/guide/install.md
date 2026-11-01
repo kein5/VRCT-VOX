@@ -38,9 +38,11 @@ The AppImage and the tar.gz use the same locations.
 
 ## Windows
 
-- Installer: `VRCT-VOX_<version>_x64-setup.exe`
-- ZIP (CPU): `VRCT-VOX.zip`
-- ZIP (CUDA): `VRCT-VOX_cuda.zip`
+| Kind | File |
+|---|---|
+| Installer | `VRCT-VOX_<version>_x64-setup.exe` |
+| ZIP (CPU) | `VRCT-VOX.zip` |
+| ZIP (CUDA) | `VRCT-VOX_cuda.zip` |
 
 ::: warning The Windows build has not been tested on a real PC yet
 The Windows build has passed automated builds and package checks only. It has not been tested on a real Windows PC yet. It is not code-signed, so SmartScreen warns on first launch.

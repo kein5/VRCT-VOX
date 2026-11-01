@@ -18,7 +18,7 @@ function sidebarJa(): DefaultTheme.SidebarItem[] {
     {
       text: 'はじめに',
       items: [
-        { text: 'VRCT-VOX とは', link: '/ja/guide/introduction' },
+        { text: 'VRCT-VOXとは', link: '/ja/guide/introduction' },
         { text: 'インストール', link: '/ja/guide/install' },
         { text: '最初の設定', link: '/ja/guide/first-setup' },
       ],
@@ -31,16 +31,16 @@ function sidebarJa(): DefaultTheme.SidebarItem[] {
         { text: '読み上げ（TTS）', link: '/ja/features/tts' },
         { text: '声の変換（RVC・Seed-VC）', link: '/ja/features/voice-conversion' },
         { text: 'チャット読み取り（OCR）', link: '/ja/features/chat-reading' },
-        { text: 'VR とオーバーレイ', link: '/ja/features/vr' },
+        { text: 'VRとオーバーレイ', link: '/ja/features/vr' },
         { text: '入力の小窓とホットキー', link: '/ja/features/quick-chat' },
-        { text: 'OBS と WebSocket', link: '/ja/features/integrations' },
+        { text: 'OBSとWebSocket', link: '/ja/features/integrations' },
       ],
     },
     {
       text: '設定と運用',
       items: [
         { text: 'モデルの取得', link: '/ja/guide/models' },
-        { text: 'Linux の音声経路', link: '/ja/guide/linux-audio' },
+        { text: 'Linuxの音声経路', link: '/ja/guide/linux-audio' },
         { text: '困ったとき', link: '/ja/guide/troubleshooting' },
         { text: 'プライバシー', link: '/ja/guide/privacy' },
         { text: 'ライセンスと謝辞', link: '/ja/guide/license' },
@@ -102,7 +102,7 @@ export default defineConfig({
       label: '日本語',
       lang: 'ja',
       link: '/ja/',
-      description: 'VRChat 向けの翻訳・音声認識・読み上げ・声の変換・チャット読み取りアプリ VRCT-VOX の使い方',
+      description: 'VRChat向けの翻訳・音声認識・読み上げ・声の変換・チャット読み取りアプリVRCT-VOXの使い方',
       themeConfig: {
         nav: [
           { text: 'ガイド', link: '/ja/guide/introduction' },
@@ -116,12 +116,12 @@ export default defineConfig({
         langMenuLabel: '言語',
         notFound: {
           title: 'ページが見つかりません',
-          quote: 'URL を確かめるか、トップページから探してください。',
+          quote: 'URLを確かめるか、トップページから探してください。',
           linkText: 'トップページへ',
         },
         footer: {
-          message: 'VRCT-VOX は VRCT の非公式な派生版です。VRChat Inc. とは関係ありません。',
-          copyright: 'MIT License · 元の VRCT の著作権表示を保持しています',
+          message: 'VRCT-VOXはVRCTの非公式な派生版です。VRChat Inc.とは関係ありません。',
+          copyright: 'MIT License · 元のVRCTの著作権表示を保持しています',
         },
       },
     },
