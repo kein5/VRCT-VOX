@@ -31,8 +31,7 @@ The current release is **[0.1.0-beta.1](https://github.com/kein5/VRCT-VOX/releas
 Every file has a `.sha256` and `SHA256SUMS-*` for checking downloads; these are not signatures. The in-app updater is disabled. An AUR package is planned but not submitted.
 
 Known limitations in this beta:
-- On Linux the main-screen Mic and Speaker toggles still use the upstream recorder, which has no Linux audio backend. Use realtime ASR from Settings instead.
-- Chat reading (OCR) is unavailable because no OCR models are shipped.
+- Chat reading (OCR) needs its models, which are not shipped: download them in Config → Chat Transcribe after agreeing to their terms. On Linux it reads the VRChat window through XWayland; a native Wayland window cannot be captured yet.
 - The Google, Bing and Papago web translators are unavailable (see License).
 
 Report bugs and ask questions on **[Issues](https://github.com/kein5/VRCT-VOX/issues)**, with OS, version, steps and redacted logs. Report vulnerabilities privately (see [SECURITY.md](SECURITY.md)). Do not send VRCT-VOX support requests to the VRCT maintainers.
