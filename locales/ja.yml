@@ -897,6 +897,10 @@ fork_distribution:
     releases: "VRCT-VOXの配布ページ"
 
 voice_ui:
+    stop_actions: "停止"
+    topbar_stop: "読み上げを停止"
+    topbar_queued: "待機 {{count}}"
+    topbar_mute: "音声をミュート"
     tts_description: "チャット入力とマイク音声の確定した翻訳を読み上げます。保存してから、メイン画面でTTSをオンにします。同梱サーバーを選んでいると、TTSのオンとオフに合わせてサーバーも起動・停止します。自分で起動したサーバーはそのまま動きます。"
     tts_server_starting: "サーバー起動中…"
     output_hint: "自分で聞く場合はイヤホン、VRChatへ送る場合は仮想ケーブルを選びます。管理された経路では直接音声と出力先を共有します。"

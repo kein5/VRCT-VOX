@@ -3,6 +3,7 @@ import { useI18n } from "@useI18n";
 import styles from "./Topbar.module.scss";
 import { useIsOpenedConfigPage } from "@logics_common";
 import { useSaveBarEntries } from "../../../../logics/voice/saveBar";
+import { useVoice } from "../../../../logics/voice/useVoice";
 import ArrowLeftSvg from "@images/arrow_left.svg?react";
 
 // Save and discard for every settings form on the open page, with the changed
@@ -30,10 +31,28 @@ export const SaveBar = () => {
     </div>;
 };
 
+// Stop actions reachable from every settings page during a conversation. They
+// send the same requests as the TTS page's stop and the route's mute, and never
+// start, resume or reroute anything. Stop is quiet until there is speech to stop.
+export const StopActions = () => {
+    const { t } = useI18n();
+    const { status, send } = useVoice();
+    const queued = status.queued ?? 0;
+    const speaking = !!status.active || queued > 0;
+    return <div className={styles.stop_actions} role="group" aria-label={t("voice_ui.stop_actions")}>
+        <button type="button" className={clsx(styles.stop, { [styles.is_attention]: speaking })} title={t("voice.stop")}
+            onClick={() => send("/run/stop_voice")}>
+            {t("voice_ui.topbar_stop")}{queued > 0 && <span className={styles.count}>{t("voice_ui.topbar_queued", { count: queued })}</span>}
+        </button>
+        <button type="button" className={styles.stop} title={t("voice.mute")} onClick={() => send("/run/mute_voice")}>{t("voice_ui.topbar_mute")}</button>
+    </div>;
+};
+
 export const Topbar = () => {
     const { t } = useI18n();
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
     return <div className={styles.container}>
+        <StopActions />
         <SaveBar />
         <button type="button" className={styles.back} onClick={() => setIsOpenedConfigPage(false)}>
             <ArrowLeftSvg aria-hidden="true" />

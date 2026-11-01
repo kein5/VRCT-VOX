@@ -146,3 +146,29 @@ def test_settings_checkboxes_are_reachable_from_the_keyboard(studio):
     expect(box).to_be_attached()
     box.focus()
     expect(box).to_be_focused()
+
+
+def test_settings_top_bar_stops_speech_and_mutes_without_starting_anything(studio):
+    from playwright.sync_api import expect
+
+    page, peer = studio
+    page.get_by_role("button", name="設定を開く", exact=True).click()
+    page.get_by_role("button", name="翻訳", exact=True).click()
+    actions = page.get_by_role("group", name="停止", exact=True)
+    stop = actions.get_by_role("button", name="読み上げを停止", exact=True)
+    mute = actions.get_by_role("button", name="音声をミュート", exact=True)
+    before = len(peer.sent)
+    stop.focus()
+    page.keyboard.press("Enter")
+    mute.focus()
+    page.keyboard.press("Enter")
+    def requests():
+        return [ep for ep, _ in peer.sent[before:] if ep.startswith(("/run/", "/set/"))]
+
+    for _ in range(50):
+        if len(requests()) >= 2:
+            break
+        page.wait_for_timeout(50)
+    # Only the stop and mute requests: nothing resumed, started or rerouted.
+    assert requests() == ["/run/stop_voice", "/run/mute_voice"]
+    expect(stop).to_be_visible()
