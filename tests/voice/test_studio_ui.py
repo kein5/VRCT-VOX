@@ -156,7 +156,9 @@ def test_settings_top_bar_stops_speech_and_mutes_without_starting_anything(studi
     page.get_by_role("button", name="翻訳", exact=True).click()
     actions = page.get_by_role("group", name="停止", exact=True)
     stop = actions.get_by_role("button", name="読み上げを停止", exact=True)
-    mute = actions.get_by_role("button", name="音声をミュート", exact=True)
+    # The studio peer reports no route state: a plain mute, named for TTS output.
+    mute = actions.get_by_role("button", name="読み上げをミュート", exact=True)
+    expect(mute).not_to_have_attribute("aria-pressed", "true")
     before = len(peer.sent)
     stop.focus()
     page.keyboard.press("Enter")

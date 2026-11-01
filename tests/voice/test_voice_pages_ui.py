@@ -460,3 +460,30 @@ def test_unset_voice_name_reads_as_not_set_and_stays_none(pages):
     page.get_by_role("button", name="Save changes", exact=True).click()
     expect(page.get_by_role("button", name="Save changes", exact=True)).to_be_disabled()
     assert peer.voice["japanese_voice"] == "kei"
+
+
+def test_top_bar_mute_shows_the_reported_state_and_names_what_it_silences(pages):
+    from playwright.sync_api import expect
+
+    page, peer, reply = pages
+    page.get_by_role("button", name="TTS", exact=True).click()
+    actions = page.get_by_role("group", name="Stop", exact=True)
+    mute = actions.get_by_role("button", name="Mute speech", exact=True)
+    expect(mute).to_have_attribute("aria-pressed", "false")
+    # Muted on the managed route: the whole virtual microphone is silenced.
+    reply("/get/data/voice_route", dict(observation_id="900", managed=True, ready=True, pending=False,
+                                        requested_muted=True, observed_muted=True))
+    mic = actions.get_by_role("button", name="Mute virtual mic", exact=True)
+    expect(mic).to_have_attribute("aria-pressed", "true")
+    expect(mic).to_contain_text("Muted")
+    before = len(peer.sent)
+    mic.click()
+    for _ in range(50):
+        if any(ep == "/run/resume_voice" for ep, _ in peer.sent[before:]):
+            break
+        page.wait_for_timeout(50)
+    assert [ep for ep, _ in peer.sent[before:] if ep.startswith("/run/")] == ["/run/resume_voice"]
+    # While the route is not ready, resuming is not offered.
+    reply("/get/data/voice_route", dict(observation_id="901", managed=True, ready=False, pending=True,
+                                        requested_muted=True, observed_muted=True))
+    expect(mic).to_be_disabled()

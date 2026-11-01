@@ -26,7 +26,6 @@
 .stop:focus-visible, .back:focus-visible, .discard:focus-visible, .save:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }
 // Amber only while something is being spoken or waits in the queue.
 .stop.is_attention { color: var(--vox_state_warning); border-color: var(--vox_state_warning); }
-.count { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
 .short { display: none; }
 @media (max-width: 1100px) {
     .stop .long { display: none; }
@@ -38,3 +37,9 @@
     .container { flex-wrap: wrap; row-gap: .8rem; }
     .stop_actions { flex-basis: 100%; justify-content: flex-end; }
 }
+.save_slot { flex: 1; min-width: 0; display: flex; }
+.stop { font-variant-numeric: tabular-nums; }
+// Muted is a reported state worth seeing from every page; the text says it too.
+.stop.is_pressed { color: var(--vox_state_warning); border-color: var(--vox_state_warning); background: var(--dark_900_color); }
+.stop:disabled { opacity: .6; cursor: not-allowed; }
+.state { padding: .1rem .6rem; border-radius: .4rem; font-size: 1.2rem; color: var(--dark_1000_color); background: var(--vox_state_warning); }
