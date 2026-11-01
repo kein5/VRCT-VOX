@@ -11,7 +11,10 @@ With --avatar-every, the speaker switches to a random avatar from the ones
 this account has worn (VRChat keeps an OSC config for each) every N
 messages. VRChat only switches to avatars the account may use; the switch
 is confirmed from the speaker's VRChat log, avatars that do not switch are
-skipped, and the avatar worn at the start is restored at the end.
+skipped, and the avatar worn at the start is restored at the end. Avatars
+that any earlier VRChat log reports as rejected or inaccessible are left out
+up front: an avatar that fails VRChat's server-side checks is shown to
+everyone as the error robot, so it adds nothing to the data.
 
 Run only in the lab's own local test instance: never capture other people.
 """
@@ -90,8 +93,22 @@ def avatar_names():
     return names
 
 
+REJECTED = re.compile(r"Avatar '(avtr_[0-9a-f-]+)' did not pass initial checks"
+                      r"|inaccessible avatar: (avtr_[0-9a-f-]+)")
+
+
+def rejected_avatars():
+    """Avatars any VRChat log on this PC reports as failing checks or inaccessible."""
+    rejected = set()
+    for log in VRCHAT_DATA.glob('output_log_*.txt'):
+        for match in REJECTED.finditer(log.read_text(errors='replace')):
+            rejected.add(match.group(1) or match.group(2))
+    return rejected
+
+
 def known_avatars():
-    return sorted(avatar for avatar, name in avatar_names().items() if name)
+    rejected = rejected_avatars()
+    return sorted(avatar for avatar, name in avatar_names().items() if name and avatar not in rejected)
 
 
 def client_log(profile: int) -> Path:
@@ -158,7 +175,7 @@ class AvatarSwitcher:
         while time.monotonic() < end:
             time.sleep(0.5)
             tail = read_from(self.log, offset)
-            if f"'{avatar_id}' did not pass" in tail:
+            if f"'{avatar_id}' did not pass" in tail or f'inaccessible avatar: {avatar_id}' in tail:
                 return False
             name = self.names.get(avatar_id)
             if switched_at is None and name and f'to avatar {name}' in tail:
@@ -205,6 +222,8 @@ def main():
     out.mkdir(parents=True)
     rng = random.Random(args.seed)
     avatars = known_avatars() if args.avatar_every else []
+    if args.avatar_every:
+        print(f'{len(avatars)} avatars to switch between', flush=True)
     switcher = AvatarSwitcher(osc, speaker['profile'], args.camera_profile) if avatars else None
     if switcher and args.restore_avatar:
         switcher.original = args.restore_avatar
@@ -216,6 +235,22 @@ def main():
             switcher.restore()
 
 
+def change_avatar(switcher, avatars, rng, tries=20):
+    """Switch to a random avatar that loads; drop the ones that do not.
+
+    If none of the tries loads, go back to the avatar worn at the start rather
+    than capture the error robot. Returns the avatar now worn, or None.
+    """
+    for candidate in rng.sample(avatars, min(tries, len(avatars))):
+        if switcher.switch(candidate):
+            return candidate
+        avatars.remove(candidate)
+        print(f'skipped {switcher.names.get(candidate, candidate)}: rejected by VRChat', flush=True)
+    if switcher.original and switcher.switch(switcher.original):
+        return switcher.original
+    return None
+
+
 def collect(args, osc, camera, out, rng, avatars, switcher):
     avatar = None
     end = time.monotonic() + args.minutes * 60
@@ -223,10 +258,7 @@ def collect(args, osc, camera, out, rng, avatars, switcher):
     with open(out / 'frames.jsonl', 'w', encoding='utf-8') as index:
         while time.monotonic() < end:
             if switcher and count % args.avatar_every == 0:
-                for candidate in rng.sample(avatars, min(5, len(avatars))):
-                    if switcher.switch(candidate):
-                        avatar = candidate
-                        break
+                avatar = change_avatar(switcher, avatars, rng)
             negative = args.negative_every and count % args.negative_every == args.negative_every - 1
             text = '' if negative else sample_text(rng)
             # (text, send immediately, no notification sound)
