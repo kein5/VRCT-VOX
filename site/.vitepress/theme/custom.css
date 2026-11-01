@@ -1,0 +1,33 @@
+/* Dark Studio palette from DESIGN.md (the app's own colours). Also on :root,
+   because the forced dark class needs JavaScript and the / picker must read without it. */
+:root,
+.dark {
+  color-scheme: dark;
+  --vp-c-bg: #111b2c;
+  --vp-c-bg-alt: #0d1625;
+  --vp-c-bg-elv: #18253b;
+  --vp-c-bg-soft: #18253b;
+  --vp-c-divider: #344662;
+  --vp-c-border: #344662;
+  --vp-c-gutter: #0d1625;
+  --vp-c-text-1: #edf3ff;
+  --vp-c-text-2: #adbed6;
+  --vp-c-brand-1: #a9ccff;
+  --vp-c-brand-2: #3470e8;
+  --vp-c-brand-3: #2865dc;
+  --vp-c-brand-soft: rgba(40, 101, 220, 0.18);
+  --vp-button-brand-bg: #2865dc;
+  --vp-button-brand-hover-bg: #3470e8;
+  --vp-button-brand-active-bg: #2865dc;
+  --vp-home-hero-name-color: #edf3ff;
+}
+
+/* Japanese first: system and locally installed Noto fonts, nothing remote. */
+:root {
+  --vp-font-family-base: 'Inter', 'Noto Sans JP', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
+}
+
+.vp-doc img {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+}

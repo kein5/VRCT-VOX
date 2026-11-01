@@ -1,0 +1,15 @@
+{
+  "name": "vrct-vox-docs",
+  "private": true,
+  "type": "module",
+  "description": "User documentation for VRCT-VOX, built with VitePress and published on GitHub Pages.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "1.6.4"
+  }
+}
