@@ -87,7 +87,9 @@ def test_normal_launch_keeps_window_painted_after_idle_and_hover(appimage, tmp_p
                             values = dict(re.findall(r'^(WIDTH|HEIGHT)=(\d+)$', geometry, re.M))
                             if int(values.get('WIDTH', 0)) >= 500 and int(values.get('HEIGHT', 0)) >= 300:
                                 window = ids[0]
-                    except psutil.NoSuchProcess:
+                    # A helper running with other credentials (such as WebKit's
+                    # bubblewrap sandbox) hides its environment; it is not the app.
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue
                 if window:
                     break
@@ -129,14 +131,14 @@ def test_normal_launch_keeps_window_painted_after_idle_and_hover(appimage, tmp_p
             for child in owned:
                 try:
                     child.terminate()
-                except psutil.NoSuchProcess:
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
             _, alive = psutil.wait_procs(owned, timeout=3)
             for child in alive:
                 try:
                     if child.status() != psutil.STATUS_ZOMBIE:
                         child.kill()
-                except psutil.NoSuchProcess:
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
             process.wait(timeout=3)
             _, alive = psutil.wait_procs(alive, timeout=3)
