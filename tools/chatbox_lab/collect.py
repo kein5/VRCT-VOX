@@ -49,7 +49,13 @@ PHRASES = [
 ]
 
 
-def sample_text(rng: random.Random) -> str:
+SHORT = [phrase for phrase in PHRASES if len(phrase) <= 3]
+
+
+def sample_text(rng: random.Random, short_share: float = 0.0) -> str:
+    # Short messages make small chatboxes, the ones the detector misses most.
+    if rng.random() < short_share:
+        return rng.choice(SHORT)
     parts = rng.sample(PHRASES, rng.choice((1, 1, 1, 2, 3, 5)))
     text = rng.choice((' ', '\n', ' ')).join(parts)
     return text[:CHATBOX_LIMIT]
@@ -226,6 +232,7 @@ def main():
     parser.add_argument('--negative-every', type=int, default=5, help='capture a frame without chatbox every N messages')
     parser.add_argument('--avatar-every', type=int, default=0, help='switch to a random avatar every N messages')
     parser.add_argument('--restore-avatar', default=None, help='avatar to wear afterwards (default: the one worn at start)')
+    parser.add_argument('--short-share', type=float, default=0.0, help='share of messages that are one short phrase')
     parser.add_argument('--seed', type=int, default=None)
     args = parser.parse_args()
 
@@ -279,7 +286,7 @@ def collect(args, osc, camera, out, rng, avatars, switcher):
             if switcher and count % args.avatar_every == 0:
                 avatar = change_avatar(switcher, avatars, rng)
             negative = args.negative_every and count % args.negative_every == args.negative_every - 1
-            text = '' if negative else sample_text(rng)
+            text = '' if negative else sample_text(rng, args.short_share)
             # (text, send immediately, no notification sound)
             osc.send_message('/chatbox/input', [text, True, False])
             time.sleep(1.2 if not negative else 2.0)

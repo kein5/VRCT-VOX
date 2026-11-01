@@ -14,9 +14,10 @@ public class ChatboxLabDirector : UdonSharpBehaviour
     // Closer than this, the chatbox above the speaker's head leaves the top of
     // the camera's view, since a desktop player cannot be pitched.
     public float minDistance = 2.5f;
-    public float maxDistance = 7f;
+    public float maxDistance = 9f;
     public float maxAround = 70f;
-    public float maxLookOffset = 25f;
+    // Wide enough that the speaker sometimes sits at the edge of the view.
+    public float maxLookOffset = 35f;
     // The camera's eye height varies; a low default avatar looked up so steeply
     // that chatboxes were cut off.
     public float minEyeHeight = 1.3f;
