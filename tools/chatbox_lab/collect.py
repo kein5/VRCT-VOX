@@ -147,7 +147,12 @@ class AvatarSwitcher:
         self.log = client_log(profile)
         self.camera_log = client_log(camera_profile)
         names = avatar_names()
-        worn = re.findall(r'Switching \S+ to avatar (.+)', self.log.read_text(errors='replace'))
+        text = self.log.read_text(errors='replace')
+        # Other players' switches are logged the same way (online, the camera
+        # account wears its own avatar), so look at the local player's only.
+        local = re.search(r'Initialized PlayerAPI "(.+)" is local', text)
+        player = re.escape(local.group(1)) if local else r'\S+'
+        worn = re.findall(rf'Switching {player} to avatar (.+)', text)
         by_name = {name: avatar for avatar, name in names.items()}
         self.original = by_name.get(worn[-1].strip()) if worn else None
         self.names = names
