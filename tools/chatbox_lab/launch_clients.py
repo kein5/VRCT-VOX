@@ -11,6 +11,14 @@ the instance master and speaks; the others are cameras.
 
 VRChat uses the account already signed in on this PC. Close the clients from
 their windows or with --stop.
+
+    python tools/chatbox_lab/launch_clients.py --clients 2 --online
+
+--online joins an invite-only instance of the uploaded private world on
+VRChat's servers instead (world id from world-id, see unity_remote.py). There
+each client needs its own account: sign the camera profile in to the lab's
+second account once, and invite it from the speaker if VRChat does not let it
+in by the link. Nobody else can join an invite-only instance.
 """
 import argparse
 import json
@@ -27,6 +35,8 @@ APP_ID = '438100'
 STEAM = Path.home() / '.local/share/Steam'
 CACHE = Path.home() / '.cache/vrct-vox-chatbox-lab'
 WORLD = CACHE / 'world.vrcw'
+WORLD_ID = CACHE / 'world-id'
+VRCHAT_DATA = (STEAM / 'steamapps/compatdata' / APP_ID / 'pfx/drive_c/users/steamuser/AppData/LocalLow/VRChat/VRChat')
 STATE = CACHE / 'clients.json'
 
 
@@ -67,8 +77,32 @@ def world_url(world: Path, room: str) -> str:
     return f'create?roomId={room}&hidden=true&name=BuildAndRun&url=file:///Z:{world.as_posix()}'
 
 
+def speaker_account():
+    """The user id the speaker profile (0) last signed in with, from its VRChat log."""
+    logs = sorted(VRCHAT_DATA.glob('output_log_*.txt'), key=lambda p: p.stat().st_mtime, reverse=True)
+    for log in logs:
+        text = log.read_text(errors='replace')
+        if 'Arg: --profile=0' not in text[:20000]:
+            continue
+        local = re.search(r'Initialized PlayerAPI "(.+)" is local', text)
+        if local:
+            user = re.search(re.escape(local.group(1)) + r' \((usr_[0-9a-f-]{36})\)', text)
+            if user:
+                return user.group(1)
+    raise SystemExit('Start the speaker once (any world) so its account can be read from the log, or pass --owner')
+
+
+def online_url(world_id: str, owner: str, room: str) -> str:
+    # Invite-only: only the owner and the people it invites can join.
+    return f'vrchat://launch?ref=vrchat.com&id={world_id}:{room}~private({owner})~region(jp)'
+
+
 def launch(args):
-    if not args.world.is_file():
+    if args.online:
+        if not WORLD_ID.is_file():
+            raise SystemExit(f'{WORLD_ID} is missing; upload the world and run unity_remote.py save-world-id')
+        world_id, owner = WORLD_ID.read_text().strip(), args.owner or speaker_account()
+    elif not args.world.is_file():
         raise SystemExit(f'{args.world} is missing; build it in Unity with VRCT-VOX > Build Chatbox Lab World')
     library, install = find_vrchat()
     proton = find_proton()
@@ -77,15 +111,15 @@ def launch(args):
                STEAM_COMPAT_CLIENT_INSTALL_PATH=str(STEAM))
     # --add joins more clients to the running instance; it needs the same room.
     state = json.loads(STATE.read_text()) if args.add and STATE.is_file() else {'clients': []}
-    room = state.get('room') or str(random.randint(10_000_000, 99_999_999))
+    room = state.get('room') or str(random.randint(10_000, 99_999) if args.online else random.randint(10_000_000, 99_999_999))
     clients = state['clients']
     first = len(clients)
     CACHE.mkdir(parents=True, exist_ok=True)
     for index in range(first, first + args.clients):
         osc_in, osc_out = args.osc_base + 2 * index, args.osc_base + 2 * index + 1
+        url = online_url(world_id, owner, room) if args.online else f'--url={world_url(args.world, room)}'
         command = [str(proton), 'run', str(install / args.exe), '--no-vr', f'--profile={index}',
-                   f'--osc={osc_in}:127.0.0.1:{osc_out}', f'--url={world_url(args.world, room)}',
-                   '--enable-sdk-log-levels', '--enable-udon-debug-logging']
+                   f'--osc={osc_in}:127.0.0.1:{osc_out}', url, '--enable-sdk-log-levels', '--enable-udon-debug-logging']
         # The client keeps writing after this script exits.
         with open(CACHE / f'client{index}.log', 'w') as log:
             process = subprocess.Popen(command, cwd=install, env=env, stdout=log, stderr=subprocess.STDOUT,
@@ -96,7 +130,9 @@ def launch(args):
         # The speaker must be master, so it has to join first.
         if index == 0 and first + args.clients > 1:
             time.sleep(args.stagger)
-    STATE.write_text(json.dumps({'room': room, 'clients': clients}, indent=2))
+    STATE.write_text(json.dumps({'room': room, 'online': args.online, 'clients': clients}, indent=2))
+    if args.online:
+        print(f'instance: {online_url(world_id, owner, room)}')
 
 
 def stop(_args):
@@ -133,6 +169,8 @@ def main():
     parser.add_argument('--osc-base', type=int, default=9100)
     parser.add_argument('--stagger', type=float, default=60.0, help='seconds before starting the camera clients')
     parser.add_argument('--add', action='store_true', help='add clients to the running instance')
+    parser.add_argument('--online', action='store_true', help="invite-only instance of the uploaded world on VRChat's servers")
+    parser.add_argument('--owner', help='user id that owns the instance (default: the speaker profile\'s account)')
     parser.add_argument('--stop', action='store_true')
     args = parser.parse_args()
     (stop if args.stop else launch)(args)
