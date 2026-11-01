@@ -72,6 +72,13 @@
     --vox_surface: #18253b;
     --vox_border: #344662;
     --vox_radius: .8rem;
+    /* Settings roles (DESIGN.md "Roles in settings"). */
+    --vox_secondary_text: #adbed6;
+    --vox_description_text: #8d9fb9;
+    --vox_state_active: #80acff;
+    --vox_state_warning: #cb944f;
+    --vox_state_failed: #f08a85;
+    --vox_readout_rule: #5b92ff;
     --dark_50_color: #ffffff;
     --font_family: "Yu Gothic UI";
 }
