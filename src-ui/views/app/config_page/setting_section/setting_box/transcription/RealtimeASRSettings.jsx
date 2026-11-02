@@ -1,3 +1,4 @@
+import { createLanguageNames } from "../../../../../../logics/common/languageNames.js";
 import { useEffect, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useRealtimeASR } from "../../../../../../logics/transcription/useRealtimeASR";
@@ -14,7 +15,9 @@ const FOLLOW = "follow-default";
 const Failure = ({ code, t }) => <p role="alert">{t(`realtime_toggle.${code}`, { defaultValue: "" })} <code className={styles.error_code}>{code}</code></p>;
 
 export const RealtimeASRSettings = () => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
+    const names = createLanguageNames(i18n.language);
+    const languageLabel = code => code === "auto" ? t("realtime.auto_language") : names.fromCode(code);
     const { settings, state, endpoints, models, error, send } = useRealtimeASR();
     const { state: servers, send: sendSpeech } = useSpeechServers();
     const [draft, setDraft] = useState(null);
@@ -46,7 +49,7 @@ export const RealtimeASRSettings = () => {
     const written = term.split("=")[0].trim().toLowerCase();
     const canAdd = term && written && vocabulary.terms.length < 100 && !/[\u0000-\u001f]/.test(term)
         && !vocabulary.terms.some(row => row.split("=")[0].trim().toLowerCase() === written);
-    return <section className={styles.container} aria-label={t("realtime.title")}>
+    return <section data-setting-id="realtime_asr" className={styles.container} aria-label={t("realtime.title")}>
         <h3>{t("realtime.title")}</h3>
         <Description text={t("realtime.scope")} />
         <Description text={t("realtime.server_help")} />
@@ -88,8 +91,8 @@ export const RealtimeASRSettings = () => {
                     </select></label>
                     <label>{t(`realtime.${source}_language`)}<select aria-label={t(`realtime.${source}_language`)} value={draft[source].language}
                         onChange={event => updateSource(source, { language: event.target.value })}>
-                        {!languages.includes(draft[source].language) && <option value={draft[source].language}>{draft[source].language}</option>}
-                        {languages.map(language => <option key={language} value={language}>{language === "auto" ? t("realtime.auto_language") : language}</option>)}
+                        {!languages.includes(draft[source].language) && <option value={draft[source].language}>{languageLabel(draft[source].language)}</option>}
+                        {languages.map(language => <option key={language} value={language}>{languageLabel(language)}</option>)}
                     </select></label>
                     {follow && <Description text={t("realtime.follow_default_help")} />}
                     <button type="button" disabled={dirty || !selected || !selectedModel || !languages.includes(draft[source].language) ||

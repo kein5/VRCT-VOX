@@ -1,3 +1,4 @@
+import { createLanguageNames } from "../../logics/common/languageNames.js";
 import { useLayoutEffect, useRef, useState } from "react";
 import clsx from "clsx";
 
@@ -56,7 +57,8 @@ const toOptions = (list) => Object.entries(list ?? {}).map(([id, label]) => ({ i
 // VR設定ウィンドウ。開いている間はデスクトップで設定画面を開いたのと同じ扱いで、
 // 翻訳と文字起こしが止まる (VrApp / VrPanelSyncController)
 export const VrSettingsWindow = ({ onClose }) => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
+    const names = createLanguageNames(i18n.language);
     const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
     const [category, setCategory] = useState("device");
     // 選択肢の一覧を開いているとき: { title, options, selected_id, onPick }
@@ -84,11 +86,17 @@ export const VrSettingsWindow = ({ onClose }) => {
 
     // メインが設定画面を開いてメイン機能を止めるまでは操作させない (音量の確認がマイクを奪い合わないように)
     const is_ready = currentIsOpenedConfigPage.data === true;
-    const openPicker = (title, options, selected_id, onPick) => {
+    const openPicker = (title, options, selected_id, onPick, languageKind) => {
         savedScroll.current = listRef.current?.scrollTop ?? 0;
-        setPicker({ title, options, selected_id, onPick });
+        setPicker({ title, options, selected_id, onPick, languageKind });
     };
 
+    // Resolve language labels at render time, including a picker already open during a UI-language change.
+    const languageOptions = picker?.languageKind === "ui" ? names.uiOptions(picker.options)
+        : picker?.languageKind === "ocr" ? picker.options.map(option => ({ ...option,
+            label: option.id === "auto" ? t("config_page.ocr.source_language.auto") : names.language(option.id) })) : picker?.options;
+    const pickerTitle = picker?.languageKind === "ui" ? t("config_page.appearance.ui_language.label")
+        : picker?.languageKind === "ocr" ? t("config_page.ocr.source_language.label") : picker?.title;
     const category_label = (id) => (id === "vr" ? "VR" : t(`config_page.side_menu_labels.${id}`));
 
     return (
@@ -116,7 +124,7 @@ export const VrSettingsWindow = ({ onClose }) => {
                         <Category id={category} t={t} openPicker={openPicker} />
                     </div>
                     {picker && <div ref={pickerRef} className={styles.list} data-vr-settings-list="picker" onKeyDown={(event) => { if (event.key === "Escape") setPicker(null); }}>
-                        <Picker {...picker} title={`${category_label(category)} › ${picker.title}`} back_label={t("common.go_back_button_label")}
+                        <Picker {...picker} options={languageOptions} title={`${category_label(category)} › ${pickerTitle}`} back_label={t("common.go_back_button_label")}
                             onPick={(id) => { picker.onPick(id); setPicker(null); }} onBack={() => setPicker(null)} />
                     </div>}
                 </fieldset>
@@ -187,9 +195,11 @@ const DeviceSettings = ({ t, openPicker }) => {
 
 // UIの言語・フォントはデスクトップと共通 (VR UIの表示にも使う)
 const AppearanceSettings = ({ t, openPicker }) => {
+    const { i18n } = useI18n();
+    const names = createLanguageNames(i18n.language);
     const { currentUiLanguage, setUiLanguage, currentSelectedFontFamily, setSelectedFontFamily } = useAppearance();
     const { currentSelectableFontFamilyList } = useStore_SelectableFontFamilyList();
-    const languages = ui_configs.selectable_ui_languages;
+    const languages = names.uiOptions(ui_configs.selectable_ui_languages);
     const label = t("config_page.appearance.ui_language.label");
     const font_label = t("config_page.appearance.font_family.label");
     const fonts = toOptions(currentSelectableFontFamilyList.data);
@@ -197,7 +207,7 @@ const AppearanceSettings = ({ t, openPicker }) => {
         <>
             <SelectRow label={label} value={languages.find(l => l.id === currentUiLanguage.data)?.label ?? currentUiLanguage.data}
                 is_pending={currentUiLanguage.state === "pending"}
-                onOpen={() => openPicker(label, languages, currentUiLanguage.data, setUiLanguage)} />
+                onOpen={() => openPicker(label, ui_configs.selectable_ui_languages, currentUiLanguage.data, setUiLanguage, "ui")} />
             <SelectRow label={font_label} value={currentSelectedFontFamily.data}
                 is_pending={currentSelectedFontFamily.state === "pending" || currentSelectableFontFamilyList.state === "pending"}
                 is_disabled={fonts.length === 0} disabled_reason={t("vr_panel.settings.fonts_unavailable")}
@@ -377,15 +387,18 @@ const OthersSettings = ({ t }) => {
 
 // チャット読み取りのON/OFFは機能の切り替えなので、ここには置かない (ランチャーで行う)
 const OcrSettings = ({ t, openPicker }) => {
+    const { i18n } = useI18n();
+    const names = createLanguageNames(i18n.language);
+    const languageLabel = id => id === "auto" ? t("config_page.ocr.source_language.auto") : names.language(id);
     const ocr = useOcr();
     const languages = ocr.currentSelectableOcrSourceLanguageList.data ?? {};
     const language = ocr.currentOcrSourceLanguage;
     const language_label = t("config_page.ocr.source_language.label");
     return (
         <>
-            <SelectRow label={language_label} value={languages[language.data] ?? language.data}
+            <SelectRow label={language_label} value={languageLabel(language.data)}
                 is_pending={language.state === "pending"}
-                onOpen={() => openPicker(language_label, toOptions(languages), language.data, ocr.setOcrSourceLanguage)} />
+                onOpen={() => openPicker(language_label, toOptions(languages), language.data, ocr.setOcrSourceLanguage, "ocr")} />
             <StepperRow label={t("config_page.ocr.poll_interval_ms.label")} variable={ocr.currentOcrPollIntervalMs}
                 setValue={ocr.setOcrPollIntervalMs} min={100} max={5000} step={50} format={(v) => `${v} ms`} />
             <StepperRow label={t("config_page.ocr.min_confidence.label")} variable={ocr.currentOcrMinConfidence}

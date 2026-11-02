@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useI18n } from "@useI18n";
+import { createLanguageNames } from "../../../../../../logics/common/languageNames.js";
 import styles from "./Ocr.module.scss";
 
 import { useOcr } from "@logics_configs";
@@ -159,20 +160,28 @@ const OcrChatboxFilter_Box = () => {
 };
 
 const OcrSourceLanguage_Box = () => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
     const { currentSelectableOcrSourceLanguageList, currentOcrSourceLanguage, setOcrSourceLanguage } = useOcr();
 
+    const names = createLanguageNames(i18n.language);
+    const list = Object.fromEntries(Object.keys(currentSelectableOcrSourceLanguageList.data ?? {}).map(id =>
+        [id, id === "auto" ? t("config_page.ocr.source_language.auto") : names.language(id)]));
+    // Old configs can retain a language now covered by the automatic model.
+    if (currentOcrSourceLanguage.data && !list[currentOcrSourceLanguage.data]) {
+        list[currentOcrSourceLanguage.data] = names.language(currentOcrSourceLanguage.data);
+    }
     const selectFunction = (selected_data) => {
         setOcrSourceLanguage(selected_data.selected_id);
     };
 
     return (
         <DropdownMenuContainer
+            setting_id="ocr_source_language"
             dropdown_id="ocr_source_language"
             label={t("config_page.ocr.source_language.label")}
             desc={t("config_page.ocr.source_language.desc")}
             selected_id={currentOcrSourceLanguage.data}
-            list={currentSelectableOcrSourceLanguageList.data}
+            list={list}
             selectFunction={selectFunction}
             state={currentOcrSourceLanguage.state}
             remove_border_bottom={true}

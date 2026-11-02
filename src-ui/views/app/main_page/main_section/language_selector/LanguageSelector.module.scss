@@ -20,22 +20,9 @@
     column-width: 16rem;
 }
 
-// Padding, not margin: a bottom margin carries over to the top of the next
-// column and pushes that column's first letter down.
-.language_each_letter_box {
-    break-inside: avoid-column;
-    padding-bottom: 1.4rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
-}
-
-.language_latter {
-    font-size: 1.4rem;
-    color: var(--dark_500_color);
-}
-
 .language_button {
+    break-inside: avoid-column;
+    overflow-wrap: anywhere;
     display: block;
     width: 100%;
     text-align: left;

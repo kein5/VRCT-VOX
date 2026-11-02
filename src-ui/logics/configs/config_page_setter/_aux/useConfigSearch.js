@@ -1,6 +1,10 @@
 import { useState, useMemo, useCallback } from "react";
 import { useI18n } from "@useI18n";
 import { useStore_SelectedConfigTabId } from "@store";
+import { useOcr } from "@logics_configs";
+import { useRealtimeASR } from "../../../transcription/useRealtimeASR";
+import { createLanguageNames } from "../../../common/languageNames.js";
+import { ui_configs } from "@ui_configs";
 import i18n from "@root/locales/config.js";
 
 // 検索の元にする config_page 以下の文言の名前空間
@@ -93,6 +97,8 @@ const cleanTemplateStr = (str) => {
 export const useConfigSearch = () => {
     const { t, i18n: i18nHook } = useI18n();
     const { currentSelectedConfigTabId, updateSelectedConfigTabId } = useStore_SelectedConfigTabId();
+    const { currentSelectableOcrSourceLanguageList, currentOcrSourceLanguage } = useOcr();
+    const { models, settings } = useRealtimeASR();
     const [query, setQuery] = useState("");
 
     // config_page 以下のリソースから動的に検索インデックスを生成
@@ -102,6 +108,8 @@ export const useConfigSearch = () => {
         const enRes = i18n.getResource("en", "translation")?.config_page || {};
         const isEn = currentLng === "en";
 
+        const names = createLanguageNames(currentLng);
+        const english = createLanguageNames("en");
         const entries = [];
 
         for (const tab of VALID_TABS) {
@@ -138,14 +146,25 @@ export const useConfigSearch = () => {
                     searchStrings.push(...collectStrings(enVal));
                 }
 
+                if (tab === "ocr" && key === "source_language") {
+                    const languages = new Set([...Object.keys(currentSelectableOcrSourceLanguageList.data ?? {}), currentOcrSourceLanguage.data]);
+                    for (const language of languages) {
+                        if (language) searchStrings.push(names.searchText({ language }));
+                    }
+                }
+                if (tab === "appearance" && key === "ui_language") {
+                    for (const option of ui_configs.selectable_ui_languages) {
+                        searchStrings.push(option.label, names.fromCode(option.id), english.fromCode(option.id));
+                    }
+                }
                 const searchTarget = searchStrings
-                    .map((s) => cleanTemplateStr(s).toLowerCase())
+                    .map((s) => cleanTemplateStr(s).normalize("NFKC").toLowerCase())
                     .filter(Boolean);
 
                 for (const page of settingTabs(tab, key)) {
                     entries.push({
                         tab: page,
-                        setting_id: key,
+                        setting_id: tab === "ocr" && key === "source_language" ? "ocr_source_language" : key,
                         label: cleanTemplateStr(rawLabel),
                         desc: cleanTemplateStr(rawDesc),
                         tab_label: t(TAB_LABEL_KEYS[page] ?? page),
@@ -155,11 +174,23 @@ export const useConfigSearch = () => {
                 }
             }
         }
+        const realtimeLanguages = new Set([
+            ...(models.models?.flatMap(model => model.languages ?? []) ?? []),
+            settings?.mic?.language, settings?.speaker?.language,
+        ]);
+        entries.push({
+            tab: "transcription", setting_id: "realtime_asr", label: t("realtime.title"),
+            desc: t("realtime.auto_help"), tab_label: t(TAB_LABEL_KEYS.transcription), prereq: null,
+            searchTarget: [t("realtime.title"), t("realtime.mic_language"), t("realtime.speaker_language"),
+                ...[...realtimeLanguages].filter(Boolean).flatMap(code => code === "auto"
+                    ? [t("realtime.auto_language"), "auto"] : [code, names.fromCode(code), english.fromCode(code)])]
+                .map(text => text.normalize("NFKC").toLowerCase()),
+        });
         return entries;
-    }, [i18nHook.language, t]);
+    }, [i18nHook.language, t, currentSelectableOcrSourceLanguageList.data, currentOcrSourceLanguage.data, models, settings]);
 
     const results = useMemo(() => {
-        const q = query.trim().toLowerCase();
+        const q = query.normalize("NFKC").trim().toLowerCase();
         if (q.length < 1) return [];
 
         return allEntries.filter((entry) => {

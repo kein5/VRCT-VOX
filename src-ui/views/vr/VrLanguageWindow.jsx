@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { VrWindow } from './VrWindow';
 import settingsStyles from './VrSettingsWindow.module.scss';
@@ -9,17 +9,19 @@ import { useLanguageSettings } from '@logics_main';
 import { useI18n } from '@useI18n';
 import { useIsOpenedConfigPage } from '@logics_common';
 import { LANGUAGE_RESPONSE_WAIT_MS } from '../../logics/main/languageMutations';
+import { createLanguageNames, isLanguagePickKey } from '../../logics/common/languageNames.js';
 import styles from './VrLanguageWindow.module.scss';
 
 const keys = ['1', '2', '3'];
-const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 const same = (a, b) => a?.language === b?.language && a?.country === b?.country;
 const unique = entries => entries.filter((entry, index) => entries.findIndex(other => same(entry, other)) === index);
 const engineLabel = engine => engine?.label?.replace('\n', ' ') ?? '';
 
 // Shares the confirmed settings components; language changes wait for their final backend response.
 export function VrLanguageWindow({ onClose }) {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
+    const names = useMemo(() => createLanguageNames(i18n.language), [i18n.language]);
+    const [query, setQuery] = useState('');
     const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
     const c = (key, variables) => t(key === 'busy' ? 'vr_panel.settings.changing' : `vr_panel.language.${key}`, variables);
     const settings = useLanguageSettings();
@@ -53,7 +55,7 @@ export function VrLanguageWindow({ onClose }) {
     const pickerSnapshot = useRef(null);
     const recoveringOwnChange = useRef(false);
     const currentPickerSnapshot = JSON.stringify({ source, targets });
-    const viewKey = `${view.kind}/${view.stage ?? ''}/${view.letter ?? ''}/${view.index ?? ''}/${preset}`;
+    const viewKey = `${view.kind}/${view.stage ?? ''}/${view.index ?? ''}/${preset}`;
     const waitTimer = useRef(null);
     const retryButton = useRef(null);
     const errorFocus = useRef(null);
@@ -146,6 +148,7 @@ export function VrLanguageWindow({ onClose }) {
         pickerSnapshot.current = currentPickerSnapshot;
         setNotice(null);
         setError(false);
+        setQuery('');
         setView(next);
     };
     const save = (perform, { returnToMain = false, focusKey, nextPreset } = {}) => {
@@ -168,8 +171,7 @@ export function VrLanguageWindow({ onClose }) {
     const back = () => {
         if (busy) return;
         setError(false);
-        if (view.stage === 'list') setView({ ...view, stage: 'letters', letter: undefined });
-        else if (view.stage === 'letters') setView({ ...view, stage: 'saved' });
+        if (view.stage === 'list') { setQuery(''); setView({ ...view, stage: 'saved' }); }
         else setView({ kind: 'main' });
     };
     const remove = index => save(() => settings.setTargetLanguagesInOrder(targets.filter((_, position) => position !== index)), { focusKey: `target:${Math.min(index, targets.length - 2)}` });
@@ -194,7 +196,10 @@ export function VrLanguageWindow({ onClose }) {
     const status = syncError ? c('sync_error') : unconfirmed || mutation.data.inFlight?.kind === 'unconfirmed' ? c('unconfirmed') : busy ? c('busy') : error ? c('error') : notice ? c(notice.key, { n: notice.n }) : '';
     const languageSelected = entry => view.kind === 'your' ? same(entry, source) : targets.some(other => same(other, entry));
     const selectionLabel = entry => view.kind === 'your' ? c('selected') : c('selected_slots', { n: targets.flatMap((other, index) => same(other, entry) ? [index + 1] : []).join(', ') });
-    const languageChoices = view.stage === 'list' ? (selectable.data ?? []).filter(entry => entry.language[0].toUpperCase() === view.letter) : saved;
+    const languageChoices = names.sorted(view.stage === 'list' ? (selectable.data ?? []) : saved)
+        .filter(entry => names.matches(entry, query));
+    const choiceDisabled = entry => !selectable.data?.some(option => same(entry, option))
+        || (!busy && (languageSelected(entry) || (view.kind === 'target-add' && targets.length >= 3)));
     useLayoutEffect(() => {
         // Feedback reduces the list height. Keep a focused choice visible without
         // moving the window or the main screen's remembered scroll position.
@@ -225,7 +230,7 @@ export function VrLanguageWindow({ onClose }) {
                 </div>
                 <div className={styles.source_row}>
                     <button className={clsx(settingsStyles.row, settingsStyles.clickable, settingsStyles.select, styles.source)} ref={mainRef('your')} aria-disabled={busy ? true : undefined} onClick={() => open({ kind: 'your', stage: 'saved' }, 'your')}>
-                        <span className={settingsStyles.label}>{t('main_page.your_language')}</span><LanguageText entry={source} className={styles.selected_value} /><span className={settingsStyles.chevron} aria-hidden="true">›</span>
+                        <span className={settingsStyles.label}>{t('main_page.your_language')}</span><LanguageText names={names} entry={source} className={styles.selected_value} /><span className={settingsStyles.chevron} aria-hidden="true">›</span>
                     </button>
                     <button className={clsx(settingsStyles.button, styles.swap)} ref={mainRef('swap')} aria-label={c('swap_name')} aria-disabled={busy ? true : undefined}
                         onClick={() => save(() => settings.swapSelectedLanguages())}><span>{c('swap')}</span><span className={styles.country}>{c('swap_hint')}</span></button>
@@ -233,12 +238,12 @@ export function VrLanguageWindow({ onClose }) {
                 <section className={styles.targets}>
                     <div className={styles.target_heading}><h2 className={settingsStyles.section_label}>{t('main_page.target_language')}<span>{c('range')}</span></h2><span className={styles.count}>{targets.length} / 3{duplicates && <span> · {c('duplicate')}</span>}</span></div>
                     <div className={styles.selected_rows}>{targets.map((entry, index) => <div className={clsx(settingsStyles.row, styles.target_row)} key={index}>
-                        <button className={styles.target_change} ref={mainRef(`target:${index}`)} aria-label={`${c('change_target', { n: index + 1 })}: ${entry.language} / ${entry.country}`} aria-disabled={busy ? true : undefined}
+                        <button className={styles.target_change} ref={mainRef(`target:${index}`)} aria-label={`${c('change_target', { n: index + 1 })}: ${names.name(entry).label}`} aria-disabled={busy ? true : undefined}
                             onClick={() => open({ kind: 'target-replace', index, stage: 'saved' }, `target:${index}`)}>
-                            <span className={styles.order}>{index + 1}</span><LanguageText entry={entry} /><span className={settingsStyles.chevron} aria-hidden="true">›</span>
+                            <span className={styles.order}>{index + 1}</span><LanguageText names={names} entry={entry} /><span className={settingsStyles.chevron} aria-hidden="true">›</span>
                         </button>
                         <button className={clsx(settingsStyles.button, styles.remove)} disabled={targets.length === 1} aria-disabled={busy && targets.length > 1 ? true : undefined}
-                            aria-label={targets.length === 1 ? c('min_reason') : c('remove', { n: index + 1, language: entry.language, country: entry.country })}
+                            aria-label={targets.length === 1 ? c('min_reason') : c('remove', { n: index + 1, language: names.name(entry).language, country: names.name(entry).country })}
                             onClick={() => targets.length > 1 && remove(index)}>{targets.length === 1 ? <span>{c('required')}</span> : <XMarkSvg aria-hidden="true" />}</button>
                     </div>)}</div>
                     {targets.length >= 3 ? <p className={styles.limit}>{c('full')}</p> : <button className={clsx(settingsStyles.button, styles.add)} ref={mainRef('add')} aria-disabled={busy ? true : undefined}
@@ -267,17 +272,23 @@ export function VrLanguageWindow({ onClose }) {
                             <p className={styles.helper}>{c('unavailable_hint')}</p>
                             <div className={styles.choice_grid}>{engines.data.filter(engine => !engine.is_available).map(engine => <EngineChoice key={engine.id} engine={engine} current={selectedEngine?.id} busy={busy} t={t} c={c} />)}</div>
                         </details>
-                    </> : view.stage === 'letters' ? <>
-                        <h3 className={settingsStyles.section_label}>{c('letters_title')}</h3><div className={styles.letters}>{letters.map(letter => <button className={settingsStyles.button} key={letter} disabled={!selectable.data.some(entry => entry.language[0].toUpperCase() === letter)} aria-disabled={busy ? true : undefined}
-                            onClick={() => !busy && setView({ ...view, stage: 'list', letter })}>{letter}</button>)}</div>
                     </> : <>
-                        {view.stage === 'saved' && <button className={clsx(settingsStyles.row, settingsStyles.clickable, styles.all_languages)} aria-disabled={busy ? true : undefined} onClick={() => !busy && setView({ ...view, stage: 'letters' })}><span>A–Z</span>{c('all_languages')}<span className={settingsStyles.chevron} aria-hidden="true">›</span></button>}
-                        <h3 className={settingsStyles.section_label}>{view.stage === 'list' ? c('letter_title', { letter: view.letter }) : c('saved')}</h3>
+                        {view.stage === 'saved' && <button className={clsx(settingsStyles.row, settingsStyles.clickable, styles.all_languages)} aria-disabled={busy ? true : undefined} onClick={() => !busy && setView({ ...view, stage: 'list' })}>{c('all_languages')}<span className={settingsStyles.chevron} aria-hidden="true">›</span></button>}
+                        <h3 className={settingsStyles.section_label}>{view.stage === 'list' ? c('all_languages') : c('saved')}</h3>
+                        {view.stage === 'list' && <input type="search" data-vr-hoverable="" className={styles.filter} value={query} disabled={busy}
+                            placeholder={t('main_page.language_selector.filter')} aria-label={t('main_page.language_selector.filter')}
+                            onChange={event => setQuery(event.target.value)} onKeyDown={event => {
+                                if (isLanguagePickKey(event) && languageChoices.length) {
+                                    event.preventDefault();
+                                    if (!choiceDisabled(languageChoices[0])) choose(languageChoices[0]);
+                                }
+                            }} />}
+                        {!languageChoices.length && <p role="status" className={styles.helper}>{t('main_page.language_selector.no_results')}</p>}
                         {view.stage === 'saved' && <p className={styles.helper}>{c('saved_hint')}</p>}
                         <div className={styles.choice_grid}>{languageChoices.map(entry => <button key={`${entry.language}/${entry.country}`} className={clsx(settingsStyles.row, settingsStyles.clickable, settingsStyles.option, styles.choice, languageSelected(entry) && settingsStyles.is_selected)}
-                            aria-pressed={languageSelected(entry)} disabled={!selectable.data.some(option => same(entry, option)) || (!busy && (languageSelected(entry) || (view.kind === 'target-add' && targets.length >= 3)))} aria-disabled={busy ? true : undefined}
-                            aria-label={`${entry.language} / ${entry.country}${languageSelected(entry) ? ` · ${selectionLabel(entry)}` : ''}`} onClick={() => choose(entry)}>
-                            <LanguageText entry={entry} />{languageSelected(entry) && <span className={styles.check} aria-hidden="true">✓</span>}
+                            aria-pressed={languageSelected(entry)} disabled={choiceDisabled(entry)} aria-disabled={busy ? true : undefined}
+                            aria-label={`${names.name(entry).label}${languageSelected(entry) ? ` · ${selectionLabel(entry)}` : ''}`} onClick={() => choose(entry)}>
+                            <LanguageText names={names} entry={entry} />{languageSelected(entry) && <span className={styles.check} aria-hidden="true">✓</span>}
                         </button>)}</div>
                     </>}
                 </div>
@@ -286,8 +297,9 @@ export function VrLanguageWindow({ onClose }) {
     </VrWindow>;
 }
 
-function LanguageText({ entry, className }) {
-    return <span className={clsx(settingsStyles.label, className)}><span>{entry?.language}</span><span className={settingsStyles.sub}>{entry?.country}</span></span>;
+function LanguageText({ entry, names, className }) {
+    const display = names.name(entry);
+    return <span className={clsx(settingsStyles.label, styles.language_text, className)}><span>{display.language}</span><span className={settingsStyles.sub}>{display.country}</span></span>;
 }
 function EngineChoice({ engine, current, busy, t, c, onPick }) {
     const selected = engine.id === current;

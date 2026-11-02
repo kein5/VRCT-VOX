@@ -1,3 +1,4 @@
+import { createLanguageNames } from "../../../../../../logics/common/languageNames.js";
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { useI18n } from "@useI18n";
@@ -59,7 +60,7 @@ export const Appearance = () => {
 };
 
 const UiLanguageContainer = () => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
     const { currentUiLanguage, setUiLanguage } = useAppearance();
 
     const is_not_en_lang = currentUiLanguage.data !== "en" && currentUiLanguage.data !== undefined;
@@ -70,7 +71,7 @@ const UiLanguageContainer = () => {
             desc={is_not_en_lang ? t("config_page.appearance.ui_language.label") : false}
             selectFunction={setUiLanguage}
             name="ui_language"
-            options={ui_configs.selectable_ui_languages}
+            options={createLanguageNames(i18n.language).uiOptions(ui_configs.selectable_ui_languages)}
             checked_variable={currentUiLanguage}
         />
     );
