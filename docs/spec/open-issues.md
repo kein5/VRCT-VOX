@@ -14,6 +14,7 @@
 | OI-08 | 要求に通し番号がなく、応答はエンドポイント名で対応づける。同じエンドポイントへの要求が重なると、どの応答がどの要求のものか分からない。言語の変更だけはUIが対応づけを補っている | [IPCプロトコル](ipc-protocol.md#言語の変更の対応づけ) | 設計上の制約。変えるならプロトコルの版を上げる |
 | OI-09 | `config.json`に版番号がない。キーの意味を変えるときに移行の手がかりがない | [データ形式と保存](data-and-persistence.md#configjson) | 未決 |
 | OI-10 | エラーコード96件のうち10件は、UIに個別の処理がない。いずれも音声認識の失敗（`AUDIO_*`、`ASR_ERROR`、`TRANSCRIPTION_API_*`など）で、`/run/transcription_recognition_error`として会話ログに出るため汎用の通知にはならない。`AUDIO_TRACKER_STOP_TIMEOUT`はテレメトリー用で画面には届かない | [エラーコード一覧](reference/error-codes.md) | 確認済み。新しいコードを足すときは同じ確認をする |
+| OI-11 | VR UIの設定ウィンドウは、デスクトップの設定画面と違い「チャット読み取り」と「その他」のタブのまま。デスクトップでは2026-11-02にVRChatページへまとめた | `src-ui/views/vr/VrSettingsWindow.jsx` | VR側もそろえるか未決 |
 
 ## 調べて直したもの
 

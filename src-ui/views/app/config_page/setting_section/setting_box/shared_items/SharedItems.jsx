@@ -1,5 +1,7 @@
+// Settings that more than one page shows. A page renders the same container,
+// so the value and its saving stay in one place; only one page is on screen.
 import { useI18n } from "@useI18n";
-import styles from "./Others.module.scss";
+import styles from "./SharedItems.module.scss";
 
 import {
     useOpenFolder,
@@ -18,53 +20,13 @@ import {
 import {
     LabelComponent,
     ActionButton,
-    SectionLabelComponent,
 } from "../_components";
 import { Checkbox } from "@common_components";
 
 import OpenFolderSvg from "@images/open_folder.svg?react";
 import CheckMarkSvg from "@images/check_mark.svg?react";
 
-export const Others = () => {
-    const { t } = useI18n();
-
-    return (
-        <div className={styles.container}>
-            <div>
-                <SectionLabelComponent label={t("config_page.others.section_label_sending")} />
-                <AutoClearMessageInputBoxContainer />
-                <SendOnlyTranslatedMessagesContainer />
-                <AutoExportMessageLogsContainer />
-                <VrcMicMuteSyncContainer />
-                <SendMessageToVrcContainer />
-            </div>
-            <div>
-                <SectionLabelComponent label={t("config_page.others.section_label_sounds")} />
-                <EnableNotificationVrcSfxContainer />
-            </div>
-            <div>
-                <SectionLabelComponent label={t("config_page.others.section_label_received_messages")} />
-                <SendReceivedMessageToVrcContainer />
-            </div>
-            <div>
-                <SectionLabelComponent label={t("config_page.others.section_label_message_formats")} />
-                <SendMessageFormatPartsContainer />
-                <ReceivedMessageFormatPartsContainer />
-            </div>
-            <div>
-                <SectionLabelComponent label={t("config_page.others.section_label_reading_aids")} />
-                <ConvertMessageToRomajiContainer />
-                <ConvertMessageToHiraganaContainer />
-            </div>
-            <div>
-                <SectionLabelComponent label={t("config_page.others.section_label_models")} />
-                <AutoDownloadModelsContainer />
-            </div>
-        </div>
-    );
-};
-
-const AutoClearMessageInputBoxContainer = () => {
+export const AutoClearMessageInputBoxContainer = () => {
     const { t } = useI18n();
     const { currentEnableAutoClearMessageInputBox, toggleEnableAutoClearMessageInputBox } = useOthers();
 
@@ -77,7 +39,7 @@ const AutoClearMessageInputBoxContainer = () => {
         />
     );
 };
-const SendOnlyTranslatedMessagesContainer = () => {
+export const SendOnlyTranslatedMessagesContainer = () => {
     const { t } = useI18n();
     const { currentEnableSendOnlyTranslatedMessages, toggleEnableSendOnlyTranslatedMessages } = useOthers();
 
@@ -90,7 +52,7 @@ const SendOnlyTranslatedMessagesContainer = () => {
         />
     );
 };
-const AutoExportMessageLogsContainer = () => {
+export const AutoExportMessageLogsContainer = () => {
     const { t } = useI18n();
     const { currentEnableAutoExportMessageLogs, toggleEnableAutoExportMessageLogs } = useOthers();
     const { openFolder_MessageLogs } = useOpenFolder();
@@ -142,7 +104,7 @@ export const VrcMicMuteSyncContainer = () => {
         />
     );
 };
-const SendMessageToVrcContainer = () => {
+export const SendMessageToVrcContainer = () => {
     const { t } = useI18n();
     const { currentEnableSendMessageToVrc, toggleEnableSendMessageToVrc } = useOthers();
 
@@ -158,7 +120,7 @@ const SendMessageToVrcContainer = () => {
 };
 
 
-const EnableNotificationVrcSfxContainer = () => {
+export const EnableNotificationVrcSfxContainer = () => {
     const { t } = useI18n();
     const { currentEnableNotificationVrcSfx, toggleEnableNotificationVrcSfx } = useOthers();
 
@@ -173,7 +135,7 @@ const EnableNotificationVrcSfxContainer = () => {
     );
 };
 
-const SendReceivedMessageToVrcContainer = () => {
+export const SendReceivedMessageToVrcContainer = () => {
     const { t } = useI18n();
     const { currentEnableSendReceivedMessageToVrc, toggleEnableSendReceivedMessageToVrc } = useOthers();
 
@@ -188,7 +150,7 @@ const SendReceivedMessageToVrcContainer = () => {
     );
 };
 
-const SendMessageFormatPartsContainer = () => {
+export const SendMessageFormatPartsContainer = () => {
     const { t } = useI18n();
     const {
         currentSendMessageFormatParts,
@@ -207,7 +169,7 @@ const SendMessageFormatPartsContainer = () => {
     );
 };
 
-const ReceivedMessageFormatPartsContainer = () => {
+export const ReceivedMessageFormatPartsContainer = () => {
     const { t } = useI18n();
     const {
         currentReceivedMessageFormatParts,
@@ -226,7 +188,7 @@ const ReceivedMessageFormatPartsContainer = () => {
     );
 };
 
-const ConvertMessageToRomajiContainer = () => {
+export const ConvertMessageToRomajiContainer = () => {
     const { t } = useI18n();
     const { currentConvertMessageToRomaji, toggleConvertMessageToRomaji } = useOthers();
 
@@ -249,7 +211,7 @@ const ConvertMessageToRomajiContainer = () => {
     );
 };
 
-const ConvertMessageToHiraganaContainer = () => {
+export const ConvertMessageToHiraganaContainer = () => {
     const { t } = useI18n();
     const { currentConvertMessageToHiragana, toggleConvertMessageToHiragana } = useOthers();
 
@@ -268,7 +230,7 @@ const ConvertMessageToHiraganaContainer = () => {
     );
 };
 
-const AutoDownloadModelsContainer = () => {
+export const AutoDownloadModelsContainer = () => {
     const { t } = useI18n();
     const { currentAutoDownloadModels, toggleAutoDownloadModels } = useOthers();
     return (

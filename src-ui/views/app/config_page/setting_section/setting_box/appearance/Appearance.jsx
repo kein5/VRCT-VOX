@@ -24,6 +24,12 @@ import {
     SectionLabelComponent,
 } from "../_components";
 
+import {
+    AutoClearMessageInputBoxContainer,
+    ConvertMessageToHiraganaContainer,
+    ConvertMessageToRomajiContainer,
+} from "../shared_items/SharedItems";
+
 export const Appearance = () => {
     const { t } = useI18n();
 
@@ -41,6 +47,12 @@ export const Appearance = () => {
                 <SectionLabelComponent label={t("config_page.appearance.section_label_send_buttons")} />
                 <SendMessageButtonTypeContainer />
                 <ShowResendButtonContainer />
+                <AutoClearMessageInputBoxContainer />
+            </div>
+            <div>
+                <SectionLabelComponent label={t("config_page.others.section_label_reading_aids")} />
+                <ConvertMessageToHiraganaContainer />
+                <ConvertMessageToRomajiContainer />
             </div>
         </div>
     );

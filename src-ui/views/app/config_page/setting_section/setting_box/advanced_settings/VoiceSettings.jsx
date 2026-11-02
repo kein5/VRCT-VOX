@@ -115,3 +115,35 @@ export const VoiceSettings = () => {
         {(error || status.last_error || devices.error) && <p role="alert">{t("voice.error")}: {error || status.last_error || devices.error}</p>}
     </section>;
 };
+
+// The TTS output device on its own, for pages other than TTS (the VRChat
+// page). It edits the same voice settings and saves from the save bar.
+export const TtsOutputDeviceSettings = ({ title }) => {
+    const { t } = useI18n();
+    const { settings, devices, error, send, updateError } = useVoice();
+    const form = useSettingsDraft(settings, error, updateError, { label: ([key]) => t(`voice.${key}`, { defaultValue: key }),
+        write: value => send("/set/data/voice_settings", value), canSave: validGenerationOptions });
+    const { draft, setDraft, saving } = form;
+    useEffect(() => {
+        send("/get/data/voice_settings");
+        send("/get/data/voice_output_devices");
+    }, [send]);
+    const deviceList = devices.devices || [];
+    return <section className={styles.container} aria-label={title} data-setting-id="tts_output_device">
+        <SectionLabelComponent label={title} />
+        {!draft ? <p role="status">{error ? t("voice.error") : t("voice.loading")}</p> :
+            <fieldset className={styles.fields} disabled={saving}>
+                <FormRow label={t("voice.output_device")} description={t("voice_ui.output_hint")}
+                    actions={<button type="button" onClick={() => send("/get/data/voice_output_devices")}>{t("voice.refresh")}</button>}>
+                    <select aria-label={t("voice.output_device")} disabled={draft.routing === "managed"} value={draft.output_device}
+                        onChange={e => setDraft(previous => ({ ...previous, output_device: e.target.value }))}>
+                        <option value="">{t("voice.select_output")}</option>
+                        {draft.output_device && !deviceList.some(d => d.id === draft.output_device) &&
+                            <option value={draft.output_device}>{t("voice.disconnected")}: {draft.output_device}</option>}
+                        {deviceList.map(device => <option key={device.id} value={device.id}>{device.label}</option>)}
+                    </select>
+                </FormRow>
+            </fieldset>}
+        {form.navigationDialog}
+    </section>;
+};

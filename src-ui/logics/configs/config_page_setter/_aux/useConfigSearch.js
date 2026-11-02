@@ -3,12 +3,13 @@ import { useI18n } from "@useI18n";
 import { useStore_SelectedConfigTabId } from "@store";
 import i18n from "@root/locales/config.js";
 
-// 対象とする設定タブ一覧
+// 検索の元にする config_page 以下の文言の名前空間
 const VALID_TABS = [
     "device",
     "appearance",
     "translation",
     "transcription",
+    "vrchat",
     "ocr",
     // "vr",
     // "hotkeys",
@@ -17,18 +18,43 @@ const VALID_TABS = [
     "others",
 ];
 
+// 名前空間と実際のページが違うもの。チャット読み取りと旧「その他」の項目は
+// VRChat ページにある。
+const NAMESPACE_TAB = {
+    ocr: "vrchat",
+    others: "vrchat",
+};
+
+// 名前空間の既定と違うページに置いた項目。複数のページに置いた項目は、
+// 検索結果にもページごとに出す。
+const SETTING_TABS = {
+    "others.auto_clear_the_message_box": ["appearance"],
+    "others.auto_export_message_logs": ["advanced_settings"],
+    "others.vrc_mic_mute_sync": ["vrchat", "device"],
+    "others.section_label_reading_aids": ["appearance"],
+    "others.common_convert_message_hiragana_romaji": ["appearance"],
+    "others.convert_message_to_romaji": ["appearance"],
+    "others.convert_message_to_hiragana": ["appearance"],
+    "others.auto_download_models": ["translation", "transcription"],
+    "advanced_settings.section_label_osc": ["vrchat"],
+    "advanced_settings.osc_ip_address": ["vrchat"],
+    "advanced_settings.osc_port": ["vrchat"],
+};
+
+export const settingTabs = (namespace, key) =>
+    SETTING_TABS[`${namespace}.${key}`] ?? [NAMESPACE_TAB[namespace] ?? namespace];
+
 const TAB_LABEL_KEYS = {
+    vrchat: "config_page.side_menu_labels.vrchat",
     device: "config_page.side_menu_labels.device",
     appearance: "config_page.side_menu_labels.appearance",
     translation: "config_page.side_menu_labels.translation",
     transcription: "config_page.side_menu_labels.transcription",
-    ocr: "config_page.side_menu_labels.ocr",
     // vr: "config_page.side_menu_labels.vr",
     // hotkeys: "config_page.side_menu_labels.hotkeys",
     tts: "config_page.side_menu_labels.tts",
     rvc: "config_page.side_menu_labels.rvc",
     advanced_settings: "config_page.side_menu_labels.advanced_settings",
-    others: "config_page.side_menu_labels.others",
 };
 
 // 親項目（前提条件）の依存関係
@@ -88,6 +114,10 @@ export const useConfigSearch = () => {
                 const enVal = enTab[key];
 
                 if (!curVal && !enVal) continue;
+                // A group of texts with no label of its own (status messages, model
+                // notes) is not a setting; listing it would show its raw key.
+                const labelled = (v) => typeof v === "string" || (v && (v.label || v.label_for_automatic || v.label_for_manual));
+                if (!labelled(curVal) && !labelled(enVal)) continue;
 
                 // label の抽出（currentLng → en フォールバック）
                 const rawLabel = (typeof curVal === "object" ? (curVal.label || curVal.label_for_automatic || curVal.label_for_manual) : null)
@@ -112,17 +142,17 @@ export const useConfigSearch = () => {
                     .map((s) => cleanTemplateStr(s).toLowerCase())
                     .filter(Boolean);
 
-                const tabLabel = t(TAB_LABEL_KEYS[tab] ?? tab);
-
-                entries.push({
-                    tab,
-                    setting_id: key,
-                    label: cleanTemplateStr(rawLabel),
-                    desc: cleanTemplateStr(rawDesc),
-                    tab_label: tabLabel,
-                    searchTarget,
-                    prereq: PREREQUISITES[key] || null,
-                });
+                for (const page of settingTabs(tab, key)) {
+                    entries.push({
+                        tab: page,
+                        setting_id: key,
+                        label: cleanTemplateStr(rawLabel),
+                        desc: cleanTemplateStr(rawDesc),
+                        tab_label: t(TAB_LABEL_KEYS[page] ?? page),
+                        searchTarget,
+                        prereq: PREREQUISITES[key] || null,
+                    });
+                }
             }
         }
         return entries;

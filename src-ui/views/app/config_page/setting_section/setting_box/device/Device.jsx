@@ -1,4 +1,5 @@
 import { VoiceRouteSettings } from "./VoiceRouteSettings";
+import { VrcMicMuteSyncContainer } from "../shared_items/SharedItems";
 import { useI18n } from "@useI18n";
 import styles from "./Device.module.scss";
 import clsx from "clsx";
@@ -156,6 +157,8 @@ const MicContainer = () => {
                     />
                 </div>
             </div>
+            {/* Also on the VRChat page: it pauses this mic while VRChat is muted. */}
+            <VrcMicMuteSyncContainer />
         </div>
     );
 };

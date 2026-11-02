@@ -29,6 +29,7 @@ import {
 
 import { ComputeDevice } from "../_components/compute_device/ComputeDevice";
 import { Description } from "../_components/description/Description";
+import { AutoDownloadModelsContainer } from "../shared_items/SharedItems";
 
 export const Transcription = () => {
     return (
@@ -214,6 +215,8 @@ const TranscriptionEngine_Container = () => {
         <div>
             <SectionLabelComponent label={t("config_page.transcription.section_label_transcription_engines")} />
             <TranscriptionEngine_Box />
+            {/* Also on the translation page: one switch fetches both models. */}
+            <AutoDownloadModelsContainer />
             {currentSelectedTranscriptionEngine.data === "Whisper" && (
                 <>
                     <WhisperWeightType_Box />

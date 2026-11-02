@@ -261,6 +261,7 @@ config_page:
             unable_to_use_osc_query: "OSC IP Address の設定によりOSCデータの受信ができないため、現在この機能は使用できません。"
 
     side_menu_labels:
+        vrchat: "VRChat"
         device: "デバイス"
         appearance: "デザイン"
         translation: "翻訳"
@@ -534,12 +535,8 @@ config_page:
             desc: "文字起こしされたテキストを、アクティブな入力欄へと自動的に貼り付けます。\n※Windows標準のクリップボード機能を利用しています。"
 
     others:
-        section_label_sounds: "サウンド"
-        section_label_received_messages: "受信したメッセージ"
         section_label_message_formats: "メッセージフォーマット"
-        section_label_sending: "送信とログ"
         section_label_reading_aids: "ひらがな・ローマ字"
-        section_label_models: "モデル"
         auto_clear_the_message_box:
             label: "送信後はメッセージ入力欄を空にする"
         send_only_translated_messages:
@@ -599,10 +596,10 @@ config_page:
         auto_download_models:
             label: "起動時に翻訳・文字起こしモデルをダウンロード"
             desc: "有効にすると、次回起動時に未取得の内蔵モデルをダウンロードします。無効でも取得済みモデルは使えます。外部音声エンジンのモデルは別途管理します。"
-        telemetry:
-            label: "製品の改善に協力する"
-            desc: "開発者が「みんな使ってくれてるんだな～」ってにやにやしながら機能改善するための使用状況データを送信します。\n※会話内容など個人情報は一切送信しません。"
-            aptabase_privacy_policy_label: "Aptabase プライバシーポリシー"
+
+    vrchat:
+        section_label_chatbox: "チャットボックスへの送信"
+        section_label_tts_output: "読み上げの出力先"
 
     ocr:
         section_title: "VRChatチャット読み取り"
@@ -700,6 +697,7 @@ config_page:
 
     advanced_settings:
         section_label_osc: "OSC"
+        section_label_logs: "ログ"
         section_label_config_file: "設定ファイル"
         osc_ip_address:
             label: "OSC IP Address"
