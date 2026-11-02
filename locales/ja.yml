@@ -225,7 +225,7 @@ main_page:
     your_language: "あなたの言語"
     translate_each_other_label: "双方向に翻訳"
     swap_button_label: "言語を入れ替え"
-    help_link: "元のVRCTの使い方を開く（VRCT-VOXと違う点があります）"
+    help_link: "VRCT-VOXの使い方を開く"
     target_language: "相手の言語"
     add_target_language: "相手の言語を追加"
     remove_target_language: "最後の相手の言語を削除"

@@ -225,7 +225,7 @@ main_page:
     your_language: "Your Language"
     translate_each_other_label: "Translate Both Languages"
     swap_button_label: "Switch Languages"
-    help_link: "Open the original VRCT guide (VRCT-VOX differs in places)"
+    help_link: "Open the VRCT-VOX guide"
     target_language: "Target Language"
     add_target_language: "Add a target language"
     remove_target_language: "Remove the last target language"
