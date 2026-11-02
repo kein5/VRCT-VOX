@@ -2,7 +2,7 @@ from typing import Callable, Any, List, Optional
 from contextlib import nullcontext
 from subprocess import Popen
 from threading import Event, Thread, Lock
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeout
 from dataclasses import asdict, replace
 import copy
 import functools
@@ -81,6 +81,11 @@ def vrLayoutToJson(layout: dict) -> dict:
 # (8s) など、ロック保持中に自然完了しうる最長の単発処理より余裕を持たせつつ、
 # 万一ロックが本当に返ってこない場合でも終了処理自体を無期限に止めない。
 _SHUTDOWN_LIFECYCLE_LOCK_TIMEOUT_SEC = 20.0
+
+# 起動時の翻訳・音声認識エンジンの確認を待つ上限 (段階ごと)。ふだんは数秒で終わる
+# (実機で 2.3 秒)。個々の要求の時間の上限は SDK ごとに違い、少しずつ応答を返し続ける
+# サーバーではそれも効かないため、全体で区切る。間に合わなかったエンジンは使えない状態で起動する
+_ENGINE_CHECK_BUDGET_SEC = 30.0
 
 # shutdown() が OSC/WebSocket/OBS Browser Source/Overlay の各停止関数を
 # 待つ上限(フェーズ4項目30)。いずれも自前でタイムアウト付きjoinを持つ設計
@@ -330,6 +335,28 @@ _ENGINE_MODEL_CLIENT_CALLS = {
     "OpenAI_Compatible": ("setTranslatorOpenAICompatibleModel", "updateTranslatorOpenAICompatibleClient"),
     "Ollama": ("setTranslatorOllamaModel", "updateTranslatorOllamaClient"),
 }
+
+
+def _runEngineChecks(check, engines: list, label: str) -> dict:
+    """エンジンの確認を同時に走らせ、全体で _ENGINE_CHECK_BUDGET_SEC 秒まで待つ。
+
+    `check(engine)` は `(engine, *結果)` を返す。返り値は {engine: 結果のタプル}。
+    間に合わなかったエンジンは含めない (呼び出し元が使えない状態にする)。待ちきれなかった
+    確認のスレッドは止められないが、待たずに起動を進める。そのスレッドは config に書かない。
+    """
+    results = {}
+    executor = ThreadPoolExecutor(max_workers=max(1, len(engines)))
+    futures = {executor.submit(check, engine): engine for engine in engines}
+    try:
+        for future in as_completed(futures, timeout=_ENGINE_CHECK_BUDGET_SEC):
+            engine, *rest = future.result()
+            results[engine] = tuple(rest)
+    except FuturesTimeout:
+        late = [engine for future, engine in futures.items() if not future.done()]
+        printLog(f"{label} checks did not finish in {_ENGINE_CHECK_BUDGET_SEC:.0f}s; starting without them", {"engines": late})
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+    return results
 
 
 class Controller:
@@ -6449,17 +6476,13 @@ class Controller:
         # 確認は主にネットワーク待ち (認証・モデル一覧の取得)。エンジンの数 (13) より少ない並列数では、
         # 先に遅いエンジンが枠を埋めて、後ろのエンジンが待たされる (実機で、最大の確認が 1.53 秒なのに
         # 全体が 2.3 秒かかった)。エンジンごとに独立したクライアントなので、全部を同時に確認する。
-        with ThreadPoolExecutor(max_workers=max(1, len(engines_to_check))) as executor:
-            future_to_engine = {executor.submit(check_translation_engine, engine): engine 
-                              for engine in engines_to_check}
-
-            for future in as_completed(future_to_engine):
-                engine, status, auth_key_invalid, model_list, selected_model = future.result()
-                engine_results[engine] = (status, auth_key_invalid, model_list, selected_model)
+        engine_results = _runEngineChecks(check_translation_engine, engines_to_check, "Translation engine")
 
         # 結果を順番に適用（メインスレッドで実行）
         for engine in engines_to_check:
             if engine not in engine_results:
+                # 時間内に確認できなかった
+                config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine] = False
                 continue
 
             status, auth_key_invalid, model_list, selected_model = engine_results[engine]
@@ -6627,17 +6650,13 @@ class Controller:
         transcription_engines_to_check = list(config.SELECTABLE_TRANSCRIPTION_ENGINE_LIST)
 
         # 翻訳エンジンの確認と同じ理由で、エンジンの数だけ同時に確認する
-        with ThreadPoolExecutor(max_workers=max(1, len(transcription_engines_to_check))) as executor:
-            future_to_transcription_engine = {
-                executor.submit(check_transcription_engine, engine): engine
-                for engine in transcription_engines_to_check
-            }
-            for future in as_completed(future_to_transcription_engine):
-                engine, status, auth_key_invalid, model_list, selected_model = future.result()
-                transcription_engine_results[engine] = (status, auth_key_invalid, model_list, selected_model)
+        transcription_engine_results = _runEngineChecks(
+            check_transcription_engine, transcription_engines_to_check, "Transcription engine")
 
         for engine in transcription_engines_to_check:
             if engine not in transcription_engine_results:
+                # 時間内に確認できなかった
+                config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
                 continue
 
             status, auth_key_invalid, model_list, selected_model = transcription_engine_results[engine]
