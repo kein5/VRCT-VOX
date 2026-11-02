@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useVoice, sourceKey } from "../../../../../logics/voice/useVoice";
 import { useNotificationStatus } from "../../../../../logics/common/useNotificationStatus";
 import { useI18n } from "@useI18n";
+import { store } from "@store";
 import clsx from "clsx";
 import styles from "./MainFunctionSwitch.module.scss";
 import TranslationSvg from "@images/translation.svg?react";
@@ -31,6 +32,8 @@ export const MainFunctionSwitch = () => {
     const { showNotification_Error } = useNotificationStatus();
     // Known codes get their next step; the code stays visible for support.
     const notify = (code, page) => {
+        // After the engine stops, its own notice already says so.
+        if (code === "backend_unavailable" && !store.backend_subprocess) return;
         const key = `voice_ui.errors.${code}`;
         showNotification_Error(/^[a-z0-9_]+$/.test(code) && i18n.exists(key)
             ? `${t(key)} (${code})` : `${code} · ${t("voice_ui.check_settings", { page })}`);

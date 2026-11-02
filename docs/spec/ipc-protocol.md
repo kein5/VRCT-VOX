@@ -139,6 +139,7 @@ sequenceDiagram
 - UIは起動後20秒ごとに`/run/feed_watchdog`を送る。サイドカーは60秒届かなければ自分を止める（`WATCHDOG_TIMEOUT`、`WATCHDOG_INTERVAL`）。止める処理が30秒で終わらなければプロセスを強制終了する。
 - UIの閉じるボタンは`/run/shutdown`を送り、2秒待ってからウィンドウを閉じる。
 - stdinが閉じてもサイドカーの受信は終わらない。UIが落ちた場合にサイドカーを止めるのは監視の役目である。
+- サイドカーのプロセスが終わると、UIは`/run/shutdown`か`/run/update_software`を送った後でない限り、処理部分が停止したので再起動が要ることを消えない通知で知らせる（`StartPythonController.jsx`）。
 
 ## stderrとログ
 

@@ -19,6 +19,9 @@ export const useStdoutToPython = () => {
 
         if (is_language_write && !beginLanguageMutation(request)) return false;
 
+        // The sidecar exits after these; StartPythonController then stays quiet.
+        if (path === "/run/shutdown" || path === "/run/update_software") store.backend_exit_expected = true;
+
         const send_object = { endpoint: path };
         if (value !== undefined) send_object.data = encode(JSON.stringify(value));
 

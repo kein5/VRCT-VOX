@@ -4,7 +4,7 @@
 # =================================
 
 runtime:
-    local_models_unavailable: "内蔵の翻訳・文字起こしモデルを利用できません。テキストチャットと外部音声エンジンは使えます。内蔵モデルを取得する場合は、設定→その他でモデルのダウンロードを有効にして再起動してください。"
+    local_models_unavailable: "内蔵の翻訳・文字起こしモデルを利用できません。テキストチャットと外部音声エンジンは使えます。内蔵モデルを取得する場合は、設定の「翻訳」または「音声認識」で「起動時に翻訳・文字起こしモデルをダウンロード」をオンにして再起動してください。"
 
 voice:
     direct_mode: "直接音声のモード"
@@ -113,6 +113,7 @@ common:
     copy_version: "バージョン {{version}} をコピー"
 
 common_error:
+    backend_stopped: "VRCT-VOXの処理部分が予期せず停止しました（コード {{code}}）。設定やスイッチは反応しません。VRCT-VOXを再起動してください。"
     transcription_api_auth_failed: "音声認識サービスがAPIキーを受け付けませんでした。キーと、カスタムサーバーの場合はURLを確認してください。"
     transcription_model_invalid: "その音声認識モデルは使えません。"
     transcription_custom_url_invalid: "カスタムWhisperサーバーに接続できないか、モデルが見つかりませんでした。URLを確認してください。"
@@ -141,14 +142,15 @@ common_error:
     invalid_hex_color: "有効なHEXカラーコード（例: {{brand_color_hex}}）形式で入力してください。"
     invalid_config_value: "その値は使えないため、元の設定のままにしました。"
     ocr_engine_unavailable: "チャット読み取りを開始できません。このビルドにはOCRエンジンが含まれていません。"
-    ocr_model_load_failed: "チャット読み取りを開始できません。認識モデルを読み込めませんでした。設定 → チャット読み取りでダウンロードし直してください。"
+    ocr_model_load_failed: "チャット読み取りを開始できません。認識モデルを読み込めませんでした。設定の「VRChat」の「チャット読み取り」でダウンロードし直してください。"
     ocr_unsupported_language: "チャット読み取りを開始できません。選択中の読み取り言語には対応していません。"
-    ocr_model_missing: "チャット読み取りには認識モデルが必要です。設定 → チャット読み取りでダウンロードしてください。"
+    ocr_model_missing: "チャット読み取りには認識モデルが必要です。設定の「VRChat」の「チャット読み取り」でダウンロードしてください。"
     ocr_window_not_found: "VRChatのウィンドウが見つかりません。VRChatを起動してから、もう一度オンにしてください。"
     ocr_capture_unavailable: "このセッションではウィンドウを取り込めません。LinuxではVRChatをX11/XWaylandのウィンドウとして動かす必要があります。"
     ocr_unknown: "予期しないエラーのため、チャット読み取りを開始できません。"
 
 common_warning:
+    config_file_unreadable: "設定ファイル（config.json）を読み込めなかったため、既定の設定で起動しました。元のファイルは {{file}} として残しています。"
     unable_to_use_osc_query: "OSC IP Address の設定によりOSCデータの受信ができないため、以下の機能が自動的に無効になっています。"
 
 main_page:
@@ -1041,6 +1043,7 @@ voice_ui:
     input_conflict: "別の直接音声エンジンが動作中です。切り替える前に、その設定ページで停止してください。"
     check_settings: "{{page}}設定を確認してください。"
     errors:
+        backend_unavailable: "VRCT-VOXの処理部分に接続できません。"
         voice_route_muted: "音声出力がミュート中です。設定の「デバイス」→「音声経路」で「音声を再開」を押してから、TTSをオンにしてください。"
         voice_route_closed: "音声経路を終了中です。VRCT-VOXを再起動してから、TTSをオンにしてください。"
         tts_source_not_selected: "読み上げる内容が選ばれていません。設定の「TTS」で「読み上げ」または「Realtimeマイクの発声」を「OFF」以外にして保存してください。"

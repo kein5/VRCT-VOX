@@ -4,7 +4,7 @@
 # =================================
 
 runtime:
-    local_models_unavailable: "Built-in translation or transcription models are unavailable. Text chat and external voice engines remain available. To download built-in models, enable model downloads under Settings → Others and restart."
+    local_models_unavailable: "Built-in translation or transcription models are unavailable. Text chat and external voice engines remain available. To download built-in models, turn on \"Download translation and transcription models at startup\" under Settings → Translation or Speech Recognition and restart."
 
 voice:
     direct_mode: "Direct voice mode"
@@ -113,6 +113,7 @@ common:
     copy_version: "Copy version {{version}}"
 
 common_error:
+    backend_stopped: "The VRCT-VOX engine stopped unexpectedly (code {{code}}). Settings and switches no longer respond. Please restart VRCT-VOX."
     transcription_api_auth_failed: "The speech recognition service did not accept the API key. Check the key and, for a custom server, its URL."
     transcription_model_invalid: "That speech recognition model is not available."
     transcription_custom_url_invalid: "Could not reach the custom Whisper server or find a model there. Check the URL."
@@ -141,14 +142,15 @@ common_error:
     invalid_hex_color: "Please enter a valid HEX color code (e.g., {{brand_color_hex}})."
     invalid_config_value: "That value cannot be used. The previous setting is kept."
     ocr_engine_unavailable: "Chat Transcribe could not start: the OCR engine is not included in this build."
-    ocr_model_load_failed: "Chat Transcribe could not start: the recognition models could not be loaded. Download them again in Config → Chat Transcribe."
+    ocr_model_load_failed: "Chat Transcribe could not start: the recognition models could not be loaded. Download them again under Settings → VRChat → Chat Transcribe."
     ocr_unsupported_language: "Chat Transcribe could not start: the selected source language is not supported."
-    ocr_model_missing: "Chat Transcribe needs recognition models. Download them in Config → Chat Transcribe."
+    ocr_model_missing: "Chat Transcribe needs recognition models. Download them under Settings → VRChat → Chat Transcribe."
     ocr_window_not_found: "Chat Transcribe could not find the VRChat window. Start VRChat, then turn it on again."
     ocr_capture_unavailable: "Chat Transcribe cannot capture windows in this session. On Linux, VRChat has to run as an X11/XWayland window."
     ocr_unknown: "Chat Transcribe could not start because of an unexpected error."
 
 common_warning:
+    config_file_unreadable: "config.json could not be read, so VRCT-VOX started with default settings. The old file was kept as {{file}}."
     unable_to_use_osc_query: "The following functions have been automatically disabled due to the OSC IP Address settings preventing OSC data from being received."
 
 main_page:
@@ -1041,6 +1043,7 @@ voice_ui:
     input_conflict: "Another direct input engine is running. Stop it on its settings page before switching."
     check_settings: "Check {{page}} settings."
     errors:
+        backend_unavailable: "Cannot reach the VRCT-VOX engine."
         voice_route_muted: "Voice output is muted. In Settings → Device → Voice route, press \"Resume voice\", then turn TTS on again."
         voice_route_closed: "The voice route is shutting down. Restart VRCT-VOX, then turn TTS on again."
         tts_source_not_selected: "Choose what to speak first: in Settings → TTS, set chat speech or Realtime microphone speech to something other than Off and save."

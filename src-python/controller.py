@@ -6789,6 +6789,8 @@ class Controller:
         self.updateConfigSettings()
         # After initialization_complete so the UI is ready to show it.
         self.notifyNonCommercialCTranslate2Weight()
+        if getattr(config, "UNREADABLE_CONFIG_BACKUP", None):
+            self.run(200, self.run_mapping["config_file_unreadable"], {"backup": config.UNREADABLE_CONFIG_BACKUP})
 
         printLog(f"End Initialization ({time.monotonic() - init_started:.2f}s)")
 

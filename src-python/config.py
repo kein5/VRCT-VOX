@@ -1473,32 +1473,56 @@ class Config:
         # unless turned off here. Without the download this has no effect.
         self._OCR_USE_CHATBOX_DETECTOR = True
 
+    def _moveUnreadableConfigAside(self) -> Optional[str]:
+        """Rename an unreadable config.json to config.json.unreadable-<time> and
+        return the new path, or None when it could not be moved."""
+        import time
+        backup = f"{self.PATH_CONFIG}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}"
+        try:
+            os_replace(self.PATH_CONFIG, backup)
+            return backup
+        except OSError:
+            errorLogging()
+            return None
+
     def load_config(self):
         self._config_data = {}
+        # Set when config.json could not be read and was moved aside, so the
+        # UI can say the app started with defaults and where the old file is.
+        self.UNREADABLE_CONFIG_BACKUP = None
         if os_path.isfile(self.PATH_CONFIG) is not False:
-            with open(self.PATH_CONFIG, 'r', encoding="utf-8") as fp:
-                if fp.readable() and fp.seek(0, 2) > 0:
-                    fp.seek(0)
-                    self._config_data = json_load(fp)
-
-                    for key, value in self._config_data.items():
-                        # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。
-                        # 未知キー（Descriptorなし）は無視して注入を防止。
-                        try:
-                            descriptor = getattr(type(self), key, None)
-                            if isinstance(descriptor, ManagedProperty):
-                                if descriptor.readonly or not descriptor.serialize:
-                                    continue
-                                setattr(self, key, value)
-                            elif isinstance(descriptor, ValidatedProperty):
-                                if not descriptor.serialize:
-                                    continue
-                                setattr(self, key, value)
-                            else:
-                                # 不明キーは破棄（古い/不要/改竄の可能性）
+            try:
+                with open(self.PATH_CONFIG, 'r', encoding="utf-8") as fp:
+                    if fp.readable() and fp.seek(0, 2) > 0:
+                        fp.seek(0)
+                        self._config_data = json_load(fp)
+                if not isinstance(self._config_data, dict):
+                    raise ValueError("config.json is not a JSON object")
+            except (ValueError, UnicodeDecodeError):
+                # Without this the defaults below are saved over the only copy
+                # of the user's settings and API keys.
+                errorLogging()
+                self._config_data = {}
+                self.UNREADABLE_CONFIG_BACKUP = self._moveUnreadableConfigAside()
+            if isinstance(self._config_data, dict):
+                for key, value in self._config_data.items():
+                    # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。
+                    # 未知キー（Descriptorなし）は無視して注入を防止。
+                    try:
+                        descriptor = getattr(type(self), key, None)
+                        if isinstance(descriptor, ManagedProperty):
+                            if descriptor.readonly or not descriptor.serialize:
                                 continue
-                        except Exception:
-                            errorLogging()
+                            setattr(self, key, value)
+                        elif isinstance(descriptor, ValidatedProperty):
+                            if not descriptor.serialize:
+                                continue
+                            setattr(self, key, value)
+                        else:
+                            # 不明キーは破棄（古い/不要/改竄の可能性）
+                            continue
+                    except Exception:
+                        errorLogging()
 
         # config.json から読み込んだ SELECTED_RELEASE_CHANNEL は、前回起動時に
         # UI でチャンネルを切り替えた「つもり」の値をそのまま引き継いでいる
