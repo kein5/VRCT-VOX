@@ -171,6 +171,8 @@ common_error:
 backend_errors:
     TRANSLATION_VRAM_ENABLE: "GPUのメモリーが足りず、AI翻訳を開始できませんでした。設定の「翻訳」で処理デバイスをCPUにするか、ほかのGPUアプリを止めてください。"
     TRANSLATION_DISABLED_VRAM: "GPUのメモリーが足りないため、翻訳をオフにしました。"
+    TRANSLATION_MODEL_MISSING: "翻訳モデルがダウンロードされていないため、翻訳を開始できませんでした。設定の「翻訳」でモデルをダウンロードするか、メイン画面でほかの翻訳エンジンを選んでください。"
+    TRANSLATION_MODEL_LOAD_FAILED: "翻訳モデルを読み込めないため、翻訳を開始できませんでした。設定の「翻訳」でモデルをダウンロードし直すか、処理デバイスを変えてください。"
     TRANSCRIPTION_VRAM_MIC: "GPUのメモリーが足りず、マイクの音声認識を続けられませんでした。設定の「音声認識」で処理デバイスをCPUにするか、ほかのGPUアプリを止めてください。"
     TRANSCRIPTION_VRAM_SPEAKER: "GPUのメモリーが足りず、スピーカーの音声認識を続けられませんでした。設定の「音声認識」で処理デバイスをCPUにするか、ほかのGPUアプリを止めてください。"
     TRANSCRIPTION_SEND_DISABLED_VRAM: "GPUのメモリーが足りないため、マイク入力をオフにしました。"

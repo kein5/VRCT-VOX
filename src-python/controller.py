@@ -2707,8 +2707,13 @@ class Controller:
                         model.changeTranslatorCTranslate2Model()
                         model.setChangedTranslatorParameters(False)
                     else:
-                        # その他のエラーは通常通り処理
                         errorLogging()
+                        # 理由を返す。False だけを返すと、画面ではスイッチが戻るだけで何も分からない
+                        missing = not model.hasTranslatorCTranslate2ModelWeightFile(config.CTRANSLATE2_WEIGHT_TYPE)
+                        return VRCTError.create_error_response(
+                            ErrorCode.TRANSLATION_MODEL_MISSING if missing else ErrorCode.TRANSLATION_MODEL_LOAD_FAILED,
+                            data=False,
+                        )
             else:
                 config.ENABLE_TRANSLATION = True
         return {"status":200, "result":config.ENABLE_TRANSLATION}

@@ -134,6 +134,11 @@ def backwardCompatibleRenameWeightsDir(root: str):
         else:
             os_rename(old_path, path)
 
+def hasCTranslate2WeightFile(root: str, weight_type: str = "m2m100_418M-ct2-int8") -> bool:
+    """Whether model.bin is on disk. Unlike checkCTranslate2Weight, this does not load the model."""
+    weight_directory_name = ctranslate2_weights[weight_type]["directory_name"]
+    return os_path.isfile(os_path.join(root, "weights", "ctranslate2", weight_directory_name, "model.bin"))
+
 def checkCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8"):
     weight_directory_name = ctranslate2_weights[weight_type]["directory_name"]
     path = os_path.join(root, "weights", "ctranslate2", weight_directory_name)

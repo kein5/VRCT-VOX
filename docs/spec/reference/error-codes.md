@@ -7,7 +7,7 @@
 - 既定メッセージ: サイドカーが返す英語の`message`。UIは多くの場合`locales/`の文言に置き換えて表示する。
 - UIの個別処理: `_useBackendErrorHandling.js`に専用の分岐（値の巻き戻しや翻訳した文言の表示）がある。空欄のコードは、音声やモデル取得など別の経路で処理されるか、汎用の通知になる。
 
-## コード（96件）
+## コード（98件）
 
 | コード | 分類 | 既定メッセージ | 重大度 | 利用者の対処 | UIの個別処理 |
 |---|---|---|---|---|---|
@@ -26,6 +26,8 @@
 | `TRANSLATION_VRAM_SPEAKER` | translation | VRAM out of memory during translation of speaker | critical | 要 | あり |
 | `TRANSLATION_VRAM_ENABLE` | translation | VRAM out of memory enabling translation | critical | 要 | あり |
 | `TRANSLATION_DISABLED_VRAM` | translation | Translation disabled due to VRAM overflow | critical | 要 | あり |
+| `TRANSLATION_MODEL_MISSING` | translation | The CTranslate2 model is not downloaded; translation was not enabled | error | 要 | あり |
+| `TRANSLATION_MODEL_LOAD_FAILED` | translation | The CTranslate2 model could not be loaded; translation was not enabled | error | 要 | あり |
 | `TRANSLATION_LANGUAGE_UNSUPPORTED` | translation | The selected translation model does not support a selected language; it was reset | warning |  | あり |
 | `TRANSCRIPTION_VRAM_MIC` | transcription | VRAM out of memory during mic transcription | critical | 要 | あり |
 | `TRANSCRIPTION_VRAM_SPEAKER` | transcription | VRAM out of memory during speaker transcription | critical | 要 | あり |

@@ -171,6 +171,8 @@ common_error:
 backend_errors:
     TRANSLATION_VRAM_ENABLE: "Not enough GPU memory to start AI translation. Choose CPU as the device under Settings → Translation, or close other GPU apps."
     TRANSLATION_DISABLED_VRAM: "Translation was turned off because GPU memory ran out."
+    TRANSLATION_MODEL_MISSING: "Translation could not start because the translation model is not downloaded. Download it in Settings > Translation, or choose another translation engine on the main screen."
+    TRANSLATION_MODEL_LOAD_FAILED: "Translation could not start because the translation model could not be loaded. Download it again in Settings > Translation, or change the compute device."
     TRANSCRIPTION_VRAM_MIC: "Not enough GPU memory to keep recognising the microphone. Choose CPU as the device under Settings → Speech Recognition, or close other GPU apps."
     TRANSCRIPTION_VRAM_SPEAKER: "Not enough GPU memory to keep recognising the speaker. Choose CPU as the device under Settings → Speech Recognition, or close other GPU apps."
     TRANSCRIPTION_SEND_DISABLED_VRAM: "Mic input was turned off because GPU memory ran out."
