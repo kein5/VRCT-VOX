@@ -8,6 +8,7 @@ export const ActionButton = ({
     clicked_duration = 1000,
     onclickFunction,
     onErrorFunction,
+    label,
 }) => {
     const [is_clicked, setIsClicked] = useState(false);
     const timer_ref = useRef(null);
@@ -32,8 +33,9 @@ export const ActionButton = ({
 
     return (
         <div className={styles.container}>
-            <button className={clsx(styles.button_wrapper, active_class)} onClick={onClick}>
-                <ShownIcon className={clsx(styles.button_svg, active_class)} />
+            <button type="button" className={clsx(styles.button_wrapper, active_class)} onClick={onClick}
+                aria-label={typeof label === "string" ? label : undefined}>
+                <ShownIcon className={clsx(styles.button_svg, active_class)} aria-hidden="true" />
             </button>
         </div>
     );

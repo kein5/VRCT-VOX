@@ -56,3 +56,30 @@
 .language_label {
     font-size: 1.4rem;
 }
+
+// Stays above the list while it scrolls (offsets the wrapper's top padding).
+.filter_row {
+    position: sticky;
+    top: -1rem;
+    z-index: 1;
+    padding: 1rem 0 1.2rem;
+    margin-top: -1rem;
+    background-color: var(--dark_875_color);
+}
+
+.filter {
+    width: 100%;
+    max-width: 32rem;
+    padding: 0.8rem 1.2rem;
+    font: inherit;
+    font-size: 1.4rem;
+    color: var(--dark_200_color);
+    background-color: var(--vox_surface);
+    border: 0.1rem solid var(--dark_650_color);
+    border-radius: var(--vox_radius);
+}
+
+.no_results {
+    font-size: 1.4rem;
+    color: var(--dark_400_color);
+}

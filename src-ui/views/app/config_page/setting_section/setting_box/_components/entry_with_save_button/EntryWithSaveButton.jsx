@@ -19,7 +19,7 @@ export const EntryWithSaveButton = (props) => {
 
     return (
         <div className={styles.container}>
-            <_Entry width={props.width} type={props.type} onChange={onChangeFunction} onEnterPressed={handleEnterPressed} ui_variable={props.variable} is_disabled={is_disabled}/>
+            <_Entry label={props.label} width={props.width} type={props.type} onChange={onChangeFunction} onEnterPressed={handleEnterPressed} ui_variable={props.variable} is_disabled={is_disabled}/>
         </div>
     );
 };

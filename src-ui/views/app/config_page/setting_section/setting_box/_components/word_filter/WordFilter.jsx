@@ -98,7 +98,7 @@ export const WordFilter = () => {
                 </div>
             }
             <div className={styles.entry_section_wrapper}>
-                <_Entry width="30rem" onChange={onChangeEntry} onEnterPressed={handleEnterPressed} ui_variable={input_value}/>
+                <_Entry aria-label={t("config_page.transcription.mic_word_filter.label")} width="30rem" onChange={onChangeEntry} onEnterPressed={handleEnterPressed} ui_variable={input_value}/>
                 <button className={styles.add_button} onClick={addWords}>{t("config_page.transcription.mic_word_filter.add_button_label")}</button>
             </div>
         </div>
@@ -139,8 +139,10 @@ export const WordFilterListToggleComponent = () => {
     return (
         <div className={styles.toggle_button_container}>
             <p className={styles.words_count_text}>{t("config_page.transcription.mic_word_filter.count_desc", {count: currentMicWordFilterList.data.length} )}</p>
-            <button className={styles.toggle_button_wrapper} onClick={OnclickFunction}>
-                <ArrowLeftSvg className={svg_class_names}/>
+            <button type="button" className={styles.toggle_button_wrapper} onClick={OnclickFunction}
+                aria-expanded={currentIsOpenedMicWordFilterList.data === true}
+                aria-label={t("config_page.transcription.mic_word_filter.count_desc", {count: currentMicWordFilterList.data.length})}>
+                <ArrowLeftSvg className={svg_class_names} aria-hidden="true"/>
             </button>
         </div>
     );

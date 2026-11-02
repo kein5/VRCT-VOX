@@ -297,33 +297,33 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
                 { !local_var.translation_first ?
                 <div className={styles.input_wrapper}>
                     <div className={styles.input_contents}>
-                        <_Entry ui_variable={toUiValue(local_var.message.prefix)} width={ENTRY_WIDTH} onChange={handleChange("message", "prefix")} />
+                        <_Entry aria-label={t("config_page.others.message_format_common.settings.before_original")} ui_variable={toUiValue(local_var.message.prefix)} width={ENTRY_WIDTH} onChange={handleChange("message", "prefix")} />
                         <p className={styles.preset_text}>{LABEL_ORIGINAL}</p>
-                        <_Entry ui_variable={toUiValue(local_var.message.suffix)} width={ENTRY_WIDTH} onChange={handleChange("message", "suffix")} />
+                        <_Entry aria-label={t("config_page.others.message_format_common.settings.after_original")} ui_variable={toUiValue(local_var.message.suffix)} width={ENTRY_WIDTH} onChange={handleChange("message", "suffix")} />
                     </div>
                     <div className={styles.input_contents}>
-                        <_Entry ui_variable={toUiValue(local_var.separator)} width={ENTRY_WIDTH} onChange={handleChange("separator")} />
+                        <_Entry aria-label={t("config_page.others.message_format_common.settings.between")} ui_variable={toUiValue(local_var.separator)} width={ENTRY_WIDTH} onChange={handleChange("separator")} />
                     </div>
                     <div className={styles.input_contents}>
-                        <_Entry ui_variable={toUiValue(local_var.translation.prefix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "prefix")} />
+                        <_Entry aria-label={t("config_page.others.message_format_common.settings.before_translation")} ui_variable={toUiValue(local_var.translation.prefix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "prefix")} />
                         <p className={styles.preset_text}>{LABEL_TRANSLATED}</p>
-                        <_Entry ui_variable={toUiValue(local_var.translation.suffix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "suffix")} />
+                        <_Entry aria-label={t("config_page.others.message_format_common.settings.after_translation")} ui_variable={toUiValue(local_var.translation.suffix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "suffix")} />
                     </div>
                 </div>
                 :
                 <div className={styles.input_wrapper}>
                     <div className={styles.input_contents}>
-                        <_Entry ui_variable={toUiValue(local_var.translation.prefix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "prefix")} />
+                        <_Entry aria-label={t("config_page.others.message_format_common.settings.before_translation")} ui_variable={toUiValue(local_var.translation.prefix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "prefix")} />
                         <p className={styles.preset_text}>{LABEL_TRANSLATED}</p>
-                        <_Entry ui_variable={toUiValue(local_var.translation.suffix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "suffix")} />
+                        <_Entry aria-label={t("config_page.others.message_format_common.settings.after_translation")} ui_variable={toUiValue(local_var.translation.suffix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "suffix")} />
                     </div>
                     <div className={styles.input_contents}>
-                        <_Entry ui_variable={toUiValue(local_var.separator)} width={ENTRY_WIDTH} onChange={handleChange("separator")} />
+                        <_Entry aria-label={t("config_page.others.message_format_common.settings.between")} ui_variable={toUiValue(local_var.separator)} width={ENTRY_WIDTH} onChange={handleChange("separator")} />
                     </div>
                     <div className={styles.input_contents}>
-                        <_Entry ui_variable={toUiValue(local_var.message.prefix)} width={ENTRY_WIDTH} onChange={handleChange("message", "prefix")} />
+                        <_Entry aria-label={t("config_page.others.message_format_common.settings.before_original")} ui_variable={toUiValue(local_var.message.prefix)} width={ENTRY_WIDTH} onChange={handleChange("message", "prefix")} />
                         <p className={styles.preset_text}>{LABEL_ORIGINAL}</p>
-                        <_Entry ui_variable={toUiValue(local_var.message.suffix)} width={ENTRY_WIDTH} onChange={handleChange("message", "suffix")} />
+                        <_Entry aria-label={t("config_page.others.message_format_common.settings.after_original")} ui_variable={toUiValue(local_var.message.suffix)} width={ENTRY_WIDTH} onChange={handleChange("message", "suffix")} />
                     </div>
                 </div>
                 }
@@ -332,13 +332,13 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
                         <p className={styles.multi_translation_title}>{LABEL_FOR_MULTI_TRANSLATION}</p>
                         <div className={styles.input_contents}>
                             <p className={styles.preset_text}>{LABEL_TRANSLATED}</p>
-                            <_Entry ui_variable={toUiValue(local_var.translation.separator)} width={ENTRY_WIDTH} onChange={handleChange("translation", "separator")} />
+                            <_Entry aria-label={t("config_page.others.message_format_common.settings.between_translations")} ui_variable={toUiValue(local_var.translation.separator)} width={ENTRY_WIDTH} onChange={handleChange("translation", "separator")} />
                             <p className={styles.preset_text}>{LABEL_TRANSLATED}</p>
                         </div>
                     </div>
                 }
                 <div className={styles.reset_button_wrapper}>
-                    <ResetButton onClickFunction={resetFunction}/>
+                    <ResetButton onClickFunction={resetFunction} label={`${label_title}: ${t("common.reset_to_default")}`}/>
                 </div>
             </div>
         </div>

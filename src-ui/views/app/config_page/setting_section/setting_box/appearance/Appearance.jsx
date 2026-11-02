@@ -149,6 +149,13 @@ const FontFamilyContainer = () => {
         setSelectedFontFamily(selected_data.selected_id);
     };
     const { currentSelectableFontFamilyList } = useStore_SelectableFontFamilyList();
+    // A saved font missing from this system (the default is a Windows font)
+    // is listed with a note, since the UI is drawn with a fallback instead.
+    const fonts = currentSelectableFontFamilyList.data;
+    const selected = currentSelectedFontFamily.data;
+    const list = selected && Object.keys(fonts).length && !(selected in fonts)
+        ? { [selected]: t("config_page.appearance.font_family.not_installed", { name: selected }), ...fonts }
+        : fonts;
 
     return (
         <DropdownMenuContainer
@@ -156,7 +163,7 @@ const FontFamilyContainer = () => {
             dropdown_id="font_family"
             label={t("config_page.appearance.font_family.label")}
             selected_id={currentSelectedFontFamily.data}
-            list={currentSelectableFontFamilyList.data}
+            list={list}
             selectFunction={selectFunction}
             state={currentSelectedFontFamily.state}
         />

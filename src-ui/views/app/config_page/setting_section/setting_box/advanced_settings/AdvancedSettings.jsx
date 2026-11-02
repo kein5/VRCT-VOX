@@ -204,14 +204,15 @@ const WebsocketUrlContainer = () => {
 
     const host = currentWebsocketHost.data === "0.0.0.0" ? "127.0.0.1" : currentWebsocketHost.data;
     const token = currentWebsocketAuthToken.data;
-    const url = token
-        ? `ws://${host}:${currentWebsocketPort.data}/?token=${encodeURIComponent(token)}`
-        : `ws://${host}:${currentWebsocketPort.data}`;
+    const base = `ws://${host}:${currentWebsocketPort.data}`;
+    const url = token ? `${base}/?token=${encodeURIComponent(token)}` : base;
+    // The token stays off screen (screenshots, streams); the copy has it.
+    const shown = token ? `${base}/?token=••••••••` : base;
 
     return (
         <ActionButtonContainer
             label={t("config_page.advanced_settings.websocket_url.label")}
-            desc={url}
+            desc={shown}
             IconComponent={CopyThinSvg}
             ClickedIconComponent={CheckMarkSvg}
             clicked_duration={1000}

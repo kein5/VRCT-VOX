@@ -109,6 +109,8 @@ common:
     close_button_label: "Close"
     go_back_button_label: "Go Back"
     default_label: "Default"
+    reset_to_default: "Reset to default"
+    copy_version: "Copy version {{version}}"
 
 common_error:
     ctranslate2_license_consent_required: "{{weight_type}} has a non-commercial license (CC-BY-NC-4.0). Confirm the license in Settings > Translation first."
@@ -156,6 +158,7 @@ main_page:
     your_language: "Your Language"
     translate_each_other_label: "Translate Both Languages"
     swap_button_label: "Switch Languages"
+    help_link: "Open the VRCT-VOX guide"
     target_language: "Target Language"
     add_target_language: "Add a target language"
     remove_target_language: "Remove the last target language"
@@ -181,6 +184,8 @@ main_page:
     language_selector:
         title_your_language: "Select Your Language"
         title_target_language: "Select Target Language"
+        filter: "Filter languages"
+        no_results: "No matching languages"
 
     update_available: "New version is ready!"
     updating: "Now updating..."
@@ -322,6 +327,7 @@ config_page:
             desc: "When hovering over a sent message log, the resend button appears. Click to edit, long press to resend."
         font_family:
             label: "Font Family"
+            not_installed: "{{name}} (not installed; a fallback font is shown)"
         ui_language:
             label: "UI Language"
 
@@ -507,6 +513,7 @@ config_page:
         auto_export_message_logs:
             label: "Auto Save Message Logs"
             desc: "Automatically saves the conversation messages as text files."
+            open_folder: "Open the logs folder"
         vrc_mic_mute_sync:
             label: "VRC Mic Mute Sync"
             desc: "Messages will not be sent to VRChat while VRChat's mic is muted.\n*There may be a slight delay. Push-To-Talk is not supported."
@@ -534,6 +541,12 @@ config_page:
                 original: "Original"
                 translated: "Translation"
                 for_multi_translation: "For Multi-Translation"
+                before_original: "Before the original"
+                after_original: "After the original"
+                between: "Between original and translation"
+                before_translation: "Before the translation"
+                after_translation: "After the translation"
+                between_translations: "Between translations"
         send_message_format:
             label: "Message Format (Send)"
             desc: "This allows you to change the format of the message that others see in VRChat."
@@ -852,7 +865,7 @@ realtime:
   auto_help: "Automatic detection needs a model that detects the language, such as Qwen3-ASR. The bundled ASR server loads one model for both inputs, so choose Qwen3-ASR if other players speak languages other than Japanese."
   follow_default_mic: "Follow the system default input"
   follow_default_speaker: "Follow the system default output"
-  follow_default_help: "The system default is read when captions start and kept until they stop. VRCT's own virtual devices are never captured."
+  follow_default_help: "The system default is read when captions start and kept until they stop. VRCT-VOX's own virtual devices are never captured."
   vocabulary: "Term dictionary"
   vocabulary_help: "Terms the recognizer should hear and write as given. Haas-ja takes them as keywords; Qwen3-ASR gets a short hint of them. Write one term per entry, optionally with readings after \"=\" separated by commas, such as VRChat=ブイアールチャット,ブイチャ. List only terms you need: each one adds a small chance of a word that was not said. Changing the dictionary stops running captions."
   vocabulary_builtin: "Use the built-in VRChat terms"
@@ -866,7 +879,7 @@ realtime_toggle:
   generic: "Realtime recognition could not start or has stopped ({{reason}}). Check Settings → Transcription → Realtime captions."
   realtime_endpoint_required: "No input is selected. In Settings → Transcription → Realtime captions, choose a device or the system default, save, and turn this on again."
   realtime_default_endpoint_missing: "The system default device was not found. Connect a device, or choose one in Settings → Transcription → Realtime captions, then turn this on again."
-  realtime_default_endpoint_feedback: "The system default is a VRCT virtual device, which would capture VRCT's own speech. Choose your real device in Settings → Transcription → Realtime captions or change the system default, then turn this on again."
+  realtime_default_endpoint_feedback: "The system default is a VRCT-VOX virtual device, which would capture VRCT-VOX's own speech. Choose your real device in Settings → Transcription → Realtime captions or change the system default, then turn this on again."
   realtime_asr_model_missing: "The bundled ASR server has no recognition model. In Settings → Transcription → Bundled speech.cpp servers → ASR + VAD, download and apply Qwen3-ASR (30 languages) or Haas-ja (Japanese), then turn this on again."
   realtime_vad_model_missing: "The bundled ASR server has no VAD model. In Settings → Transcription → Bundled speech.cpp servers → ASR + VAD, download and apply Silero VAD, then turn this on again."
   speech_server_model_invalid: "A model file of the bundled ASR server is missing or is not a GGUF file. Check the model and VAD paths in Settings → Transcription → Bundled speech.cpp servers → ASR + VAD."
@@ -977,6 +990,7 @@ voice_ui:
     discard: "Discard changes"
     save_bar: "Save settings"
     save_changes: "Save changes"
+    select_rvc: "Use RVC for direct voice"
     save_changes_short: "Save"
     discard_short: "Discard"
     changed_items: "Changed settings"

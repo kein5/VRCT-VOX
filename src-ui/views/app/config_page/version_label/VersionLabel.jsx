@@ -1,11 +1,13 @@
 import clsx from "clsx";
 import styles from "./VersionLabel.module.scss";
 
+import { useI18n } from "@useI18n";
 import { useSoftwareVersion, useComputeMode, useCopyToClipboard } from "@logics_common";
 import CopySvg from "@images/copy.svg?react";
 import CheckMarkSvg from "@images/check_mark.svg?react";
 
 export const VersionLabel = ({ isCompact = false }) => {
+    const { t } = useI18n();
     const { currentSoftwareVersion } = useSoftwareVersion();
     const { currentComputeMode } = useComputeMode();
     const { is_copied, copyToClipboard } = useCopyToClipboard();
@@ -38,6 +40,10 @@ export const VersionLabel = ({ isCompact = false }) => {
                     [styles.is_compact]: isCompact,
                 })}
                 onClick={onCopy}
+                {...(isCompact ? {} : {
+                    role: "button", tabIndex: 0, "aria-label": t("common.copy_version", { version: software_version_number }),
+                    onKeyDown: event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); onCopy(); } },
+                })}
             >
                 {isCompact ? (
                     <div className={styles.compact_content}>
