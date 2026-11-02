@@ -19,7 +19,11 @@ export const OpenQuickSettingButton = (props) => {
 
     return (
         <div className={styles.container}>
-            <button type="button" disabled={is_pending || !is_available} aria-label={props.label}
+            {/* The visible label and state are the name; toggles report pressed,
+                and Overlay(VR) says it opens a dialog. */}
+            <button type="button" disabled={is_pending || !is_available}
+                aria-pressed={!props.opens_dialog && variable !== null ? variable : undefined}
+                aria-haspopup={props.opens_dialog ? "dialog" : undefined}
                 className={clsx(styles.button_wrapper, is_pending && styles.is_pending)}
                 onClick={is_pending ? undefined : props.onClickFunction}
             >

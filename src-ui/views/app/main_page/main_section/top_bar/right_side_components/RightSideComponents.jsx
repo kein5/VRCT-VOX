@@ -73,6 +73,7 @@ const OpenOverlayQuickSetting = () => {
     return (
         <OpenQuickSettingButton
             label="Overlay(VR)"
+            opens_dialog
             variable={is_enable}
             onClickFunction={onClickFunction}
         />
