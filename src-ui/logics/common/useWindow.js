@@ -94,7 +94,11 @@ export const useWindow = () => {
     const asyncUpdateBreakPoint = async () => {
         const size = await appWindow.innerSize();
         const dynamicBreakPoint = 800 * (currentUiScaling.data / 100);
-        updateIsBreakPoint(size.width <= dynamicBreakPoint);
+        const narrow = size.width <= dynamicBreakPoint;
+        updateIsBreakPoint(narrow);
+        // CSS width queries miss the UI size: at 200% an 870px window lays
+        // out like a 435px one. Narrow styles also key on this attribute.
+        document.documentElement.toggleAttribute("data-narrow", narrow);
     };
 
     const WindowGeometryController = () => {

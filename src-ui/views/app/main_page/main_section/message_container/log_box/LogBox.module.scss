@@ -13,3 +13,4 @@
 .empty p { max-width: 42rem; font-size: 1.4rem; line-height: 1.8; color: var(--dark_450_color); }
 
 @media (max-width: 800px) { .empty { padding: 1rem; } .empty h1 { font-size: 1.8rem; } .empty p { font-size: 1.3rem; } }
+:global(html[data-narrow]) { .empty { padding: 1rem; } .empty h1 { font-size: 1.8rem; } .empty p { font-size: 1.3rem; } }
