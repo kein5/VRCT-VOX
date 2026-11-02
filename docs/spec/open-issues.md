@@ -20,6 +20,9 @@
 | OI-15 | Linuxのビルドは`uv export --no-hashes`で依存を書き出すため、`uv.lock`にあるパッケージのハッシュを確かめない。commitで固定したVCSの依存と両立させる必要がある | `tools/build_linux.py` | 未着手 |
 | OI-16 | `config.json`の書き込みに失敗しても（読み取り専用、容量不足）、例外を捨てて成功を返す。再起動すると変更が消える | `src-python/config.py`（`saveConfigToFile`ほか） | 通知のしかたが未決 |
 | OI-17 | 会話ログはUIのメモリーと画面に際限なく残り、VR UIがオンなら変わるたびに全件をVRパネルへ送る。長時間使うと遅くなる | `src-ui/logics/common/useMessage.js`、`VrPanelSyncController.jsx` | 上限を設けるか未決 |
+| OI-18 | 起動時のエンジンの確認に、全体の時間の上限がない。個々の要求には時間の上限があるが、少しずつ応答を返し続けるサーバーでは起動が終わらない | `src-python/controller.py`（`check_translation_engine`と`as_completed`） | 未着手 |
+| OI-19 | LLMの訳が長さの上限で切れても（`finish_reason`が`length`）、成功として扱う。空の訳だけは失敗にした | `src-python/models/translation/translation_openai.py`、`translation_lmstudio.py` | 未着手 |
+| OI-20 | WebSocketサーバーの起動が6秒を超えると失敗として返すが、その起動の試みは止めない。遅れて起動したり、次の起動の後片付けと重なったりするおそれがある（実際には確かめていない） | `src-python/model.py`（`startWebSocketServer`） | 未確認 |
 
 ## 調べて直したもの
 
@@ -31,7 +34,7 @@
 - OpenAIの`gpt-4o-transcribe`系に、対応していない`verbose_json`を要求していた。
 - 設定値が拒否されたとき（`VALIDATION_CONFIG_VALUE_INVALID`）、UIに分岐がなく「開発者に連絡」の通知になっていた。
 - 使われていないTauriのコマンド`download_zip_asset`が任意のURLを取得できた（OI-02）。コマンドと、そのためだけの依存（reqwest、base64）を外した。
-- 起動時のAPIキーの確認に失敗すると、キーを消していた。オフラインで起動するだけで保存したキーがすべて消えた。
+- 起動時のAPIキーの確認に失敗すると、キーを消していた。オフラインで起動するだけで保存したキーがすべて消えた。キーを入れ直して確認に失敗したときも、保存してあったキーを消していた。
 - 起動時のOllamaのモデル一覧の取得に時間の上限がなく、応答が止まると起動が終わらなかった。
 - LLMが空の訳を返すと成功として扱い、訳だけを送る設定では何も送らなかった。
 - WebSocketサーバーの実際のbindが失敗しても、有効にしたと返していた。
