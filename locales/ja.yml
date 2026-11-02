@@ -122,6 +122,12 @@ common:
     copy_version: "バージョン {{version}} をコピー"
 
 common_error:
+    config_save_failed:
+        disk_full: "設定を保存できません。保存先の空き容量が足りません。容量を空けると自動で保存し直します。それまでの変更は、VRCT-VOXを終了すると失われます。（{{file}}）"
+        permission_denied: "設定を保存できません。保存先に書き込む権限がありません。フォルダの権限を確認してください。直ると自動で保存し直します。それまでの変更は、VRCT-VOXを終了すると失われます。（{{file}}）"
+        read_only: "設定を保存できません。保存先が読み取り専用です。直ると自動で保存し直します。それまでの変更は、VRCT-VOXを終了すると失われます。（{{file}}）"
+        write_failed: "設定を保存できません。保存先の状態を確認してください。直ると自動で保存し直します。それまでの変更は、VRCT-VOXを終了すると失われます。（{{file}}）"
+        recovered: "設定を保存できるようになり、変更を保存しました。"
     unexpected_error: "予期しないエラーが起きました（{{code}}）。直らないときはVRCT-VOXを再起動してください。続くようなら、このコードを添えてVRCT-VOXのIssuesで知らせてください。"
     backend_stopped: "VRCT-VOXの処理部分が予期せず停止しました（コード {{code}}）。設定やスイッチは反応しません。VRCT-VOXを再起動してください。"
     transcription_api_auth_failed: "音声認識サービスがAPIキーを受け付けませんでした。キーと、カスタムサーバーの場合はURLを確認してください。"

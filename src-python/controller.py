@@ -6842,6 +6842,12 @@ class Controller:
         if getattr(config, "UNREADABLE_CONFIG_BACKUP", None):
             self.run(200, self.run_mapping["config_file_unreadable"], {"backup": config.UNREADABLE_CONFIG_BACKUP})
 
+        # 設定を書き込めなかったら知らせる (書き直せたら、それも知らせる)
+        config.setSaveCallbacks(
+            lambda reason, path: self.run(200, self.run_mapping["config_save_failed"], {"reason": reason, "path": path}),
+            lambda: self.run(200, self.run_mapping["config_save_recovered"], True),
+        )
+
         printLog(f"End Initialization ({time.monotonic() - init_started:.2f}s)")
 
 

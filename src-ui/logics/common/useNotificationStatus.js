@@ -1,5 +1,6 @@
 import { useStore_NotificationStatus } from "@store";
 import { useI18n } from "@useI18n";
+import { toast } from "react-toastify";
 
 export const useNotificationStatus = () => {
     const { currentNotificationStatus, updateNotificationStatus } = useStore_NotificationStatus();
@@ -30,6 +31,10 @@ export const useNotificationStatus = () => {
         });
     };
 
+    // Close one notification by its category_id (the snackbar uses it as the toast id).
+    // A notification that never hides blocks a new one with the same id, so close it first.
+    const dismissNotification = (category_id) => toast.dismiss(category_id);
+
     const closeNotification = () => {
         updateNotificationStatus((prev) => ({
             ...prev.data,
@@ -46,5 +51,6 @@ export const useNotificationStatus = () => {
         showNotification_Success,
         showNotification_SaveSuccess,
         closeNotification,
+        dismissNotification,
     };
 };

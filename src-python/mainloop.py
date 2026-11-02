@@ -178,6 +178,8 @@ run_mapping = {
     "initialization_progress":"/run/initialization_progress",
     "initialization_complete":"/run/initialization_complete",
     "config_file_unreadable":"/run/config_file_unreadable",
+    "config_save_failed":"/run/config_save_failed",
+    "config_save_recovered":"/run/config_save_recovered",
 
     "enable_osc_query":"/run/enable_osc_query",
 }

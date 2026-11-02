@@ -399,7 +399,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/run/feed_watchdog` | 実行 | `feedWatchdog` | 可 | （受け取るだけ） |  |
 
 
-## 通知（サイドカーからUIへ、85件）
+## 通知（サイドカーからUIへ、87件）
 
 要求への応答とは別に、サイドカーが自分から送るメッセージ。`controller.run(status, run_mapping[名前], result)`で送る。
 
@@ -489,6 +489,8 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `initialization_progress` | `/run/initialization_progress` | useInitProgress.updateInitProgress |
 | `initialization_complete` | `/run/initialization_complete` | — |
 | `config_file_unreadable` | `/run/config_file_unreadable` | （受け取るだけ） |
+| `config_save_failed` | `/run/config_save_failed` | （受け取るだけ） |
+| `config_save_recovered` | `/run/config_save_recovered` | （受け取るだけ） |
 | `enable_osc_query` | `/run/enable_osc_query` | useHandleOscQuery.handleOscQuery |
 
 
