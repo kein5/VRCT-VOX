@@ -5,6 +5,7 @@ import Babel from "@babel/standalone";
 import React from "react";
 import * as jsx from "react/jsx-runtime";
 import clsx from "clsx";
+import * as chatboxLength from "./chatboxLength.js";
 
 // Exercise the production JSX handlers without a WebView or a new test runtime.
 // Hooks retain state across explicit renders; IPC promises are controlled by tests.
@@ -271,6 +272,8 @@ test("composer reads history only on explicit recall and sees the latest retaine
             return { data: name === "SendMessageButtonType" ? "show" : true };
         } },
         "@logics_main": { useMessageLogScroll: () => ({ scrollToBottom() {} }) },
+        "../../../../../../logics/common/chatboxLength": chatboxLength,
+        "./ChatboxLengthWarning": { CHATBOX_LENGTH_WARNING_ID: "chatbox_length_warning" },
     });
     assert.equal(MessageInputBox.$$typeof, Symbol.for("react.memo"));
     const render = () => find(runtime.render(MessageInputBox.type), node => node.type === "textarea");

@@ -12,3 +12,8 @@
     span { min-width: 0; overflow-wrap: anywhere; }
     button { flex-shrink: 0; }
 }
+.length_warning {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem 1rem; padding: .6rem 1.2rem; font-size: 1.3rem; line-height: 1.5;
+    color: var(--vox_state_warning); background: var(--vox_warning_tint); border-radius: var(--vox_radius);
+}
+.length_count { font-variant-numeric: tabular-nums; white-space: nowrap; }

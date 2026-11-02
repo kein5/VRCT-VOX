@@ -1,0 +1,19 @@
+.warning {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.2rem 1rem;
+    margin-bottom: 0.6rem;
+    padding: 0.6rem 1.2rem;
+    font-size: 1.3rem;
+    line-height: 1.5;
+    color: var(--vox_state_warning);
+    background-color: var(--vox_warning_tint);
+    border-radius: 0.8rem;
+}
+
+.count {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}

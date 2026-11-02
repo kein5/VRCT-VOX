@@ -5,7 +5,7 @@
 | ID | 内容 | 根拠 | 状態 |
 |---|---|---|---|
 | OI-01 | VRパネルのウィンドウ名が一致しない可能性がある。Rustは`VRCT-VOX VR Panel`という名前でウィンドウを作るが、Windowsのオーバーレイは`FindWindowW`で`VRCT VR Panel`（`vr.html`の`<title>`）を探す。WebView2が文書の題名をウィンドウ名に写さなければ、Windowsでは取り込めない | `src-tauri/src/lib.rs`（ウィンドウ作成）、`src-python/models/overlay/window_capture.py` | Windowsの実機で未確認 |
-| OI-03 | VRChatへ送る文に長さの上限や分割の処理がない。VRChat側の上限を超えたときの扱いが決まっていない | `src-python/models/osc/osc.py` | VRChat側の仕様が未確認 |
+| OI-03 | VRChatへ送る文に長さの上限や分割の処理がない。VRChatのチャットボックスに表示されるのは144文字まで | `src-python/models/osc/osc.py`、`src-ui/logics/common/chatboxLength.js` | 切り詰めと分割はしないと決めた（2026-11-03）。入力が144文字を超えたら、メイン画面の入力欄とQuick Chatの入力欄のそばに警告を出す。翻訳を付けて送る文の長さは数えていない |
 | OI-04 | `run_mapping`の`send_text_overlay`と`vr_launcher_reset`は定義だけで、送っている箇所がない | [IPCエンドポイント一覧](reference/ipc-endpoints.md)の「UIに受信先がないエンドポイント」 | 未着手 |
 | OI-05 | 「最前面固定」はUIがウィンドウに直接設定し、サイドカーの`/set/enable/foreground`は使われていない。値は保存されず、再起動すると戻る | `src-ui/logics/main/useMainFunction.js` | 保存するかどうか未決 |
 | OI-06 | `/run/enable_ai_models`を受けて更新する`IsVrctAvailable`を読む画面がない。いまはお知らせを出すだけである | `src-ui/logics/common/useIsVrctAvailable.jsx` | 未決 |

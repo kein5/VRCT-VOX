@@ -4,6 +4,7 @@ import styles from "./MessageContainer.module.scss";
 import { LogBox } from "./log_box/LogBox";
 import { MessageLogSettingsContainer } from "./message_log_settings_container/MessageLogSettingsContainer";
 import { MessageInputBox } from "./message_input_box/MessageInputBox";
+import { ChatboxLengthWarning } from "./message_input_box/ChatboxLengthWarning";
 import { useMessageInputBoxRatio } from "@logics_main";
 import { MessageActionsProvider } from "@logics_common";
 
@@ -72,6 +73,7 @@ export const MessageContainer = memo(function MessageContainer() {
                 <MessageLogSettingsContainer to_visible_toggle_bar={is_hovered} />
             </div>
             <Separator {...separatorProps} ref={separator_ref} />
+            <ChatboxLengthWarning />
             <div
                 className={styles.message_box_resize_wrapper}
                 ref={message_input_box_wrapper_ref}

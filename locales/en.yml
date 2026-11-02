@@ -1289,6 +1289,8 @@ studio:
     message_input: "Message"
     message_placeholder: "Type a message…"
     send_message: "Send message"
+    chatbox_too_long: "Over {{max}} characters. VRChat's chatbox shows up to {{max}} characters."
+    chatbox_length: "{{length}} / {{max}}"
     open_settings: "Open settings"
     minimize: "Minimize window"
     maximize: "Maximize or restore window"
