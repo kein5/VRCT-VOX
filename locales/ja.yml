@@ -648,6 +648,7 @@ config_page:
 
     hotkeys:
         input_placeholder: "キーの組み合わせを入力"
+        unassigned_placeholder: "未割り当て"
         disabled_notice: "※設定画面を開いている間は、キーの誤作動を防ぐためホットキー機能が一時的に無効化されます。"
         section_label_quick_chat: "入力の小窓"
         section_label_toggles: "ウィンドウと機能の切り替え"
