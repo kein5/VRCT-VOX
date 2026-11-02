@@ -113,6 +113,7 @@ common:
     copy_version: "Copy version {{version}}"
 
 common_error:
+    backend_stopped: "The VRCT-VOX engine stopped unexpectedly (code {{code}}). Settings and switches no longer respond. Please restart VRCT-VOX."
     transcription_api_auth_failed: "The speech recognition service did not accept the API key. Check the key and, for a custom server, its URL."
     transcription_model_invalid: "That speech recognition model is not available."
     transcription_custom_url_invalid: "Could not reach the custom Whisper server or find a model there. Check the URL."
@@ -1041,6 +1042,7 @@ voice_ui:
     input_conflict: "Another direct input engine is running. Stop it on its settings page before switching."
     check_settings: "Check {{page}} settings."
     errors:
+        backend_unavailable: "Cannot reach the VRCT-VOX engine."
         voice_route_muted: "Voice output is muted. In Settings → Device → Voice route, press \"Resume voice\", then turn TTS on again."
         voice_route_closed: "The voice route is shutting down. Restart VRCT-VOX, then turn TTS on again."
         tts_source_not_selected: "Choose what to speak first: in Settings → TTS, set chat speech or Realtime microphone speech to something other than Off and save."

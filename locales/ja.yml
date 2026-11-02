@@ -113,6 +113,7 @@ common:
     copy_version: "バージョン {{version}} をコピー"
 
 common_error:
+    backend_stopped: "VRCT-VOXの処理部分が予期せず停止しました（コード {{code}}）。設定やスイッチは反応しません。VRCT-VOXを再起動してください。"
     transcription_api_auth_failed: "音声認識サービスがAPIキーを受け付けませんでした。キーと、カスタムサーバーの場合はURLを確認してください。"
     transcription_model_invalid: "その音声認識モデルは使えません。"
     transcription_custom_url_invalid: "カスタムWhisperサーバーに接続できないか、モデルが見つかりませんでした。URLを確認してください。"
@@ -1041,6 +1042,7 @@ voice_ui:
     input_conflict: "別の直接音声エンジンが動作中です。切り替える前に、その設定ページで停止してください。"
     check_settings: "{{page}}設定を確認してください。"
     errors:
+        backend_unavailable: "VRCT-VOXの処理部分に接続できません。"
         voice_route_muted: "音声出力がミュート中です。設定の「デバイス」→「音声経路」で「音声を再開」を押してから、TTSをオンにしてください。"
         voice_route_closed: "音声経路を終了中です。VRCT-VOXを再起動してから、TTSをオンにしてください。"
         tts_source_not_selected: "読み上げる内容が選ばれていません。設定の「TTS」で「読み上げ」または「Realtimeマイクの発声」を「OFF」以外にして保存してください。"

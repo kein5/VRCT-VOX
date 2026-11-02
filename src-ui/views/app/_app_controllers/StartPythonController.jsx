@@ -7,6 +7,7 @@ import { useReceiveRoutes } from "@useReceiveRoutes";
 import { store, useStore_SelectableFontFamilyList } from "@store";
 import { arrayToObject } from "@utils";
 import { isSidecarWarning } from "../../../logics/common/sidecarDiagnostics";
+import { useI18n } from "@useI18n";
 
 import {
     useNotificationStatus,
@@ -58,12 +59,22 @@ export const StartPythonController = () => {
 };
 
 const useStartPython = () => {
+    const { t } = useI18n();
     const { receiveRoutes } = useReceiveRoutes();
     const { showNotification_Success, showNotification_Error } = useNotificationStatus();
 
     const asyncStartPython = async () => {
         const command = Command.sidecar("bin/vrct-vox-sidecar");
         command.on("error", error => console.error(`error: "${error}"`));
+        // An exit nobody asked for (a crash or a kill) would otherwise leave
+        // every switch waiting for an answer that never comes.
+        command.on("close", ({ code, signal } = {}) => {
+            store.backend_subprocess = null;
+            if (store.backend_exit_expected) return;
+            console.error("sidecar exited", { code, signal });
+            showNotification_Error(t("common_error.backend_stopped", { code: code ?? signal ?? "?" }),
+                { hide_duration: null, category_id: "backend_stopped" });
+        });
         command.stdout.on("data", (line) => {
             // Windows上のPython(CRLF)とTauriのread_line(\rまたは\nで区切る仕様)により、
             // バッファ境界等で改行単体('\n')が空行として渡ることがある。
