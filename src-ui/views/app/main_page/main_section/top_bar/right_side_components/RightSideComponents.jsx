@@ -32,6 +32,7 @@ export const RightSideComponents = () => {
             <a
                 className={styles.help_and_info_button}
                 aria-label={t("main_page.help_link")}
+                title={t("main_page.help_link")}
                 href={generateLocalizedDocumentUrl(currentUiLanguage.data).vrct_document_ui_guide_url}
                 target="_blank"
                 rel="noreferrer"
@@ -57,7 +58,7 @@ const OpenForegroundQuickSetting = () => {
 };
 
 const OpenOverlayQuickSetting = () => {
-    // const { t } = useI18n();
+    const { t } = useI18n();
     const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
     const {
         currentIsEnabledOverlaySmallLog,
@@ -72,7 +73,7 @@ const OpenOverlayQuickSetting = () => {
 
     return (
         <OpenQuickSettingButton
-            label="Overlay(VR)"
+            label={t("config_page.vr.section_label_overlay")}
             opens_dialog
             variable={is_enable}
             onClickFunction={onClickFunction}

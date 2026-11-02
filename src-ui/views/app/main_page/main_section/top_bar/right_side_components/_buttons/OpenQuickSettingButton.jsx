@@ -20,7 +20,7 @@ export const OpenQuickSettingButton = (props) => {
     return (
         <div className={styles.container}>
             {/* The visible label and state are the name; toggles report pressed,
-                and Overlay(VR) says it opens a dialog. */}
+                and the subtitle overlay button says it opens a dialog. */}
             <button type="button" disabled={is_pending || !is_available}
                 aria-pressed={!props.opens_dialog && variable !== null ? variable : undefined}
                 aria-haspopup={props.opens_dialog ? "dialog" : undefined}
