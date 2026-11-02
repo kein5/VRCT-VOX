@@ -15,7 +15,6 @@ import AppearanceSvg from "@images/mui_palette.svg?react";
 import HeadphonesSvg from "@images/headphones.svg?react";
 import TranslationSvg from "@images/translation.svg?react";
 import GraphicEqSvg from "@images/mui_graphic_eq.svg?react";
-import DiscoverTuneSvg from "@images/mui_discover_tune.svg?react";
 import ChatTranscribeSvg from "@images/chat_transcribe.svg?react";
 import WarningSvg from "@images/warning.svg?react";
 
@@ -33,9 +32,8 @@ const CATEGORIES = [
     { id: "appearance", Icon: AppearanceSvg },
     { id: "translation", Icon: TranslationSvg },
     { id: "transcription", Icon: GraphicEqSvg },
-    { id: "ocr", Icon: ChatTranscribeSvg },
+    { id: "vrchat", Icon: ChatTranscribeSvg },
     { id: "vr", Icon: HmdSvg },
-    { id: "others", Icon: DiscoverTuneSvg },
 ];
 
 // 翻訳のAIのうち、接続済み (モデルの一覧が取れている) ものだけモデルを選べる
@@ -139,9 +137,8 @@ const Category = ({ id, t, openPicker }) => {
         case "appearance": return <AppearanceSettings t={t} openPicker={openPicker} />;
         case "translation": return <TranslationSettings t={t} openPicker={openPicker} />;
         case "transcription": return <TranscriptionSettings t={t} openPicker={openPicker} />;
-        case "ocr": return <OcrSettings t={t} openPicker={openPicker} />;
+        case "vrchat": return <VrchatSettings t={t} openPicker={openPicker} />;
         case "vr": return <VrSettings t={t} />;
-        case "others": return <OthersSettings t={t} />;
         default: return null;
     }
 };
@@ -177,6 +174,7 @@ const DeviceSettings = ({ t, openPicker }) => {
                 volume={currentMicVolume.data}
                 min={ui_configs.mic_threshold_min} max={ui_configs.mic_threshold_max} step={THRESHOLD_STEP}
             />
+            <VrcMicMuteSyncRow t={t} />
             <SectionLabel label={t("config_page.device.speaker_device.label")} />
             <ToggleRow label={t("config_page.device.label_auto_select")}
                 variable={d.currentEnableAutoSpeakerSelect} onToggle={d.toggleEnableAutoSpeakerSelect} />
@@ -199,12 +197,14 @@ const AppearanceSettings = ({ t, openPicker }) => {
     const names = createLanguageNames(i18n.language);
     const { currentUiLanguage, setUiLanguage, currentSelectedFontFamily, setSelectedFontFamily } = useAppearance();
     const { currentSelectableFontFamilyList } = useStore_SelectableFontFamilyList();
+    const o = useOthers();
     const languages = names.uiOptions(ui_configs.selectable_ui_languages);
     const label = t("config_page.appearance.ui_language.label");
     const font_label = t("config_page.appearance.font_family.label");
     const fonts = toOptions(currentSelectableFontFamilyList.data);
     return (
         <>
+            <SectionLabel label={t("config_page.appearance.section_label_display")} />
             <SelectRow label={label} value={languages.find(l => l.id === currentUiLanguage.data)?.label ?? currentUiLanguage.data}
                 is_pending={currentUiLanguage.state === "pending"}
                 onOpen={() => openPicker(label, ui_configs.selectable_ui_languages, currentUiLanguage.data, setUiLanguage, "ui")} />
@@ -212,6 +212,11 @@ const AppearanceSettings = ({ t, openPicker }) => {
                 is_pending={currentSelectedFontFamily.state === "pending" || currentSelectableFontFamilyList.state === "pending"}
                 is_disabled={fonts.length === 0} disabled_reason={t("vr_panel.settings.fonts_unavailable")}
                 onOpen={() => openPicker(font_label, fonts, currentSelectedFontFamily.data, setSelectedFontFamily)} />
+            <SectionLabel label={t("config_page.others.section_label_reading_aids")} />
+            <ToggleRow label={t("config_page.others.convert_message_to_hiragana.label")}
+                variable={o.currentConvertMessageToHiragana} onToggle={o.toggleConvertMessageToHiragana} />
+            <ToggleRow label={t("config_page.others.convert_message_to_romaji.label")}
+                variable={o.currentConvertMessageToRomaji} onToggle={o.toggleConvertMessageToRomaji} />
         </>
     );
 };
@@ -362,25 +367,33 @@ const VrSettings = ({ t }) => {
     );
 };
 
-const OthersSettings = ({ t }) => {
+// デスクトップと同じく、デバイスとVRChatの両方から同じ設定を操作する。
+const VrcMicMuteSyncRow = ({ t }) => {
     const o = useOthers();
     const { currentIsOscAvailable } = useIsOscAvailable();
+    return (
+        <ToggleRow label={t("config_page.others.vrc_mic_mute_sync.label")}
+            variable={o.currentEnableVrcMicMuteSync} onToggle={o.toggleEnableVrcMicMuteSync}
+            is_disabled={currentIsOscAvailable.data === false}
+            disabled_reason={t("config_page.common.warning_labels.unable_to_use_osc_query")} />
+    );
+};
+
+const VrchatSettings = ({ t, openPicker }) => {
+    const o = useOthers();
     const toggle = (name, key) => (
         <ToggleRow label={t(`config_page.others.${key}.label`)} variable={o[`current${name}`]} onToggle={o[`toggle${name}`]} />
     );
-    const is_osc_unavailable = currentIsOscAvailable.data === false;
     return (
         <>
+            <SectionLabel label={t("config_page.vrchat.section_label_chatbox")} />
             {toggle("EnableSendMessageToVrc", "send_message_to_vrc")}
             {toggle("EnableSendOnlyTranslatedMessages", "send_only_translated_messages")}
-            {toggle("EnableSendReceivedMessageToVrc", "send_received_message_to_vrc")}
             {toggle("EnableNotificationVrcSfx", "notification_vrc_sfx")}
-            <ToggleRow label={t("config_page.others.vrc_mic_mute_sync.label")}
-                variable={o.currentEnableVrcMicMuteSync} onToggle={o.toggleEnableVrcMicMuteSync}
-                is_disabled={is_osc_unavailable}
-                disabled_reason={t("config_page.common.warning_labels.unable_to_use_osc_query")} />
-            {toggle("ConvertMessageToRomaji", "convert_message_to_romaji")}
-            {toggle("ConvertMessageToHiragana", "convert_message_to_hiragana")}
+            {toggle("EnableSendReceivedMessageToVrc", "send_received_message_to_vrc")}
+            <VrcMicMuteSyncRow t={t} />
+            <SectionLabel label={t("config_page.ocr.section_title")} />
+            <OcrSettings t={t} openPicker={openPicker} />
         </>
     );
 };

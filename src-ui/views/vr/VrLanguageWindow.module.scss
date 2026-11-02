@@ -73,3 +73,9 @@
 .filter { width: 100%; min-width: 0; flex-shrink: 0; padding: 10px 14px; font: inherit; font-size: 19px;
     color: var(--dark_basic_text_color); background: var(--dark_850_color); border: 1px solid var(--dark_600_color); border-radius: 8px; }
 .filter:focus-visible, .filter[data-vr-hover]:not(:disabled) { outline: 3px solid var(--primary_100_color); outline-offset: -3px; }
+
+// Keep jumps reachable while the two-column list scrolls. At the fixed 720px
+// popup width, ten columns give each laser target at least 56 x 56px.
+.list_tools { flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.jump_groups { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; }
+.jump_button { min-width: 0; min-height: 56px; height: auto; padding: 6px 2px; font-size: 19px; line-height: 1.2; overflow-wrap: anywhere; white-space: normal; }
