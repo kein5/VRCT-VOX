@@ -23,9 +23,24 @@ import vrct_vox_icon from "@images/brand/icon-small.svg";
 
 import { VersionLabel } from "../version_label/VersionLabel.jsx";
 
+// Keyboard focus expands the rail; focus from a click or from opening the page does
+// not, or the rail would stay over the page after the pointer left. A focus counts as
+// keyboard focus when a key was pressed just before it (:focus-visible is not
+// reliable for this in WebKitGTK). Text fields always keep it open for typing.
+let lastKeyDownAt = -Infinity;
+if (typeof window !== "undefined") {
+    window.addEventListener("keydown", () => { lastKeyDownAt = performance.now(); }, true);
+}
+const isKeyboardFocus = (element) =>
+    element.matches?.("input:not([type=checkbox]):not([type=radio]), textarea") === true
+    || performance.now() - lastKeyDownAt < 1000;
+
 export const SidebarSection = () => {
     const { currentIsBreakPoint } = useStore_IsBreakPoint();
-    const [isHovered, setIsHovered] = useState(false);
+    const [isPointerOver, setIsPointerOver] = useState(false);
+    const [hasKeyboardFocus, setHasKeyboardFocus] = useState(false);
+    // Expand for the pointer and for keyboard focus (see isKeyboardFocus).
+    const isHovered = isPointerOver || hasKeyboardFocus;
 
     const container_class_names = clsx(styles.container, {
         [styles.is_small]: currentIsBreakPoint.data,
@@ -37,10 +52,10 @@ export const SidebarSection = () => {
     return (
         <div
             className={container_class_names}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            onFocusCapture={() => setIsHovered(true)}
-            onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setIsHovered(false); }}
+            onMouseEnter={() => setIsPointerOver(true)}
+            onMouseLeave={() => setIsPointerOver(false)}
+            onFocusCapture={event => setHasKeyboardFocus(isKeyboardFocus(event.target))}
+            onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setHasKeyboardFocus(false); }}
         >
             <div className={styles.scroll_container}>
                 <div className={styles.scroll_content}>

@@ -108,6 +108,12 @@ export const useWindow = () => {
         const unlistenResize = useRef(null);
         const unlistenMove   = useRef(null);
 
+        // Also decide at startup and once the saved UI size arrives: a window that opens
+        // narrow (or at a large UI size) never fires a resize event, so it kept the wide layout.
+        useEffect(() => {
+            asyncUpdateBreakPoint();
+        }, [currentUiScaling.data]);
+
         useEffect(() => {
             const setup = () => {
                 unlistenResize.current = appWindow.onResized(() => {
