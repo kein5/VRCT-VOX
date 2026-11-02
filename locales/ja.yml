@@ -1046,6 +1046,7 @@ quick_chat:
     send: "送信"
     sending: "送信中…"
     hint: "Shift+Enter: 改行 · Esc: 閉じる"
+    hint_enter_newline: "Enter: 改行 · Esc: 閉じる"
     open: "入力の小窓を開く"
     shortcut_hint: "小窓を開くキーを設定できます。初期状態では未割り当てです。Escで閉じても下書きは残ります。"
     clear_shortcut: "ショートカットを解除: {{action}}"
