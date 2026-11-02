@@ -1,15 +1,19 @@
 import asyncio
+import hmac
 import threading
 from dataclasses import dataclass, field
 from time import monotonic
 from http import HTTPStatus
 from urllib.parse import urlparse, parse_qs
 import websockets
-from websockets.asyncio.server import ServerConnection
+from websockets.asyncio.server import ServerConnection, broadcast
 from typing import Callable, Set, Optional
 from utils import errorLogging
 
 _STOP_JOIN_TIMEOUT = 2.0
+# The server only pushes messages; what clients send is ignored. Accept small
+# frames only (OWASP suggests 64 KB or less) instead of the 1 MiB default.
+_MAX_INCOMING_MESSAGE_SIZE = 64 * 1024
 
 
 @dataclass
@@ -89,7 +93,7 @@ class WebSocketServer:
         except Exception:
             query = {}
         supplied = query.get("token", [None])[0]
-        if supplied != self.token:
+        if not isinstance(supplied, str) or not hmac.compare_digest(supplied.encode(), self.token.encode()):
             return connection.respond(
                 HTTPStatus.FORBIDDEN, "Forbidden: invalid or missing token\n"
             )
@@ -131,13 +135,10 @@ class WebSocketServer:
         """
         すべての接続クライアントにメッセージを送信する非同期メソッド。
         """
-        if not self.clients:
-            return
-        # 全クライアントへ並列に送信
-        await asyncio.gather(
-            *[client.send(message) for client in self.clients],
-            return_exceptions=True
-        )
+        # 全員に届くまで待つと、いちばん遅いクライアントが時間切れになるまで
+        # 後続のメッセージも全員分止まる。websockets の broadcast() は待たずに
+        # 各接続の書き込みバッファへ積み、遅い接続は keepalive の時間切れで切れる
+        broadcast(self.clients, message)
 
     async def _send_loop(self, run):
         while True:
@@ -199,6 +200,7 @@ class WebSocketServer:
         run.server = await websockets.serve(
             self._handler, self.host, self.port,
             process_request=self._process_request, start_serving=False,
+            max_size=_MAX_INCOMING_MESSAGE_SIZE,
         )
         if run.cancelled.is_set() or monotonic() >= run.deadline:
             raise TimeoutError("WebSocket server startup timed out")
