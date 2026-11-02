@@ -35,4 +35,10 @@ i18n
     },
 });
 
+// The page language follows the UI, so screen readers pick the right voice and
+// shared CJK characters draw in the language's own forms.
+i18n.on("languageChanged", (lng) => {
+    if (typeof document !== "undefined") document.documentElement.lang = lng;
+});
+
 export default i18n;
