@@ -10,7 +10,7 @@ available.
 import time
 from typing import Any, Callable, Dict, Optional
 from time import sleep
-from threading import Thread
+from threading import Event, Lock, Thread
 from pythonosc import udp_client, dispatcher, osc_server
 try:
     from tinyoscquery.queryservice import OSCQueryService
@@ -41,6 +41,10 @@ except Exception:
         print(log, data)
 
 
+# Includes first-use service discovery as well as the HTTP query.
+OSC_QUERY_TIMEOUT_SECONDS = 2.0
+
+
 class OSCHandler:
     """Thin wrapper managing OSC send/receive and optional OSCQuery advertising.
 
@@ -68,6 +72,9 @@ class OSCHandler:
         self.osc_server_port: Optional[int] = None
         self.dict_filter_and_target: Dict[str, Callable] = {}
         self.browser = None
+        # tinyoscquery's blocking query cannot be cancelled. Keep at most one
+        # daemon lookup alive, even after its caller's deadline has expired.
+        self._parameter_query_lock = Lock()
 
     def getIsOscQueryEnabled(self) -> bool:
         """Return whether OSCQuery support is enabled (local addresses only)."""
@@ -105,6 +112,39 @@ class OSCHandler:
             self.udp_client.send_message(self.osc_parameter_chatbox_input, [f"{message}", True, notification])
 
     def getOSCParameterValue(self, address: str) -> Any:
+        """Read a fresh value within a deadline; never reuse a late result."""
+        if not self.is_osc_query_enabled:
+            return None
+        if not self._parameter_query_lock.acquire(blocking=False):
+            printLog("OSCQuery: query got no value", {"address": address, "reason": "previous query still running"})
+            return None
+
+        done = Event()
+        result = []
+        deadline = time.monotonic() + OSC_QUERY_TIMEOUT_SECONDS
+
+        def query():
+            try:
+                result.append(self._queryOSCParameterValue(address))
+            except Exception:
+                # Do not log exception text or service responses.
+                printLog("OSCQuery: parameter query failed", {"address": address})
+            finally:
+                self._parameter_query_lock.release()
+                done.set()
+
+        try:
+            Thread(target=query, name="osc_parameter_query", daemon=True).start()
+        except Exception:
+            self._parameter_query_lock.release()
+            printLog("OSCQuery: could not start parameter query", {"address": address})
+            return None
+        if not done.wait(max(0, deadline - time.monotonic())) or time.monotonic() >= deadline:
+            printLog("OSCQuery: query timed out", {"address": address})
+            return None
+        return result[0] if result else None
+
+    def _queryOSCParameterValue(self, address: str) -> Any:
         if not self.is_osc_query_enabled:
             # OSCQueryが無効な場合はNoneを返す
             return None
@@ -139,7 +179,7 @@ class OSCHandler:
                     return None
                 value = node_value[0]
         except Exception:
-            errorLogging()
+            printLog("OSCQuery: parameter query failed", {"address": address})
             # エラー発生時にbrowserをリセットして次回再初期化
             if self.browser is not None:
                 try:
@@ -154,7 +194,8 @@ class OSCHandler:
 
     def getOSCParameterMuteSelf(self) -> Optional[bool]:
         """Return the value of the MuteSelf parameter when available, else None."""
-        return self.getOSCParameterValue(self.osc_parameter_muteself)
+        value = self.getOSCParameterValue(self.osc_parameter_muteself)
+        return value if type(value) is bool else None
 
     def setDictFilterAndTarget(self, dict_filter_and_target: Dict[str, Callable]) -> None:
         """Set the mapping from OSC address filters to handler callables."""
