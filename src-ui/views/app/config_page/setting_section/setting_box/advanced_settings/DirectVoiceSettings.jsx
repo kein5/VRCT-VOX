@@ -146,7 +146,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
             {!managed && <><Description text={t("voice.input_requires_managed")} />
                 <button type="button" disabled={!settings || busy || saving}
                     onClick={() => send("/set/data/voice_settings", { ...settings, routing: "managed" })}>{t("voice.prepare_microphone")}</button>
-                {error && <p role="alert">{t(`voice_setup_errors.${error}`, { defaultValue: error })}</p>}
+                {error && <p role="alert">{t([`voice_setup_errors.${error}`, `voice_ui.errors.${error}`], { defaultValue: error })}</p>}
             </>}
         </SetupSection>
         {/* The unsaved-changes dialog stays outside the fold so it shows while folded. */}
@@ -155,6 +155,6 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
         <p>{t(!converted ? "voice.vc_monitor_passthrough" : settings?.monitor === "on" ? "voice.vc_monitor_on" : "voice.vc_monitor_off")}</p>
         {directState.monitor_error && <EnvReadout tone="failed"><p>{t(`voice.monitor_errors.${directState.monitor_error}`, { defaultValue: t("voice.monitor_error") })}</p></EnvReadout>}
         <Description text={t("voice.input_scope")} />
-        {unavailable && <p role="alert">{t("voice.input_error")}: {unavailable}</p>}
+        {unavailable && <p role="alert">{t("voice.input_error")}: {t(`voice.input_errors.${unavailable}`, { defaultValue: unavailable })}</p>}
     </section>;
 };

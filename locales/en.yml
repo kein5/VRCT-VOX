@@ -43,6 +43,15 @@ voice:
     input_failed: "Input forwarding failed and stopped"
     input_scope: "Connection does not verify voice conversion. Starting does not release the overall mute. Stopping this input leaves TTS running. Input forwarding stays off after an app restart."
     input_error: "Input forwarding unavailable"
+    # Codes the sidecar or the UI reports for input forwarding; unknown codes are shown as is.
+    input_errors:
+        backend_unavailable: "Can't reach the VRCT-VOX engine."
+        voice_request_unconfirmed: "The request wasn't confirmed. Wait a moment, then check the status."
+        source_bridge_source_invalid: "The selected input was not found. Choose the input again."
+        source_bridge_managed_required: "To forward an input, set the audio route to \"Managed virtual microphone (Linux)\"."
+        source_bridge_graph_unavailable: "Can't read the input list from PipeWire. Check that PipeWire is running."
+        source_bridge_linux_only: "Input forwarding is available on Linux only."
+        direct_voice_stop_required: "Stop input forwarding before changing the audio route."
     routing: "Audio route"
     routing_external: "Existing external cable"
     routing_managed: "Managed virtual microphone (Linux)"
@@ -1094,6 +1103,7 @@ voice_ui:
     check_settings: "Check {{page}} settings."
     errors:
         backend_unavailable: "Cannot reach the VRCT-VOX engine."
+        voice_request_unconfirmed: "The request wasn't confirmed. Wait a moment, then check the status."
         voice_route_muted: "Voice output is muted. In Settings → Device → Voice route, press \"Resume voice\", then turn TTS on again."
         voice_route_closed: "The voice route is shutting down. Restart VRCT-VOX, then turn TTS on again."
         tts_source_not_selected: "Choose what to speak first: in Settings → TTS, set chat speech or Realtime microphone speech to something other than Off and save."
