@@ -129,6 +129,10 @@ export const SearchBar = () => {
                 [styles.is_small]: isSmall,
             })}
             ref={containerRef}
+            // Tabbing out closes the results too, not only a click elsewhere.
+            onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) setIsFocused(false);
+            }}
         >
             <div className={styles.search_input_container}>
                 <SearchSvg className={styles.search_icon} />
