@@ -7,8 +7,8 @@ Deepgram は OpenAI互換ではない (認証ヘッダーが `Authorization: Tok
 Ollama/LMStudio 接続 (`models/translation/translation_ollama.py` 等) と
 同じ方針で、新規SDK依存を増やさない)。
 
-「文字起こし可能かどうか」を厳密に判定するのは難しいため、OpenAI互換系と
-同様「このキーでモデル一覧を取得できるか」を可用性の代理指標として使う。
+キーの有効性は `/v1/auth/token` で確かめ、モデル一覧は `/v1/models` から
+録音済み音声に対応するものを取る。
 """
 
 from typing import Optional
@@ -24,10 +24,16 @@ _HTTP_TIMEOUT = (10, 60)
 
 
 def checkDeepgramApiKey(api_key: str) -> bool:
-    """`api_key` でモデル一覧が取得できるかどうかを返す。"""
+    """`api_key` が有効かどうかを返す。
+
+    `/v1/models` は公開モデルの一覧で、無効なキーや認証なしでも 200 を
+    返すため (2026-11-02 に実測)、キーの検証には使えない。Deepgram の
+    認証ガイドがキーの確認方法として案内する `/v1/auth/token` を使う
+    (無効なキーには 401 を返す)。
+    """
     try:
         response = requests.get(
-            f"{_BASE_URL}/models",
+            f"{_BASE_URL}/auth/token",
             headers={"Authorization": f"Token {api_key}"},
             timeout=_HTTP_TIMEOUT,
         )

@@ -1,7 +1,7 @@
 """models/transcription/transcription_deepgram.py のテスト。
 
 `requests` (実際のHTTP通信) はモックし、こちら側の責務である
-「/v1/models の成否でキーの有効性を判定する」「stt[].batch=True のみに
+「/v1/auth/token の成否でキーの有効性を判定する」「stt[].batch=True のみに
 絞り込む」の2点のみを検証する。
 """
 
@@ -36,8 +36,10 @@ class TestCheckDeepgramApiKey(unittest.TestCase):
         result = checkDeepgramApiKey("dg-test")
 
         self.assertTrue(result)
-        _, kwargs = mock_requests.get.call_args
+        args, kwargs = mock_requests.get.call_args
         self.assertEqual(kwargs["headers"]["Authorization"], "Token dg-test")
+        # /v1/models answers 200 even for an invalid key, so it cannot check one.
+        self.assertEqual(args[0], "https://api.deepgram.com/v1/auth/token")
 
     @patch("models.transcription.transcription_deepgram.requests")
     def test_returns_false_on_401(self, mock_requests) -> None:

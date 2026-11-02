@@ -35,6 +35,7 @@ from speech_recognition import AudioData, Recognizer, UnknownValueError
 from errors import ErrorCode
 from models.transcription.transcription_deepgram import resolveDeepgramLanguageCode
 from models.transcription.transcription_languages import transcription_lang
+from models.transcription.transcription_openai_compatible import transcriptionResponseFormat
 from utils import errorLogging
 
 
@@ -238,7 +239,7 @@ class OpenAICompatibleTranscriptionProvider:
                 file=("audio.wav", wav_bytes, "audio/wav"),
                 model=self.model,
                 language=source_language,
-                response_format="verbose_json",
+                response_format=transcriptionResponseFormat(self.model),
                 temperature=0.0,
             )
         except Exception as exc:
@@ -270,9 +271,11 @@ class OpenAICompatibleTranscriptionProvider:
         confidence = math.exp(sum(accepted_logprobs) / len(accepted_logprobs)) if accepted_logprobs else 0.5
 
         detected_language = getattr(response, "language", None)
-        is_definitive = force_language or (
-            detected_language is not None
-            and detected_language == transcription_lang[language][country][self.engine_name]
+        # Without a forced language every candidate sends the same request.
+        # When the response names no language (the "json" format), another
+        # candidate cannot change the answer, so stop after one call.
+        is_definitive = force_language or detected_language is None or (
+            detected_language == transcription_lang[language][country][self.engine_name]
         )
         return text, confidence, is_definitive
 

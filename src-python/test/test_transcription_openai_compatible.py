@@ -10,8 +10,10 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from models.transcription.transcription_openai_compatible import (
+    TRANSCRIPTION_MODEL_KEYWORDS,
     checkTranscriptionApiKey,
     getAvailableTranscriptionModels,
+    transcriptionResponseFormat,
 )
 
 
@@ -85,6 +87,28 @@ class TestGetAvailableTranscriptionModels(unittest.TestCase):
         )
 
         self.assertEqual(result, [])
+
+
+    @patch("models.transcription.transcription_openai_compatible.OpenAI")
+    def test_keyword_filter_leaves_out_diarization_models(self, openai_cls) -> None:
+        self._mock_models(openai_cls, ["gpt-4o-transcribe", "gpt-4o-transcribe-diarize", "whisper-1"])
+
+        result = getAvailableTranscriptionModels(
+            "sk-test", "https://api.openai.com/v1", keyword_filter=TRANSCRIPTION_MODEL_KEYWORDS
+        )
+
+        self.assertEqual(result, ["gpt-4o-transcribe", "whisper-1"])
+
+
+class TestTranscriptionResponseFormat(unittest.TestCase):
+    def test_gpt_transcribe_models_use_json(self) -> None:
+        # OpenAI API reference: the only supported format for these is json.
+        for model in ["gpt-4o-transcribe", "gpt-4o-mini-transcribe", "gpt-4o-mini-transcribe-2025-12-15"]:
+            self.assertEqual(transcriptionResponseFormat(model), "json", model)
+
+    def test_whisper_models_use_verbose_json(self) -> None:
+        for model in ["whisper-1", "whisper-large-v3", "whisper-large-v3-turbo", "Systran/faster-whisper-small"]:
+            self.assertEqual(transcriptionResponseFormat(model), "verbose_json", model)
 
 
 if __name__ == "__main__":

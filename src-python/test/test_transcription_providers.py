@@ -202,6 +202,38 @@ class TestOpenAICompatibleTranscriptionProvider(unittest.TestCase):
         self.assertEqual(data, b"RIFF....WAVEfmt ")
         self.assertEqual(content_type, "audio/wav")
 
+    def test_sends_json_for_gpt_transcribe_models_and_stops_after_one_call(self) -> None:
+        provider = self._make_provider()
+        provider.model = "gpt-4o-transcribe"
+        # The json format carries text only: no segments, no detected language.
+        provider._client.audio.transcriptions.create.return_value = SimpleNamespace(text="hello")
+
+        text, confidence, is_definitive = provider.transcribe(
+            self._make_audio_data(), "English", "United States",
+            avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=False,
+        )
+
+        _, kwargs = provider._client.audio.transcriptions.create.call_args
+        self.assertEqual(kwargs["response_format"], "json")
+        self.assertEqual(text, "hello")
+        self.assertEqual(confidence, 0.5)
+        # Another candidate would send the same request; one call is enough.
+        self.assertTrue(is_definitive)
+
+    def test_sends_verbose_json_for_whisper_models(self) -> None:
+        provider = self._make_provider()
+        provider._client.audio.transcriptions.create.return_value = SimpleNamespace(
+            text="hello", language="en", segments=[_segment("hello")],
+        )
+
+        provider.transcribe(
+            self._make_audio_data(), "English", "United States",
+            avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
+        )
+
+        _, kwargs = provider._client.audio.transcriptions.create.call_args
+        self.assertEqual(kwargs["response_format"], "verbose_json")
+
     def test_does_not_force_language_with_multiple_candidates(self) -> None:
         provider = self._make_provider()
         provider._client.audio.transcriptions.create.return_value = SimpleNamespace(

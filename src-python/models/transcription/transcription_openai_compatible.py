@@ -26,6 +26,25 @@ TRANSCRIPTION_API_ENGINES = ("Groq_Whisper", "OpenAI_Whisper", "Custom_Whisper")
 # 使っているか分からないため、呼び出し側でこのフィルタを適用しない。
 TRANSCRIPTION_MODEL_KEYWORDS = ["whisper", "transcribe"]
 
+# Speaker diarization models (e.g. gpt-4o-transcribe-diarize) answer a
+# different question and need `chunking_strategy` for longer audio; they are
+# left out of the filtered lists.
+TRANSCRIPTION_MODEL_EXCLUDED_KEYWORDS = ["diarize"]
+
+
+def transcriptionResponseFormat(model: str) -> str:
+    """`/audio/transcriptions` に渡す response_format。
+
+    OpenAI の gpt-*-transcribe 系 (gpt-4o-transcribe, gpt-4o-mini-transcribe
+    等) は API リファレンス上 `json` しか受け付けず、`verbose_json` を送ると
+    400 になる。Whisper 系 (Groq/OpenAI の whisper-*、カスタムサーバー) は
+    セグメントと検出言語を返す `verbose_json` を使う。
+    """
+    name = model.lower()
+    if "transcribe" in name and "whisper" not in name:
+        return "json"
+    return "verbose_json"
+
 
 def checkTranscriptionApiKey(api_key: str, base_url: str) -> bool:
     """`api_key`/`base_url` の組でモデル一覧が取得できるかどうかを返す。"""
@@ -54,6 +73,7 @@ def getAvailableTranscriptionModels(
     res = client.models.list()
     models = [m.id for m in res.data]
     if keyword_filter:
-        models = [m for m in models if any(kw in m.lower() for kw in keyword_filter)]
+        models = [m for m in models if any(kw in m.lower() for kw in keyword_filter)
+                  and not any(kw in m.lower() for kw in TRANSCRIPTION_MODEL_EXCLUDED_KEYWORDS)]
     models.sort()
     return models
