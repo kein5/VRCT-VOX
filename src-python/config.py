@@ -665,6 +665,24 @@ def _selected_translation_compute_type_validator(val, inst):
         return val
     return None
 
+def _keepSavedDeviceUntilListed(inst) -> bool:
+    """config.json を読む時点では、デバイスの一覧がまだ取れていない。
+
+    device_manager は起動時に OS の音声 API を触らず、一覧は監視スレッドの最初の
+    更新で埋まる。それまでの一覧は `NoHost`/`NoDevice` だけなので、保存した選択を
+    ここで検証すると毎回拒否され、手動で選んだマイクやスピーカーが起動のたびに
+    既定のデバイスへ戻っていた。読み込みの間に一覧が空なら保存値をそのまま受け取り、
+    一覧が取れたあと controller の `_synchronize*SelectionAfterDeviceUpdate()` が
+    存在を確かめる (無ければ既定へ戻す)。
+    """
+    if not getattr(inst, "_loading_saved_config", False):
+        return False
+    try:
+        return list(device_manager.getMicDevices().keys()) == ["NoHost"] \
+            and [d.get("name") for d in device_manager.getSpeakerDevices()] == ["NoDevice"]
+    except Exception:
+        return False
+
 def _mic_host_validator(val, inst):
     if device_manager is None:
         return None
@@ -676,7 +694,9 @@ def _mic_host_validator(val, inst):
     if val == "NoHost":
         return val
     hosts = list(device_manager.getMicDevices().keys())
-    return val if val in hosts else None
+    if val in hosts or _keepSavedDeviceUntilListed(inst):
+        return val
+    return None
 
 def _mic_device_validator(val, inst):
     if device_manager is None:
@@ -690,7 +710,9 @@ def _mic_device_validator(val, inst):
     try:
         devices = device_manager.getMicDevices().get(inst.SELECTED_MIC_HOST, [])
         names = [d.get('name') for d in devices]
-        return val if val in names else None
+        if val in names or _keepSavedDeviceUntilListed(inst):
+            return val
+        return None
     except Exception:
         return None
 
@@ -703,7 +725,9 @@ def _speaker_device_validator(val, inst):
         return val
     try:
         names = [d.get('name') for d in device_manager.getSpeakerDevices()]
-        return val if val in names else None
+        if val in names or _keepSavedDeviceUntilListed(inst):
+            return val
+        return None
     except Exception:
         return None
 
@@ -1505,6 +1529,7 @@ class Config:
                 self._config_data = {}
                 self.UNREADABLE_CONFIG_BACKUP = self._moveUnreadableConfigAside()
             if isinstance(self._config_data, dict):
+                self._loading_saved_config = True
                 for key, value in self._config_data.items():
                     # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。
                     # 未知キー（Descriptorなし）は無視して注入を防止。
@@ -1523,6 +1548,7 @@ class Config:
                             continue
                     except Exception:
                         errorLogging()
+                self._loading_saved_config = False
 
         # config.json から読み込んだ SELECTED_RELEASE_CHANNEL は、前回起動時に
         # UI でチャンネルを切り替えた「つもり」の値をそのまま引き継いでいる
