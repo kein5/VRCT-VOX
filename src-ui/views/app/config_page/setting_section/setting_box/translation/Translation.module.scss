@@ -57,6 +57,7 @@
         cursor: pointer;
 
         &:hover:enabled { background: var(--dark_700_color); }
+        &:active:enabled { background: var(--dark_925_color); }
         &:disabled { opacity: .5; cursor: not-allowed; }
         &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }
     }
@@ -66,5 +67,6 @@
         color: var(--dark_50_color, #fff);
 
         &:hover:enabled { background: var(--primary_550_color); }
+        &:active:enabled { background: var(--primary_800_color); }
     }
 }

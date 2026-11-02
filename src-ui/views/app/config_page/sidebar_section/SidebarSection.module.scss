@@ -3,7 +3,7 @@
     flex-shrink: 0;
     padding: 0;
     position: relative;
-    transition: width 0.2s;
+    transition: width 0.12s ease-out;
     height: 100%;
 
     // The rail expands for hover or focus (DESIGN.md). One state drives the
@@ -19,7 +19,7 @@
             left: 0;
             z-index: 5;
             width: 5.6rem;
-            transition: width 0.2s, box-shadow 0.2s;
+            transition: width 0.12s ease-out, box-shadow 0.12s ease-out;
         }
         &.is_expanded .scroll_container {
             width: var(--config_page_sidebar_width);
@@ -149,7 +149,7 @@
     white-space: nowrap;
     line-height: 1.4;
     opacity: 1;
-    transition: opacity 0.2s;
+    transition: opacity 0.12s ease-out;
     color: var(--dark_basic_text_color);
 
     &.hide {

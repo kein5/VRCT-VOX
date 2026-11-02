@@ -11,7 +11,8 @@
     &.is_closed {
         pointer-events: none;
         visibility: hidden;
-        transition: visibility 0s linear 0.2s;
+        // Keep settings behind the main page only for its short slide back.
+        transition: visibility 0s linear 0.12s;
     }
 }
 
