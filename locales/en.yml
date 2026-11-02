@@ -261,6 +261,7 @@ config_page:
             unable_to_use_osc_query: "Due to the OSC IP Address settings, OSC data cannot be received, so this feature is currently unavailable."
 
     side_menu_labels:
+        vrchat: "VRChat"
         device: "Device"
         appearance: "Appearance"
         translation: "Translation"
@@ -534,12 +535,8 @@ config_page:
             desc: "Automatically pastes transcribed text into the active input field.\n*Utilizes standard Windows clipboard functionality."
 
     others:
-        section_label_sounds: "Sounds"
-        section_label_received_messages: "Received Messages"
         section_label_message_formats: "Message Formats"
-        section_label_sending: "Sending & Logs"
         section_label_reading_aids: "Hiragana & Romaji"
-        section_label_models: "Models"
         auto_clear_the_message_box:
             label: "Auto Clear Message Box"
         send_only_translated_messages:
@@ -599,10 +596,10 @@ config_page:
         auto_download_models:
             label: "Download translation and transcription models at startup"
             desc: "When enabled, missing built-in models are downloaded on the next start. Existing models remain usable when disabled. External speech models are managed separately."
-        telemetry:
-            label: "Support Our Development"
-            desc: "Sends usage data so our developers can grin and say 'Thanks for using it!' while improving the app.\n* No personal info or conversation content is ever sent."
-            aptabase_privacy_policy_label: "Aptabase Privacy Policy"
+
+    vrchat:
+        section_label_chatbox: "Chatbox"
+        section_label_tts_output: "Speech output"
 
     ocr:
         section_title: "VRChat Chat Transcribe"
@@ -700,6 +697,7 @@ config_page:
 
     advanced_settings:
         section_label_osc: "OSC"
+        section_label_logs: "Logs"
         section_label_config_file: "Config File"
         osc_ip_address:
             label: "OSC IP Address"

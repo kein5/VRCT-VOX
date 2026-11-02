@@ -1,6 +1,7 @@
 import { useI18n } from "@useI18n";
 import styles from "./AdvancedSettings.module.scss";
 import { DirectVoiceSettings } from "./DirectVoiceSettings";
+import { AutoExportMessageLogsContainer } from "../shared_items/SharedItems";
 
 import { useCopyToClipboard, useOpenFolder } from "@logics_common";
 import {
@@ -28,10 +29,10 @@ export const AdvancedSettings = () => {
 
     return (
         <div className={styles.container}>
+            {/* OSC moved to the VRChat page, which it addresses. */}
             <div>
-                <SectionLabelComponent label={t("config_page.advanced_settings.section_label_osc")} />
-                <OscIpAddressContainer />
-                <OscPortContainer />
+                <SectionLabelComponent label={t("config_page.advanced_settings.section_label_logs")} />
+                <AutoExportMessageLogsContainer />
             </div>
             <div>
                 <SectionLabelComponent label={t("config_page.advanced_settings.section_label_config_file")} />
@@ -44,7 +45,7 @@ export const AdvancedSettings = () => {
     );
 };
 
-const OscIpAddressContainer = () => {
+export const OscIpAddressContainer = () => {
     const { t } = useI18n();
     const { currentOscIpAddress, setOscIpAddress } = useAdvancedSettings();
 
@@ -67,7 +68,7 @@ const OscIpAddressContainer = () => {
     );
 };
 
-const OscPortContainer = () => {
+export const OscPortContainer = () => {
     const { t } = useI18n();
     const { currentOscPort, setOscPort } = useAdvancedSettings();
 

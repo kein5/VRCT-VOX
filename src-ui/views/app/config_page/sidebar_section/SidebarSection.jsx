@@ -14,7 +14,6 @@ import AppearanceSvg from "@images/mui_palette.svg?react";
 import TranslationSvg from "@images/translation.svg?react";
 import GraphicEqSvg from "@images/mui_graphic_eq.svg?react";
 import HMDSvg from "@images/mui_head_mounted_device.svg?react";
-import DiscoverTuneSvg from "@images/mui_discover_tune.svg?react";
 import KeyboardAltSvg from "@images/mui_keyboard_alt.svg?react";
 import CodeBlocksSvg from "@images/mui_code_blocks.svg?react";
 import RefreshSvg from "@images/refresh.svg?react";
@@ -50,14 +49,13 @@ export const SidebarSection = () => {
                         <Tab tab_id="appearance" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="translation" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="transcription" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
-                        <Tab tab_id="ocr" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
+                        <Tab tab_id="vrchat" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="vr" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="hotkeys" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="tts" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="rvc" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="advanced_settings" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="updater" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
-                        <Tab tab_id="others" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                     </div>
                     <div className={styles.separated_tabs_wrapper}>
                         <Tab tab_id="about_vrct" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
@@ -77,9 +75,8 @@ export const TabIcon = ({ tab_id, className }) => {
         case "appearance": return <AppearanceSvg className={clsx(className, styles.mui_icon)} />;
         case "translation": return <TranslationSvg className={className} />;
         case "transcription": return <GraphicEqSvg className={clsx(className, styles.mui_icon)} />;
-        case "ocr": return <ChatTranscribeSvg className={clsx(className, styles.mui_icon, styles.ocr_icon)} />;
+        case "vrchat": return <ChatTranscribeSvg className={clsx(className, styles.mui_icon, styles.ocr_icon)} />;
         case "vr": return <HMDSvg className={clsx(className, styles.mui_icon)} />;
-        case "others" : return <DiscoverTuneSvg className={clsx(className, styles.mui_icon)} />;
         case "hotkeys": return <KeyboardAltSvg className={clsx(className, styles.mui_icon)} />;
         case "advanced_settings": return <CodeBlocksSvg className={clsx(className, styles.mui_icon)} />;
         case "updater": return <RefreshSvg className={clsx(className, styles.updater_icon)} />;

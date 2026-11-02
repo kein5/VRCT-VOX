@@ -140,6 +140,7 @@ config_page:
             unable_to_use_osc_query: "由於 OSC IP Address 的設定無法接收 OSC 資料，目前無法使用此功能。"
 
     side_menu_labels:
+        vrchat: "VRChat"
         device: "裝置"
         appearance: "外觀"
         translation: "翻譯"
@@ -373,12 +374,8 @@ config_page:
             desc:
 
     others:
-        section_label_sounds: "音效"
-        section_label_received_messages: "接收的訊息"
         section_label_message_formats: "訊息格式"
-        section_label_sending: "傳送與紀錄"
         section_label_reading_aids: "平假名・羅馬字"
-        section_label_models: "模型"
         auto_clear_the_message_box:
             label: "自動清除 Chatbox"
         send_only_translated_messages:
@@ -425,10 +422,10 @@ config_page:
             desc: "與「{{convert_message_to_hiragana}}」同時啟用時，將透過滑鼠懸停顯示。"
         convert_message_to_hiragana:
             label: "顯示平假名"
-        telemetry:
-            label:
-            desc:
-            aptabase_privacy_policy_label:
+
+    vrchat:
+        section_label_chatbox: "傳送到聊天框"
+        section_label_tts_output: "朗讀輸出"
 
     ocr:
         section_title: "VRChat 聊天讀取"
@@ -489,6 +486,7 @@ config_page:
 
     advanced_settings:
         section_label_osc: "OSC"
+        section_label_logs: "紀錄"
         section_label_config_file: "設定檔"
         osc_ip_address:
             label: "OSC IP 位址"

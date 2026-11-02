@@ -15,7 +15,7 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 
 - 送信先は`OSC_IP_ADDRESS`と`OSC_PORT`（既定`127.0.0.1:9000`）。通知音は`NOTIFICATION_VRC_SFX`。
 - OCRで読んだ文とリアルタイム字幕はVRChatへ送らない。
-- 「翻訳後のメッセージのみ送信する」がオンなら訳だけを送る。送る文の形はメッセージの書式設定（その他のページ）で決める。
+- 「翻訳後のメッセージのみ送信する」がオンなら訳だけを送る。送る文の形は設定のVRChatページのメッセージフォーマットで決める。
 - 受信は空いているUDPポートで待つ。OSCQueryは送信先が`127.0.0.1`か`localhost`のときだけ使い、`VRCT:<時刻>`という名前で受信口を公開し、mDNSで`VRChat-Client`を探す。
 - OSCQueryが使えないと、起動時に`/run/enable_osc_query`で`{"data": false, "disabled_functions": ["vrc_mic_mute_sync"]}`を送り、ミュート同期をオフにする。その状態でオンにすると`VRC_MIC_MUTE_SYNC_OSC_DISABLED`になる。
 - ミュート同期がオンでVRChat側がミュート中のときは、マイクの認識結果を捨てる。

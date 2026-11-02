@@ -140,6 +140,7 @@ config_page:
             unable_to_use_osc_query: "OSC IP 주소 설정 때문에 OSC 데이터를 받을 수 없어, 지금은 이 기능을 사용할 수 없습니다."
 
     side_menu_labels:
+        vrchat: "VRChat"
         device: "장치"
         appearance: "모양"
         translation: "번역"
@@ -379,12 +380,8 @@ config_page:
             desc: "음성 인식된 텍스트를 클립보드에 복사합니다. SteamVR에서 VR 앱 창을 찾아 전환할 수 있을 때만 그 창에 자동으로 붙여 넣습니다.\n※ Windows 기본 클립보드 기능을 사용합니다."
 
     others:
-        section_label_sounds: "사운드"
-        section_label_received_messages: "받은 메시지"
         section_label_message_formats: "메시지 형식"
-        section_label_sending: "전송 및 로그"
         section_label_reading_aids: "히라가나·로마자"
-        section_label_models: "모델"
         auto_clear_the_message_box:
             label: "전송 후 입력창 비우기"
         send_only_translated_messages:
@@ -431,10 +428,10 @@ config_page:
             desc: "'{{convert_message_to_hiragana}}'와 함께 켜면 마우스를 올렸을 때 표시됩니다."
         convert_message_to_hiragana:
             label: "히라가나 표시"
-        telemetry:
-            label: "VRCT-VOX 개선에 참여"
-            desc: "개발자가 \"다들 잘 써 주고 있구나~\" 하고 흐뭇해하며 기능을 개선할 수 있도록 사용 현황 데이터를 보냅니다.\n※ 대화 내용 등 개인 정보는 일절 보내지 않습니다."
-            aptabase_privacy_policy_label: "Aptabase 개인정보 처리방침"
+
+    vrchat:
+        section_label_chatbox: "채팅박스로 보내기"
+        section_label_tts_output: "읽어 주기 출력"
 
     ocr:
         section_title: "VRChat 채팅 읽기"
@@ -495,6 +492,7 @@ config_page:
 
     advanced_settings:
         section_label_osc: "OSC"
+        section_label_logs: "로그"
         section_label_config_file: "설정 파일"
         osc_ip_address:
             label: "OSC IP 주소"
