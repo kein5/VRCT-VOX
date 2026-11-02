@@ -1291,6 +1291,8 @@ studio:
     message_input: "メッセージ"
     message_placeholder: "メッセージを入力…"
     send_message: "メッセージを送信"
+    chatbox_too_long: "{{max}}文字を超えています。VRChatのチャットボックスに表示されるのは{{max}}文字までです。"
+    chatbox_length: "{{length}} / {{max}}文字"
     open_settings: "設定を開く"
     minimize: "ウィンドウを最小化"
     maximize: "ウィンドウを最大化・元に戻す"

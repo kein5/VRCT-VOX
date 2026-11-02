@@ -7,6 +7,8 @@ import { useSettingValue } from "@logics_configs";
 import { useMessageLogScroll } from "@logics_main";
 import { useI18n } from "@useI18n";
 import { store, Atom_MessageLogs, useStore_MessageInputValue } from "@store";
+import { chatboxOverflowLength } from "../../../../../../logics/common/chatboxLength";
+import { CHATBOX_LENGTH_WARNING_ID } from "./ChatboxLengthWarning";
 
 export const MessageInputBox = memo(function MessageInputBox() {
     const { t } = useI18n();
@@ -98,6 +100,7 @@ export const MessageInputBox = memo(function MessageInputBox() {
                     onChange={onChangeFunction}
                     onBlur={stopTyping}
                     aria-label={t("studio.message_input")}
+                    aria-describedby={chatboxOverflowLength(currentMessageInputValue.data) !== null ? CHATBOX_LENGTH_WARNING_ID : undefined}
                     placeholder={t("studio.message_placeholder")}
                     value={currentMessageInputValue.data}
                     onKeyDown={onKeyDownFunction}
