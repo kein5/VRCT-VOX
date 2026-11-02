@@ -393,7 +393,7 @@ export const useSaveButtonLogic = ({
     latest.current = { saveFunction, discard: () => setInputValue(variable) };
     useEffect(() => {
         setSaveBarEntry(id, {
-            dirty, saving, saveState: saving ? "saving" : dirty ? "unsaved" : "saved",
+            dirty, edited: dirty, saving, saveState: saving ? "saving" : dirty ? "unsaved" : "saved",
             changes: dirty && label ? [label] : [], canSave: state !== "pending",
             save: () => latest.current.saveFunction(), discard: () => latest.current.discard(),
         });
