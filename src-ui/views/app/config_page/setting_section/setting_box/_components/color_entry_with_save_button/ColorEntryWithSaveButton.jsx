@@ -116,6 +116,7 @@ export const ColorEntryWithSaveButton = (props) => {
     return (
         <div className={styles.container}>
             <_Entry
+                label={props.label}
                 width={props.width}
                 onChange={onChangeFunction}
                 onEnterPressed={handleEnterPressed}

@@ -118,6 +118,7 @@ const ThresholdEntryInput = (props) => {
 
     return (
         <_Entry
+            aria-label={props["aria-label"]}
             width="6rem"
             type="text"
             inputMode="numeric"

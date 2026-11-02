@@ -109,6 +109,8 @@ common:
     close_button_label: "Close"
     go_back_button_label: "Go Back"
     default_label: "Default"
+    reset_to_default: "Reset to default"
+    copy_version: "Copy version {{version}}"
 
 common_error:
     ctranslate2_license_consent_required: "{{weight_type}} has a non-commercial license (CC-BY-NC-4.0). Confirm the license in Settings > Translation first."
@@ -156,6 +158,7 @@ main_page:
     your_language: "Your Language"
     translate_each_other_label: "Translate Both Languages"
     swap_button_label: "Switch Languages"
+    help_link: "Open the VRCT-VOX guide"
     target_language: "Target Language"
     add_target_language: "Add a target language"
     remove_target_language: "Remove the last target language"
@@ -510,6 +513,7 @@ config_page:
         auto_export_message_logs:
             label: "Auto Save Message Logs"
             desc: "Automatically saves the conversation messages as text files."
+            open_folder: "Open the logs folder"
         vrc_mic_mute_sync:
             label: "VRC Mic Mute Sync"
             desc: "Messages will not be sent to VRChat while VRChat's mic is muted.\n*There may be a slight delay. Push-To-Talk is not supported."
@@ -537,6 +541,12 @@ config_page:
                 original: "Original"
                 translated: "Translation"
                 for_multi_translation: "For Multi-Translation"
+                before_original: "Before the original"
+                after_original: "After the original"
+                between: "Between original and translation"
+                before_translation: "Before the translation"
+                after_translation: "After the translation"
+                between_translations: "Between translations"
         send_message_format:
             label: "Message Format (Send)"
             desc: "This allows you to change the format of the message that others see in VRChat."

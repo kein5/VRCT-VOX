@@ -31,8 +31,10 @@ export const LanguageSwapButton = () => {
                 onMouseLeave={handleMouseLeave}
                 aria-disabled={isLanguageSettingsBusy}
                 onClick={() => { if (canChangeLanguageSettings()) swapSelectedLanguages(); }}
+                role="button" tabIndex={0} aria-label={t("main_page.swap_button_label")}
+                onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (canChangeLanguageSettings()) swapSelectedLanguages(); } }}
             >
-                <NarrowArrowDownSvg className={clsx(styles.narrow_arrow_down_svg, styles.reverse)} />
+                <NarrowArrowDownSvg className={clsx(styles.narrow_arrow_down_svg, styles.reverse)} aria-hidden="true" />
                 <p className={labelClassName}>{label}</p>
                 <NarrowArrowDownSvg className={styles.narrow_arrow_down_svg} />
             </div>

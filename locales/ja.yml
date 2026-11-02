@@ -109,6 +109,8 @@ common:
     close_button_label: "閉じる"
     go_back_button_label: "戻る"
     default_label: "デフォルト"
+    reset_to_default: "初期値に戻す"
+    copy_version: "バージョン {{version}} をコピー"
 
 common_error:
     ctranslate2_license_consent_required: "{{weight_type}} は非商用ライセンス（CC-BY-NC-4.0）です。先に 設定 > 翻訳 でライセンスを確認してください。"
@@ -156,6 +158,7 @@ main_page:
     your_language: "あなたの言語"
     translate_each_other_label: "双方向に翻訳"
     swap_button_label: "言語を入れ替え"
+    help_link: "VRCT-VOXの使い方を開く"
     target_language: "相手の言語"
     add_target_language: "相手の言語を追加"
     remove_target_language: "最後の相手の言語を削除"
@@ -510,6 +513,7 @@ config_page:
         auto_export_message_logs:
             label: "会話ログを自動的に保存する"
             desc: "テキストファイルとしてログがlogsフォルダ内に保存されます。"
+            open_folder: "logsフォルダを開く"
         vrc_mic_mute_sync:
             label: "VRCマイクミュート同期"
             desc: "VRChatのマイクがミュートされている間は、メッセージをVRChatに送信しません。\n※若干の遅延はあります。また、Push-To-Talkは非対応です。"
@@ -537,6 +541,12 @@ config_page:
                 original: "原文"
                 translated: "翻訳"
                 for_multi_translation: "多言語翻訳用"
+                before_original: "原文の前"
+                after_original: "原文の後"
+                between: "原文と翻訳の間"
+                before_translation: "翻訳の前"
+                after_translation: "翻訳の後"
+                between_translations: "翻訳どうしの間"
         send_message_format:
             label: "メッセージフォーマット（送信）"
             desc: "VRChatで相手に実際に見えるフォーマットを変更できます。"

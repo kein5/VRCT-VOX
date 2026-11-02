@@ -239,7 +239,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.position_wrapper}>
                 <p className={clsx(styles.slider_label, styles.x_position_label)}>
                     {t("config_page.vr.x_position")}
-                    <ResetButton onClickFunction={() => selectFunction("x_pos", default_ui_configs.x_pos)} />
+                    <ResetButton onClickFunction={() => selectFunction("x_pos", default_ui_configs.x_pos)} label={`${t("config_page.vr.x_position")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
                     aria-label={t("config_page.vr.x_position")}
@@ -256,6 +256,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.x_position_button_wrapper}
+                    label={t("config_page.vr.x_position")}
                     is_max={is_max_position_x}
                     is_min={is_min_position_x}
                     countUp={countUpPositionX}
@@ -266,7 +267,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.position_wrapper}>
                 <p className={clsx(styles.slider_label, styles.y_position_label)}>
                     {t("config_page.vr.y_position")}
-                    <ResetButton onClickFunction={() => selectFunction("y_pos", default_ui_configs.y_pos)} />
+                    <ResetButton onClickFunction={() => selectFunction("y_pos", default_ui_configs.y_pos)} label={`${t("config_page.vr.y_position")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
                     aria-label={t("config_page.vr.y_position")}
@@ -284,6 +285,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.y_position_button_wrapper}
+                    label={t("config_page.vr.y_position")}
                     is_max={is_max_position_y}
                     is_min={is_min_position_y}
                     countUp={countUpPositionY}
@@ -294,7 +296,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.position_wrapper}>
                 <p className={clsx(styles.slider_label, styles.z_position_label)}>
                     {t("config_page.vr.z_position")}
-                    <ResetButton onClickFunction={() => selectFunction("z_pos", default_ui_configs.z_pos)} />
+                    <ResetButton onClickFunction={() => selectFunction("z_pos", default_ui_configs.z_pos)} label={`${t("config_page.vr.z_position")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
                     aria-label={t("config_page.vr.z_position")}
@@ -312,6 +314,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.z_position_button_wrapper}
+                    label={t("config_page.vr.z_position")}
                     is_max={is_max_position_z}
                     is_min={is_min_position_z}
                     countUp={countUpPositionZ}
@@ -354,7 +357,7 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.rotation_wrapper}>
                 <p className={clsx(styles.slider_label, styles.x_rotation_label)}>
                     {t("config_page.vr.x_rotation")}
-                    <ResetButton onClickFunction={() => selectFunction("x_rotation", default_ui_configs.x_rotation)} />
+                    <ResetButton onClickFunction={() => selectFunction("x_rotation", default_ui_configs.x_rotation)} label={`${t("config_page.vr.x_rotation")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
                     aria-label={t("config_page.vr.x_rotation")}
@@ -373,6 +376,8 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.x_rotation_button_wrapper}
+                    label={t("config_page.vr.x_rotation")}
+                    up_decreases
                     is_max={is_min_rotation_x}
                     is_min={is_max_rotation_x}
                     countUp={countDownRotationX}
@@ -383,7 +388,7 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.rotation_wrapper}>
                 <p className={clsx(styles.slider_label, styles.y_rotation_label)}>
                     {t("config_page.vr.y_rotation")}
-                    <ResetButton onClickFunction={() => selectFunction("y_rotation", default_ui_configs.y_rotation)} />
+                    <ResetButton onClickFunction={() => selectFunction("y_rotation", default_ui_configs.y_rotation)} label={`${t("config_page.vr.y_rotation")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
                     aria-label={t("config_page.vr.y_rotation")}
@@ -400,6 +405,7 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.y_rotation_button_wrapper}
+                    label={t("config_page.vr.y_rotation")}
                     is_max={is_max_rotation_y}
                     is_min={is_min_rotation_y}
                     countUp={countUpRotationY}
@@ -410,7 +416,7 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.rotation_wrapper}>
                 <p className={clsx(styles.slider_label, styles.z_rotation_label)}>
                     {t("config_page.vr.z_rotation")}
-                    <ResetButton onClickFunction={() => selectFunction("z_rotation", default_ui_configs.z_rotation)} />
+                    <ResetButton onClickFunction={() => selectFunction("z_rotation", default_ui_configs.z_rotation)} label={`${t("config_page.vr.z_rotation")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
                     aria-label={t("config_page.vr.z_rotation")}
@@ -428,6 +434,7 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.z_rotation_button_wrapper}
+                    label={t("config_page.vr.z_rotation")}
                     is_max={is_max_rotation_z}
                     is_min={is_min_rotation_z}
                     countUp={countUpRotationZ}
@@ -438,32 +445,25 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
     );
 };
 
-const AdjustButtonContainer = ({ wrapper_class_name, is_max, is_min, countUp, countDown }) => {
+// Step buttons beside a VR position or rotation slider; `label` names the axis.
+const AdjustButtonContainer = ({ wrapper_class_name, is_max, is_min, countUp, countDown, label, up_decreases = false }) => {
+    const { t } = useI18n();
+    const step = (disabled, run, key, extra) => (
+        <div
+            className={clsx(styles.button_wrapper, { [styles.is_disabled]: disabled, ...extra })}
+            role="button" tabIndex={0} aria-disabled={disabled || undefined}
+            aria-label={label ? t(`vr_panel.settings.${key}`, { label }) : undefined}
+            onClick={run}
+            onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); run(); } }}
+        >
+            <TriangleSvg className={styles.adjust_button_triangle_svg} aria-hidden="true" />
+        </div>
+    );
     return (
         <div className={wrapper_class_name}>
-            <div
-                className={clsx(
-                    styles.button_wrapper,
-                    {
-                        [styles.is_disabled]: is_max,
-                        [styles.up]: true,
-                    }
-                )}
-                onClick={countUp}
-            >
-                <TriangleSvg className={styles.adjust_button_triangle_svg} />
-            </div>
-            <div
-                className={clsx(
-                    styles.button_wrapper,
-                    {
-                        [styles.is_disabled]: is_min,
-                    }
-                )}
-                onClick={countDown}
-            >
-                <TriangleSvg className={styles.adjust_button_triangle_svg} />
-            </div>
+            {/* X rotation's upper button lowers the value; the names follow the action. */}
+            {step(is_max, countUp, up_decreases ? "decrease" : "increase", { [styles.up]: true })}
+            {step(is_min, countDown, up_decreases ? "increase" : "decrease", {})}
         </div>
     );
 };
@@ -643,8 +643,10 @@ const SendSampleTextToggleButton = () => {
     return (
         <div className={styles.sample_text_button_wrapper}>
             <button
+                type="button"
                 className={clsx(styles.sample_text_button, { [styles.is_started]: is_started })}
                 onClick={toggleFunction}
+                aria-label={label.replace(/\n/g, "")}
             >
                 {is_started ? (
                     <SquareSvg className={styles.sample_text_button_square_svg} />

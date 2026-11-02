@@ -103,6 +103,7 @@ const AutoExportMessageLogsContainer = () => {
                 />
             <div className={styles.auto_export_message_logs_switch_section_container}>
                 <ActionButton
+                    label={t("config_page.others.auto_export_message_logs.open_folder")}
                     IconComponent={OpenFolderSvg}
                     ClickedIconComponent={CheckMarkSvg}
                     clicked_duration={1000}

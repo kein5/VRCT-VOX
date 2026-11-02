@@ -71,6 +71,7 @@ const MicComponent = (props) => {
             />
             <ThresholdEntry
                 {...props}
+                aria-label={t("vr_panel.notifications.mic_threshold")}
                 ui_threshold={ui_threshold}
                 setUiThresholdFunction={setUiThresholdFunction}
                 setThresholdFunction={setThresholdFunction}
@@ -128,6 +129,7 @@ const SpeakerComponent = (props) => {
             />
             <ThresholdEntry
                 {...props}
+                aria-label={t("vr_panel.notifications.speaker_threshold")}
                 ui_threshold={ui_threshold}
                 setUiThresholdFunction={setUiThresholdFunction}
                 setThresholdFunction={setThresholdFunction}

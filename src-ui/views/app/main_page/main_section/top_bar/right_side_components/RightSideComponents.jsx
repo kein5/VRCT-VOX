@@ -20,6 +20,7 @@ import { OpenQuickSettingButton } from "./_buttons/OpenQuickSettingButton";
 import { generateLocalizedDocumentUrl } from "@ui_configs";
 
 export const RightSideComponents = () => {
+    const { t } = useI18n();
     const { currentUiLanguage } = useAppearance();
 
     return (
@@ -30,11 +31,12 @@ export const RightSideComponents = () => {
             <SoftwareUpdateAvailableButton />
             <a
                 className={styles.help_and_info_button}
+                aria-label={t("main_page.help_link")}
                 href={generateLocalizedDocumentUrl(currentUiLanguage.data).vrct_document_ui_guide_url}
                 target="_blank"
                 rel="noreferrer"
             >
-                <HelpSvg className={styles.help_svg} />
+                <HelpSvg className={styles.help_svg} aria-hidden="true" />
             </a>
         </div>
     );
