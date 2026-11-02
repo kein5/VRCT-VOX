@@ -111,6 +111,10 @@ config_page:
         original_desc: "VRCT-VOX 基于 VRCT 开发。感谢 VRCT 的开发者、贡献者以及所有支持者。"
     search:
         placeholder: "搜索设置..."
+        label: "搜索设置"
+        results: "匹配的设置"
+        clear: "清除搜索"
+        requires: "需要：{{name}}"
         no_results: "未找到匹配的设置"
     common:
         version: "版本 {{version}}"

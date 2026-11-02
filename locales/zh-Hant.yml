@@ -111,6 +111,10 @@ config_page:
         original_desc: "VRCT-VOX 以 VRCT 為基礎開發。感謝 VRCT 的開發者、貢獻者以及所有支持者。"
     search:
         placeholder: "搜尋設定..."
+        label: "搜尋設定"
+        results: "符合的設定"
+        clear: "清除搜尋"
+        requires: "需要：{{name}}"
         no_results: "未找到相符的設定"
     common:
         version: "版本 {{version}}"

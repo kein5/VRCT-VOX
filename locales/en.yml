@@ -220,6 +220,10 @@ config_page:
         original_desc: "VRCT-VOX is built on VRCT. Thanks to the VRCT developers, contributors and everyone who supported it."
     search:
         placeholder: "Search settings..."
+        label: "Search settings"
+        results: "Matching settings"
+        clear: "Clear search"
+        requires: "Requires: {{name}}"
         no_results: "No matching settings found"
     common:
         version: "Version {{version}}"

@@ -30,6 +30,7 @@ export const Slider = (props) => {
     const trackRef = useRef(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
+    const [isFocused, setIsFocused] = useState(false);
 
     const decimalPlaces = step && step.toString().includes('.')
         ? step.toString().split('.')[1].length
@@ -110,6 +111,27 @@ export const Slider = (props) => {
         };
     }, [isDragging, calculateValue, onChangeFunction, onChangeCommittedFunction, ui_value]);
 
+    // Keyboard: arrows move one step, PageUp/PageDown ten, Home/End to the
+    // ends. Each key is a finished change, like releasing the pointer.
+    const handleKeyDown = (e) => {
+        const unit = step || (max - min) / 100;
+        const moves = {
+            ArrowRight: unit, ArrowUp: unit, ArrowLeft: -unit, ArrowDown: -unit,
+            PageUp: unit * 10, PageDown: -unit * 10,
+        };
+        let next;
+        if (e.key in moves) next = localValue + moves[e.key];
+        else if (e.key === "Home") next = min;
+        else if (e.key === "End") next = max;
+        else return;
+        e.preventDefault();
+        next = Math.max(min, Math.min(parseFloat(next.toFixed(decimalPlaces)), max));
+        if (next === localValue) return;
+        setLocalValue(next);
+        onChangeFunction(next);
+        if (onChangeCommittedFunction) onChangeCommittedFunction(next);
+    };
+
     const handleMouseEnter = () => {
         setIsHovered(true);
     };
@@ -135,7 +157,8 @@ export const Slider = (props) => {
         return displayValue;
     })();
     const valueLabelDisplay = props.valueLabelDisplay || "auto";
-    const showValueLabel = valueLabelDisplay === "on" || (valueLabelDisplay === "auto" && (isHovered || isDragging));
+    const showValueLabel = valueLabelDisplay === "on" || (valueLabelDisplay === "auto" && (isHovered || isDragging || isFocused));
+    const accessibleName = props["aria-label"] ?? (typeof props.label === "string" ? props.label : undefined);
 
     return (
         <div
@@ -190,6 +213,17 @@ export const Slider = (props) => {
 
                 <div
                     className={clsx(styles.thumb, { [styles.thumbActive]: isDragging })}
+                    role="slider"
+                    tabIndex={0}
+                    aria-label={accessibleName}
+                    aria-valuemin={min}
+                    aria-valuemax={max}
+                    aria-valuenow={localValue}
+                    aria-valuetext={String(valueLabelStr)}
+                    aria-orientation={isVertical ? "vertical" : "horizontal"}
+                    onKeyDown={handleKeyDown}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
                     style={{
                         ...(isVertical ? { bottom: `${percentage}%` } : { left: `${percentage}%` })
                     }}

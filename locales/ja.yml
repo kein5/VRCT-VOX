@@ -220,6 +220,10 @@ config_page:
         original_desc: "VRCT-VOX は VRCT をもとに作られています。VRCT の開発者、貢献者、支えてくださった皆さんに感謝します。"
     search:
         placeholder: "設定を検索..."
+        label: "設定を検索"
+        results: "一致する設定"
+        clear: "検索を消去"
+        requires: "要: {{name}}"
         no_results: "一致する設定が見つかりませんでした"
     common:
         version: "バージョン {{version}}"
