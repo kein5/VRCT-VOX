@@ -31,6 +31,10 @@ runtime is trusted executable code, not an untrusted-plugin sandbox.
 The qualified environment uses Python 3.12.14 and Torch/torchaudio 2.7.1+cu118.
 `requirements-cuda.lock` and `requirements.lock` record the CUDA and inference
 dependencies with hashes; `requirements.freeze.txt` records the tested environment.
+The PyTorch index carries setuptools only up to 78.1.0, so the second step replaces it
+with the patched version from PyPI. The 2026-11-02 refresh (Transformers 5, setuptools
+84) was rechecked with the real-model tests; see the
+[record](../../docs/voice-stack/vc-dependency-refresh-2026-11-02.md).
 Install both into a separate uv venv, never the application venv:
 
 ```sh
