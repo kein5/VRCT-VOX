@@ -31,7 +31,7 @@ voice:
     select_input: "入力を選択"
     refresh_inputs: "入力一覧を更新"
     input_requires_managed: "開始するには仮想マイクを準備してください。TTSとRVCの共通出力先が仮想マイクに切り替わります。"
-    input_selection_hint: "ここでは自分が話すマイクを選びます。初期値はデバイス設定の「マイク」で選んだマイクです。VRChat側の入力に VRCT Managed Virtual Microphone を選んでください。"
+    input_selection_hint: "ここでは自分が話すマイクを選びます。初期値はデバイス設定の「マイク」で選んだマイクです。VRChat側の入力にVRCT Managed Virtual Microphoneを選んでください。"
     prepare_microphone: "仮想マイクを準備して使用"
     preparing_microphone: "仮想マイクを準備中…"
     input_start: "入力の転送を開始"
@@ -55,7 +55,7 @@ voice:
     routing: "音声経路"
     routing_external: "既存の外部ケーブル"
     routing_managed: "管理対象の仮想マイク（Linux）"
-    managed_hint: "PipeWireとsystemdを使うLinuxでは、保存時に仮想マイクを自動で準備します。VRCT-VOX終了後も残ります。VRChatの入力に VRCT Managed Virtual Microphone を選び、「音声を再開」を押してください。"
+    managed_hint: "PipeWireとsystemdを使うLinuxでは、保存時に仮想マイクを自動で準備します。VRCT-VOX終了後も残ります。VRChatの入力にVRCT Managed Virtual Microphoneを選び、「音声を再開」を押してください。"
     mute_scope_managed: "この仮想マイクを通るTTSとVCをまとめてミュートします。"
     mute_scope_external: "VRCT-VOXのテキスト読み上げだけをミュートします。"
     mute: "再開するまでミュート"
@@ -119,7 +119,7 @@ common:
     go_back_button_label: "戻る"
     default_label: "デフォルト"
     reset_to_default: "初期値に戻す"
-    copy_version: "バージョン {{version}} をコピー"
+    copy_version: "バージョン{{version}}をコピー"
     loading: "読み込み中…"
 
 common_error:
@@ -133,31 +133,31 @@ common_error:
         write_failed: "設定を保存できません。保存先の状態を確認してください。直ると自動で保存し直します。それまでの変更は、VRCT-VOXを終了すると失われます。（{{file}}）"
         recovered: "設定を保存できるようになり、変更を保存しました。"
     unexpected_error: "予期しないエラーが起きました（{{code}}）。直らないときはVRCT-VOXを再起動してください。続くようなら、このコードを添えてVRCT-VOXのIssuesで知らせてください。"
-    backend_stopped: "VRCT-VOXの処理部分が予期せず停止しました（コード {{code}}）。設定やスイッチは反応しません。VRCT-VOXを再起動してください。"
+    backend_stopped: "VRCT-VOXの処理部分が予期せず停止しました（コード{{code}}）。設定やスイッチは反応しません。VRCT-VOXを再起動してください。"
     transcription_api_auth_failed: "音声認識サービスがAPIキーを受け付けませんでした。キーと、カスタムサーバーの場合はURLを確認してください。"
     transcription_model_invalid: "その音声認識モデルは使えません。"
     transcription_custom_url_invalid: "カスタムWhisperサーバーに接続できないか、モデルが見つかりませんでした。URLを確認してください。"
-    ctranslate2_license_consent_required: "{{weight_type}} は非商用ライセンス（CC-BY-NC-4.0）です。先に 設定 > 翻訳 でライセンスを確認してください。"
-    translation_language_unsupported: "{{model}} は {{languages}} を翻訳できないため、言語をリセットしました。この言語を使うには、別の翻訳エンジンか {{ctranslate2}} モデルを選んでください。"
+    ctranslate2_license_consent_required: "{{weight_type}}は非商用ライセンス（CC-BY-NC-4.0）です。先に設定 > 翻訳でライセンスを確認してください。"
+    translation_language_unsupported: "{{model}}は{{languages}}を翻訳できないため、言語をリセットしました。この言語を使うには、別の翻訳エンジンか{{ctranslate2}}モデルを選んでください。"
     no_device_mic: "マイクデバイスが検出されませんでした。"
     no_device_speaker: "スピーカーデバイスが検出されませんでした。"
     copy_to_clipboard_failed: "クリップボードへのコピーに失敗しました。"
-    threshold_invalid_value: "{{min}} から {{max}} までの数値で設定できます。"
-    failed_download_weight_ctranslate2: "CTranslate2 モデルのダウンロードに失敗しました。"
-    failed_download_weight_whisper: "Whisper モデルのダウンロードに失敗しました。"
+    threshold_invalid_value: "{{min}}から{{max}}までの数値で設定できます。"
+    failed_download_weight_ctranslate2: "CTranslate2モデルのダウンロードに失敗しました。"
+    failed_download_weight_whisper: "Whisperモデルのダウンロードに失敗しました。"
     failed_update_software: "インストーラのダウンロードに失敗しました。しばらくしてからもう一度お試しください。"
     failed_update_software_verify: "ダウンロードしたインストーラが公開されているチェックサムと一致しなかったため、更新を中止しました。"
     translation_limit: "翻訳エンジンの使用制限に達したか、一時的に利用制限がかけられています。"
     deepl_auth_key_invalid_length: "APIキーの文字数が間違っています。"
     deepl_auth_key_failed_authentication: "APIキーが間違っているか、API使用制限が上限に達しています。"
 
-    invalid_value_mic_record_timeout: "0 以上で 「{{mic_phrase_timeout_label}}」 より大きくすることはできません。"
-    invalid_value_mic_phrase_timeout: "0 以上で 「{{mic_record_timeout_label}}」 より小さくすることはできません。"
-    invalid_value_mic_max_phrase: "0 以上の数値を設定できます。"
+    invalid_value_mic_record_timeout: "0以上で「{{mic_phrase_timeout_label}}」より大きくすることはできません。"
+    invalid_value_mic_phrase_timeout: "0以上で「{{mic_record_timeout_label}}」より小さくすることはできません。"
+    invalid_value_mic_max_phrase: "0以上の数値を設定できます。"
 
-    invalid_value_speaker_record_timeout: "0 以上で 「{{speaker_phrase_timeout_label}}」 より大きくすることはできません。"
-    invalid_value_speaker_phrase_timeout: "0 以上で 「{{speaker_record_timeout_label}}」 より小さくすることはできません。"
-    invalid_value_speaker_max_phrase: "0 以上の数値を設定できます。"
+    invalid_value_speaker_record_timeout: "0以上で「{{speaker_phrase_timeout_label}}」より大きくすることはできません。"
+    invalid_value_speaker_phrase_timeout: "0以上で「{{speaker_record_timeout_label}}」より小さくすることはできません。"
+    invalid_value_speaker_max_phrase: "0以上の数値を設定できます。"
 
     invalid_hex_color: "有効なHEXカラーコード（例: {{brand_color_hex}}）形式で入力してください。"
     invalid_config_value: "その値は使えないため、元の設定のままにしました。"
@@ -193,20 +193,20 @@ backend_errors:
     AUTH_GROQ_FAILED: "Groq APIキーを確認できませんでした。キーが正しいか確認してください。"
     AUTH_OPENROUTER_INVALID: "OpenRouter APIキーの形式が正しくありません。"
     AUTH_OPENROUTER_FAILED: "OpenRouter APIキーを確認できませんでした。キーが正しいか確認してください。"
-    AUTH_OPENAI_COMPATIBLE_INVALID: "OpenAI 互換 APIキーの形式が正しくありません。"
-    AUTH_OPENAI_COMPATIBLE_FAILED: "OpenAI 互換エンドポイントに接続できないか、APIキーが受け付けられませんでした。URLとAPIキーを確認してください。"
+    AUTH_OPENAI_COMPATIBLE_INVALID: "OpenAI互換APIキーの形式が正しくありません。"
+    AUTH_OPENAI_COMPATIBLE_FAILED: "OpenAI互換エンドポイントに接続できないか、APIキーが受け付けられませんでした。URLとAPIキーを確認してください。"
     MODEL_PLAMO_INVALID: "そのPlamoのモデルは使えません。"
     MODEL_GEMINI_INVALID: "そのGeminiのモデルは使えません。"
     MODEL_OPENAI_INVALID: "そのOpenAIのモデルは使えません。"
     MODEL_GROQ_INVALID: "そのGroqのモデルは使えません。"
     MODEL_OPENROUTER_INVALID: "そのOpenRouterのモデルは使えません。"
     MODEL_LMSTUDIO_INVALID: "そのLM Studioのモデルは使えません。"
-    MODEL_OPENAI_COMPATIBLE_INVALID: "そのOpenAI 互換エンドポイントのモデルは使えません。"
+    MODEL_OPENAI_COMPATIBLE_INVALID: "そのOpenAI互換エンドポイントのモデルは使えません。"
     MODEL_OLLAMA_INVALID: "そのOllamaのモデルは使えません。"
     CONNECTION_LMSTUDIO_FAILED: "LM Studioに接続できません。LM Studioのサーバーが起動しているか確認してください。"
     CONNECTION_OLLAMA_FAILED: "Ollamaに接続できません。Ollamaが起動しているか確認してください。"
     CONNECTION_LMSTUDIO_URL_INVALID: "LM StudioのURLが正しくありません。"
-    CONNECTION_OPENAI_COMPATIBLE_URL_INVALID: "OpenAI 互換エンドポイントのURLが正しくありません。"
+    CONNECTION_OPENAI_COMPATIBLE_URL_INVALID: "OpenAI互換エンドポイントのURLが正しくありません。"
     WEBSOCKET_HOST_INVALID: "WebSocketサーバーにこのホストは使えません。"
     WEBSOCKET_PORT_UNAVAILABLE: "WebSocketサーバーのポートがほかのアプリで使われています。別のポートを指定してください。"
     WEBSOCKET_PORT_INVALID: "WebSocketのポートは数値で入力してください。"
@@ -222,7 +222,7 @@ backend_errors:
     VRC_MIC_MUTE_SYNC_OSC_DISABLED: "OSCQueryが使えないため、VRCマイクミュート同期をオンにできません。OSCの送信先が127.0.0.1かlocalhostか確認してください。"
 
 common_warning:
-    config_file_unreadable: "設定ファイル（config.json）を読み込めなかったため、既定の設定で起動しました。元のファイルは {{file}} として残しています。"
+    config_file_unreadable: "設定ファイル（config.json）を読み込めなかったため、既定の設定で起動しました。元のファイルは{{file}}として残しています。"
     unable_to_use_osc_query: "OSCの送信先IPアドレスの設定によりOSCデータの受信ができないため、以下の機能が自動的に無効になっています。"
 
 main_page:
@@ -250,7 +250,7 @@ main_page:
         all: "全て"
         sent: "送信"
         received: "受信"
-        received_ocr: "受信 ({{ocr}})"
+        received_ocr: "受信({{ocr}})"
         system: "システム"
 
         resend_button_on_hover_desc: "長押しで送信"
@@ -274,7 +274,7 @@ update_modal:
     channel_stable: "安定版"
     channel_beta: "Beta版"
     compute_mode_cpu: "CPU版"
-    compute_mode_cuda: "GPU版 (CUDA)"
+    compute_mode_cuda: "GPU版(CUDA)"
     latest_label: "最新"
     install_latest_button: "最新バージョンへ更新"
     install_button: "この設定で再インストール"
@@ -283,27 +283,27 @@ update_modal:
     channel_label: "リリースチャンネル"
     channel_desc: "Beta版は新機能を先取りできますが、動作が不安定な場合があります。"
     compute_mode_label: "デバイス構成"
-    compute_mode_desc: "GPU版はNVIDIA GPUで高速に動作しますが、約 5GB のディスク容量が必要です。"
+    compute_mode_desc: "GPU版はNVIDIA GPUで高速に動作しますが、約5GBのディスク容量が必要です。"
     version_label: "インストールするバージョン"
     version_desc: "選択したチャンネルで公開されているリリースから選べます。"
     no_versions_available: "選択中のチャンネルには利用可能なバージョンがありません。"
     change_col_current: "現在"
     change_col_after: "インストール後"
-    warn_downgrade: "{{from}} から {{to}} へのダウングレードになります。設定ファイルの互換性は保証されません。"
-    warn_cuda_extra_size: "GPU版は約 5GB の追加ダウンロードが必要です。"
+    warn_downgrade: "{{from}}から{{to}}へのダウングレードになります。設定ファイルの互換性は保証されません。"
+    warn_cuda_extra_size: "GPU版は約5GBの追加ダウンロードが必要です。"
     warn_switch_channel: "{{channel}}チャンネルに切り替わります。次回以降のアップデート通知も{{channel}}が対象になります。"
 
 config_page:
     about_vrct:
-        summary: "音声認識（ASR）、読み上げ（TTS）、ボイスチェンジ（RVC）、チャット読み取り（OCR）、翻訳を、VRChat 向けに一つにまとめたアプリです。"
-        fork_notice: "VRCT-VOX は、kein5 が開発している VRCT の独立した fork で、VRCT の公式版ではありません。不具合や質問は、本家 VRCT の開発者ではなく VRCT-VOX の Issues にお寄せください。"
+        summary: "音声認識（ASR）、読み上げ（TTS）、ボイスチェンジ（RVC）、チャット読み取り（OCR）、翻訳を、VRChat向けに一つにまとめたアプリです。"
+        fork_notice: "VRCT-VOXは、kein5が開発しているVRCTの独立したforkで、VRCTの公式版ではありません。不具合や質問は、本家VRCTの開発者ではなくVRCT-VOXのIssuesにお寄せください。"
         links:
             repository: "GitHub"
             releases: "リリース"
             issues: "不具合を報告（Issues）"
             licenses: "ライセンスと表記"
-        original_heading: "本家 VRCT"
-        original_desc: "VRCT-VOX は VRCT をもとに作られています。VRCT の開発者、貢献者、支えてくださった皆さんに感謝します。"
+        original_heading: "本家VRCT"
+        original_desc: "VRCT-VOXはVRCTをもとに作られています。VRCTの開発者、貢献者、支えてくださった皆さんに感謝します。"
     search:
         placeholder: "設定を検索..."
         label: "設定を検索"
@@ -312,7 +312,7 @@ config_page:
         requires: "要: {{name}}"
         no_results: "一致する設定が見つかりませんでした"
     common:
-        version: "バージョン {{version}}"
+        version: "バージョン{{version}}"
         model_download_button_label: "ダウンロード"
         save_button_label: "保存"
         edit_button_label: "編集"
@@ -329,8 +329,8 @@ config_page:
             label_device: "処理デバイス"
             label_type: "処理タイプ"
             type_template_auto: "自動"
-            type_template_low: "{{type_name}} （精度が悪く、処理は早い）"
-            type_template_high: "{{type_name}} （精度が良く、処理は遅い）"
+            type_template_low: "{{type_name}}（精度が悪く、処理は早い）"
+            type_template_high: "{{type_name}}（精度が良く、処理は遅い）"
         warning_labels:
             unable_to_use_osc_query: "OSCの送信先IPアドレスの設定によりOSCデータの受信ができないため、現在この機能は使用できません。"
 
@@ -365,8 +365,8 @@ config_page:
         label_host: "ホスト/ドライバー"
         label_device: "デバイス"
         mic_host_device:
-            label: "マイク （デバイス）"
-            desc_pipewire: "Linuxでは PipeWire の入力デバイスを表示します。選んだマイクがRVCの入力の初期値になります（RVCはトップ画面のRVCスイッチで開始）。リアルタイム音声認識のマイクは音声認識の設定で選びます。"
+            label: "マイク（デバイス）"
+            desc_pipewire: "LinuxではPipeWireの入力デバイスを表示します。選んだマイクがRVCの入力の初期値になります（RVCはトップ画面のRVCスイッチで開始）。リアルタイム音声認識のマイクは音声認識の設定で選びます。"
         mic_dynamic_energy_threshold:
             label: "マイク入力感度の調整"
             desc_for_automatic: "マイクの入力感度を自動的に調節する。"
@@ -376,7 +376,7 @@ config_page:
             option_manual: "手動"
             desc_for_vad: "AI（Silero VAD）を用いて人の声を検出し、話し終わるごとに音声認識へ送信します。BGMや環境音の誤認識を抑えやすくなります。"
         speaker_device:
-            label: "スピーカー （デバイス）"
+            label: "スピーカー（デバイス）"
         speaker_dynamic_energy_threshold:
             label: "スピーカー入力感度の調整"
             desc_for_automatic: "スピーカーの入力感度を自動的に調節する。"
@@ -399,7 +399,7 @@ config_page:
             desc: "ログに表示されるフォントのサイズを、UIサイズを基準にして倍率を変えられます。"
         send_message_button_type:
             label: "メッセージ送信ボタン"
-            hide: "非表示 （エンターキーを使って送信）"
+            hide: "非表示（エンターキーを使って送信）"
             show: "表示"
             show_and_disable_enter_key: "表示し、エンターキーでの送信を無効"
         show_resend_button:
@@ -420,21 +420,21 @@ config_page:
         section_label_local_llm: "ローカルLLM・互換サーバー"
 
         ctranslate2_weight_type:
-            label: "{{ctranslate2}} のモデルタイプ"
+            label: "{{ctranslate2}}のモデルタイプ"
             desc: "翻訳エンジン「{{ctranslate2}}」で翻訳する際に、使用する翻訳モデルを選択できます。"
-            small: "通常モデル （{{capacity}}）"
-            large: "高精度モデル （{{capacity}}）"
+            small: "通常モデル（{{capacity}}）"
+            large: "高精度モデル（{{capacity}}）"
             license_commercial: "ライセンス: {{license}}（商用利用可）"
             license_non_commercial: "非商用ライセンス（{{license}}）"
             confirm_title: "非商用ライセンス"
-            confirm_body: "{{weight_type}} のライセンスは {{license}} です。商用目的では使用できません。M2M100 モデル（MIT ライセンス）にはこの制限はありません。"
+            confirm_body: "{{weight_type}}のライセンスは{{license}}です。商用目的では使用できません。M2M100モデル（MITライセンス）にはこの制限はありません。"
             confirm_check: "ライセンスを確認し、非商用目的でのみ使用します。"
             confirm_download: "ダウンロード"
             confirm_select: "このモデルを使う"
             confirm_cancel: "キャンセル"
             license_link: "ライセンス条項"
             model_card_link: "モデルカード"
-            non_commercial_notice: "現在の {{ctranslate2}} モデル {{weight_type}} は非商用ライセンス（{{license}}）です。以前のバージョンの既定値で、設定は変更していません。商用利用する場合は、設定 > 翻訳 で M2M100 モデル（MIT）を選んでください。"
+            non_commercial_notice: "現在の{{ctranslate2}}モデル{{weight_type}}は非商用ライセンス（{{license}}）です。以前のバージョンの既定値で、設定は変更していません。商用利用する場合は、設定 > 翻訳でM2M100モデル（MIT）を選んでください。"
         translation_compute_device:
             label: "AI翻訳の処理デバイス"
 
@@ -445,47 +445,47 @@ config_page:
         plamo_auth_key:
             label: "Plamo APIキー"
         select_plamo_model:
-            label: "Plamo モデルを選択"
+            label: "Plamoモデルを選択"
 
         gemini_auth_key:
             label: "Gemini APIキー"
         select_gemini_model:
-            label: "Gemini モデルを選択"
+            label: "Geminiモデルを選択"
 
         openai_auth_key:
             label: "OpenAI APIキー"
         select_openai_model:
-            label: "OpenAI モデルを選択"
+            label: "OpenAIモデルを選択"
 
         groq_auth_key:
             label: "Groq APIキー"
         select_groq_model:
-            label: "Groq モデルを選択"
+            label: "Groqモデルを選択"
 
         openrouter_auth_key:
             label: "OpenRouter APIキー"
         select_openrouter_model:
-            label: "OpenRouter モデルを選択"
+            label: "OpenRouterモデルを選択"
 
         lmstudio_connection_check:
-            label: "LM Studio との接続確認"
+            label: "LM Studioとの接続確認"
         select_lmstudio_model:
-            label: "LM Studio モデルを選択"
-            connection_required: "LMStudio との接続が必要"
+            label: "LM Studioモデルを選択"
+            connection_required: "LMStudioとの接続が必要"
 
         openai_compatible_url:
-            label: "OpenAI 互換エンドポイント URL"
-            desc: "公式 OpenAI 以外を指定した場合は、料金・セキュリティ・モデル互換性を自己責任で確認してください。"
+            label: "OpenAI互換エンドポイントURL"
+            desc: "公式OpenAI以外を指定した場合は、料金・セキュリティ・モデル互換性を自己責任で確認してください。"
         openai_compatible_auth_key:
-            label: "OpenAI 互換 APIキー"
+            label: "OpenAI互換APIキー"
         select_openai_compatible_model:
-            label: "OpenAI 互換モデルを選択"
+            label: "OpenAI互換モデルを選択"
 
         ollama_connection_check:
-            label: "Ollama との接続確認"
+            label: "Ollamaとの接続確認"
         select_ollama_model:
-            label: "Ollama モデルを選択"
-            connection_required: "Ollama との接続が必要"
+            label: "Ollamaモデルを選択"
+            connection_required: "Ollamaとの接続が必要"
 
     transcription:
         section_label_mic: "マイク"
@@ -499,7 +499,7 @@ config_page:
             desc: "設定された秒数ごとに文字起こし処理が行われます。"
         mic_max_phrase:
             label: "マイクの最大待機メッセージ数"
-            desc: "文字起こしされたメッセージが送信されるまでに溜められる最大数です。これを超えると、古いものから VRChat に送信されずに破棄されます。"
+            desc: "文字起こしされたメッセージが送信されるまでに溜められる最大数です。これを超えると、古いものからVRChatに送信されずに破棄されます。"
         mic_word_filter:
             label: "ワードフィルター"
             desc: "登録された単語を検出すると、その文章は送信されません。\n「,」カンマで区切ると、まとめて複数の単語を追加できます。\n※重複した単語は登録されません。"
@@ -537,7 +537,7 @@ config_page:
             label: "OpenAI Whisper APIキー"
         custom_whisper_url:
             label: "カスタムWhisperサーバーのURL"
-            desc: "/v1/audio/transcriptions を持つOpenAI互換サーバーのURLです（例: http://192.168.0.10:8000/v1）。"
+            desc: "/v1/audio/transcriptionsを持つOpenAI互換サーバーのURLです（例: http://192.168.0.10:8000/v1）。"
         custom_whisper_auth_key:
             label: "カスタムWhisperサーバーのAPIキー"
             desc: "キーが不要なサーバーでは、任意の文字列を入力してください。"
@@ -625,7 +625,7 @@ config_page:
             desc: "VRChatのマイクをミュートすると、マイクの文字起こしを一時停止します。ミュート解除をVRChatに確認してから再開し、確認できない間は停止を続けます。\n※若干の遅延はあります。また、Push-To-Talkは非対応です。"
         send_message_to_vrc:
             label: "VRChatにメッセージを送信する"
-            desc: "サポート対象外ですが、VRChatにメッセージを送信せずに使う方法があります。送信したい場合、この機能を有効にする事を忘れないでください。"
+            desc: "メッセージをVRChatのチャットボックスに送ります。オフにすると、VRChatに送らずにVRCT-VOXの中だけで使えますが、この使い方はサポートの対象外です。"
         notification_vrc_sfx:
             label: "チャット送信時にチャットボックスの通知音を鳴らす"
             desc: "この機能を無効にすると、他の人が聞こえるチャットボックスの通知音を鳴らさず、静かに送信します。"
@@ -745,7 +745,7 @@ config_page:
             channel_beta: "β版"
             compute_mode_label: "デバイス構成"
             compute_mode_cpu: "CPU版"
-            compute_mode_gpu: "GPU版 (CUDA)"
+            compute_mode_gpu: "GPU版(CUDA)"
             version_label: "インストールするバージョン"
             version_desc: "過去のバージョンを選ぶとダウングレードできます。リストは選択中のチャンネルで絞り込まれます。"
             no_versions_available: "選択中のチャンネルには利用可能なバージョンがありません。"
@@ -765,11 +765,11 @@ config_page:
         toggle_vrct_visibility:
             label: "VRCT-VOXの最小化/アクティブ化の切り替え"
         toggle_translation:
-            label: "「{{translation}}」 オン/オフの切り替え"
+            label: "「{{translation}}」オン/オフの切り替え"
         toggle_transcription_send:
-            label: "「{{transcription_send}}」 オン/オフの切り替え"
+            label: "「{{transcription_send}}」オン/オフの切り替え"
         toggle_transcription_receive:
-            label: "「{{transcription_receive}}」 オン/オフの切り替え"
+            label: "「{{transcription_receive}}」オン/オフの切り替え"
 
     advanced_settings:
         section_label_osc: "OSC"
@@ -791,7 +791,7 @@ config_page:
         websocket_url:
             label: "WebSocket URL（クリックでコピー）"
         obs_browser_source:
-            section_label: "OBS ブラウザソース"
+            section_label: "OBSブラウザソース"
         enable_obs_browser_source:
             label: "OBSブラウザソースを有効化"
             desc: "OBS（ブラウザソース）向けに翻訳を表示するオーバーレイページをホストし、一定時間後にフェードアウトします。"
@@ -799,7 +799,7 @@ config_page:
             label: "OBS URL（クリックでコピー）"
             desc: "OBSのURLにキーが含まれるようになりました。もう一度コピーして、OBSのブラウザソースのURLを更新してください。"
         obs_browser_source_port:
-            label: "OBS ポート"
+            label: "OBSポート"
         obs_browser_source_max_messages:
             label: "最大メッセージ数"
         obs_browser_source_display_duration:
@@ -886,14 +886,14 @@ vr_panel:
         processing: "処理設定"
         changing: "変更を反映中…"
         changing_short: "反映中…"
-        auto_device: "自動選択が ON です。OFF にすると変更できます。"
-        fonts_unavailable: "フォント一覧を取得できません。PC の設定を確認してください。"
-        devices_unavailable: "利用できる処理デバイスがありません。PC の設定を確認してください。"
+        auto_device: "自動選択がONです。OFFにすると変更できます。"
+        fonts_unavailable: "フォント一覧を取得できません。PCの設定を確認してください。"
+        devices_unavailable: "利用できる処理デバイスがありません。PCの設定を確認してください。"
         types_unavailable: "利用できる処理タイプがありません。デバイスを確認してください。"
-        prepare_model: "モデル未準備。PC の設定でダウンロードしてください。"
-        unavailable: "利用できません。PC の設定を確認してください。"
+        prepare_model: "モデル未準備。PCの設定でダウンロードしてください。"
+        unavailable: "利用できません。PCの設定を確認してください。"
         speaker_adjustments: "区切りと最大待機メッセージ数を調整"
-        ui_log: "VR UI のログウィンドウ"
+        ui_log: "VR UIのログウィンドウ"
         subtitle_overlay: "字幕オーバーレイ（一行・複数行）"
         decrease: "{{label}}を減らす"
         increase: "{{label}}を増やす"
@@ -902,7 +902,7 @@ vr_panel:
         expand: "開く"
         close: "設定を閉じて翻訳・文字起こしを再開"
     language:
-        preset_number: "プリセット {{n}}"
+        preset_number: "プリセット{{n}}"
         swap: "入れ替え"
         swap_hint: "相手の1番と"
         swap_name: "あなたの言語と相手の1番を入れ替える"
@@ -918,14 +918,14 @@ vr_panel:
         saved: "保存済み候補"
         saved_hint: "全プリセットに保存した言語です"
         letters_title: "言語の頭文字を選ぶ"
-        letter_title: "{{letter}} の言語"
+        letter_title: "{{letter}}の言語"
         selected: "選択中"
-        selected_slots: "相手 {{n}}番"
+        selected_slots: "相手{{n}}番"
         available: "利用できるエンジン"
         unavailable: "利用できないエンジン"
         unavailable_hint: "この言語や現在の設定では利用できません。必要な設定をPC側で確認できます。"
         same_reason: "あなたと相手に同じ言語があるため、CTranslate2のみ利用できます。国が違う場合も同じです。"
-        full: "3 / 3 選択中 · 言語の変更は各行から"
+        full: "3 / 3選択中 · 言語の変更は各行から"
         busy_hint: "反映中はこの画面でお待ちください。"
         success: "変更を反映しました"
         external: "プリセット{{n}}に切替"
@@ -1046,7 +1046,7 @@ speech_servers:
     multilingual_selection: "その他の言語のサーバー"
     asr_selection: "ASRサーバー"
     errors:
-        speech_bundle_missing_or_invalid: "同梱のspeech.cppが見つからないか、検査に合いません。配布版を入れ直してください。開発環境では build/speechcpp を用意してください。"
+        speech_bundle_missing_or_invalid: "同梱のspeech.cppが見つからないか、検査に合いません。配布版を入れ直してください。開発環境ではbuild/speechcppを用意してください。"
         speech_server_launch_failed: "サーバーを起動できませんでした。モデルファイルと「推論デバイス」を確認してから、もう一度起動してください。"
         speech_server_exited: "サーバーが予期せず停止しました。モデルファイルと「推論デバイス」を確認してから、もう一度起動してください。"
         speech_server_out_of_memory: "メモリーが不足しています。他のGPUアプリを停止するか、CPUを選択して保存し、サーバーを再起動してください。"
@@ -1166,13 +1166,13 @@ quick_chat:
     clear_shortcut: "ショートカットを解除: {{action}}"
     wayland_portal: "ネイティブWaylandでは、デスクトップのショートカット機能（GlobalShortcuts portal）で登録します。初回は、設定を閉じるとデスクトップの確認画面が開きます。KDEでは、ここで設定したキーがデスクトップ側にも反映されます。"
     portal_failed: "デスクトップにショートカットを登録できませんでした（{{code}}）。ボタンから小窓を開けます。"
-    portal_key_kept: "「{{action_name}}」の {{wanted}} をデスクトップに設定できませんでした（他のショートカットと重複している可能性があります）。現在は {{hotkey}} で動作します。別のキーを設定してください。"
+    portal_key_kept: "「{{action_name}}」の{{wanted}}をデスクトップに設定できませんでした（他のショートカットと重複している可能性があります）。現在は{{hotkey}}で動作します。別のキーを設定してください。"
     portal_errors:
         portal_cancelled: "デスクトップの確認画面で登録が取り消されました。設定を開いて閉じると、もう一度確認画面が開きます。"
         portal_timeout: "デスクトップの確認画面への応答がありませんでした。設定を開いて閉じると、もう一度登録します。"
         portal_shortcuts_unsupported: "このデスクトップはGlobalShortcuts portalに対応していません。ボタンから小窓を開けます。"
         portal_app_id_unavailable: "デスクトップがVRCT-VOXの登録を受け付けなかったため、ショートカットを使えません。VRCT-VOXのデスクトップファイルを見つけられる、新しいxdg-desktop-portalが必要です。ボタンから小窓を開けます。"
-        portal_desktop_file_failed: "ショートカット登録に必要なデスクトップファイルを作れませんでした。~/.local/share/applications の書き込み権限を確認してください。"
+        portal_desktop_file_failed: "ショートカット登録に必要なデスクトップファイルを作れませんでした。~/.local/share/applicationsの書き込み権限を確認してください。"
         portal_unavailable: "デスクトップのportalに接続できませんでした。xdg-desktop-portalが動作しているか確認してください。"
     xwayland_hint: "XWaylandでは、別のWaylandアプリを操作中にデスクトップ側がキーやフォーカスの移動を制限する場合があります。"
     platform_unknown: "ショートカットの対応環境を確認できませんでした。設定画面を開き直してください。"
@@ -1183,12 +1183,12 @@ quick_chat:
 
 voice_setup_errors:
     managed_setup_conflict: "既存の仮想マイク設定と競合しています。既存のデバイス・設定は置き換えていません。"
-    managed_setup_tools_missing: "自動準備には pw-loopback と systemctl が必要です。PipeWireのツールとsystemdのユーザーサービスを確認してください。"
+    managed_setup_tools_missing: "自動準備にはpw-loopbackとsystemctlが必要です。PipeWireのツールとsystemdのユーザーサービスを確認してください。"
     managed_setup_service_failed: "仮想マイクのユーザーサービスを起動できません。systemdのユーザーセッションを確認してください。"
     managed_setup_timeout: "仮想マイクの準備を確認できませんでした。PipeWireの状態を確認してください。"
     managed_setup_busy: "別のVRCT-VOXが仮想マイクを準備しています。再試行を待っています。"
     managed_setup_files_unavailable: "仮想マイクのサービス設定を保存できません。設定フォルダの書き込み権限を確認してください。"
-    managed_setup_session_unavailable: "デスクトップのユーザーセッションを確認できません。自動準備には XDG_RUNTIME_DIR が必要です。"
+    managed_setup_session_unavailable: "デスクトップのユーザーセッションを確認できません。自動準備にはXDG_RUNTIME_DIRが必要です。"
     managed_setup_custom_remote: "独自のPipeWireサーバーでは自動準備できません。そのサーバー側に経路を用意してください。"
     managed_setup_manual_config_pending: "以前の手動PipeWire設定がまだ有効になっていません。二重作成を避けるため、以前の設定を有効化するか整理してください。"
 
