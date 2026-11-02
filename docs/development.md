@@ -47,7 +47,7 @@ Linuxのトレイ用ライブラリは `ayatana-appindicator3-0.1` または `ap
 | `rust` | `cargo fetch --locked` でCargo.lockに従う依存を取得 |
 | `sidecar` | Unixで既存Rustソースをコンパイルし、Tauri開発用wrapperと必要なplaceholderを準備 |
 
-専用venvには所有マーカーを保存します。同じ場所にマーカーのない既存ディレクトリやシンボリックリンクがある場合は停止し、削除しません。Pythonのスコープはいずれも、`uv.lock` から間接依存まで含む一覧を `uv export` で `build/dev/<scope>-requirements.txt` に書き出し、専用venvへ `uv pip sync` で同期します。`--python` で既存venvを指定した場合（`browser` のみ）は `uv pip install -r` で追加し、ほかのパッケージは削除しません。[uvの環境指定](https://docs.astral.sh/uv/pip/environments/)と[依存の固定・同期](https://docs.astral.sh/uv/pip/compile/)を参照してください。
+専用venvには所有マーカーを保存します。同じ場所にマーカーのない既存ディレクトリやシンボリックリンクがある場合は停止し、削除しません。Pythonのスコープはいずれも、`tools/check_python_lock.py`でロック全体のアーカイブのSHA-256とGit依存の完全なcommit SHAを検査します。続いて、`uv.lock` からハッシュと間接依存を含む一覧を `uv export` で `build/dev/<scope>-requirements.txt` に書き出し、専用venvへ `uv pip sync` で同期します。uvは一覧にあるハッシュを照合し、不一致なら停止します。Git依存にはアーカイブのハッシュを要求せず、固定commitを使います。`--python` で既存venvを指定した場合（`browser` のみ）は `uv pip install -r` で追加し、ほかのパッケージは削除しません。[uvの環境指定](https://docs.astral.sh/uv/pip/environments/)と[依存の固定・同期](https://docs.astral.sh/uv/pip/compile/)を参照してください。
 
 `setup --scope ui` は既存の `node_modules` をnpmの仕様どおり作り直します。package.jsonとpackage-lock.jsonに不一致があれば失敗し、lockを更新しません。[npm ciの仕様](https://docs.npmjs.com/cli/v11/commands/npm-ci)を参照してください。
 
@@ -173,4 +173,4 @@ python tools/build_voice_gate.py
 python tools/dev.py check --scope voice
 ```
 
-npm、Cargo、Pythonはそれぞれ `package-lock.json`、`Cargo.lock`、`uv.lock` を使います。Pythonの書き出しにはハッシュを含めないため、wheelのハッシュ照合はしません。Python本体のpatch版、Rust、OSライブラリもこのCLIでは固定しません。同じビット列の配布物や全機種での動作を保証するものではありません。検証記録には `doctor --json` の結果、実行scope、commit、OSを併記します。
+npm、Cargo、Pythonはそれぞれ `package-lock.json`、`Cargo.lock`、`uv.lock` を使います。Pythonの検証対象はロックにある配布アーカイブとGitのcommitです。ソースビルド時に隔離環境へ追加されるビルド依存や、Python本体のpatch版、Rust、OSライブラリはこのCLIでは固定しません。同じビット列の配布物や全機種での動作を保証するものではありません。検証記録には `doctor --json` の結果、実行scope、commit、OSを併記します。
