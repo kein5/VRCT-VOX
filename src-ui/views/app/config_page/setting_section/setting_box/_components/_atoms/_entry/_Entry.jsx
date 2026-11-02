@@ -55,6 +55,8 @@ const _Entry = forwardRef((props, ref) => {
                         props.onWheel?.(e);
                         e.currentTarget.blur();
                     }}
+                    spellCheck={props.spellCheck}
+                    autoComplete={props.autoComplete}
                     readOnly={props.readOnly === true ? true : false}
                     disabled={is_disabled}
                 />
