@@ -177,6 +177,7 @@ run_mapping = {
 
     "initialization_progress":"/run/initialization_progress",
     "initialization_complete":"/run/initialization_complete",
+    "config_file_unreadable":"/run/config_file_unreadable",
 
     "enable_osc_query":"/run/enable_osc_query",
 }

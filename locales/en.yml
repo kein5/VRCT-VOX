@@ -4,7 +4,7 @@
 # =================================
 
 runtime:
-    local_models_unavailable: "Built-in translation or transcription models are unavailable. Text chat and external voice engines remain available. To download built-in models, enable model downloads under Settings → Others and restart."
+    local_models_unavailable: "Built-in translation or transcription models are unavailable. Text chat and external voice engines remain available. To download built-in models, turn on \"Download translation and transcription models at startup\" under Settings → Translation or Speech Recognition and restart."
 
 voice:
     direct_mode: "Direct voice mode"
@@ -142,14 +142,15 @@ common_error:
     invalid_hex_color: "Please enter a valid HEX color code (e.g., {{brand_color_hex}})."
     invalid_config_value: "That value cannot be used. The previous setting is kept."
     ocr_engine_unavailable: "Chat Transcribe could not start: the OCR engine is not included in this build."
-    ocr_model_load_failed: "Chat Transcribe could not start: the recognition models could not be loaded. Download them again in Config → Chat Transcribe."
+    ocr_model_load_failed: "Chat Transcribe could not start: the recognition models could not be loaded. Download them again under Settings → VRChat → Chat Transcribe."
     ocr_unsupported_language: "Chat Transcribe could not start: the selected source language is not supported."
-    ocr_model_missing: "Chat Transcribe needs recognition models. Download them in Config → Chat Transcribe."
+    ocr_model_missing: "Chat Transcribe needs recognition models. Download them under Settings → VRChat → Chat Transcribe."
     ocr_window_not_found: "Chat Transcribe could not find the VRChat window. Start VRChat, then turn it on again."
     ocr_capture_unavailable: "Chat Transcribe cannot capture windows in this session. On Linux, VRChat has to run as an X11/XWayland window."
     ocr_unknown: "Chat Transcribe could not start because of an unexpected error."
 
 common_warning:
+    config_file_unreadable: "config.json could not be read, so VRCT-VOX started with default settings. The old file was kept as {{file}}."
     unable_to_use_osc_query: "The following functions have been automatically disabled due to the OSC IP Address settings preventing OSC data from being received."
 
 main_page:

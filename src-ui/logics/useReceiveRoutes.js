@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useI18n } from "@useI18n";
 import * as realtime from "./transcription/useRealtimeASR";
 import * as common from "@logics_common";
 import * as main from "@logics_main";
@@ -55,6 +56,7 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/compute_mode", ns: common, hook_name: "useComputeMode", method_name: "updateComputeMode" },
 
     { endpoint: "/run/update_software", ns: null, hook_name: null, method_name: null },
+    { endpoint: "/run/config_file_unreadable", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
 
     // VR UI のポインタ位置 (ホバー表示用)。VR ウィンドウへ転送する
     { endpoint: "/run/vr_panel_pointer", ns: common, hook_name: "useVrPanelPointer", method_name: "forwardVrPanelPointer" },
@@ -174,7 +176,8 @@ const TRANSCRIPTION_TOGGLES = ["/set/enable/transcription_send", "/set/disable/t
     "/set/enable/transcription_receive", "/set/disable/transcription_receive"];
 
 export const useReceiveRoutes = () => {
-    const { showNotification_Error } = common.useNotificationStatus();
+    const { showNotification_Error, showNotification_Warning } = common.useNotificationStatus();
+    const { t } = useI18n();
     const { errorHandling_Backend } = _useBackendErrorHandling();
     const { settings: voiceSettings, status: voiceStatus, send: sendVoice, reset: resetVoice, updateTtsError, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
     const voiceConnected = voiceSettings !== null;
@@ -326,6 +329,14 @@ export const useReceiveRoutes = () => {
             });
             updateIsBackendReady(true);
             resetLanguageMutations();
+            return;
+        }
+
+        // config.json could not be read: the app runs on defaults and the old
+        // file was kept beside it.
+        if (endpoint === "/run/config_file_unreadable") {
+            showNotification_Warning(t("common_warning.config_file_unreadable", { file: result?.backup ?? "" }),
+                { hide_duration: null, category_id: "config_file_unreadable" });
             return;
         }
 
