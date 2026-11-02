@@ -3,13 +3,13 @@ from deepl import DeepLClient
 
 try:
     from .translation_languages import translation_lang
-    from .translation_utils import ctranslate2_weights
+    from .translation_utils import ctranslate2_weights, TOKENIZER_REVISIONS
     from .translation_providers import TRANSLATION_PROVIDER_REGISTRY
 except Exception:
     import sys
     sys.path.append(os_path.dirname(os_path.dirname(os_path.dirname(os_path.abspath(__file__)))))
     from translation_languages import translation_lang
-    from translation_utils import ctranslate2_weights
+    from translation_utils import ctranslate2_weights, TOKENIZER_REVISIONS
     from translation_providers import TRANSLATION_PROVIDER_REGISTRY
 
 from utils import errorLogging, getBestComputeType
@@ -470,12 +470,16 @@ class Translator:
                 inter_threads=1,
                 intra_threads=4,
             )
+            # 取得したときと同じ固定の commit を読む (既定のブランチを見に行って新しいファイルを取らない)
+            revision = TOKENIZER_REVISIONS.get(tokenizer)
             try:
-                self.ctranslate2_tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer, cache_dir=tokenizer_path)
+                self.ctranslate2_tokenizer = transformers.AutoTokenizer.from_pretrained(
+                    tokenizer, cache_dir=tokenizer_path, revision=revision)
             except Exception:
                 errorLogging()
                 tokenizer_path = os_path.join("./weights", "ctranslate2", directory_name, "tokenizer")
-                self.ctranslate2_tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer, cache_dir=tokenizer_path)
+                self.ctranslate2_tokenizer = transformers.AutoTokenizer.from_pretrained(
+                    tokenizer, cache_dir=tokenizer_path, revision=revision)
             self.is_loaded_ctranslate2_model = True
 
     def isLoadedCTranslate2Model(self) -> bool:
