@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@useI18n";
 import styles from "./Topbar.module.scss";
 import { useIsOpenedConfigPage } from "@logics_common";
@@ -13,9 +13,39 @@ import ArrowLeftSvg from "@images/arrow_left.svg?react";
 export const SaveBar = () => {
     const { t } = useI18n();
     const entries = useSaveBarEntries();
-    if (!entries.length) return null;
     const dirty = entries.filter(entry => entry.dirty);
     const saving = entries.some(entry => entry.saving);
+    const guarded = dirty.length > 0 || saving;
+    const [leaving, setLeaving] = useState(null);
+    const dialog = useRef(null);
+    // Leaving the page or settings with unsaved changes asks first, for every
+    // form on the page. Capture runs before the voice forms' own guards, so
+    // one dialog covers them all.
+    useEffect(() => {
+        if (!guarded) return;
+        const guard = event => {
+            if (event.defaultPrevented) return;
+            event.preventDefault();
+            setLeaving(() => event.detail.proceed);
+        };
+        window.addEventListener("vrct:settings-leave", guard, { capture: true });
+        return () => window.removeEventListener("vrct:settings-leave", guard, { capture: true });
+    }, [guarded]);
+    useEffect(() => { if (leaving) dialog.current?.showModal(); }, [leaving]);
+    const leaveDialog = leaving && <dialog ref={dialog} className={styles.leave_dialog} onCancel={() => setLeaving(null)}
+        onClose={() => setLeaving(null)} aria-label={t("voice_ui.leave_title")}>
+        <p>{t("voice_ui.leave_hint")}</p>
+        <div className={styles.leave_actions}>
+            <button type="button" autoFocus onClick={() => dialog.current?.close()}>{t("voice_ui.keep_editing")}</button>
+            <button type="button" onClick={() => {
+                const proceed = leaving;
+                dirty.forEach(entry => entry.discard());
+                dialog.current?.close();
+                proceed();
+            }}>{t("voice_ui.discard_leave")}</button>
+        </div>
+    </dialog>;
+    if (!entries.length) return leaveDialog || null;
     const failed = entries.some(entry => entry.saveState === "save_failed");
     const changes = [...new Set(dirty.flatMap(entry => entry.changes))];
     const state = saving ? "saving" : failed ? "save_failed" : dirty.length ? "unsaved" : "saved";
@@ -34,6 +64,7 @@ export const SaveBar = () => {
         <button type="button" className={styles.save} disabled={saving || !dirty.length || dirty.some(entry => !entry.canSave)}
             aria-label={t(saving ? "voice.saving" : "voice_ui.save_changes")} data-short={t(saving ? "voice.saving" : "voice_ui.save_changes_short")}
             onClick={() => dirty.forEach(entry => entry.save())}>{t(saving ? "voice.saving" : "voice_ui.save_changes")}</button>
+        {leaveDialog}
     </div>;
 };
 
