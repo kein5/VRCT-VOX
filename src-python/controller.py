@@ -6438,12 +6438,11 @@ class Controller:
             # ステータス設定
             config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine] = status
 
-            # 認証キー無効化
+            # 確認に失敗してもキーは消さない。認証の関数は、オフライン、タイムアウト、429、5xx でも
+            # False を返すので、キーが拒否されたのか一時的に届かなかったのかを区別できない。消すと、
+            # ネットワークのない起動のたびに保存したキーを失う。エンジンを使えない状態にするだけにする
             if auth_key_invalid:
-                auth_keys = config.AUTH_KEYS
-                auth_keys[engine] = None
-                config.AUTH_KEYS = auth_keys
-                printLog(f"{engine} auth key is invalid")
+                printLog(f"{engine} auth key could not be verified; keeping it")
             elif status:
                 printLog(f"{engine} is valid/available")
 
@@ -6612,11 +6611,9 @@ class Controller:
 
             config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = status
 
+            # 翻訳と同じく、確認に失敗してもキーは消さない
             if auth_key_invalid:
-                auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-                auth_keys[engine] = None
-                config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-                printLog(f"{engine} transcription auth key is invalid")
+                printLog(f"{engine} transcription auth key could not be verified; keeping it")
             elif status:
                 printLog(
                     f"{engine} transcription engine is valid/available "

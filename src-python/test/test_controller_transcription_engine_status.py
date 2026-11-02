@@ -210,14 +210,28 @@ class TranscriptionEngineStatusInitTests(unittest.TestCase):
 
     @patch("controller.isConnectedNetwork", return_value=True)
     @patch("controller.model")
-    def test_engine_with_invalid_key_is_cleared_from_config(self, mock_model, _) -> None:
+    def test_engine_whose_key_fails_the_check_keeps_the_key(self, mock_model, _) -> None:
         self._run_init(mock_model)
 
         self.assertFalse(config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"])
         self.assertEqual(config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST, [])
         self.assertIsNone(config.SELECTED_CUSTOM_WHISPER_MODEL)
-        # 無効なキーは起動時検証でクリアされる (翻訳エンジンの既存挙動と同じ)
-        self.assertIsNone(config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"])
+        # 確認の失敗はオフラインや一時的な障害でも起きるので、起動時にキーを消さない
+        self.assertEqual(config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"], "bad-key")
+
+    @patch("controller.isConnectedNetwork", return_value=False)
+    @patch("controller.model")
+    def test_translation_key_survives_an_offline_start(self, mock_model, _) -> None:
+        # オフラインでは DeepL の確認も False になる。保存したキーは残し、エンジンを使えない状態にする
+        mock_model.authenticationTranslatorDeepLAuthKey.return_value = False
+        original_keys = dict(config.AUTH_KEYS)
+        self.addCleanup(setattr, config, "AUTH_KEYS", original_keys)
+        config.AUTH_KEYS = {**original_keys, "DeepL_API": "deepl-saved:fx"}
+
+        self._run_init(mock_model)
+
+        self.assertFalse(config.SELECTABLE_TRANSLATION_ENGINE_STATUS["DeepL_API"])
+        self.assertEqual(config.AUTH_KEYS["DeepL_API"], "deepl-saved:fx")
 
     @patch("controller.isConnectedNetwork", return_value=True)
     @patch("controller.model")
