@@ -10,6 +10,7 @@ import { useI18n } from '@useI18n';
 import { useIsOpenedConfigPage } from '@logics_common';
 import { LANGUAGE_RESPONSE_WAIT_MS } from '../../logics/main/languageMutations';
 import { createLanguageNames, isLanguagePickKey } from '../../logics/common/languageNames.js';
+import { languageJumpGroups } from '../../logics/common/languageJumpGroups.js';
 import styles from './VrLanguageWindow.module.scss';
 
 const keys = ['1', '2', '3'];
@@ -51,6 +52,8 @@ export function VrLanguageWindow({ onClose }) {
     const mainButtons = useRef({});
     const backButton = useRef(null);
     const mainBody = useRef(null);
+    const pickerScroll = useRef(null);
+    const languageButtons = useRef([]);
     const mainScroll = useRef(0);
     const pickerSnapshot = useRef(null);
     const recoveringOwnChange = useRef(false);
@@ -198,8 +201,25 @@ export function VrLanguageWindow({ onClose }) {
     const selectionLabel = entry => view.kind === 'your' ? c('selected') : c('selected_slots', { n: targets.flatMap((other, index) => same(other, entry) ? [index + 1] : []).join(', ') });
     const languageChoices = names.sorted(view.stage === 'list' ? (selectable.data ?? []) : saved)
         .filter(entry => names.matches(entry, query));
+    const jumpGroups = view.stage === 'list'
+        ? languageJumpGroups(languageChoices.map(entry => names.name(entry).language), i18n.language) : [];
+    const jumpTo = index => {
+        if (busy || locked) return;
+        const list = pickerScroll.current;
+        const button = languageButtons.current[index];
+        if (!list || !button) return;
+        // Keyboard users can choose the destination next. A selected/disabled
+        // first entry still scrolls into view, leaving focus on the jump button.
+        button.focus({ preventScroll: true });
+        // The VR atlas may be scaled. Scroll only this list, never the window.
+        const bounds = list.getBoundingClientRect();
+        if (bounds.height > 0) list.scrollTop += (button.getBoundingClientRect().top - bounds.top) * list.clientHeight / bounds.height;
+    };
     const choiceDisabled = entry => !selectable.data?.some(option => same(entry, option))
         || (!busy && (languageSelected(entry) || (view.kind === 'target-add' && targets.length >= 3)));
+    useLayoutEffect(() => {
+        if (pickerScroll.current) pickerScroll.current.scrollTop = 0;
+    }, [viewKey, query, i18n.language]);
     useLayoutEffect(() => {
         // Feedback reduces the list height. Keep a focused choice visible without
         // moving the window or the main screen's remembered scroll position.
@@ -260,7 +280,25 @@ export function VrLanguageWindow({ onClose }) {
                     <div className={clsx(settingsStyles.picker_title, styles.context)}><span>{c('preset_number', { n: preset })}</span><h2>{title}</h2></div>
                 </div>
                 {status && <p className={`${styles.feedback} ${error || syncError ? styles.error : ''}`}>{status}{busy && !syncError && <span> {c('busy_hint')}</span>}</p>}
-                <div className={styles.picker_scroll}>
+                {view.stage === 'list' && <div className={styles.list_tools}>
+                    <input type="search" data-vr-hoverable="" className={styles.filter} value={query} disabled={busy}
+                        placeholder={t('main_page.language_selector.filter')} aria-label={t('main_page.language_selector.filter')}
+                        onChange={event => setQuery(event.target.value)} onKeyDown={event => {
+                            if (isLanguagePickKey(event) && languageChoices.length) {
+                                event.preventDefault();
+                                if (!choiceDisabled(languageChoices[0])) choose(languageChoices[0]);
+                            }
+                        }} />
+                    {jumpGroups.length > 0 && <div className={styles.jump_groups} role="group" aria-label={c('jump_navigation')}>
+                        {jumpGroups.map(({ id, index }) => {
+                            const label = id === 'other' ? c('jump_other') : id;
+                            return <button key={id} type="button" data-vr-language-jump={id}
+                                className={clsx(settingsStyles.button, styles.jump_button)} aria-label={c('jump_to', { group: label })}
+                                aria-disabled={busy ? true : undefined} onClick={() => jumpTo(index)}>{label}</button>;
+                        })}
+                    </div>}
+                </div>}
+                <div ref={pickerScroll} className={styles.picker_scroll}>
                     {view.kind === 'engine' ? <>
                         {sameLanguage && <p className={styles.warning}><WarningSvg aria-hidden="true" />{c('same_reason')}</p>}
                         <h3 className={settingsStyles.section_label}>{c('available')}</h3>
@@ -275,17 +313,9 @@ export function VrLanguageWindow({ onClose }) {
                     </> : <>
                         {view.stage === 'saved' && <button className={clsx(settingsStyles.row, settingsStyles.clickable, styles.all_languages)} aria-disabled={busy ? true : undefined} onClick={() => !busy && setView({ ...view, stage: 'list' })}>{c('all_languages')}<span className={settingsStyles.chevron} aria-hidden="true">›</span></button>}
                         <h3 className={settingsStyles.section_label}>{view.stage === 'list' ? c('all_languages') : c('saved')}</h3>
-                        {view.stage === 'list' && <input type="search" data-vr-hoverable="" className={styles.filter} value={query} disabled={busy}
-                            placeholder={t('main_page.language_selector.filter')} aria-label={t('main_page.language_selector.filter')}
-                            onChange={event => setQuery(event.target.value)} onKeyDown={event => {
-                                if (isLanguagePickKey(event) && languageChoices.length) {
-                                    event.preventDefault();
-                                    if (!choiceDisabled(languageChoices[0])) choose(languageChoices[0]);
-                                }
-                            }} />}
                         {!languageChoices.length && <p role="status" className={styles.helper}>{t('main_page.language_selector.no_results')}</p>}
                         {view.stage === 'saved' && <p className={styles.helper}>{c('saved_hint')}</p>}
-                        <div className={styles.choice_grid}>{languageChoices.map(entry => <button key={`${entry.language}/${entry.country}`} className={clsx(settingsStyles.row, settingsStyles.clickable, settingsStyles.option, styles.choice, languageSelected(entry) && settingsStyles.is_selected)}
+                        <div className={styles.choice_grid}>{languageChoices.map((entry, index) => <button key={`${entry.language}/${entry.country}`} ref={element => { languageButtons.current[index] = element; }} className={clsx(settingsStyles.row, settingsStyles.clickable, settingsStyles.option, styles.choice, languageSelected(entry) && settingsStyles.is_selected)}
                             aria-pressed={languageSelected(entry)} disabled={choiceDisabled(entry)} aria-disabled={busy ? true : undefined}
                             aria-label={`${names.name(entry).label}${languageSelected(entry) ? ` · ${selectionLabel(entry)}` : ''}`} onClick={() => choose(entry)}>
                             <LanguageText names={names} entry={entry} />{languageSelected(entry) && <span className={styles.check} aria-hidden="true">✓</span>}
