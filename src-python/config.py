@@ -1,5 +1,6 @@
 import sys
 import copy
+import errno
 import math
 from os import path as os_path, makedirs as os_makedirs, replace as os_replace, fsync as os_fsync, remove as os_remove
 from json import load as json_load
@@ -12,7 +13,7 @@ from models.tts.settings import VoiceSettings, normalize_settings
 from models.voice_conversion.settings import DirectSettings, normalize_settings as normalize_direct_settings
 from models.transcription.realtime_settings import normalize_settings as normalize_realtime_settings
 from models.speech_server.settings import normalize_settings as normalize_speech_server_settings
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 
 # Guard optional, potentially heavy or platform-specific imports so importing
 # config.py doesn't raise in environments missing those packages.
@@ -769,6 +770,14 @@ class Config:
     _timer: Optional[threading.Timer] = None
     _debounce_time: int = 2
     _file_lock: threading.Lock = threading.Lock()
+    # 保存の失敗を知らせる先。controller が起動時に設定する。
+    # on_save_failed(reason, path) と on_save_recovered() を呼ぶ
+    on_save_failed: Optional[Callable[[str, str], None]] = None
+    on_save_recovered: Optional[Callable[[], None]] = None
+    _save_failed: bool = False
+    _save_failure_reason: Optional[str] = None
+    _save_retry_timer: Optional[threading.Timer] = None
+    _save_retry_sec: int = 30
 
     # Fork packages are updated by their distribution channel. Re-enable only
     # after verifying fork installers; never replace an AUR-managed install.
@@ -829,16 +838,68 @@ class Config:
             # クラッシュ/強制終了時にconfig.jsonが破損しないよう、一時ファイルに書いてから
             # アトミックにリネームする
             tmp_path = f"{self.PATH_CONFIG}.tmp"
-            # config.json holds API keys: owner-only on POSIX, also for a file
-            # that existed before with wider permissions (replaced below).
-            fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            if os.name == "posix":
-                os.fchmod(fd, 0o600)
-            with os.fdopen(fd, "w", encoding="utf-8") as fp:
-                json_dump(filtered, fp, indent=4, ensure_ascii=False)
-                fp.flush()
-                os_fsync(fp.fileno())
-            os_replace(tmp_path, self.PATH_CONFIG)
+            try:
+                # config.json holds API keys: owner-only on POSIX, also for a file
+                # that existed before with wider permissions (replaced below).
+                fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                if os.name == "posix":
+                    os.fchmod(fd, 0o600)
+                with os.fdopen(fd, "w", encoding="utf-8") as fp:
+                    json_dump(filtered, fp, indent=4, ensure_ascii=False)
+                    fp.flush()
+                    os_fsync(fp.fileno())
+                os_replace(tmp_path, self.PATH_CONFIG)
+            except OSError as e:
+                self._saveFailedLocked(e)
+                return
+            recovered = self._save_failed
+            self._save_failed = False
+            if isinstance(self._save_retry_timer, threading.Timer):
+                self._save_retry_timer.cancel()
+                self._save_retry_timer = None
+        if recovered and self.on_save_recovered is not None:
+            self.on_save_recovered()
+
+    @staticmethod
+    def _saveFailureReason(error: OSError) -> str:
+        if error.errno == errno.ENOSPC:
+            return "disk_full"
+        if error.errno in (errno.EACCES, errno.EPERM):
+            return "permission_denied"
+        if error.errno == errno.EROFS:
+            return "read_only"
+        return "write_failed"
+
+    def _saveFailedLocked(self, error: OSError) -> None:
+        """書き込みに失敗した。値はメモリーに残っているので、知らせて、あとで書き直す。
+
+        以前は例外を setter が捨て、変更は保存されないまま成功を返していた (再起動で消える)。
+        容量を空けるなどして直れば次の書き直しで保存でき、そのときも知らせる。
+        """
+        errorLogging()
+        first = not self._save_failed
+        self._save_failed = True
+        try:
+            os_remove(f"{self.PATH_CONFIG}.tmp")
+        except OSError:
+            pass
+        if not (isinstance(self._save_retry_timer, threading.Timer) and self._save_retry_timer.is_alive()):
+            self._save_retry_timer = threading.Timer(self._save_retry_sec, self.saveConfigToFile)
+            self._save_retry_timer.daemon = True
+            self._save_retry_timer.start()
+        self._save_failure_reason = self._saveFailureReason(error)
+        # 失敗が続く間は、最初の1回だけ知らせる
+        if first and self.on_save_failed is not None:
+            threading.Thread(target=self.on_save_failed, args=(self._save_failure_reason, self.PATH_CONFIG),
+                             daemon=True).start()
+
+    def setSaveCallbacks(self, on_failed: Callable[[str, str], None], on_recovered: Callable[[], None]) -> None:
+        """保存の失敗と回復を知らせる先を設定する。設定する前の失敗も、ここで知らせる。"""
+        with self._file_lock:
+            self.on_save_failed, self.on_save_recovered = on_failed, on_recovered
+            pending = self._save_failure_reason if self._save_failed else None
+        if pending is not None:
+            on_failed(pending, self.PATH_CONFIG)
 
     def saveConfig(self, key: str, value: Any, immediate_save: bool = False) -> None:
         # 実際に永続化される値は saveConfigToFile() が毎回

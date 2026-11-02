@@ -57,6 +57,8 @@ export const STATIC_ROUTE_META_LIST = [
 
     { endpoint: "/run/update_software", ns: null, hook_name: null, method_name: null },
     { endpoint: "/run/config_file_unreadable", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
+    { endpoint: "/run/config_save_failed", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
+    { endpoint: "/run/config_save_recovered", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
 
     // VR UI のポインタ位置 (ホバー表示用)。VR ウィンドウへ転送する
     { endpoint: "/run/vr_panel_pointer", ns: common, hook_name: "useVrPanelPointer", method_name: "forwardVrPanelPointer" },
@@ -176,7 +178,7 @@ const TRANSCRIPTION_TOGGLES = ["/set/enable/transcription_send", "/set/disable/t
     "/set/enable/transcription_receive", "/set/disable/transcription_receive"];
 
 export const useReceiveRoutes = () => {
-    const { showNotification_Error, showNotification_Warning } = common.useNotificationStatus();
+    const { showNotification_Error, showNotification_Warning, showNotification_Success, dismissNotification } = common.useNotificationStatus();
     const { t } = useI18n();
     const { errorHandling_Backend } = _useBackendErrorHandling();
     const { settings: voiceSettings, status: voiceStatus, send: sendVoice, reset: resetVoice, updateTtsError, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
@@ -334,6 +336,18 @@ export const useReceiveRoutes = () => {
 
         // config.json could not be read: the app runs on defaults and the old
         // file was kept beside it.
+        if (endpoint === "/run/config_save_failed") {
+            // The change stays applied in memory; the sidecar keeps retrying the write.
+            const reason = ["disk_full", "permission_denied", "read_only"].includes(result?.reason) ? result.reason : "write_failed";
+            showNotification_Error(t(`common_error.config_save_failed.${reason}`, { file: result?.path ?? "" }),
+                { hide_duration: null, category_id: "config_save_failed" });
+            return;
+        }
+        if (endpoint === "/run/config_save_recovered") {
+            dismissNotification("config_save_failed");
+            showNotification_Success(t("common_error.config_save_failed.recovered"), { category_id: "config_save_recovered" });
+            return;
+        }
         if (endpoint === "/run/config_file_unreadable") {
             showNotification_Warning(t("common_warning.config_file_unreadable", { file: result?.backup ?? "" }),
                 { hide_duration: null, category_id: "config_file_unreadable" });

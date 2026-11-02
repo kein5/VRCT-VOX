@@ -123,6 +123,12 @@ common:
     loading: "Loading…"
 
 common_error:
+    config_save_failed:
+        disk_full: "Can't save settings: the disk is full. Free some space and they will be saved automatically. Until then, changes are lost when VRCT-VOX quits. ({{file}})"
+        permission_denied: "Can't save settings: no permission to write there. Check the folder's permissions; they will be saved automatically once fixed. Until then, changes are lost when VRCT-VOX quits. ({{file}})"
+        read_only: "Can't save settings: the location is read-only. They will be saved automatically once it is writable. Until then, changes are lost when VRCT-VOX quits. ({{file}})"
+        write_failed: "Can't save settings. Check where they are stored; they will be saved automatically once it works. Until then, changes are lost when VRCT-VOX quits. ({{file}})"
+        recovered: "Settings can be saved again, and your changes were saved."
     unexpected_error: "Something went wrong ({{code}}). If it doesn't recover, restart VRCT-VOX. If it keeps happening, report it in the VRCT-VOX issues with this code."
     backend_stopped: "The VRCT-VOX engine stopped unexpectedly (code {{code}}). Settings and switches no longer respond. Please restart VRCT-VOX."
     transcription_api_auth_failed: "The speech recognition service did not accept the API key. Check the key and, for a custom server, its URL."

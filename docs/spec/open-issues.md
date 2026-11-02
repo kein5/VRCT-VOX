@@ -18,9 +18,7 @@
 | OI-13 | 内蔵の翻訳（CTranslate2とトークナイザー）とWhisperの重みは、Hugging Faceの既定の版を取得し、版、サイズ、SHA-256を確かめない。モデル取得の画面（`models/model_downloads/`）のような固定がない | `src-python/models/translation/translation_utils.py`、`src-python/models/transcription/transcription_whisper.py` | 移す作業が未着手 |
 | OI-14 | VRCマイクミュート同期は、OSCの`/avatar/parameters/MuteSelf`の送り主を確かめない。同じPCのほかのプログラムが`false`を送ると、ミュート中に止めていたマイクの認識が再開する | `src-python/models/osc/osc.py` | 対策が未決 |
 | OI-15 | Linuxのビルドは`uv export --no-hashes`で依存を書き出すため、`uv.lock`にあるパッケージのハッシュを確かめない。commitで固定したVCSの依存と両立させる必要がある | `tools/build_linux.py` | 未着手 |
-| OI-16 | `config.json`の書き込みに失敗しても（読み取り専用、容量不足）、例外を捨てて成功を返す。再起動すると変更が消える | `src-python/config.py`（`saveConfigToFile`ほか） | 通知のしかたが未決 |
 | OI-17 | 会話ログはUIのメモリーと画面に際限なく残り、VR UIがオンなら変わるたびに全件をVRパネルへ送る。長時間使うと遅くなる | `src-ui/logics/common/useMessage.js`、`VrPanelSyncController.jsx` | 上限を設けるか未決 |
-| OI-18 | 起動時のエンジンの確認に、全体の時間の上限がない。個々の要求には時間の上限があるが、少しずつ応答を返し続けるサーバーでは起動が終わらない | `src-python/controller.py`（`check_translation_engine`と`as_completed`） | 未着手 |
 | OI-19 | LLMの訳が長さの上限で切れても（`finish_reason`が`length`）、成功として扱う。空の訳だけは失敗にした | `src-python/models/translation/translation_openai.py`、`translation_lmstudio.py` | 未着手 |
 | OI-20 | WebSocketサーバーの起動が6秒を超えると失敗として返すが、その起動の試みは止めない。遅れて起動したり、次の起動の後片付けと重なったりするおそれがある（実際には確かめていない） | `src-python/model.py`（`startWebSocketServer`） | 未確認 |
 
@@ -40,3 +38,5 @@
 - WebSocketサーバーの実際のbindが失敗しても、有効にしたと返していた。
 - VRパネルへ写す状態に認証キーとトークンが入っていた。VRパネルから接続先のURLを変えられ、保存したキーをその接続先へ送らせられた。
 - 読めない`config.json`を既定値で上書きしていた。サイドカーが落ちても知らせなかった。サイドカーのエラーを英語のまま出していた。
+- 起動時のエンジンの確認に全体の時間の上限がなく、応答を少しずつ返し続けるサーバーがあると起動が終わらなかった（OI-18）。段階ごとに30秒で打ち切り、間に合わなかったエンジンは使えない状態で起動する。
+- `config.json`の書き込みに失敗しても、例外を捨てて成功を返していた（OI-16）。UIに理由を知らせ、30秒ごとに書き直す。
