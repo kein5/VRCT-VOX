@@ -90,12 +90,15 @@ input[type="number"] {
 /* Shared studio affordances apply to settings, chat and auxiliary windows. */
 body { font-size: 1.4rem; line-height: 1.5; background: var(--vox_canvas); }
 button, [role="button"], input, select, textarea { touch-action: manipulation; }
-button, [role="button"] { transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease; }
+button, [role="button"] { transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease; }
+/* Press feedback starts on pointer/key down, without fading in after release. */
+button:not(:disabled):active, [role="button"]:not([aria-disabled="true"]):active,
+[role="switch"]:not([aria-disabled="true"]):active { transition: none; }
 :focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .3rem; }
 input, textarea { caret-color: var(--primary_200_color); user-select: text; }
 ::selection { color: var(--dark_100_color); background: var(--primary_700_color); }
 a { text-underline-offset: .25em; }
 button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
 }

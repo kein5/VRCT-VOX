@@ -126,6 +126,7 @@ export const MainFunctionSwitch = () => {
 
 export const SwitchContainer = ({ switchLabel, switch_id, children, currentState, toggleFunction, SvgComponent, cancellable = false, disabled = false, statusText = null }) => {
     const { currentIsMainPageCompactMode } = useIsMainPageCompactMode();
+    const blocked = disabled || (!cancellable && currentState.state === "pending");
 
     const getClassNames = (baseClass) => clsx(baseClass, {
         [styles.is_compact_mode]: currentIsMainPageCompactMode.data,
@@ -138,13 +139,13 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
         <div
             className={getClassNames(styles.switch_container)}
             role="switch" aria-label={switchLabel} aria-checked={currentState.data === true}
-            aria-busy={currentState.state === "pending"} aria-disabled={disabled} tabIndex={0}
+            aria-busy={currentState.state === "pending"} aria-disabled={blocked} tabIndex={0}
             title={statusText ?? undefined}
-            onClick={() => { if (!disabled) toggleFunction(); }}
+            onClick={() => { if (!blocked) toggleFunction(); }}
             onKeyDown={event => {
                 if (event.key === " " || event.key === "Enter") {
                     event.preventDefault();
-                    if (!disabled && (cancellable || currentState.state !== "pending")) toggleFunction();
+                    if (!blocked) toggleFunction();
                 }
             }}
         >

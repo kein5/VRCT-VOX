@@ -71,4 +71,6 @@
 .leave_actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1.6rem; }
 .leave_actions button { min-height: 4rem; padding: .8rem 1.4rem; border-radius: var(--vox_radius); font-weight: 600; color: var(--dark_200_color); background: var(--dark_850_color); cursor: pointer; }
 .leave_actions button:hover { background: var(--dark_800_color); }
+.discard:active:not(:disabled), .stop:active:not(:disabled), .leave_actions button:active { background: var(--dark_925_color); }
+.save:active:not(:disabled) { background: var(--primary_800_color); }
 .leave_actions button:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }

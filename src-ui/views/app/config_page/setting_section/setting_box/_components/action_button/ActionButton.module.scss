@@ -1,15 +1,19 @@
+@import "@scss_mixins";
+
 .button_wrapper {
+    position: relative;
     padding: 2rem;
     border-radius: 0.4rem;
-    &:hover:not(.is_clicked) {
+    &:hover:not([aria-disabled="true"]) {
         background-color: var(--dark_825_color);
     }
-    &:active:not(.is_clicked) {
+    &:active:not([aria-disabled="true"]) {
         background-color: var(--dark_900_color);
     }
     &.is_clicked {
         cursor: default;
     }
+    &[aria-busy="true"] { cursor: wait; }
 }
 
 .button_svg {
@@ -18,4 +22,7 @@
     &.is_clicked {
         color: var(--primary_300_color);
     }
+    &.is_pending { visibility: hidden; }
 }
+
+.loader { @include loader(2rem, .2rem, left, 50%); }

@@ -1,4 +1,5 @@
-import { createAtomWithHook } from "@store";
+import { useAtomValue } from "jotai";
+import { createAtomWithHook, dynamicStoreRegistry } from "@store";
 import vr_layout from "../../../views/vr/vr_layout.json";
 
 import {
@@ -1221,6 +1222,10 @@ export const SETTINGS_ARRAY = [
 for (const setting_data of SETTINGS_ARRAY) {
     createAtomWithHook(setting_data.default_value, setting_data.Base_Name);
 }
+
+// Read-only views subscribe to the setting they display, rather than every
+// setting and setter in a category (which also includes window geometry).
+export const useSettingValue = baseName => useAtomValue(dynamicStoreRegistry[`Atom_${baseName}`]);
 
 const buildCategoryApiFromSettings = (settings, settingsArray, Category, extraFunctions = {}) => {
     const api = {};

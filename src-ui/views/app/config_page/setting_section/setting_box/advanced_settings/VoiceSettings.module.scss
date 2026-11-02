@@ -34,6 +34,8 @@
     // A secondary action beside a primary one: an outline, not a filled button.
     button.quiet { background: transparent; border-color: var(--dark_775_color); }
     button.quiet:hover:enabled { background: var(--dark_850_color); }
+    button:active:enabled { background: var(--dark_925_color); }
+    button.primary:active:enabled { background: var(--primary_800_color); }
     :focus-visible { outline: .2rem solid var(--primary_200_color, #80cbc4); outline-offset: .3rem; }
     :disabled { opacity: .6; cursor: not-allowed; }
     // General description role: 1.2rem / 400 in the description color.
