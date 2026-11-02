@@ -9,13 +9,14 @@ This module exposes small utilities used by the transcription subsystem:
 The functions are defensive: failures are caught and reported by the caller.
 """
 
-from os import path as os_path, makedirs as os_makedirs, remove as os_remove
+from os import path as os_path, makedirs as os_makedirs, remove as os_remove, replace as os_replace
 from time import sleep
 from requests import get as requests_get
 from requests.exceptions import HTTPError
 from typing import Callable, Optional
 import logging
 from utils import getBestComputeType, isWeightVerifiedCache, writeWeightVerifiedCache, errorLogging, printLog
+from models.builtin_model_pins import MODEL_PINS, verifyPinnedFile
 
 # 起動時の初回ダウンロードで一時的なネットワーク断 (接続リセット・HF Hub の
 # 429/503 等) が起きても、1 回の取りこぼしで「AIモデル未検出。VRCTを再起動して
@@ -51,22 +52,15 @@ _MODELS = {
     "large-v3-turbo": "deepdml/faster-whisper-large-v3-turbo-ct2", #1.58GB
 }
 
-_FILENAMES = [
-    "config.json",
-    "preprocessor_config.json",
-    "model.bin",
-    "tokenizer.json",
-    "vocabulary.txt",
-    "vocabulary.json",
-]
-
-def downloadFile(url: str, path: str, func: Optional[Callable[[float], None]] = None) -> bool:
+def downloadFile(url: str, path: str, func: Optional[Callable[[float], None]] = None,
+                 pin: Optional[tuple] = None) -> bool:
     """Download a file from `url` to `path`.
 
     Args:
         url: remote URL to download from
         path: local filepath to write
         func: optional callback(progress: float) called with a 0.0-1.0 progress
+        pin: optional (size, sha256); the file is kept only when it matches
 
     Returns:
         True on success, False if every attempt failed. Transient network
@@ -74,18 +68,23 @@ def downloadFile(url: str, path: str, func: Optional[Callable[[float], None]] = 
         connection reset during the first-run model download doesn't leave the
         app permanently reporting "AI models have not been detected".
     """
+    part_path = f"{path}.part"
     for attempt in range(1, _DOWNLOAD_MAX_ATTEMPTS + 1):
         try:
             res = requests_get(url, stream=True, timeout=_DOWNLOAD_TIMEOUT)
             res.raise_for_status()
             file_size = int(res.headers.get('content-length', 0))
             total_chunk = 0
-            with open(os_path.join(path), 'wb') as file:
+            with open(part_path, 'wb') as file:
                 for chunk in res.iter_content(chunk_size=1024 * 2000):
                     file.write(chunk)
                     if callable(func) and file_size:
                         total_chunk += len(chunk)
                         func(total_chunk / file_size)
+            # 固定した大きさと SHA-256 に合わなければ使わない (取り違えや改ざん)
+            if pin is not None and not verifyPinnedFile(part_path, *pin):
+                raise ValueError(f"downloaded file does not match its pinned SHA-256: {url}")
+            os_replace(part_path, path)
             return True
         except Exception as e:
             errorLogging()
@@ -93,8 +92,8 @@ def downloadFile(url: str, path: str, func: Optional[Callable[[float], None]] = 
             # post-download WhisperModel verification in checkWhisperWeight,
             # doesn't see stale truncated bytes from the failed attempt.
             try:
-                if os_path.exists(path):
-                    os_remove(path)
+                if os_path.exists(part_path):
+                    os_remove(part_path)
             except Exception:
                 pass
             # 404 等の恒久エラー (そのリポジトリに存在しないファイル) は
@@ -153,27 +152,14 @@ def downloadWhisperWeight(
     os_makedirs(path, exist_ok=True)
     if not checkWhisperWeight(root, weight_type):
         repo_id = _MODELS[weight_type]
-        # _FILENAMES は複数の変換元リポジトリ (Systran, Zoont, deepdml 等)
-        # に共通する候補の和集合。実際のファイル構成はリポジトリごとに
-        # 異なる (例: Systran 系は vocabulary.txt のみ、Zoont/deepdml 系は
-        # preprocessor_config.json/vocabulary.json を含み vocabulary.txt が
-        # 無い) ため、存在しないファイルを固定リストのままダウンロードしよ
-        # うとすると 404 になる。実在するファイルのみに絞り込む。
-        try:
-            available_files = set(huggingface_hub.list_repo_files(repo_id))
-        except Exception:
-            errorLogging()
-            # 一覧取得に失敗した場合は従来通り全候補で試す (完全に
-            # ダウンロードできなくても checkWhisperWeight 側の
-            # WhisperModel ロード検証で最終的に弾かれる)。
-            available_files = set(_FILENAMES)
-
-        for filename in _FILENAMES:
-            if filename not in available_files:
-                continue
+        # 固定した commit のファイルだけを取り、大きさと SHA-256 を確かめる
+        # (models/builtin_model_pins.py)。ファイルの構成はリポジトリごとに違う
+        # (Systran 系は vocabulary.txt、Zoont/deepdml 系は preprocessor_config.json と vocabulary.json)。
+        pin = MODEL_PINS[repo_id]
+        for filename, file_pin in pin["files"].items():
             file_path = os_path.join(path, filename)
-            url = huggingface_hub.hf_hub_url(repo_id, filename)
-            downloadFile(url, file_path, func=callback if filename == "model.bin" else None)
+            url = huggingface_hub.hf_hub_url(repo_id, filename, revision=pin["revision"])
+            downloadFile(url, file_path, func=callback if filename == "model.bin" else None, pin=file_pin)
     if callable(end_callback):
         end_callback()
 

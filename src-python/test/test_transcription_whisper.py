@@ -1,16 +1,22 @@
+import hashlib
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from models.builtin_model_pins import MODEL_PINS
 from models.transcription import transcription_whisper
 
 
+def _hub_url(repo, filename, revision=None):
+    return f"https://hf.example/{repo}/resolve/{revision}/{filename}"
+
+
 class TestDownloadWhisperWeight(unittest.TestCase):
-    """Different upstream repos (Systran/faster-whisper-* vs Zoont/deepdml
-    faster-whisper-large-v3-turbo conversions) ship different file sets.
-    downloadWhisperWeight used to request a fixed candidate list regardless
-    of what a given repo actually contains, producing 404s for files the
-    repo never had (e.g. Systran repos have no preprocessor_config.json/
-    vocabulary.json; Zoont/deepdml repos have no vocabulary.txt)."""
+    """Whisper weights come from a pinned commit, and only the files pinned
+    for that repository are requested. Repositories ship different file sets
+    (Systran repos have vocabulary.txt; the Zoont/deepdml large-v3-turbo
+    conversions have preprocessor_config.json and vocabulary.json)."""
 
     def setUp(self) -> None:
         # downloadWhisperWeight always calls os_makedirs on the target path
@@ -24,88 +30,70 @@ class TestDownloadWhisperWeight(unittest.TestCase):
 
     @patch.object(transcription_whisper, "checkWhisperWeight", return_value=False)
     @patch.object(transcription_whisper, "downloadFile")
-    @patch("huggingface_hub.list_repo_files")
-    @patch("huggingface_hub.hf_hub_url", side_effect=lambda repo, filename: f"https://hf.example/{repo}/{filename}")
-    def test_skips_files_absent_from_the_repo(
-        self, mock_hub_url, mock_list_repo_files, mock_download_file, mock_check_weight
-    ) -> None:
-        # Systran-style repo: no preprocessor_config.json / vocabulary.json.
-        mock_list_repo_files.return_value = [
-            ".gitattributes", "README.md", "config.json", "model.bin",
-            "tokenizer.json", "vocabulary.txt",
-        ]
+    @patch("huggingface_hub.hf_hub_url", side_effect=_hub_url)
+    def test_downloads_the_pinned_files_at_the_pinned_commit(self, _hub, mock_download_file, _check) -> None:
+        for weight_type in ("base", "large-v3-turbo"):
+            with self.subTest(weight_type=weight_type):
+                mock_download_file.reset_mock()
+                pin = MODEL_PINS[transcription_whisper._MODELS[weight_type]]
 
-        transcription_whisper.downloadWhisperWeight("/tmp/root", "base")
+                transcription_whisper.downloadWhisperWeight("/tmp/root", weight_type)
 
-        downloaded_filenames = {call.args[0].split("/")[-1] for call in mock_download_file.call_args_list}
-        self.assertEqual(
-            downloaded_filenames,
-            {"config.json", "model.bin", "tokenizer.json", "vocabulary.txt"},
-        )
-        self.assertNotIn("preprocessor_config.json", downloaded_filenames)
-        self.assertNotIn("vocabulary.json", downloaded_filenames)
-
-    @patch.object(transcription_whisper, "checkWhisperWeight", return_value=False)
-    @patch.object(transcription_whisper, "downloadFile")
-    @patch("huggingface_hub.list_repo_files")
-    @patch("huggingface_hub.hf_hub_url", side_effect=lambda repo, filename: f"https://hf.example/{repo}/{filename}")
-    def test_downloads_preprocessor_and_vocabulary_json_when_present(
-        self, mock_hub_url, mock_list_repo_files, mock_download_file, mock_check_weight
-    ) -> None:
-        # Zoont/deepdml-style repo: has preprocessor_config.json/vocabulary.json,
-        # no vocabulary.txt.
-        mock_list_repo_files.return_value = [
-            ".gitattributes", "README.md", "config.json", "model.bin",
-            "preprocessor_config.json", "tokenizer.json", "vocabulary.json",
-        ]
-
-        transcription_whisper.downloadWhisperWeight("/tmp/root", "large-v3-turbo")
-
-        downloaded_filenames = {call.args[0].split("/")[-1] for call in mock_download_file.call_args_list}
-        self.assertEqual(
-            downloaded_filenames,
-            {"config.json", "model.bin", "preprocessor_config.json", "tokenizer.json", "vocabulary.json"},
-        )
-        self.assertNotIn("vocabulary.txt", downloaded_filenames)
-
-    @patch.object(transcription_whisper, "checkWhisperWeight", return_value=False)
-    @patch.object(transcription_whisper, "downloadFile")
-    @patch("huggingface_hub.list_repo_files", side_effect=Exception("network error"))
-    @patch("huggingface_hub.hf_hub_url", side_effect=lambda repo, filename: f"https://hf.example/{repo}/{filename}")
-    @patch.object(transcription_whisper, "errorLogging")
-    def test_falls_back_to_full_candidate_list_when_listing_fails(
-        self, mock_error_logging, mock_hub_url, mock_list_repo_files, mock_download_file, mock_check_weight
-    ) -> None:
-        transcription_whisper.downloadWhisperWeight("/tmp/root", "base")
-
-        downloaded_filenames = {call.args[0].split("/")[-1] for call in mock_download_file.call_args_list}
-        self.assertEqual(downloaded_filenames, set(transcription_whisper._FILENAMES))
-        mock_error_logging.assert_called_once()
+                calls = {c.args[1].split("/")[-1]: c for c in mock_download_file.call_args_list}
+                self.assertEqual(set(calls), set(pin["files"]))
+                for name, call in calls.items():
+                    self.assertIn(f"/resolve/{pin['revision']}/{name}", call.args[0])
+                    self.assertEqual(call.kwargs["pin"], pin["files"][name])
 
     @patch.object(transcription_whisper, "checkWhisperWeight", return_value=True)
     @patch.object(transcription_whisper, "downloadFile")
-    @patch("huggingface_hub.list_repo_files")
-    def test_skips_download_entirely_when_weight_already_verified(
-        self, mock_list_repo_files, mock_download_file, mock_check_weight
-    ) -> None:
+    def test_skips_download_entirely_when_weight_already_verified(self, mock_download_file, _check) -> None:
         transcription_whisper.downloadWhisperWeight("/tmp/root", "base")
 
         mock_download_file.assert_not_called()
-        mock_list_repo_files.assert_not_called()
 
     @patch.object(transcription_whisper, "checkWhisperWeight", return_value=False)
     @patch.object(transcription_whisper, "downloadFile")
-    @patch("huggingface_hub.list_repo_files")
-    @patch("huggingface_hub.hf_hub_url", side_effect=lambda repo, filename: f"https://hf.example/{repo}/{filename}")
-    def test_calls_end_callback_after_download(
-        self, mock_hub_url, mock_list_repo_files, mock_download_file, mock_check_weight
-    ) -> None:
-        mock_list_repo_files.return_value = ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]
+    @patch("huggingface_hub.hf_hub_url", side_effect=_hub_url)
+    def test_calls_end_callback_after_download(self, _hub, _download, _check) -> None:
         end_callback = MagicMock()
 
         transcription_whisper.downloadWhisperWeight("/tmp/root", "base", end_callback=end_callback)
 
         end_callback.assert_called_once()
+
+
+class TestDownloadFileVerification(unittest.TestCase):
+    def _response(self, body: bytes):
+        res = MagicMock()
+        res.headers = {"content-length": str(len(body))}
+        res.iter_content.return_value = [body]
+        return res
+
+    def test_keeps_a_file_that_matches_its_pin(self) -> None:
+        body = b"weights"
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "model.bin"
+            with patch.object(transcription_whisper, "requests_get", return_value=self._response(body)):
+                ok = transcription_whisper.downloadFile("https://hf.example/x", str(target),
+                                                        pin=(len(body), hashlib.sha256(body).hexdigest()))
+
+            self.assertTrue(ok)
+            self.assertEqual(target.read_bytes(), body)
+            self.assertEqual(list(Path(tmp).iterdir()), [target])
+
+    def test_rejects_a_file_that_differs_from_its_pin(self) -> None:
+        # A changed upstream file must not be loaded, even with the right size.
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "model.bin"
+            with patch.object(transcription_whisper, "requests_get", return_value=self._response(b"tampered")), \
+                 patch.object(transcription_whisper, "errorLogging"), patch.object(transcription_whisper, "sleep"), \
+                 patch.object(transcription_whisper, "printLog"):
+                ok = transcription_whisper.downloadFile("https://hf.example/x", str(target),
+                                                        pin=(8, hashlib.sha256(b"original").hexdigest()))
+
+            self.assertFalse(ok)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
 
 
 if __name__ == "__main__":
