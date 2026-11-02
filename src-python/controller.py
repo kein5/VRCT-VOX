@@ -2899,9 +2899,7 @@ class Controller:
                 e,
                 data=None
             )
-        if response["status"] == 400:
-            self.delGroqWhisperAuthKey()
-        return response
+        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("Groq_Whisper"))
 
     def delGroqWhisperAuthKey(self, *args, **kwargs) -> dict:
         engine = "Groq_Whisper"
@@ -2978,9 +2976,7 @@ class Controller:
                 e,
                 data=None
             )
-        if response["status"] == 400:
-            self.delOpenAIWhisperAuthKey()
-        return response
+        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("OpenAI_Whisper"))
 
     def delOpenAIWhisperAuthKey(self, *args, **kwargs) -> dict:
         engine = "OpenAI_Whisper"
@@ -3056,9 +3052,7 @@ class Controller:
                 e,
                 data=None
             )
-        if response["status"] == 400:
-            self.delCustomWhisperAuthKey()
-        return response
+        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("Custom_Whisper"))
 
     def delCustomWhisperAuthKey(self, *args, **kwargs) -> dict:
         engine = "Custom_Whisper"
@@ -3195,9 +3189,7 @@ class Controller:
                 e,
                 data=None
             )
-        if response["status"] == 400:
-            self.delDeepgramAuthKey()
-        return response
+        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("Deepgram"))
 
     def delDeepgramAuthKey(self, *args, **kwargs) -> dict:
         engine = "Deepgram"
@@ -3937,8 +3929,18 @@ class Controller:
                 spec.error_auth_failed,
                 data=None,
             )
-        if response["status"] == 400:
-            self._delTranslationEngineAuthKey(engine_key)
+        return self._keepSavedKeyOnError(response, config.AUTH_KEYS.get(engine_key))
+
+    @staticmethod
+    def _keepSavedKeyOnError(response: dict, saved_key) -> dict:
+        """キーの登録に失敗しても、保存してあるキーは消さない。
+
+        確認の失敗は、キーの拒否のほかに、形式の誤り、オフライン、タイムアウト、429、5xx でも
+        起きる。以前はどの失敗でも保存済みのキーを消していた。消すのは利用者が削除したときだけにし、
+        画面の欄は保存してあるキーに戻す (`data` が戻す値になる)。
+        """
+        if response.get("status") == 400 and isinstance(response.get("result"), dict):
+            response["result"]["data"] = saved_key
         return response
 
     def _delTranslationEngineAuthKey(self, engine_key: str) -> dict:
@@ -4300,9 +4302,7 @@ class Controller:
                 e,
                 data=None
             )
-        if response["status"] == 400:
-            self.delOpenAICompatibleAuthKey()
-        return response
+        return self._keepSavedKeyOnError(response, config.AUTH_KEYS.get("OpenAI_Compatible"))
 
     def delOpenAICompatibleAuthKey(self, *args, **kwargs) -> dict:
         translator_name = "OpenAI_Compatible"

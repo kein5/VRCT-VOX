@@ -151,16 +151,17 @@ class Translator:
 
         Returns True on success, False on failure.
         """
-        result = True
+        # 失敗したときは、前のキーのクライアントを残す。保存したキーは消さないので、
+        # 新しいキーを試して失敗しても、前のキーで翻訳を続けられる
         try:
-            self.deepl_client = DeepLClient(auth_key)
+            client = DeepLClient(auth_key)
             # quick smoke test
-            self.deepl_client.translate_text(" ", target_lang="EN-US")
+            client.translate_text(" ", target_lang="EN-US")
         except Exception:
             errorLogging()
-            self.deepl_client = None
-            result = False
-        return result
+            return False
+        self.deepl_client = client
+        return True
 
     def authenticationRegistryAuthKey(self, engine_key: str, auth_key: str, root_path: str = None, **client_kwargs) -> bool:
         """`TRANSLATION_PROVIDER_REGISTRY` 登録エンジン共通の認証処理。
@@ -175,9 +176,8 @@ class Translator:
         if client.setAuthKey(auth_key):
             self._provider_clients[engine_key] = client
             return True
-        else:
-            self._provider_clients.pop(engine_key, None)
-            return False
+        # 失敗したときは、前のキーのクライアントを残す (DeepL と同じ)
+        return False
 
     def getRegistryModelList(self, engine_key: str) -> list[str]:
         """`TRANSLATION_PROVIDER_REGISTRY` 登録エンジン共通のモデル一覧取得。
@@ -287,12 +287,12 @@ class Translator:
         `base_url` は必須想定（None の場合は公式エンドポイントにフォールバック）。
         Returns True on success, False on failure.
         """
-        self.openai_compatible_client = OpenAICompatibleClient(base_url=base_url, root_path=root_path)
-        if self.openai_compatible_client.setAuthKey(auth_key):
+        client = OpenAICompatibleClient(base_url=base_url, root_path=root_path)
+        if client.setAuthKey(auth_key):
+            self.openai_compatible_client = client
             return True
-        else:
-            self.openai_compatible_client = None
-            return False
+        # 失敗したときは、前のキーと接続先のクライアントを残す (DeepL と同じ)
+        return False
 
     def getOpenAICompatibleModelList(self) -> list[str]:
         """Get available OpenAI-compatible endpoint models."""

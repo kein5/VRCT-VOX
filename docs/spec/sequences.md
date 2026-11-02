@@ -201,10 +201,10 @@ sequenceDiagram
     S-->>P: 200 キー
     P->>S: /get/data/selectable_transcription_engines、/get/data/selected_transcription_engine
     P->>P: エンジンを選べるようにする
-  else 拒否される
-    S->>S: キーを消し、必要ならエンジンを既定へ戻す
-    S-->>P: 400 {error_code: TRANSCRIPTION_API_AUTH_FAILED}
-    P->>P: 欄を空に戻し、理由を通知
+  else 確かめられない（拒否、形式の誤り、オフライン、429、5xx）
+    S->>S: 保存してあるキーと状態はそのまま
+    S-->>P: 400 {error_code: TRANSCRIPTION_API_AUTH_FAILED, data: 保存してあるキー}
+    P->>P: 欄を保存してあるキーに戻し、理由を通知
   end
 ```
 

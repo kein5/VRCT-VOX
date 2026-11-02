@@ -103,7 +103,10 @@ class _RegistryEndpointTestMixin:
         self.assertIsNone(config.AUTH_KEYS[self.ENGINE_KEY])
 
     @patch("controller.model")
-    def test_set_auth_key_auth_failure_clears_key_via_del(self, mock_model) -> None:
+    def test_set_auth_key_auth_failure_keeps_the_saved_key(self, mock_model) -> None:
+        # 確認の失敗はオフラインや 429 でも起きる。保存してあるキーと、それで使えている状態は残す
+        config.AUTH_KEYS = {**config.AUTH_KEYS, self.ENGINE_KEY: "saved-key"}
+        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[self.ENGINE_KEY] = True
         getattr(mock_model, self.AUTHENTICATE_MOCK).return_value = False
 
         response = self._auth_method()(self.VALID_KEY)
@@ -113,8 +116,9 @@ class _RegistryEndpointTestMixin:
             response["result"]["error_code"],
             TRANSLATION_PROVIDER_REGISTRY[self.ENGINE_KEY].error_auth_failed.value,
         )
-        self.assertIsNone(config.AUTH_KEYS[self.ENGINE_KEY])
-        self.assertFalse(config.SELECTABLE_TRANSLATION_ENGINE_STATUS[self.ENGINE_KEY])
+        self.assertEqual(response["result"]["data"], "saved-key")  # 画面の欄を保存してあるキーに戻す
+        self.assertEqual(config.AUTH_KEYS[self.ENGINE_KEY], "saved-key")
+        self.assertTrue(config.SELECTABLE_TRANSLATION_ENGINE_STATUS[self.ENGINE_KEY])
 
     @patch("controller.errorLogging")
     @patch("controller.model")

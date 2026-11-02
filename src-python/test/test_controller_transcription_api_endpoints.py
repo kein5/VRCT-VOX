@@ -94,15 +94,18 @@ class GroqWhisperAuthKeyEndpointTests(_ConfigSnapshotMixin, unittest.TestCase):
         mock_model.authenticationTranscriptionApiKey.assert_not_called()
 
     @patch("controller.model")
-    def test_set_auth_key_failure_clears_state(self, mock_model) -> None:
+    def test_set_auth_key_failure_keeps_the_saved_key(self, mock_model) -> None:
+        # 確認の失敗はオフラインや 429 でも起きる。保存してあるキーと、それで使えている状態は残す
+        config.TRANSCRIPTION_AUTH_KEYS = {**config.TRANSCRIPTION_AUTH_KEYS, "Groq_Whisper": "sk-saved"}
+        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS = {**config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS, "Groq_Whisper": True}
         mock_model.authenticationTranscriptionApiKey.return_value = False
 
         response = self.controller.setGroqWhisperAuthKey("sk-bad")
 
         self.assertEqual(response["status"], 400)
-        self.assertIsNone(config.TRANSCRIPTION_AUTH_KEYS["Groq_Whisper"])
-        self.assertFalse(config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Groq_Whisper"])
-        self.assertEqual(config.SELECTABLE_GROQ_WHISPER_MODEL_LIST, [])
+        self.assertEqual(response["result"]["data"], "sk-saved")  # 画面の欄を保存してあるキーに戻す
+        self.assertEqual(config.TRANSCRIPTION_AUTH_KEYS["Groq_Whisper"], "sk-saved")
+        self.assertTrue(config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Groq_Whisper"])
 
     @patch("controller.model")
     def test_set_auth_key_with_no_models_is_treated_as_failure(self, mock_model) -> None:
