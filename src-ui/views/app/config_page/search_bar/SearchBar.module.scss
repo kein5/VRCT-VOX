@@ -54,6 +54,8 @@ $search_bar_width_compact: 17.6rem;    // コンパクト時の幅 (その半分
 
 .search_input {
     flex: 1;
+    // The full height of the box, so a click above or below the text reaches it.
+    align-self: stretch;
     border: none;
     background: transparent;
     outline: none;
