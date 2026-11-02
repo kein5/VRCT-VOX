@@ -230,7 +230,7 @@ main_page:
     transcription_send: "Voice2Chatbox"
     transcription_receive: "Speaker2Log"
     ocr: "Chat Transcribe"
-    foreground: "Set To Stay On Top"
+    foreground: "Always on Top"
 
     language_settings: "Language Settings"
     your_language: "Your Language"
@@ -625,7 +625,7 @@ config_page:
             desc: "Microphone transcription pauses while VRChat's mic is muted. It resumes after VRChat confirms the mic is unmuted. If this cannot be confirmed, transcription stays paused.\n*There may be a slight delay. Push-To-Talk is not supported."
         send_message_to_vrc:
             label: "Send Message To VRChat"
-            desc: "This feature is not supported, but there is a way to use it without sending messages to VRChat. Make sure to enable this feature when you wish to send messages to VRChat."
+            desc: "Sends messages to the VRChat chatbox. When this is off, VRCT-VOX works without sending to VRChat, but that way of using it is not supported."
         notification_vrc_sfx:
             label: "Enable Notification Sound When Sending Chat"
             desc: "When this feature is disabled, messages will be sent silently without playing the chatbox notification sound that others can hear."
