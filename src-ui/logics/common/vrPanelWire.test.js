@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decodeOrdered, encodeOrdered, isRelayAllowed } from "./vrPanelWire.js";
+import { decodeOrdered, encodeOrdered, isRelayAllowed, isSecretAtomName } from "./vrPanelWire.js";
 
 // Tauri の emit を通ったときの変化を模す: キーを辞書順にし、undefined を落とし、NaN を null にする
 const sortKeysDeep = value => Array.isArray(value) ? value.map(sortKeysDeep)
@@ -31,4 +31,17 @@ test("the VR panel can ask for settings and the main features, but not for dange
     for (const path of ["/run/shutdown", "/run/update_software", "/run/open_filepath_logs", "/run/open_filepath_config_file",
         "/run/download_whisper_weight", "/run/download_ctranslate2_weight", "/set/data/deepl_auth_key", "/set/data/websocket_auth_token",
         "relative/path", "", undefined, 3]) assert.equal(isRelayAllowed(path), false, String(path));
+});
+
+test("the VR panel cannot change where saved keys are sent or what runs", () => {
+    for (const path of ["/set/data/openai_compatible_url", "/set/data/lmstudio_url", "/set/data/ollama_url", "/set/data/custom_whisper_url",
+        "/set/data/websocket_host", "/set/data/websocket_port", "/set/data/obs_browser_source_port", "/set/data/osc_ip_address",
+        "/set/data/osc_port", "/set/data/voice_settings", "/set/data/direct_voice_settings", "/set/data/speech_server_settings",
+        "/set/data/realtime_asr_settings"]) assert.equal(isRelayAllowed(path), false, path);
+    for (const path of ["/get/data/openai_compatible_url", "/set/data/selected_font_family"]) assert.equal(isRelayAllowed(path), true, path);
+});
+
+test("credentials are not mirrored to the VR panel", () => {
+    for (const name of ["DeepLAuthKey", "OpenAICompatibleAuthKey", "DeepgramAuthKey", "WebsocketAuthToken"]) assert.equal(isSecretAtomName(name), true, name);
+    for (const name of ["SelectedFontFamily", "MessageLogs", "OpenAICompatibleUrl", "SelectedTranslationEngines"]) assert.equal(isSecretAtomName(name), false, name);
 });
