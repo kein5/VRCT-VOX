@@ -5492,6 +5492,8 @@ class Controller:
                 )
             else:
                 if model.checkWebSocketServerAlive() is False:
+                    # Also cancel an attempt still binding the previous address.
+                    model.stopWebSocketServer()
                     config.WEBSOCKET_HOST = data
                     response = {"status":200, "result":config.WEBSOCKET_HOST}
                 else:
@@ -5542,6 +5544,7 @@ class Controller:
 
         try:
             if model.checkWebSocketServerAlive() is False:
+                model.stopWebSocketServer()
                 config.WEBSOCKET_PORT = port
                 response = {"status":200, "result":config.WEBSOCKET_PORT}
             else:
@@ -5621,7 +5624,9 @@ class Controller:
                 config.OBS_BROWSER_SOURCE = False
                 model.stopObsBrowserSourceServer()
             config.WEBSOCKET_SERVER = False
-            model.stopWebSocketServer()
+        # The config remains False until startup succeeds. Stop must reach an
+        # in-flight enable too (including one requested by OBS).
+        model.stopWebSocketServer()
         return {"status":200, "result":config.WEBSOCKET_SERVER}
 
     # OBS Browser Source (local overlay for OBS)

@@ -14,7 +14,6 @@
 | OI-09 | `config.json`に版番号がない。キーの意味を変えるときに移行の手がかりがない | [データ形式と保存](data-and-persistence.md#configjson) | 未決 |
 | OI-10 | エラーコード98件のうち10件は、UIに個別の処理がない。いずれも音声認識の失敗（`AUDIO_*`、`ASR_ERROR`、`TRANSCRIPTION_API_*`など）で、`/run/transcription_recognition_error`として会話ログに出るため汎用の通知にはならない。`AUDIO_TRACKER_STOP_TIMEOUT`はテレメトリー用で画面には届かない | [エラーコード一覧](reference/error-codes.md) | 確認済み。新しいコードを足すときは同じ確認をする |
 | OI-15 | Linuxのビルドは`uv export --no-hashes`で依存を書き出すため、`uv.lock`にあるパッケージのハッシュを確かめない。commitで固定したVCSの依存と両立させる必要がある | `tools/build_linux.py` | 未着手 |
-| OI-20 | WebSocketサーバーの起動が6秒を超えると失敗として返すが、その起動の試みは止めない。遅れて起動したり、次の起動の後片付けと重なったりするおそれがある（実際には確かめていない） | `src-python/model.py`（`startWebSocketServer`） | 未確認 |
 
 ## 調べて直したもの
 
@@ -41,3 +40,4 @@
 - `config.json`の書き込みに失敗しても、例外を捨てて成功を返していた（OI-16）。UIに理由を知らせ、30秒ごとに書き直す。
 - 内蔵の翻訳モデル（CTranslate2とトークナイザー）とWhisperの重みは、既定のブランチから確かめずに取得していた（OI-13）。commitを固定し、大きさとSHA-256を確かめる。
 - VRの設定だけ「チャット読み取り」と「その他」のタブが残っていた（OI-11）。デスクトップと同じページ構成にそろえ、既存の項目をVRChat、デザイン、デバイスへ移した。
+- WebSocketサーバーの起動待ちが時間切れになっても、遅れて待ち受けを始めたり次の起動の後片付けと重なったりしていた（OI-20）。6秒で起動を取り消し、起動ごとの資源を閉じてから次を始めるようにした。

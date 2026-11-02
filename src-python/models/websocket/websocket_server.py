@@ -1,11 +1,32 @@
 import asyncio
 import threading
+from dataclasses import dataclass, field
+from time import monotonic
 from http import HTTPStatus
 from urllib.parse import urlparse, parse_qs
 import websockets
 from websockets.asyncio.server import ServerConnection
 from typing import Callable, Set, Optional
 from utils import errorLogging
+
+_STOP_JOIN_TIMEOUT = 2.0
+
+
+@dataclass
+class _ServerRun:
+    """Resources belong to one start attempt, including after a bounded join expires."""
+    deadline: float
+    ready: threading.Event = field(default_factory=threading.Event)
+    cancelled: threading.Event = field(default_factory=threading.Event)
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    thread: Optional[threading.Thread] = None
+    loop: Optional[asyncio.AbstractEventLoop] = None
+    task: Optional[asyncio.Task] = None
+    server: Optional[object] = None
+    send_queue: Optional[asyncio.Queue] = None
+    running: bool = False
+    error: Optional[BaseException] = None
+
 
 class WebSocketServer:
     """
@@ -37,13 +58,18 @@ class WebSocketServer:
         self.token = token
         self.clients: Set[ServerConnection] = set()  # 接続クライアント集合
         self._message_handler: Optional[Callable[['WebSocketServer', ServerConnection, str], None]] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._server: Optional[websockets.serve] = None
-        self._thread: Optional[threading.Thread] = None
-        self._send_queue: Optional[asyncio.Queue] = None  # 外部スレッド向け非同期キュー
-        self.is_running: bool = False  # サーバーの起動状態を示すフラグ
-        self._started = threading.Event()  # bind の成否が決まったら立つ
-        self._start_error: Optional[BaseException] = None
+        self._lifecycle_lock = threading.Lock()
+        self._run: Optional[_ServerRun] = None
+
+    @property
+    def is_running(self) -> bool:
+        run = self._run
+        return run is not None and run.running and not run.cancelled.is_set()
+
+    @property
+    def is_stopped(self) -> bool:
+        run = self._run
+        return run is None or run.thread is None or not run.thread.is_alive()
 
     async def _process_request(self, connection: ServerConnection, request):
         """websockets の asyncio serve() が接続確立前に呼ぶフック。
@@ -113,134 +139,143 @@ class WebSocketServer:
             return_exceptions=True
         )
 
-    async def _send_loop(self):
-        """
-        内部キューからメッセージを取り出し、すべてのクライアントに送信するループ処理。
-        GUIなど他スレッドから送信メッセージをキューに入れてもらい、このコルーチンで配信します。
-        """
-        assert self._send_queue is not None
+    async def _send_loop(self, run):
         while True:
-            message = await self._send_queue.get()
-            if message is None:
-                # Noneを受け取ったらシャットダウン指示とみなしてループを抜ける
-                break
+            message = await run.send_queue.get()
             await self._broadcast_async(message)
 
     def send(self, message: str):
-        """
-        外部スレッドからサーバーにメッセージを送信するためのメソッドです。
-        イベントループ上で安全にキューにメッセージを積み、_send_loop()経由でブロードキャストします。
-        """
-        if self._loop and self._send_queue:
-            # キューにput_nowaitするコールをイベントループにスケジュール
-            self._loop.call_soon_threadsafe(self._send_queue.put_nowait, message)
-
-    def broadcast(self, message: str):
-        """
-        外部スレッドや他コルーチンから全クライアントにメッセージを送信するユーティリティ。
-        asyncio.run_coroutine_threadsafe を使ってループ上でブロードキャストを実行します。
-        """
-        if self._loop:
-            # コルーチン自体をrun_coroutine_threadsafeに渡す
-            asyncio.run_coroutine_threadsafe(
-                self._broadcast_async(message), self._loop
-            )
-
-    def start(self, timeout: float = 5.0):
-        """
-        サーバーを起動します。新しいスレッド上で asyncio イベントループを動かし、serve()を実行します。
-        """
-        if self._thread and self._thread.is_alive():
-            return  # 既に起動中
-        self._started = threading.Event()
-        self._start_error = None
-        # 新しいスレッドでイベントループを開始
-        self._thread = threading.Thread(target=self._run_loop, daemon=True)
-        self._thread.start()
-        # 空きポートの確認と実際の bind の間に、ほかのプロセスがポートを取ることがある。
-        # bind の結果を待ち、失敗なら呼び出し元に伝える (起動したと返さない)
-        if not self._started.wait(timeout):
-            raise TimeoutError(f"WebSocket server did not start within {timeout} seconds")
-        if self._start_error is not None:
-            raise self._start_error
-
-    def _run_loop(self):
-        """
-        別スレッド上で実行されるイベントループ用のメソッド。
-        サーバーの起動と、送信用キューのタスク登録を行います。
-        """
-        # 新しいイベントループを作成してこのスレッドの現在のループとして設定
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-
-        async def setup_server():
-            # サーバーを起動し、listenを開始
-            self._server = await websockets.serve(
-                self._handler, self.host, self.port,
-                process_request=self._process_request,
-            )
-            # 送信キューを初期化
-            self._send_queue = asyncio.Queue()
-            # 送信ループタスクを開始
-            self._loop.create_task(self._send_loop())
-            # サーバーの起動を待機
-        # 設定関数を実行してサーバーを起動
-        try:
-            self._loop.run_until_complete(setup_server())
-        except BaseException as e:
-            self._start_error = e
-            self._loop.close()
-            self._loop = None
-            self._started.set()
-            return
-        self.is_running = True
-        self._started.set()
-        # サーバーが起動したら、接続待機を開始
-        # print(f"WebSocket server started on ws://{self.host}:{self.port}")
-        try:
-            # サーバーが停止するまでループを継続
-            self._loop.run_forever()
-        finally:
-            # 停止指示が出たらすべての接続を閉じ、イベントループを終了
-            self._loop.run_until_complete(self._shutdown())
-            if self._loop is not None:
-                self._loop.close()
-
-    async def _shutdown(self):
-        """
-        サーバーとクライアントを安全にシャットダウンする非同期処理。
-        serveオブジェクトをcloseし、wait_closed()で完全に終了を待ちます。
-        さらに接続中の各WebSocketをcloseします。
-        """
-        # サーバーのListenを停止
-        if self._server:
-            self._server.close()
-            await self._server.wait_closed()
-        # 接続中クライアントを順次クローズ
-        for ws in list(self.clients):
+        run = self._run
+        if run is not None and self.is_running:
             try:
-                await ws.close()
-            except Exception:
+                run.loop.call_soon_threadsafe(run.send_queue.put_nowait, message)
+            except RuntimeError:
+                # A concurrent stop may already have closed this attempt's loop.
                 pass
 
+    def broadcast(self, message: str):
+        run = self._run
+        if run is not None and self.is_running:
+            coroutine = self._broadcast_async(message)
+            try:
+                asyncio.run_coroutine_threadsafe(coroutine, run.loop)
+            except RuntimeError:
+                coroutine.close()
+
+    def begin_start(self, timeout: float = 5.0):
+        """Publish and launch an attempt without waiting (so stop can cancel it)."""
+        with self._lifecycle_lock:
+            if not self.is_stopped:
+                if self._run.cancelled.is_set():
+                    raise RuntimeError("WebSocket server is still stopping")
+                return self._run
+            run = _ServerRun(deadline=monotonic() + timeout)
+            self._run = run
+            run.thread = threading.Thread(
+                target=self._run_loop, args=(run,), daemon=True,
+                name="websocket_server",
+            )
+            run.thread.start()
+            return run
+
+    def wait_started(self, run):
+        """Wait for this exact attempt, never a subsequent start's result."""
+        if not run.ready.wait(max(0.0, run.deadline - monotonic())):
+            self._stop_run(run)
+            raise TimeoutError("WebSocket server startup timed out")
+        if run.error is not None:
+            self._stop_run(run)
+            raise run.error
+        if run.cancelled.is_set() or not run.running:
+            self._stop_run(run)
+            raise RuntimeError("WebSocket server startup was cancelled")
+
+    def start(self, timeout: float = 5.0):
+        self.wait_started(self.begin_start(timeout))
+
+    async def _serve(self, run):
+        # Bind without listening. Even an uncooperative/late serve result must
+        # pass the cancellation and deadline checks before accepting clients.
+        run.server = await websockets.serve(
+            self._handler, self.host, self.port,
+            process_request=self._process_request, start_serving=False,
+        )
+        if run.cancelled.is_set() or monotonic() >= run.deadline:
+            raise TimeoutError("WebSocket server startup timed out")
+        await run.server.start_serving()
+        with run.lock:
+            if run.cancelled.is_set() or monotonic() >= run.deadline:
+                raise TimeoutError("WebSocket server startup timed out")
+            run.send_queue = asyncio.Queue()
+            run.running = True
+            run.ready.set()
+        await self._send_loop(run)
+
+    def _run_loop(self, run):
+        # Only this thread creates, drains and closes the loop and its resources.
+        # stop() cancels the task; loop.stop() during run_until_complete would
+        # abandon a pending bind and leak its eventual result.
+        try:
+            loop = asyncio.new_event_loop()
+            with run.lock:
+                run.loop = loop
+                asyncio.set_event_loop(loop)
+                if run.cancelled.is_set():
+                    return
+                run.task = loop.create_task(self._serve(run))
+            loop.run_until_complete(run.task)
+        except asyncio.CancelledError:
+            pass
+        except BaseException as exc:
+            run.error = exc
+        finally:
+            run.running = False
+            loop = run.loop
+            try:
+                if loop is not None:
+                    try:
+                        if run.server is not None:
+                            run.server.close()
+                            loop.run_until_complete(run.server.wait_closed())
+                    finally:
+                        pending = asyncio.all_tasks(loop)
+                        for task in pending:
+                            task.cancel()
+                        if pending:
+                            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                        try:
+                            loop.run_until_complete(loop.shutdown_asyncgens())
+                        finally:
+                            loop.close()
+            except Exception:
+                errorLogging()
+            finally:
+                run.ready.set()
+
+    @staticmethod
+    def _stop_run(run):
+        with run.lock:
+            first_cancel = not run.cancelled.is_set()
+            run.cancelled.set()
+            run.running = False
+            run.ready.set()
+            if first_cancel and run.loop is not None and not run.loop.is_closed():
+                def cancel():
+                    if run.task is not None and not run.task.done():
+                        run.task.cancel()
+                try:
+                    run.loop.call_soon_threadsafe(cancel)
+                except RuntimeError:
+                    pass  # The owner finished closing the loop concurrently.
+        if (run.thread is not None and run.thread.ident is not None
+                and run.thread is not threading.current_thread()):
+            run.thread.join(timeout=_STOP_JOIN_TIMEOUT)
+
     def stop(self):
-        """
-        サーバーを停止します。別スレッドで動作中のイベントループに停止を指示し、スレッドを終了させます。
-        """
-        self.is_running = False
-        if self._loop:
-            # start()直後、_run_loopのセットアップ(setup_server)が完了する前に
-            # stop()が呼ばれるとself._server/self._send_queueがまだNoneのことがあるためガードする
-            if self._server is not None:
-                self._loop.call_soon_threadsafe(self._server.close)
-            if self._send_queue is not None:
-                # None をキューに入れて_send_loopを抜けさせる
-                self._loop.call_soon_threadsafe(self._send_queue.put_nowait, None)
-            # ループ停止
-            self._loop.call_soon_threadsafe(self._loop.stop)
-        # スレッドの終了を待つ(無期限ブロックを避けるためタイムアウトを設定)
-        if self._thread:
-            self._thread.join(timeout=5.0)
+        with self._lifecycle_lock:
+            run = self._run
+            if run is not None:
+                self._stop_run(run)
 
 if __name__ == "__main__":
     # テスト用の簡単なメッセージハンドラ

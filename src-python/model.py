@@ -1,6 +1,5 @@
 import atexit
 import copy
-import asyncio
 import faulthandler
 import hashlib
 import json
@@ -93,7 +92,7 @@ _FREEZE_DUMP_MARGIN_SEC = 15
 # なくても実害はない (stopWatchdog のコメント参照)。
 _WATCHDOG_JOIN_TIMEOUT_SEC = 1.0
 
-# WebSocketServer.start() は bind の結果を最大5秒待つ。それより少し長く待つ
+# WebSocket の起動全体の待ち時間。時間切れ後のキャンセルと join は別枠（最大2秒）。
 _WEBSOCKET_START_TIMEOUT = 6.0
 
 
@@ -1039,17 +1038,8 @@ class Model:
         self.transliterator = None
         self.osc_handler = OSCHandler(config.OSC_IP_ADDRESS, config.OSC_PORT)
         self.websocket_server = None
-        self.websocket_server_loop = False
-        self.websocket_server_alive = False
-        self.th_websocket_server = None
-        # start/stopWebSocketServer()のcheck-then-set(TOCTOU)を防ぐ。
-        # 以前は無ロックだったため、2本の別エンドポイント
-        # (/set/enable/websocket_server と /set/enable/obs_browser_source、
-        # 両方ともstartWebSocketServer()を呼びうる)がほぼ同時に呼ばれると
-        # 両方とも「未起動」を観測して同じポートへの2本目のbindを試み、
-        # 後勝ちのth_websocket_server代入で先に起動した方のスレッド参照が
-        # 失われ二度と停止できなくなり得た(バックエンドレビュー
-        # フェーズ4項目32)。
+        # Publish each server under the lock, then wait outside it so a stop
+        # can cancel startup. The server object is the attempt's identity.
         self._websocket_lifecycle_lock = Lock()
         self.obs_browser_source_server = None
         self.clipboard = Clipboard()
@@ -2790,89 +2780,52 @@ class Model:
         pass
 
     def startWebSocketServer(self, host, port) -> bool:
-        """WebSocketサーバーを起動し、別スレッドで実行する。
-
-        実際に bind できたかを返す。空きポートの確認のあとでほかのプロセスがポートを
-        取ったときなどは False を返し、起動したことにしない。
-        """
+        """Wait up to six seconds for listening; cancel and reap a failed attempt."""
         self.ensure_initialized()
         with self._websocket_lifecycle_lock:
-            if self.websocket_server_alive is True:
-                # サーバーが既に起動している場合は何もしない
-                return True
-
-            self.websocket_server_loop = True
-            self.websocket_server_alive = False  # 初期状態を明示
-            ready = Event()
-            self._websocket_server_ready = ready
-
-            async def WebSocketServerMain():
-                try:
-                    self.websocket_server = WebSocketServer(
-                        host=host,
-                        port=port,
-                        token=config.WEBSOCKET_AUTH_TOKEN,
-                    )
-                    self.websocket_server.set_message_handler(self.message_handler)
-                    # bind の成否が決まるまで待ち、失敗なら例外になる
-                    self.websocket_server.start()
-                    self.websocket_server_alive = True
-                    ready.set()
-
-                    # イベントループが終了するまで待機
-                    while self.websocket_server_loop:
-                        # self.websocket_server.send("Server is running...")
-                        await asyncio.sleep(0.5)  # 応答性向上のため間隔短縮
-
-                except Exception:
-                    errorLogging()
-                    # 具体的なエラー内容をログに残す場合
-                    # self.logger.error(f"WebSocket server error: {str(e)}")
-                finally:
-                    # 確実にサーバーを停止
-                    if hasattr(self, 'websocket_server') and self.websocket_server:
-                        self.websocket_server.stop()
-                    self.websocket_server_alive = False
-                    ready.set()
-
-            self.th_websocket_server = Thread(target=lambda: asyncio.run(WebSocketServerMain()))
-            self.th_websocket_server.daemon = True
-            self.th_websocket_server.start()
-            ready.wait(timeout=_WEBSOCKET_START_TIMEOUT)
-            return self.websocket_server_alive is True
-
-    def stopWebSocketServer(self):
-        """WebSocketサーバーを停止する"""
-        self.ensure_initialized()
-        with self._websocket_lifecycle_lock:
-            if not hasattr(self, 'th_websocket_server') or self.th_websocket_server is None:
-                return
-
-            self.websocket_server_loop = False
-
+            server = self.websocket_server
+            if server is None or server.is_stopped:
+                server = WebSocketServer(host=host, port=port, token=config.WEBSOCKET_AUTH_TOKEN)
+                server.set_message_handler(self.message_handler)
+                self.websocket_server = server
             try:
-                # 一定時間待機してからタイムアウト
-                self.th_websocket_server.join(timeout=2.0)
-
-                if self.th_websocket_server.is_alive():
-                    # タイムアウト後もスレッドが生きている場合の処理。
-                    # 以前はself.logger.warning(...)だったが、self.loggerは
-                    # LOGGER_FEATURE無効時(既定)はNoneのため、この警告経路
-                    # 自体がAttributeErrorになり本来のメッセージが記録され
-                    # ずに失われていた(バックエンドレビュー フェーズ4
-                    # 項目32)。self.loggerに依存しないprintLogに変更。
-                    printLog("WebSocket server thread did not terminate properly")
+                attempt = server.begin_start(timeout=_WEBSOCKET_START_TIMEOUT)
             except Exception:
                 errorLogging()
-            finally:
-                self.th_websocket_server = None
+                return False
+
+        try:
+            server.wait_started(attempt)
+        except Exception:
+            errorLogging()
+            # Cleanup owns only this server, not a replacement published by a
+            # concurrent enable. Keep a stuck worker reachable until it exits.
+            with self._websocket_lifecycle_lock:
+                if self.websocket_server is server and server.is_stopped:
+                    self.websocket_server = None
+            return False
+        with self._websocket_lifecycle_lock:
+            return self.websocket_server is server and server.is_running
+
+    def stopWebSocketServer(self):
+        """Cancel pending startup as well as an already listening server."""
+        self.ensure_initialized()
+        with self._websocket_lifecycle_lock:
+            server = self.websocket_server
+            if server is None:
+                return
+            server.stop()
+            if server.is_stopped:
                 self.websocket_server = None
-                self.websocket_server_alive = False
+            else:
+                # Don't forget the old attempt or allow a competing bind while
+                # its resources are still being released. A later start retries.
+                printLog("WebSocket server thread did not terminate properly")
 
     def checkWebSocketServerAlive(self):
-        """WebSocketサーバーの稼働状態を確認する"""
         self.ensure_initialized()
-        return self.websocket_server_alive
+        with self._websocket_lifecycle_lock:
+            return self.websocket_server is not None and self.websocket_server.is_running
 
     def startObsBrowserSourceServer(self, host: str, port: int) -> None:
         """Start the local HTTP server used as an OBS Browser Source."""
@@ -2927,7 +2880,7 @@ class Model:
         :return: 送信成功したかどうか
         """
         self.ensure_initialized()
-        if not self.websocket_server_alive or not self.websocket_server:
+        if not self.checkWebSocketServerAlive():
             return False
         try:
             message_json = json.dumps(message_dict)

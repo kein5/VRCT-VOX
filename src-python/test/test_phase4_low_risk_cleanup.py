@@ -22,12 +22,11 @@
      1つの不変スナップショットへの単一代入に一本化した。
 """
 
-import threading
 import time
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from model import Model, threadFnc
+from model import threadFnc
 
 
 class TelemetryEventLoopStartupTests(unittest.TestCase):
@@ -68,108 +67,9 @@ class TelemetryEventLoopStartupTests(unittest.TestCase):
         self.assertIsNone(self.telemetry._loop)
 
 
-class WebSocketServerLifecycleLockTests(unittest.TestCase):
-    """model.py の startWebSocketServer()/stopWebSocketServer() の
-    check-then-set(TOCTOU)修正。"""
-
-    def setUp(self) -> None:
-        self.model = Model.__new__(Model)
-        self._had_inited = hasattr(self.model, "_inited")
-        self._original_inited = getattr(self.model, "_inited", None)
-        self.model._inited = True
-
-        self.model._websocket_lifecycle_lock = threading.Lock()
-        self.model.websocket_server_alive = False
-        self.model.websocket_server_loop = False
-        self.model.th_websocket_server = None
-        self.model.websocket_server = None
-        self.model.message_handler = lambda *a, **k: None
-
-    def tearDown(self) -> None:
-        if self._had_inited:
-            self.model._inited = self._original_inited
-        else:
-            try:
-                delattr(self.model, "_inited")
-            except AttributeError:
-                pass
-
-    def test_start_and_stop_take_the_lifecycle_lock(self) -> None:
-        lock = self.model._websocket_lifecycle_lock
-        observed_locked_during_start = []
-        observed_locked_during_stop = []
-
-        real_thread_cls = threading.Thread
-
-        def fake_thread(*args, **kwargs):
-            observed_locked_during_start.append(lock.locked())
-            # 実際にスレッドを起動すると非同期のWebSocketServerMain()が
-            # 本物のポートbindを試みてしまうため、無害なダミーに差し替える。
-            # 起動の結果を待つ startWebSocketServer() を待たせないよう、結果が出たことにする
-            self.model._websocket_server_ready.set()
-            return real_thread_cls(target=lambda: None, daemon=True)
-
-        with patch("model.Thread", side_effect=fake_thread):
-            self.model.startWebSocketServer("127.0.0.1", 0)
-
-        self.assertEqual(observed_locked_during_start, [True])
-        self.assertFalse(lock.locked())
-
-        # stopWebSocketServer 側もロックを取得すること。
-        self.model.th_websocket_server.join(timeout=1.0)
-
-        def observe_during_stop(*args, **kwargs):
-            observed_locked_during_stop.append(lock.locked())
-
-        with patch.object(self.model.th_websocket_server, "join", side_effect=observe_during_stop):
-            self.model.stopWebSocketServer()
-
-        self.assertEqual(observed_locked_during_stop, [True])
-        self.assertFalse(lock.locked())
-
-    def test_second_concurrent_start_does_not_overwrite_the_first_threads_reference(
-        self,
-    ) -> None:
-        # ロックが正しく直列化するなら、1本目が既に websocket_server_alive を
-        # True にした後に呼ばれた2本目は即 return し、
-        # th_websocket_server を上書きしない。
-        real_thread_cls = threading.Thread
-
-        def fake_thread(*args, **kwargs):
-            # 起動直後に alive フラグを立てる (実際のWebSocketServerMain()の
-            # 冒頭相当を模す)。
-            self.model.websocket_server_alive = True
-            self.model._websocket_server_ready.set()
-            return real_thread_cls(target=lambda: None, daemon=True)
-
-        with patch("model.Thread", side_effect=fake_thread):
-            self.model.startWebSocketServer("127.0.0.1", 0)
-
-        first_thread = self.model.th_websocket_server
-        self.assertIsNotNone(first_thread)
-
-        with patch("model.Thread", side_effect=fake_thread) as thread_ctor:
-            self.model.startWebSocketServer("127.0.0.1", 0)
-            thread_ctor.assert_not_called()
-
-        self.assertIs(self.model.th_websocket_server, first_thread)
-
-    def test_stop_timeout_warning_does_not_raise_when_logger_is_none(self) -> None:
-        # self.logger は Model 既定で None (LOGGER_FEATURE無効時)。以前は
-        # self.logger.warning(...) で AttributeError になっていた。
-        self.model.logger = None
-        stuck_thread = MagicMock()
-        stuck_thread.join.return_value = None
-        stuck_thread.is_alive.return_value = True
-        self.model.th_websocket_server = stuck_thread
-
-        with patch("model.printLog") as mock_print_log, \
-             patch("model.errorLogging") as mock_error_logging:
-            self.model.stopWebSocketServer()
-
-        mock_print_log.assert_called_once()
-        mock_error_logging.assert_not_called()
-        self.assertIsNone(self.model.th_websocket_server)
+# WebSocket lifecycle regressions now exercise actual concurrent starts and
+# bounded cleanup in test_websocket_startup_cancel.py. The former outer
+# monitoring thread and its shared alive/loop flags were removed for OI-20.
 
 
 class ThreadFncPauseResumeRemovedTests(unittest.TestCase):

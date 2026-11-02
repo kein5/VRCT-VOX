@@ -10,6 +10,8 @@ import threading
 import unittest
 from unittest.mock import patch
 
+import pytest
+
 from config import config
 from controller import Controller
 from errors import ErrorCode
@@ -24,6 +26,18 @@ def _occupied_port() -> tuple[socket.socket, int]:
     return sock, sock.getsockname()[1]
 
 
+@pytest.fixture
+def loopback_socket_permission():
+    """These integration tests require TCP on 127.0.0.1, ephemeral port 0."""
+    try:
+        sock, _ = _occupied_port()
+    except PermissionError:
+        pytest.skip("sandbox denies localhost TCP sockets (127.0.0.1:0)")
+    else:
+        sock.close()
+
+
+@pytest.mark.usefixtures("loopback_socket_permission")
 class WebSocketServerStartTests(unittest.TestCase):
     def test_start_raises_when_the_port_is_taken(self) -> None:
         sock, port = _occupied_port()
@@ -43,28 +57,16 @@ class WebSocketServerStartTests(unittest.TestCase):
         self.assertTrue(server.is_running)
 
 
+@pytest.mark.usefixtures("loopback_socket_permission")
 class ModelStartWebSocketServerTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.model = Model.__new__(Model)
-        self._had_inited = hasattr(self.model, "_inited")
-        self._original_inited = getattr(self.model, "_inited", None)
+        self.model = object.__new__(Model)
         self.model._inited = True
         self.model._websocket_lifecycle_lock = threading.Lock()
-        self.model.websocket_server_alive = False
-        self.model.websocket_server_loop = False
-        self.model.th_websocket_server = None
         self.model.websocket_server = None
-        self.model.message_handler = lambda *a, **k: None
 
     def tearDown(self) -> None:
         self.model.stopWebSocketServer()
-        if self._had_inited:
-            self.model._inited = self._original_inited
-        else:
-            try:
-                delattr(self.model, "_inited")
-            except AttributeError:
-                pass
 
     def test_returns_false_and_stays_down_when_bind_fails(self) -> None:
         sock, port = _occupied_port()
