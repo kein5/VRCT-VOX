@@ -374,6 +374,7 @@ config_page:
 
     others:
         section_label_sounds: "音效"
+        section_label_received_messages: "接收的訊息"
         section_label_message_formats: "訊息格式"
         section_label_sending: "傳送與紀錄"
         section_label_reading_aids: "平假名・羅馬字"
@@ -414,8 +415,8 @@ config_page:
             label: "訊息格式（發送）"
             desc: "可以變更在 VRChat 中對方實際看到的格式。"
         received_message_format:
-            label: "訊息格式（Speaker2Chatbox）"
-            desc: "目前用於透過 Speaker2Chatbox 發送時的顯示。"
+            label: "訊息格式（接收）"
+            desc: "將聽取的訊息傳送到 VRChat 時使用此格式。"
         common_convert_message_hiragana_romaji:
             desc_1: "僅在選擇日語作為翻譯語言時支援。"
             desc_2: "由於日語的特殊性，精度有限。"

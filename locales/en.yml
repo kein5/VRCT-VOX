@@ -535,6 +535,7 @@ config_page:
 
     others:
         section_label_sounds: "Sounds"
+        section_label_received_messages: "Received Messages"
         section_label_message_formats: "Message Formats"
         section_label_sending: "Sending & Logs"
         section_label_reading_aids: "Hiragana & Romaji"
@@ -573,6 +574,7 @@ config_page:
                 title: "Settings"
                 original: "Original"
                 translated: "Translation"
+                swap_order: "Swap the order (now {{first}} first)"
                 for_multi_translation: "For Multi-Translation"
                 before_original: "Before the original"
                 after_original: "After the original"
@@ -584,8 +586,8 @@ config_page:
             label: "Message Format (Send)"
             desc: "This allows you to change the format of the message that others see in VRChat."
         received_message_format:
-            label: "Message Format (Speaker2Chatbox)"
-            desc: "Currently, it is used in Speaker2Chatbox."
+            label: "Message Format (Received)"
+            desc: "Used when received messages are sent to VRChat."
         common_convert_message_hiragana_romaji:
             desc_1: "Supported only when Japanese is selected as the translation language."
             desc_2: "Due to the complexity of Japanese, it has limitations on accuracy."

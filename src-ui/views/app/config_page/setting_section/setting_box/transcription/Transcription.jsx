@@ -443,7 +443,7 @@ const MicAvgLogprobContainer = () => {
     const { currentMicAvgLogprob, setMicAvgLogprob } = useTranscription();
     return (
         <SliderContainer
-            label="Mic Avg Logprob"
+            label={t("config_page.transcription.mic_avg_logprob.label")}
             desc={t("config_page.transcription.mic_avg_logprob.desc")}
             variable={currentMicAvgLogprob.data}
             setterFunction={setMicAvgLogprob}
@@ -462,7 +462,7 @@ const MicNoSpeechProbContainer = () => {
 
     return (
         <SliderContainer
-            label="Mic No Speech Prob"
+            label={t("config_page.transcription.mic_no_speech_prob.label")}
             desc={t("config_page.transcription.mic_no_speech_prob.desc")}
             variable={currentMicNoSpeechProb.data}
             setterFunction={setMicNoSpeechProb}
@@ -481,7 +481,7 @@ const SpeakerAvgLogprobContainer = () => {
 
     return (
         <SliderContainer
-            label="Speaker Avg Logprob"
+            label={t("config_page.transcription.speaker_avg_logprob.label")}
             desc={t("config_page.transcription.speaker_avg_logprob.desc")}
             variable={currentSpeakerAvgLogprob.data}
             setterFunction={setSpeakerAvgLogprob}
@@ -500,7 +500,7 @@ const SpeakerNoSpeechProbContainer = () => {
 
     return (
         <SliderContainer
-            label="Speaker No Speech Prob"
+            label={t("config_page.transcription.speaker_no_speech_prob.label")}
             desc={t("config_page.transcription.speaker_no_speech_prob.desc")}
             variable={currentSpeakerNoSpeechProb.data}
             setterFunction={setSpeakerNoSpeechProb}
