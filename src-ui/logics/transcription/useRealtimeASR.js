@@ -27,6 +27,11 @@ export const useRealtimeASR = () => {
         atoms.set(Atom_MessageLogs, { ...logs, data: pruned.rows });
         atoms.set(realtimeRetiredAtom, pruned.retired);
     }, [atoms]);
+    const backendStopped = useCallback(() => {
+        updateError("backend_unavailable");
+        atoms.set(realtimeStateAtom, value => Object.fromEntries(Object.entries(value).map(([source, row]) =>
+            [source, { ...row, requested: false, state: "failed", error_code: "backend_unavailable" }])));
+    }, [atoms, updateError]);
     const reset = useCallback(() => {
         atoms.set(realtimeStateAtom, {});
         atoms.set(realtimeRetiredAtom, []);
@@ -64,5 +69,5 @@ export const useRealtimeASR = () => {
         if (!await asyncStdoutToPython(endpoint, data)) updateError("backend_unavailable");
     }, [updateError]);
     return { settings, state, endpoints, models, error, send, updateSettings,
-        updateState, updateEndpoints, updateModels, updateError, reset };
+        updateState, updateEndpoints, updateModels, updateError, reset, backendStopped };
 };

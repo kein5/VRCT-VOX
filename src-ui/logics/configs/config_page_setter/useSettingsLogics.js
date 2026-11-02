@@ -72,21 +72,21 @@ export const useSettingsLogics = (settingsArray, Category) => {
         const buildGet = () => {
             return () => {
                 if (pending) pending();
-                asyncStdoutToPython(`/get/data/${s.base_endpoint_name}`);
+                return asyncStdoutToPython(`/get/data/${s.base_endpoint_name}`);
             };
         };
 
         const buildSet = () => {
             return (value) => {
                 if (pending) pending();
-                asyncStdoutToPython(`/set/data/${s.base_endpoint_name}`, value);
+                return asyncStdoutToPython(`/set/data/${s.base_endpoint_name}`, value);
             };
         };
 
         const buildDelete = () => {
             return (value) => {
                 if (pending) pending();
-                asyncStdoutToPython(`/delete/data/${s.base_endpoint_name}`, value);
+                return asyncStdoutToPython(`/delete/data/${s.base_endpoint_name}`, value);
             };
         };
 
@@ -234,6 +234,7 @@ export const useConfigFunctions = (Category) => {
 
 export const useSliderLogic = ({
     variable,
+    state,
     setterFunction,
     postUpdateAction,
     min,
@@ -251,10 +252,10 @@ export const useSliderLogic = ({
             clearTimeout(debounceTimerRef.current);
         }
         debounceTimerRef.current = setTimeout(() => {
-            setterFunction(value);
+            Promise.resolve(setterFunction(value)).then(sent => { if (sent === false) setUiValue(variable); });
             debounceTimerRef.current = null;
         }, 200);
-    }, [setterFunction]);
+    }, [setterFunction, variable]);
 
     useEffect(() => {
         return () => {
@@ -317,8 +318,8 @@ export const useSliderLogic = ({
     }, []);
 
     const onChangeCommittedForCommitted = useCallback((value) => {
-        setterFunction(value);
-    }, [setterFunction]);
+        Promise.resolve(setterFunction(value)).then(sent => { if (sent === false) setUiValue(variable); });
+    }, [setterFunction, variable]);
 
     let onChangeFunction;
     let onChangeCommittedFunction;
@@ -334,13 +335,14 @@ export const useSliderLogic = ({
     }
 
     useEffect(() => {
+        if (state === "pending") return;
         if (variable !== ui_value) {
             setUiValue(variable);
         }
         if (postUpdateAction) {
             postUpdateAction();
         }
-    }, [variable]);
+    }, [variable, state]);
 
     return {
         ui_value,
@@ -368,15 +370,15 @@ export const useSaveButtonLogic = ({
         setInputValue(value);
     };
 
-    const saveFunction = () => {
+    const saveFunction = async () => {
         setSubmitted(true);
-        if (input_value === "" || input_value === null) {
-            if (typeof deleteFunction === "function") {
-                return deleteFunction();
-            }
-            return setFunction(input_value ?? "");
-        }
-        setFunction(input_value);
+        const empty = input_value === "" || input_value === null;
+        const sent = await (empty && typeof deleteFunction === "function"
+            ? deleteFunction() : setFunction(empty ? "" : input_value));
+        // An immediate transport failure can be batched with pending by React.
+        // Restore the local draft even when no pending render was committed.
+        if (sent === false) { setInputValue(variable); setSubmitted(false); }
+        return sent;
     };
 
     useEffect(() => {

@@ -1,6 +1,7 @@
 import { atom, useAtom, useStore } from "jotai";
 import { useCallback } from "react";
 import { useStdoutToPython } from "@useStdoutToPython";
+import { pendingAfterVoiceFailure, stoppedVoiceStatus, stoppedDirectState } from "./pendingVoiceRequest.js";
 import { newerRoute } from "./routeState";
 
 const settingsAtom = atom(null), statusAtom = atom({}), routeAtom = atom({});
@@ -37,15 +38,19 @@ export const useVoice = () => {
     const [directError] = useAtom(directErrorAtom);
     const [selectedSource, setSelectedSource] = useAtom(selectedSourceAtom);
     const [ttsPending] = useAtom(ttsPendingAtom), [directPending] = useAtom(directPendingAtom), [ttsError] = useAtom(ttsErrorAtom);
-    const updateTtsError = useCallback((value, endpoint) => {
+    const updateTtsError = useCallback((value, endpoint, status) => {
         // OFF while a bundled server was starting cancels that ON; nothing to report.
         if (value === "tts_enable_cancelled") return;
         atoms.set(ttsErrorAtom, value);
+        if ([404, 423, 500].includes(status))
+            atoms.set(ttsPendingAtom, pending => pendingAfterVoiceFailure(pending, endpoint));
         if (value && endpoint === "/run/enable_tts" && atoms.get(ttsPendingAtom)?.intent)
             atoms.set(ttsPendingAtom, null);
     }, [atoms]);
-    const updateDirectError = useCallback((value, endpoint) => {
+    const updateDirectError = useCallback((value, endpoint, status) => {
         atoms.set(directErrorAtom, value);
+        if ([404, 423, 500].includes(status))
+            atoms.set(directPendingAtom, pending => pendingAfterVoiceFailure(pending, endpoint));
         if (value && endpoint === "/run/start_direct_voice" && atoms.get(directPendingAtom)?.intent)
             atoms.set(directPendingAtom, null);
     }, [atoms]);
@@ -95,6 +100,7 @@ export const useVoice = () => {
         const directCommand = ["/run/start_direct_voice", "/run/stop_direct_voice"].includes(endpoint);
         const direct = endpoint.includes("direct_voice");
         const report = ttsCommand ? updateTtsError : direct ? updateDirectError : updateError;
+        let pendingTarget, pendingRequest;
         if (ttsCommand || directCommand) {
             report(null);
             const target = ttsCommand ? ttsPendingAtom : directPendingAtom;
@@ -105,6 +111,8 @@ export const useVoice = () => {
                 request.owner = request.intent ? inputOwner(data?.mode, data?.options?.engine) : atoms.get(directOwnerAtom);
                 atoms.set(directOwnerAtom, request.owner);
             }
+            pendingTarget = target;
+            pendingRequest = request;
             atoms.set(target, request);
             const confirm = () => {
                 if (atoms.get(target) !== request) return;
@@ -116,9 +124,20 @@ export const useVoice = () => {
             setTimeout(confirm, 5000);
         } else if (endpoint.startsWith("/set/") || endpoint === "/run/mute_voice" || endpoint === "/run/resume_voice") report(null);
         const ok = await asyncStdoutToPython(endpoint, data);
-        if (!ok) report("backend_unavailable");
+        if (ok === false) {
+            // A delayed transport failure must not clear a newer command's owner.
+            if (pendingTarget && atoms.get(pendingTarget) === pendingRequest) atoms.set(pendingTarget, null);
+            report("backend_unavailable");
+        }
         return ok;
     }, [atoms, updateError, updateTtsError, updateDirectError]);
+    const backendStopped = useCallback(() => {
+        atoms.set(ttsPendingAtom, null); atoms.set(directPendingAtom, null);
+        atoms.set(statusAtom, stoppedVoiceStatus);
+        atoms.set(directStateAtom, stoppedDirectState);
+        atoms.set(routeAtom, value => ({ ...value, pending: false }));
+        for (const target of [errorAtom, directErrorAtom, ttsErrorAtom]) atoms.set(target, "backend_unavailable");
+    }, [atoms]);
     const reset = useCallback(() => {
         atoms.set(modelOptionsAtom, {});
         atoms.set(settingsAtom, null); atoms.set(statusAtom, {}); atoms.set(routeAtom, {}); atoms.set(directStateAtom, {});
@@ -126,7 +145,7 @@ export const useVoice = () => {
         atoms.set(directOwnerAtom, null); atoms.set(directDraftBlockedAtom, false);
         for (const target of [errorAtom, directErrorAtom, ttsErrorAtom, ttsPendingAtom, directPendingAtom]) atoms.set(target, null);
     }, [atoms]);
-    return { settings, status, route, devices, error, send, reset, modelOptions, updateModelOptions, selectedSource, setSelectedSource,
+    return { settings, status, route, devices, error, send, reset, backendStopped, modelOptions, updateModelOptions, selectedSource, setSelectedSource,
         ttsPending, directPending, ttsError, updateTtsError, updateStatus, updateRoute, updateDevices, updateError,
         directState, directOwner, directDraftBlocked, setDirectDraftBlocked,
         directSources, directError, updateDirectState, updateDirectSources, updateDirectError, updateSettings };

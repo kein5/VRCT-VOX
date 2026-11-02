@@ -1,5 +1,6 @@
 import { useAtomValue } from "jotai";
 import { createAtomWithHook, dynamicStoreRegistry } from "@store";
+import { settingPendingControl } from "../../common/pendingRequestRecovery.js";
 import vr_layout from "../../../views/vr/vr_layout.json";
 
 import {
@@ -1220,7 +1221,7 @@ export const SETTINGS_ARRAY = [
 
 
 for (const setting_data of SETTINGS_ARRAY) {
-    createAtomWithHook(setting_data.default_value, setting_data.Base_Name);
+    createAtomWithHook(setting_data.default_value, setting_data.Base_Name, { pending_control: settingPendingControl(setting_data) });
 }
 
 // Read-only views subscribe to the setting they display, rather than every

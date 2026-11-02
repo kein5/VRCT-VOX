@@ -67,6 +67,7 @@ export const Vr = () => {
                             id="overlay_settings_small"
                             ui_configs={ui_configs.overlay_small_log}
                             default_ui_configs={ui_configs.overlay_small_log_default_settings}
+                            state={currentOverlaySmallLogSettings.state}
                             current_overlay_settings={currentOverlaySmallLogSettings.data}
                             setOverlaySettings={setOverlaySmallLogSettings}
                             current_is_enabled_overlay={currentIsEnabledOverlaySmallLog}
@@ -77,6 +78,7 @@ export const Vr = () => {
                             id="overlay_settings_large"
                             ui_configs={ui_configs.overlay_large_log}
                             default_ui_configs={ui_configs.overlay_large_log_default_settings}
+                            state={currentOverlayLargeLogSettings.state}
                             current_overlay_settings={currentOverlayLargeLogSettings.data}
                             setOverlaySettings={setOverlayLargeLogSettings}
                             current_is_enabled_overlay={currentIsEnabledOverlayLargeLog}
@@ -99,6 +101,7 @@ export const Vr = () => {
 
 const OverlaySettingsContainer = ({
     current_overlay_settings,
+    state,
     setOverlaySettings,
     current_is_enabled_overlay,
     toggle_is_enabled_overlay,
@@ -111,8 +114,8 @@ const OverlaySettingsContainer = ({
     const [timeout_id, setTimeoutId] = useState(null);
 
     useEffect(() => {
-        setSettings(current_overlay_settings);
-    }, [current_overlay_settings]);
+        if (state !== "pending") setSettings(current_overlay_settings);
+    }, [current_overlay_settings, state]);
 
 
     const [is_opened_position_controller, setIsOpenedPositionController] = useState(true);
@@ -127,7 +130,9 @@ const OverlaySettingsContainer = ({
 
         const new_timeout_id = setTimeout(() => {
             const new_data = { ...settings, [key]: value };
-            setOverlaySettings(new_data);
+            Promise.resolve(setOverlaySettings(new_data)).then(sent => {
+                if (sent === false) setSettings(current_overlay_settings);
+            });
         }, 50);
 
         setTimeoutId(new_timeout_id);

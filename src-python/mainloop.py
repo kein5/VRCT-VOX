@@ -750,6 +750,24 @@ _ENDPOINT_LOCKED_MAX_RETRIES = 300  # 0.1s × 300 ≈ 30s (初期化完了を待
 # が間に合わない可能性がある。
 _WATCHDOG_GRACE_PERIOD_SEC = 30
 
+def _request_error_result(endpoint: str, data: Any, result: Any, status: int) -> Any:
+    """Identify a failed legacy download without echoing arbitrary request data.
+
+    Different weights can be requested concurrently on the same endpoint, so
+    the UI cannot match a generic failure by endpoint alone.
+    """
+    if status not in {404, 423, 500} or endpoint not in {
+        "/run/download_ctranslate2_weight", "/run/download_whisper_weight"
+    }:
+        return result
+    weight_type = data.get("weight_type") if isinstance(data, dict) else data
+    if not isinstance(weight_type, str):
+        return result
+    payload = dict(result) if isinstance(result, dict) else {"message": result}
+    payload["data"] = {"weight_type": weight_type}
+    return payload
+
+
 class Main:
     def __init__(self, controller_instance: Controller, mapping_data: dict, worker_count: int = DEFAULT_WORKER_COUNT) -> None:
         self.queue: "Queue[Tuple[str, Any, int]]" = Queue()
@@ -892,7 +910,7 @@ class Main:
                             f"({_LOCK_BUSY_MAX_RETRIES}) exceeded; responding 423"
                         )
                         printLog(endpoint, {"status": 423, "send_data": "Locked endpoint (busy)"})
-                        printResponse(423, endpoint, "Locked endpoint (busy)")
+                        printResponse(423, endpoint, _request_error_result(endpoint, data, "Locked endpoint (busy)", 423))
                         continue
                     time.sleep(_LOCK_BUSY_RETRY_INTERVAL_SEC)
                     self.queue.put((endpoint, data, attempt + 1))
@@ -914,13 +932,13 @@ class Main:
                         f"({_ENDPOINT_LOCKED_MAX_RETRIES}) exceeded; responding 423"
                     )
                     printLog(endpoint, {"status": status, "send_data": result})
-                    printResponse(status, endpoint, result)
+                    printResponse(status, endpoint, _request_error_result(endpoint, data, result, status))
                     continue
                 time.sleep(_ENDPOINT_LOCKED_RETRY_INTERVAL_SEC)
                 self.queue.put((endpoint, data, attempt + 1))
             else:
                 printLog(endpoint, {"status": status, "send_data": result})
-                printResponse(status, endpoint, result)
+                printResponse(status, endpoint, _request_error_result(endpoint, data, result, status))
 
     def startHandler(self) -> None:
         for i in range(max(1, self._worker_count)):

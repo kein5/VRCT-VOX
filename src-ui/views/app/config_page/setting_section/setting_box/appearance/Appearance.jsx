@@ -86,6 +86,7 @@ const UiScalingContainer = () => {
             setting_id="ui_size"
             label={t("config_page.appearance.ui_size.label")}
             valueLabelFormat="value %"
+            state={currentUiScaling.state}
             variable={currentUiScaling.data}
             setterFunction={setUiScaling}
             postUpdateAction={asyncUpdateBreakPoint}
@@ -107,6 +108,7 @@ export const MessageLogUiScalingContainer = () => {
             setting_id="textbox_ui_size"
             label={t("config_page.appearance.textbox_ui_size.label")}
             valueLabelFormat="value %"
+            state={currentMessageLogUiScaling.state}
             variable={currentMessageLogUiScaling.data}
             setterFunction={setMessageLogUiScaling}
             min={40}
@@ -191,6 +193,7 @@ const TransparencyContainer = () => {
             setting_id="transparency"
             label={t("config_page.appearance.transparency.label")}
             valueLabelFormat="value %"
+            state={currentTransparency.state}
             variable={currentTransparency.data}
             setterFunction={setTransparency}
             min={40}

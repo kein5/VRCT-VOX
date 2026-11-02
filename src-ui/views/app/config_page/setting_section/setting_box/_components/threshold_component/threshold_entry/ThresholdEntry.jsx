@@ -14,6 +14,13 @@ const ThresholdEntryInput = (props) => {
     const isFocusedRef = useRef(false);
 
     useEffect(() => {
+        const confirmed = props.confirmedThreshold;
+        if (!confirmed || confirmed.state === "pending" || props.is_disable) return;
+        setInputValue(confirmed.data);
+        lastSavedValueRef.current = confirmed.data;
+    }, [props.confirmedThreshold, props.is_disable]);
+
+    useEffect(() => {
         if (props.ui_threshold !== "" && props.ui_threshold !== null && props.ui_threshold !== undefined) {
             lastSavedValueRef.current = props.ui_threshold;
         }

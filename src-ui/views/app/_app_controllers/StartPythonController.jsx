@@ -60,22 +60,27 @@ export const StartPythonController = () => {
 
 const useStartPython = () => {
     const { t } = useI18n();
-    const { receiveRoutes } = useReceiveRoutes();
+    const { receiveRoutes, backendStopped } = useReceiveRoutes();
     const { showNotification_Success, showNotification_Error } = useNotificationStatus();
 
     const asyncStartPython = async () => {
+        store.backend_stopped = false;
+        store.backend_exit_expected = false;
         const command = Command.sidecar("bin/vrct-vox-sidecar");
         command.on("error", error => console.error(`error: "${error}"`));
         // An exit nobody asked for (a crash or a kill) would otherwise leave
         // every switch waiting for an answer that never comes.
         command.on("close", ({ code, signal } = {}) => {
             store.backend_subprocess = null;
+            store.backend_stopped = true;
+            backendStopped();
             if (store.backend_exit_expected) return;
             console.error("sidecar exited", { code, signal });
             showNotification_Error(t("common_error.backend_stopped", { code: code ?? signal ?? "?" }),
                 { hide_duration: null, category_id: "backend_stopped" });
         });
         command.stdout.on("data", (line) => {
+            if (store.backend_stopped) return;
             // Windows上のPython(CRLF)とTauriのread_line(\rまたは\nで区切る仕様)により、
             // バッファ境界等で改行単体('\n')が空行として渡ることがある。
             // JSON内の改行はエスケープされるためデータ欠落ではなく、パースエラーを防ぐため空行はスキップする。
