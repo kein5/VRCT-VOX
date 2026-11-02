@@ -85,7 +85,8 @@
 - 初期化が終わるまで、翻訳・音声認識のオンオフやメッセージ送信は423で待たせる。UIは起動画面を出し、`IsBackendReady`が真になるまで操作させない。
 - 内蔵の翻訳・文字起こしモデルがないときは`/run/enable_ai_models`が偽になり、UIはお知らせを出す。テキストチャットと外部の音声エンジンは使える。
 - 起動時にAPIキーを確かめ、確かめられなかったエンジンは使えない状態にする。キーは消さない。確認の失敗は、キーの拒否のほかに、オフライン、タイムアウト、429、5xxでも起きるからである。使えなくなったエンジンを選んでいた場合は、翻訳ならCTranslate2、音声認識ならWhisperに戻し、その結果を通知で送る。
-- 翻訳に失敗したときはCTranslate2で訳し直し、`/run/error_translation_engine`で知らせる。
+- 翻訳に失敗したときはCTranslate2で訳し直す。空でない原文への空の訳も失敗として扱う。LLMの応答が長さの上限で切れた場合（OpenAI互換の`finish_reason: length`、OpenAI Responses APIの`incomplete_details.reason: max_output_tokens`、Geminiの`finish_reason: MAX_TOKENS`、Ollamaの`done_reason: length`）は途中の訳を捨て、空の訳と同じ処理に進む。終了理由が返らない場合は、本文の長さから打ち切りを推測しない。
+- CTranslate2で訳し直せた場合は、その訳を使い、失敗の通知は出さない。訳し直せなかった場合は原文を使い、失敗として返す。呼び出し元はエンジンをCTranslate2へ切り替え、`/run/error_translation_engine`に既存の`TRANSLATION_ENGINE_LIMIT`を送る。両方のエンジンが言語ペアに未対応なだけの場合は、原文を使って成功として扱い、通知しない（`Model.getTranslate`、`Controller._processMessage`）。
 - OSCQueryが使えない（OSCの送信先がローカルでない、など）ときは、VRCマイクミュート同期を使えない機能として知らせる。
 
 ## ホットキーと設定画面

@@ -172,6 +172,14 @@ class OpenAIClient(RecentModelList):
         ]
 
         resp = self.openai_llm.invoke(messages)
+        metadata = resp.response_metadata
+        if (
+            metadata.get("finish_reason") == "length"
+            or (metadata.get("incomplete_details") or {}).get("reason") == "max_output_tokens"
+        ):
+            # ChatOpenAI selects the Responses API for some models (e.g. gpt-5-pro).
+            # Discard partial output; Model.getTranslate uses the empty-translation failure path.
+            return ""
         content = ""
         if isinstance(resp.content, str):
             content = resp.content

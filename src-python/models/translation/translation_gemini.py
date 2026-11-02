@@ -172,6 +172,9 @@ class GeminiClient(RecentModelList):
         ]
 
         resp = self.gemini_llm.invoke(messages)
+        if resp.response_metadata.get("finish_reason") == "MAX_TOKENS":
+            # Discard partial output; Model.getTranslate uses the empty-translation failure path.
+            return ""
         content = ""
         if isinstance(resp.content, str):
             content = resp.content

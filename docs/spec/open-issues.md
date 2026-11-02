@@ -14,7 +14,6 @@
 | OI-09 | `config.json`に版番号がない。キーの意味を変えるときに移行の手がかりがない | [データ形式と保存](data-and-persistence.md#configjson) | 未決 |
 | OI-10 | エラーコード98件のうち10件は、UIに個別の処理がない。いずれも音声認識の失敗（`AUDIO_*`、`ASR_ERROR`、`TRANSCRIPTION_API_*`など）で、`/run/transcription_recognition_error`として会話ログに出るため汎用の通知にはならない。`AUDIO_TRACKER_STOP_TIMEOUT`はテレメトリー用で画面には届かない | [エラーコード一覧](reference/error-codes.md) | 確認済み。新しいコードを足すときは同じ確認をする |
 | OI-15 | Linuxのビルドは`uv export --no-hashes`で依存を書き出すため、`uv.lock`にあるパッケージのハッシュを確かめない。commitで固定したVCSの依存と両立させる必要がある | `tools/build_linux.py` | 未着手 |
-| OI-19 | LLMの訳が長さの上限で切れても（`finish_reason`が`length`）、成功として扱う。空の訳だけは失敗にした | `src-python/models/translation/translation_openai.py`、`translation_lmstudio.py` | 未着手 |
 | OI-20 | WebSocketサーバーの起動が6秒を超えると失敗として返すが、その起動の試みは止めない。遅れて起動したり、次の起動の後片付けと重なったりするおそれがある（実際には確かめていない） | `src-python/model.py`（`startWebSocketServer`） | 未確認 |
 
 ## 調べて直したもの
@@ -32,6 +31,7 @@
 - 起動時のAPIキーの確認に失敗すると、キーを消していた。オフラインで起動するだけで保存したキーがすべて消えた。キーを入れ直して確認に失敗したときも、保存してあったキーを消していた。
 - 起動時のOllamaのモデル一覧の取得に時間の上限がなく、応答が止まると起動が終わらなかった。
 - LLMが空の訳を返すと成功として扱い、訳だけを送る設定では何も送らなかった。
+- LLMの訳が長さの上限で切れても成功として扱っていた（OI-19）。応答の終了理由を確かめ、途中の訳は使わず、空の訳と同じ失敗時の処理に進むようにした。
 - WebSocketサーバーの実際のbindが失敗しても、有効にしたと返していた。
 - VRパネルへ写す状態に認証キーとトークンが入っていた。VRパネルから接続先のURLを変えられ、保存したキーをその接続先へ送らせられた。
 - 読めない`config.json`を既定値で上書きしていた。サイドカーが落ちても知らせなかった。サイドカーのエラーを英語のまま出していた。

@@ -143,6 +143,9 @@ class OllamaClient(RecentModelList):
         ]
 
         resp = self.openai_llm.invoke(messages)
+        if resp.response_metadata.get("done_reason") == "length":
+            # Discard partial output; Model.getTranslate uses the empty-translation failure path.
+            return ""
         content = ""
         if isinstance(resp.content, str):
             content = resp.content
