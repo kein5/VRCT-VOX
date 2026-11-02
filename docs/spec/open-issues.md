@@ -16,7 +16,6 @@
 | OI-11 | VR UIの設定ウィンドウは、デスクトップの設定画面と違い「チャット読み取り」と「その他」のタブのまま。デスクトップでは2026-11-02にVRChatページへまとめた | `src-ui/views/vr/VrSettingsWindow.jsx` | VR側もそろえるか未決 |
 | OI-12 | OBSブラウザソースのページ（`/obs`）は認証なしで返り、WebSocketのトークンを含む。HTTPのポートに届く者（同じPCのほかのアカウントなど）は、トークンを得て会話を受け取れる。ページのURLにも秘密を付けると、OBSに設定済みのURLを作り直す必要がある | `src-python/models/obs/obs_browser_source_server.py` | 方式が未決 |
 | OI-13 | 内蔵の翻訳（CTranslate2とトークナイザー）とWhisperの重みは、Hugging Faceの既定の版を取得し、版、サイズ、SHA-256を確かめない。モデル取得の画面（`models/model_downloads/`）のような固定がない | `src-python/models/translation/translation_utils.py`、`src-python/models/transcription/transcription_whisper.py` | 移す作業が未着手 |
-| OI-14 | VRCマイクミュート同期は、OSCの`/avatar/parameters/MuteSelf`の送り主を確かめない。同じPCのほかのプログラムが`false`を送ると、ミュート中に止めていたマイクの認識が再開する | `src-python/models/osc/osc.py` | 対策が未決 |
 | OI-15 | Linuxのビルドは`uv export --no-hashes`で依存を書き出すため、`uv.lock`にあるパッケージのハッシュを確かめない。commitで固定したVCSの依存と両立させる必要がある | `tools/build_linux.py` | 未着手 |
 | OI-16 | `config.json`の書き込みに失敗しても（読み取り専用、容量不足）、例外を捨てて成功を返す。再起動すると変更が消える | `src-python/config.py`（`saveConfigToFile`ほか） | 通知のしかたが未決 |
 | OI-17 | 会話ログはUIのメモリーと画面に際限なく残り、VR UIがオンなら変わるたびに全件をVRパネルへ送る。長時間使うと遅くなる | `src-ui/logics/common/useMessage.js`、`VrPanelSyncController.jsx` | 上限を設けるか未決 |
@@ -34,6 +33,7 @@
 - OpenAIの`gpt-4o-transcribe`系に、対応していない`verbose_json`を要求していた。
 - 設定値が拒否されたとき（`VALIDATION_CONFIG_VALUE_INVALID`）、UIに分岐がなく「開発者に連絡」の通知になっていた。
 - 使われていないTauriのコマンド`download_zip_asset`が任意のURLを取得できた（OI-02）。コマンドと、そのためだけの依存（reqwest、base64）を外した。
+- VRCマイクミュート同期がOSCの`false`だけで文字起こしを再開していた（OI-14、SEC-05）。VRChatのOSCQueryで解除を確認し、確認できない間はミュートを保つようにした。
 - 起動時のAPIキーの確認に失敗すると、キーを消していた。オフラインで起動するだけで保存したキーがすべて消えた。キーを入れ直して確認に失敗したときも、保存してあったキーを消していた。
 - 起動時のOllamaのモデル一覧の取得に時間の上限がなく、応答が止まると起動が終わらなかった。
 - LLMが空の訳を返すと成功として扱い、訳だけを送る設定では何も送らなかった。

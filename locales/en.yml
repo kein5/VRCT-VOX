@@ -609,7 +609,7 @@ config_page:
             open_folder: "Open the logs folder"
         vrc_mic_mute_sync:
             label: "VRC Mic Mute Sync"
-            desc: "Messages will not be sent to VRChat while VRChat's mic is muted.\n*There may be a slight delay. Push-To-Talk is not supported."
+            desc: "Microphone transcription pauses while VRChat's mic is muted. It resumes after VRChat confirms the mic is unmuted. If this cannot be confirmed, transcription stays paused.\n*There may be a slight delay. Push-To-Talk is not supported."
         send_message_to_vrc:
             label: "Send Message To VRChat"
             desc: "This feature is not supported, but there is a way to use it without sending messages to VRChat. Make sure to enable this feature when you wish to send messages to VRChat."

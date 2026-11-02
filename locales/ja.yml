@@ -609,7 +609,7 @@ config_page:
             open_folder: "logsフォルダを開く"
         vrc_mic_mute_sync:
             label: "VRCマイクミュート同期"
-            desc: "VRChatのマイクがミュートされている間は、メッセージをVRChatに送信しません。\n※若干の遅延はあります。また、Push-To-Talkは非対応です。"
+            desc: "VRChatのマイクをミュートすると、マイクの文字起こしを一時停止します。ミュート解除をVRChatに確認してから再開し、確認できない間は停止を続けます。\n※若干の遅延はあります。また、Push-To-Talkは非対応です。"
         send_message_to_vrc:
             label: "VRChatにメッセージを送信する"
             desc: "サポート対象外ですが、VRChatにメッセージを送信せずに使う方法があります。送信したい場合、この機能を有効にする事を忘れないでください。"

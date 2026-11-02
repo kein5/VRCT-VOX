@@ -19,6 +19,9 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 - 受信は空いているUDPポートで待つ。OSCQueryは送信先が`127.0.0.1`か`localhost`のときだけ使い、`VRCT:<時刻>`という名前で受信口を公開し、mDNSで`VRChat-Client`を探す。
 - OSCQueryが使えないと、起動時に`/run/enable_osc_query`で`{"data": false, "disabled_functions": ["vrc_mic_mute_sync"]}`を送り、ミュート同期をオフにする。その状態でオンにすると`VRC_MIC_MUTE_SYNC_OSC_DISABLED`になる。
 - ミュート同期がオンでVRChat側がミュート中のときは、マイクの認識結果を捨てる。
+- `MuteSelf=true`はすぐにミュート状態へ反映し、マイクの文字起こしを一時停止する。ミュート中に届いた`false`だけでは再開せず、`VRChat-Client`のOSCQueryで`/avatar/parameters/MuteSelf`を読み直し、真偽値の`false`を確認した場合だけ再開する。到達できない、値がない、値が真偽値でない、時間切れの場合はミュートを保ち、`printLog`に理由を記録する。
+- OSCQueryの待ち時間はサービス探索を含めて2秒。確認はOSCの受信スレッドとマイク操作のキューの外で行い、確認中に届いた`true`は古い結果より優先する。時間切れの結果は後から届いても使わない。通信自体を中断できないため、処理中の問い合わせは1件までとし、それが終わるまでは新しい問い合わせも値を取得できない扱いにする。
+- `/avatar/change`での再読み込みは継続する。この結果も、問い合わせ後に届いた`true`を上書きしない。実際の一時停止と再開は、従来どおりマイク操作のキューとControllerのロックを通す。
 - 送る文の長さに上限や分割の処理はない。VRChat側の制限への対応は[未決事項](open-issues.md)にある。
 
 ## WebSocketサーバー

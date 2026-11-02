@@ -920,11 +920,13 @@ class SpeakerSession(_AudioDeviceSession):
 
 class Model:
     _instance = None
-    # mic_mute_status の確認と更新を一度に行う (OSC はパケットごとに別スレッドで届き、/avatar/change は
-    # 同じものが続けて届くことがある)
+    # OSC 受信と OSCQuery の結果を反映するスレッドの間で、確認と更新を一度に行う。
     _mute_status_lock = Lock()
-    # /avatar/change で MuteSelf を問い合わせるスレッド。問い合わせ (HTTP、時間制限なし) を OSC の受信スレッドで
-    # 行うと、その間すべての OSC 受信が止まる
+    _mute_status_generation = 0
+    # 確認待ちの最後の false が届いた世代。複数の通知でキューを増やさない。
+    _mute_verification_pending: Optional[int] = None
+    # /avatar/change とミュート解除の確認を行う。OSCHandler が問い合わせの待ち時間を制限する。
+    # OSC 受信スレッドとマイク操作のキューは、HTTP の待ちで止めない。
     _avatar_query_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="osc_avatar_query")
 
     def __new__(cls):
@@ -1689,7 +1691,13 @@ class Model:
 
     def setMuteSelfStatus(self):
         self.ensure_initialized()
-        self.mic_mute_status = self.osc_handler.getOSCParameterMuteSelf()
+        with self._mute_status_lock:
+            self._mute_status_generation += 1
+            generation = self._mute_status_generation
+        mute = self.osc_handler.getOSCParameterMuteSelf()
+        with self._mute_status_lock:
+            if generation == self._mute_status_generation and type(mute) is bool:
+                self.mic_mute_status = mute
 
     def setMicMuteStatusChangeCallback(self, fn: Optional[Callable[[], None]]) -> None:
         """OSC ミュート同期が pause()/resume() を実行する際に呼ぶ関数を登録する。
@@ -1705,6 +1713,9 @@ class Model:
 
     def startReceiveOSC(self):
         self.ensure_initialized()
+        with self._mute_status_lock:
+            self._mute_status_generation += 1
+
         def changeHandlerMute(address, osc_arguments):
             # OSC の受信スレッド (osc.py の oscServerServe) で走る。受信を止めないよう、
             # ここで待つ処理をしないこと。
@@ -1720,16 +1731,52 @@ class Model:
             # 取得する経路とも完全に排他制御する。
             if config.VRC_MIC_MUTE_SYNC is True:
                 with self._mute_status_lock:
-                    if osc_arguments is True and self.mic_mute_status is False:
-                        self.mic_mute_status = osc_arguments
-                        self.mic_lifecycle_worker.enqueue(
-                            self.mic_mute_status_change_callback or self.changeMicTranscriptStatus
-                        )
+                    if osc_arguments is True:
+                        # 重複した true も、それ以前に始まった解除確認を無効にする。
+                        self._mute_status_generation += 1
+                        if self.mic_mute_status is not True:
+                            self.mic_mute_status = True
+                            self.mic_lifecycle_worker.enqueue(
+                                self.mic_mute_status_change_callback or self.changeMicTranscriptStatus
+                            )
                     elif osc_arguments is False and self.mic_mute_status is True:
-                        self.mic_mute_status = osc_arguments
-                        self.mic_lifecycle_worker.enqueue(
-                            self.mic_mute_status_change_callback or self.changeMicTranscriptStatus
-                        )
+                        # UDP の false だけでは解除しない。連続する通知は1件の確認にまとめる。
+                        pending = self._mute_verification_pending
+                        self._mute_verification_pending = self._mute_status_generation
+                        if pending is None:
+                            self._avatar_query_executor.submit(verifyUnmute, self._mute_status_generation)
+
+        def verifyUnmute(generation):
+            try:
+                with self._mute_status_lock:
+                    if config.VRC_MIC_MUTE_SYNC is not True or generation != self._mute_status_generation:
+                        return
+                mute = self.osc_handler.getOSCParameterMuteSelf()
+                if mute is not False:
+                    printLog("OSC: unmute not confirmed by OSCQuery; keeping microphone muted")
+                    return
+                with self._mute_status_lock:
+                    if (config.VRC_MIC_MUTE_SYNC is not True
+                            or generation != self._mute_status_generation
+                            or self.mic_mute_status is not True):
+                        return
+                    self._mute_status_generation += 1
+                    self.mic_mute_status = False
+                    self.mic_lifecycle_worker.enqueue(
+                        self.mic_mute_status_change_callback or self.changeMicTranscriptStatus
+                    )
+            except Exception:
+                printLog("OSC: unmute verification failed; keeping microphone muted")
+            finally:
+                with self._mute_status_lock:
+                    pending = self._mute_verification_pending
+                    if (pending != generation and pending == self._mute_status_generation
+                            and config.VRC_MIC_MUTE_SYNC is True and self.mic_mute_status is True):
+                        # 確認中に true → false が届いたなら、最後の false を新しく確認する。
+                        # 古い問い合わせの false をそのまま採用してはいけない。
+                        self._avatar_query_executor.submit(verifyUnmute, pending)
+                    else:
+                        self._mute_verification_pending = None
 
         def changeHandlerAvatar(address, *osc_arguments):
             # アバターを読み込んだ (VRChat の起動・再起動・アバター変更)。ミュートの状態はアバターの
@@ -1738,17 +1785,21 @@ class Model:
             # 問い合わせは専用のスレッドで行う (OSC の受信スレッドもマイクのキューも HTTP の待ちで止めない)
             if config.VRC_MIC_MUTE_SYNC is not True:
                 return
-            self._avatar_query_executor.submit(syncMuteSelfAfterAvatarLoad)
+            with self._mute_status_lock:
+                self._avatar_query_executor.submit(syncMuteSelfAfterAvatarLoad, self._mute_status_generation)
 
-        def syncMuteSelfAfterAvatarLoad():
+        def syncMuteSelfAfterAvatarLoad(generation):
             try:  # executor の中の例外は黙って捨てられるので記録する
                 mute = self.osc_handler.getOSCParameterMuteSelf()
                 printLog("OSC: MuteSelf read on avatar change", {"mute": mute})
-                if mute is None:
+                if type(mute) is not bool:
                     return
                 with self._mute_status_lock:
-                    if mute == self.mic_mute_status:
+                    if (config.VRC_MIC_MUTE_SYNC is not True
+                            or generation != self._mute_status_generation
+                            or mute == self.mic_mute_status):
                         return
+                    self._mute_status_generation += 1
                     self.mic_mute_status = mute
                     self.mic_lifecycle_worker.enqueue(
                         self.mic_mute_status_change_callback or self.changeMicTranscriptStatus
@@ -1776,6 +1827,8 @@ class Model:
         フェーズ4項目30)。
         """
         self.ensure_initialized()
+        with self._mute_status_lock:
+            self._mute_status_generation += 1
         self.osc_handler.oscServerStop()
 
     def getIsOscQueryEnabled(self):
