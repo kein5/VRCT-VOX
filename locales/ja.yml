@@ -113,6 +113,9 @@ common:
     copy_version: "バージョン {{version}} をコピー"
 
 common_error:
+    transcription_api_auth_failed: "音声認識サービスがAPIキーを受け付けませんでした。キーと、カスタムサーバーの場合はURLを確認してください。"
+    transcription_model_invalid: "その音声認識モデルは使えません。"
+    transcription_custom_url_invalid: "カスタムWhisperサーバーに接続できないか、モデルが見つかりませんでした。URLを確認してください。"
     ctranslate2_license_consent_required: "{{weight_type}} は非商用ライセンス（CC-BY-NC-4.0）です。先に 設定 > 翻訳 でライセンスを確認してください。"
     translation_language_unsupported: "{{model}} は {{languages}} を翻訳できないため、言語をリセットしました。この言語を使うには、別の翻訳エンジンか {{ctranslate2}} モデルを選んでください。"
     no_device_mic: "マイクデバイスが検出されませんでした。"
@@ -442,6 +445,35 @@ config_page:
             desc: "無音区間を検出してから音声を認識処理に送ります。ゲーム音やボイスチャットが連続して流れる際に文字起こしが止まる、または「音声認識のリクエストに失敗しました」と表示される場合は、この設定を無効にしてください。"
         select_transcription_engine:
             label: "音声認識で使用するエンジン"
+            desc: "クラウドのエンジンは、下の「クラウド音声認識」でAPIキーを登録すると選べます。"
+            engines:
+                groq_whisper: "Groq Whisper"
+                openai_whisper: "OpenAI Whisper"
+                custom_whisper: "カスタムWhisperサーバー"
+                deepgram: "Deepgram"
+        cloud_section:
+            label: "クラウド音声認識"
+            desc: "ここでAPIキーを登録すると、上の「音声認識で使用するエンジン」で選べるようになります。"
+        groq_whisper_auth_key:
+            label: "Groq Whisper APIキー"
+        openai_whisper_auth_key:
+            label: "OpenAI Whisper APIキー"
+        custom_whisper_url:
+            label: "カスタムWhisperサーバーのURL"
+            desc: "/v1/audio/transcriptions を持つOpenAI互換サーバーのURLです（例: http://192.168.0.10:8000/v1）。"
+        custom_whisper_auth_key:
+            label: "カスタムWhisperサーバーのAPIキー"
+            desc: "キーが不要なサーバーでは、任意の文字列を入力してください。"
+        deepgram_auth_key:
+            label: "Deepgram APIキー"
+        select_groq_whisper_model:
+            label: "Groq Whisperのモデル"
+        select_openai_whisper_model:
+            label: "OpenAI Whisperのモデル"
+        select_custom_whisper_model:
+            label: "カスタムWhisperサーバーのモデル"
+        select_deepgram_model:
+            label: "Deepgramのモデル"
         whisper_weight_type:
             label: "Whisperモデルのタイプ"
             desc: "容量が大きいモデルほど精度は高いですが、その分CPUやGPUを占有します。\n※特にmediumより容量の大きいモデルは、CPU/GPUの性能によっては使用すらも困難です。"

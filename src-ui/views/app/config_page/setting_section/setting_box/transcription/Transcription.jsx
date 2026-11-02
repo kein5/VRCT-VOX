@@ -3,10 +3,14 @@ import { useI18n } from "@useI18n";
 import styles from "./Transcription.module.scss";
 import { RealtimeASRSettings } from "./RealtimeASRSettings";
 import { genNumObjArray } from "@utils";
+import { useEffect } from "react";
 
 import {
     useTranscription,
+    useSaveButtonLogic,
 } from "@logics_configs";
+
+import { CLOUD_TRANSCRIPTION_ENGINES } from "../../../../../../logics/configs/cloudTranscription";
 
 import {
     WordFilterContainer,
@@ -15,6 +19,8 @@ import {
     DropdownMenuContainer,
     SliderContainer,
     SwitchBoxContainer,
+    AuthKeyContainer,
+    EntryWithSaveButtonContainer,
 } from "../_templates/Templates";
 
 import {
@@ -22,6 +28,7 @@ import {
 } from "../_components";
 
 import { ComputeDevice } from "../_components/compute_device/ComputeDevice";
+import { Description } from "../_components/description/Description";
 
 export const Transcription = () => {
     return (
@@ -29,6 +36,7 @@ export const Transcription = () => {
             <Mic_Container />
             <Speaker_Container />
             <TranscriptionEngine_Container />
+            <CloudTranscription_Container />
             <RealtimeASRSettings />
             <SpeechServers profiles={["asr"]} />
         </div>
@@ -222,18 +230,139 @@ const TranscriptionEngine_Container = () => {
 
 const TranscriptionEngine_Box = () => {
     const { t } = useI18n();
-    const { currentSelectedTranscriptionEngine, setSelectedTranscriptionEngine } = useTranscription();
+    const { currentSelectedTranscriptionEngine, setSelectedTranscriptionEngine, currentSelectableTranscriptionEngines } = useTranscription();
+    const available = currentSelectableTranscriptionEngines.data || [];
+
+    // A cloud engine can be chosen once the backend has accepted its key.
+    const cloud_options = CLOUD_TRANSCRIPTION_ENGINES.map(engine => {
+        const usable = available.includes(engine.id) || currentSelectedTranscriptionEngine.data === engine.id;
+        return {
+            id: engine.id,
+            label: t(`config_page.transcription.select_transcription_engine.engines.${engine.key}`),
+            disabled: !usable,
+        };
+    });
 
     return (
         <RadioButtonContainer
             label={t("config_page.transcription.select_transcription_engine.label")}
+            desc={t("config_page.transcription.select_transcription_engine.desc")}
             selectFunction={setSelectedTranscriptionEngine}
             name="select_transcription_engine"
             options={[
                 { id: "Google", label: "Google" },
                 { id: "Whisper", label: "Whisper" },
+                ...cloud_options,
             ]}
             checked_variable={currentSelectedTranscriptionEngine}
+        />
+    );
+};
+
+const CloudTranscription_Container = () => {
+    const { t } = useI18n();
+    const transcription = useTranscription();
+    const { getSelectableTranscriptionEngines, getSelectedTranscriptionEngine } = transcription;
+    // A saved, rejected or removed key changes which engines the backend can
+    // use, and may move the selection back to Whisper; ask again each time.
+    const watched = CLOUD_TRANSCRIPTION_ENGINES.map(engine => transcription[`current${engine.base}AuthKey`].data);
+    watched.push(transcription.currentCustomWhisperURL.data);
+    useEffect(() => {
+        getSelectableTranscriptionEngines();
+        getSelectedTranscriptionEngine();
+    }, watched);
+
+    return (
+        <div data-setting-id="cloud_section">
+            <SectionLabelComponent label={t("config_page.transcription.cloud_section.label")} />
+            <Description text={t("config_page.transcription.cloud_section.desc")} />
+            {CLOUD_TRANSCRIPTION_ENGINES.map(engine => (
+                <div key={engine.id}>
+                    {engine.has_url && <CloudURL_Box engine={engine} />}
+                    <CloudAuthKey_Box engine={engine} />
+                    <CloudModel_Box engine={engine} />
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const CloudURL_Box = ({ engine }) => {
+    const { t } = useI18n();
+    const transcription = useTranscription();
+    const current = transcription[`current${engine.base}URL`];
+    const label = t(`config_page.transcription.${engine.key}_url.label`);
+
+    const { variable, onChangeFunction, saveFunction } = useSaveButtonLogic({
+        variable: current.data,
+        state: current.state,
+        setFunction: transcription[`set${engine.base}URL`],
+        label,
+    });
+
+    return (
+        <EntryWithSaveButtonContainer
+            label={label}
+            desc={t(`config_page.transcription.${engine.key}_url.desc`)}
+            variable={variable}
+            saveFunction={saveFunction}
+            onChangeFunction={onChangeFunction}
+            state={current.state}
+            remove_border_bottom={true}
+            width="24rem"
+        />
+    );
+};
+
+const CloudAuthKey_Box = ({ engine }) => {
+    const { t } = useI18n();
+    const transcription = useTranscription();
+    const current = transcription[`current${engine.base}AuthKey`];
+    const label = t(`config_page.transcription.${engine.key}_auth_key.label`);
+
+    const { variable, onChangeFunction, saveFunction } = useSaveButtonLogic({
+        variable: current.data,
+        state: current.state,
+        setFunction: transcription[`set${engine.base}AuthKey`],
+        deleteFunction: transcription[`delete${engine.base}AuthKey`],
+        label,
+    });
+
+    return (
+        <AuthKeyContainer
+            label={label}
+            desc={engine.has_url ? t(`config_page.transcription.${engine.key}_auth_key.desc`) : undefined}
+            webpage_url={engine.webpage_url}
+            variable={variable}
+            state={current.state}
+            onChangeFunction={onChangeFunction}
+            saveFunction={saveFunction}
+            remove_border_bottom={true}
+        />
+    );
+};
+
+const CloudModel_Box = ({ engine }) => {
+    const { t } = useI18n();
+    const transcription = useTranscription();
+    const auth_key = transcription[`current${engine.base}AuthKey`];
+    const selectable = transcription[`currentSelectable${engine.base}ModelList`];
+    const selected = transcription[`currentSelected${engine.base}Model`];
+    const setSelected = transcription[`setSelected${engine.base}Model`];
+
+    const selected_label = (!auth_key.data && !selected.data)
+        ? t("config_page.common.correct_auth_key_required")
+        : selected.data;
+
+    return (
+        <DropdownMenuContainer
+            dropdown_id={`select_${engine.key}_model`}
+            label={t(`config_page.transcription.select_${engine.key}_model.label`)}
+            selected_id={selected_label}
+            list={selectable.data}
+            selectFunction={selected_data => setSelected(selected_data.selected_id)}
+            state={selected.state}
+            is_disabled={!auth_key.data}
         />
     );
 };
