@@ -28,7 +28,8 @@ intent; Start checks local files. Keep the source checkout unmodified; untracked
 Python files are rejected. The source validator currently requires Git. The
 runtime is trusted executable code, not an untrusted-plugin sandbox.
 
-The qualified environment uses Python 3.12.14 and Torch/torchaudio 2.7.1+cu118.
+The qualified environment uses Python 3.12.14 and Torch/torchaudio 2.11.0+cu128 (CUDA 12.8);
+until 2026-11-02 it was 2.7.1+cu118. torchaudio has no build past 2.11.0, which keeps Torch there.
 `requirements-cuda.lock` and `requirements.lock` record the CUDA and inference
 dependencies with hashes; `requirements.freeze.txt` records the tested environment.
 The PyTorch index carries setuptools only up to 78.1.0, so the second step replaces it
@@ -40,7 +41,7 @@ Install both into a separate uv venv, never the application venv:
 ```sh
 uv venv --python 3.12 "$VRCT_RVC_RUNTIME/venv"
 uv pip install --python "$VRCT_RVC_RUNTIME/venv/bin/python" --require-hashes \
-  --index-url https://download.pytorch.org/whl/cu118 -r integrations/rvc/requirements-cuda.lock
+  --index-url https://download.pytorch.org/whl/cu128 -r integrations/rvc/requirements-cuda.lock
 uv pip install --python "$VRCT_RVC_RUNTIME/venv/bin/python" --require-hashes \
   -r integrations/rvc/requirements.lock
 ```
