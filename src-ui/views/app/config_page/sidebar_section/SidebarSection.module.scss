@@ -9,10 +9,21 @@
     // The rail expands for hover or focus (DESIGN.md). One state drives the
     // width and the labels: :focus-within misses focus while the window itself
     // is not focused (settings opened from the VR panel or a shortcut).
+    // The expanded rail lies over the page instead of pushing it aside, so the
+    // settings and top bar do not reflow while the pointer crosses the rail.
     &.is_small {
         width: 5.6rem;
-        &.is_expanded {
+        .scroll_container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 5;
+            width: 5.6rem;
+            transition: width 0.2s, box-shadow 0.2s;
+        }
+        &.is_expanded .scroll_container {
             width: var(--config_page_sidebar_width);
+            box-shadow: .4rem 0 1.6rem rgba(0, 0, 0, .35);
         }
     }
 }

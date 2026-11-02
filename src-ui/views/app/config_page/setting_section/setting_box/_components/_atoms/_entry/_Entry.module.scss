@@ -4,7 +4,6 @@
 
 .entry_wrapper {
     height: 100%;
-    padding: 0.6rem;
     background-color: var(--dark_875_color);
     border: 0.1rem solid var(--dark_750_color);
     border-radius: 0.4rem;
@@ -16,6 +15,8 @@
 .entry_input_area {
     width: 100%;
     height: 100%;
+    // The padding belongs to the input, so a click anywhere in the box reaches it.
+    padding: 0.6rem;
     font-size: 1.4rem;
     resize: none;
     font-family: inherit;

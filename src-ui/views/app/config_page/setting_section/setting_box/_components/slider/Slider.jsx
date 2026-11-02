@@ -193,17 +193,16 @@ export const Slider = (props) => {
 
                 {marks && marks.map((mark, i) => {
                     const markPercent = Math.max(0, Math.min((mark.value - min) / (max - min), 1)) * 100;
-                    const isActive = mark.value <= localValue;
                     return (
                         <div
                             key={i}
-                            className={clsx(styles.mark, { [styles.markActive]: isActive })}
+                            className={styles.mark}
                             style={{
                                 ...(isVertical ? { bottom: `${markPercent}%` } : { left: `${markPercent}%` })
                             }}
                         >
                             {mark.label && (
-                                <span className={clsx(styles.markLabel, { [styles.markLabelActive]: isActive })}>
+                                <span className={styles.markLabel}>
                                     {mark.label}
                                 </span>
                             )}

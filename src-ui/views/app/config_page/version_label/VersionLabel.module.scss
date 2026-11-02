@@ -25,6 +25,11 @@
         cursor: default;
     }
 
+    // The copy button is at least 24px tall; the label stays small.
+    &:not(.is_compact) {
+        min-height: 2.4rem;
+    }
+
     &.is_compact {
         cursor: default;
         justify-content: center;
