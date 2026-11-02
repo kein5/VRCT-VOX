@@ -57,7 +57,7 @@ const OpenForegroundQuickSetting = () => {
 };
 
 const OpenOverlayQuickSetting = () => {
-    // const { t } = useI18n();
+    const { t } = useI18n();
     const { updateOpenedQuickSetting } = useStore_OpenedQuickSetting();
     const {
         currentIsEnabledOverlaySmallLog,
@@ -72,7 +72,7 @@ const OpenOverlayQuickSetting = () => {
 
     return (
         <OpenQuickSettingButton
-            label="Overlay(VR)"
+            label={t("config_page.vr.section_label_overlay")}
             opens_dialog
             variable={is_enable}
             onClickFunction={onClickFunction}
