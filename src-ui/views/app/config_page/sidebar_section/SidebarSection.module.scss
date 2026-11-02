@@ -6,9 +6,12 @@
     transition: width 0.2s;
     height: 100%;
 
+    // The rail expands for hover or focus (DESIGN.md). One state drives the
+    // width and the labels: :focus-within misses focus while the window itself
+    // is not focused (settings opened from the VR panel or a shortcut).
     &.is_small {
         width: 5.6rem;
-        &:hover {
+        &.is_expanded {
             width: var(--config_page_sidebar_width);
         }
     }
@@ -128,10 +131,11 @@
     }
 }
 
+// One line: while the rail is narrow, a wrapping label would stretch the tab.
 .tab_text {
     font-size: 1.4rem;
     position: relative;
-    white-space: normal;
+    white-space: nowrap;
     line-height: 1.4;
     opacity: 1;
     transition: opacity 0.2s;

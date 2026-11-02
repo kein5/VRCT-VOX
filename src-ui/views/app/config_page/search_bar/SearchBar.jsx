@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useId } from "react";
 import clsx from "clsx";
 import { useI18n } from "@useI18n";
 import { useStore_IsBreakPoint } from "@store";
@@ -44,6 +44,7 @@ export const SearchBar = () => {
 
     const [isFocused, setIsFocused] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(-1);
+    const listId = useId();
 
     const containerRef = useRef(null);
     const inputRef = useRef(null);
@@ -135,6 +136,12 @@ export const SearchBar = () => {
                     ref={inputRef}
                     type="text"
                     className={styles.search_input}
+                    role="combobox"
+                    aria-label={t("config_page.search.label")}
+                    aria-autocomplete="list"
+                    aria-expanded={isOpen && results.length > 0}
+                    aria-controls={isOpen && results.length > 0 ? listId : undefined}
+                    aria-activedescendant={isOpen && selectedIndex >= 0 && results[selectedIndex] ? `${listId}-${selectedIndex}` : undefined}
                     placeholder={t("config_page.search.placeholder")}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -147,7 +154,7 @@ export const SearchBar = () => {
                         className={styles.clear_button}
                         onClick={handleClear}
                         tabIndex={-1}
-                        aria-label="Clear search"
+                        aria-label={t("config_page.search.clear")}
                     >
                         <CancelSvg className={styles.clear_icon} />
                     </button>
@@ -155,11 +162,17 @@ export const SearchBar = () => {
             </div>
 
             {isOpen && (
-                <div className={styles.dropdown_results} ref={listRef}>
+                // A listbox of options driven from the input (combobox pattern).
+                <div className={styles.dropdown_results} ref={listRef} id={listId}
+                    role={results.length > 0 ? "listbox" : "status"}
+                    aria-label={results.length > 0 ? t("config_page.search.results") : undefined}>
                     {results.length > 0 ? (
                         results.map((item, idx) => (
                             <div
                                 key={`${item.tab}_${item.setting_id}_${idx}`}
+                                id={`${listId}-${idx}`}
+                                role="option"
+                                aria-selected={idx === selectedIndex}
                                 className={clsx(styles.result_item, {
                                     [styles.is_active]: idx === selectedIndex,
                                 })}
@@ -179,7 +192,7 @@ export const SearchBar = () => {
                                     </span>
                                     {item.prereq && (
                                         <span className={styles.prereq_badge}>
-                                            要: {item.prereq.required_label}
+                                            {t("config_page.search.requires", { name: item.prereq.required_label })}
                                         </span>
                                     )}
                                 </div>

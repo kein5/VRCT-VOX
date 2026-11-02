@@ -56,8 +56,8 @@ const LanguageButton = ({ onClickFunction, language_data }) => {
     };
 
     return (
-        <div className={styles.language_button} onClick={adjustedOnClickFunction}>
-            <p className={styles.language_label}>{language_data.language} ({language_data.country})</p>
-        </div>
+        <button type="button" className={styles.language_button} onClick={adjustedOnClickFunction}>
+            <span className={styles.language_label}>{language_data.language} ({language_data.country})</span>
+        </button>
     );
 };

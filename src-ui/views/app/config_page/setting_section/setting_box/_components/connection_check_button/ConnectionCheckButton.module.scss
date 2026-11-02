@@ -1,26 +1,13 @@
-.button_wrapper {
-    padding: 1.6rem;
-    border-radius: 0.4rem;
-    &:hover {
-        background-color: var(--dark_825_color);
-    }
-    &:active {
-        background-color: var(--dark_900_color);
-    }
+.container {
+    flex-shrink: 0;
 }
 
-.status_label {
-    font-size: 1.2rem;
-    color: var(--dark_200_color);
-    margin-bottom: 0.8rem;
-}
-
-.button_label {
-    font-size: 1.4rem;
-    color: var(--dark_100_color);
-}
-
-.button_svg {
-    width: 2.4rem;
-    color: var(--dark_400_color);
+// The same secondary button as the other settings forms (VoiceSettings).
+.button {
+    font-size: 1.4rem; font-weight: 600; min-height: 3.6rem; padding: .6rem 1.2rem;
+    color: var(--dark_200_color); background: var(--dark_850_color); border: .1rem solid transparent;
+    border-radius: var(--vox_radius); cursor: pointer;
+    &:hover:enabled { background: var(--dark_600_color); }
+    &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }
+    &:disabled { opacity: .6; cursor: default; }
 }

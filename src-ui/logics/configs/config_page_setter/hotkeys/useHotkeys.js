@@ -19,6 +19,9 @@ const shortcutPlatform = () => {
 };
 let portalHandler = null;
 let portalPaused = true; // Like the plugin's unregisterAll while settings are open.
+// Whether this process has bound portal shortcuts. With no key assigned and
+// nothing to clear, the portal (and its first-time dialog) is left alone.
+let portalBound = false;
 let portalListener = null;
 const ensurePortalListener = () => {
     portalListener ??= listen("portal-shortcut", ({ payload }) => {
@@ -101,10 +104,15 @@ export const useHotkeys = () => {
         await unregisterAll();
         portalHandler = runAction;
         const shortcuts = Object.fromEntries(Object.entries(currentHotkeys.data ?? {}).filter(([, keys]) => keys));
+        if (!Object.keys(shortcuts).length && !portalBound) {
+            portalPaused = false;
+            return;
+        }
         try {
             await ensurePortalListener();
             // The desktop may show its confirmation dialog the first time.
             const assigned = await invoke("portal_shortcuts_bind", { shortcuts });
+            portalBound = true;
             portalPaused = false;
             // The desktop may keep another key, e.g. when VRCT's is taken.
             for (const [actionKey, row] of Object.entries(assigned ?? {})) {

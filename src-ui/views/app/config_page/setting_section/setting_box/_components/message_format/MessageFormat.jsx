@@ -175,8 +175,14 @@ const ExampleComponent = ({ format, format_id }) => {
                 <FilteredExampleBox format_id={format_id} id={currentMessageFormat_ExampleViewFilter.data[format_id]} />
             </div>
             { format_id === "send" &&
-                <div className={styles.show_more_container} onClick={() => exampleViewFilterToggleFunction(format_id)}>
-                    <ArrowLeftSvg className={svg_class_names}/>
+                <div className={styles.show_more_container} onClick={() => exampleViewFilterToggleFunction(format_id)}
+                    role="button" tabIndex={0}
+                    aria-expanded={currentMessageFormat_ExampleViewFilter.data[format_id] === "All"}
+                    aria-label={t(currentMessageFormat_ExampleViewFilter.data[format_id] === "All"
+                        ? "config_page.others.message_format_common.example_view.show_fewer"
+                        : "config_page.others.message_format_common.example_view.show_all")}
+                    onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); exampleViewFilterToggleFunction(format_id); } }}>
+                    <ArrowLeftSvg className={svg_class_names} aria-hidden="true"/>
                 </div>
             }
         </div>
@@ -272,9 +278,10 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
         };
 
         return (
-            <div className={styles.swap_button_wrapper} onClick={swapMessageAndTranslate}>
+            <div className={styles.swap_button_wrapper} onClick={swapMessageAndTranslate} role="button" tabIndex={0}
+                onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); swapMessageAndTranslate(); } }}>
                 <p className={styles.swap_text}>{variable.translation_first ? LABEL_TRANSLATED : LABEL_ORIGINAL}</p>
-                <img className={styles.swap_img} src={SwapImg} alt="Swap Icon" />
+                <img className={styles.swap_img} src={SwapImg} alt="" />
                 <p className={styles.swap_text}>{variable.translation_first ? LABEL_ORIGINAL : LABEL_TRANSLATED}</p>
             </div>
         );

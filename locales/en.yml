@@ -157,6 +157,8 @@ main_page:
     translate_each_other_label: "Translate Both Languages"
     swap_button_label: "Switch Languages"
     target_language: "Target Language"
+    add_target_language: "Add a target language"
+    remove_target_language: "Remove the last target language"
     translator: "Translator"
     translator_label_default: "Default"
 
@@ -220,6 +222,10 @@ config_page:
         original_desc: "VRCT-VOX is built on VRCT. Thanks to the VRCT developers, contributors and everyone who supported it."
     search:
         placeholder: "Search settings..."
+        label: "Search settings"
+        results: "Matching settings"
+        clear: "Clear search"
+        requires: "Requires: {{name}}"
         no_results: "No matching settings found"
     common:
         version: "Version {{version}}"
@@ -494,7 +500,7 @@ config_page:
         section_label_reading_aids: "Hiragana & Romaji"
         section_label_models: "Models"
         auto_clear_the_message_box:
-            label: "Auto Clear Message box"
+            label: "Auto Clear Message Box"
         send_only_translated_messages:
             label: "Send Only Translated Messages"
         auto_export_message_logs:
@@ -502,7 +508,7 @@ config_page:
             desc: "Automatically saves the conversation messages as text files."
         vrc_mic_mute_sync:
             label: "VRC Mic Mute Sync"
-            desc: "Messages will not be sent to VRCT-VOX while VRChat's mic is muted.\n*There may be a slight delay. Push-To-Talk is not supported."
+            desc: "Messages will not be sent to VRChat while VRChat's mic is muted.\n*There may be a slight delay. Push-To-Talk is not supported."
         send_message_to_vrc:
             label: "Send Message To VRChat"
             desc: "This feature is not supported, but there is a way to use it without sending messages to VRChat. Make sure to enable this feature when you wish to send messages to VRChat."
@@ -515,6 +521,8 @@ config_page:
         message_format_common:
             example_view:
                 title: "Preview"
+                show_all: "Show all examples"
+                show_fewer: "Show fewer examples"
                 original_translated: "Original + Translation"
                 original_translated_multi: "Original + Translation (Multi-language)"
                 translated_only_multi: "Translation Only (Multi-language)"
@@ -1033,7 +1041,7 @@ quick_chat:
         portal_cancelled: "Registration was cancelled in the desktop's dialog. Open and close Settings to see the dialog again."
         portal_timeout: "The desktop's dialog was not answered. Open and close Settings to register again."
         portal_shortcuts_unsupported: "This desktop does not support the GlobalShortcuts portal. You can open the quick chat with the button."
-        portal_app_id_unavailable: "VRCT-VOX could not be registered with the desktop. Check that ~/.local/share/applications is writable."
+        portal_app_id_unavailable: "The desktop did not accept VRCT-VOX's registration, so its shortcuts are unavailable. This needs a recent xdg-desktop-portal that can find VRCT-VOX's desktop file. You can open the quick chat with the button."
         portal_desktop_file_failed: "The desktop file needed for shortcuts could not be created. Check that ~/.local/share/applications is writable."
         portal_unavailable: "Could not connect to the desktop portal. Check that xdg-desktop-portal is running."
     xwayland_hint: "XWayland: the desktop may block the shortcut or focus when another Wayland application is active."

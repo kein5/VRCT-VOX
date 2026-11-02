@@ -20,9 +20,11 @@
     column-width: 16rem;
 }
 
+// Padding, not margin: a bottom margin carries over to the top of the next
+// column and pushes that column's first letter down.
 .language_each_letter_box {
     break-inside: avoid-column;
-    margin-bottom: 1.4rem;
+    padding-bottom: 1.4rem;
     display: flex;
     flex-direction: column;
     gap: 0.1rem;
@@ -34,6 +36,13 @@
 }
 
 .language_button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
     padding: 0.8rem 0.6rem;
     cursor: pointer;
     &:hover{

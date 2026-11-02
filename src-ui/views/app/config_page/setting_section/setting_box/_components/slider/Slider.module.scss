@@ -87,6 +87,10 @@
     &:hover, &.thumbActive {
         box-shadow: 0 0 0 0.8rem var(--primary_600_color_44);
     }
+    &:focus-visible {
+        outline: .2rem solid var(--primary_200_color);
+        outline-offset: .3rem;
+    }
 }
 
 .dragging * {

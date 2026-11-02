@@ -63,11 +63,13 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
                 <TurnedOnSvgComponent className={category_class_names} />
                 <p className={styles.title}>{title}</p>
             </div>
-            <div className={styles.dropdown_menu_container} onClick={toggleSelector}>
-                <p className={styles.selected_language}>{language_text}</p>
-                <p className={styles.selected_language}>({country_text})</p>
-                <ArrowLeftSvg className={arrow_class_names} />
-            </div>
+            {/* A button so the selector also opens from the keyboard. */}
+            <button type="button" className={styles.dropdown_menu_container} onClick={toggleSelector}
+                aria-label={`${title}: ${language_text} (${country_text})`}>
+                <span className={styles.selected_language}>{language_text}</span>
+                <span className={styles.selected_language}>({country_text})</span>
+                <ArrowLeftSvg className={arrow_class_names} aria-hidden="true" />
+            </button>
         </div>
     );
 };

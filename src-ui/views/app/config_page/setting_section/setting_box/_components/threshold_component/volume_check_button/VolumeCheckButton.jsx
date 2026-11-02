@@ -21,8 +21,9 @@ export const VolumeCheckButton = React.memo((props) => {
 
     return (
         <div className={styles.container}>
-            <div className={getClassNames(styles.button)} onClick={toggleFunction}>
-                <props.SvgComponent className={styles.button_svg} />
+            <div className={getClassNames(styles.button)} onClick={toggleFunction}
+                role="button" tabIndex={0} aria-pressed={props.isChecking?.data === true} onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); toggleFunction(); } }}>
+                <props.SvgComponent className={styles.button_svg} aria-hidden="true" />
                 <p className={styles.button_text}>{t("config_page.device.check_volume")}</p>
             </div>
         </div>

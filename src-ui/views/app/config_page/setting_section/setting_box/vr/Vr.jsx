@@ -187,14 +187,21 @@ const PageSwitcherContainer = (props) => {
         [styles.is_selected]: !props.is_selected,
     });
 
+    // Two pressable halves; choosing the shown half changes nothing.
+    const half = (selected, className, label) => {
+        const choose = () => { if (!selected) props.toggleFunction(); };
+        return (
+            <div className={className} role="button" tabIndex={0} aria-pressed={selected} onClick={choose}
+                onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); choose(); } }}>
+                <p className={styles.controller_switcher_label}>{label}</p>
+            </div>
+        );
+    };
+
     return (
-        <div className={styles.controller_type_switch} onClick={() => props.toggleFunction()}>
-            <div className={toggle_button_class_names__position}>
-                <p className={styles.controller_switcher_label}>{props.label_1}</p>
-            </div>
-            <div className={toggle_button_class_names__rotation}>
-                <p className={styles.controller_switcher_label}>{props.label_2}</p>
-            </div>
+        <div className={styles.controller_type_switch}>
+            {half(props.is_selected, toggle_button_class_names__position, props.label_1)}
+            {half(!props.is_selected, toggle_button_class_names__rotation, props.label_2)}
         </div>
     );
 };
@@ -235,6 +242,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                     <ResetButton onClickFunction={() => selectFunction("x_pos", default_ui_configs.x_pos)} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.x_position")}
                     className={styles.x_position_slider}
                     no_padding={true}
                     variable={settings.x_pos}
@@ -261,6 +269,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                     <ResetButton onClickFunction={() => selectFunction("y_pos", default_ui_configs.y_pos)} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.y_position")}
                     className={styles.y_position_slider}
                     no_padding={true}
                     variable={settings.y_pos}
@@ -288,6 +297,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                     <ResetButton onClickFunction={() => selectFunction("z_pos", default_ui_configs.z_pos)} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.z_position")}
                     className={styles.z_position_slider}
                     no_padding={true}
                     variable={settings.z_pos}
@@ -347,6 +357,7 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                     <ResetButton onClickFunction={() => selectFunction("x_rotation", default_ui_configs.x_rotation)} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.x_rotation")}
                     className={styles.x_rotation_slider}
                     no_padding={true}
                     variable={-settings.x_rotation}
@@ -375,6 +386,7 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                     <ResetButton onClickFunction={() => selectFunction("y_rotation", default_ui_configs.y_rotation)} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.y_rotation")}
                     className={styles.y_rotation_slider}
                     no_padding={true}
                     variable={settings.y_rotation}
@@ -401,6 +413,7 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                     <ResetButton onClickFunction={() => selectFunction("z_rotation", default_ui_configs.z_rotation)} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.z_rotation")}
                     className={styles.z_rotation_slider}
                     no_padding={true}
                     variable={settings.z_rotation}
@@ -469,6 +482,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     {t("config_page.vr.opacity")}
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.opacity")}
                     className={clsx(styles.other_controls_slider, styles.opacity_slider)}
                     no_padding={true}
                     variable={settings.opacity * 100}
@@ -486,6 +500,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     {t("config_page.vr.ui_scaling")}
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.ui_scaling")}
                     className={clsx(styles.other_controls_slider, styles.ui_scaling_slider)}
                     no_padding={true}
                     variable={settings.ui_scaling * 100}
@@ -501,6 +516,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
             <div className={styles.other_controls_wrapper}>
                 <p className={clsx(styles.other_controls_slider_label, styles.display_duration_label)}>{t("config_page.vr.display_duration")}</p>
                 <Slider
+                    aria-label={t("config_page.vr.display_duration")}
                     className={clsx(styles.other_controls_slider, styles.display_duration_slider)}
                     no_padding={true}
                     variable={settings.display_duration}
@@ -515,6 +531,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
             <div className={styles.other_controls_wrapper}>
                 <p className={clsx(styles.other_controls_slider_label, styles.fadeout_duration_label)}>{t("config_page.vr.fadeout_duration")}</p>
                 <Slider
+                    aria-label={t("config_page.vr.fadeout_duration")}
                     className={clsx(styles.other_controls_slider, styles.fadeout_duration_slider)}
                     no_padding={true}
                     variable={settings.fadeout_duration}

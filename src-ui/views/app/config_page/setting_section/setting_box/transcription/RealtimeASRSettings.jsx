@@ -10,6 +10,9 @@ const key = endpoint => endpoint ? JSON.stringify([endpoint.cookie, endpoint.ser
 // Select value for "follow the system default"; never a JSON endpoint key.
 const FOLLOW = "follow-default";
 
+// The message says what to do (shared with the main switches); the code stays for reports.
+const Failure = ({ code, t }) => <p role="alert">{t(`realtime_toggle.${code}`, { defaultValue: "" })} <code className={styles.error_code}>{code}</code></p>;
+
 export const RealtimeASRSettings = () => {
     const { t } = useI18n();
     const { settings, state, endpoints, models, error, send } = useRealtimeASR();
@@ -62,7 +65,7 @@ export const RealtimeASRSettings = () => {
             </select></label>
             <button type="button" onClick={() => send("/get/data/realtime_asr_models")}>{t("realtime.refresh_models")}</button>
             <Description text={t("realtime.auto_help")} />
-            {models.error_code && <p role="alert">{models.error_code}</p>}
+            {models.error_code && <Failure code={models.error_code} t={t} />}
             <button type="button" onClick={refreshDevices}>{t("realtime.refresh_devices")}</button>
             {["mic", "speaker"].map(source => {
                 const choices = endpoints[source]?.endpoints ?? [];
@@ -97,7 +100,7 @@ export const RealtimeASRSettings = () => {
                         ["starting", "stopping"].includes(owner?.state) ? "warning" : "neutral"}>
                         <p>{t(`realtime.state_${owner?.state ?? "unknown"}`)}</p>
                     </EnvReadout>
-                    {failure && <p role="alert">{failure}</p>}
+                    {failure && <Failure code={failure} t={t} />}
                 </fieldset>;
             })}
             <fieldset>
@@ -119,6 +122,6 @@ export const RealtimeASRSettings = () => {
             <Description text={t("realtime.save_help")} />
             <button type="submit" disabled={!dirty}>{t("realtime.save")}</button>
         </form>}
-        {error && <p role="alert">{error}</p>}
+        {error && <Failure code={error} t={t} />}
     </section>;
 };

@@ -30,6 +30,7 @@ export const SidebarSection = () => {
 
     const container_class_names = clsx(styles.container, {
         [styles.is_small]: currentIsBreakPoint.data,
+        [styles.is_expanded]: isHovered,
     });
 
     const isCompact = currentIsBreakPoint.data && !isHovered;

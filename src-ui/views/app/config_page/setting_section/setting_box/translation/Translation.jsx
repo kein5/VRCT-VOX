@@ -644,7 +644,7 @@ const LMStudioURL_Box = () => {
                 onChangeFunction={onChangeFunction}
                 state={currentLMStudioURL.state}
                 remove_border_bottom={true}
-                // width="10rem"
+                width="24rem"
             />
         </>
     );
@@ -751,6 +751,7 @@ const OpenAICompatibleURL_Box = () => {
                 onChangeFunction={onChangeFunction}
                 state={currentOpenAICompatibleURL.state}
                 remove_border_bottom={true}
+                width="24rem"
             />
         </>
     );
