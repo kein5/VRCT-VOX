@@ -50,7 +50,7 @@ const ThresholdVolumeMeter_Mic = (props) => {
                     onChange={(e) => props.setUiThresholdFunction(e.target.value)}
                     onMouseUp={(e) => props.setThresholdFunction(e.target.value)}
                     onKeyUp={(e) => props.setThresholdFunction(e.target.value)}
-                    aria-label={t(props.id === "mic_threshold" ? "vr_panel.notifications.mic_threshold" : "vr_panel.notifications.speaker_threshold")}
+                    aria-label={t(props.id === "mic_threshold" ? "vr_panel.mic_threshold" : "vr_panel.speaker_threshold")}
                     className={styles.threshold_slider}
                 />
             }
@@ -82,7 +82,7 @@ const ThresholdVolumeMeter_Speaker = (props) => {
                     onChange={(e) => props.setUiThresholdFunction(e.target.value)}
                     onMouseUp={(e) => props.setThresholdFunction(e.target.value)}
                     onKeyUp={(e) => props.setThresholdFunction(e.target.value)}
-                    aria-label={t(props.id === "mic_threshold" ? "vr_panel.notifications.mic_threshold" : "vr_panel.notifications.speaker_threshold")}
+                    aria-label={t(props.id === "mic_threshold" ? "vr_panel.mic_threshold" : "vr_panel.speaker_threshold")}
                     className={styles.threshold_slider}
                 />
             }
