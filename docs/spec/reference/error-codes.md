@@ -54,7 +54,7 @@
 | `VALIDATION_INVALID_IP` | validation | Invalid IP address | warning | 要 | あり |
 | `VALIDATION_CANNOT_SET_IP` | validation | Cannot set IP address | error | 要 | あり |
 | `VALIDATION_OSC_PORT_INVALID` | validation | OSC port must be a number | warning | 要 | あり |
-| `VALIDATION_CONFIG_VALUE_INVALID` | validation | The provided value was rejected | warning | 要 |  |
+| `VALIDATION_CONFIG_VALUE_INVALID` | validation | The provided value was rejected | warning | 要 | あり |
 | `AUTH_DEEPL_LENGTH` | auth | DeepL auth key length is not correct | warning | 要 | あり |
 | `AUTH_DEEPL_FAILED` | auth | Authentication failure of deepL auth key | error | 要 | あり |
 | `AUTH_PLAMO_LENGTH` | auth | Plamo auth key length is not correct | warning | 要 | あり |

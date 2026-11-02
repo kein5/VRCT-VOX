@@ -1,4 +1,5 @@
 import { useI18n } from "@useI18n";
+import { useStdoutToPython } from "@useStdoutToPython";
 
 import {
     useNotificationStatus,
@@ -34,9 +35,12 @@ const OCR_ERROR_KEYS = {
 
 const CLOUD_TRANSCRIPTION_BASES = Object.fromEntries(CLOUD_TRANSCRIPTION_ENGINES.map(engine => [engine.key, engine.base]));
 
+const UI_OWNED_SETTINGS = new Set(["main_window_geometry", "message_box_ratio"]);
+
 export const _useBackendErrorHandling = () => {
     const { t } = useI18n();
     const { showNotification_Error, showNotification_Warning } = useNotificationStatus();
+    const { asyncStdoutToPython } = useStdoutToPython();
     const { updateIsSoftwareUpdating } = useIsSoftwareUpdating();
 
     const transcription = useTranscription();
@@ -271,6 +275,15 @@ export const _useBackendErrorHandling = () => {
                 }
                 showNotification_Error(message, { category_id: error_code });
                 return;
+            // A setting the config refused. `data` is the refused value, so the
+            // screen asks for the kept one again. Window geometry and the message
+            // box ratio come from the window itself and are not re-applied.
+            case "VALIDATION_CONFIG_VALUE_INVALID": {
+                const name = endpoint?.match(/^\/set\/data\/(\w+)$/)?.[1];
+                if (name && !UI_OWNED_SETTINGS.has(name)) asyncStdoutToPython(`/get/data/${name}`);
+                showNotification_Error(t("common_error.invalid_config_value"), { category_id: error_code });
+                return;
+            }
             case "VALIDATION_OSC_PORT_INVALID":
                 updateOscPort(data);
                 showNotification_Error(message, { category_id: error_code });
