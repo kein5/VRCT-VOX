@@ -46,6 +46,28 @@ class TestGetTranslateSuccessFlagSemantics(unittest.TestCase):
         self.assertEqual(translation, "こんにちは")
         self.assertTrue(success_flag, "unsupported language must not be reported as an engine failure")
 
+    def test_empty_translation_of_a_message_falls_back_like_a_failure(self) -> None:
+        # LLM が空の応答を返した。成功として扱うと、訳だけを送る設定で何も送られない
+        engines = []
+
+        def fake_translate(**kwargs):
+            engines.append(kwargs["translator_name"])
+            return "  " if kwargs["translator_name"] == "OpenAI_API" else "こんにちは"
+
+        self.model.translator = type("T", (), {"translate": staticmethod(fake_translate)})()
+
+        translation, success_flag = self.model.getTranslate(
+            translator_name="OpenAI_API",
+            source_language="English",
+            target_language="Japanese",
+            target_country="Japan",
+            message="hello",
+        )
+
+        self.assertEqual(engines, ["OpenAI_API", "CTranslate2"])
+        self.assertEqual(translation, "こんにちは")
+        self.assertTrue(success_flag)
+
     def test_real_backend_failure_is_still_reported_as_failure(self) -> None:
         calls = {"n": 0}
 

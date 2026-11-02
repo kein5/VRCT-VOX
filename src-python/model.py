@@ -1473,6 +1473,11 @@ class Model:
                         context_history=history
                 )
 
+        # LLM は空の応答を返すことがある。空でない文の訳が空なら、訳せなかったとして扱う。
+        # 成功扱いにすると、「翻訳後のメッセージのみ送信する」で何も送られず、失敗の通知も出ない
+        if isinstance(translation, str) and not translation.strip() and str(message).strip():
+            translation = False
+
         # 翻訳失敗時のフェールセーフ処理
         # translation is None: 選択言語がこのエンジンで未対応（エンジン自体の障害ではない）
         # translation is False: エンジン側の実際の障害（レート制限・通信・認証・プロバイダエラー等）
