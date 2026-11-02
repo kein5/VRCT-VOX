@@ -85,6 +85,8 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
         <StatusLine tone={tone}>{t(status)}</StatusLine>
         <VoiceRouteSummary />
         <Description text={t(variant === "rvc" ? "voice.vc_rvc_hint" : "voice.input_description")} />
+        {/* Says what the unsaved change in the save bar is when the page opens. */}
+        {variant === "rvc" && needsSelection(draft) && <p>{t("voice_ui.select_rvc_pending")}</p>}
         {busy && !ownsInput && <p role="alert">{t("voice_ui.input_conflict")}</p>}
         <fieldset className={styles.fields} disabled={saving}>
         {variant !== "rvc" && <label>{t("voice.direct_mode")}

@@ -991,6 +991,7 @@ voice_ui:
     save_bar: "Save settings"
     save_changes: "Save changes"
     select_rvc: "Use RVC for direct voice"
+    select_rvc_pending: "Direct voice is set to another mode. Saving on this page switches it to RVC."
     save_changes_short: "Save"
     discard_short: "Discard"
     changed_items: "Changed settings"

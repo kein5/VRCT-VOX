@@ -23,6 +23,8 @@
     input, select, textarea, button { box-sizing: border-box; font: inherit; font-weight: 400; min-height: 4rem; padding: .9rem 1.2rem; color: inherit; border-radius: var(--vox_radius, .8rem); }
     input, select, textarea { width: 100%; min-width: 0; background: var(--vox_surface, #18253b); border: .1rem solid var(--dark_650_color, #5e6570); }
     select option { color: var(--dark_200_color, #e5e7eb); background: var(--vox_surface, #18253b); }
+    // The reset removes the native arrow; without one a select reads as a text field.
+    select { padding-right: 3.6rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%239daec6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 1.4rem center; background-size: 1.2rem; cursor: pointer; }
     input::placeholder, textarea::placeholder { color: var(--vox_description_text); opacity: 1; }
     textarea { resize: vertical; min-height: 8rem; }
     button { width: fit-content; cursor: pointer; background: var(--dark_850_color, #25364f); border: .1rem solid transparent; font-weight: 600; }
