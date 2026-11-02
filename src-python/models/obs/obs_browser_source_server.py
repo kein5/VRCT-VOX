@@ -1,8 +1,9 @@
+import hmac
 import ipaddress
 import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from config import config
 
@@ -308,10 +309,8 @@ class ObsBrowserSourceServer:
     def __init__(self, host: str, port: int, ws_token: str = "") -> None:
         self.host = host
         self.port = port
-        # WebSocketServer 側で検証するトークン (websocket_server.py 参照)。
-        # 生成されたページの JS が最初から知っている状態にすることで、
-        # ユーザーが手動でコピー&ペーストする手間なく token 付き接続を
-        # 実現する。
+        # ページの取得とWebSocket接続で同じトークンを使う。
+        # 認証できた要求にだけ、トークンを含むページを返す。
         self.ws_token = ws_token
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
@@ -328,7 +327,7 @@ class ObsBrowserSourceServer:
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, format, *args):  # noqa: A002
-                # Avoid polluting stderr/stdout in production.
+                # Keep request URLs (including secret query strings) out of logs.
                 return
 
             def do_GET(self):  # noqa: N802
@@ -339,10 +338,28 @@ class ObsBrowserSourceServer:
                     return
                 parsed = urlparse(self.path)
                 if parsed.path in ("/", "/obs"):
+                    tokens = parse_qs(parsed.query, keep_blank_values=True).get("token", [])
+                    if (
+                        not ws_token
+                        or len(tokens) != 1
+                        or not hmac.compare_digest(
+                            tokens[0].encode("utf-8"), ws_token.encode("utf-8")
+                        )
+                    ):
+                        body = b"Forbidden\n"
+                        self.send_response(403)
+                        self.send_header("Content-Type", "text/plain; charset=utf-8")
+                        self.send_header("Cache-Control", "no-store, max-age=0")
+                        self.send_header("Referrer-Policy", "no-referrer")
+                        self.send_header("Content-Length", str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body)
+                        return
                     body = _build_overlay_html(ws_token).encode("utf-8")
                     self.send_response(200)
                     self.send_header("Content-Type", "text/html; charset=utf-8")
                     self.send_header("Cache-Control", "no-store, max-age=0")
+                    self.send_header("Referrer-Policy", "no-referrer")
                     self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
                     self.wfile.write(body)

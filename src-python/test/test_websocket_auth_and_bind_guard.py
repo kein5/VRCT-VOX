@@ -14,8 +14,9 @@
      config.WEBSOCKET_AUTH_TOKEN として初回起動時に 1 回だけ生成し、
      以降は config.json に永続化する (VRCT-TTS のような外部連携ツールは
      ユーザーが接続 URL を手動入力する方式のため、起動のたびにトークンが
-     変わると毎回再設定が必要になってしまう)。OBS Browser Source が
-     生成するページには自動的に埋め込まれる (ユーザーの手作業は不要)。
+     変わると毎回再設定が必要になってしまう)。OBS Browser Sourceは
+     同じトークン付きのURLでページを取得でき、認証後のHTMLにだけ
+     トークンを埋め込む。既存のOBSソースにはURLのコピーし直しが必要。
      VRCT-TTS 等、URL を手動入力する外部ツール向けには
      /get/data/websocket_auth_token を新設し、UI から
      `ws://{host}:{port}/?token={token}` をコピーできるようにする。
@@ -33,7 +34,11 @@
 
 import unittest
 from http import HTTPStatus
+from http.client import HTTPResponse
+from io import BytesIO
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from config import config
 from controller import Controller
@@ -327,6 +332,95 @@ class ObsBrowserSourceEmbedsTokenTests(unittest.TestCase):
     def test_obs_server_passes_its_token_through_to_the_page(self) -> None:
         server = ObsBrowserSourceServer(host="127.0.0.1", port=0, ws_token="tok-xyz")
         self.assertEqual(server.ws_token, "tok-xyz")
+
+
+@pytest.fixture
+def obs_request():
+    """Exercise the real HTTP handler using byte streams, without sockets or threads."""
+    def request(path, *, token="secret-token", host="127.0.0.1:2232"):
+        with (
+            patch("models.obs.obs_browser_source_server.ThreadingHTTPServer") as http_server,
+            patch("models.obs.obs_browser_source_server.threading.Thread"),
+        ):
+            server = ObsBrowserSourceServer("127.0.0.1", 0, ws_token=token)
+            server.start()
+            handler = http_server.call_args.args[1]
+
+        wire = BytesIO()
+        connection = MagicMock()
+        connection.makefile.return_value = BytesIO(
+            f"GET {path} HTTP/1.0\r\nHost: {host}\r\n\r\n".encode("ascii")
+        )
+        connection.sendall.side_effect = wire.write
+        handler(connection, ("127.0.0.1", 12345), http_server.return_value)
+
+        response_connection = MagicMock()
+        response_connection.makefile.return_value = BytesIO(wire.getvalue())
+        response = HTTPResponse(response_connection)
+        response.begin()
+        return response, response.read()
+
+    return request
+
+
+@pytest.mark.parametrize("path", ["/", "/obs"])
+@pytest.mark.parametrize("query", [
+    "", "?token=wrong", "?token=", "?token=%E3%81%82", "?token=%FF",
+    "?token=wrong&token=secret-token", "?token=secret-token&token=wrong",
+    "?token=&token=secret-token",
+])
+def test_obs_page_rejects_invalid_tokens_before_building_html(obs_request, path, query):
+    with patch("models.obs.obs_browser_source_server._build_overlay_html") as build_html:
+        response, body = obs_request(path + query)
+    assert response.status == 403
+    assert response.getheader("Content-Type") == "text/plain; charset=utf-8"
+    assert body == b"Forbidden\n"
+    assert b"secret-token" not in body
+    build_html.assert_not_called()
+
+
+@pytest.mark.parametrize("path", ["/", "/obs"])
+@pytest.mark.parametrize("query", ["?token=secret-token", "?token=secret%2Dtoken&unused=1"])
+def test_obs_page_accepts_token_and_protects_response(obs_request, path, query):
+    response, body = obs_request(path + query)
+    assert response.status == 200
+    assert response.getheader("Content-Type") == "text/html; charset=utf-8"
+    assert "no-store" in response.getheader("Cache-Control")
+    assert response.getheader("Referrer-Policy") == "no-referrer"
+    assert int(response.getheader("Content-Length")) == len(body)
+    assert body.startswith(b"<!doctype html>")
+    assert b'wsToken: "secret-token"' in body
+
+
+@pytest.mark.parametrize("query", ["", "?token=", "?token=secret-token"])
+def test_obs_page_fails_closed_without_a_configured_token(obs_request, query):
+    response, body = obs_request("/obs" + query, token="")
+    assert response.status == 403
+    assert body == b"Forbidden\n"
+
+
+@pytest.mark.parametrize("query", ["", "?token=wrong"])
+def test_obs_health_remains_public_without_secrets(obs_request, query):
+    response, body = obs_request("/health" + query)
+    assert response.status == 200
+    assert response.getheader("Content-Type") == "text/plain; charset=utf-8"
+    assert body == b"ok"
+
+
+def test_obs_host_check_still_rejects_authenticated_rebound_requests(obs_request):
+    with patch("models.obs.obs_browser_source_server._build_overlay_html") as build_html:
+        response, body = obs_request("/obs?token=secret-token", host="attacker.example")
+    assert response.status == 403
+    assert b"secret-token" not in body
+    build_html.assert_not_called()
+
+
+def test_obs_requests_do_not_log_secret_query_strings(obs_request, capsys):
+    obs_request("/obs?token=secret-token")
+    obs_request("/obs?token=wrong")
+    obs_request("/unknown?token=secret-token")
+    captured = capsys.readouterr()
+    assert captured.out == captured.err == ""
 
 
 if __name__ == "__main__":

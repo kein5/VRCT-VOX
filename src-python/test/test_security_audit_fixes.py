@@ -61,7 +61,7 @@ def test_obs_overlay_does_not_serve_its_token_to_a_rebound_domain():
         port = server._server.server_address[1]
         for host, status in (("attacker.example", 403), (f"127.0.0.1:{port}", 200)):
             connection = HTTPConnection("127.0.0.1", port, timeout=5)
-            connection.putrequest("GET", "/", skip_host=True)
+            connection.putrequest("GET", "/?token=secret-token", skip_host=True)
             connection.putheader("Host", host)
             connection.endheaders()
             response = connection.getresponse()
@@ -69,6 +69,39 @@ def test_obs_overlay_does_not_serve_its_token_to_a_rebound_domain():
             connection.close()
             assert response.status == status
             assert (b"secret-token" in body) is (status == 200)
+    finally:
+        server.stop()
+
+
+@pytest.mark.parametrize("path", ["/", "/obs"])
+def test_obs_overlay_http_token_authentication(path):
+    """Loopback integration test; run separately where local sockets are allowed."""
+    server = ObsBrowserSourceServer("127.0.0.1", 0, ws_token="secret-token")
+    server.start()
+    try:
+        port = server._server.server_address[1]
+        for target, status in (
+            (path, 403), (path + "?token=wrong", 403),
+            (path + "?token=secret-token", 200), ("/health", 200),
+        ):
+            connection = HTTPConnection("127.0.0.1", port, timeout=5)
+            try:
+                connection.request("GET", target)
+                response = connection.getresponse()
+                body = response.read()
+                assert response.status == status
+                if target == "/health":
+                    assert body == b"ok"
+                elif status == 403:
+                    assert response.getheader("Content-Type") == "text/plain; charset=utf-8"
+                    assert body == b"Forbidden\n"
+                else:
+                    assert body.startswith(b"<!doctype html>")
+                    assert b'wsToken: "secret-token"' in body
+                    assert "no-store" in response.getheader("Cache-Control")
+                    assert response.getheader("Referrer-Policy") == "no-referrer"
+            finally:
+                connection.close()
     finally:
         server.stop()
 

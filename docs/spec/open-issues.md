@@ -14,7 +14,6 @@
 | OI-09 | `config.json`に版番号がない。キーの意味を変えるときに移行の手がかりがない | [データ形式と保存](data-and-persistence.md#configjson) | 未決 |
 | OI-10 | エラーコード96件のうち10件は、UIに個別の処理がない。いずれも音声認識の失敗（`AUDIO_*`、`ASR_ERROR`、`TRANSCRIPTION_API_*`など）で、`/run/transcription_recognition_error`として会話ログに出るため汎用の通知にはならない。`AUDIO_TRACKER_STOP_TIMEOUT`はテレメトリー用で画面には届かない | [エラーコード一覧](reference/error-codes.md) | 確認済み。新しいコードを足すときは同じ確認をする |
 | OI-11 | VR UIの設定ウィンドウは、デスクトップの設定画面と違い「チャット読み取り」と「その他」のタブのまま。デスクトップでは2026-11-02にVRChatページへまとめた | `src-ui/views/vr/VrSettingsWindow.jsx` | VR側もそろえるか未決 |
-| OI-12 | OBSブラウザソースのページ（`/obs`）は認証なしで返り、WebSocketのトークンを含む。HTTPのポートに届く者（同じPCのほかのアカウントなど）は、トークンを得て会話を受け取れる。ページのURLにも秘密を付けると、OBSに設定済みのURLを作り直す必要がある | `src-python/models/obs/obs_browser_source_server.py` | 方式が未決 |
 | OI-13 | 内蔵の翻訳（CTranslate2とトークナイザー）とWhisperの重みは、Hugging Faceの既定の版を取得し、版、サイズ、SHA-256を確かめない。モデル取得の画面（`models/model_downloads/`）のような固定がない | `src-python/models/translation/translation_utils.py`、`src-python/models/transcription/transcription_whisper.py` | 移す作業が未着手 |
 | OI-14 | VRCマイクミュート同期は、OSCの`/avatar/parameters/MuteSelf`の送り主を確かめない。同じPCのほかのプログラムが`false`を送ると、ミュート中に止めていたマイクの認識が再開する | `src-python/models/osc/osc.py` | 対策が未決 |
 | OI-15 | Linuxのビルドは`uv export --no-hashes`で依存を書き出すため、`uv.lock`にあるパッケージのハッシュを確かめない。commitで固定したVCSの依存と両立させる必要がある | `tools/build_linux.py` | 未着手 |
@@ -28,6 +27,7 @@
 
 仕様書を作る途中で見つけ、同じ時期に直したもの。
 
+- OBSブラウザソースが認証なしでWebSocketのトークンを返していた（OI-12、SEC-01）。ページのURLにも同じトークンを必須にし、設定画面にURLのコピーし直しを案内した。
 - 翻訳をオンにしたときのVRAM不足の通知が、存在しない`run_mapping`の名前を使って例外になっていた。
 - 文字起こし中に入力デバイスがないときの通知にエラーコードがなく、汎用の通知になっていた。
 - Deepgramのキーの確認が、認証なしでも成功する`/v1/models`で行われていた。

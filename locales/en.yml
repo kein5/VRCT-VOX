@@ -783,6 +783,7 @@ config_page:
             desc: "Host a local overlay page for OBS (Browser Source) that shows translations and fades out over time."
         obs_browser_source_url:
             label: "OBS URL (click to copy)"
+            desc: "The OBS URL now includes a key. Copy it again and replace the Browser Source URL in OBS."
         obs_browser_source_port:
             label: "OBS Port"
         obs_browser_source_max_messages:

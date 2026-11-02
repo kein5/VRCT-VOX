@@ -38,7 +38,10 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 `src-python/models/obs/obs_browser_source_server.py`。配信画面に字幕を出すHTMLを配る。
 
 - `OBS_BROWSER_SOURCE`（既定オフ）、`OBS_BROWSER_SOURCE_PORT`（既定2232）。待ち受けるアドレスは`WEBSOCKET_HOST`と同じ。
-- `GET /`と`GET /obs`でHTMLを返し、`GET /health`は`ok`を返す。それ以外は404。`Host`がIPアドレスか`localhost`でなければ403（DNSリバインディング対策）。
+- `GET /`と`GET /obs`は`?token=<WEBSOCKET_AUTH_TOKEN>`が必要。`hmac.compare_digest`で照合し、トークンがないか合わなければ403と短い平文だけを返す。認証前にHTMLやトークンを返さない。
+- `GET /health`は認証なしで`ok`だけを返す。それ以外のパスは404。どのパスでも、`Host`がIPアドレスか`localhost`でなければ403（DNSリバインディング対策）。
+- HTMLの応答には`Cache-Control: no-store, max-age=0`と`Referrer-Policy: no-referrer`を付ける。アクセスログは出さず、クエリ文字列を記録しない。
+- 設定画面からコピーするURLには、WebSocketと同じトークンが入る。画面では伏せて表示する。設定済みのOBSブラウザソースもURLのコピーし直しが必要で、URL欄の下に案内を出す。
 - ページはWebSocketサーバーに接続して字幕を受け取る。切れたら0.5秒から1.5倍ずつ、最大8秒の間隔でつなぎ直す。
 - 表示の設定と範囲: 最大メッセージ数14（1〜50）、表示時間60秒（1〜120）、フェードアウト12秒（0〜120）、文字の大きさ40（10〜200）、文字色`#FFFFFF`、縁取り3（0〜20）、縁取りの色`#000000`。
 
