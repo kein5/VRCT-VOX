@@ -27,7 +27,7 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 
 | 項目 | 内容 |
 |---|---|
-| 有効化 | `WEBSOCKET_SERVER`（既定オフ）。OBSブラウザソースをオンにすると一緒にオンになる |
+| 有効化 | `WEBSOCKET_SERVER`（既定オフ）。OBSブラウザソースをオンにすると一緒にオンになる。実際にbindできたかを最大5秒待ち、できなければオンにしない。ホストやポートの変更でbindできなければ、元のアドレスで立て直してエラーを返す |
 | 待ち受け | `WEBSOCKET_HOST`（既定`127.0.0.1`。`0.0.0.0`などのすべてのアドレスは拒否）、`WEBSOCKET_PORT`（既定2231） |
 | 認証 | 接続時に`?token=<WEBSOCKET_AUTH_TOKEN>`を付ける。合わなければ接続前にHTTP 403。トークンは初回起動時に作り、設定画面では伏せて表示する |
 | 受信 | 受け取るが何もしない |
@@ -100,7 +100,8 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 | `quick_chat_show`、`quick_chat_configure`、`quick_chat_take`、`quick_chat_finish`、`quick_chat_shortcut_platform` | `main` | 小窓を開く、設定を渡す、送信要求を受け取る、結果を返す、ホットキーの登録方法を調べる |
 | `quick_chat_context`、`quick_chat_submit`、`quick_chat_hide` | `quick_chat` | 設定を読む、送信を頼む、隠す |
 | `portal_shortcuts_bind` | `main` | Waylandでホットキーを登録する（180秒で打ち切り） |
-| `download_zip_asset` | — | 登録されているがUIから呼ばれていない（[未決事項](open-issues.md)） |
+
+VRパネルの要求は`main`が中継する。中継しないのは、アプリの終了と更新、ファイルを開く操作、モデルの取得、認証キーとトークン、接続先（`*_url`、WebSocket・OBS・OSCのホストとポート）、音声の設定（読み上げ、直接の音声、音声サーバー、リアルタイム音声認識）である（`src-ui/logics/common/vrPanelWire.js`）。VRパネルへ写す状態にも、認証キーとトークンは入れない。
 
 ### ウィンドウ間の連携
 

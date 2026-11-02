@@ -413,12 +413,13 @@ export const _useBackendErrorHandling = () => {
             // WebSocketエラー (WEBSOCKET_*)
             // ============================================================================
             case "WEBSOCKET_HOST_INVALID":
-                updateWebsocketHost(data);
-                showNotification_Error(localized, { category_id: error_code });
-                return;
             case "WEBSOCKET_PORT_UNAVAILABLE":
             case "WEBSOCKET_PORT_INVALID":
-                updateWebsocketPort(data);
+                if (error_code === "WEBSOCKET_HOST_INVALID") updateWebsocketHost(data);
+                else updateWebsocketPort(data);
+                // 変更に失敗して元のアドレスでも立て直せないと、サイドカーはサーバーと OBS をオフにする
+                asyncStdoutToPython("/get/data/websocket_server");
+                asyncStdoutToPython("/get/data/obs_browser_source");
                 showNotification_Error(localized, { category_id: error_code });
                 return;
             case "WEBSOCKET_SERVER_UNAVAILABLE":

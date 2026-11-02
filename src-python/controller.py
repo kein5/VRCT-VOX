@@ -2899,9 +2899,7 @@ class Controller:
                 e,
                 data=None
             )
-        if response["status"] == 400:
-            self.delGroqWhisperAuthKey()
-        return response
+        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("Groq_Whisper"))
 
     def delGroqWhisperAuthKey(self, *args, **kwargs) -> dict:
         engine = "Groq_Whisper"
@@ -2978,9 +2976,7 @@ class Controller:
                 e,
                 data=None
             )
-        if response["status"] == 400:
-            self.delOpenAIWhisperAuthKey()
-        return response
+        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("OpenAI_Whisper"))
 
     def delOpenAIWhisperAuthKey(self, *args, **kwargs) -> dict:
         engine = "OpenAI_Whisper"
@@ -3056,9 +3052,7 @@ class Controller:
                 e,
                 data=None
             )
-        if response["status"] == 400:
-            self.delCustomWhisperAuthKey()
-        return response
+        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("Custom_Whisper"))
 
     def delCustomWhisperAuthKey(self, *args, **kwargs) -> dict:
         engine = "Custom_Whisper"
@@ -3195,9 +3189,7 @@ class Controller:
                 e,
                 data=None
             )
-        if response["status"] == 400:
-            self.delDeepgramAuthKey()
-        return response
+        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("Deepgram"))
 
     def delDeepgramAuthKey(self, *args, **kwargs) -> dict:
         engine = "Deepgram"
@@ -3937,8 +3929,18 @@ class Controller:
                 spec.error_auth_failed,
                 data=None,
             )
-        if response["status"] == 400:
-            self._delTranslationEngineAuthKey(engine_key)
+        return self._keepSavedKeyOnError(response, config.AUTH_KEYS.get(engine_key))
+
+    @staticmethod
+    def _keepSavedKeyOnError(response: dict, saved_key) -> dict:
+        """キーの登録に失敗しても、保存してあるキーは消さない。
+
+        確認の失敗は、キーの拒否のほかに、形式の誤り、オフライン、タイムアウト、429、5xx でも
+        起きる。以前はどの失敗でも保存済みのキーを消していた。消すのは利用者が削除したときだけにし、
+        画面の欄は保存してあるキーに戻す (`data` が戻す値になる)。
+        """
+        if response.get("status") == 400 and isinstance(response.get("result"), dict):
+            response["result"]["data"] = saved_key
         return response
 
     def _delTranslationEngineAuthKey(self, engine_key: str) -> dict:
@@ -4300,9 +4302,7 @@ class Controller:
                 e,
                 data=None
             )
-        if response["status"] == 400:
-            self.delOpenAICompatibleAuthKey()
-        return response
+        return self._keepSavedKeyOnError(response, config.AUTH_KEYS.get("OpenAI_Compatible"))
 
     def delOpenAICompatibleAuthKey(self, *args, **kwargs) -> dict:
         translator_name = "OpenAI_Compatible"
@@ -5430,6 +5430,22 @@ class Controller:
 
 
     @staticmethod
+    def _restoreWebSocketServer() -> None:
+        """ホストやポートの変更に失敗したあと、元のアドレスでサーバーを立て直す。
+
+        止めている間に元のポートをほかのプロセスが取ると、立て直しも失敗する。そのときは
+        WebSocket と、それに頼る OBS ブラウザソースをオフにする。オンのまま残すと、
+        有効と表示されたまま何も配信しない。UI はエラーを受けてこの2つを読み直す。
+        """
+        if model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT):
+            return
+        printLog("WebSocket server could not be restored on its previous address")
+        if config.OBS_BROWSER_SOURCE is True:
+            config.OBS_BROWSER_SOURCE = False
+            model.stopObsBrowserSourceServer()
+        config.WEBSOCKET_SERVER = False
+
+    @staticmethod
     def setWebSocketHost(data, *args, **kwargs) -> dict:
         # 0.0.0.0/:: (ワイルドカードアドレス) は「マシンが持つ全インター
         # フェースで listen する」ことを意味し、WebSocket サーバーは
@@ -5451,7 +5467,13 @@ class Controller:
                         response = {"status":200, "result":config.WEBSOCKET_HOST}
                     elif isAvailableWebSocketServer(data, config.WEBSOCKET_PORT):
                         model.stopWebSocketServer()
-                        model.startWebSocketServer(data, config.WEBSOCKET_PORT)
+                        if not model.startWebSocketServer(data, config.WEBSOCKET_PORT):
+                            # 新しいアドレスで bind できなかった。元のアドレスで立て直す
+                            Controller._restoreWebSocketServer()
+                            return VRCTError.create_error_response(
+                                ErrorCode.WEBSOCKET_HOST_INVALID,
+                                data=config.WEBSOCKET_HOST
+                            )
                         config.WEBSOCKET_HOST = data
                         # The OBS overlay's HTTP server must stay bound to the
                         # same host the WebSocket server now listens on, or the
@@ -5495,9 +5517,16 @@ class Controller:
                     return {"status":200, "result":config.WEBSOCKET_PORT}
                 elif isAvailableWebSocketServer(config.WEBSOCKET_HOST, port) is True:
                     model.stopWebSocketServer()
-                    model.startWebSocketServer(config.WEBSOCKET_HOST, port)
-                    config.WEBSOCKET_PORT = port
-                    response = {"status":200, "result":config.WEBSOCKET_PORT}
+                    if model.startWebSocketServer(config.WEBSOCKET_HOST, port):
+                        config.WEBSOCKET_PORT = port
+                        response = {"status":200, "result":config.WEBSOCKET_PORT}
+                    else:
+                        # 新しいポートで bind できなかった。元のポートで立て直す
+                        Controller._restoreWebSocketServer()
+                        response = VRCTError.create_error_response(
+                            ErrorCode.WEBSOCKET_PORT_UNAVAILABLE,
+                            data=config.WEBSOCKET_PORT
+                        )
                 else:
                     response = VRCTError.create_error_response(
                         ErrorCode.WEBSOCKET_PORT_UNAVAILABLE,
@@ -5528,8 +5557,10 @@ class Controller:
     def setEnableWebSocketServer(*args, **kwargs) -> dict:
         try:
             if config.WEBSOCKET_SERVER is False:
-                if isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True:
-                    model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                if (
+                    isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True
+                    and model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                ):
                     config.WEBSOCKET_SERVER = True
                     response = {"status":200, "result":config.WEBSOCKET_SERVER}
                 else:
@@ -5570,8 +5601,10 @@ class Controller:
 
         # OBS overlay depends on the WebSocket server to receive messages.
         if model.checkWebSocketServerAlive() is False:
-            if isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True:
-                model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+            if (
+                isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True
+                and model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+            ):
                 config.WEBSOCKET_SERVER = True
             else:
                 return VRCTError.create_error_response(
@@ -6438,12 +6471,11 @@ class Controller:
             # ステータス設定
             config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine] = status
 
-            # 認証キー無効化
+            # 確認に失敗してもキーは消さない。認証の関数は、オフライン、タイムアウト、429、5xx でも
+            # False を返すので、キーが拒否されたのか一時的に届かなかったのかを区別できない。消すと、
+            # ネットワークのない起動のたびに保存したキーを失う。エンジンを使えない状態にするだけにする
             if auth_key_invalid:
-                auth_keys = config.AUTH_KEYS
-                auth_keys[engine] = None
-                config.AUTH_KEYS = auth_keys
-                printLog(f"{engine} auth key is invalid")
+                printLog(f"{engine} auth key could not be verified; keeping it")
             elif status:
                 printLog(f"{engine} is valid/available")
 
@@ -6612,11 +6644,9 @@ class Controller:
 
             config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = status
 
+            # 翻訳と同じく、確認に失敗してもキーは消さない
             if auth_key_invalid:
-                auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-                auth_keys[engine] = None
-                config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-                printLog(f"{engine} transcription auth key is invalid")
+                printLog(f"{engine} transcription auth key could not be verified; keeping it")
             elif status:
                 printLog(
                     f"{engine} transcription engine is valid/available "
@@ -6754,9 +6784,10 @@ class Controller:
             config.WEBSOCKET_SERVER = True
 
         if config.WEBSOCKET_SERVER is True:
-            if isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True:
-                model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
-            else:
+            if not (
+                isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True
+                and model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+            ):
                 config.WEBSOCKET_SERVER = False
                 model.stopWebSocketServer()
                 printLog("WebSocket server host or port is not available")

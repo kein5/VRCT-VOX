@@ -93,6 +93,9 @@ _FREEZE_DUMP_MARGIN_SEC = 15
 # なくても実害はない (stopWatchdog のコメント参照)。
 _WATCHDOG_JOIN_TIMEOUT_SEC = 1.0
 
+# WebSocketServer.start() は bind の結果を最大5秒待つ。それより少し長く待つ
+_WEBSOCKET_START_TIMEOUT = 6.0
+
 
 def _cleanupFreezeTraceIfEmpty() -> None:
     try:
@@ -1473,6 +1476,11 @@ class Model:
                         context_history=history
                 )
 
+        # LLM は空の応答を返すことがある。空でない文の訳が空なら、訳せなかったとして扱う。
+        # 成功扱いにすると、「翻訳後のメッセージのみ送信する」で何も送られず、失敗の通知も出ない
+        if isinstance(translation, str) and not translation.strip() and str(message).strip():
+            translation = False
+
         # 翻訳失敗時のフェールセーフ処理
         # translation is None: 選択言語がこのエンジンで未対応（エンジン自体の障害ではない）
         # translation is False: エンジン側の実際の障害（レート制限・通信・認証・プロバイダエラー等）
@@ -1510,6 +1518,8 @@ class Model:
                     # is_loaded_ctranslate2_model を True にしてから解放する)。
                     break
                 sleep(0.1)
+            if isinstance(translation, str) and not translation.strip() and str(message).strip():
+                translation = False  # 切り替え先の空の訳も、訳せなかったとして扱う
             if isinstance(translation, str):
                 success_flag = True
             elif translation is None and not primary_failed:
@@ -2723,16 +2733,22 @@ class Model:
         """WebSocketメッセージ受信時の処理"""
         pass
 
-    def startWebSocketServer(self, host, port):
-        """WebSocketサーバーを起動し、別スレッドで実行する"""
+    def startWebSocketServer(self, host, port) -> bool:
+        """WebSocketサーバーを起動し、別スレッドで実行する。
+
+        実際に bind できたかを返す。空きポートの確認のあとでほかのプロセスがポートを
+        取ったときなどは False を返し、起動したことにしない。
+        """
         self.ensure_initialized()
         with self._websocket_lifecycle_lock:
             if self.websocket_server_alive is True:
                 # サーバーが既に起動している場合は何もしない
-                return
+                return True
 
             self.websocket_server_loop = True
             self.websocket_server_alive = False  # 初期状態を明示
+            ready = Event()
+            self._websocket_server_ready = ready
 
             async def WebSocketServerMain():
                 try:
@@ -2742,8 +2758,10 @@ class Model:
                         token=config.WEBSOCKET_AUTH_TOKEN,
                     )
                     self.websocket_server.set_message_handler(self.message_handler)
+                    # bind の成否が決まるまで待ち、失敗なら例外になる
                     self.websocket_server.start()
                     self.websocket_server_alive = True
+                    ready.set()
 
                     # イベントループが終了するまで待機
                     while self.websocket_server_loop:
@@ -2759,10 +2777,13 @@ class Model:
                     if hasattr(self, 'websocket_server') and self.websocket_server:
                         self.websocket_server.stop()
                     self.websocket_server_alive = False
+                    ready.set()
 
             self.th_websocket_server = Thread(target=lambda: asyncio.run(WebSocketServerMain()))
             self.th_websocket_server.daemon = True
             self.th_websocket_server.start()
+            ready.wait(timeout=_WEBSOCKET_START_TIMEOUT)
+            return self.websocket_server_alive is True
 
     def stopWebSocketServer(self):
         """WebSocketサーバーを停止する"""

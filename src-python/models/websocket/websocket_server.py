@@ -42,6 +42,8 @@ class WebSocketServer:
         self._thread: Optional[threading.Thread] = None
         self._send_queue: Optional[asyncio.Queue] = None  # 外部スレッド向け非同期キュー
         self.is_running: bool = False  # サーバーの起動状態を示すフラグ
+        self._started = threading.Event()  # bind の成否が決まったら立つ
+        self._start_error: Optional[BaseException] = None
 
     async def _process_request(self, connection: ServerConnection, request):
         """websockets の asyncio serve() が接続確立前に呼ぶフック。
@@ -144,15 +146,23 @@ class WebSocketServer:
                 self._broadcast_async(message), self._loop
             )
 
-    def start(self):
+    def start(self, timeout: float = 5.0):
         """
         サーバーを起動します。新しいスレッド上で asyncio イベントループを動かし、serve()を実行します。
         """
         if self._thread and self._thread.is_alive():
             return  # 既に起動中
+        self._started = threading.Event()
+        self._start_error = None
         # 新しいスレッドでイベントループを開始
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
+        # 空きポートの確認と実際の bind の間に、ほかのプロセスがポートを取ることがある。
+        # bind の結果を待ち、失敗なら呼び出し元に伝える (起動したと返さない)
+        if not self._started.wait(timeout):
+            raise TimeoutError(f"WebSocket server did not start within {timeout} seconds")
+        if self._start_error is not None:
+            raise self._start_error
 
     def _run_loop(self):
         """
@@ -175,8 +185,16 @@ class WebSocketServer:
             self._loop.create_task(self._send_loop())
             # サーバーの起動を待機
         # 設定関数を実行してサーバーを起動
-        self._loop.run_until_complete(setup_server())
+        try:
+            self._loop.run_until_complete(setup_server())
+        except BaseException as e:
+            self._start_error = e
+            self._loop.close()
+            self._loop = None
+            self._started.set()
+            return
         self.is_running = True
+        self._started.set()
         # サーバーが起動したら、接続待機を開始
         # print(f"WebSocket server started on ws://{self.host}:{self.port}")
         try:

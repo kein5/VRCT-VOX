@@ -96,6 +96,15 @@ class TestRegistryDrivenAuthAndModelManagement(unittest.TestCase):
         self.assertFalse(result)
         self.assertNotIn(self.ENGINE_KEY, self.translator._provider_clients)
 
+    def test_failed_auth_keeps_the_previous_client(self) -> None:
+        # 保存したキーは失敗しても残る。そのキーのクライアントも残し、翻訳を続けられるようにする
+        self.translator.authenticationRegistryAuthKey(self.ENGINE_KEY, "valid-key")
+        previous = self.translator._provider_clients[self.ENGINE_KEY]
+        self._register_spec(_FailingAuthClient)
+
+        self.assertFalse(self.translator.authenticationRegistryAuthKey(self.ENGINE_KEY, "new-key"))
+        self.assertIs(self.translator._provider_clients[self.ENGINE_KEY], previous)
+
     def test_get_model_list_returns_empty_when_not_authenticated(self) -> None:
         self.assertEqual(self.translator.getRegistryModelList(self.ENGINE_KEY), [])
 

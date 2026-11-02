@@ -7,7 +7,7 @@ import { dynamicStoreRegistry } from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useIsOpenedConfigPage } from "@logics_common";
 import { useVr } from "@logics_configs";
-import { encodeOrdered, isRelayAllowed } from "../../../logics/common/vrPanelWire";
+import { encodeOrdered, isRelayAllowed, isSecretAtomName } from "../../../logics/common/vrPanelWire";
 import { isLanguageMutation, rejectLanguageMutation } from "../../../logics/main/languageMutations";
 
 // VRパネル (vr_panel ウィンドウ) をこのウィンドウの完全なミラーにする。
@@ -33,7 +33,8 @@ const WINDOW_REQUEST_PATHS = [
 
 const atomEntries = () => Object.entries(dynamicStoreRegistry)
     .filter(([key]) => key.startsWith("Atom_"))
-    .map(([key, atom]) => [key.slice("Atom_".length), atom]);
+    .map(([key, atom]) => [key.slice("Atom_".length), atom])
+    .filter(([name]) => !isSecretAtomName(name));
 
 // ponytail: 変化したatomは値を丸ごと送る (ログ配列も全件)。ログが数千件規模で重くなるなら差分送信にする
 const emitState = (entries) => {

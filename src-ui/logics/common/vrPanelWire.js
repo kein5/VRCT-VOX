@@ -22,11 +22,22 @@ export const decodeOrdered = (value) => {
 };
 
 // VR画面がメイン経由でバックエンドへ頼める操作の範囲。VR画面はローカルの資産だけを読むが、
-// アプリの終了・更新・ファイルを開く・モデルのダウンロード・認証キーの変更は VR からは頼めない
-const BLOCKED_RELAY_PATHS = ["/run/shutdown", "/run/update_software", "/run/open_filepath_logs", "/run/open_filepath_config_file"];
+// アプリの終了・更新・ファイルを開く・モデルのダウンロード・認証キーの変更は VR からは頼めない。
+// 接続先 (URL、ホスト、ポート) と、実行するプログラムを含む音声の設定も頼めない。接続先の変更では、
+// 保存したキーを新しい接続先へ送って確かめるため、VR画面を乗っ取ればキーを外へ送らせられる
+const BLOCKED_RELAY_PATHS = ["/run/shutdown", "/run/update_software", "/run/open_filepath_logs", "/run/open_filepath_config_file",
+    "/set/data/websocket_host", "/set/data/websocket_port", "/set/data/obs_browser_source_port",
+    "/set/data/osc_ip_address", "/set/data/osc_port",
+    "/set/data/voice_settings", "/set/data/direct_voice_settings", "/set/data/speech_server_settings", "/set/data/realtime_asr_settings"];
 export const isRelayAllowed = (path) => typeof path === "string"
     && /^\/(get|set|run)\//.test(path)
     && !BLOCKED_RELAY_PATHS.includes(path)
     && !path.startsWith("/run/download_")
+    && !path.startsWith("/run/update_") // update_software と update_cuda_software (インストーラーを起動して終了する)
     && !path.includes("model_download")
-    && !/auth_key|auth_token/.test(path);
+    && !/auth_key|auth_token/.test(path)
+    && !/^\/set\/data\/[a-z_]*_url$/.test(path);
+
+// VR画面へ写さない atom。VR画面は認証キーとトークンを表示しない。写すと、VR画面や、
+// 同じイベントを聞けるほかのウィンドウからキーを読めてしまう
+export const isSecretAtomName = (name) => /Auth(Key|Token)$/.test(name);

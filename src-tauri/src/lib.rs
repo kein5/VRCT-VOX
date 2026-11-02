@@ -137,7 +137,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(quick_chat::QuickChatState::default())
         .manage(portal_shortcuts::PortalShortcuts::default())
-        .invoke_handler(tauri::generate_handler![get_font_list, download_zip_asset, set_vr_panel_window,
+        .invoke_handler(tauri::generate_handler![get_font_list, set_vr_panel_window,
             quick_chat::quick_chat_context, quick_chat::quick_chat_configure, quick_chat::quick_chat_submit,
             quick_chat::quick_chat_take, quick_chat::quick_chat_finish, quick_chat::quick_chat_hide,
             quick_chat::quick_chat_show, quick_chat::quick_chat_shortcut_platform,
@@ -206,27 +206,6 @@ async fn get_font_list() -> Vec<String> {
     font_families.into_iter().collect()
 }
 
-
-use base64::engine::general_purpose::STANDARD as BASE64;
-use base64::Engine;
-
-#[tauri::command]
-async fn download_zip_asset(url: String) -> Result<String, String> {
-    use reqwest;
-
-    let client = reqwest::Client::new();
-    let resp = client.get(&url)
-        .header("Accept", "application/octet-stream")
-        .send()
-        .await.map_err(|e| format!("Request error: {}", e))?;
-    if !resp.status().is_success() {
-        return Err(format!("HTTP error: {}", resp.status()));
-    }
-
-    let bytes = resp.bytes().await.map_err(|e| format!("Reading bytes error: {}", e))?;
-
-    Ok(BASE64.encode(&bytes))
-}
 
 #[cfg(test)]
 mod tests {
