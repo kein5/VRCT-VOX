@@ -32,6 +32,7 @@ export const RightSideComponents = () => {
             <a
                 className={styles.help_and_info_button}
                 aria-label={t("main_page.help_link")}
+                title={t("main_page.help_link")}
                 href={generateLocalizedDocumentUrl(currentUiLanguage.data).vrct_document_ui_guide_url}
                 target="_blank"
                 rel="noreferrer"
