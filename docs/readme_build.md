@@ -15,6 +15,8 @@ npm run setup-python
 
 `setup-python`は`uv sync --frozen`で`.venv`（標準版）と`.venv_cuda`（`cuda`のextra付き）を`uv.lock`のとおりに同期します。ロックにないパッケージは削除されるため、個別に追加した依存関係があれば先に記録してください。
 
+Windowsの同期とLinux候補のビルドでは、uvが`uv.lock`のハッシュを使って取得したPythonパッケージを照合します。Linuxでは同期前に、各アーカイブのSHA-256とGit依存の完全なcommit SHAがあることも検査し、不足していれば停止します。詳しくは[Linuxビルドパイプライン](voice-stack/linux-build-pipeline.md)を参照してください。音声契約のCIはハッシュ付きの一覧を書き出し、`uv pip sync --require-hashes`で同期します。
+
 CUDA版は対応するNVIDIAドライバーを使います。cuBLAS・cuDNNは`pyproject.toml`の`cuda` extraにある`nvidia-*-cu12`パッケージから同梱するため、CUDA Toolkitを別に入れる必要はありません。モデルの取得と本体のビルドは別の操作です。
 
 ## 開発時の起動

@@ -14,9 +14,11 @@ import subprocess
 import sys
 
 try:
+    from .check_python_lock import validate_lock
     from .linux_package import check_tree, inventory, normalize_modes, pack
     from .speechcpp_bundle import VARIANTS, stage_bundle, fetch_archive, load_manifest, verify_bundle
 except ImportError:
+    from check_python_lock import validate_lock
     from linux_package import check_tree, inventory, normalize_modes, pack
     from speechcpp_bundle import VARIANTS, stage_bundle, fetch_archive, load_manifest, verify_bundle
 
@@ -41,6 +43,19 @@ def prepare_work(path):
 def run(argv, *, cwd=ROOT, env=None):
     print('+ ' + ' '.join(map(str, argv)), flush=True)
     subprocess.run(list(map(str, argv)), cwd=cwd, env=env, check=True)
+
+
+def sync_dependencies(uv, venv, python_selector):
+    # Validate before creating/modifying the environment, including cached builds.
+    validate_lock(ROOT / 'uv.lock')
+    python = venv / 'bin/python'
+    if not python.exists():
+        run([*uv, 'venv', '--python', python_selector, venv])
+    # uv sync checks the lock's archive hashes and preserves pinned Git sources.
+    # --python alone selects an interpreter, not the destination environment.
+    run([*uv, 'sync', '--frozen', '--no-install-project', '--python', python,
+         '--group', 'dev', '--group', 'linux-build'], cwd=ROOT,
+        env=dict(os.environ, UV_PROJECT_ENVIRONMENT=str(venv.resolve())))
 
 
 def environment_resources(destination):
@@ -146,14 +161,7 @@ def main():
     venv = work / 'venv'
     python = venv / 'bin/python'
     uv = ['uv', '--offline'] if args.offline else ['uv']
-    if not python.exists():
-        run([*uv, 'venv', '--python', args.python, venv])
-    # Exact Linux subset of uv.lock: the project, dev and linux-build groups.
-    requirements = work / 'requirements.txt'
-    run([*uv, 'export', '--quiet', '--frozen', '--no-hashes', '--no-header', '--no-annotate',
-         '--format', 'requirements-txt', '--no-emit-project', '--group', 'dev', '--group', 'linux-build',
-         '--output-file', requirements], cwd=ROOT)
-    run([*uv, 'pip', 'sync', '--python', python, requirements])
+    sync_dependencies(uv, venv, args.python)
     run([python, '-c', 'import sys; assert sys.version_info[:2] == (3, 11), "Python 3.11 required"'])
     resources = work / 'resources'
     if resources.exists():

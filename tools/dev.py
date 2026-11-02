@@ -34,7 +34,8 @@ LINT_PATHS = [
     "tools/voice_latency.py", "tools/voice_acceptance.py", "tools/voice_b_poc.py",
     "tools/voice_route.py", "tools/voice_route_acceptance.py", "tools/build_voice_gate.py",
     "tools/check_voice_distribution.py", "tools/release_candidate.py",
-    "tools/prepare_release.py", "tools/dev.py", "tests/devtools",
+    "tools/prepare_release.py", "tools/dev.py", "tools/build_linux.py",
+    "tools/check_python_lock.py", "tests/devtools",
 ]
 
 
@@ -56,7 +57,7 @@ def child_environment():
     env.update(HF_HUB_OFFLINE="1", HF_HUB_DISABLE_TELEMETRY="1",
                TRANSFORMERS_OFFLINE="1", SPEECH_NO_UPDATE_CHECK="1",
                CARGO_NET_OFFLINE="true", RUSTUP_AUTO_INSTALL="0",
-               PYTEST_DISABLE_PLUGIN_AUTOLOAD="1")
+               PYTEST_DISABLE_PLUGIN_AUTOLOAD="1", UV_NO_VERIFY_HASHES="0")
     return env
 
 
@@ -449,7 +450,8 @@ def setup(args, root):
     # to it exactly; an explicit existing environment only gains packages.
     method = "install" if args.python else "sync"
     return execute([
-        Step("locked requirements", [*uv, "export", "--quiet", "--frozen", "--no-hashes", "--no-header",
+        Step("verify Python lock", [sys.executable, str(root / "tools/check_python_lock.py"), str(root / "uv.lock")]),
+        Step("locked requirements", [*uv, "export", "--quiet", "--frozen", "--no-header",
             "--no-annotate", "--format", "requirements-txt", "--no-emit-project", *groups,
             "--output-file", requirement]),
         Step("Python dependencies", [*uv, "pip", method, "--python", python,

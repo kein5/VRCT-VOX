@@ -55,11 +55,22 @@ Choose `--variant linux-x64-cpu` with the corresponding CPU archive for CPU buil
 reference recordings are fetched. `--backend-only` is a diagnostic mode and produces
 no distributable. `--profile debug` is also diagnostic; normal output is release.
 
-The builder exports the project, `dev` and `linux-build` groups from `uv.lock` and syncs them into `build/linux/venv`, uses
-`npm ci --ignore-scripts`, and builds Cargo with `--locked` in a copied workspace.
+The builder uses `uv sync --frozen --no-install-project --group dev --group linux-build`
+with `UV_PROJECT_ENVIRONMENT` set to the dedicated `build/linux/venv` (or the selected
+work directory). uv reads `uv.lock` directly and verifies downloaded index archives
+against its SHA-256 hashes; a mismatch aborts the build. Before invoking uv,
+`tools/check_python_lock.py` checks every locked package: each non-VCS archive must
+have a SHA-256 hash, and each Git source must have matching full 40-character commit
+SHAs in its requested revision and resolved commit. Missing/malformed hashes,
+unpinned Git sources and local path dependencies stop the build, even on a cache hit.
+Only the uninstalled virtual root project is exempt. This uses the existing uv 0.13.5
+toolchain and keeps the same project, `dev` and `linux-build` dependency set.
+
+The builder also uses `npm ci --ignore-scripts` and builds Cargo with `--locked` in a copied workspace.
 It does not replace `src-tauri/bin` or reuse its development Python wrapper.
-Python packages are exact versions and Git dependencies are full commits; this is
-**not** a claim of bit-for-bit reproducible builds or a fully hash-locked wheel set.
+Hash verification covers the locked distribution archives; Git sources are verified
+by commit rather than archive hashes. Extra dependencies fetched by isolated source
+build backends are outside `uv.lock`. This is **not** a claim of bit-for-bit reproducible builds.
 Rust, system libraries and actual ELF version requirements remain host dependent.
 The inventory records the build commit, tracked dirty state, host, hashes and ELF versions.
 
