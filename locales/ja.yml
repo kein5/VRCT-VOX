@@ -678,7 +678,7 @@ config_page:
 
     ocr:
         section_title: "VRChatチャット読み取り"
-        section_desc: "画面に表示されるVRChatのチャット吹き出しを読み取り、既存の翻訳パイプラインに送ります。結果はメインのメッセージログとSteamVRオーバーレイに表示されます。VRChatのOSCチャットボックスへは送信されません。"
+        section_desc: "画面に表示されるVRChatのチャット吹き出しを読み取り、マイクや聞き取りの文と同じように翻訳に回します。結果はメインのメッセージログとSteamVRオーバーレイに表示します。VRChatのチャットボックスへは送りません。"
         capture_target: "キャプチャ対象"
         language: "言語"
         performance: "パフォーマンス"

@@ -678,7 +678,7 @@ config_page:
 
     ocr:
         section_title: "VRChat Chat Transcribe"
-        section_desc: "Capture VRChat chat bubbles on screen and route the recognized text through the existing translation pipeline. Output is mirrored to the main message log and the SteamVR overlay; it is never sent to VRChat's OSC chatbox."
+        section_desc: "Reads VRChat chat bubbles on screen and translates the text the same way as the microphone and listening. The results appear in the main message log and the SteamVR overlay; they are never sent to the VRChat chatbox."
         capture_target: "Capture target"
         language: "Language"
         performance: "Performance"

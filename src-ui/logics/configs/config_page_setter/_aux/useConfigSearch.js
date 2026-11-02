@@ -126,6 +126,11 @@ export const useConfigSearch = () => {
                 // notes) is not a setting; listing it would show its raw key.
                 const labelled = (v) => typeof v === "string" || (v && (v.label || v.label_for_automatic || v.label_for_manual));
                 if (!labelled(curVal) && !labelled(enVal)) continue;
+                // A section's description string belongs to its title (section_desc
+                // → section_title); on its own it would be listed under its full text.
+                const descKey = key.replace(/_(title|label)$/, "_desc");
+                if (/_desc$/.test(key) && typeof (curVal ?? enVal) === "string" && ["_title", "_label"].some(suffix => { const title = key.replace(/_desc$/, suffix); return curTab[title] || enTab[title]; })) continue;
+                const sectionDesc = descKey !== key && typeof (curTab[descKey] ?? enTab[descKey]) === "string" ? { cur: curTab[descKey], en: enTab[descKey] } : null;
 
                 // label の抽出（currentLng → en フォールバック）
                 const rawLabel = (typeof curVal === "object" ? (curVal.label || curVal.label_for_automatic || curVal.label_for_manual) : null)
@@ -135,6 +140,7 @@ export const useConfigSearch = () => {
                 // desc の抽出
                 const rawDesc = (typeof curVal === "object" ? (curVal.desc || curVal.desc_for_automatic || curVal.desc_for_manual) : null)
                     ?? (typeof enVal === "object" ? (enVal.desc || enVal.desc_for_automatic || enVal.desc_for_manual) : null)
+                    ?? sectionDesc?.cur ?? sectionDesc?.en
                     ?? "";
 
                 // 検索対象テキストの収集（現在言語 + en の両方を包含）
@@ -145,6 +151,7 @@ export const useConfigSearch = () => {
                 if (!isEn && enVal) {
                     searchStrings.push(...collectStrings(enVal));
                 }
+                if (sectionDesc) searchStrings.push(...[sectionDesc.cur, isEn ? null : sectionDesc.en].filter(Boolean));
 
                 if (tab === "ocr" && key === "source_language") {
                     const languages = new Set([...Object.keys(currentSelectableOcrSourceLanguageList.data ?? {}), currentOcrSourceLanguage.data]);
