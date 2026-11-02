@@ -113,6 +113,9 @@ common:
     copy_version: "Copy version {{version}}"
 
 common_error:
+    transcription_api_auth_failed: "The speech recognition service did not accept the API key. Check the key and, for a custom server, its URL."
+    transcription_model_invalid: "That speech recognition model is not available."
+    transcription_custom_url_invalid: "Could not reach the custom Whisper server or find a model there. Check the URL."
     ctranslate2_license_consent_required: "{{weight_type}} has a non-commercial license (CC-BY-NC-4.0). Confirm the license in Settings > Translation first."
     translation_language_unsupported: "{{model}} cannot translate {{languages}}, so the language was reset. To use it, choose another translation engine or {{ctranslate2}} model."
     no_device_mic: "No mic device detected."
@@ -442,6 +445,35 @@ config_page:
             desc: "Only send audio to recognition after a silence gap is detected. Disable this if speaker transcription stops or shows 'speech recognition request failed' during continuous game/voice audio."
         select_transcription_engine:
             label: "Transcription Engine Used For Speech Recognition"
+            desc: "Cloud engines can be chosen once their API key is registered under \"Cloud speech recognition\" below."
+            engines:
+                groq_whisper: "Groq Whisper"
+                openai_whisper: "OpenAI Whisper"
+                custom_whisper: "Custom Whisper server"
+                deepgram: "Deepgram"
+        cloud_section:
+            label: "Cloud speech recognition"
+            desc: "Register an API key here, then choose the engine under \"Transcription Engine Used For Speech Recognition\" above."
+        groq_whisper_auth_key:
+            label: "Groq Whisper API key"
+        openai_whisper_auth_key:
+            label: "OpenAI Whisper API key"
+        custom_whisper_url:
+            label: "Custom Whisper server URL"
+            desc: "An OpenAI-compatible server with /v1/audio/transcriptions, e.g. http://192.168.0.10:8000/v1."
+        custom_whisper_auth_key:
+            label: "Custom Whisper server API key"
+            desc: "If the server needs no key, enter any text."
+        deepgram_auth_key:
+            label: "Deepgram API key"
+        select_groq_whisper_model:
+            label: "Groq Whisper model"
+        select_openai_whisper_model:
+            label: "OpenAI Whisper model"
+        select_custom_whisper_model:
+            label: "Custom Whisper server model"
+        select_deepgram_model:
+            label: "Deepgram model"
         whisper_weight_type:
             label: "Whisper Model"
             desc: "Larger models have higher accuracy, but they also consume more CPU or GPU resources.\nEspecially for models larger than medium, it may be difficult or even impossible to use them depending on the performance of your CPU/GPU."

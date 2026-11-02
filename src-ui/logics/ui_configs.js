@@ -111,6 +111,7 @@ export const plamo_auth_key_url = "https://plamo.preferredai.jp/api";
 export const gemini_auth_key_url = "https://aistudio.google.com/api-keys";
 export const openai_auth_key_url = "https://platform.openai.com/api-keys";
 export const groq_auth_key_url = "https://console.groq.com/keys";
+export const deepgram_auth_key_url = "https://console.deepgram.com/";
 export const openrouter_auth_key_url = "https://openrouter.ai/keys";
 
 

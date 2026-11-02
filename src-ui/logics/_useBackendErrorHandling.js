@@ -20,6 +20,7 @@ import {
     useAdvancedSettings,
 } from "@logics_configs";
 import { ui_configs } from "./ui_configs";
+import { CLOUD_TRANSCRIPTION_ENGINES } from "./configs/cloudTranscription";
 
 const OCR_ERROR_KEYS = {
     OCR_DISABLED_ENGINE_UNAVAILABLE: "common_error.ocr_engine_unavailable",
@@ -31,11 +32,14 @@ const OCR_ERROR_KEYS = {
     OCR_DISABLED_UNKNOWN: "common_error.ocr_unknown",
 };
 
+const CLOUD_TRANSCRIPTION_BASES = Object.fromEntries(CLOUD_TRANSCRIPTION_ENGINES.map(engine => [engine.key, engine.base]));
+
 export const _useBackendErrorHandling = () => {
     const { t } = useI18n();
     const { showNotification_Error, showNotification_Warning } = useNotificationStatus();
     const { updateIsSoftwareUpdating } = useIsSoftwareUpdating();
 
+    const transcription = useTranscription();
     const {
         updateMicRecordTimeout,
         updateMicPhraseTimeout,
@@ -44,7 +48,7 @@ export const _useBackendErrorHandling = () => {
         updateSpeakerRecordTimeout,
         updateSpeakerPhraseTimeout,
         updateSpeakerMaxWords,
-    } = useTranscription();
+    } = transcription;
 
     const { updateTranslationStatus, updateTranscriptionSendStatus, updateTranscriptionReceiveStatus, updateOcrCaptureStatus } = useMainFunction();
 
@@ -307,6 +311,24 @@ export const _useBackendErrorHandling = () => {
             case "AUTH_OPENROUTER_FAILED":
                 updateOpenRouterAuthKey(data);
                 showNotification_Error(message, { category_id: error_code });
+                return;
+            // Cloud transcription: the endpoint names the engine, e.g.
+            // /set/data/groq_whisper_auth_key -> GroqWhisperAuthKey.
+            case "TRANSCRIPTION_API_AUTH_FAILED": {
+                const base = CLOUD_TRANSCRIPTION_BASES[endpoint?.match(/^\/set\/data\/(\w+?)_auth_key$/)?.[1]];
+                if (base) transcription[`update${base}AuthKey`](data ?? "");
+                showNotification_Error(t("common_error.transcription_api_auth_failed"), { category_id: error_code });
+                return;
+            }
+            case "MODEL_TRANSCRIPTION_INVALID": {
+                const base = CLOUD_TRANSCRIPTION_BASES[endpoint?.match(/^\/set\/data\/selected_(\w+?)_model$/)?.[1]];
+                if (base) transcription[`updateSelected${base}Model`](data);
+                showNotification_Error(t("common_error.transcription_model_invalid"), { category_id: error_code });
+                return;
+            }
+            case "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID":
+                transcription.updateCustomWhisperURL(data ?? "");
+                showNotification_Error(t("common_error.transcription_custom_url_invalid"), { category_id: error_code });
                 return;
             case "AUTH_OPENAI_COMPATIBLE_INVALID":
             case "AUTH_OPENAI_COMPATIBLE_FAILED":

@@ -21,6 +21,7 @@ import WarningSvg from "@images/warning.svg?react";
 import { VrWindow } from "./VrWindow";
 import { Disclosure, Picker, SectionLabel, SegmentRow, SelectRow, StepperRow, ThresholdRow, ToggleRow } from "./VrSettingsRows";
 import { buildComputeDeviceOptions } from "../app/config_page/setting_section/setting_box/_components/compute_device/computeDeviceOptions";
+import { CLOUD_TRANSCRIPTION_ENGINES } from "../../logics/configs/cloudTranscription";
 import { isNonCommercialWeight } from "../../logics/configs/ctranslate2License";
 import styles from "./VrSettingsWindow.module.scss";
 
@@ -232,7 +233,11 @@ const ComputeSettings = ({ t, openPicker, device_list, device, setDevice, comput
 
 const TranscriptionSettings = ({ t, openPicker }) => {
     const tr = useTranscription();
-    const engines = [{ id: "Google", label: "Google" }, { id: "Whisper", label: "Whisper" }];
+    // Cloud engines appear once their key is registered in the settings page.
+    const available = tr.currentSelectableTranscriptionEngines.data || [];
+    const engines = [{ id: "Google", label: "Google" }, { id: "Whisper", label: "Whisper" },
+        ...CLOUD_TRANSCRIPTION_ENGINES.filter(engine => available.includes(engine.id))
+            .map(engine => ({ id: engine.id, label: t(`config_page.transcription.select_transcription_engine.engines.${engine.key}`) }))];
     const engine_label = t("config_page.transcription.select_transcription_engine.label");
     const whisper_label = t("config_page.transcription.whisper_weight_type.label");
     const weights = (tr.currentWhisperWeightTypeStatus.data ?? [])
@@ -257,7 +262,8 @@ const TranscriptionSettings = ({ t, openPicker }) => {
     };
     return (
         <>
-            <SelectRow label={engine_label} value={tr.currentSelectedTranscriptionEngine.data}
+            <SelectRow label={engine_label}
+                value={engines.find(engine => engine.id === tr.currentSelectedTranscriptionEngine.data)?.label ?? tr.currentSelectedTranscriptionEngine.data}
                 is_pending={tr.currentSelectedTranscriptionEngine.state === "pending"}
                 onOpen={() => openPicker(engine_label, engines, tr.currentSelectedTranscriptionEngine.data, tr.setSelectedTranscriptionEngine)} />
             {tr.currentSelectedTranscriptionEngine.data === "Whisper" && (
