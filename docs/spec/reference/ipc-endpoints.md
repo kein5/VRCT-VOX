@@ -10,7 +10,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - UIの受信先: 200の応答を処理するUIのフック（`useReceiveRoutes.js`の静的ルートと`ui_config_setter.js`の定義から生成）。「—」は受信先がない。
 - ログで伏せる: `process.log`で値を`***MASKED***`に置き換える（`SENSITIVE_ENDPOINT_MARKERS`）。stdoutのIPCそのものは伏せない。
 
-## 要求（383件: 削除 11、取得 168、実行 35、有効化 38、無効化 38、設定 93）
+## 要求（384件: 削除 11、取得 169、実行 35、有効化 38、無効化 38、設定 93）
 
 | エンドポイント | 種別 | 処理（controller） | 初期化前 | UIの受信先 | 備考 |
 |---|---|---|---|---|---|
@@ -22,8 +22,9 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/set/disable/transcription_receive` | 無効化 | `setDisableTranscriptionReceive` | 待つ | useMainFunction.updateTranscriptionReceiveStatus |  |
 | `/set/enable/ocr_capture` | 有効化 | `setEnableOcrCapture` | 待つ | useMainFunction.updateOcrCaptureStatus |  |
 | `/set/disable/ocr_capture` | 無効化 | `setDisableOcrCapture` | 待つ | useMainFunction.updateOcrCaptureStatus |  |
-| `/set/enable/foreground` | 有効化 | `setEnableForeground` | 可 | — |  |
-| `/set/disable/foreground` | 無効化 | `setDisableForeground` | 可 | — |  |
+| `/get/data/foreground` | 取得 | `getEnableForeground` | 可 | useMainFunction.restoreForeground |  |
+| `/set/enable/foreground` | 有効化 | `setEnableForeground` | 可 | useMainFunction.updateForegroundStatus |  |
+| `/set/disable/foreground` | 無効化 | `setDisableForeground` | 可 | useMainFunction.updateForegroundStatus |  |
 | `/get/data/selected_tab_no` | 取得 | `getSelectedTabNo` | 可 | useLanguageSettings.updateSelectedPresetTabNumber |  |
 | `/set/data/selected_tab_no` | 設定 | `setSelectedTabNo` | 可 | useLanguageSettings.updateSelectedPresetTabNumber |  |
 | `/get/data/main_window_sidebar_compact_mode` | 取得 | `getMainWindowSidebarCompactMode` | 可 | useIsMainPageCompactMode.updateIsMainPageCompactMode |  |
@@ -494,7 +495,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `enable_osc_query` | `/run/enable_osc_query` | useHandleOscQuery.handleOscQuery |
 
 
-## UIに受信先がないエンドポイント（21件）
+## UIに受信先がないエンドポイント（19件）
 
 200で届いた場合にUIが`Invalid endpoint`としてコンソールに出すもの。ただし、400で届くエラーの通知（`/run/error_…`など）は`errorHandling_Backend`が処理し、`/run/initialization_complete`は`receiveRoutes`が個別に処理するので、このどちらかに当たるものは実害がない。
 
@@ -517,8 +518,6 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - `/run/send_text_overlay`
 - `/run/translation_language_unsupported`
 - `/run/vr_launcher_reset`
-- `/set/disable/foreground`
-- `/set/enable/foreground`
 
 
 ## UIだけにあるルート（57件）

@@ -206,6 +206,7 @@ mapping = {
     "/set/enable/ocr_capture": {"status": False, "variable":controller.setEnableOcrCapture},
     "/set/disable/ocr_capture": {"status": False, "variable":controller.setDisableOcrCapture},
 
+    "/get/data/foreground": {"status": True, "variable":controller.getEnableForeground},
     "/set/enable/foreground": {"status": True, "variable":controller.setEnableForeground},
     "/set/disable/foreground": {"status": True, "variable":controller.setDisableForeground},
 

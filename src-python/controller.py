@@ -237,6 +237,7 @@ _SIMPLE_CONFIG_GETTERS = {
     "getConvertMessageToRomaji": "CONVERT_MESSAGE_TO_ROMAJI",
     "getConvertMessageToHiragana": "CONVERT_MESSAGE_TO_HIRAGANA",
     "getMainWindowSidebarCompactMode": "MAIN_WINDOW_SIDEBAR_COMPACT_MODE",
+    "getEnableForeground": "ENABLE_FOREGROUND",
     "getTransparency": "TRANSPARENCY",
     "getUiScaling": "UI_SCALING",
     "getTextboxUiScaling": "TEXTBOX_UI_SCALING",

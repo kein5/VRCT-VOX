@@ -88,8 +88,25 @@ export const useMainFunction = () => {
         try {
             await appWindow.setAlwaysOnTop(is_foreground_enabled);
             updateForegroundStatus(is_foreground_enabled);
+            // The window is already changed; the sidecar only remembers it for the next start.
+            asyncStdoutToPython(is_foreground_enabled ? "/set/enable/foreground" : "/set/disable/foreground");
         } catch (e) {
             updateForegroundStatus(currentForegroundStatus.data);
+            console.error(e);
+        }
+    };
+
+    // The saved value from /run/initialization_complete: put the window back on top.
+    const restoreForeground = async (is_foreground_enabled) => {
+        if (is_foreground_enabled !== true) {
+            updateForegroundStatus(false);
+            return;
+        }
+        try {
+            await appWindow.setAlwaysOnTop(true);
+            updateForegroundStatus(true);
+        } catch (e) {
+            updateForegroundStatus(false);
             console.error(e);
         }
     };
@@ -121,6 +138,7 @@ export const useMainFunction = () => {
 
         currentForegroundStatus,
         toggleForeground,
+        restoreForeground,
         updateForegroundStatus,
 
     };
