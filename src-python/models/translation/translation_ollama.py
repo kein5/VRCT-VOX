@@ -30,7 +30,8 @@ def _get_available_text_models(base_url: str | None = None) -> list[str]:
     """Extract available text models from Ollama.
     """
     try:
-        response = requests.get(f"{base_url}/api/tags")
+        # 起動時の確認はこの応答を待つ。応答が止まったサーバーで起動が終わらなくならないよう、時間を区切る
+        response = requests.get(f"{base_url}/api/tags", timeout=2)
         models = response.json()["models"]
     except Exception:
         models = []
