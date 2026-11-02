@@ -380,6 +380,7 @@ config_page:
 
     others:
         section_label_sounds: "사운드"
+        section_label_received_messages: "받은 메시지"
         section_label_message_formats: "메시지 형식"
         section_label_sending: "전송 및 로그"
         section_label_reading_aids: "히라가나·로마자"
@@ -420,8 +421,8 @@ config_page:
             label: "메시지 형식 (송신)"
             desc: "VRChat에서 상대방에게 실제로 보이는 형식을 변경할 수 있습니다."
         received_message_format:
-            label: "메시지 형식 (Speaker2Chatbox)"
-            desc: "현재로서는 Speaker2Chatbox로 전송할 때의 표시용으로 사용됩니다."
+            label: "메시지 형식 (수신)"
+            desc: "청취한 메시지를 VRChat에 보낼 때의 표시에 사용됩니다."
         common_convert_message_hiragana_romaji:
             desc_1: "번역 언어로 일본어를 선택했을 때만 지원합니다."
             desc_2: "일본어 특성상 정확도에 한계가 있습니다."

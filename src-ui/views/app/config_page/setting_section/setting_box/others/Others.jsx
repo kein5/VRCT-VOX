@@ -43,7 +43,7 @@ export const Others = () => {
                 <EnableNotificationVrcSfxContainer />
             </div>
             <div>
-                <SectionLabelComponent label="Speaker2Chatbox" />
+                <SectionLabelComponent label={t("config_page.others.section_label_received_messages")} />
                 <SendReceivedMessageToVrcContainer />
             </div>
             <div>
