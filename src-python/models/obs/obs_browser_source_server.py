@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from config import config
+from utils import printLog
 
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -314,14 +315,27 @@ class ObsBrowserSourceServer:
         self.ws_token = ws_token
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._lifecycle_lock = threading.Lock()
+        self._stopping = False
+        self._stop_logged = False
 
     @property
     def is_running(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
+        return not self._stopping and not self.is_stopped
+
+    @property
+    def is_stopped(self) -> bool:
+        return self._thread is None or not self._thread.is_alive()
 
     def start(self) -> None:
-        if self.is_running:
+        with self._lifecycle_lock:
+            self._start()
+
+    def _start(self) -> None:
+        if not self.is_stopped:
             return
+        self._stopping = False
+        self._stop_logged = False
 
         ws_token = self.ws_token
 
@@ -388,6 +402,11 @@ class ObsBrowserSourceServer:
         self._thread.start()
 
     def stop(self) -> None:
+        with self._lifecycle_lock:
+            self._stop()
+
+    def _stop(self) -> None:
+        self._stopping = True
         if self._server is not None:
             try:
                 self._server.shutdown()
@@ -400,6 +419,11 @@ class ObsBrowserSourceServer:
 
         if self._thread is not None:
             self._thread.join(timeout=2.0)
+            if self._thread.is_alive():
+                if not self._stop_logged:
+                    self._stop_logged = True
+                    printLog("OBS browser source: stop timed out; retaining server until the worker exits")
+                return
 
         self._server = None
         self._thread = None

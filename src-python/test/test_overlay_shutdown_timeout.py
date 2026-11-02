@@ -15,11 +15,9 @@ joinのタイムアウトに関するテスト(バックエンドレビュー �
   修正: 両方に上限(既定5秒)を設ける。Pythonのスレッドは外部から強制
   終了できないため、これらは「詰まったスレッドを殺す」ものではなく
   「待つのを諦める」もの。shutdownOverlay()がタイムアウトした場合は
-  self.overlay/self.systemを破棄せず(詰まったスレッドが後で復帰した際に
-  Noneへ触れて例外になることを避けるため)、代わりにself.initializedを
-  Falseに戻して次のstartOverlay()で復旧できるようにする(OpenVRハンドル
-  とセッション参照は1つ分リークするが、機能が再起動必須になることは
-  避ける)。
+  self.overlay/self.system と worker の参照を保持し、worker が終了するまで
+  次の startOverlay() を拒否する。古い teardown が新しいハンドルを
+  破棄するのを防ぐ。
 """
 
 import threading
@@ -103,7 +101,7 @@ class ShutdownOverlayJoinTimeoutTests(unittest.TestCase):
         self.overlay.system = MagicMock(spec=_RealIVRSystem)
         self.overlay.handle = {"small": 1}
 
-    def test_gives_up_after_join_timeout_and_resets_initialized_without_destroying_handles(
+    def test_gives_up_after_join_timeout_and_keeps_owner_without_destroying_handles(
         self,
     ) -> None:
         # mainloop() が (OpenVR呼び出し等で) 詰まって二度と戻ってこないスレッド
@@ -111,8 +109,8 @@ class ShutdownOverlayJoinTimeoutTests(unittest.TestCase):
         never_set = threading.Event()
         stuck_thread = Thread(target=never_set.wait, daemon=True)
         stuck_thread.start()
-        self.addCleanup(never_set.set)
         self.addCleanup(lambda: stuck_thread.join(timeout=2))
+        self.addCleanup(never_set.set)
         self.overlay.thread_overlay = stuck_thread
 
         with patch("models.overlay.overlay._SHUTDOWN_JOIN_TIMEOUT_SEC", 0.2), \
@@ -125,13 +123,10 @@ class ShutdownOverlayJoinTimeoutTests(unittest.TestCase):
         self.assertLess(elapsed, 2.0, "タイムアウトを超えて長時間ブロックしてはいけない")
         mock_print_log.assert_called_once()
 
-        # 古いスレッドの追跡は諦めるが、再有効化で復旧できるよう
-        # initialized は False に戻す。
-        self.assertIsNone(self.overlay.thread_overlay)
-        self.assertFalse(self.overlay.initialized)
+        # Stop is still in progress; only the old worker may clean up handles.
+        self.assertIs(self.overlay.thread_overlay, stuck_thread)
+        self.assertTrue(self.overlay.initialized)
 
-        # 詰まっているかもしれない古いスレッドが後で復帰した際に例外に
-        # ならないよう、overlay/systemは破棄しない(=リークを許容)。
         self.overlay.overlay.destroyOverlay.assert_not_called()
         release_mock.assert_not_called()
         self.assertIsNotNone(self.overlay.overlay)

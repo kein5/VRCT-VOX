@@ -190,6 +190,7 @@ class DeviceManager:
         # ここでダミーを 1 個用意しておく。
         self._notify_event: Event = Event()
         self.th_monitoring: Optional[Thread] = None
+        self._monitor_stop_logged = False
 
         # setMicAutoActive/setSpeakerAutoActive/monitoring スレッドと
         # tracker の起動・停止を直列化するロック。pyaudio_op_lock とは別物
@@ -493,6 +494,8 @@ class DeviceManager:
                     if self._speaker_auto_active:
                         self.runProcessBeforeUpdateSpeakerDevices()
                     self.update()
+                    if self._stop_event.is_set():
+                        break
                     self._applyDeviceDiffs()
                     self.noticeUpdateDevices()
                     if self._mic_auto_active:
@@ -526,8 +529,11 @@ class DeviceManager:
     def _startMonitoringLocked(self) -> None:
         """_lifecycle_lock を既に保持している前提の内部実装。"""
         # 既に稼働中なら何もしない (冪等)
-        if not self._stop_event.is_set() and self.th_monitoring is not None and self.th_monitoring.is_alive():
+        # A stopped worker may still be in COM cleanup. Never clear its event
+        # or replace its reference until it has actually exited.
+        if self.th_monitoring is not None and self.th_monitoring.is_alive():
             return
+        self._monitor_stop_logged = False
         self._stop_event.clear()
         # notify_event は init 時に作った同一インスタンスを再利用し
         # 状態だけ clear する。以前は毎回 Event() で作り直していたが、
@@ -826,6 +832,9 @@ class DeviceManager:
         if getattr(self, "th_monitoring", None) is not None:
             try:
                 self.th_monitoring.join(timeout=0.5)
+                if self.th_monitoring.is_alive() and not getattr(self, "_monitor_stop_logged", False):
+                    self._monitor_stop_logged = True
+                    printLog("DeviceManager: monitoring stop timed out; restart deferred until the worker exits")
             except Exception:
                 # join がスレッド非依存の理由で失敗しても致命的ではない
                 pass
