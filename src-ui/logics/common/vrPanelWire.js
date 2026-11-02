@@ -33,6 +33,7 @@ export const isRelayAllowed = (path) => typeof path === "string"
     && /^\/(get|set|run)\//.test(path)
     && !BLOCKED_RELAY_PATHS.includes(path)
     && !path.startsWith("/run/download_")
+    && !path.startsWith("/run/update_") // update_software と update_cuda_software (インストーラーを起動して終了する)
     && !path.includes("model_download")
     && !/auth_key|auth_token/.test(path)
     && !/^\/set\/data\/[a-z_]*_url$/.test(path);
