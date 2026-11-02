@@ -68,6 +68,7 @@ console.log('caption contracts passed');
         cwd=ROOT,
         text=True,
         capture_output=True,
-        timeout=15,
+        # Node's cold start alone has exceeded 15 s on busy Windows CI runners.
+        timeout=60,
     )
     assert result.returncode == 0, result.stdout + result.stderr
