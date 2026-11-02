@@ -75,21 +75,20 @@ def test_navigation_keyboard_and_all_settings(studio):
         "デザイン",
         "翻訳",
         "音声認識",
-        "チャット読み取り",
+        "VRChat",
         "VR",
-        "その他",
         "ホットキー",
         "TTS",
         "RVC",
         "高度な設定",
         "アップデート",
-        "About VRCT-VOX",
+        "VRCT-VOXについて",
     ):
         tab = page.get_by_role("button", name=label, exact=True)
         tab.focus()
         page.keyboard.press("Enter")
         expect(tab).to_have_attribute("aria-current", "page")
-        if label in ("TTS", "RVC", "ホットキー", "デザイン", "About VRCT-VOX"):
+        if label in ("TTS", "RVC", "ホットキー", "デザイン", "VRCT-VOXについて"):
             screenshot(page, f"settings-{label}-ja")
     page.get_by_role("button", name="戻る", exact=True).click()
     expect(settings).to_be_visible()

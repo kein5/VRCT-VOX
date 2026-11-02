@@ -28,7 +28,7 @@ import { useI18n } from "@useI18n";
 import { useAppearance } from "@logics_configs";
 import { useSoftwareVersion } from "@logics_common";
 
-import { generateLocalizedDocumentUrl } from "@ui_configs";
+import { upstream_vrct_document_url } from "@ui_configs";
 
 const logos = { en: logo_en, ja: logo_ja, ko: logo_ko, "zh-Hant": logo_zh_hant, "zh-Hans": logo_zh_hans };
 
@@ -153,7 +153,7 @@ const about_vrct_links = {
     dev_misya_github: { img: dev_github_icon, href: "https://github.com/misyaguziya" },
     dev_shiina_x: { img: dev_x_icon, href: "https://twitter.com/Shiina_12siy" },
 
-    project_link_documents: { img: project_link_documents, href: (lang) => generateLocalizedDocumentUrl(lang).vrct_document_home_url },
+    project_link_documents: { img: project_link_documents, href: upstream_vrct_document_url },
     project_link_vrct_github: { img: project_link_vrct_github, href: "https://github.com/misyaguziya/VRCT" },
 
     contributors_done_san_x: { img: contributors_x_icon, href: "https://twitter.com/done_vrc" },

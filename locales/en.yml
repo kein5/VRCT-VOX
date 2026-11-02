@@ -120,6 +120,7 @@ common:
     default_label: "Default"
     reset_to_default: "Reset to default"
     copy_version: "Copy version {{version}}"
+    loading: "Loading…"
 
 common_error:
     unexpected_error: "Something went wrong ({{code}}). If it doesn't recover, restart VRCT-VOX. If it keeps happening, report it in the VRCT-VOX issues with this code."
@@ -224,7 +225,7 @@ main_page:
     your_language: "Your Language"
     translate_each_other_label: "Translate Both Languages"
     swap_button_label: "Switch Languages"
-    help_link: "Open the original VRCT guide (VRCT-VOX differs in places)"
+    help_link: "Open the VRCT-VOX guide"
     target_language: "Target Language"
     add_target_language: "Add a target language"
     remove_target_language: "Remove the last target language"
@@ -334,6 +335,7 @@ config_page:
         rvc: "RVC"
         advanced_settings: "Advanced"
         updater: "Updater"
+        about_vrct: "About VRCT-VOX"
         ocr: "Chat Transcribe"
 
     tts:
@@ -427,7 +429,7 @@ config_page:
 
         deepl_auth_key:
             label: "DeepL API Key"
-            desc: "When using it, please change {{translator}} on the main screen to DeepL_API. ※Some languages may not be supported."
+            desc: "To use it, set {{translator}} on the main screen to \"DeepL API\". ※Some languages may not be supported."
 
         plamo_auth_key:
             label: "Plamo API Key"
@@ -457,7 +459,7 @@ config_page:
         lmstudio_connection_check:
             label: "Check LM Studio Connection"
         select_lmstudio_model:
-            label: "Select LMStudio Model"
+            label: "Select LM Studio Model"
             connection_required: "LMStudio Connection Required"
 
         openai_compatible_url:

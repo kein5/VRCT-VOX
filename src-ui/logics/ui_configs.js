@@ -116,9 +116,15 @@ export const openrouter_auth_key_url = "https://openrouter.ai/keys";
 
 
 
-export const vrct_document_home_url = "https://misyaguziya.github.io/VRCT-Docs";
-export const vrct_document_url_chunk_faq = "docs/faq";
-export const vrct_document_url_chunk_ui_guide = "docs/ui-guide";
+// VRCT-VOX's own user guide (site/, published by .github/workflows/pages.yml).
+// It has Japanese and English pages; other UI languages get the English ones.
+export const vrct_document_home_url = "https://kein5.github.io/VRCT-VOX";
+export const vrct_document_url_chunk_faq = "guide/troubleshooting";
+export const vrct_document_url_chunk_ui_guide = "guide/first-setup";
+
+// The upstream VRCT documentation, linked from the credits for the original VRCT on About.
+export const upstream_vrct_document_url = (lang_code = "en") =>
+    `https://misyaguziya.github.io/VRCT-Docs/${lang_code === "ja" ? "ja" : ""}`;
 
 export const generateLocalizedDocumentUrl = (lang_code = "en") => {
     const supported_languages = ["en", "ja"];
@@ -127,7 +133,7 @@ export const generateLocalizedDocumentUrl = (lang_code = "en") => {
         lang_code = "en";
     }
 
-    const lang_path = (lang_code === "en") ? "" : `${lang_code}`;
+    const lang_path = lang_code;
 
     return {
         vrct_document_home_url: `${vrct_document_home_url}/${lang_path}`,

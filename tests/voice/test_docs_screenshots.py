@@ -22,7 +22,8 @@ PAGES = {
     "device": {"ja": "デバイス", "en": "Device"},
     "translation": {"ja": "翻訳", "en": "Translation"},
     "transcription": {"ja": "音声認識", "en": "Transcription"},
-    "chat-reading": {"ja": "チャット読み取り", "en": "Chat Transcribe"},
+    # Chat reading lives on the VRChat page.
+    "chat-reading": {"ja": "VRChat", "en": "VRChat"},
     "tts": {"ja": "TTS", "en": "TTS"},
     "rvc": {"ja": "RVC", "en": "RVC"},
     "vr": {"ja": "VR", "en": "VR"},

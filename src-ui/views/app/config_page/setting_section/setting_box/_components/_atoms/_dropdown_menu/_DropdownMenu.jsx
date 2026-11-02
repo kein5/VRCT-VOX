@@ -1,10 +1,12 @@
 import { useRef, useEffect, useLayoutEffect, useState, useId } from "react";
 import styles from "./_DropdownMenu.module.scss";
 import clsx from "clsx";
+import { useI18n } from "@useI18n";
 import ArrowLeftSvg from "@images/arrow_left.svg?react";
 import { useStore_IsOpenedDropdownMenu } from "@store";
 
 export const _DropdownMenu = (props) => {
+    const { t } = useI18n();
     const { updateIsOpenedDropdownMenu, currentIsOpenedDropdownMenu } = useStore_IsOpenedDropdownMenu();
     const is_opened = currentIsOpenedDropdownMenu.data === props.dropdown_id;
     const [openAbove, setOpenAbove] = useState(false);
@@ -148,7 +150,7 @@ export const _DropdownMenu = (props) => {
                 aria-disabled={unavailable || undefined}
                 aria-activedescendant={is_opened && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}>
                 {(props.state === "pending")
-                    ? <p className={styles.dropdown_selected_text}>Loading...</p>
+                    ? <p className={styles.dropdown_selected_text}>{t("common.loading")}</p>
                     : <p className={styles.dropdown_selected_text}>{getSelectedText()}</p>
                 }
                 {(props.state === "pending")

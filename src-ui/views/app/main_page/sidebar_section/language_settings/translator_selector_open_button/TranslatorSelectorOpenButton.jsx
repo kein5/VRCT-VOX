@@ -62,7 +62,7 @@ export const TranslatorSelectorOpenButton = () => {
     };
 
     const is_loading = currentTranslationEngines.state === "pending";
-    const selected_label = is_loading ? "Loading..." : getSelectedLabel();
+    const selected_label = is_loading ? t("common.loading") : getSelectedLabel();
 
 
     const { currentIsOpenedTranslatorSelector, updateIsOpenedTranslatorSelector} = useStore_IsOpenedTranslatorSelector();

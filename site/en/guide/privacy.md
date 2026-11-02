@@ -21,7 +21,7 @@ Local translation models, the bundled speech.cpp servers (speech and realtime ca
 
 - The settings file (`config.json`), which also holds your external translation API keys.
 - Logs, recording what the app did. Remove personal data and conversation text before posting them in a report.
-- Conversation logs, saved as text files only when "Auto Save Message Logs" under Settings → "Other" is on.
+- Conversation logs, saved as text files only when "Auto Save Message Logs" under Settings → "Advanced" is on.
 
 For the locations, see [Install](./install) and [Troubleshooting](./troubleshooting).
 
