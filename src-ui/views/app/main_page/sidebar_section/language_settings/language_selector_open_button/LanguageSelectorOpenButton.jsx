@@ -17,8 +17,10 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
         currentSelectedTargetLanguages,
     } = useLanguageSettings();
 
+    const is_opened = currentIsOpenedLanguageSelector.data[selector_key] === true && currentIsOpenedLanguageSelector.data.target_key === target_key;
+
     const toggleSelector = () => {
-        if (currentIsOpenedLanguageSelector.data[selector_key] === true && currentIsOpenedLanguageSelector.data.target_key === target_key) { // Close Language Selector
+        if (is_opened) { // Close Language Selector
             updateIsOpenedLanguageSelector({ your_language: false, target_language: false, target_key: "1" });
         } else { // Open Language Selector
             updateIsOpenedLanguageSelector({
@@ -30,7 +32,7 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
     };
 
     const arrow_class_names = clsx(styles.arrow_left_svg, {
-        [styles.reverse]: (currentIsOpenedLanguageSelector.data[selector_key] === true && currentIsOpenedLanguageSelector.data.target_key === target_key),
+        [styles.reverse]: is_opened,
     });
 
     const category_class_names = clsx(styles.category_svg, {
@@ -65,7 +67,7 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
             </div>
             {/* A button so the selector also opens from the keyboard. */}
             <button type="button" className={styles.dropdown_menu_container} onClick={toggleSelector}
-                aria-label={`${title}: ${language_text} (${country_text})`}>
+                aria-label={`${title}: ${language_text} (${country_text})`} aria-expanded={is_opened}>
                 <span className={styles.selected_language}>{language_text}</span>
                 <span className={styles.selected_language}>({country_text})</span>
                 <ArrowLeftSvg className={arrow_class_names} aria-hidden="true" />
