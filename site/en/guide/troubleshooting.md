@@ -3,7 +3,7 @@
 ## Chat reading says the window was not found
 
 - Start VRChat before turning on Chat Transcribe.
-- Check that "Window name" under Settings → "Chat Transcribe" matches your client's title. The default is `VRChat`.
+- Check that "Window name" under Settings → "VRChat" matches your client's title. The default is `VRChat`.
 - On Linux, VRChat must run as an X11/XWayland window (Proton's default).
 
 ## It says models are missing

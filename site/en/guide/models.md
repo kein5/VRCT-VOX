@@ -42,4 +42,4 @@ Downloaded models go to `downloaded_models` in the same folder as the settings f
 
 ## Downloading at startup
 
-"Download translation and transcription models at startup" under Settings → "Other" downloads missing built-in translation and transcription models at the next start. It is off by default. Models you already have work either way.
+"Download translation and transcription models at startup" under Settings → "Translation" or "Transcription" downloads missing built-in translation and transcription models at the next start. It is off by default. Models you already have work either way.
