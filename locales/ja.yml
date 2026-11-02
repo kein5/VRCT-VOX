@@ -139,6 +139,7 @@ common_error:
     invalid_value_speaker_max_phrase: "0 以上の数値を設定できます。"
 
     invalid_hex_color: "有効なHEXカラーコード（例: {{brand_color_hex}}）形式で入力してください。"
+    invalid_config_value: "その値は使えないため、元の設定のままにしました。"
     ocr_engine_unavailable: "チャット読み取りを開始できません。このビルドにはOCRエンジンが含まれていません。"
     ocr_model_load_failed: "チャット読み取りを開始できません。認識モデルを読み込めませんでした。設定 → チャット読み取りでダウンロードし直してください。"
     ocr_unsupported_language: "チャット読み取りを開始できません。選択中の読み取り言語には対応していません。"

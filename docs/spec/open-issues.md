@@ -13,7 +13,7 @@
 | OI-07 | UIだけにあるルートが57件ある。多くは`ui_config_setter.js`の定義が機械的に作るもので、使われない | [IPCエンドポイント一覧](reference/ipc-endpoints.md)の「UIだけにあるルート」 | 整理するか未決 |
 | OI-08 | 要求に通し番号がなく、応答はエンドポイント名で対応づける。同じエンドポイントへの要求が重なると、どの応答がどの要求のものか分からない。言語の変更だけはUIが対応づけを補っている | [IPCプロトコル](ipc-protocol.md#言語の変更の対応づけ) | 設計上の制約。変えるならプロトコルの版を上げる |
 | OI-09 | `config.json`に版番号がない。キーの意味を変えるときに移行の手がかりがない | [データ形式と保存](data-and-persistence.md#configjson) | 未決 |
-| OI-10 | エラーコード96件のうち、UIに個別の処理がないものがある。音声系などは別の経路で表示されるが、どれが汎用の通知になるかを一つずつ確かめていない | [エラーコード一覧](reference/error-codes.md) | 未確認 |
+| OI-10 | エラーコード96件のうち10件は、UIに個別の処理がない。いずれも音声認識の失敗（`AUDIO_*`、`ASR_ERROR`、`TRANSCRIPTION_API_*`など）で、`/run/transcription_recognition_error`として会話ログに出るため汎用の通知にはならない。`AUDIO_TRACKER_STOP_TIMEOUT`はテレメトリー用で画面には届かない | [エラーコード一覧](reference/error-codes.md) | 確認済み。新しいコードを足すときは同じ確認をする |
 
 ## 調べて直したもの
 
@@ -23,3 +23,4 @@
 - 文字起こし中に入力デバイスがないときの通知にエラーコードがなく、汎用の通知になっていた。
 - Deepgramのキーの確認が、認証なしでも成功する`/v1/models`で行われていた。
 - OpenAIの`gpt-4o-transcribe`系に、対応していない`verbose_json`を要求していた。
+- 設定値が拒否されたとき（`VALIDATION_CONFIG_VALUE_INVALID`）、UIに分岐がなく「開発者に連絡」の通知になっていた。

@@ -139,6 +139,7 @@ common_error:
     invalid_value_speaker_max_phrase: "You can set a number equal to or greater than 0."
 
     invalid_hex_color: "Please enter a valid HEX color code (e.g., {{brand_color_hex}})."
+    invalid_config_value: "That value cannot be used. The previous setting is kept."
     ocr_engine_unavailable: "Chat Transcribe could not start: the OCR engine is not included in this build."
     ocr_model_load_failed: "Chat Transcribe could not start: the recognition models could not be loaded. Download them again in Config → Chat Transcribe."
     ocr_unsupported_language: "Chat Transcribe could not start: the selected source language is not supported."
