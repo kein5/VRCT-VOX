@@ -72,6 +72,8 @@ class ErrorCode(str, Enum):
     TRANSLATION_VRAM_SPEAKER = "TRANSLATION_VRAM_SPEAKER"
     TRANSLATION_VRAM_ENABLE = "TRANSLATION_VRAM_ENABLE"
     TRANSLATION_DISABLED_VRAM = "TRANSLATION_DISABLED_VRAM"
+    TRANSLATION_MODEL_MISSING = "TRANSLATION_MODEL_MISSING"
+    TRANSLATION_MODEL_LOAD_FAILED = "TRANSLATION_MODEL_LOAD_FAILED"
     # The active engine (in practice the CTranslate2 fallback with the
     # selected weight) cannot translate a selected language, so that language
     # was reset. data = {"engine", "weight_type", "languages"}.
@@ -383,6 +385,18 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "category": ErrorCategory.TRANSLATION,
         "message": "Translation disabled due to VRAM overflow",
         "severity": "critical",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSLATION_MODEL_MISSING: {
+        "category": ErrorCategory.TRANSLATION,
+        "message": "The CTranslate2 model is not downloaded; translation was not enabled",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSLATION_MODEL_LOAD_FAILED: {
+        "category": ErrorCategory.TRANSLATION,
+        "message": "The CTranslate2 model could not be loaded; translation was not enabled",
+        "severity": "error",
         "user_action_required": True,
     },
     ErrorCode.TRANSLATION_LANGUAGE_UNSUPPORTED: {

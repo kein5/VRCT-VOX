@@ -12,7 +12,7 @@
 | OI-07 | UIだけにあるルートが57件ある。多くは`ui_config_setter.js`の定義が機械的に作るもので、使われない | [IPCエンドポイント一覧](reference/ipc-endpoints.md)の「UIだけにあるルート」 | 整理するか未決 |
 | OI-08 | 要求に通し番号がなく、応答はエンドポイント名で対応づける。同じエンドポイントへの要求が重なると、どの応答がどの要求のものか分からない。言語の変更だけはUIが対応づけを補っている | [IPCプロトコル](ipc-protocol.md#言語の変更の対応づけ) | 設計上の制約。変えるならプロトコルの版を上げる |
 | OI-09 | `config.json`に版番号がない。キーの意味を変えるときに移行の手がかりがない | [データ形式と保存](data-and-persistence.md#configjson) | 未決 |
-| OI-10 | エラーコード96件のうち10件は、UIに個別の処理がない。いずれも音声認識の失敗（`AUDIO_*`、`ASR_ERROR`、`TRANSCRIPTION_API_*`など）で、`/run/transcription_recognition_error`として会話ログに出るため汎用の通知にはならない。`AUDIO_TRACKER_STOP_TIMEOUT`はテレメトリー用で画面には届かない | [エラーコード一覧](reference/error-codes.md) | 確認済み。新しいコードを足すときは同じ確認をする |
+| OI-10 | エラーコード98件のうち10件は、UIに個別の処理がない。いずれも音声認識の失敗（`AUDIO_*`、`ASR_ERROR`、`TRANSCRIPTION_API_*`など）で、`/run/transcription_recognition_error`として会話ログに出るため汎用の通知にはならない。`AUDIO_TRACKER_STOP_TIMEOUT`はテレメトリー用で画面には届かない | [エラーコード一覧](reference/error-codes.md) | 確認済み。新しいコードを足すときは同じ確認をする |
 | OI-11 | VR UIの設定ウィンドウは、デスクトップの設定画面と違い「チャット読み取り」と「その他」のタブのまま。デスクトップでは2026-11-02にVRChatページへまとめた | `src-ui/views/vr/VrSettingsWindow.jsx` | VR側もそろえるか未決 |
 | OI-15 | Linuxのビルドは`uv export --no-hashes`で依存を書き出すため、`uv.lock`にあるパッケージのハッシュを確かめない。commitで固定したVCSの依存と両立させる必要がある | `tools/build_linux.py` | 未着手 |
 | OI-19 | LLMの訳が長さの上限で切れても（`finish_reason`が`length`）、成功として扱う。空の訳だけは失敗にした | `src-python/models/translation/translation_openai.py`、`translation_lmstudio.py` | 未着手 |
@@ -38,5 +38,6 @@
 - 読めない`config.json`を既定値で上書きしていた。サイドカーが落ちても知らせなかった。サイドカーのエラーを英語のまま出していた。
 - 起動時のエンジンの確認に全体の時間の上限がなく、応答を少しずつ返し続けるサーバーがあると起動が終わらなかった（OI-18）。段階ごとに30秒で打ち切り、間に合わなかったエンジンは使えない状態で起動する。
 - 会話ログがUIのメモリーと画面に際限なく残り、VR UIがオンなら変わるたびに全件をVRパネルへ送っていた（OI-17）。画面には新しい1,000件だけを残し、VRパネルへは前に送ったログとの差分だけを送る。
+- 翻訳モデルを読み込めないと、翻訳のスイッチが戻るだけで理由を知らせなかった。モデルがないのか読み込めないのかを分けて知らせる。
 - `config.json`の書き込みに失敗しても、例外を捨てて成功を返していた（OI-16）。UIに理由を知らせ、30秒ごとに書き直す。
 - 内蔵の翻訳モデル（CTranslate2とトークナイザー）とWhisperの重みは、既定のブランチから確かめずに取得していた（OI-13）。commitを固定し、大きさとSHA-256を確かめる。

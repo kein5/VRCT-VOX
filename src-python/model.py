@@ -38,7 +38,7 @@ from models.transcription.transcription_recorder import (
 from models.transcription.transcription_transcriber import AudioTranscriber
 from models.translation.translation_languages import translation_lang
 from models.transcription.transcription_languages import transcription_lang
-from models.translation.translation_utils import checkCTranslate2Weight, downloadCTranslate2Weight, downloadCTranslate2Tokenizer, backwardCompatibleRenameWeightsDir
+from models.translation.translation_utils import checkCTranslate2Weight, hasCTranslate2WeightFile, downloadCTranslate2Weight, downloadCTranslate2Tokenizer, backwardCompatibleRenameWeightsDir
 from models.transcription.transcription_whisper import checkWhisperWeight, downloadWhisperWeight
 from models.transcription.transcription_openai_compatible import checkTranscriptionApiKey, getAvailableTranscriptionModels
 from models.transcription.transcription_deepgram import (
@@ -1077,6 +1077,9 @@ class Model:
         
     def checkTranslatorCTranslate2ModelWeight(self, weight_type:str):
         return checkCTranslate2Weight(config.PATH_DATA, weight_type)
+
+    def hasTranslatorCTranslate2ModelWeightFile(self, weight_type:str):
+        return hasCTranslate2WeightFile(config.PATH_DATA, weight_type)
 
     def changeTranslatorCTranslate2Model(self):
         self.ensure_initialized()

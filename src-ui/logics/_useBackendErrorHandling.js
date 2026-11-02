@@ -140,6 +140,8 @@ export const _useBackendErrorHandling = () => {
                 showNotification_Error(localized, { category_id: error_code });
                 return;
             case "TRANSLATION_DISABLED_VRAM":
+            case "TRANSLATION_MODEL_MISSING":
+            case "TRANSLATION_MODEL_LOAD_FAILED":
                 updateTranslationStatus(data);
                 showNotification_Error(localized, { category_id: error_code });
                 return;
