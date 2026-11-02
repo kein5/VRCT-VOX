@@ -5430,6 +5430,22 @@ class Controller:
 
 
     @staticmethod
+    def _restoreWebSocketServer() -> None:
+        """ホストやポートの変更に失敗したあと、元のアドレスでサーバーを立て直す。
+
+        止めている間に元のポートをほかのプロセスが取ると、立て直しも失敗する。そのときは
+        WebSocket と、それに頼る OBS ブラウザソースをオフにする。オンのまま残すと、
+        有効と表示されたまま何も配信しない。UI はエラーを受けてこの2つを読み直す。
+        """
+        if model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT):
+            return
+        printLog("WebSocket server could not be restored on its previous address")
+        if config.OBS_BROWSER_SOURCE is True:
+            config.OBS_BROWSER_SOURCE = False
+            model.stopObsBrowserSourceServer()
+        config.WEBSOCKET_SERVER = False
+
+    @staticmethod
     def setWebSocketHost(data, *args, **kwargs) -> dict:
         # 0.0.0.0/:: (ワイルドカードアドレス) は「マシンが持つ全インター
         # フェースで listen する」ことを意味し、WebSocket サーバーは
@@ -5453,7 +5469,7 @@ class Controller:
                         model.stopWebSocketServer()
                         if not model.startWebSocketServer(data, config.WEBSOCKET_PORT):
                             # 新しいアドレスで bind できなかった。元のアドレスで立て直す
-                            model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                            Controller._restoreWebSocketServer()
                             return VRCTError.create_error_response(
                                 ErrorCode.WEBSOCKET_HOST_INVALID,
                                 data=config.WEBSOCKET_HOST
@@ -5506,7 +5522,7 @@ class Controller:
                         response = {"status":200, "result":config.WEBSOCKET_PORT}
                     else:
                         # 新しいポートで bind できなかった。元のポートで立て直す
-                        model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                        Controller._restoreWebSocketServer()
                         response = VRCTError.create_error_response(
                             ErrorCode.WEBSOCKET_PORT_UNAVAILABLE,
                             data=config.WEBSOCKET_PORT

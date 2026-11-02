@@ -118,6 +118,31 @@ class ControllerEnableWebSocketServerTests(unittest.TestCase):
             (config.WEBSOCKET_HOST, original_port),
         )
 
+    @patch("controller.isAvailableWebSocketServer", return_value=True)
+    @patch("controller.model")
+    def test_failed_restore_turns_websocket_and_obs_off(self, mock_model, _) -> None:
+        # 止めている間に元のポートも取られた。有効のまま何も配信しない状態にしない
+        original = (config.WEBSOCKET_HOST, config.WEBSOCKET_PORT, config.OBS_BROWSER_SOURCE)
+        self.addCleanup(lambda: (setattr(config, "WEBSOCKET_HOST", original[0]),
+                                 setattr(config, "WEBSOCKET_PORT", original[1]),
+                                 setattr(config, "OBS_BROWSER_SOURCE", original[2])))
+        config.WEBSOCKET_SERVER = True
+        config.OBS_BROWSER_SOURCE = True
+        mock_model.checkWebSocketServerAlive.return_value = True
+        for change in (lambda: Controller.setWebSocketPort(original[1] + 1),
+                       lambda: Controller.setWebSocketHost("127.0.0.2")):
+            with self.subTest(change=change):
+                config.WEBSOCKET_SERVER = True
+                config.OBS_BROWSER_SOURCE = True
+                mock_model.startWebSocketServer.side_effect = [False, False]
+
+                response = change()
+
+                self.assertEqual(response["status"], 400)
+                self.assertFalse(config.WEBSOCKET_SERVER)
+                self.assertFalse(config.OBS_BROWSER_SOURCE)
+                mock_model.stopObsBrowserSourceServer.assert_called()
+
 
 if __name__ == "__main__":
     unittest.main()
