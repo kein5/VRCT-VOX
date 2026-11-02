@@ -113,6 +113,7 @@ const OcrCaptureRegion_Box = () => {
         <SliderContainer
             key={key}
             label={t(`config_page.ocr.region.${key}`)}
+            state={currentOcrCaptureRegion.state}
             variable={regionPercent(region, key)}
             setterFunction={(value) => setOcrCaptureRegion(withRegionValue(region, key, value))}
             min={key === "width" || key === "height" ? 2 : 0}
@@ -244,6 +245,7 @@ const OcrPollIntervalMs_Box = () => {
         <SliderContainer
             label={t("config_page.ocr.poll_interval_ms.label")}
             desc={t("config_page.ocr.poll_interval_ms.desc")}
+            state={currentOcrPollIntervalMs.state}
             variable={currentOcrPollIntervalMs.data}
             setterFunction={setOcrPollIntervalMs}
             min={100}
@@ -263,6 +265,7 @@ const OcrMinConfidence_Box = () => {
         <SliderContainer
             label={t("config_page.ocr.min_confidence.label")}
             desc={t("config_page.ocr.min_confidence.desc")}
+            state={currentOcrMinConfidence.state}
             variable={currentOcrMinConfidence.data}
             setterFunction={setOcrMinConfidence}
             min={0.1}
@@ -282,6 +285,7 @@ const OcrBubbleMinTextLength_Box = () => {
         <SliderContainer
             label={t("config_page.ocr.bubble_min_text_length.label")}
             desc={t("config_page.ocr.bubble_min_text_length.desc")}
+            state={currentOcrBubbleMinTextLength.state}
             variable={currentOcrBubbleMinTextLength.data}
             setterFunction={setOcrBubbleMinTextLength}
             min={1}

@@ -137,10 +137,8 @@ export const useHotkeys = () => {
         if (!targetHotkey) {
             pendingHotkeys();
             const updatedHotkeys = { ...currentHotkeys.data, [targetActionKey]: null };
-            updateHotkeys(updatedHotkeys);
-            asyncStdoutToPython("/set/data/hotkeys", updatedHotkeys);
             closeNotification();
-            return true;
+            return asyncStdoutToPython("/set/data/hotkeys", updatedHotkeys);
         }
 
         const platform = await currentPlatform();
@@ -191,10 +189,8 @@ export const useHotkeys = () => {
         // 3. 競合なし：保存してバックエンドに送信
         pendingHotkeys();
         const updatedHotkeys = { ...currentHotkeys.data, [targetActionKey]: targetHotkey };
-        updateHotkeys(updatedHotkeys);
-        asyncStdoutToPython("/set/data/hotkeys", updatedHotkeys);
         closeNotification();
-        return true;
+        return asyncStdoutToPython("/set/data/hotkeys", updatedHotkeys);
     };
 
     const registerShortcuts = async () => {

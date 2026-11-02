@@ -31,6 +31,11 @@ export const useSpeechServers = () => {
         atoms.set(stateAtom, next);
         atoms.set(pendingAtom, waiting);
     }, [atoms]);
+    const backendStopped = useCallback(() => {
+        updateError("backend_unavailable");
+        atoms.set(stateAtom, value => Object.fromEntries(Object.entries(value).map(([name, row]) =>
+            [name, { ...row, state: "failed", error_code: "backend_unavailable" }])));
+    }, [atoms, updateError]);
     const reset = useCallback(() => {
         atoms.set(settingsAtom, null);
         atoms.set(stateAtom, {});
@@ -45,5 +50,5 @@ export const useSpeechServers = () => {
         }
         if (!await asyncStdoutToPython(endpoint, data)) updateError("backend_unavailable");
     }, [atoms, setError, updateError]);
-    return { settings, state, pending, error, send, updateSettings, updateState, updateError, reset };
+    return { settings, state, pending, error, send, updateSettings, updateState, updateError, reset, backendStopped };
 };

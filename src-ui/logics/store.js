@@ -1,5 +1,6 @@
 import {
     atom,
+    getDefaultStore,
     useAtomValue,
     useSetAtom
 } from "jotai";
@@ -13,6 +14,8 @@ import {
 } from "@ui_configs";
 import { keepNewestVrLayout } from "./common/vrPanelTooltip";
 import { requestSettingsNavigation } from "./voice/settingsNavigation";
+
+import { pendingRequestRecovery, restorePendingValue, restoreDownloadPending, staticPendingControls } from "./common/pendingRequestRecovery.js";
 
 export const store = {
     backend_subprocess: null,
@@ -39,6 +42,18 @@ export const createAtomWithHook = (initialValue, base_name, options) => {
         state: (options?.is_state_ok) ? "ok" : "pending",
         data: initialValue,
     });
+
+    const restore = (request, all = false, publish = false) => {
+        const atoms = getDefaultStore();
+        const previous = atoms.get(atomInstance);
+        const next = options?.pending_control?.download ? restoreDownloadPending(previous, request, all) : restorePendingValue(previous);
+        if (next === previous && !publish) return false;
+        // VR can be pending while the main atom is already confirmed. Publish
+        // that value again so the existing mirror releases the VR control too.
+        atoms.set(atomInstance, next === previous ? { ...next } : next);
+        return true;
+    };
+    pendingRequestRecovery.register({ ...staticPendingControls[base_name], ...options?.pending_control, restore, stop: () => restore(undefined, true, true) });
 
     const useHook = () => {
         const currentAtom = useAtomValue(atomInstance);

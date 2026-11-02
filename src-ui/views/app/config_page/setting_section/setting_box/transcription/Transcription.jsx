@@ -448,6 +448,7 @@ const MicAvgLogprobContainer = () => {
         <SliderContainer
             label={t("config_page.transcription.mic_avg_logprob.label")}
             desc={t("config_page.transcription.mic_avg_logprob.desc")}
+            state={currentMicAvgLogprob.state}
             variable={currentMicAvgLogprob.data}
             setterFunction={setMicAvgLogprob}
             min={-2}
@@ -467,6 +468,7 @@ const MicNoSpeechProbContainer = () => {
         <SliderContainer
             label={t("config_page.transcription.mic_no_speech_prob.label")}
             desc={t("config_page.transcription.mic_no_speech_prob.desc")}
+            state={currentMicNoSpeechProb.state}
             variable={currentMicNoSpeechProb.data}
             setterFunction={setMicNoSpeechProb}
             min={0}
@@ -486,6 +488,7 @@ const SpeakerAvgLogprobContainer = () => {
         <SliderContainer
             label={t("config_page.transcription.speaker_avg_logprob.label")}
             desc={t("config_page.transcription.speaker_avg_logprob.desc")}
+            state={currentSpeakerAvgLogprob.state}
             variable={currentSpeakerAvgLogprob.data}
             setterFunction={setSpeakerAvgLogprob}
             min={-2}
@@ -505,6 +508,7 @@ const SpeakerNoSpeechProbContainer = () => {
         <SliderContainer
             label={t("config_page.transcription.speaker_no_speech_prob.label")}
             desc={t("config_page.transcription.speaker_no_speech_prob.desc")}
+            state={currentSpeakerNoSpeechProb.state}
             variable={currentSpeakerNoSpeechProb.data}
             setterFunction={setSpeakerNoSpeechProb}
             min={0}

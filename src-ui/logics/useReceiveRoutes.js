@@ -1,3 +1,4 @@
+import { store } from "@store";
 import { useEffect } from "react";
 import { useI18n } from "@useI18n";
 import * as realtime from "./transcription/useRealtimeASR";
@@ -10,7 +11,8 @@ import * as downloads from "./voice/useModelDownloads";
 import { _useBackendErrorHandling } from "./_useBackendErrorHandling";
 import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import { useStdoutToPython } from "@useStdoutToPython";
-import { receiveLanguageMutation, resetLanguageMutations } from "./main/languageMutations";
+import { pendingRequestRecovery, featureResyncReads } from "./common/pendingRequestRecovery.js";
+import { receiveLanguageMutation, resetLanguageMutations, isLanguageMutation } from "./main/languageMutations";
 
 export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/model_download_catalog", ns: downloads, hook_name: "useModelDownloads", method_name: "updateCatalog" },
@@ -181,11 +183,12 @@ export const useReceiveRoutes = () => {
     const { showNotification_Error, showNotification_Warning, showNotification_Success, dismissNotification } = common.useNotificationStatus();
     const { t } = useI18n();
     const { errorHandling_Backend } = _useBackendErrorHandling();
-    const { settings: voiceSettings, status: voiceStatus, send: sendVoice, reset: resetVoice, updateTtsError, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
+    const { settings: voiceSettings, status: voiceStatus, send: sendVoice, reset: resetVoice, backendStopped: stopVoicePending, updateTtsError, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
     const voiceConnected = voiceSettings !== null;
     useEffect(() => {
         if (!voiceConnected) return;
         const poll = () => {
+            if (store.backend_stopped) return;
             sendVoice("/get/data/voice_status");
             sendVoice("/get/data/voice_route");
             sendVoice("/get/data/direct_voice_state");
@@ -194,24 +197,24 @@ export const useReceiveRoutes = () => {
         const timer = setInterval(poll, 1000);
         return () => clearInterval(timer);
     }, [voiceConnected, sendVoice]);
-    const { state: speechState, pending: speechPending, send: sendSpeech, updateError: updateSpeechError, reset: resetSpeech } = speech.useSpeechServers();
+    const { state: speechState, pending: speechPending, send: sendSpeech, updateError: updateSpeechError, reset: resetSpeech, backendStopped: stopSpeechPending } = speech.useSpeechServers();
     const speechActive = Object.values(speechState).some(row => ["preparing", "ready", "stopping"].includes(row.state)) || Object.keys(speechPending).length > 0
         || voiceStatus.tts_server_starting === true;
     useEffect(() => {
         if (!speechActive) return;
-        const timer = setInterval(() => sendSpeech("/get/data/speech_server_state"), 500);
+        const timer = setInterval(() => !store.backend_stopped && sendSpeech("/get/data/speech_server_state"), 500);
         return () => clearInterval(timer);
     }, [speechActive, sendSpeech]);
-    const { state: downloadState, hardware: modelHardware, pending: downloadPending, send: sendDownload, updateError: updateDownloadError, reset: resetDownloads } = downloads.useModelDownloads();
+    const { state: downloadState, hardware: modelHardware, pending: downloadPending, send: sendDownload, updateError: updateDownloadError, reset: resetDownloads, backendStopped: stopDownloadPending } = downloads.useModelDownloads();
     useEffect(() => {
         if (modelHardware.phase !== 'probing') return;
-        const timer = setInterval(() => sendDownload('/get/data/model_download_hardware'), 500);
+        const timer = setInterval(() => !store.backend_stopped && sendDownload('/get/data/model_download_hardware'), 500);
         return () => clearInterval(timer);
     }, [modelHardware.phase, sendDownload]);
     const downloadActive = !!downloadPending || Object.values(downloadState.jobs).some(job => ["queued", "downloading", "verifying", "cancelling"].includes(job.phase));
     useEffect(() => {
         if (!downloadActive) return;
-        const timer = setInterval(() => sendDownload("/get/data/model_download_state"), 750);
+        const timer = setInterval(() => !store.backend_stopped && sendDownload("/get/data/model_download_state"), 750);
         return () => clearInterval(timer);
     }, [downloadActive, sendDownload]);
     useEffect(() => {
@@ -219,11 +222,11 @@ export const useReceiveRoutes = () => {
         const timer = setTimeout(() => updateDownloadError("request_unconfirmed"), 10000);
         return () => clearTimeout(timer);
     }, [downloadPending, updateDownloadError]);
-    const { state: realtimeState, send: sendRealtime, updateError: updateRealtimeError, reset: resetRealtime } = realtime.useRealtimeASR();
+    const { state: realtimeState, send: sendRealtime, updateError: updateRealtimeError, reset: resetRealtime, backendStopped: stopRealtimePending } = realtime.useRealtimeASR();
     const realtimeActive = Object.values(realtimeState).some(value => value.requested);
     useEffect(() => {
         if (!realtimeActive) return;
-        const timer = setInterval(() => sendRealtime("/get/data/realtime_asr_state"), 500);
+        const timer = setInterval(() => !store.backend_stopped && sendRealtime("/get/data/realtime_asr_state"), 500);
         return () => clearInterval(timer);
     }, [realtimeActive, sendRealtime]);
     const { updateIsBackendReady } = common.useIsBackendReady();
@@ -263,9 +266,12 @@ export const useReceiveRoutes = () => {
 
 
     const receiveRoutes = (parsed_data) => {
-        const { endpoint, status, result } = parsed_data;
+        const { endpoint = "", status, result } = parsed_data;
+        if (!pendingRequestRecovery.acceptResponse(endpoint)) return;
+        pendingRequestRecovery.receive(parsed_data, asyncStdoutToPython);
+        if (status === 500 && featureResyncReads[endpoint]) asyncStdoutToPython(featureResyncReads[endpoint]);
         if (status !== 200 && endpoint.includes("model_download")) {
-            updateDownloadError(result?.error_code || "download_failed");
+            updateDownloadError(result?.error_code || "download_failed", endpoint);
             return;
         }
         // On Linux the Device page Mic choice is the default RVC input (`preferred`).
@@ -280,7 +286,7 @@ export const useReceiveRoutes = () => {
         // The main TTS toggle can start or stop a bundled server; keep Settings in step.
         if (["/run/enable_tts", "/run/disable_tts"].includes(endpoint)) sendSpeech("/get/data/speech_server_state");
         if (status !== 200 && ["/run/enable_tts", "/run/disable_tts"].includes(endpoint)) {
-            updateTtsError(result?.error_code || "voice_request_failed", endpoint);
+            updateTtsError(result?.error_code || "voice_request_failed", endpoint, status);
             sendVoice("/get/data/voice_status");
             return;
         }
@@ -300,7 +306,8 @@ export const useReceiveRoutes = () => {
             return;
         }
         if (status !== 200 && endpoint.includes("direct_voice")) {
-            updateDirectError(result?.error_code || "source_bridge_request_failed", endpoint);
+            updateDirectError(result?.error_code || "source_bridge_request_failed", endpoint, status);
+            if ([404, 423, 500].includes(status) && endpoint !== "/get/data/direct_voice_state") sendVoice("/get/data/direct_voice_state");
             return;
         }
         if (status !== 200 && (endpoint.includes("/voice_") || ["/run/stop_voice", "/run/mute_voice", "/run/resume_voice"].includes(endpoint))) {
@@ -380,6 +387,14 @@ export const useReceiveRoutes = () => {
                 // console.log(`from backend: %c ${JSON.stringify(parsed_data)}`, style_348);
                 break;
 
+            case 404:
+            case 423:
+                // Language mutations already publish their own failure notice.
+                if (!isLanguageMutation(endpoint)) showNotification_Error(t(`common_error.request_${status}`),
+                    { category_id: `request_${status}` });
+                console.error("Sidecar request rejected", parsed_data);
+                break;
+
             case 500:
                 console.error("Unexpected sidecar error", parsed_data);
                 showNotification_Error(t("common_error.unexpected_error", { code: parsed_data.endpoint ?? "500" }), { hide_duration: null });
@@ -390,7 +405,15 @@ export const useReceiveRoutes = () => {
         }
     };
 
-    return { receiveRoutes };
+    const backendStopped = () => {
+        pendingRequestRecovery.stop();
+        resetLanguageMutations();
+        stopVoicePending();
+        stopSpeechPending();
+        stopDownloadPending();
+        stopRealtimePending();
+    };
+    return { receiveRoutes, backendStopped };
 };
 
 const style_348 = [

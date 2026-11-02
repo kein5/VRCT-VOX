@@ -12,6 +12,7 @@ export const Slider = (props) => {
         marks
     } = useSliderLogic({
         variable: props.variable,
+        state: props.state,
         setterFunction: props.setterFunction,
         setter_timing: props.setter_timing,
         postUpdateAction: props.postUpdateAction,

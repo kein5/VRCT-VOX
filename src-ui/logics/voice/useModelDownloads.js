@@ -31,7 +31,18 @@ export const useModelDownloads = () => {
         updateState(value);
         setPending(null);
     }, [updateState, setPending]);
-    const updateError = useCallback(value => { setError(value); setPending(null); }, [setError, setPending]);
+    const updateError = useCallback((value, endpoint = "") => {
+        setError(value); setPending(null);
+        if (value && endpoint.includes("model_download_hardware"))
+            store.set(hardwareAtom, previous => ({ ...previous, phase: "failed", error_code: value }));
+    }, [store, setError, setPending]);
+    const backendStopped = useCallback(() => {
+        updateError("backend_unavailable");
+        store.set(stateAtom, value => ({ ...value, jobs: Object.fromEntries(Object.entries(value.jobs).map(([id, job]) =>
+            [id, ["queued", "downloading", "verifying", "cancelling"].includes(job.phase)
+                ? { ...job, phase: "failed", error_code: "backend_unavailable" } : job])) }));
+        store.set(hardwareAtom, value => value.phase === "probing" ? { ...value, phase: "failed", error_code: "backend_unavailable" } : value);
+    }, [store, updateError]);
     const reset = useCallback(() => {
         store.set(catalogAtom, null); store.set(stateAtom, { observation_id: "0", jobs: {} });
         store.set(errorAtom, null); store.set(pendingAtom, null);
@@ -49,5 +60,5 @@ export const useModelDownloads = () => {
     const ensureHardware = useCallback(() => {
         if (store.get(hardwareAtom).phase === 'unknown') send('/run/refresh_model_download_hardware', {});
     }, [store, send]);
-    return { catalog, state, hardware, error, pending, send, ensureHardware, updateHardware, updateCatalog, updateState, acknowledge, updateError, reset };
+    return { catalog, state, hardware, error, pending, send, ensureHardware, updateHardware, updateCatalog, updateState, acknowledge, updateError, reset, backendStopped };
 };
