@@ -122,6 +122,7 @@ common:
     copy_version: "Copy version {{version}}"
 
 common_error:
+    unexpected_error: "Something went wrong ({{code}}). If it doesn't recover, restart VRCT-VOX. If it keeps happening, report it in the VRCT-VOX issues with this code."
     backend_stopped: "The VRCT-VOX engine stopped unexpectedly (code {{code}}). Settings and switches no longer respond. Please restart VRCT-VOX."
     transcription_api_auth_failed: "The speech recognition service did not accept the API key. Check the key and, for a custom server, its URL."
     transcription_model_invalid: "That speech recognition model is not available."

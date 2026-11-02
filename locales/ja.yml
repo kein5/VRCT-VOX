@@ -122,6 +122,7 @@ common:
     copy_version: "バージョン {{version}} をコピー"
 
 common_error:
+    unexpected_error: "予期しないエラーが起きました（{{code}}）。直らないときはVRCT-VOXを再起動してください。続くようなら、このコードを添えてVRCT-VOXのIssuesで知らせてください。"
     backend_stopped: "VRCT-VOXの処理部分が予期せず停止しました（コード {{code}}）。設定やスイッチは反応しません。VRCT-VOXを再起動してください。"
     transcription_api_auth_failed: "音声認識サービスがAPIキーを受け付けませんでした。キーと、カスタムサーバーの場合はURLを確認してください。"
     transcription_model_invalid: "その音声認識モデルは使えません。"
