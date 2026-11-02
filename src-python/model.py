@@ -1518,6 +1518,8 @@ class Model:
                     # is_loaded_ctranslate2_model を True にしてから解放する)。
                     break
                 sleep(0.1)
+            if isinstance(translation, str) and not translation.strip() and str(message).strip():
+                translation = False  # 切り替え先の空の訳も、訳せなかったとして扱う
             if isinstance(translation, str):
                 success_flag = True
             elif translation is None and not primary_failed:

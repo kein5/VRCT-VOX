@@ -68,6 +68,25 @@ class TestGetTranslateSuccessFlagSemantics(unittest.TestCase):
         self.assertEqual(translation, "こんにちは")
         self.assertTrue(success_flag)
 
+    def test_empty_fallback_translation_is_a_failure(self) -> None:
+        # 切り替え先の CTranslate2 も空を返した。成功にすると、訳だけを送る設定で何も送られない
+        self.model.translator = type("T", (), {
+            "translate": staticmethod(lambda **kwargs: ""),
+            "isLoadedCTranslate2Model": staticmethod(lambda: True),
+        })()
+
+        with patch("model.errorLogging"), patch("model.sleep"):
+            translation, success_flag = self.model.getTranslate(
+                translator_name="OpenAI_API",
+                source_language="English",
+                target_language="Japanese",
+                target_country="Japan",
+                message="hello",
+            )
+
+        self.assertEqual(translation, "hello")
+        self.assertFalse(success_flag)
+
     def test_real_backend_failure_is_still_reported_as_failure(self) -> None:
         calls = {"n": 0}
 
