@@ -2,3 +2,11 @@
     display: flex;
     flex-direction: column;
 }
+
+.obs_url_description {
+    margin: .4rem 0 1.2rem;
+    color: var(--vox_description_text);
+    font-size: 1.2rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}

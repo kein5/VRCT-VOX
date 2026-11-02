@@ -787,10 +787,11 @@ config_page:
         obs_browser_source:
             section_label: "OBS ブラウザソース"
         enable_obs_browser_source:
-            label: "OBS ブラウザソースを有効化"
+            label: "OBSブラウザソースを有効化"
             desc: "OBS（ブラウザソース）向けに翻訳を表示するオーバーレイページをホストし、一定時間後にフェードアウトします。"
         obs_browser_source_url:
             label: "OBS URL（クリックでコピー）"
+            desc: "OBSのURLにキーが含まれるようになりました。もう一度コピーして、OBSのブラウザソースのURLを更新してください。"
         obs_browser_source_port:
             label: "OBS ポート"
         obs_browser_source_max_messages:

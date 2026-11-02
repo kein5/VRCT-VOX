@@ -2,6 +2,8 @@ import { useI18n } from "@useI18n";
 import styles from "./AdvancedSettings.module.scss";
 import { DirectVoiceSettings } from "./DirectVoiceSettings";
 import { AutoExportMessageLogsContainer } from "../shared_items/SharedItems";
+import { Description } from "../_components/description/Description";
+import { buildObsBrowserSourceUrl } from "../../../../../../logics/configs/obsBrowserSourceUrl";
 
 import { useCopyToClipboard, useOpenFolder } from "@logics_common";
 import {
@@ -259,20 +261,28 @@ const EnableObsBrowserSourceContainer = () => {
 const ObsBrowserSourceUrlContainer = () => {
     const { t } = useI18n();
     const { copyToClipboard } = useCopyToClipboard();
-    const { currentWebsocketHost, currentObsBrowserSourcePort } = useAdvancedSettings();
+    const { currentWebsocketHost, currentObsBrowserSourcePort, currentWebsocketAuthToken } = useAdvancedSettings();
 
-    const host = currentWebsocketHost.data === "0.0.0.0" ? "127.0.0.1" : currentWebsocketHost.data;
-    const url = `http://${host}:${currentObsBrowserSourcePort.data}/obs`;
+    const { url, shown } = buildObsBrowserSourceUrl(
+        currentWebsocketHost.data, currentObsBrowserSourcePort.data, currentWebsocketAuthToken.data,
+    );
 
     return (
-        <ActionButtonContainer
-            label={t("config_page.advanced_settings.obs_browser_source_url.label")}
-            desc={url}
-            IconComponent={CopyThinSvg}
-            ClickedIconComponent={CheckMarkSvg}
-            clicked_duration={1000}
-            onclickFunction={() => copyToClipboard(url)}
-        />
+        <>
+            <ActionButtonContainer
+                label={t("config_page.advanced_settings.obs_browser_source_url.label")}
+                desc={shown}
+                IconComponent={CopyThinSvg}
+                ClickedIconComponent={CheckMarkSvg}
+                clicked_duration={1000}
+                onclickFunction={() => copyToClipboard(url)}
+            />
+            <Description
+                text={t("config_page.advanced_settings.obs_browser_source_url.desc")}
+                className={styles.obs_url_description}
+                fold={false}
+            />
+        </>
     );
 };
 
