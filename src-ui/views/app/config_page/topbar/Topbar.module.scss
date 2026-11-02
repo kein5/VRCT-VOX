@@ -1,11 +1,11 @@
-.container { position: absolute; top: 1.6rem; left: 2.4rem; right: 2.4rem; display: flex; justify-content: flex-end; align-items: center; gap: 1.2rem; pointer-events: none; }
+.container { container: topbar / inline-size; position: absolute; top: 1.6rem; left: 2.4rem; right: 2.4rem; display: flex; justify-content: flex-end; align-items: center; gap: 1.2rem; pointer-events: none; }
 .container > * { pointer-events: auto; }
 .back { display: flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .8rem 1.6rem; border-radius: var(--vox_radius); color: var(--dark_200_color); background: var(--dark_850_color); font-size: 1.4rem; cursor: pointer; flex-shrink: 0; }
 .back svg { width: 1.8rem; height: 1.8rem; }
 .back:hover { background: var(--dark_800_color); }
 .back:active { background: var(--dark_900_color); }
 
-.save_bar { flex: 1; min-width: 0; display: flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .4rem .4rem .4rem 1.4rem; border-radius: var(--vox_radius); background: var(--dark_900_color); border: .1rem solid var(--dark_800_color); }
+.save_bar { flex: 1; min-width: min-content; display: flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .4rem .4rem .4rem 1.4rem; border-radius: var(--vox_radius); background: var(--dark_900_color); border: .1rem solid var(--dark_800_color); }
 .save_bar.is_dirty { border-color: var(--primary_500_color); }
 // The state word never truncates; the list of changed fields gives way first.
 .summary { flex: 1; display: flex; align-items: center; gap: 1rem; }
@@ -53,9 +53,16 @@
     .container { flex-wrap: wrap; row-gap: .8rem; }
     .stop_actions { flex-basis: 100%; justify-content: flex-end; flex-wrap: wrap; }
 }
-.save_slot { flex: 1; min-width: 0; display: flex; }
+// Never narrower than its contents: the back button wraps instead of the
+// buttons drawing over each other.
+.save_slot { flex: 1; min-width: min-content; display: flex; }
 .stop { font-variant-numeric: tabular-nums; }
 // Muted is a reported state worth seeing from every page; the text says it too.
 .stop.is_pressed { color: var(--vox_state_warning); border-color: var(--vox_state_warning); background: var(--dark_900_color); }
 .stop:disabled { opacity: .6; cursor: not-allowed; }
 .muted_badge { padding: .1rem .6rem; border-radius: .4rem; font-size: 1.2rem; color: var(--dark_1000_color); background: var(--vox_state_warning); }
+// When the save bar and the labelled back button do not fit one row, the arrow
+// alone keeps them together; the button keeps its name (aria-label).
+@container topbar (max-width: 38rem) {
+    .back_label { display: none; }
+}
