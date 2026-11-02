@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decodeOrdered, encodeOrdered, isRelayAllowed, isSecretAtomName } from "./vrPanelWire.js";
+import { decodeLogUpdate, decodeOrdered, diffLogRows, encodeLogUpdate, encodeOrdered, isLogUpdate, isRelayAllowed, isSecretAtomName } from "./vrPanelWire.js";
 
 // Tauri の emit を通ったときの変化を模す: キーを辞書順にし、undefined を落とし、NaN を null にする
 const sortKeysDeep = value => Array.isArray(value) ? value.map(sortKeysDeep)
@@ -44,4 +44,50 @@ test("the VR panel cannot change where saved keys are sent or what runs", () => 
 test("credentials are not mirrored to the VR panel", () => {
     for (const name of ["DeepLAuthKey", "OpenAICompatibleAuthKey", "DeepgramAuthKey", "WebsocketAuthToken"]) assert.equal(isSecretAtomName(name), true, name);
     for (const name of ["SelectedFontFamily", "MessageLogs", "OpenAICompatibleUrl", "SelectedTranslationEngines"]) assert.equal(isSecretAtomName(name), false, name);
+});
+
+const row = (id, text = id) => ({ id, category: "sent", status: "ok", messages: { original: { message: text, transliteration: [] }, translations: [] } });
+
+test("a log diff sends only the rows that changed", () => {
+    const [a, b, c, d] = ["a", "b", "c", "d"].map(id => row(id));
+    assert.deepEqual(diffLogRows([a, b], [a, b, c]), { drop: 0, keep: 2, rows: [c] }); // 追加
+    assert.deepEqual(diffLogRows([a, b, c], [b, c, d]), { drop: 1, keep: 2, rows: [d] }); // 上限で先頭が落ちた
+    const b2 = { ...b, status: "pending" };
+    assert.deepEqual(diffLogRows([a, b, c], [a, b2, c]), { drop: 0, keep: 1, rows: [b2, c] }); // 途中の行が変わった
+    assert.deepEqual(diffLogRows([a, b, c], [a, c]), { drop: 0, keep: 1, rows: [c] }); // 途中の行が消えた
+    assert.deepEqual(diffLogRows([a, b], []), { drop: 2, keep: 0, rows: [] });
+    assert.equal(diffLogRows([a, b], [row("a"), b]), null); // 先頭が作り直された
+    assert.equal(diffLogRows([], [a]), null);
+});
+
+test("the VR panel rebuilds the same log from the diffs", () => {
+    let sent = null, received = null, rows = [];
+    const steps = [
+        current => [...current, row("a")],
+        current => [...current, row("b"), row("c")],
+        current => current.map(item => item.id === "b" ? { ...item, status: "pending" } : item),
+        current => [...current.slice(1), row("d")],
+        current => current.filter(item => item.id !== "c"),
+        () => [],
+        current => [...current, row("e", "日本語")],
+    ];
+    for (const step of steps) {
+        rows = step(rows);
+        const update = encodeLogUpdate(sent, { state: "ok", data: rows });
+        sent = update.sent;
+        const encoded = emitRoundTrip(update.message);
+        assert.equal(isLogUpdate(encoded), true);
+        received = decodeLogUpdate(received, encoded);
+        assert.deepEqual(received.rows, rows);
+        assert.equal(received.state, "ok");
+    }
+});
+
+test("a log diff against a log the VR panel did not receive is refused", () => {
+    const first = encodeLogUpdate(null, { state: "ok", data: [row("a")] });
+    const second = encodeLogUpdate(first.sent, { state: "ok", data: [...first.sent.rows, row("b")] });
+    assert.equal(decodeLogUpdate(null, emitRoundTrip(second.message)), null); // 起動直後で全件をまだ受け取っていない
+    const full = encodeLogUpdate(second.sent, { state: "ok", data: second.sent.rows }, true);
+    assert.deepEqual(decodeLogUpdate(null, emitRoundTrip(full.message)).rows, second.sent.rows);
+    assert.equal(isLogUpdate(encodeOrdered({ state: "ok", data: [] })), false);
 });

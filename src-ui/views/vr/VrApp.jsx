@@ -18,7 +18,7 @@ import { VrPopupWindow } from "./VrPopupWindow";
 import { VrToolbar } from "./VrToolbar";
 import { VrTooltip } from "./VrTooltip";
 import { keepNewestVrLayout } from "../../logics/common/vrPanelTooltip";
-import { decodeOrdered } from "../../logics/common/vrPanelWire";
+import { decodeLogUpdate, decodeOrdered, isLogUpdate } from "../../logics/common/vrPanelWire";
 
 import styles from "./VrApp.module.scss";
 
@@ -122,12 +122,28 @@ const VrPointerHover = () => {
 };
 
 // メインウィンドウから送られてくるatomの値を、このウィンドウのatomへそのまま反映する。
+// 会話ログは差分で届くので、前に受け取ったログに当てる。差分の元を受け取っていなければ、全件を頼み直す
 const VrStateReceiver = () => {
     useEffect(() => {
         const jotai = getDefaultStore();
+        let receivedLog = null;
+        let isAwaitingFullLog = true; // 起動時の vr-panel-ready で全件が届く
         const unlisten = listen("vr-panel-state", ({ payload }) => {
             for (const [name, encoded] of Object.entries(payload)) {
-                const value = decodeOrdered(encoded);
+                let value;
+                if (isLogUpdate(encoded)) {
+                    const log = decodeLogUpdate(receivedLog, encoded);
+                    if (!log) {
+                        if (!isAwaitingFullLog) emit("vr-panel-ready");
+                        isAwaitingFullLog = true;
+                        continue;
+                    }
+                    receivedLog = log;
+                    isAwaitingFullLog = false;
+                    value = { state: log.state, data: log.rows };
+                } else {
+                    value = decodeOrdered(encoded);
+                }
                 const atom = dynamicStoreRegistry[`Atom_${name}`];
                 if (atom) jotai.set(atom, previous => name === "VrPanelLayout" &&
                     keepNewestVrLayout(previous.data, value.data) === previous.data ? previous : value);

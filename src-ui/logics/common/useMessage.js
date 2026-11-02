@@ -8,16 +8,21 @@ import {
 import { useStore } from "jotai";
 import { realtimeStateAtom, realtimeRetiredAtom } from "../transcription/useRealtimeASR";
 import { applyRealtimeCaption } from "../transcription/realtimeCaptionState";
+import { keepRecentLogs } from "./messageLogLimit";
 
 import { useStdoutToPython } from "@useStdoutToPython";
 
 const COOLDOWN = 2000; // 2 seconds
 
 export const useMessage = () => {
-    const { currentMessageLogs, addMessageLogs, updateMessageLogs } = useStore_MessageLogs();
+    const { currentMessageLogs, updateMessageLogs } = useStore_MessageLogs();
     const { currentMessageInputValue, updateMessageInputValue } = useStore_MessageInputValue();
     const { asyncStdoutToPython } = useStdoutToPython();
     const atoms = useStore();
+
+    const addMessageLog = (message_object) => {
+        updateMessageLogs((current) => keepRecentLogs([...current.data, message_object]));
+    };
 
     const sendMessage = (message, uuid = crypto.randomUUID()) => {
         if (typeof message !== "string" || !message.trim()) return Promise.resolve(false);
@@ -27,7 +32,7 @@ export const useMessage = () => {
         };
         const sent = asyncStdoutToPython("/run/send_message_box", send_message_object);
 
-        addMessageLogs({
+        addMessageLog({
             id: uuid,
             category: "sent",
             status: "pending",
@@ -44,7 +49,7 @@ export const useMessage = () => {
         const uuid = crypto.randomUUID();
         const date = generateTimeData();
 
-        addMessageLogs({
+        addMessageLog({
             id: uuid,
             category: "system",
             status: "system",
@@ -66,12 +71,12 @@ export const useMessage = () => {
 
     const addSentMessageLog = (payload) => {
         const message_object = generateMessageObject(payload, "sent");
-        updateMessageLogs((current) => [...current.data, message_object]);
+        addMessageLog(message_object);
     };
 
     const addReceivedMessageLog = (payload) => {
         const message_object = generateMessageObject(payload, "received");
-        updateMessageLogs((current) => [...current.data, message_object]);
+        addMessageLog(message_object);
     };
 
     const updateRealtimeCaption = (payload) => {
@@ -87,7 +92,7 @@ export const useMessage = () => {
         const before = { rows: logs.data, retired: atoms.get(realtimeRetiredAtom) };
         const after = applyRealtimeCaption(before, payload, active);
         if (after !== before) {
-            atoms.set(Atom_MessageLogs, { ...logs, state: "ok", data: after.rows });
+            atoms.set(Atom_MessageLogs, { ...logs, state: "ok", data: keepRecentLogs(after.rows) });
             atoms.set(realtimeRetiredAtom, after.retired);
         }
     };
