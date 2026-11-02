@@ -995,12 +995,12 @@ Watchdog を停止し、スレッドの終了を待機。
 
 #### サーバー制御
 
-##### `startWebSocketServer(host: str, port: int) -> None`
+##### `startWebSocketServer(host: str, port: int) -> bool`
 
 **責務:** WebSocket サーバーの起動
 
 **処理:**
-1. 既に起動中なら何もしない
+1. 既に起動中なら True を返す。bind の成否が決まるまで待ち、起動できなければ False を返す
 2. `websocket_server_loop = True` に設定
 3. 別スレッドで asyncio イベントループを実行:
    ```python

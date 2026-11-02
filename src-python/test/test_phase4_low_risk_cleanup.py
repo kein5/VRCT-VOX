@@ -105,6 +105,8 @@ class WebSocketServerLifecycleLockTests(unittest.TestCase):
             observed_locked_during_start.append(lock.locked())
             # 実際にスレッドを起動すると非同期のWebSocketServerMain()が
             # 本物のポートbindを試みてしまうため、無害なダミーに差し替える。
+            # 起動の結果を待つ startWebSocketServer() を待たせないよう、結果が出たことにする
+            self.model._websocket_server_ready.set()
             return real_thread_cls(target=lambda: None, daemon=True)
 
         with patch("model.Thread", side_effect=fake_thread):
@@ -137,6 +139,7 @@ class WebSocketServerLifecycleLockTests(unittest.TestCase):
             # 起動直後に alive フラグを立てる (実際のWebSocketServerMain()の
             # 冒頭相当を模す)。
             self.model.websocket_server_alive = True
+            self.model._websocket_server_ready.set()
             return real_thread_cls(target=lambda: None, daemon=True)
 
         with patch("model.Thread", side_effect=fake_thread):

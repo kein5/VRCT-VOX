@@ -1,0 +1,123 @@
+"""WebSocket サーバーが bind できなかったら、有効にしたと返さない。
+
+空きポートの確認 (isAvailableWebSocketServer) は一時的に bind して閉じるだけなので、
+そのあと実際に bind するまでの間にほかのプロセスがポートを取ることがある。以前は
+bind の失敗が別スレッドの中で起き、設定は有効のまま、生存フラグも立ったままだった。
+"""
+
+import socket
+import threading
+import unittest
+from unittest.mock import patch
+
+from config import config
+from controller import Controller
+from errors import ErrorCode
+from model import Model
+from models.websocket.websocket_server import WebSocketServer
+
+
+def _occupied_port() -> tuple[socket.socket, int]:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind(("127.0.0.1", 0))
+    sock.listen(1)
+    return sock, sock.getsockname()[1]
+
+
+class WebSocketServerStartTests(unittest.TestCase):
+    def test_start_raises_when_the_port_is_taken(self) -> None:
+        sock, port = _occupied_port()
+        self.addCleanup(sock.close)
+        server = WebSocketServer(host="127.0.0.1", port=port)
+
+        with self.assertRaises(OSError):
+            server.start(timeout=5.0)
+        self.assertFalse(server.is_running)
+
+    def test_start_returns_once_the_server_is_listening(self) -> None:
+        server = WebSocketServer(host="127.0.0.1", port=0)
+        self.addCleanup(server.stop)
+
+        server.start(timeout=5.0)
+
+        self.assertTrue(server.is_running)
+
+
+class ModelStartWebSocketServerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.model = Model.__new__(Model)
+        self._had_inited = hasattr(self.model, "_inited")
+        self._original_inited = getattr(self.model, "_inited", None)
+        self.model._inited = True
+        self.model._websocket_lifecycle_lock = threading.Lock()
+        self.model.websocket_server_alive = False
+        self.model.websocket_server_loop = False
+        self.model.th_websocket_server = None
+        self.model.websocket_server = None
+        self.model.message_handler = lambda *a, **k: None
+
+    def tearDown(self) -> None:
+        self.model.stopWebSocketServer()
+        if self._had_inited:
+            self.model._inited = self._original_inited
+        else:
+            try:
+                delattr(self.model, "_inited")
+            except AttributeError:
+                pass
+
+    def test_returns_false_and_stays_down_when_bind_fails(self) -> None:
+        sock, port = _occupied_port()
+        self.addCleanup(sock.close)
+
+        with patch("model.errorLogging"):
+            started = self.model.startWebSocketServer("127.0.0.1", port)
+
+        self.assertFalse(started)
+        self.assertFalse(self.model.checkWebSocketServerAlive())
+
+    def test_returns_true_when_the_server_is_listening(self) -> None:
+        self.assertTrue(self.model.startWebSocketServer("127.0.0.1", 0))
+        self.assertTrue(self.model.checkWebSocketServerAlive())
+
+
+class ControllerEnableWebSocketServerTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._original = config.WEBSOCKET_SERVER
+        config.WEBSOCKET_SERVER = False
+
+    def tearDown(self) -> None:
+        config.WEBSOCKET_SERVER = self._original
+
+    @patch("controller.isAvailableWebSocketServer", return_value=True)
+    @patch("controller.model")
+    def test_enable_reports_an_error_when_the_server_did_not_start(self, mock_model, _) -> None:
+        mock_model.startWebSocketServer.return_value = False
+
+        response = Controller.setEnableWebSocketServer()
+
+        self.assertEqual(response["status"], 400)
+        self.assertEqual(response["result"]["error_code"], ErrorCode.WEBSOCKET_SERVER_UNAVAILABLE.value)
+        self.assertFalse(config.WEBSOCKET_SERVER)
+
+    @patch("controller.isAvailableWebSocketServer", return_value=True)
+    @patch("controller.model")
+    def test_port_change_restores_the_old_port_when_the_new_one_fails(self, mock_model, _) -> None:
+        original_port = config.WEBSOCKET_PORT
+        self.addCleanup(setattr, config, "WEBSOCKET_PORT", original_port)
+        mock_model.checkWebSocketServerAlive.return_value = True
+        mock_model.startWebSocketServer.side_effect = [False, True]
+
+        response = Controller.setWebSocketPort(original_port + 1)
+
+        self.assertEqual(response["status"], 400)
+        self.assertEqual(response["result"]["error_code"], ErrorCode.WEBSOCKET_PORT_UNAVAILABLE.value)
+        self.assertEqual(config.WEBSOCKET_PORT, original_port)
+        self.assertEqual(
+            mock_model.startWebSocketServer.call_args_list[-1].args,
+            (config.WEBSOCKET_HOST, original_port),
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()

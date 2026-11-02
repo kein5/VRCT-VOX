@@ -5451,7 +5451,13 @@ class Controller:
                         response = {"status":200, "result":config.WEBSOCKET_HOST}
                     elif isAvailableWebSocketServer(data, config.WEBSOCKET_PORT):
                         model.stopWebSocketServer()
-                        model.startWebSocketServer(data, config.WEBSOCKET_PORT)
+                        if not model.startWebSocketServer(data, config.WEBSOCKET_PORT):
+                            # 新しいアドレスで bind できなかった。元のアドレスで立て直す
+                            model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                            return VRCTError.create_error_response(
+                                ErrorCode.WEBSOCKET_HOST_INVALID,
+                                data=config.WEBSOCKET_HOST
+                            )
                         config.WEBSOCKET_HOST = data
                         # The OBS overlay's HTTP server must stay bound to the
                         # same host the WebSocket server now listens on, or the
@@ -5495,9 +5501,16 @@ class Controller:
                     return {"status":200, "result":config.WEBSOCKET_PORT}
                 elif isAvailableWebSocketServer(config.WEBSOCKET_HOST, port) is True:
                     model.stopWebSocketServer()
-                    model.startWebSocketServer(config.WEBSOCKET_HOST, port)
-                    config.WEBSOCKET_PORT = port
-                    response = {"status":200, "result":config.WEBSOCKET_PORT}
+                    if model.startWebSocketServer(config.WEBSOCKET_HOST, port):
+                        config.WEBSOCKET_PORT = port
+                        response = {"status":200, "result":config.WEBSOCKET_PORT}
+                    else:
+                        # 新しいポートで bind できなかった。元のポートで立て直す
+                        model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                        response = VRCTError.create_error_response(
+                            ErrorCode.WEBSOCKET_PORT_UNAVAILABLE,
+                            data=config.WEBSOCKET_PORT
+                        )
                 else:
                     response = VRCTError.create_error_response(
                         ErrorCode.WEBSOCKET_PORT_UNAVAILABLE,
@@ -5528,8 +5541,10 @@ class Controller:
     def setEnableWebSocketServer(*args, **kwargs) -> dict:
         try:
             if config.WEBSOCKET_SERVER is False:
-                if isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True:
-                    model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                if (
+                    isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True
+                    and model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                ):
                     config.WEBSOCKET_SERVER = True
                     response = {"status":200, "result":config.WEBSOCKET_SERVER}
                 else:
@@ -5570,8 +5585,10 @@ class Controller:
 
         # OBS overlay depends on the WebSocket server to receive messages.
         if model.checkWebSocketServerAlive() is False:
-            if isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True:
-                model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+            if (
+                isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True
+                and model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+            ):
                 config.WEBSOCKET_SERVER = True
             else:
                 return VRCTError.create_error_response(
@@ -6751,9 +6768,10 @@ class Controller:
             config.WEBSOCKET_SERVER = True
 
         if config.WEBSOCKET_SERVER is True:
-            if isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True:
-                model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
-            else:
+            if not (
+                isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True
+                and model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+            ):
                 config.WEBSOCKET_SERVER = False
                 model.stopWebSocketServer()
                 printLog("WebSocket server host or port is not available")
