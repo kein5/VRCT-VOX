@@ -485,13 +485,13 @@ export const _useBackendErrorHandling = () => {
             case "GENERAL_EXCEPTION":
             case "GENERAL_UNKNOWN":
                 console.error(`Error occurred at endpoint: ${endpoint}\nerror_code: ${error_code}\nmessage: ${message}\nresult: ${JSON.stringify(result)}`);
-                showNotification_Error(localized, { category_id: error_code });
-                showNotification_Error(`An error occurred. Please contact the developers and restart VRCT. Error: ${error_code} - ${message || JSON.stringify(result)}`, { hide_duration: null, category_id: error_code });
+                // 詳細はコンソールに出した。画面には英語の例外文ではなく、することとコードだけを出す
+                showNotification_Error(t("common_error.unexpected_error", { code: error_code }), { hide_duration: null, category_id: error_code });
                 return;
 
             default:
                 console.error(`Invalid error_code or message: ${error_code}\nendpoint: ${endpoint}\nmessage: ${message}\nresult: ${JSON.stringify(result)}`);
-                showNotification_Error(`An error occurred. Please contact the developers and restart VRCT. Error: ${error_code} - ${message || JSON.stringify(result)}`, { hide_duration: null, category_id: error_code });
+                showNotification_Error(t("common_error.unexpected_error", { code: error_code ?? endpoint }), { hide_duration: null, category_id: error_code });
                 return;
         }
 

@@ -367,8 +367,8 @@ export const useReceiveRoutes = () => {
                 break;
 
             case 500:
-                showNotification_Error(
-                    `An error occurred. Please restart VRCT or contact the developers. ${JSON.stringify(parsed_data.result)}`, { hide_duration: null });
+                console.error("Unexpected sidecar error", parsed_data);
+                showNotification_Error(t("common_error.unexpected_error", { code: parsed_data.endpoint ?? "500" }), { hide_duration: null });
                 break;
 
             default:

@@ -97,6 +97,6 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
         </SetupSection>
         {/* The unsaved-changes dialog stays outside the fold so it shows while folded. */}
         {form.navigationDialog}
-        {error && <p role="alert">{error}</p>}
+        {error && <p role="alert">{t([`speech_servers.errors.${error}`, `voice_ui.errors.${error}`], { defaultValue: error })}</p>}
     </section>;
 };
