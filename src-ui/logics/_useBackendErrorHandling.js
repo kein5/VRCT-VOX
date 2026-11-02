@@ -38,7 +38,7 @@ const CLOUD_TRANSCRIPTION_BASES = Object.fromEntries(CLOUD_TRANSCRIPTION_ENGINES
 const UI_OWNED_SETTINGS = new Set(["main_window_geometry", "message_box_ratio"]);
 
 export const _useBackendErrorHandling = () => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
     const { showNotification_Error, showNotification_Warning } = useNotificationStatus();
     const { asyncStdoutToPython } = useStdoutToPython();
     const { updateIsSoftwareUpdating } = useIsSoftwareUpdating();
@@ -112,6 +112,10 @@ export const _useBackendErrorHandling = () => {
     } = useLLMConnection();
 
     const errorHandling_Backend = ({error_code, message, data, endpoint, result}) => {
+        // The sidecar's `message` is English for the log; show the UI language
+        // when a translation exists for the code.
+        const key = `backend_errors.${error_code}`;
+        const localized = typeof error_code === "string" && i18n.exists(key) ? t(key) : message;
         switch (error_code) {
             // ============================================================================
             // デバイス関連エラー (DEVICE_*)
@@ -133,11 +137,11 @@ export const _useBackendErrorHandling = () => {
             case "TRANSLATION_VRAM_MIC":
             case "TRANSLATION_VRAM_SPEAKER":
             case "TRANSLATION_VRAM_ENABLE":
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "TRANSLATION_DISABLED_VRAM":
                 updateTranslationStatus(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "TRANSLATION_LANGUAGE_UNSUPPORTED":
                 // The backend already pushed the reset language selection; this
@@ -154,15 +158,15 @@ export const _useBackendErrorHandling = () => {
             // ============================================================================
             case "TRANSCRIPTION_VRAM_MIC":
             case "TRANSCRIPTION_VRAM_SPEAKER":
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "TRANSCRIPTION_SEND_DISABLED_VRAM":
                 updateTranscriptionSendStatus(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "TRANSCRIPTION_RECEIVE_DISABLED_VRAM":
                 updateTranscriptionReceiveStatus(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             // Linux: the Mic/Speaker switch drives realtime ASR, which is not
             // configured or has stopped. details.reason names the next step.
@@ -273,7 +277,7 @@ export const _useBackendErrorHandling = () => {
                 } else if (endpoint === "/set/data/osc_ip_address") {
                     updateOscIpAddress(data);
                 }
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             // A setting the config refused. `data` is the refused value, so the
             // screen asks for the kept one again. Window geometry and the message
@@ -286,7 +290,7 @@ export const _useBackendErrorHandling = () => {
             }
             case "VALIDATION_OSC_PORT_INVALID":
                 updateOscPort(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
 
             // ============================================================================
@@ -303,27 +307,27 @@ export const _useBackendErrorHandling = () => {
             case "AUTH_PLAMO_LENGTH":
             case "AUTH_PLAMO_FAILED":
                 updatePlamoAuthKey(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "AUTH_GEMINI_LENGTH":
             case "AUTH_GEMINI_FAILED":
                 updateGeminiAuthKey(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "AUTH_OPENAI_INVALID":
             case "AUTH_OPENAI_FAILED":
                 updateOpenAIAuthKey(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "AUTH_GROQ_INVALID":
             case "AUTH_GROQ_FAILED":
                 updateGroqAuthKey(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "AUTH_OPENROUTER_INVALID":
             case "AUTH_OPENROUTER_FAILED":
                 updateOpenRouterAuthKey(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             // Cloud transcription: the endpoint names the engine, e.g.
             // /set/data/groq_whisper_auth_key -> GroqWhisperAuthKey.
@@ -346,7 +350,7 @@ export const _useBackendErrorHandling = () => {
             case "AUTH_OPENAI_COMPATIBLE_INVALID":
             case "AUTH_OPENAI_COMPATIBLE_FAILED":
                 updateOpenAICompatibleAuthKey(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
 
             // ============================================================================
@@ -354,35 +358,35 @@ export const _useBackendErrorHandling = () => {
             // ============================================================================
             case "MODEL_PLAMO_INVALID":
                 updateSelectedPlamoModel(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "MODEL_GEMINI_INVALID":
                 updateSelectedGeminiModel(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "MODEL_OPENAI_INVALID":
                 updateSelectedOpenAIModel(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "MODEL_GROQ_INVALID":
                 updateSelectedGroqModel(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "MODEL_OPENROUTER_INVALID":
                 updateSelectedOpenRouterModel(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "MODEL_LMSTUDIO_INVALID":
                 updateSelectedLMStudioModel(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "MODEL_OPENAI_COMPATIBLE_INVALID":
                 updateSelectedOpenAICompatibleModel(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "MODEL_OLLAMA_INVALID":
                 updateSelectedOllamaModel(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
 
             // ============================================================================
@@ -390,19 +394,19 @@ export const _useBackendErrorHandling = () => {
             // ============================================================================
             case "CONNECTION_LMSTUDIO_FAILED":
                 updateIsLMStudioConnected(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "CONNECTION_OLLAMA_FAILED":
                 updateIsOllamaConnected(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "CONNECTION_LMSTUDIO_URL_INVALID":
                 updateLMStudioURL(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "CONNECTION_OPENAI_COMPATIBLE_URL_INVALID":
                 updateOpenAICompatibleURL(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
 
             // ============================================================================
@@ -410,16 +414,16 @@ export const _useBackendErrorHandling = () => {
             // ============================================================================
             case "WEBSOCKET_HOST_INVALID":
                 updateWebsocketHost(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "WEBSOCKET_PORT_UNAVAILABLE":
             case "WEBSOCKET_PORT_INVALID":
                 updateWebsocketPort(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "WEBSOCKET_SERVER_UNAVAILABLE":
                 updateEnableWebsocket(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
 
             // ============================================================================
@@ -427,31 +431,31 @@ export const _useBackendErrorHandling = () => {
             // ============================================================================
             case "OBS_BROWSER_SOURCE_HOST_UNAVAILABLE":
                 updateWebsocketHost(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "OBS_BROWSER_SOURCE_PORT_UNAVAILABLE":
                 updateObsBrowserSourcePort(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE":
                 updateEnableObsBrowserSource(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "OBS_BROWSER_SOURCE_MAX_MESSAGES_INVALID":
                 updateObsBrowserSourceMaxMessages(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "OBS_BROWSER_SOURCE_DISPLAY_DURATION_INVALID":
                 updateObsBrowserSourceDisplayDuration(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "OBS_BROWSER_SOURCE_FADEOUT_DURATION_INVALID":
                 updateObsBrowserSourceFadeoutDuration(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "OBS_BROWSER_SOURCE_FONT_SIZE_INVALID":
                 updateObsBrowserSourceFontSize(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "OBS_BROWSER_SOURCE_FONT_COLOR_INVALID":
                 updateObsBrowserSourceFontColor(data);
@@ -459,7 +463,7 @@ export const _useBackendErrorHandling = () => {
                 return;
             case "OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS_INVALID":
                 updateObsBrowserSourceFontOutlineThickness(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR_INVALID":
                 updateObsBrowserSourceFontOutlineColor(data);
@@ -471,7 +475,7 @@ export const _useBackendErrorHandling = () => {
             // ============================================================================
             case "VRC_MIC_MUTE_SYNC_OSC_DISABLED":
                 updateEnableVrcMicMuteSync(data);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
 
             // ============================================================================
@@ -480,7 +484,7 @@ export const _useBackendErrorHandling = () => {
             case "GENERAL_EXCEPTION":
             case "GENERAL_UNKNOWN":
                 console.error(`Error occurred at endpoint: ${endpoint}\nerror_code: ${error_code}\nmessage: ${message}\nresult: ${JSON.stringify(result)}`);
-                showNotification_Error(message, { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 showNotification_Error(`An error occurred. Please contact the developers and restart VRCT. Error: ${error_code} - ${message || JSON.stringify(result)}`, { hide_duration: null, category_id: error_code });
                 return;
 
