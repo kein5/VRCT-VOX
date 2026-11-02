@@ -117,7 +117,7 @@ VRパネルの要求は`main`が中継する。中継しないのは、アプリ
 | `quick-chat-result` | Rust → `quick_chat` | `{id, accepted}`。同じIDの再送には前の結果を返す |
 | `quick-chat-opened` | Rust → `quick_chat` | 入力欄にフォーカスを戻す |
 | `portal-shortcut` | Rust → `main` | Waylandでホットキーが押された |
-| `vr-panel-state` | `main` → 全体 | 画面の状態を丸ごとVRパネルへ写す |
+| `vr-panel-state` | `main` → 全体 | 画面の状態をVRパネルへ写す。会話ログだけは前に送ったログとの差分で、通し番号が合わなければVRパネルが`vr-panel-ready`で全件を頼み直す |
 | `vr-panel-ready` | `vr_panel` → `main` | VRパネルの準備ができた。`main`は状態を送り直す |
 | `vr-panel-stdout` | `vr_panel` → `main` | VRパネルからの要求。`main`が許可したものだけをサイドカーへ渡す |
 | `vr-panel-config-page` | `vr_panel` → `main` | VR内の設定を開いた・閉じた |

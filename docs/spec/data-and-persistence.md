@@ -80,7 +80,7 @@ IPCでやり取りする主なデータの形と、ディスクに残すファ�
 |---|---|---|
 | `process.log`、`error.log`、`freeze_trace.log`、`crash_trace.log` | `$VRCT_CONFIG_DIR/logs/`（なければ作業フォルダ） | 診断ログ。10MBで切り詰める。`process.log`は起動のたびに空にする |
 | `startup.log` | 同上（Tauri側） | ウィンドウの起動記録 |
-| 会話ログ `YYYY-MM-DD_HH-MM-SS.log` | `PATH_LOGS` | 「会話ログを自動的に保存する」がオンのときだけ。行頭は`[SENT]`、`[RECEIVED]`、`[OCR]`、`[CHAT]` |
+| 会話ログ `YYYY-MM-DD_HH-MM-SS.log` | `PATH_LOGS` | 「会話ログを自動的に保存する」がオンのときだけ。行頭は`[SENT]`、`[RECEIVED]`、`[OCR]`、`[CHAT]`。画面は新しい1,000件しか残さないが、ファイルには古いものも残る |
 | `downloaded_models/<id>/<版>/`と`receipt.json` | `config.json`と同じフォルダ | 取得したモデル。取得中は`.partial-<16進>/` |
 | `weights/whisper/…`、`weights/ctranslate2/…` | `PATH_DATA` | 内蔵の翻訳・文字起こしモデルと、検証用の`.weight_verified.json`。取得は`src-python/models/builtin_model_pins.py`で固定したcommitから行い、各ファイルの大きさとSHA-256が合わなければ捨てる。トークナイザーも固定したcommitを読む |
 | `voice_mute_state.json` | `config.json`と同じフォルダ | `{"version": 1, "muted": 真偽}`。すぐに書き、原子的に置き換える |

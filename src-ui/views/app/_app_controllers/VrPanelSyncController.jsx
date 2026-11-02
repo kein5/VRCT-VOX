@@ -7,7 +7,7 @@ import { dynamicStoreRegistry } from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useIsOpenedConfigPage } from "@logics_common";
 import { useVr } from "@logics_configs";
-import { encodeOrdered, isRelayAllowed, isSecretAtomName } from "../../../logics/common/vrPanelWire";
+import { encodeLogUpdate, encodeOrdered, isRelayAllowed, isSecretAtomName } from "../../../logics/common/vrPanelWire";
 import { isLanguageMutation, rejectLanguageMutation } from "../../../logics/main/languageMutations";
 
 // VRパネル (vr_panel ウィンドウ) をこのウィンドウの完全なミラーにする。
@@ -36,11 +36,20 @@ const atomEntries = () => Object.entries(dynamicStoreRegistry)
     .map(([key, atom]) => [key.slice("Atom_".length), atom])
     .filter(([name]) => !isSecretAtomName(name));
 
-// ponytail: 変化したatomは値を丸ごと送る (ログ配列も全件)。ログが数千件規模で重くなるなら差分送信にする
-const emitState = (entries) => {
+// VRパネルへ最後に送った会話ログ。会話ログだけは、これとの差分を送る (vrPanelWire.encodeLogUpdate)
+let sentLog = null;
+
+// 変化したatomは値を丸ごと送る。full は会話ログも全件を送る (VRパネルが起動したときなど)
+const emitState = (entries, full = false) => {
     const payload = {};
     for (const [name, atom] of entries) {
         const value = jotai.get(atom);
+        if (name === "MessageLogs") {
+            const update = encodeLogUpdate(sentLog, value, full);
+            sentLog = update.sent;
+            payload[name] = update.message;
+            continue;
+        }
         try {
             JSON.stringify(value);
             payload[name] = encodeOrdered(value); // emit でキーが辞書順になるので、並びを保つ形で送る
@@ -77,15 +86,15 @@ export const VrPanelSyncController = () => {
         }
     }, [currentIsOpenedConfigPage.data]);
 
-    // VR UI がOFFの間は、全atomの同期も VR画面からの要求の受付もしない (VR画面のウィンドウが無く、
-    // ログが数千件に育ってもメッセージごとに全件を直列化して送ることになるため)。ONになったら全状態を送る
+    // VR UI がOFFの間は、全atomの同期も VR画面からの要求の受付もしない (VR画面のウィンドウが無いのに、
+    // 状態が変わるたびに直列化して送ることになるため)。ONになったら全状態を送る
     useEffect(() => {
         if (!is_vr_panel_enabled) return undefined;
         const entries = atomEntries();
         const unsubscribes = entries.map(([name, atom]) =>
             jotai.sub(atom, () => emitState([[name, atom]]))
         );
-        const unlistenReady = listen("vr-panel-ready", () => emitState(atomEntries()));
+        const unlistenReady = listen("vr-panel-ready", () => emitState(atomEntries(), true));
         const unlistenStdout = listen("vr-panel-stdout", ({ payload }) => {
             if (!isRelayAllowed(payload.path)) {
                 console.warn("[vr-panel] blocked request from the VR panel:", payload.path);
@@ -122,7 +131,7 @@ export const VrPanelSyncController = () => {
             }
         });
         // VRパネルが先に起動していた場合に備えて、こちらからも一度送る
-        emitState(entries);
+        emitState(entries, true);
 
         return () => {
             unsubscribes.forEach(unsubscribe => unsubscribe());
