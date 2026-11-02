@@ -1,7 +1,15 @@
 // *******************                           *******************
 // ******************* Express in "em" not "rem" *******************
 // *******************                           *******************
+// Always rendered so the keyboard can reach the button. Until the message is
+// hovered or the button has focus it takes no width (the negative margin
+// cancels the row gap), as when it was not rendered at all.
 .container {
+    &:not(.is_shown):not(:focus-within) {
+        width: 0;
+        margin-left: -0.6rem;
+        overflow: hidden;
+    }
 }
 .resend_button {
     background-color: var(--dark_825_color);
