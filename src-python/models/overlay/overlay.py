@@ -679,6 +679,8 @@ class Overlay:
         # start_cancelled と init_process の読み書きは start_lock で直列にする
         self.start_cancelled = False
         self.start_lock = Lock()
+        self._lifecycle_lock = Lock()
+        self._stop_timed_out = False
 
         self.settings: Dict[str, Dict[str, Any]] = {}
         self.lastUpdate: Dict[str, float] = {}
@@ -3065,54 +3067,59 @@ class Overlay:
             time.sleep(min(remaining, _START_CANCEL_POLL_SEC))
 
     def startOverlay(self) -> None:
-        with self.start_lock:
-            # 待っている間に OFF→ON された: 取りやめをなくして、そのまま待ち続ける
-            self.start_cancelled = False
-            if self.initialized is False and self.init_process is False:
-                self.init_process = True
-                self.thread_overlay = Thread(target=self.main)
-                self.thread_overlay.daemon = True
-                self.thread_overlay.start()
+        with self._lifecycle_lock:
+            with self.start_lock:
+                if self.initialized and not self._stop_timed_out:
+                    self.start_cancelled = False
+                    return
+                if self.thread_overlay is not None and self.thread_overlay.is_alive():
+                    # During startup OFF->ON can reuse the same pending attempt.
+                    # During teardown it must not revive or replace the worker.
+                    if self.init_process and not self._stop_timed_out:
+                        self.start_cancelled = False
+                    return
+                if self._stop_timed_out:
+                    # The old owner has exited; finish any remaining cleanup
+                    # before allowing a new owner to publish handles.
+                    self.destroyOverlays()
+                    self.releaseSession()
+                    self.initialized = False
+                self._stop_timed_out = False
+                self.start_cancelled = False
+                if self.initialized is False and self.init_process is False:
+                    self.init_process = True
+                    self.thread_overlay = Thread(target=self.main)
+                    self.thread_overlay.daemon = True
+                    self.thread_overlay.start()
 
     def shutdownOverlay(self) -> None:
-        self.requested_anchor = None
-        with self.start_lock:
-            if self.init_process is True:
-                # SteamVR の起動を待っている (または作っている) 間に止められた: 起動しないようにする
-                self.start_cancelled = True
-                return
-        if self.initialized is True and self.init_process is False:
-            if isinstance(self.thread_overlay, Thread):
-                self.loop = False
-                self.thread_overlay.join(timeout=_SHUTDOWN_JOIN_TIMEOUT_SEC)
-                if self.thread_overlay.is_alive():
-                    # mainloop()がOpenVRのブロッキング呼び出し等で詰まって
-                    # いる可能性がある。Pythonのスレッドは外部から強制終了
-                    # できないため、これ以上は待たずに諦める。
-                    #
-                    # self.overlay/self.systemはここで破棄しない: 詰まって
-                    # いるスレッドが後で復帰した際に、None化されたオブジェ
-                    # クトへ触れて例外になる恐れがあるため。代償として
-                    # OpenVRのオーバーレイハンドルとセッション参照が1つ分
-                    # リークするが、self.initializedはFalseに戻すことで
-                    # 次の startOverlay() が新しいオーバーレイを作り直せる
-                    # ようにする(=再起動しなくても機能を復旧できることを
-                    # 優先する。バックエンドレビュー フェーズ4項目31)。
-                    printLog(
-                        f"overlay: shutdownOverlayのスレッドjoinが"
-                        f"{_SHUTDOWN_JOIN_TIMEOUT_SEC}sでタイムアウトしました"
-                        "(古いスレッドは残存、ハンドルはリークします)"
-                    )
-                    self.thread_overlay = None
-                    self.initialized = False
+        with self._lifecycle_lock:
+            self.requested_anchor = None
+            with self.start_lock:
+                if self.init_process is True:
+                    # SteamVR の起動を待っている (または作っている) 間に止められた: 起動しないようにする
+                    self.start_cancelled = True
                     return
-                self.thread_overlay = None
-            # ふつうはオーバーレイのスレッドが終わるときに済ませている (teardown)。残っていれば片付ける
-            try:
-                self.destroyOverlays()
-                self.releaseSession()
-            finally:
-                self.initialized = False
+            if self.initialized is True and self.init_process is False:
+                if isinstance(self.thread_overlay, Thread):
+                    self.loop = False
+                    self.thread_overlay.join(timeout=_SHUTDOWN_JOIN_TIMEOUT_SEC)
+                    if self.thread_overlay.is_alive():
+                        if not self._stop_timed_out:
+                            self._stop_timed_out = True
+                            printLog(
+                                f"overlay: shutdown timed out after {_SHUTDOWN_JOIN_TIMEOUT_SEC}s; "
+                                "retaining the worker and handles until it exits"
+                            )
+                        return
+                    self.thread_overlay = None
+                # ふつうはオーバーレイのスレッドが終わるときに済ませている (teardown)。残っていれば片付ける
+                try:
+                    self.destroyOverlays()
+                    self.releaseSession()
+                finally:
+                    self.initialized = False
+                    self._stop_timed_out = False
 
     def reStartOverlay(self) -> None:
         self.shutdownOverlay()

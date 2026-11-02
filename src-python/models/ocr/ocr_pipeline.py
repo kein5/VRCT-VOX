@@ -28,7 +28,7 @@ import hashlib
 import time
 import uuid
 from collections import OrderedDict
-from threading import Event, Lock, Thread
+from threading import Event, Lock, RLock, Thread, current_thread
 from typing import Callable, List, Optional
 
 import numpy as np
@@ -188,6 +188,8 @@ class OcrPipeline:
 
         self._stop_event = Event()
         self._thread: Optional[Thread] = None
+        self._lifecycle_lock = RLock()
+        self._stop_logged = False
         self._background_threads: Optional[BackgroundThreads] = None
         self._capture: Optional[OcrCapture] = None
         self._model_root = model_root
@@ -229,12 +231,21 @@ class OcrPipeline:
         起動できなければ理由 (OCR_DISABLED_*) を載せた OcrStartError を投げる。
         モデルはここで読むので、戻った時点で読み取りを始められる。
         """
+        with self._lifecycle_lock:
+            return self._start()
+
+    @property
+    def is_alive(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def _start(self) -> bool:
+        if self.is_alive:
+            return not self._stop_event.is_set()
         if not self.isEngineAvailable():
             printLog("OCR pipeline: engine or opencv unavailable, refusing to start")
             raise OcrStartError(ErrorCode.OCR_DISABLED_ENGINE_UNAVAILABLE)
-        if self._thread is not None and self._thread.is_alive():
-            return True
         self._stop_event.clear()
+        self._stop_logged = False
         spec = resolveModelSpec(self._source_language)
         if spec is None:
             printLog(f"OCR pipeline: language {self._source_language!r} is not supported by the OCR engine")
@@ -278,19 +289,22 @@ class OcrPipeline:
         self._thread.start()
         return True
 
-    def stop(self) -> None:
-        self._stop_event.set()
-        th = self._thread
-        if th is not None:
-            try:
-                th.join(timeout=5.0)
-            except Exception:
-                pass
-        self._thread = None
-        # _run() closes self._capture itself before exiting — capture
-        # backends hold OS resources (GDI DCs, OpenVR handles) tied to the
-        # thread that created them, so tearing down from here is unsafe.
-        self._capture = None
+    def stop(self) -> bool:
+        with self._lifecycle_lock:
+            self._stop_event.set()
+            th = self._thread
+            if th is not None:
+                if th is not current_thread():
+                    th.join(timeout=5.0)
+                if th.is_alive():
+                    if not self._stop_logged:
+                        self._stop_logged = True
+                        printLog("OCR pipeline: stop timed out; retaining worker and capture until exit")
+                    return False
+            self._thread = None
+            # _run() closes capture on its creating thread before exiting.
+            self._capture = None
+            return True
 
     def applyConfig(self, settings: dict) -> None:
         """実行中のパイプラインへ設定変更を反映する (OFF→ONを挟まない)。
@@ -414,6 +428,8 @@ class OcrPipeline:
         return kept
 
     def _emit(self, text: str) -> None:
+        if self._stop_event.is_set():
+            return
         try:
             self._callback({
                 "text": text,

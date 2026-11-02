@@ -39,6 +39,9 @@ class _NeverStoppingWatchdogThread(threadFnc):
         self.stop_called = False
         self.join_timeouts: list = []
 
+    def is_alive(self) -> bool:
+        return True
+
     def stop(self) -> None:
         self.stop_called = True
 

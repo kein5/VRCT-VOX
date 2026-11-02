@@ -14,7 +14,7 @@ from psutil import Process as psutil_Process
 from datetime import datetime
 from time import sleep
 from queue import Queue, Empty
-from threading import Thread, Lock, Event, current_thread
+from threading import Thread, Lock, RLock, Event, current_thread
 from concurrent.futures import ThreadPoolExecutor
 from requests import get as requests_get
 from typing import Callable, Optional, cast
@@ -349,7 +349,7 @@ class _AudioDeviceSession:
         self._energy_progressbar: Optional[threadFnc] = None
         self.transcript_fnc: Optional[Callable[[dict], None]] = None
         self.energy_fnc: Callable[[float], None] = lambda v: None
-        self._stop_lock = Lock()
+        self._stop_lock = RLock()
         self._cleanup_workers = []
         self._cleanup_failed = Event()
         self._pipeline_error_lock = Lock()
@@ -445,36 +445,44 @@ class _AudioDeviceSession:
         が変化した場合のみ stop→start する。これにより device 切替時に
         Recorder が二重に close/open されることを防ぐ。
         """
-        new_features = set(self.features)
-        if transcript is True:
-            new_features.add("transcript")
-        elif transcript is False:
-            new_features.discard("transcript")
-        if energy is True:
-            new_features.add("energy")
-        elif energy is False:
-            new_features.discard("energy")
+        with self._stop_lock:
+            new_features = set(self.features)
+            if transcript is True:
+                new_features.add("transcript")
+            elif transcript is False:
+                new_features.discard("transcript")
+            if energy is True:
+                new_features.add("energy")
+            elif energy is False:
+                new_features.discard("energy")
 
-        # override が指定されなければ config から解決 (下位互換)
-        resolved_device = self._resolve_device(override=device)
+            # override が指定されなければ config から解決 (下位互換)
+            resolved_device = self._resolve_device(override=device)
 
-        same_features = new_features == self.features
-        same_device = self._device_key(resolved_device) == self._device_key(self._active_device)
-        # `_recorder is not None` だけでは、_start() が Recorder を生成した
-        # 直後 (listener 起動前) に例外で失敗したケースを "起動済み" と誤認
-        # してしまう (P0-2)。_start() は失敗時に必ず _recorder を None へ
-        # 巻き戻すので通常はこの2つの判定は同じ結果になるが、"listener が
-        # 実際に走っているか" という本来知りたい条件をそのまま書いておく。
-        already_running = (not new_features) or (
-            self._recorder is not None and self._recorder.stop is not None
-        )
-        if same_features and same_device and already_running:
-            return
+            same_features = new_features == self.features
+            same_device = self._device_key(resolved_device) == self._device_key(self._active_device)
+            # `_recorder is not None` だけでは、_start() が Recorder を生成した
+            # 直後 (listener 起動前) に例外で失敗したケースを "起動済み" と誤認
+            # してしまう (P0-2)。_start() は失敗時に必ず _recorder を None へ
+            # 巻き戻すので通常はこの2つの判定は同じ結果になるが、"listener が
+            # 実際に走っているか" という本来知りたい条件をそのまま書いておく。
+            already_running = (not new_features) or (
+                self._recorder is not None and self._recorder.stop is not None
+            )
+            if same_features and same_device and already_running:
+                return
 
-        self._stop()
-        self.features = new_features
-        if self.features:
-            self._start(device=resolved_device)
+            self._stop()
+            # A bounded join is not permission to reopen the device. Keep all old
+            # workers reachable, including recorder cleanup, until they have exited.
+            # _cleanup_failed (stop raised) only blocks the exclusive realtime
+            # handoff, as before; it never clears, so it must not lock out an
+            # ordinary restart for the rest of the session.
+            if self._cleanup_workers:
+                return
+            self.features = new_features
+            if self.features:
+                self._start(device=resolved_device)
 
     def pause(self) -> None:
         if self._recorder is not None and callable(self._recorder.pause):
@@ -531,9 +539,11 @@ class _AudioDeviceSession:
             except Exception:
                 errorLogging()
 
-    def _handle_pipeline_error(self, failure: AudioPipelineFailure) -> None:
+    def _handle_pipeline_error(self, failure: AudioPipelineFailure, recorder=None) -> None:
         """録音ワーカーからの異常を一度だけ停止・通知する。"""
         with self._pipeline_error_lock:
+            if recorder is not None and self._recorder is not recorder:
+                return
             if self._pipeline_error_started:
                 return
             self._pipeline_error_started = True
@@ -545,14 +555,17 @@ class _AudioDeviceSession:
             worker.stop()
 
         def cleanup_and_notify() -> None:
-            cleanup_timed_out = self._stop()
-            if cleanup_timed_out:
-                failure_to_notify = self._make_pipeline_failure(
-                    ErrorCode.CLEANUP_TIMEOUT, "cleanup"
-                )
-            else:
-                failure_to_notify = failure
-            self._notify_pipeline_error(failure_to_notify)
+            with self._stop_lock:
+                if recorder is not None and self._recorder is not recorder:
+                    return
+                cleanup_timed_out = self._stop()
+                if cleanup_timed_out:
+                    failure_to_notify = self._make_pipeline_failure(
+                        ErrorCode.CLEANUP_TIMEOUT, "cleanup"
+                    )
+                else:
+                    failure_to_notify = failure
+                self._notify_pipeline_error(failure_to_notify)
 
         Thread(
             target=cleanup_and_notify,
@@ -634,6 +647,8 @@ class _AudioDeviceSession:
             recorder = self._recorder
 
             def sendTranscript() -> None:
+                if self._recorder is not recorder:
+                    return
                 if recorder.device_error_event.is_set():
                     failure = getattr(recorder, "device_error_info", None)
                     recorder.device_error_event.clear()
@@ -642,10 +657,12 @@ class _AudioDeviceSession:
                             ErrorCode.AUDIO_READ_ERROR,
                             "recording",
                         )
-                    self._handle_pipeline_error(failure)
+                    self._handle_pipeline_error(failure, recorder)
                     return
                 try:
                     self._transcribe(transcriber, audio_queue)
+                    if self._transcriber is not transcriber:
+                        return
                     # 溜まっている分を全て配信する。1回の transcribeAudioQueue()
                     # が複数件を積むことがある (Google の interim_send は
                     # キューから取り出したチャンクごとに走る) のに対し、
@@ -661,10 +678,12 @@ class _AudioDeviceSession:
                             result["recognition_error"] = transcriber.last_recognition_error
                             self.transcript_fnc(result)
                 except AudioPipelineError as error:
-                    self._handle_pipeline_error(error.failure)
+                    if self._transcriber is transcriber:
+                        self._handle_pipeline_error(error.failure, recorder)
                 except Exception as error:  # noqa: BLE001 - fail closed at ASR boundary
                     failure = self._make_pipeline_failure(ErrorCode.ASR_ERROR, "asr", error)
-                    self._handle_pipeline_error(failure)
+                    if self._transcriber is transcriber:
+                        self._handle_pipeline_error(failure, recorder)
 
             def endTranscript() -> None:
                 while not audio_queue.empty():
@@ -687,7 +706,10 @@ class _AudioDeviceSession:
             self._print_transcript.start()
 
         if "energy" in self.features:
+            energy_recorder = self._recorder
             def sendEnergy() -> None:
+                if self._recorder is not energy_recorder:
+                    return
                 if not energy_queue.empty():
                     energy = energy_queue.get()
                     try:
@@ -705,6 +727,7 @@ class _AudioDeviceSession:
         cleanup_timed_out = False
         with self._stop_lock:
             self._cleanup_workers = [worker for worker in self._cleanup_workers if worker.is_alive()]
+            cleanup_timed_out = bool(self._cleanup_workers)
             transcript_thread = self._print_transcript
             if isinstance(transcript_thread, threadFnc):
                 transcript_thread.stop()
@@ -919,6 +942,11 @@ class SpeakerSession(_AudioDeviceSession):
 
 class Model:
     _instance = None
+    # Model is a singleton. Serialize feature ownership even when start/stop
+    # arrive on different IPC handler threads.
+    _watchdog_lifecycle_lock = Lock()
+    _ocr_lifecycle_lock = Lock()
+    _obs_lifecycle_lock = RLock()
     # OSC 受信と OSCQuery の結果を反映するスレッドの間で、確認と更新を一度に行う。
     _mute_status_lock = Lock()
     _mute_status_generation = 0
@@ -2272,42 +2300,44 @@ class Model:
         OcrStartError carrying the OCR_DISABLED_* reason when it cannot start.
         """
         self.ensure_initialized()
-        if isinstance(self.ocr_pipeline, OcrPipeline):
-            # Already running.
-            return True
+        with self._ocr_lifecycle_lock:
+            if isinstance(self.ocr_pipeline, OcrPipeline):
+                if self.ocr_pipeline.is_alive:
+                    # False when the previous stop is still waiting for cleanup.
+                    return self.ocr_pipeline.start()
 
-        # 読み取る言語の扱いは models/ocr/ocr_languages.py を参照。
-        # "auto" は PP-OCRv6 small (日英中+ラテン文字系を1モデル) を使い、
-        # ハングル・キリル・タイ・アラビア・デーヴァナーガリーだけ明示選択で
-        # PP-OCRv5 のスクリプト別モデルへ切り替える。未対応なら起動しない。
-        # 以前 auto を SELECTED_TARGET_LANGUAGES から解決していた頃は、
-        # 日本語話者が英語へ翻訳する設定だと日本語の吹き出しが読めなかった。
-        source_language = config.OCR_SOURCE_LANGUAGE
-        if not isSupportedOcrLanguage(source_language):
-            printLog(f"OCR: source language {source_language!r} is not selected or not supported, refusing to start")
-            raise OcrStartError(ErrorCode.OCR_DISABLED_UNSUPPORTED_LANGUAGE)
+            # 読み取る言語の扱いは models/ocr/ocr_languages.py を参照。
+            # "auto" は PP-OCRv6 small (日英中+ラテン文字系を1モデル) を使い、
+            # ハングル・キリル・タイ・アラビア・デーヴァナーガリーだけ明示選択で
+            # PP-OCRv5 のスクリプト別モデルへ切り替える。未対応なら起動しない。
+            # 以前 auto を SELECTED_TARGET_LANGUAGES から解決していた頃は、
+            # 日本語話者が英語へ翻訳する設定だと日本語の吹き出しが読めなかった。
+            source_language = config.OCR_SOURCE_LANGUAGE
+            if not isSupportedOcrLanguage(source_language):
+                printLog(f"OCR: source language {source_language!r} is not selected or not supported, refusing to start")
+                raise OcrStartError(ErrorCode.OCR_DISABLED_UNSUPPORTED_LANGUAGE)
 
-        # VRCT-VOX's own chatbox detector, only from its hash-verified download.
-        self._ocr_model_root = model_root
-        detector = self._ocrChatboxDetector()
-        try:
-            self.ocr_pipeline = OcrPipeline(
-                callback=fnc,
-                source_language=source_language,
-                window_title=config.OCR_WINDOW_TITLE,
-                poll_interval_ms=config.OCR_POLL_INTERVAL_MS,
-                min_confidence=config.OCR_MIN_CONFIDENCE,
-                min_text_length=config.OCR_BUBBLE_MIN_TEXT_LENGTH,
-                model_root=model_root,
-                region=config.OCR_CAPTURE_REGION,
-                chatbox_filter=config.OCR_CHATBOX_FILTER,
-                detector=detector,
-            )
-            self._ocr_detector_path = getattr(detector, "model_path", None)
-            return self.ocr_pipeline.start()
-        except Exception:
-            self.ocr_pipeline = None
-            raise
+            # VRCT-VOX's own chatbox detector, only from its hash-verified download.
+            self._ocr_model_root = model_root
+            detector = self._ocrChatboxDetector()
+            try:
+                self.ocr_pipeline = OcrPipeline(
+                    callback=fnc,
+                    source_language=source_language,
+                    window_title=config.OCR_WINDOW_TITLE,
+                    poll_interval_ms=config.OCR_POLL_INTERVAL_MS,
+                    min_confidence=config.OCR_MIN_CONFIDENCE,
+                    min_text_length=config.OCR_BUBBLE_MIN_TEXT_LENGTH,
+                    model_root=model_root,
+                    region=config.OCR_CAPTURE_REGION,
+                    chatbox_filter=config.OCR_CHATBOX_FILTER,
+                    detector=detector,
+                )
+                self._ocr_detector_path = getattr(detector, "model_path", None)
+                return self.ocr_pipeline.start()
+            except Exception:
+                self.ocr_pipeline = None
+                raise
 
     def _ocrChatboxDetector(self):
         """The chatbox detector to read with, or None for detector-free reading.
@@ -2351,19 +2381,22 @@ class Model:
 
     def stopOCRCapture(self) -> None:
         self.ensure_initialized()
-        pipeline = self.ocr_pipeline
-        if isinstance(pipeline, OcrPipeline):
-            try:
-                pipeline.stop()
-            except Exception:
-                errorLogging()
-        self.ocr_pipeline = None
-        # 明示 gc.collect() は呼ばない: この関数は Controller から別スレッドで
-        # 呼ばれる。同じ理由 (comtypes の COM ポインタが CoInitialize していない
-        # スレッドで Release され access violation になる、_print_transcript の
-        # コメント参照) で禁止している。gc は import されておらず、ここは
-        # NameError になって stopOcrCapture スレッドが毎回落ちていた
-        # (2026-09-18 実機のstderrで発覚)。
+        with self._ocr_lifecycle_lock:
+            pipeline = self.ocr_pipeline
+            if isinstance(pipeline, OcrPipeline):
+                try:
+                    if pipeline.stop() is False:
+                        return
+                except Exception:
+                    errorLogging()
+                    return
+            self.ocr_pipeline = None
+            # 明示 gc.collect() は呼ばない: この関数は Controller から別スレッドで
+            # 呼ばれる。同じ理由 (comtypes の COM ポインタが CoInitialize していない
+            # スレッドで Release され access violation になる、_print_transcript の
+            # コメント参照) で禁止している。gc は import されておらず、ここは
+            # NameError になって stopOcrCapture スレッドが毎回落ちていた
+            # (2026-09-18 実機のstderrで発覚)。
 
     def startCheckSpeakerEnergy(self, fnc:Optional[Callable[[float], None]]=None) -> None:
         self.ensure_initialized()
@@ -2691,10 +2724,14 @@ class Model:
 
     def startWatchdog(self):
         self.ensure_initialized()
-        self.th_watchdog = threadFnc(self.watchdog.start)
-        self.th_watchdog.daemon = True
-        self.th_watchdog.start()
-        self._armFreezeDump()
+        with self._watchdog_lifecycle_lock:
+            if self.th_watchdog is not None and self.th_watchdog.is_alive():
+                return
+            self._watchdog_stop_logged = False
+            self.th_watchdog = threadFnc(self.watchdog.start)
+            self.th_watchdog.daemon = True
+            self.th_watchdog.start()
+            self._armFreezeDump()
 
     def feedWatchdog(self):
         self.ensure_initialized()
@@ -2756,24 +2793,30 @@ class Model:
 
     def stopWatchdog(self):
         self.ensure_initialized()
-        # ダンプタイマーの解除を必ず先に行う。Watchdog.start() は末尾で
-        # time.sleep(self.interval) する (既定20秒) 一方、threadFnc.stop() は
-        # loop フラグを降ろすだけでこの sleep を中断できないため、join は
-        # 最大 interval 秒ブロックする。以前はこの解除が join の後ろにあり、
-        # shutdown() 側の _stopServiceForShutdown が5秒で諦めた時点で
-        # 一度も実行されず、「正常終了なのに freeze_trace.log へダンプが出る」
-        # という当初直したかった現象がそのまま残っていた (実機ログで確認)。
-        # 解除自体はスレッドと独立した faulthandler の操作なので先に行える。
-        try:
-            faulthandler.cancel_dump_traceback_later()
-        except Exception:
-            errorLogging()
-        if isinstance(self.th_watchdog, threadFnc):
-            self.th_watchdog.stop()
-            # 上記のとおり sleep は中断できないので join は無期限にしない。
-            # daemon thread なので、起きそこねてもプロセス終了時に破棄される。
-            self.th_watchdog.join(timeout=_WATCHDOG_JOIN_TIMEOUT_SEC)
-            self.th_watchdog = None
+        with self._watchdog_lifecycle_lock:
+            # ダンプタイマーの解除を必ず先に行う。Watchdog.start() は末尾で
+            # time.sleep(self.interval) する (既定20秒) 一方、threadFnc.stop() は
+            # loop フラグを降ろすだけでこの sleep を中断できないため、join は
+            # 最大 interval 秒ブロックする。以前はこの解除が join の後ろにあり、
+            # shutdown() 側の _stopServiceForShutdown が5秒で諦めた時点で
+            # 一度も実行されず、「正常終了なのに freeze_trace.log へダンプが出る」
+            # という当初直したかった現象がそのまま残っていた (実機ログで確認)。
+            # 解除自体はスレッドと独立した faulthandler の操作なので先に行える。
+            try:
+                faulthandler.cancel_dump_traceback_later()
+            except Exception:
+                errorLogging()
+            if isinstance(self.th_watchdog, threadFnc):
+                self.th_watchdog.stop()
+                # 上記のとおり sleep は中断できないので join は無期限にしない。
+                # daemon thread なので、起きそこねてもプロセス終了時に破棄される。
+                self.th_watchdog.join(timeout=_WATCHDOG_JOIN_TIMEOUT_SEC)
+                if self.th_watchdog.is_alive():
+                    if not getattr(self, "_watchdog_stop_logged", False):
+                        self._watchdog_stop_logged = True
+                        printLog("Watchdog: stop timed out; restart deferred until the worker exits")
+                    return
+                self.th_watchdog = None
 
     def message_handler(self, websocket, message):
         """WebSocketメッセージ受信時の処理"""
@@ -2830,37 +2873,36 @@ class Model:
     def startObsBrowserSourceServer(self, host: str, port: int) -> None:
         """Start the local HTTP server used as an OBS Browser Source."""
         self.ensure_initialized()
-
-        try:
-            if (
-                isinstance(self.obs_browser_source_server, ObsBrowserSourceServer)
-                and self.obs_browser_source_server.is_running
-                and self.obs_browser_source_server.host == host
-                and self.obs_browser_source_server.port == port
-            ):
+        with self._obs_lifecycle_lock:
+            server = self.obs_browser_source_server
+            if (server is not None and server.is_running
+                    and server.host == host and server.port == port):
                 return
-        except Exception:
-            # If anything goes wrong while checking state, restart.
-            pass
-
-        self.stopObsBrowserSourceServer()
-
-        try:
-            self.obs_browser_source_server = ObsBrowserSourceServer(host=host, port=port, ws_token=config.WEBSOCKET_AUTH_TOKEN)
-            self.obs_browser_source_server.start()
-        except Exception:
-            errorLogging()
-            self.obs_browser_source_server = None
+            self.stopObsBrowserSourceServer()
+            if self.obs_browser_source_server is not None:
+                return  # The previous worker still owns its server.
+            try:
+                server = ObsBrowserSourceServer(host=host, port=port, ws_token=config.WEBSOCKET_AUTH_TOKEN)
+                self.obs_browser_source_server = server
+                server.start()
+            except Exception:
+                errorLogging()
+                if server is None or server.is_stopped:
+                    self.obs_browser_source_server = None
 
     def stopObsBrowserSourceServer(self) -> None:
         self.ensure_initialized()
-        try:
-            if isinstance(self.obs_browser_source_server, ObsBrowserSourceServer):
-                self.obs_browser_source_server.stop()
-        except Exception:
-            errorLogging()
-        finally:
-            self.obs_browser_source_server = None
+        with self._obs_lifecycle_lock:
+            server = self.obs_browser_source_server
+            if server is None:
+                return
+            try:
+                server.stop()
+            except Exception:
+                errorLogging()
+                return
+            if server.is_stopped:
+                self.obs_browser_source_server = None
 
     def checkObsBrowserSourceServerAlive(self) -> bool:
         self.ensure_initialized()
