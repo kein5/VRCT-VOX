@@ -19,6 +19,9 @@ Use an isolated **Linux x86-64 Python 3.11** environment with uv. The lock is
 platform-specific; it pins the three CUDA wheels by official URL/hash and the
 remaining dependencies by version/hash. Do not subsequently install upstream's
 original requirements, which request torch 2.4 while naming the CUDA 12.8 index.
+The 2026-11-02 refresh (Pillow 13, Transformers 5, huggingface-hub 2) was rechecked
+with `smoke` and `convert`; see the
+[record](../../docs/voice-stack/vc-dependency-refresh-2026-11-02.md).
 
 ```bash
 uv venv --python 3.11 tmp/seed-runtime
