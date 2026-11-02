@@ -2113,13 +2113,13 @@ class Controller:
         message = result["text"]
         language = result["language"]
         if isinstance(message, bool) and message is False:
+            # Same shape as the energy meter's device error, so the UI shows
+            # its translated message instead of a generic one.
+            error_response = VRCTError.create_error_response(ErrorCode.DEVICE_NO_MIC, data=None)
             self.run(
-                400,
+                error_response["status"],
                 self.run_mapping["error_device"],
-                {
-                    "message":"No mic device detected",
-                    "data": None
-                },
+                error_response["result"],
             )
         elif isinstance(message, str) and len(message) > 0:
             self._processMessage(MIC_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"))
@@ -2153,13 +2153,13 @@ class Controller:
         message = result["text"]
         language = result["language"]
         if isinstance(message, bool) and message is False:
+            # Same shape as the energy meter's device error, so the UI shows
+            # its translated message instead of a generic one.
+            error_response = VRCTError.create_error_response(ErrorCode.DEVICE_NO_SPEAKER, data=None)
             self.run(
-                400,
+                error_response["status"],
                 self.run_mapping["error_device"],
-                {
-                    "message":"No speaker device detected",
-                    "data": None
-                },
+                error_response["result"],
             )
         elif isinstance(message, str) and len(message) > 0:
             self._processMessage(SPEAKER_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"))
