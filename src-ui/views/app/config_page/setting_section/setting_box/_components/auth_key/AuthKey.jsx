@@ -37,12 +37,12 @@ export const AuthKey = (props) => {
     return (
         <div className={styles.container}>
             <div className={styles.entry_section_wrapper}>
-                <_Entry ref={entryRef} label={props.label} width="24rem" onChange={onChangeEntryAuthKey} onEnterPressed={handleEnterPressed} ui_variable={props.variable} is_disabled={is_disabled}/>
+                <_Entry ref={entryRef} label={props.label} width="24rem" spellCheck={false} autoComplete="off" onChange={onChangeEntryAuthKey} onEnterPressed={handleEnterPressed} ui_variable={props.variable} is_disabled={is_disabled}/>
                 {is_editable
                 ? null
                 :
                     <div className={styles.entry_edit_cover} onClick={revealEditAuthKey}>
-                        <button className={styles.edit_button}>{t("config_page.common.edit_button_label")}</button>
+                        <button type="button" className={styles.edit_button}>{t("config_page.common.edit_button_label")}</button>
                     </div>
                 }
             </div>

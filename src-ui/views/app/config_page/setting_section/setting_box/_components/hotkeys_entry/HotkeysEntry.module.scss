@@ -23,6 +23,11 @@
     &:active {
         background-color: var(--dark_900_color);
     }
+    &:disabled {
+        cursor: default;
+        &:hover { background-color: transparent; }
+        & .delete_svg { color: var(--dark_700_color); }
+    }
     &.is_pending {
         pointer-events: none;
         & .delete_svg {

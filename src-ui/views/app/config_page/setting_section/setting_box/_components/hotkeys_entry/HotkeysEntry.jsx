@@ -110,6 +110,7 @@ export const HotkeysEntry = (props) => {
     };
 
     const is_pending = props.state === "pending";
+    const is_assigned = !!props.value[props.hotkey_id]?.length;
     return (
         <div className={styles.container}>
             {is_pending && <span className={styles.loader}></span>}
@@ -120,14 +121,15 @@ export const HotkeysEntry = (props) => {
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
                 onKeyUp={handleKeyUp}
-                placeholder={isAcceptingInput ? t("config_page.hotkeys.input_placeholder") : ""}
+                placeholder={t(isAcceptingInput ? "config_page.hotkeys.input_placeholder" : "config_page.hotkeys.unassigned_placeholder")}
                 ui_variable={displayValue}
                 width="20rem"
                 is_activated={isAcceptingInput}
                 is_disabled={is_pending}
                 readOnly
             />
-            <button aria-label={t("quick_chat.clear_shortcut", { action: props.label })} disabled={is_pending} className={clsx(styles.delete_button, { [styles.is_pending]: is_pending })} onClick={handleDelete}>
+            {/* Nothing to clear while no key is set. */}
+            <button type="button" aria-label={t("quick_chat.clear_shortcut", { action: props.label })} disabled={is_pending || !is_assigned} className={clsx(styles.delete_button, { [styles.is_pending]: is_pending })} onClick={handleDelete}>
                 <DeleteSvg className={styles.delete_svg}/>
             </button>
         </div>

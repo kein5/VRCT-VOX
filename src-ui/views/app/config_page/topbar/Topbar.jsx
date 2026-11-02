@@ -15,7 +15,8 @@ export const SaveBar = () => {
     const entries = useSaveBarEntries();
     const dirty = entries.filter(entry => entry.dirty);
     const saving = entries.some(entry => entry.saving);
-    const guarded = dirty.length > 0 || saving;
+    // Only edits ask before leaving; a pending selection alone is dropped quietly.
+    const guarded = entries.some(entry => entry.edited ?? entry.dirty) || saving;
     const [leaving, setLeaving] = useState(null);
     const dialog = useRef(null);
     // Leaving the page or settings with unsaved changes asks first, for every

@@ -648,6 +648,7 @@ config_page:
 
     hotkeys:
         input_placeholder: "Press a key combination"
+        unassigned_placeholder: "Not set"
         disabled_notice: "* Hotkeys are temporarily disabled while the settings page is open to prevent unintended actions."
         section_label_quick_chat: "Quick Chat"
         section_label_toggles: "Window & Feature Toggles"

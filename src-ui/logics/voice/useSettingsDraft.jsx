@@ -56,11 +56,13 @@ export function useSettingsDraft(saved, error, updateError, { write, canSave = t
     const saveState = error ? "save_failed" : saving ? "saving" : dirty ? "unsaved" : "saved";
     const id = useId();
     const changes = draft === null ? [] : [...changedPaths(saved, draft).map(label), ...(typeof pending === "function" ? pending(draft) : pending)];
-    const entry = { dirty: changes.length > 0, saving, saveState, changes, canSave: !!write && draft !== null && !!(typeof canSave === "function" ? canSave(draft) : canSave),
+    // `edited`: the draft itself differs. A `pending` change alone (e.g. the RVC
+    // page selecting RVC) is not an edit the user would lose by leaving.
+    const entry = { dirty: changes.length > 0, edited: dirty, saving, saveState, changes, canSave: !!write && draft !== null && !!(typeof canSave === "function" ? canSave(draft) : canSave),
         save: () => submit(write), discard };
     const entryRef = useRef(entry);
     entryRef.current = entry;
-    const entryKey = JSON.stringify([entry.dirty, saving, saveState, changes, entry.canSave]);
+    const entryKey = JSON.stringify([entry.dirty, dirty, saving, saveState, changes, entry.canSave]);
     useEffect(() => {
         if (!write) return;
         // Callbacks read the latest render, so only visible state republishes.
