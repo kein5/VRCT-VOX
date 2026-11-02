@@ -2,7 +2,7 @@ import styles from "./MessageFormat.module.scss";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
 import { _Entry } from "../_atoms/_entry/_Entry";
-import SwapImg from "@images/swap_icon.png";
+import SwapSvg from "@images/swap_horizontal.svg?react";
 import ArrowLeftSvg from "@images/arrow_left.svg?react";
 import {
     useStore_IsBreakPoint,
@@ -279,9 +279,10 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
 
         return (
             <div className={styles.swap_button_wrapper} onClick={swapMessageAndTranslate} role="button" tabIndex={0}
+                aria-label={t(locale_base_path + "swap_order", { first: variable.translation_first ? LABEL_TRANSLATED : LABEL_ORIGINAL })}
                 onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); swapMessageAndTranslate(); } }}>
                 <p className={styles.swap_text}>{variable.translation_first ? LABEL_TRANSLATED : LABEL_ORIGINAL}</p>
-                <img className={styles.swap_img} src={SwapImg} alt="" />
+                <SwapSvg className={styles.swap_img} aria-hidden="true" />
                 <p className={styles.swap_text}>{variable.translation_first ? LABEL_ORIGINAL : LABEL_TRANSLATED}</p>
             </div>
         );

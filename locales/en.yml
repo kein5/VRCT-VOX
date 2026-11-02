@@ -573,6 +573,7 @@ config_page:
                 title: "Settings"
                 original: "Original"
                 translated: "Translation"
+                swap_order: "Swap the order (now {{first}} first)"
                 for_multi_translation: "For Multi-Translation"
                 before_original: "Before the original"
                 after_original: "After the original"

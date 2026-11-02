@@ -573,6 +573,7 @@ config_page:
                 title: "設定"
                 original: "原文"
                 translated: "翻訳"
+                swap_order: "順番を入れ替える（いまは{{first}}が先）"
                 for_multi_translation: "多言語翻訳用"
                 before_original: "原文の前"
                 after_original: "原文の後"
