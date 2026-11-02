@@ -1,4 +1,5 @@
 import { useI18n } from "@useI18n";
+import { createLanguageNames } from "../../../../../../logics/common/languageNames.js";
 import clsx from "clsx";
 import styles from "./LanguageSelectorOpenButton.module.scss";
 import ArrowLeftSvg from "@images/arrow_left.svg?react";
@@ -8,7 +9,7 @@ import {
 } from "@logics_main";
 
 export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on, selector_key, target_key }) => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
     const { updateIsOpenedLanguageSelector, currentIsOpenedLanguageSelector } = useStore_IsOpenedLanguageSelector();
 
     const {
@@ -56,8 +57,9 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
 
     if (getVariable(selector_key)[target_key].enable === false) return null;
 
-    const language_text = getVariable(selector_key)[target_key].language ?? t("common.loading");
-    const country_text = getVariable(selector_key)[target_key].country ?? "";
+    const display = createLanguageNames(i18n.language).name(getVariable(selector_key)[target_key]);
+    const language_text = display.language || t("common.loading");
+    const country_text = display.country;
 
     return (
         <div className={styles.container}>

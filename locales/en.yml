@@ -683,6 +683,7 @@ config_page:
             label: "Window name"
             desc: "Substring match (case-insensitive) against visible window titles. Change this if you run a client whose window isn't titled 'VRChat' (e.g. a modified launcher)."
         source_language:
+            auto: "Automatic (Japanese, English, Chinese and Latin scripts)"
             label: "Source language"
             desc: "Language of the captured bubbles. 'auto' reads Japanese, English, Chinese and Latin-script languages with a single model. Hangul, Cyrillic, Thai, Arabic and Devanagari need a separate model, so pick that script. Changing it while running switches over without a restart. Arabic accuracy is currently low."
         poll_interval_ms:
