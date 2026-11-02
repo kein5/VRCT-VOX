@@ -4,10 +4,11 @@
 
 `src-python/config.py`の`Config`クラス（`ManagedProperty`と`ValidatedProperty`）と`init_config()`の既定値から生成した。保存の仕組み（2秒の遅延、置き換えによる書き込み、読み込み時の検証）は[データ形式と保存](../data-and-persistence.md)にある。
 
-## config.jsonに保存するキー（118件）
+## config.jsonに保存するキー（119件）
 
 | キー | 型・検証 | 既定値 | 保存 |
 |---|---|---|---|
+| `ENABLE_FOREGROUND` | bool | `False` | 2秒後にまとめて |
 | `CONVERT_MESSAGE_TO_ROMAJI` | bool | `False` | 2秒後にまとめて |
 | `CONVERT_MESSAGE_TO_HIRAGANA` | bool | `False` | 2秒後にまとめて |
 | `MAIN_WINDOW_SIDEBAR_COMPACT_MODE` | bool | `False` | 2秒後にまとめて |
@@ -128,7 +129,7 @@
 | `OCR_USE_CHATBOX_DETECTOR` | bool | `True` | 2秒後にまとめて |
 
 
-## 保存しないキー（48件）
+## 保存しないキー（47件）
 
 実行中だけの状態、選択肢の一覧、読み取り専用の値。起動のたびに既定値や検出結果から作り直す。
 
@@ -162,7 +163,6 @@
 | `ENABLE_TRANSCRIPTION_SEND` | bool | `False` | 保存しない |
 | `ENABLE_TRANSCRIPTION_RECEIVE` | bool | `False` | 保存しない |
 | `ENABLE_OCR_CAPTURE` | bool | `False` | 保存しない |
-| `ENABLE_FOREGROUND` | bool | `False` | 保存しない |
 | `ENABLE_CHECK_ENERGY_SEND` | bool | `False` | 保存しない |
 | `ENABLE_CHECK_ENERGY_RECEIVE` | bool | `False` | 保存しない |
 | `SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT` | dict | `{}` | 保存しない |

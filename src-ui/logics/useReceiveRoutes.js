@@ -123,6 +123,9 @@ export const STATIC_ROUTE_META_LIST = [
     // Main Page
     // Page Controls
     { endpoint: "/get/data/main_window_sidebar_compact_mode", ns: main, hook_name: "useIsMainPageCompactMode", method_name: "updateIsMainPageCompactMode" },
+    { endpoint: "/get/data/foreground", ns: main, hook_name: "useMainFunction", method_name: "restoreForeground" },
+    { endpoint: "/set/enable/foreground", ns: main, hook_name: "useMainFunction", method_name: "updateForegroundStatus" },
+    { endpoint: "/set/disable/foreground", ns: main, hook_name: "useMainFunction", method_name: "updateForegroundStatus" },
     { endpoint: "/set/enable/main_window_sidebar_compact_mode", ns: main, hook_name: "useIsMainPageCompactMode", method_name: "updateIsMainPageCompactMode" },
     { endpoint: "/set/disable/main_window_sidebar_compact_mode", ns: main, hook_name: "useIsMainPageCompactMode", method_name: "updateIsMainPageCompactMode" },
 
