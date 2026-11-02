@@ -6,7 +6,7 @@ P2全体の受入完了ではなく、物理マイク→VRChat・聴感・長時
 
 ## 入力と許諾の境界
 
-- ユーザー提供ZIP: `/home/kei/Downloads/Mia2026.zip`。`.pth` 57,589,683 bytes、`.index` 31,588,619 bytes。
+- ユーザー提供ZIP: ダウンロードフォルダの`Mia2026.zip`。`.pth` 57,589,683 bytes、`.index` 31,588,619 bytes。
 - `torch.load(weights_only=True)`でv2・48 kHz・f0ありを確認。公式固定実装と同じspeaker 0、formant 0、pitch 0で試験。
 - ZIP同梱の「RVC girls RVC音声変換モデル 共通利用規約」v1.0（2026-09-04）を読み、リアルタイムVC/VRChat用途と、モデル・index等の再配布禁止を確認。今回の検証許可を、モデルの公開・同梱・共有サービスへの許可に拡張しない。
 - 変換元は以前から使用している4.88秒の合成日本語試験音声。新しい物理マイク録音はしていない。

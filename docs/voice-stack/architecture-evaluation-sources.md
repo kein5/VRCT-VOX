@@ -61,12 +61,12 @@ VCClient NOTICEとSeedモデルカードは完全な原文が短いため、fetc
 
 | スキル | 読んだSKILL.md | 適用 |
 |---|---|---|
-| imozuru | `/home/kei/Documents/projects/it-duo/.agents/skills/imozuru/SKILL.md` | 6論点、2方向の探索、原典の後方追跡・保存・照合、停止理由 |
+| imozuru | `<imozuru skill>/SKILL.md` | 6論点、2方向の探索、原典の後方追跡・保存・照合、停止理由 |
 | software-architecture-analysis | [公開原本](https://github.com/magnus919/agent-skills/blob/main/software-architecture-analysis/SKILL.md) | 既存構造、事実分類、依存・所有・実行時境界の分析 |
 | software-architecture | [公開原本](https://github.com/magnus919/agent-skills/blob/main/software-architecture/SKILL.md) | シナリオ、3案の比較、失敗時契約、段階移行とfitness evidence |
 | voice-latency-audit | [ユーザー指定原本](https://github.com/RobStrayer/voice-agent-skills/blob/main/plugins/voice-foundations/skills/voice-latency-audit/SKILL.md) | 時刻境界・clock・重なり・成功/失敗群・可聴性・停止の監査 |
 | adr-authoring | [公開原本](https://github.com/magnus919/agent-skills/blob/main/adr-authoring/SKILL.md) | proposed状態、代替案、却下理由、反証条件、責任と検証リンク |
-| Superpowers / brainstorming | `/home/kei/.codex/plugins/cache/openai-curated-remote/superpowers/7.0.1/skills/brainstorming/SKILL.md` | 実装前の代替案提示と設計、独立Builder Check |
+| Superpowers / brainstorming | `~/.codex/plugins/cache/openai-curated-remote/superpowers/7.0.1/skills/brainstorming/SKILL.md` | 実装前の代替案提示と設計、独立Builder Check |
 
 外部から読んだ4スキルは`/tmp/vrct-architecture-review/skills/`に保存し、インストールしていない。voice-latency-auditのLiveKit/Twilio固有フィールドをVRCTへ当てはめず、現コードと保存traceに対応する境界の監査へ適用した。今回は修正・実験の依頼ではないため、同スキルの修正後実験はPoC設計に留めた。
 
