@@ -74,10 +74,12 @@
 .message_box {
     display: flex;
     flex-direction: column;
+    // Sent lines sit on the right; a wrapped message still reads from a
+    // straight left edge.
     &.sent_message {
         width: 100%;
         align-items: end;
-        text-align: end;
+        text-align: start;
     }
     &.received_message {
         width: 100%;
