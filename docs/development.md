@@ -12,6 +12,8 @@ python tools/dev.py check
 
 `doctor` は不足を表示します。`setup` は指定した依存関係を導入します。`check` の既定値は `quick` で、開発CLIの試験、Nodeの試験、Ruffを実行します。詳しいコマンドは各サブコマンドの `--help` で確認できます。Linuxで `python` がない場合は `python3`、WindowsではPython 3.11以降の `py` でも起動できます。
 
+機能仕様書の一覧（`docs/spec/reference/` のエンドポイント、エラーコード、設定キー）はコードから生成します。エンドポイント、エラーコード、設定キーを変えたら `python tools/spec_catalog.py --write` で作り直します。`check` はこの一覧が最新かどうかも確かめます。仕様書の入口は [docs/spec/README.md](spec/README.md) です。
+
 npmからも `npm run doctor`、`npm run check`、`npm run check:all`、`npm run test:voice`、`npm run test:ui` を使えます。準備は `npm run setup:headless` と `npm run setup:browser`、コミット検証は `npm run check:commits -- --base origin/develop` です。追加オプションはnpmの `--` の後ろに渡します。`npm run dev:web` はWeb UIの開発サーバーを起動する別コマンドで、検証には含めません。
 
 ## 用意するツール
