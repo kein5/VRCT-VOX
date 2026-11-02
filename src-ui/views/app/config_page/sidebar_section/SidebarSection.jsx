@@ -104,7 +104,6 @@ const Tab = (props) => {
 
     const getLabel = () => {
         if (props.tab_id === "vr") return "VR";
-        if (props.tab_id === "about_vrct") return "About VRCT-VOX";
         return t(`config_page.side_menu_labels.${props.tab_id}`);
     };
 

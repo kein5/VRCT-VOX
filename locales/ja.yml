@@ -212,7 +212,7 @@ backend_errors:
 
 common_warning:
     config_file_unreadable: "設定ファイル（config.json）を読み込めなかったため、既定の設定で起動しました。元のファイルは {{file}} として残しています。"
-    unable_to_use_osc_query: "OSC IP Address の設定によりOSCデータの受信ができないため、以下の機能が自動的に無効になっています。"
+    unable_to_use_osc_query: "OSCの送信先IPアドレスの設定によりOSCデータの受信ができないため、以下の機能が自動的に無効になっています。"
 
 main_page:
     translation: "翻訳"
@@ -321,7 +321,7 @@ config_page:
             type_template_low: "{{type_name}} （精度が悪く、処理は早い）"
             type_template_high: "{{type_name}} （精度が良く、処理は遅い）"
         warning_labels:
-            unable_to_use_osc_query: "OSC IP Address の設定によりOSCデータの受信ができないため、現在この機能は使用できません。"
+            unable_to_use_osc_query: "OSCの送信先IPアドレスの設定によりOSCデータの受信ができないため、現在この機能は使用できません。"
 
     side_menu_labels:
         vrchat: "VRChat"
@@ -335,6 +335,7 @@ config_page:
         rvc: "RVC"
         advanced_settings: "高度な設定"
         updater: "アップデート"
+        about_vrct: "VRCT-VOXについて"
         ocr: "チャット読み取り"
 
     tts:
@@ -763,18 +764,18 @@ config_page:
         section_label_logs: "ログ"
         section_label_config_file: "設定ファイル"
         osc_ip_address:
-            label: "OSC IP Address"
+            label: "OSCの送信先IPアドレス"
         osc_port:
-            label: "OSC Port"
+            label: "OSCの送信先ポート"
         open_config_filepath:
             label: "設定ファイルを開く"
         enable_websocket:
             label: "WebSocketサーバーを有効にする"
             locked_by_obs_browser_source: "OBSブラウザソースを無効にしてから変更してください"
         websocket_host:
-            label: "WebSocket Host"
+            label: "WebSocketのホスト"
         websocket_port:
-            label: "WebSocket Port"
+            label: "WebSocketのポート"
         websocket_url:
             label: "WebSocket URL（クリックでコピー）"
         obs_browser_source:

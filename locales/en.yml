@@ -335,6 +335,7 @@ config_page:
         rvc: "RVC"
         advanced_settings: "Advanced"
         updater: "Updater"
+        about_vrct: "About VRCT-VOX"
         ocr: "Chat Transcribe"
 
     tts:
