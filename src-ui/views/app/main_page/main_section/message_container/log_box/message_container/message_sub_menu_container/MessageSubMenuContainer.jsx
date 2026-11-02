@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import clsx from "clsx";
 import { useI18n } from "@useI18n";
 import { Tooltip } from "@common_components";
 import styles from "./MessageSubMenuContainer.module.scss";
@@ -6,6 +7,7 @@ import SendMessageSvg from "@images/send_message.svg?react";
 import RefreshSvg from "@images/refresh_2.svg?react";
 
 export const MessageSubMenuContainer = (props) => {
+    const { t } = useI18n();
     const [is_holding, setIsHolding] = useState(false);
     const progressRef = useRef(null);
     const holdTimeout = useRef(null);
@@ -45,13 +47,15 @@ export const MessageSubMenuContainer = (props) => {
     };
 
     return (
-        <div className={styles.container}>
+        <div className={clsx(styles.container, { [styles.is_shown]: props.is_shown })}>
             <Tooltip
                 title={<Title_p />}
                 placement="top"
                 slotProps={offset}
             >
                 <button
+                type="button"
+                aria-label={t("main_page.message_log.resend_button_label")}
                 className={styles.resend_button}
                 onMouseDown={startHold}
                 onMouseUp={cancelHold}

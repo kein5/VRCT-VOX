@@ -173,6 +173,7 @@ main_page:
         system: "システム"
 
         resend_button_on_hover_desc: "長押しで送信"
+        resend_button_label: "このメッセージを編集（長押しで再送信）"
 
     state_text_enabled: "有効"
     state_text_disabled: "無効"

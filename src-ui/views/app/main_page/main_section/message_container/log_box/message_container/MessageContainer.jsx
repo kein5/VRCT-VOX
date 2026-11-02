@@ -82,8 +82,10 @@ export const MessageContainer = ({ messages, status, category, created_at, sourc
                 </div>
             </div>
             {/* VRパネルでは、レーザーの誤操作で過去のメッセージを再送しないよう出さない */}
-            {currentShowResendButton.data && is_sent_message && is_hovered && !store.is_vr_panel ? (
+            {/* Rendered whenever enabled so the keyboard can reach it; shown on hover or focus. */}
+            {currentShowResendButton.data && is_sent_message && !store.is_vr_panel ? (
                 <MessageSubMenuContainer
+                    is_shown={is_hovered}
                     setIsHovered={lockHoverState}
                     resendFunction={resendFunction}
                     editFunction={editFunction}
