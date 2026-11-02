@@ -157,6 +157,8 @@ main_page:
     translate_each_other_label: "双方向に翻訳"
     swap_button_label: "言語を入れ替え"
     target_language: "相手の言語"
+    add_target_language: "相手の言語を追加"
+    remove_target_language: "最後の相手の言語を削除"
     translator: "翻訳エンジン"
     translator_label_default: "デフォルト"
 
@@ -519,6 +521,8 @@ config_page:
         message_format_common:
             example_view:
                 title: "プレビュー"
+                show_all: "すべての例を表示"
+                show_fewer: "例の数を減らす"
                 original_translated: "原文 + 翻訳"
                 original_translated_multi: "原文 + 翻訳（多言語）"
                 translated_only_multi: "翻訳のみ（多言語）"

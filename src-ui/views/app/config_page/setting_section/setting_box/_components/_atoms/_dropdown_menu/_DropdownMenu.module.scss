@@ -80,7 +80,8 @@
     background-color: var(--dark_875_color);
     padding: 1.2rem;
     cursor: pointer;
-    &:hover {
+    // The keyboard-highlighted option looks like the hovered one.
+    &:hover, &.is_active {
         background-color: var(--dark_800_color);
     }
     &:active {

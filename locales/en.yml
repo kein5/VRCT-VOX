@@ -157,6 +157,8 @@ main_page:
     translate_each_other_label: "Translate Both Languages"
     swap_button_label: "Switch Languages"
     target_language: "Target Language"
+    add_target_language: "Add a target language"
+    remove_target_language: "Remove the last target language"
     translator: "Translator"
     translator_label_default: "Default"
 
@@ -519,6 +521,8 @@ config_page:
         message_format_common:
             example_view:
                 title: "Preview"
+                show_all: "Show all examples"
+                show_fewer: "Show fewer examples"
                 original_translated: "Original + Translation"
                 original_translated_multi: "Original + Translation (Multi-language)"
                 translated_only_multi: "Translation Only (Multi-language)"

@@ -187,14 +187,21 @@ const PageSwitcherContainer = (props) => {
         [styles.is_selected]: !props.is_selected,
     });
 
+    // Two pressable halves; choosing the shown half changes nothing.
+    const half = (selected, className, label) => {
+        const choose = () => { if (!selected) props.toggleFunction(); };
+        return (
+            <div className={className} role="button" tabIndex={0} aria-pressed={selected} onClick={choose}
+                onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); choose(); } }}>
+                <p className={styles.controller_switcher_label}>{label}</p>
+            </div>
+        );
+    };
+
     return (
-        <div className={styles.controller_type_switch} onClick={() => props.toggleFunction()}>
-            <div className={toggle_button_class_names__position}>
-                <p className={styles.controller_switcher_label}>{props.label_1}</p>
-            </div>
-            <div className={toggle_button_class_names__rotation}>
-                <p className={styles.controller_switcher_label}>{props.label_2}</p>
-            </div>
+        <div className={styles.controller_type_switch}>
+            {half(props.is_selected, toggle_button_class_names__position, props.label_1)}
+            {half(!props.is_selected, toggle_button_class_names__rotation, props.label_2)}
         </div>
     );
 };
