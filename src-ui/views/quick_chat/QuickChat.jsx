@@ -52,7 +52,7 @@ export const QuickChat = ({ bridge = quickChatBridge }) => {
                 if (event.key === 'Enter' && !event.shiftKey && context.enter_to_send) { event.preventDefault(); if (!event.repeat) submit(); }
             }} />
         <div className={styles.actions}>
-            <span role={error ? 'alert' : 'status'}>{error ? t(`quick_chat.${error}`) : pending ? t('quick_chat.sending') : t('quick_chat.hint')}</span>
+            <span role={error ? 'alert' : 'status'}>{error ? t(`quick_chat.${error}`) : pending ? t('quick_chat.sending') : t(context.enter_to_send ? 'quick_chat.hint' : 'quick_chat.hint_enter_newline')}</span>
             <button type="button" disabled={pending || !value.trim()} onClick={submit}>{t('quick_chat.send')}</button>
         </div>
     </main>;

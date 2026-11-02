@@ -738,6 +738,7 @@ quick_chat:
     send: "전송"
     sending: "전송 중…"
     hint: "Shift+Enter: 줄바꿈 · Esc: 닫기"
+    hint_enter_newline: "Enter: 줄바꿈 · Esc: 닫기"
     open: "입력 창 열기"
     shortcut_hint: "입력 창을 여는 단축키를 설정하세요. 기본 단축키는 없습니다. Esc로 닫아도 초안이 유지됩니다."
     clear_shortcut: "단축키 해제: {{action}}"

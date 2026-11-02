@@ -1046,6 +1046,7 @@ quick_chat:
     send: "Send"
     sending: "Sending…"
     hint: "Shift+Enter: new line · Esc: close"
+    hint_enter_newline: "Enter: new line · Esc: close"
     open: "Open input window"
     shortcut_hint: "Choose a shortcut for the input window. No key is assigned by default. Esc closes it and keeps your draft."
     clear_shortcut: "Clear shortcut: {{action}}"
