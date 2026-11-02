@@ -34,7 +34,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
     const label = ([name]) => t(name === "mode" ? "voice.direct_mode" : name === "engine" ? "voice.vc_engine" : `voice.vc_${name}`, { defaultValue: name });
     const form = useSettingsDraft(saved, directError, updateDirectError, { label,
         write: value => send("/set/data/direct_voice_settings", value), canSave: draft => !busy && validNumbers(draft),
-        pending: draft => needsSelection(draft) && JSON.stringify(draft) === JSON.stringify(saved) ? [t(variant === "rvc" ? "voice.vc_engine" : "voice.direct_mode")] : [] });
+        pending: draft => needsSelection(draft) && JSON.stringify(draft) === JSON.stringify(saved) ? [t(variant === "rvc" ? "voice_ui.select_rvc" : "voice.direct_mode")] : [] });
     const { draft, setDraft, saving, dirty } = form;
     const reasonId = useId();
     useEffect(() => {

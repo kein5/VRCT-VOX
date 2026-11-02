@@ -46,9 +46,9 @@ voice:
     routing: "音声経路"
     routing_external: "既存の外部ケーブル"
     routing_managed: "管理対象の仮想マイク（Linux）"
-    managed_hint: "PipeWireとsystemdを使うLinuxでは、保存時に仮想マイクを自動で準備します。VRCT終了後も残ります。VRChatの入力に VRCT Managed Virtual Microphone を選び、「音声を再開」を押してください。"
+    managed_hint: "PipeWireとsystemdを使うLinuxでは、保存時に仮想マイクを自動で準備します。VRCT-VOX終了後も残ります。VRChatの入力に VRCT Managed Virtual Microphone を選び、「音声を再開」を押してください。"
     mute_scope_managed: "この仮想マイクを通るTTSとVCをまとめてミュートします。"
-    mute_scope_external: "VRCTのテキスト読み上げだけをミュートします。"
+    mute_scope_external: "VRCT-VOXのテキスト読み上げだけをミュートします。"
     mute: "再開するまでミュート"
     resume: "音声を再開"
     gate_pending: "ミュート状態を確認しています…"
@@ -181,6 +181,8 @@ main_page:
     language_selector:
         title_your_language: "あなたの言語"
         title_target_language: "相手の言語"
+        filter: "言語を絞り込む"
+        no_results: "一致する言語がありません"
 
     update_available: "新しいバージョンが出ました！"
     updating: "アップデート中..."
@@ -322,6 +324,7 @@ config_page:
             desc: "送信済メッセージログにマウスホバーすると、再送信ボタンが表示されます。クリックで編集モード、長押しで再送信します。"
         font_family:
             label: "使用フォント"
+            not_installed: "{{name}}（未インストール。代わりのフォントで表示中）"
         ui_language:
             label: "UIの言語"
 
@@ -641,7 +644,7 @@ config_page:
         error_in_use: "「{{action_name}}」のホットキー（{{hotkey}}）は他で使用されているため登録できません。"
         error_failed_to_register_at_launch: "「{{action_name}}」のホットキー（{{hotkey}}）は他のアプリケーションで使用されているため利用できません。"
         toggle_vrct_visibility:
-            label: "VRCTの最小化/アクティブ化の切り替え"
+            label: "VRCT-VOXの最小化/アクティブ化の切り替え"
         toggle_translation:
             label: "「{{translation}}」 オン/オフの切り替え"
         toggle_transcription_send:
@@ -852,7 +855,7 @@ realtime:
   auto_help: "自動判定には、Qwen3-ASRのように言語を判定できるモデルが必要です。同梱ASRサーバーが読み込むモデルは1つで両方の入力が共用するため、日本語以外を話すプレイヤーがいるならQwen3-ASRを選んでください。"
   follow_default_mic: "システムの既定の入力に従う"
   follow_default_speaker: "システムの既定の出力に従う"
-  follow_default_help: "字幕の開始時にシステムの既定を読み取り、停止するまでそのデバイスを使います。VRCTの仮想デバイスは対象にしません。"
+  follow_default_help: "字幕の開始時にシステムの既定を読み取り、停止するまでそのデバイスを使います。VRCT-VOXの仮想デバイスは対象にしません。"
   vocabulary: "用語辞書"
   vocabulary_help: "認識モデルに聞き取ってほしい用語と、その書き方です。Haas-jaにはキーワードとして、Qwen3-ASRには短いヒントとして渡します。1項目に1語を書き、必要なら「=」のあとに読みをカンマ区切りで続けます（例: VRChat=ブイアールチャット,ブイチャ）。登録した語ごとに、言っていない語が書かれる可能性が少し増えるため、必要な語だけにしてください。辞書を変えると、動作中の字幕は停止します。"
   vocabulary_builtin: "内蔵のVRChat用語を使う"
@@ -866,7 +869,7 @@ realtime_toggle:
   generic: "リアルタイム認識を開始できないか、停止しました（{{reason}}）。設定 → 音声認識 → リアルタイム字幕を確認してください。"
   realtime_endpoint_required: "入力が選ばれていません。設定 → 音声認識 → リアルタイム字幕でデバイスかシステムの既定を選んで保存し、もう一度オンにしてください。"
   realtime_default_endpoint_missing: "システムの既定のデバイスが見つかりません。デバイスを接続するか、設定 → 音声認識 → リアルタイム字幕でデバイスを選んでから、もう一度オンにしてください。"
-  realtime_default_endpoint_feedback: "システムの既定がVRCTの仮想デバイスのため、VRCT自身の音声を拾ってしまいます。設定 → 音声認識 → リアルタイム字幕で実際のデバイスを選ぶか、システムの既定を変えてから、もう一度オンにしてください。"
+  realtime_default_endpoint_feedback: "システムの既定がVRCT-VOXの仮想デバイスのため、VRCT-VOX自身の音声を拾ってしまいます。設定 → 音声認識 → リアルタイム字幕で実際のデバイスを選ぶか、システムの既定を変えてから、もう一度オンにしてください。"
   realtime_asr_model_missing: "同梱ASRサーバーに認識モデルがありません。設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADでQwen3-ASR（30言語）かHaas-ja（日本語）を取得して適用し、もう一度オンにしてください。"
   realtime_vad_model_missing: "同梱ASRサーバーにVADモデルがありません。設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADでSilero VADを取得して適用し、もう一度オンにしてください。"
   speech_server_model_invalid: "同梱ASRサーバーのモデルファイルが見つからないか、GGUFではありません。設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADでモデルとVADのパスを確認してください。"
@@ -977,6 +980,7 @@ voice_ui:
     discard: "変更を破棄"
     save_bar: "設定の保存"
     save_changes: "変更を保存"
+    select_rvc: "直接音声でRVCを使う"
     save_changes_short: "保存"
     discard_short: "破棄"
     changed_items: "変更した設定"
@@ -1057,7 +1061,7 @@ voice_setup_errors:
     managed_setup_tools_missing: "自動準備には pw-loopback と systemctl が必要です。PipeWireのツールとsystemdのユーザーサービスを確認してください。"
     managed_setup_service_failed: "仮想マイクのユーザーサービスを起動できません。systemdのユーザーセッションを確認してください。"
     managed_setup_timeout: "仮想マイクの準備を確認できませんでした。PipeWireの状態を確認してください。"
-    managed_setup_busy: "別のVRCTが仮想マイクを準備しています。再試行を待っています。"
+    managed_setup_busy: "別のVRCT-VOXが仮想マイクを準備しています。再試行を待っています。"
     managed_setup_files_unavailable: "仮想マイクのサービス設定を保存できません。設定フォルダの書き込み権限を確認してください。"
     managed_setup_session_unavailable: "デスクトップのユーザーセッションを確認できません。自動準備には XDG_RUNTIME_DIR が必要です。"
     managed_setup_custom_remote: "独自のPipeWireサーバーでは自動準備できません。そのサーバー側に経路を用意してください。"
