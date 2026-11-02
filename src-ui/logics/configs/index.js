@@ -1,4 +1,5 @@
 import { createCategoryHook } from "./config_page_setter/ui_config_setter.js";
+export { useSettingValue } from "./config_page_setter/ui_config_setter.js";
 
 export const useAppearance = createCategoryHook("Appearance");
 export const useDevice = createCategoryHook("Device");

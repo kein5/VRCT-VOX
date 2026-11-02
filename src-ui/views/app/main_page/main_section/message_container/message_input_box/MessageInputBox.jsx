@@ -1,27 +1,22 @@
-import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { memo, useState, useLayoutEffect, useRef } from "react";
+import { useStore } from "jotai";
 import styles from "./MessageInputBox.module.scss";
 import SendMessageSvg from "@images/send_message.svg?react";
-import { useMessage } from "@logics_common";
-import { useAppearance, useOthers } from "@logics_configs";
+import { useMessageActions } from "@logics_common";
+import { useSettingValue } from "@logics_configs";
 import { useMessageLogScroll } from "@logics_main";
 import { useI18n } from "@useI18n";
-import { store } from "@store";
+import { store, Atom_MessageLogs, useStore_MessageInputValue } from "@store";
 
-export const MessageInputBox = () => {
+export const MessageInputBox = memo(function MessageInputBox() {
     const { t } = useI18n();
-    const [message_history, setMessageHistory] = useState([]);
     const [history_index, setHistoryIndex] = useState(-1);
-    const {
-        sendMessage,
-        currentMessageLogs,
-        currentMessageInputValue,
-        updateMessageInputValue,
-        startTyping,
-        stopTyping,
-    } = useMessage();
+    const atoms = useStore();
+    const { currentMessageInputValue, updateMessageInputValue } = useStore_MessageInputValue();
+    const { sendMessage, startTyping, stopTyping } = useMessageActions();
 
-    const { currentEnableAutoClearMessageInputBox } = useOthers();
-    const { currentSendMessageButtonType } = useAppearance();
+    const currentEnableAutoClearMessageInputBox = useSettingValue("EnableAutoClearMessageInputBox");
+    const currentSendMessageButtonType = useSettingValue("SendMessageButtonType");
 
     const { scrollToBottom } = useMessageLogScroll();
 
@@ -30,15 +25,6 @@ export const MessageInputBox = () => {
     useLayoutEffect(() => {
         store.text_area_ref = log_box_ref;
     }, []);
-
-    useEffect(() => {
-        if (currentMessageLogs.data) {
-            const sentMessages = currentMessageLogs.data
-                .filter(log => log.category === "sent")
-                .map(log => log.messages.original.message);
-            setMessageHistory(sentMessages);
-        }
-    }, [currentMessageLogs.data]);
 
     const onSubmitFunction = (e) => {
         e.preventDefault();
@@ -64,6 +50,13 @@ export const MessageInputBox = () => {
 
     const onKeyDownFunction = (e) => {
         if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+        // History is only needed for explicit recall. Incoming captions and
+        // translation responses must not subscribe/re-render the composer or
+        // rebuild a second copy of the entire sent log after each update.
+        const message_history = e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown")
+            ? atoms.get(Atom_MessageLogs).data.filter(log => log.category === "sent")
+                .map(log => log.messages.original.message)
+            : [];
         if (e.key === "ArrowUp" && e.shiftKey) {
             e.preventDefault();
 
@@ -115,7 +108,7 @@ export const MessageInputBox = () => {
             )}
         </div>
     );
-};
+});
 
 const SendMessageButton = ({ onSubmitFunction }) => {
     const { t } = useI18n();

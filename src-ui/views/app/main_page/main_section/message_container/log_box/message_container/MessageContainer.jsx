@@ -1,19 +1,13 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useI18n } from "@useI18n";
 import clsx from "clsx";
 import styles from "./MessageContainer.module.scss";
 import { MessageSubMenuContainer } from "./message_sub_menu_container/MessageSubMenuContainer";
-import { useMessage } from "@logics_common";
-import { useAppearance } from "@logics_configs";
 import { store } from "@store";
 
-export const MessageContainer = ({ messages, status, category, created_at, source }) => {
+export const MessageContainer = memo(function MessageContainer({ messages, status, category, created_at, source,
+    sendMessage, updateMessageInputValue, showResendButton }) {
     const { t } = useI18n();
-    const {
-        sendMessage,
-        updateMessageInputValue,
-    } = useMessage();
-    const { currentShowResendButton } = useAppearance();
     const [is_hovered, setIsHovered] = useState(false);
     const [is_locked, setIsLocked] = useState(false);
 
@@ -83,7 +77,7 @@ export const MessageContainer = ({ messages, status, category, created_at, sourc
             </div>
             {/* VRパネルでは、レーザーの誤操作で過去のメッセージを再送しないよう出さない */}
             {/* Rendered whenever enabled so the keyboard can reach it; shown on hover or focus. */}
-            {currentShowResendButton.data && is_sent_message && !store.is_vr_panel ? (
+            {showResendButton && is_sent_message && !store.is_vr_panel ? (
                 <MessageSubMenuContainer
                     is_shown={is_hovered}
                     setIsHovered={lockHoverState}
@@ -93,7 +87,7 @@ export const MessageContainer = ({ messages, status, category, created_at, sourc
             ) : null}
         </div>
     );
-};
+});
 
 const MessageWithTransliteration = ({ item }) => {
     const renderTokenNode = (token, key) => {
