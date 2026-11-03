@@ -74,7 +74,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/run/send_message_box` | 実行 | `sendMessageBox` | 待つ | useMessage.updateSentMessageLogById |  |
 | `/run/typing_message_box` | 実行 | `typingMessageBox` | 待つ | （受け取るだけ） |  |
 | `/run/stop_typing_message_box` | 実行 | `stopTypingMessageBox` | 待つ | （受け取るだけ） |  |
-| `/run/send_text_overlay` | 実行 | `sendTextOverlay` | 可 | — |  |
+| `/run/send_text_overlay` | 実行 | `sendTextOverlay` | 可 | （受け取るだけ） |  |
 | `/get/data/telemetry` | 取得 | `getTelemetry` | 可 | useOthers.updateFromBackendTelemetry |  |
 | `/get/data/auto_download_models` | 取得 | `getAutoDownloadModels` | 可 | useOthers.updateFromBackendAutoDownloadModels |  |
 | `/set/enable/auto_download_models` | 有効化 | `setEnableAutoDownloadModels` | 可 | useOthers.setSuccessAutoDownloadModels |  |
@@ -249,7 +249,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/run/vr_panel_tooltip` | 実行 | `setVrPanelTooltip` | 待つ | （受け取るだけ） |  |
 | `/run/vr_panel_windows` | 実行 | `setVrPanelWindows` | 待つ | （受け取るだけ） |  |
 | `/run/vr_panel_recall_log` | 実行 | `recallVrPanelLog` | 待つ | （受け取るだけ） |  |
-| `/run/vr_launcher_reset` | 実行 | `resetVrLauncher` | 待つ | — |  |
+| `/run/vr_launcher_reset` | 実行 | `resetVrLauncher` | 待つ | （受け取るだけ） |  |
 | `/get/data/overlay_vr_panel_opacity` | 取得 | `getOverlayVrPanelOpacity` | 可 | useVr.updateFromBackendOverlayVrPanelOpacity |  |
 | `/get/data/overlay_vr_panel_anchor` | 取得 | `getOverlayVrPanelAnchor` | 可 | useVr.updateFromBackendOverlayVrPanelAnchor |  |
 | `/get/data/vr_panel_layout` | 取得 | `getVrPanelLayout` | 可 | useVr.updateFromBackendVrPanelLayout |  |
@@ -495,7 +495,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `enable_osc_query` | `/run/enable_osc_query` | useHandleOscQuery.handleOscQuery |
 
 
-## UIに受信先がないエンドポイント（19件）
+## UIに受信先がないエンドポイント（17件）
 
 200で届いた場合にUIが`Invalid endpoint`としてコンソールに出すもの。ただし、400で届くエラーの通知（`/run/error_…`など）は`errorHandling_Backend`が処理し、`/run/initialization_complete`は`receiveRoutes`が個別に処理するので、このどちらかに当たるものは実害がない。
 
@@ -515,9 +515,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - `/run/error_translation_speaker_vram_overflow`
 - `/run/error_whisper_weight`
 - `/run/initialization_complete`
-- `/run/send_text_overlay`
 - `/run/translation_language_unsupported`
-- `/run/vr_launcher_reset`
 
 
 ## UIだけにあるルート（57件）

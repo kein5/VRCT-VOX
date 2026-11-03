@@ -60,6 +60,11 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/run/update_software", ns: null, hook_name: null, method_name: null },
     { endpoint: "/run/config_file_unreadable", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
     { endpoint: "/run/config_save_failed", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
+    // Fire-and-forget actions from the VR settings (sample text, sent repeatedly while
+    // started, and launcher reset): the answer needs no handling, but without a route
+    // each one was logged as an invalid endpoint.
+    { endpoint: "/run/send_text_overlay", ns: null, hook_name: null, method_name: null },
+    { endpoint: "/run/vr_launcher_reset", ns: null, hook_name: null, method_name: null },
     { endpoint: "/run/config_save_recovered", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
 
     // VR UI のポインタ位置 (ホバー表示用)。VR ウィンドウへ転送する
