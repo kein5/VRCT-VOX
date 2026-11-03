@@ -61,6 +61,7 @@ class VoiceEventBus:
         self._thread = None
         self._active = None
         self._active_source = None
+        self._monitors = {}
         self._closed = False
         self._muted = False
         self._tts_enabled = bool(enabled)
@@ -84,6 +85,8 @@ class VoiceEventBus:
         self._queue.clear()
         if self._active:
             self._active.cancel()
+        for monitor in self._monitors:
+            monitor.close(drain=False)
         self._condition.notify_all()
 
     def cancel(self):
@@ -113,6 +116,7 @@ class VoiceEventBus:
                 self._cancel_locked()
 
     def close(self, timeout=3.0):
+        """Cancel all output; the worker exits only after its monitors are reaped."""
         with self._condition:
             self._closed = True
             self._cancel_locked()
@@ -137,6 +141,9 @@ class VoiceEventBus:
             self._queue = retained
             if self._active_source == source and self._active:
                 self._active.cancel()
+            for monitor, monitor_source in self._monitors.items():
+                if monitor_source == source:
+                    monitor.close(drain=False)
             self._condition.notify_all()
 
     def publish(self, event, *, expected_generation=None, expected_source_generation=None):
@@ -192,7 +199,7 @@ class VoiceEventBus:
             return {**self._stats, "queued": len(self._queue), "active": self._active is not None,
                     "mode": self.settings.mode, "closed": self._closed, "muted": self._muted,
                     "tts_enabled": self._tts_enabled, "tts_generation": self._epoch,
-                    "tts_stopping": not self._tts_enabled and self._active is not None,
+                    "tts_stopping": not self._tts_enabled and (self._active is not None or bool(self._monitors)),
                     "observation_id": str(self._observation_id)}
 
     def _open_monitor(self, settings, epoch):
@@ -224,9 +231,17 @@ class VoiceEventBus:
     def _work(self):
         while True:
             with self._condition:
-                self._condition.wait_for(lambda: self._closed or self._queue)
-                if self._closed:
-                    return
+                while True:
+                    # Retain ownership through drain and device close. Poll only
+                    # while monitors remain; joining never paces the next job.
+                    for monitor in tuple(self._monitors):
+                        if monitor.join(0):
+                            del self._monitors[monitor]
+                    if self._closed and not self._monitors:
+                        return
+                    if not self._closed and self._queue:
+                        break
+                    self._condition.wait(0.05 if self._monitors else None)
                 next_chat = next((i for i, item in enumerate(self._queue) if item[0].source == "chat"), 0)
                 event, settings, epoch = self._queue[next_chat]
                 del self._queue[next_chat]
@@ -239,7 +254,7 @@ class VoiceEventBus:
             start_timer = None
             if deadline is not None:
                 start_timer = StartExpiry(token, deadline).start()
-            timer = Timer(self.request_timeout, lambda: token.cancel("request_timeout"))
+            timer = Timer(self.request_timeout, lambda token=token: token.cancel("request_timeout"))
             timer.daemon = True
             timer.start()
             frames = None
@@ -262,6 +277,11 @@ class VoiceEventBus:
                 if monitor is None:
                     self.router.play(frames, settings.playback_device, token, first_audio)
                 else:
+                    with self._condition:
+                        self._monitors[monitor] = event.source
+                        # Stop may have raced the factory before registration.
+                        if token.is_set() or epoch != self._epoch:
+                            monitor.close(drain=False)
                     self.router.play(frames, settings.playback_device, token, first_audio, monitor=monitor)
                 token.check()
                 outcome = "completed"
