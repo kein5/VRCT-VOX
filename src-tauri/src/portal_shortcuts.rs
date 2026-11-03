@@ -9,12 +9,21 @@
 //! registry requires `Register` before any other portal call on a connection.
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{mpsc, Arc, Mutex};
-use std::time::Duration;
+use std::future::{poll_fn, Future};
+use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::task::Poll;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State, WebviewWindow};
-use zbus::blocking::{Connection, Proxy};
+use zbus::{Connection, MatchRule, MessageStream, Proxy};
+// zbus is pinned; its macro support re-export avoids adding a new dependency.
+use zbus::export::futures_core::Stream;
+#[path = "portal_shortcut_worker.rs"]
+mod worker;
+use worker::{Backend, Mailbox, Operation, Worker};
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
 /// Must match a desktop file the portal can find; see `ensure_desktop_file`.
@@ -35,7 +44,7 @@ const ACTIONS: [(&str, &str); 5] = [
 
 /// (action id, portal trigger, Qt key code for KDE when representable)
 type Binding = Vec<(String, String, Option<i32>)>;
-type Reply = mpsc::Sender<Result<HashMap<String, Assigned>, String>>;
+type Jobs = Mailbox<Binding, HashMap<String, Assigned>>;
 
 /// The key the desktop actually uses for one action. `applied` is false when
 /// the desktop kept another key (for example one taken by another app), and
@@ -47,7 +56,7 @@ pub struct Assigned {
 }
 
 #[derive(Default)]
-pub struct PortalShortcuts(Mutex<Option<mpsc::Sender<(Binding, Reply)>>>);
+pub struct PortalShortcuts(Mutex<Option<Arc<Jobs>>>);
 
 #[derive(Clone, Serialize)]
 struct Activation {
@@ -204,35 +213,78 @@ fn ensure_desktop_file() -> Result<(), String> {
 
 struct Portal {
     connection: Connection,
+    destination: String,
     sender: String,
     counter: u32,
+    request_path: Option<String>,
+    session: Arc<Mutex<Option<OwnedObjectPath>>>,
+    alive: Arc<AtomicBool>,
+    listener: Option<std::thread::JoinHandle<()>>,
+    retired: bool,
+}
+
+async fn next<S: Stream + Unpin>(stream: &mut S) -> Option<S::Item> {
+    poll_fn(|context| Pin::new(&mut *stream).poll_next(context)).await
 }
 
 impl Portal {
-    fn open() -> Result<Self, String> {
+    fn open(app: AppHandle, operation: &Operation) -> Result<Self, String> {
+        operation.check()?;
         ensure_desktop_file()?;
-        let connection = Connection::session().map_err(failure("portal_unavailable"))?;
-        connection
-            .call_method(
-                Some(DESTINATION),
-                DESKTOP,
-                Some("org.freedesktop.host.portal.Registry"),
-                "Register",
-                &(APP_ID, HashMap::<&str, Value>::new()),
-            )
-            .map_err(failure("portal_app_id_unavailable"))?;
-        let version: u32 = Proxy::new(&connection, DESTINATION, DESKTOP, INTERFACE)
-            .and_then(|proxy| proxy.get_property("version"))
-            .map_err(failure("portal_shortcuts_unsupported"))?;
-        if version < 1 {
-            return Err("portal_shortcuts_unsupported".into());
-        }
-        let sender = connection
-            .unique_name()
-            .ok_or("portal_unavailable")?
-            .trim_start_matches(':')
-            .replace('.', "_");
-        Ok(Self { connection, sender, counter: 0 })
+        let connection = operation.wait(Connection::session())?.map_err(failure("portal_unavailable"))?;
+        // Build the owner before any fallible setup, so failure closes the connection.
+        let mut portal = Self {
+            connection, destination: DESTINATION.into(), sender: String::new(), counter: 0,
+            request_path: None, session: Arc::new(Mutex::new(None)),
+            alive: Arc::new(AtomicBool::new(true)), listener: None, retired: false,
+        };
+        portal.initialize(app, operation)?;
+        Ok(portal)
+    }
+
+    fn check(&self, operation: &Operation) -> Result<(), String> {
+        operation.check()?;
+        if self.alive.load(Ordering::Acquire) { Ok(()) } else { Err("portal_unavailable".into()) }
+    }
+
+    fn wait<F: Future>(&self, operation: &Operation, future: F) -> Result<F::Output, String> {
+        worker::wait_until(operation.deadline, || self.check(operation), future)
+    }
+
+    fn initialize(&mut self, app: AppHandle, operation: &Operation) -> Result<(), String> {
+        self.wait(operation, self.connection.call_method(
+            Some(DESTINATION), DESKTOP, Some("org.freedesktop.host.portal.Registry"), "Register",
+            &(APP_ID, HashMap::<&str, Value>::new()),
+        ))?.map_err(failure("portal_app_id_unavailable"))?;
+        // Watch owner changes before resolving the owner, including replacement.
+        let owner_rule = MatchRule::builder().msg_type(zbus::message::Type::Signal)
+            .sender("org.freedesktop.DBus").map_err(failure("portal_unavailable"))?
+            .interface("org.freedesktop.DBus").map_err(failure("portal_unavailable"))?
+            .member("NameOwnerChanged").map_err(failure("portal_unavailable"))?
+            .add_arg(DESTINATION).map_err(failure("portal_unavailable"))?.build();
+        let owners = self.wait(operation, MessageStream::for_match_rule(owner_rule, &self.connection, Some(8)))?
+            .map_err(failure("portal_unavailable"))?;
+        let reply = self.wait(operation, self.connection.call_method(
+            Some("org.freedesktop.DBus"), "/org/freedesktop/DBus", Some("org.freedesktop.DBus"),
+            "GetNameOwner", &(DESTINATION,),
+        ))?.map_err(failure("portal_unavailable"))?;
+        self.destination = reply.body().deserialize().map_err(failure("portal_unavailable"))?;
+        let rule = MatchRule::builder().msg_type(zbus::message::Type::Signal)
+            .sender(self.destination.as_str()).map_err(failure("portal_unavailable"))?.build();
+        let signals = self.wait(operation, MessageStream::for_match_rule(rule, &self.connection, Some(64)))?
+            .map_err(failure("portal_unavailable"))?;
+        let (connection, session, alive) = (self.connection.clone(), self.session.clone(), self.alive.clone());
+        self.listener = Some(std::thread::Builder::new().name("vrct-portal-signals".into())
+            .spawn(move || listen(connection, signals, owners, session, alive, app))
+            .map_err(|_| "portal_unavailable")?);
+        let version: u32 = self.wait(operation, async {
+            Proxy::new(&self.connection, self.destination.as_str(), DESKTOP, INTERFACE).await?
+                .get_property("version").await
+        })?.map_err(failure("portal_shortcuts_unsupported"))?;
+        if version < 1 { return Err("portal_shortcuts_unsupported".into()); }
+        self.sender = self.connection.unique_name().ok_or("portal_unavailable")?
+            .trim_start_matches(':').replace('.', "_");
+        Ok(())
     }
 
     fn token(&mut self) -> String {
@@ -242,44 +294,61 @@ impl Portal {
 
     /// Calls a request-returning method and waits for its `Response`,
     /// subscribing first so a fast response cannot be missed.
-    fn request<B>(&mut self, method: &str, token: &str, body: &B) -> Result<HashMap<String, OwnedValue>, String>
+    fn request<B>(&mut self, operation: &Operation, method: &str, token: &str, body: &B) -> Result<HashMap<String, OwnedValue>, String>
     where
         B: serde::Serialize + zbus::zvariant::DynamicType,
     {
+        self.check(operation)?;
         let path = format!("{DESKTOP}/request/{}/{token}", self.sender);
-        let request = Proxy::new(&self.connection, DESTINATION, path.as_str(), "org.freedesktop.portal.Request")
-            .map_err(failure("portal_unavailable"))?;
-        let mut responses = request.receive_signal("Response").map_err(failure("portal_unavailable"))?;
-        let portal = Proxy::new(&self.connection, DESTINATION, DESKTOP, INTERFACE)
-            .map_err(failure("portal_unavailable"))?;
-        let _: OwnedObjectPath = portal.call(method, body).map_err(failure("portal_request_failed"))?;
-        let message = responses.next().ok_or("portal_request_failed")?;
-        let (code, results): (u32, HashMap<String, OwnedValue>) =
-            message.body().deserialize().map_err(failure("portal_request_failed"))?;
-        match code {
-            0 => Ok(results),
-            1 => Err("portal_cancelled".into()),
-            _ => Err("portal_request_failed".into()),
-        }
+        self.request_path = Some(path.clone());
+        let results: Result<HashMap<String, OwnedValue>, String> = self.wait(operation, async {
+            let request = Proxy::new(&self.connection, self.destination.as_str(), path.as_str(), "org.freedesktop.portal.Request")
+                .await.map_err(failure("portal_unavailable"))?;
+            let mut responses = request.receive_signal("Response").await.map_err(failure("portal_unavailable"))?;
+            let portal = Proxy::new(&self.connection, self.destination.as_str(), DESKTOP, INTERFACE)
+                .await.map_err(failure("portal_unavailable"))?;
+            self.check(operation)?;
+            let _: OwnedObjectPath = portal.call(method, body).await.map_err(failure("portal_request_failed"))?;
+            self.check(operation)?;
+            let message = next(&mut responses).await.ok_or("portal_request_failed")?;
+            self.check(operation)?;
+            let (code, results): (u32, HashMap<String, OwnedValue>) =
+                message.body().deserialize().map_err(failure("portal_request_failed"))?;
+            match code {
+                0 => Ok(results),
+                1 => Err("portal_cancelled".into()),
+                _ => Err("portal_request_failed".into()),
+            }
+        })?;
+        let results = results?;
+        self.request_path = None;
+        Ok(results)
     }
 
-    fn create_session(&mut self) -> Result<OwnedObjectPath, String> {
+    fn create_session(&mut self, operation: &Operation) -> Result<OwnedObjectPath, String> {
         let token = self.token();
         let session_token = self.token();
+        // Record the predictable handle before sending CreateSession, so timeout
+        // cleanup also covers a session whose Response has not arrived yet.
+        let expected = OwnedObjectPath::try_from(format!("{DESKTOP}/session/{}/{session_token}", self.sender))
+            .map_err(|_| "portal_request_failed")?;
+        *self.session.lock().unwrap() = Some(expected);
         let options = HashMap::from([
             ("handle_token", Value::from(token.as_str())),
             ("session_handle_token", Value::from(session_token.as_str())),
         ]);
-        let results = self.request("CreateSession", &token, &(options,))?;
+        let results = self.request(operation, "CreateSession", &token, &(options,))?;
         let handle = match results.get("session_handle").map(|value| &**value) {
             Some(Value::Str(path)) => path.as_str().to_owned(),
             Some(Value::ObjectPath(path)) => path.as_str().to_owned(),
             _ => return Err("portal_request_failed".into()),
         };
-        OwnedObjectPath::try_from(handle).map_err(|_| "portal_request_failed".into())
+        let handle = OwnedObjectPath::try_from(handle).map_err(|_| "portal_request_failed")?;
+        *self.session.lock().unwrap() = Some(handle.clone());
+        Ok(handle)
     }
 
-    fn bind(&mut self, session: &OwnedObjectPath, binding: &Binding) -> Result<HashMap<String, Assigned>, String> {
+    fn bind_session(&mut self, session: &OwnedObjectPath, binding: &Binding, operation: &Operation) -> Result<HashMap<String, Assigned>, String> {
         let token = self.token();
         let shortcuts: Vec<(&str, HashMap<&str, Value>)> = binding
             .iter()
@@ -295,7 +364,7 @@ impl Portal {
             })
             .collect();
         let options = HashMap::from([("handle_token", Value::from(token.as_str()))]);
-        let results = self.request("BindShortcuts", &token, &(session, shortcuts, "", options))?;
+        let results = self.request(operation, "BindShortcuts", &token, &(session, shortcuts, "", options))?;
         // Best effort: the desktop's own description of each assigned key.
         let described: HashMap<String, String> = results
             .get("shortcuts")
@@ -312,112 +381,136 @@ impl Portal {
                 (id, shown)
             })
             .collect();
-        Ok(binding
-            .iter()
-            .map(|(id, _, qt)| {
-                let assigned = qt.and_then(|key| self.apply_on_kde(id, key)).unwrap_or_else(|| Assigned {
-                    shown: described.get(id).cloned().unwrap_or_default(),
-                    applied: None,
-                });
-                (id.clone(), assigned)
-            })
-            .collect())
+        let mut assigned = HashMap::new();
+        for (id, _, qt) in binding {
+            self.check(operation)?;
+            let row = if let Some(key) = qt { self.apply_on_kde(id, *key, operation)? } else { None };
+            self.check(operation)?;
+            assigned.insert(id.clone(), row.unwrap_or_else(|| Assigned {
+                shown: described.get(id).cloned().unwrap_or_default(), applied: None,
+            }));
+        }
+        Ok(assigned)
     }
 
     /// A portal's preferred trigger only seeds a new shortcut: KDE keeps the
     /// key chosen in its first dialog even after VRCT changes. Make VRCT's
     /// setting authoritative the way System Settings edits a shortcut, then
     /// read back what KDE kept (it refuses keys taken by other components).
-    fn apply_on_kde(&self, id: &str, key: i32) -> Option<Assigned> {
+    fn apply_on_kde(&self, id: &str, key: i32, operation: &Operation) -> Result<Option<Assigned>, String> {
         let description = ACTIONS.iter().find(|(action, _)| *action == id).map_or("", |(_, text)| *text);
         let action = [APP_ID, id, "VRCT-VOX", description];
-        let accel = Proxy::new(&self.connection, "org.kde.kglobalaccel", "/kglobalaccel", "org.kde.KGlobalAccel").ok()?;
-        let first = |keys: Vec<(Vec<i32>,)>| keys.into_iter().next().and_then(|(codes,)| codes.into_iter().next());
-        let mut current = first(accel.call("shortcutKeys", &(action.as_slice(),)).ok()?);
-        if current != Some(key) {
-            let _: () = accel
-                .call("setForeignShortcutKeys", &(action.as_slice(), vec![(vec![key, 0, 0, 0],)]))
-                .ok()?;
-            current = first(accel.call("shortcutKeys", &(action.as_slice(),)).ok()?);
-        }
-        Some(Assigned {
-            shown: current.filter(|code| *code != 0).map(qt_text).unwrap_or_default(),
-            applied: Some(current == Some(key)),
+        self.wait(operation, async {
+            let accel = Proxy::new(&self.connection, "org.kde.kglobalaccel", "/kglobalaccel", "org.kde.KGlobalAccel").await.ok()?;
+            let first = |keys: Vec<(Vec<i32>,)>| keys.into_iter().next().and_then(|(codes,)| codes.into_iter().next());
+            let mut current = first(accel.call("shortcutKeys", &(action.as_slice(),)).await.ok()?);
+            // In particular, an expired portal Response must never change KDE's keys.
+            self.check(operation).ok()?;
+            if current != Some(key) {
+                let _: () = accel.call("setForeignShortcutKeys", &(action.as_slice(), vec![(vec![key, 0, 0, 0],)]))
+                    .await.ok()?;
+                self.check(operation).ok()?;
+                current = first(accel.call("shortcutKeys", &(action.as_slice(),)).await.ok()?);
+            }
+            Some(Assigned {
+                shown: current.filter(|code| *code != 0).map(qt_text).unwrap_or_default(),
+                applied: Some(current == Some(key)),
+            })
         })
     }
 
-    fn close(&self, session: &OwnedObjectPath) {
-        let _ = self.connection.call_method(
-            Some(DESTINATION),
-            session.as_str(),
-            Some("org.freedesktop.portal.Session"),
-            "Close",
-            &(),
-        );
+    fn close_path(&self, path: &str, interface: &str) -> Result<(), String> {
+        // Cleanup has its own short budget: the original operation is already
+        // cancelled. Closing the connection below is the fallback on failure.
+        worker::wait_until(Instant::now() + Duration::from_secs(1), || Ok(()),
+            self.connection.call_method(Some(self.destination.as_str()), path, Some(interface), "Close", &()))?
+            .map_err(failure("portal_unavailable"))?;
+        Ok(())
+    }
+
+    fn close_session(&mut self) -> Result<(), String> {
+        let old = self.session.lock().unwrap().take();
+        if let Some(old) = old { self.close_path(old.as_str(), "org.freedesktop.portal.Session")?; }
+        Ok(())
     }
 }
 
-fn listen(connection: Connection, session: Arc<Mutex<Option<OwnedObjectPath>>>, app: AppHandle) {
-    let Ok(portal) = Proxy::new(&connection, DESTINATION, DESKTOP, INTERFACE) else { return };
-    let Ok(signals) = portal.receive_signal("Activated") else { return };
-    for message in signals {
-        let Ok((handle, id, _time, options)) =
-            message.body().deserialize::<(OwnedObjectPath, String, u64, HashMap<String, OwnedValue>)>()
-        else {
-            continue;
-        };
-        if session.lock().map_or(true, |current| current.as_ref() != Some(&handle)) {
-            continue;
-        }
-        // Lets the window take focus despite the compositor's focus-stealing rules.
-        let activation_token = options
-            .get("activation_token")
-            .and_then(|value| value.try_clone().ok())
-            .and_then(|value| String::try_from(value).ok());
-        let _ = app.emit_to("main", "portal-shortcut", Activation { id, activation_token });
+impl Backend for Portal {
+    type Binding = Binding;
+    type Assigned = HashMap<String, Assigned>;
+    fn alive(&self) -> bool { self.alive.load(Ordering::Acquire) }
+    fn bind(&mut self, binding: &Binding, operation: &Operation) -> Result<Self::Assigned, String> {
+        self.close_session()?;
+        self.check(operation)?;
+        if binding.is_empty() { return Ok(HashMap::new()); }
+        let handle = self.create_session(operation)?;
+        self.bind_session(&handle, binding, operation)
+    }
+    fn close(&mut self) {
+        if self.retired { return; }
+        self.retired = true;
+        self.alive.store(false, Ordering::Release);
+        if let Some(path) = self.request_path.take() { let _ = self.close_path(&path, "org.freedesktop.portal.Request"); }
+        let _ = self.close_session();
+        let _ = worker::wait_until(Instant::now() + Duration::from_secs(1), || Ok(()), self.connection.clone().close());
+        if let Some(listener) = self.listener.take() { let _ = listener.join(); }
     }
 }
+impl Drop for Portal {
+    fn drop(&mut self) { self.close(); }
+}
 
-fn run(app: AppHandle, jobs: mpsc::Receiver<(Binding, Reply)>) {
-    let mut portal = match Portal::open() {
-        Ok(portal) => portal,
-        Err(code) => {
-            for (_, reply) in jobs {
-                let _ = reply.send(Err(code.clone()));
-            }
-            return;
-        }
-    };
-    let session = Arc::new(Mutex::new(None::<OwnedObjectPath>));
-    let (connection, current) = (portal.connection.clone(), session.clone());
-    std::thread::spawn(move || listen(connection, current, app));
-    let mut bound: Option<(Binding, HashMap<String, Assigned>)> = None;
-    for (binding, reply) in jobs {
-        if let Some((previous, shown)) = &bound {
-            if *previous == binding {
-                let _ = reply.send(Ok(shown.clone()));
-                continue;
-            }
-        }
-        // A session's shortcuts are fixed once bound: replace the session.
-        if let Some(old) = session.lock().ok().and_then(|mut current| current.take()) {
-            portal.close(&old);
-        }
-        bound = None;
-        let result = if binding.is_empty() {
-            Ok(HashMap::new())
-        } else {
-            portal.create_session().and_then(|handle| {
-                if let Ok(mut current) = session.lock() {
-                    *current = Some(handle.clone());
-                }
-                portal.bind(&handle, &binding)
-            })
+fn listen(connection: Connection, mut signals: MessageStream, mut owners: MessageStream,
+    session: Arc<Mutex<Option<OwnedObjectPath>>>, alive: Arc<AtomicBool>, app: AppHandle) {
+    struct InvalidateOnDrop(Arc<AtomicBool>);
+    impl Drop for InvalidateOnDrop {
+        fn drop(&mut self) { self.0.store(false, Ordering::Release); }
+    }
+    let _invalidate = InvalidateOnDrop(alive.clone());
+    let closed = connection.closed();
+    let mut closed = std::pin::pin!(closed);
+    while alive.load(Ordering::Acquire) {
+        let message = worker::wait_until(Instant::now() + Duration::from_secs(1), || {
+            if alive.load(Ordering::Acquire) { Ok(()) } else { Err("portal_unavailable".into()) }
+        }, poll_fn(|context| {
+            if closed.as_mut().poll(context).is_ready() { return Poll::Ready(None); }
+            if let Poll::Ready(message) = Pin::new(&mut owners).poll_next(context) { return Poll::Ready(message); }
+            Pin::new(&mut signals).poll_next(context)
+        }));
+        let message = match message {
+            Err(code) if code == "portal_timeout" => continue,
+            Ok(Some(Ok(message))) => message,
+            _ => break,
         };
-        if let Ok(shown) = &result {
-            bound = Some((binding, shown.clone()));
+        let header = message.header();
+        let interface = header.interface().map(|name| name.as_str());
+        let member = header.member().map(|name| name.as_str());
+        if interface == Some("org.freedesktop.DBus") && member == Some("NameOwnerChanged") {
+            if let Ok((name, old, _new)) = message.body().deserialize::<(String, String, String)>() {
+                if name == DESTINATION && !old.is_empty() { break; }
+            }
+        } else if interface == Some("org.freedesktop.portal.Session") && member == Some("Closed") {
+            if session.lock().is_ok_and(|current| current.as_ref().is_some_and(|path| Some(path.as_str()) == header.path().map(|path| path.as_str()))) {
+                break;
+            }
+        } else if interface == Some(INTERFACE) && member == Some("Activated") {
+            let Ok((handle, id, _time, options)) = message.body()
+                .deserialize::<(OwnedObjectPath, String, u64, HashMap<String, OwnedValue>)>() else { continue };
+            if session.lock().map_or(true, |current| current.as_ref() != Some(&handle)) { continue; }
+            let activation_token = options.get("activation_token")
+                .and_then(|value| value.try_clone().ok()).and_then(|value| String::try_from(value).ok());
+            let _ = app.emit_to("main", "portal-shortcut", Activation { id, activation_token });
         }
-        let _ = reply.send(result);
+    }
+    // Closed, owner loss, connection loss, and stream failure all invalidate cache.
+    alive.store(false, Ordering::Release);
+}
+
+fn run(app: AppHandle, jobs: Arc<Jobs>) {
+    let mut worker = Worker::<Portal>::default();
+    loop {
+        let job = jobs.next();
+        worker.process(job, |operation| Portal::open(app.clone(), operation));
     }
 }
 
@@ -429,6 +522,7 @@ fn run(app: AppHandle, jobs: mpsc::Receiver<(Binding, Reply)>) {
 /// KWin scripts may activate windows; the script matches our own PID only.
 /// Best effort: other desktops have no KWin and keep the normal behaviour.
 pub fn raise_with_kwin(caption: &'static str) {
+    use zbus::blocking::{Connection, Proxy};
     static COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
     std::thread::spawn(move || {
         let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).filter(|path| path.is_absolute())
@@ -490,24 +584,22 @@ pub async fn portal_shortcuts_bind(
     binding.sort();
     let jobs = {
         let mut worker = state.0.lock().map_err(|_| "portal_unavailable")?;
-        worker
-            .get_or_insert_with(|| {
-                let (sender, receiver) = mpsc::channel();
-                let app = app.clone();
-                std::thread::Builder::new()
-                    .name("vrct-portal-shortcuts".into())
-                    .spawn(move || run(app, receiver))
-                    .ok();
-                sender
-            })
-            .clone()
+        if worker.is_none() {
+            let jobs = Arc::new(Jobs::default());
+            let (app, receiver) = (app.clone(), jobs.clone());
+            std::thread::Builder::new().name("vrct-portal-shortcuts".into())
+                .spawn(move || run(app, receiver)).map_err(|_| "portal_unavailable")?;
+            *worker = Some(jobs);
+        }
+        worker.as_ref().unwrap().clone()
     };
-    let (reply, result) = mpsc::channel();
-    jobs.send((binding, reply)).map_err(|_| "portal_unavailable")?;
-    tauri::async_runtime::spawn_blocking(move || result.recv_timeout(BIND_TIMEOUT))
-        .await
-        .map_err(|_| "portal_unavailable")?
-        .map_err(|_| "portal_timeout")?
+    let ticket = jobs.submit(binding, BIND_TIMEOUT);
+    // Keep a cancellation guard in the command future, not in the detached
+    // spawn_blocking task, so dropping the caller also abandons the operation.
+    struct CancelOnDrop(Operation);
+    impl Drop for CancelOnDrop { fn drop(&mut self) { self.0.cancel(); } }
+    let _cancel = CancelOnDrop(ticket.operation.clone());
+    tauri::async_runtime::spawn_blocking(move || ticket.receive()).await.map_err(|_| "portal_unavailable")?
 }
 
 #[cfg(test)]
