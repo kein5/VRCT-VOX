@@ -61,8 +61,8 @@ class GeminiAuthKeyEndpointTests(_ConfigSnapshotMixin, unittest.TestCase):
 
     @patch("controller.model")
     def test_set_auth_key_success_populates_model_list_and_status(self, mock_model) -> None:
-        mock_model.authenticationTranslatorGeminiAuthKey.return_value = True
-        mock_model.getTranslatorGeminiModelList.return_value = ["gemini-2.5-flash"]
+        candidate = (object(), ["gemini-2.5-flash"], "gemini-2.5-flash")
+        mock_model.prepareTranslatorCredential.return_value = candidate
 
         response = self.controller.setGeminiAuthKey("a" * 39)
 
@@ -71,19 +71,19 @@ class GeminiAuthKeyEndpointTests(_ConfigSnapshotMixin, unittest.TestCase):
         self.assertTrue(config.SELECTABLE_TRANSLATION_ENGINE_STATUS["Gemini_API"])
         self.assertEqual(config.SELECTABLE_GEMINI_MODEL_LIST, ["gemini-2.5-flash"])
         self.assertEqual(config.SELECTED_GEMINI_MODEL, "gemini-2.5-flash")
-        mock_model.updateTranslatorGeminiClient.assert_called_once()
+        mock_model.commitTranslatorCredential.assert_called_once_with("Gemini_API", candidate)
 
     @patch("controller.model")
     def test_set_auth_key_too_short_is_rejected_without_calling_model(self, mock_model) -> None:
         response = self.controller.setGeminiAuthKey("a" * 38)
 
         self.assertEqual(response["status"], 400)
-        mock_model.authenticationTranslatorGeminiAuthKey.assert_not_called()
+        mock_model.prepareTranslatorCredential.assert_not_called()
         self.assertIsNone(config.AUTH_KEYS["Gemini_API"])
 
     @patch("controller.model")
-    def test_set_auth_key_auth_failure_clears_key_via_del(self, mock_model) -> None:
-        mock_model.authenticationTranslatorGeminiAuthKey.return_value = False
+    def test_set_auth_key_auth_failure_keeps_unset_key(self, mock_model) -> None:
+        mock_model.prepareTranslatorCredential.side_effect = ValueError("Authentication failed")
 
         response = self.controller.setGeminiAuthKey("a" * 39)
 
