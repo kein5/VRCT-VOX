@@ -22,6 +22,13 @@ export const StartPythonController = () => {
 
     useEffect(() => {
         if (hasRunRef.current) {
+            // A re-run (StrictMode, or Fast Refresh after editing a module this
+            // imports) keeps the running sidecar. The cleanup below stopped feeding
+            // its watchdog, so start again: without a feed the sidecar shuts itself
+            // down about a minute later and every switch stops answering.
+            if (watchdogIntervalIdRef.current === null && store.backend_subprocess) {
+                watchdogIntervalIdRef.current = startFeedingToWatchDogController(asyncStdoutToPython);
+            }
             return () => {
                 if (watchdogIntervalIdRef.current !== null) {
                     clearInterval(watchdogIntervalIdRef.current);
