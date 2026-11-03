@@ -5,7 +5,7 @@ import sys
 import time
 
 from .direct_voice import create_worker_process
-from .router_protocol import Reader, encode
+from .router_protocol import Reader, encode, validate_monitor_control
 from models.audio_routing.monitor_output import parse_monitor
 from models.audio_routing.source_bridge import parse_source
 
@@ -21,18 +21,42 @@ def main():
         reader = Reader(sys.stdin.buffer)
         request = reader.read(timeout=5)
         if (not isinstance(request, dict) or request.get('kind') != 'start'
-                or set(request) not in ({'kind', 'source', 'options'}, {'kind', 'source', 'options', 'monitor'})):
+                or not {'kind', 'source', 'options'} <= set(request)
+                or set(request) - {'kind', 'source', 'options', 'monitor', 'monitor_control'}):
             raise ValueError('vc_router_request_invalid')
         monitor = parse_monitor(request.get('monitor'))
-        if reader.pending or select.select([sys.stdin.buffer], [], [], 0)[0]:
-            return 1  # Extra buffered control or Stop before capture starts.
+        muted, revision = validate_monitor_control(request.get('monitor_control',
+            dict(kind='monitor_mute', muted=True, revision=0)))
+        # Drain controls already sent during launch, including EOF/Stop, before
+        # creating any capture or inference resources.
+        while reader.pending or select.select([sys.stdin.buffer], [], [], 0)[0]:
+            try:
+                muted, updated = validate_monitor_control(reader.read(timeout=1))
+            except EOFError:
+                return 0
+            if updated <= revision:
+                raise ValueError('vc_router_request_invalid')
+            revision = updated
         source = parse_source(request['source'])
         process = (create_worker_process(request['options']) if monitor is None
                    else create_worker_process(request['options'], monitor=monitor))
+        if monitor is not None:
+            process.set_monitor_muted(muted)
         process.start(source=source)
         os.set_blocking(sys.stdout.fileno(), False)
         while True:
+            if reader.pending or select.select([sys.stdin.buffer], [], [], .05)[0]:
+                try:
+                    muted, updated = validate_monitor_control(reader.read(timeout=1))
+                except EOFError:
+                    return 0  # Closing the owned control pipe is Stop.
+                if updated <= revision:
+                    raise ValueError('vc_router_request_invalid')
+                if monitor is not None:
+                    process.set_monitor_muted(muted)
+                revision = updated
             state = process.health()
+            state['monitor_revision'] = revision
             frame = encode(dict(kind='health', sent_ns=time.monotonic_ns(), **state))
             # Health is a replaceable snapshot. An unread health pipe must never
             # delay control EOF/Stop or the audio thread. Writes below PIPE_BUF
@@ -45,12 +69,6 @@ def main():
                 pass
             if state['error']:
                 return 1
-            if select.select([sys.stdin.buffer], [], [], .05)[0]:
-                # Closing the owned control pipe is Stop. Any extra command is
-                # invalid too: a router is single-use and never changes source.
-                if os.read(sys.stdin.fileno(), 1):
-                    return 1
-                return 0
     except (EOFError, OSError, ValueError, RuntimeError):
         return 1
     finally:

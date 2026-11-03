@@ -1,5 +1,6 @@
 """Real Controller/stdio keep explicit input intent independent of TTS and mute."""
 from queue import Queue
+from types import SimpleNamespace
 
 import pytest
 from models.voice_conversion.settings import DirectSettings
@@ -18,6 +19,8 @@ def app(controller_module, monkeypatch):  # noqa: F811
     monkeypatch.setattr(m, '_read_graph', backend.read)
     monkeypatch.setattr(m, '_launch', backend.launch)
     monkeypatch.setattr(m, '_unmute', backend.unmute)
+    monkeypatch.setattr(m, 'graph_source', lambda: SimpleNamespace(
+        subscribe=lambda *args: SimpleNamespace(close=lambda: None)))
     monkeypatch.setattr(m, 'MONITOR_INTERVAL', .005)
     monkeypatch.setattr(controller_module, 'PipeWireGate', lambda: gate)
     controller = controller_module.Controller()
@@ -168,6 +171,9 @@ class ConvertedBackend:
     def __init__(self):
         self.state = dict(requested=False, active=False, pending=False, stopping=False,
                           conversion_verified=False, error=None, state='off')
+        self.monitor_muted = True
+    def set_monitor_muted(self, muted):
+        self.monitor_muted = muted
     def start(self, *, source):
         self.state.update(requested=True, active=True, state='ready')
     def stop(self):

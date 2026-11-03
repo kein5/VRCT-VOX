@@ -60,6 +60,11 @@ class VCProcess:
         self._monitor_choice = parse_monitor(monitor)
         self._monitor = None
         self._monitor_error = None
+        self._monitor_lock = Lock()
+        self._monitor_muted = True
+        self._monitor_after_ns = 0
+        self._monitor_retiring = False
+        self._monitor_sink = None
         self._lock = Lock()
         self._queue = Queue(maxsize=1)
         self._partial = bytearray()
@@ -121,11 +126,41 @@ class VCProcess:
             self._monitor_error = None
 
     def _open_monitor(self, sink):
+        with self._monitor_lock:
+            self._monitor_sink = sink.name
+
+    def set_monitor_muted(self, muted):
+        with self._monitor_lock:
+            # Every control revision is a boundary, even if mute/resume were
+            # coalesced in transit. Never reuse a cancelled tee or its queue.
+            self._monitor_muted = muted
+            self._monitor_after_ns = time.monotonic_ns()
+            if self._monitor is not None:
+                self._monitor.close(drain=False)
+                self._monitor_retiring = True
+
+    def _offer_monitor(self, converted, start_ns):
+        with self._monitor_lock:
+            if self._monitor_muted or start_ns < self._monitor_after_ns:
+                return
+            if self._monitor_retiring:
+                # Never wait for a device on the conversion path, or overlap
+                # a fresh monitor with an old device still being cancelled.
+                if not self._monitor.join(0):
+                    return
+                self._monitor = None
+                self._monitor_retiring = False
+            if self._monitor is None:
+                self._create_monitor()
+            if self._monitor is not None:
+                self._monitor.offer(converted, p.RATE, 1)
+
+    def _create_monitor(self):
         choice = self._monitor_choice
-        if choice is None:
+        if choice is None or self._monitor_sink is None:
             return
         try:
-            self._monitor = MonitorTee(choice['device'], choice['volume'], exclude=(sink.name,),
+            self._monitor = MonitorTee(choice['device'], choice['volume'], exclude=(self._monitor_sink,),
                                        on_error=self._monitor_failed, on_ready=self._monitor_ready)
         except Exception:
             self._monitor_failed('monitor_output_error')
@@ -233,9 +268,8 @@ class VCProcess:
                 state = p.require_output(result, converted, info, pcm, time.monotonic_ns())
                 deadline.check()
                 self._output.write(converted, deadline)
-                if self._monitor is not None:
-                    # Queue only, after the managed write: the same block, no added wait.
-                    self._monitor.offer(converted, p.RATE, 1)
+                # Queue only, after the managed write: the same block, no added wait.
+                self._offer_monitor(converted, info['start_ns'])
                 deadline.check()
                 with self._lock:
                     self._token.check()
@@ -272,9 +306,13 @@ class VCProcess:
     def _stop_monitor(self):
         # After the managed output. The monitor thread reaps its own device; a
         # slow monitor never marks VC cleanup as incomplete.
-        if self._monitor is not None:
-            self._monitor.close(drain=False)
-            self._monitor.join(1.5)
+        with self._monitor_lock:
+            self._monitor_muted = True
+            monitor = self._monitor
+            if monitor is not None:
+                monitor.close(drain=False)
+        if monitor is not None:
+            monitor.join(1.5)
 
     def _stop_output(self):
         if self._output is not None:

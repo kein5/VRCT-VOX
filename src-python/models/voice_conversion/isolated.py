@@ -61,16 +61,31 @@ class IsolatedVCProcess:
         self._lock, self._stop = Lock(), Event()
         self._thread = self._child = None
         self._cleanup_ok = True
+        self._monitor_muted = True
+        self._monitor_revision = 0
+        self._sent_monitor_revision = 0
+        self._monitor_pending_since = None
+
+    def set_monitor_muted(self, muted):
+        # Receiver/gate fast path: never write a pipe or wait for the router here.
+        with self._lock:
+            if self._monitor_muted != bool(muted):
+                self._monitor_muted = bool(muted)
+                self._monitor_revision += 1
+
+    def _monitor_control(self):
+        return dict(kind='monitor_mute', muted=self._monitor_muted, revision=self._monitor_revision)
 
     def start(self, *, source):
         _validate(source, 'mic')
         request = dict(kind='start', source=_source_id(source), options=self.options)
-        if self.monitor is not None:
-            request['monitor'] = self.monitor
-        request = encode(request)
         with self._lock:
             if self._thread is not None or self._stop.is_set():
                 raise RuntimeError('vc_single_use')
+            if self.monitor is not None:
+                request.update(monitor=self.monitor, monitor_control=self._monitor_control())
+            self._sent_monitor_revision = self._monitor_revision
+            request = encode(request)
             self._state.update(requested=True, pending=True, state='preparing')
             self._thread = Thread(target=self._run, args=(request, source), name='vrct-vc-owner', daemon=True)
             self._thread.start()
@@ -96,6 +111,27 @@ class IsolatedVCProcess:
         if self._stop.is_set():
             raise RuntimeError('cancelled')
 
+    def _check_control(self):
+        self._check()
+        if self.monitor is None:
+            return
+        now = time.monotonic()
+        with self._lock:
+            if self._monitor_revision != self._sent_monitor_revision:
+                if self._monitor_pending_since is None:
+                    self._monitor_pending_since = now
+                frame = encode(self._monitor_control())
+                # This small frame fits PIPE_BUF: EAGAIN leaves it wholly unsent.
+                try:
+                    count = os.write(self._child.stdin.fileno(), frame)
+                    if count != len(frame):
+                        raise OSError('vc_router_failed')
+                    self._sent_monitor_revision = self._monitor_revision
+                except BlockingIOError:
+                    pass
+            if self._monitor_pending_since is not None and now - self._monitor_pending_since >= 1:
+                raise TimeoutError('vc_router_timeout')
+
     def _run(self, request, source):
         child = None
         try:
@@ -116,10 +152,16 @@ class IsolatedVCProcess:
                     except BlockingIOError:
                         pass
             reader = Reader(child.stdout)
+            if self.monitor is not None:
+                self._monitor_pending_since = time.monotonic()
             while True:
-                state = validate_health(reader.read(timeout=1, check=self._check))
+                state = validate_health(reader.read(timeout=1, check=self._check_control))
                 with self._lock:
                     self._check()
+                    if state['monitor_revision'] > self._sent_monitor_revision:
+                        raise ValueError('vc_router_health_invalid')
+                    if state['monitor_revision'] == self._sent_monitor_revision == self._monitor_revision:
+                        self._monitor_pending_since = None
                     self._state.update(state)
                 if state['error']:
                     break
