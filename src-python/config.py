@@ -611,52 +611,63 @@ def _mic_word_filter_validator(val, inst):
 def _selected_translation_engines_validator(val, inst):
     if not isinstance(val, dict):
         return None
-    old_value = inst.SELECTED_TRANSLATION_ENGINES
-    new = {}
-    for k, v in val.items():
-        if v in inst.SELECTABLE_TRANSLATION_ENGINE_LIST:
-            new[k] = v
-        else:
-            new[k] = old_value.get(k)
+    old = inst.SELECTED_TRANSLATION_ENGINES
+    tabs = inst.SELECTABLE_TAB_NO_LIST
+    loading = getattr(inst, "_loading_saved_config", False)
+    if not loading and (set(val) != set(tabs) or
+                        any(not isinstance(v, str) for v in val.values())):
+        return None
+    return {
+        tab: val[tab] if isinstance(val.get(tab), str) and
+        val[tab] in inst.SELECTABLE_TRANSLATION_ENGINE_LIST else old[tab]
+        for tab in tabs
+    }
+
+
+def _selected_languages_validator(val, inst, attr_name, slots):
+    if not isinstance(val, dict):
+        return None
+    old = getattr(inst, attr_name)
+    tabs = inst.SELECTABLE_TAB_NO_LIST
+    loading = getattr(inst, "_loading_saved_config", False)
+    fields = {"language", "country", "enable"}
+    # Runtime writes replace a complete map. Reject missing/unknown structure
+    # before storing anything; startup repairs damaged parts from the defaults.
+    if not loading:
+        if set(val) != set(tabs):
+            return None
+        for tab in tabs:
+            if not isinstance(val[tab], dict) or set(val[tab]) != set(slots):
+                return None
+            if any(not isinstance(entry, dict) or set(entry) != fields
+                   for entry in val[tab].values()):
+                return None
+    new = copy.deepcopy(old)
+    for tab in tabs:
+        entries = val.get(tab)
+        if not isinstance(entries, dict):
+            continue
+        for slot in slots:
+            entry = entries.get(slot)
+            if not isinstance(entry, dict) or set(entry) != fields:
+                continue
+            language, country, enable = entry["language"], entry["country"], entry["enable"]
+            if (isinstance(language, str) and isinstance(country, str) and
+                    language in transcription_lang and
+                    country in transcription_lang[language] and isinstance(enable, bool)):
+                new[tab][slot] = dict(entry)
     return new
+
 
 def _selected_your_languages_validator(val, inst):
-    if not isinstance(val, dict):
-        return None
-    old = inst.SELECTED_YOUR_LANGUAGES
-    new = {}
-    for k0, v0 in val.items():
-        new[k0] = {}
-        for k1, v1 in v0.items():
-            language = v1.get("language")
-            country = v1.get("country")
-            enable = v1.get("enable")
-            if (language not in list(transcription_lang.keys()) or
-                country not in list(transcription_lang.get(language, {}).keys()) or
-                not isinstance(enable, bool)):
-                new[k0][k1] = old.get(k0, {}).get(k1)
-            else:
-                new[k0][k1] = {"language": language, "country": country, "enable": enable}
-    return new
+    return _selected_languages_validator(val, inst, "SELECTED_YOUR_LANGUAGES", ("1",))
+
 
 def _selected_target_languages_validator(val, inst):
-    if not isinstance(val, dict):
-        return None
-    old = inst.SELECTED_TARGET_LANGUAGES
-    new = {}
-    for k0, v0 in val.items():
-        new[k0] = {}
-        for k1, v1 in v0.items():
-            language = v1.get("language")
-            country = v1.get("country")
-            enable = v1.get("enable")
-            if (language not in list(transcription_lang.keys()) or
-                country not in list(transcription_lang.get(language, {}).keys()) or
-                not isinstance(enable, bool)):
-                new[k0][k1] = old.get(k0, {}).get(k1)
-            else:
-                new[k0][k1] = {"language": language, "country": country, "enable": enable}
-    return new
+    return _selected_languages_validator(
+        val, inst, "SELECTED_TARGET_LANGUAGES", inst.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST
+    )
+
 
 def _selected_translation_compute_type_validator(val, inst):
     if not isinstance(val, str):
@@ -846,18 +857,39 @@ class Config:
                 errorLogging()
         return cls._instance
 
-    def saveConfigToFile(self) -> None:
-        # 永続化対象を descriptor 情報 (json_serializable_vars) から再構成
-        filtered = {}
-        for var_name, var_func in json_serializable_vars.items():
-            try:
-                filtered[var_name] = var_func(self)
-            except Exception:
-                pass
+    def setSelectedLanguages(self, your, target) -> None:
+        """Validate both maps before committing the pair or scheduling a save.
+
+        The controller holds its settings lock; the file lock also prevents a
+        persistence snapshot from observing only half of the swap.
+        """
         with self._file_lock:
+            normalized = []
+            for name, value in (("SELECTED_YOUR_LANGUAGES", your),
+                                ("SELECTED_TARGET_LANGUAGES", target)):
+                candidate = getattr(type(self), name).validator(value, self)
+                if candidate is None:
+                    raise ConfigValidationError(name, value)
+                normalized.append(copy.deepcopy(candidate))
+            self._SELECTED_YOUR_LANGUAGES, self._SELECTED_TARGET_LANGUAGES = normalized
+        self.saveConfig("SELECTED_YOUR_LANGUAGES", normalized[0])
+
+    def saveConfigToFile(self, *, _retry_timer=None) -> None:
+        with self._file_lock:
+            if _retry_timer is not None:
+                # A cancelled callback can already be waiting for this lock.
+                if self._save_retry_timer is not _retry_timer:
+                    return
+                self._save_retry_timer = None
+            # Snapshot and write share one serialization boundary. An older
+            # debounced callback must never overwrite a newer immediate save.
+            filtered = {}
+            for var_name, var_func in json_serializable_vars.items():
+                try:
+                    filtered[var_name] = var_func(self)
+                except Exception:
+                    pass
             self._config_data = filtered
-            # クラッシュ/強制終了時にconfig.jsonが破損しないよう、一時ファイルに書いてから
-            # アトミックにリネームする
             tmp_path = f"{self.PATH_CONFIG}.tmp"
             try:
                 # config.json holds API keys: owner-only on POSIX, also for a file
@@ -866,11 +898,13 @@ class Config:
                 if os.name == "posix":
                     os.fchmod(fd, 0o600)
                 with os.fdopen(fd, "w", encoding="utf-8") as fp:
-                    json_dump(filtered, fp, indent=4, ensure_ascii=False)
+                    json_dump(filtered, fp, indent=4, ensure_ascii=False, allow_nan=False)
                     fp.flush()
                     os_fsync(fp.fileno())
                 os_replace(tmp_path, self.PATH_CONFIG)
-            except OSError as e:
+            except (OSError, ValueError, TypeError) as e:
+                # Invalid JSON values must leave the last good file intact and
+                # use the normal save-failure notification/retry path.
                 self._saveFailedLocked(e)
                 return
             recovered = self._save_failed
@@ -882,16 +916,16 @@ class Config:
             self.on_save_recovered()
 
     @staticmethod
-    def _saveFailureReason(error: OSError) -> str:
-        if error.errno == errno.ENOSPC:
+    def _saveFailureReason(error: Exception) -> str:
+        if getattr(error, "errno", None) == errno.ENOSPC:
             return "disk_full"
-        if error.errno in (errno.EACCES, errno.EPERM):
+        if getattr(error, "errno", None) in (errno.EACCES, errno.EPERM):
             return "permission_denied"
-        if error.errno == errno.EROFS:
+        if getattr(error, "errno", None) == errno.EROFS:
             return "read_only"
         return "write_failed"
 
-    def _saveFailedLocked(self, error: OSError) -> None:
+    def _saveFailedLocked(self, error: Exception) -> None:
         """書き込みに失敗した。値はメモリーに残っているので、知らせて、あとで書き直す。
 
         以前は例外を setter が捨て、変更は保存されないまま成功を返していた (再起動で消える)。
@@ -904,10 +938,13 @@ class Config:
             os_remove(f"{self.PATH_CONFIG}.tmp")
         except OSError:
             pass
-        if not (isinstance(self._save_retry_timer, threading.Timer) and self._save_retry_timer.is_alive()):
-            self._save_retry_timer = threading.Timer(self._save_retry_sec, self.saveConfigToFile)
-            self._save_retry_timer.daemon = True
-            self._save_retry_timer.start()
+        if self._save_retry_timer is None:
+            timer = threading.Timer(
+                self._save_retry_sec, lambda: self.saveConfigToFile(_retry_timer=timer)
+            )
+            self._save_retry_timer = timer
+            timer.daemon = True
+            timer.start()
         self._save_failure_reason = self._saveFailureReason(error)
         # 失敗が続く間は、最初の1回だけ知らせる
         if first and self.on_save_failed is not None:
@@ -1026,8 +1063,8 @@ class Config:
     MIC_RECORD_TIMEOUT = ManagedProperty('MIC_RECORD_TIMEOUT', type_=int)
     MIC_PHRASE_TIMEOUT = ManagedProperty('MIC_PHRASE_TIMEOUT', type_=int)
     MIC_MAX_PHRASES = ManagedProperty('MIC_MAX_PHRASES', type_=int)
-    MIC_AVG_LOGPROB = ManagedProperty('MIC_AVG_LOGPROB', type_=(int, float))
-    MIC_NO_SPEECH_PROB = ManagedProperty('MIC_NO_SPEECH_PROB', type_=(int, float))
+    MIC_AVG_LOGPROB = ManagedProperty('MIC_AVG_LOGPROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and -2 <= v <= 0)
+    MIC_NO_SPEECH_PROB = ManagedProperty('MIC_NO_SPEECH_PROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and 0 <= v <= 1)
     MIC_NO_REPEAT_NGRAM_SIZE = ManagedProperty('MIC_NO_REPEAT_NGRAM_SIZE', type_=int)
     HOTKEYS = ValidatedProperty('HOTKEYS',
         validator=lambda val, inst: (
@@ -1043,8 +1080,8 @@ class Config:
     SPEAKER_RECORD_TIMEOUT = ManagedProperty('SPEAKER_RECORD_TIMEOUT', type_=int)
     SPEAKER_PHRASE_TIMEOUT = ManagedProperty('SPEAKER_PHRASE_TIMEOUT', type_=int)
     SPEAKER_MAX_PHRASES = ManagedProperty('SPEAKER_MAX_PHRASES', type_=int)
-    SPEAKER_AVG_LOGPROB = ManagedProperty('SPEAKER_AVG_LOGPROB', type_=(int, float))
-    SPEAKER_NO_SPEECH_PROB = ManagedProperty('SPEAKER_NO_SPEECH_PROB', type_=(int, float))
+    SPEAKER_AVG_LOGPROB = ManagedProperty('SPEAKER_AVG_LOGPROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and -2 <= v <= 0)
+    SPEAKER_NO_SPEECH_PROB = ManagedProperty('SPEAKER_NO_SPEECH_PROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and 0 <= v <= 1)
     SPEAKER_NO_REPEAT_NGRAM_SIZE = ManagedProperty('SPEAKER_NO_REPEAT_NGRAM_SIZE', type_=int)
 
     # -- VAD (Silero) によるマイク/スピーカーの発話区間検出 ---

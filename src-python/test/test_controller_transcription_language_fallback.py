@@ -43,9 +43,11 @@ class TestFallbackUnsupportedLanguagesForTranscriptionEngine(unittest.TestCase):
 
     def test_resets_unsupported_source_language_when_switching_to_deepgram(self) -> None:
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Korean", "country": "South Korea", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
+            **config.SELECTED_TARGET_LANGUAGES,
             "1": {
                 "1": {"language": "English", "country": "United States", "enable": True},
                 "2": {"language": "English", "country": "United States", "enable": False},
@@ -64,9 +66,11 @@ class TestFallbackUnsupportedLanguagesForTranscriptionEngine(unittest.TestCase):
 
     def test_avoids_colliding_with_an_already_fine_enabled_target(self) -> None:
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Korean", "country": "South Korea", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
+            **config.SELECTED_TARGET_LANGUAGES,
             "1": {
                 "1": {"language": "Japanese", "country": "Japan", "enable": True},
                 "2": {"language": "English", "country": "United States", "enable": False},
@@ -88,9 +92,11 @@ class TestFallbackUnsupportedLanguagesForTranscriptionEngine(unittest.TestCase):
 
     def test_resets_unsupported_enabled_target_language_only(self) -> None:
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Japanese", "country": "Japan", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
+            **config.SELECTED_TARGET_LANGUAGES,
             "1": {
                 "1": {"language": "Korean", "country": "South Korea", "enable": True},
                 "2": {"language": "Korean", "country": "South Korea", "enable": False},  # disabled: must be left alone
@@ -110,12 +116,14 @@ class TestFallbackUnsupportedLanguagesForTranscriptionEngine(unittest.TestCase):
 
     def test_all_tabs_are_checked_since_engine_is_global(self) -> None:
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Japanese", "country": "Japan", "enable": True}},
             "2": {"1": {"language": "Korean", "country": "South Korea", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
-            "1": {"1": {"language": "English", "country": "United States", "enable": True}},
-            "2": {"1": {"language": "English", "country": "United States", "enable": True}},
+            **config.SELECTED_TARGET_LANGUAGES,
+            "1": {**config.SELECTED_TARGET_LANGUAGES["1"], "1": {"language": "English", "country": "United States", "enable": True}},
+            "2": {**config.SELECTED_TARGET_LANGUAGES["2"], "1": {"language": "English", "country": "United States", "enable": True}},
         }
 
         changed = self.controller.fallbackUnsupportedLanguagesForTranscriptionEngine("Deepgram")
@@ -126,10 +134,12 @@ class TestFallbackUnsupportedLanguagesForTranscriptionEngine(unittest.TestCase):
 
     def test_no_change_when_all_languages_already_supported(self) -> None:
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Japanese", "country": "Japan", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
-            "1": {"1": {"language": "English", "country": "United States", "enable": True}},
+            **config.SELECTED_TARGET_LANGUAGES,
+            "1": {**config.SELECTED_TARGET_LANGUAGES["1"], "1": {"language": "English", "country": "United States", "enable": True}},
         }
 
         changed = self.controller.fallbackUnsupportedLanguagesForTranscriptionEngine("Deepgram")
@@ -139,10 +149,12 @@ class TestFallbackUnsupportedLanguagesForTranscriptionEngine(unittest.TestCase):
 
     def test_whisper_supports_everything_so_nothing_is_reset(self) -> None:
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Korean", "country": "South Korea", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
-            "1": {"1": {"language": "English", "country": "United States", "enable": True}},
+            **config.SELECTED_TARGET_LANGUAGES,
+            "1": {**config.SELECTED_TARGET_LANGUAGES["1"], "1": {"language": "English", "country": "United States", "enable": True}},
         }
 
         changed = self.controller.fallbackUnsupportedLanguagesForTranscriptionEngine("Whisper")
@@ -185,10 +197,12 @@ class TestSetSelectedTranscriptionEnginePushesLanguageListAndFallback(unittest.T
 
     def test_switching_to_deepgram_pushes_language_list_and_resets_language(self) -> None:
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Korean", "country": "South Korea", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
-            "1": {"1": {"language": "English", "country": "United States", "enable": True}},
+            **config.SELECTED_TARGET_LANGUAGES,
+            "1": {**config.SELECTED_TARGET_LANGUAGES["1"], "1": {"language": "English", "country": "United States", "enable": True}},
         }
 
         response = self.controller.setSelectedTranscriptionEngine("Deepgram")
@@ -205,6 +219,7 @@ class TestSetSelectedTranscriptionEnginePushesLanguageListAndFallback(unittest.T
         # 意図が成立しない)。
         config._SELECTED_TRANSCRIPTION_ENGINE = "Google"
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Korean", "country": "South Korea", "enable": True}},
         }
 
@@ -242,7 +257,8 @@ class TestSetDeepgramModelPushesLanguageListOnlyWhenActiveEngine(unittest.TestCa
         # 既定で有効な "English" ターゲットとの衝突回避により
         # nova-2 (英語のみ対応) へのフォールバック先候補が無くなってしまう)。
         config.SELECTED_TARGET_LANGUAGES = {
-            "1": {"1": {"language": "English", "country": "United States", "enable": False}},
+            **config.SELECTED_TARGET_LANGUAGES,
+            "1": {**config.SELECTED_TARGET_LANGUAGES["1"], "1": {"language": "English", "country": "United States", "enable": False}},
         }
 
     def tearDown(self) -> None:
@@ -256,6 +272,7 @@ class TestSetDeepgramModelPushesLanguageListOnlyWhenActiveEngine(unittest.TestCa
     def test_pushes_language_list_when_deepgram_is_the_active_engine(self) -> None:
         config._SELECTED_TRANSCRIPTION_ENGINE = "Deepgram"
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Japanese", "country": "Japan", "enable": True}},
         }
 
@@ -270,6 +287,7 @@ class TestSetDeepgramModelPushesLanguageListOnlyWhenActiveEngine(unittest.TestCa
     def test_does_not_push_when_deepgram_is_not_the_active_engine(self) -> None:
         config._SELECTED_TRANSCRIPTION_ENGINE = "Whisper"
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Japanese", "country": "Japan", "enable": True}},
         }
 

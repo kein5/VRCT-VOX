@@ -139,6 +139,7 @@ class UpdateTranscriptionEngineApiEnginesTests(unittest.TestCase):
             "Google": True, "Whisper": True, "Deepgram": True,
         }
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Korean", "country": "South Korea", "enable": True}},
         }
         # ターゲット側に "Japanese" が有効で入っていると、フォールバック先の
@@ -146,7 +147,8 @@ class UpdateTranscriptionEngineApiEnginesTests(unittest.TestCase):
         # (pickDefaultLanguageAndCountryForTranscriptionEngine の衝突回避)。
         # ここでは日本語への復帰だけを検証したいので明示的に避けておく。
         config.SELECTED_TARGET_LANGUAGES = {
-            "1": {"1": {"language": "English", "country": "United States", "enable": True}},
+            **config.SELECTED_TARGET_LANGUAGES,
+            "1": {**config.SELECTED_TARGET_LANGUAGES["1"], "1": {"language": "English", "country": "United States", "enable": True}},
         }
         original_deepgram_model = config._SELECTED_DEEPGRAM_MODEL
         original_deepgram_languages = dict(config._DEEPGRAM_MODEL_LANGUAGES)

@@ -30,7 +30,7 @@ class ChangeToCTranslate2ProcessTests(unittest.TestCase):
         self.TAB_NO = "1"
         self._original_engines = config.SELECTED_TRANSLATION_ENGINES
         self._original_status = dict(config.SELECTABLE_TRANSLATION_ENGINE_STATUS)
-        config.SELECTED_TRANSLATION_ENGINES = {self.TAB_NO: "OpenAI_API"}
+        config.SELECTED_TRANSLATION_ENGINES = {**config.SELECTED_TRANSLATION_ENGINES, self.TAB_NO: "OpenAI_API"}
 
     def tearDown(self) -> None:
         config.SELECTED_TRANSLATION_ENGINES = self._original_engines
@@ -45,7 +45,7 @@ class ChangeToCTranslate2ProcessTests(unittest.TestCase):
         self.assertEqual(config.SELECTED_TRANSLATION_ENGINES[self.TAB_NO], "CTranslate2")
 
     def test_other_tabs_are_left_untouched(self):
-        config.SELECTED_TRANSLATION_ENGINES = {self.TAB_NO: "OpenAI_API", "2": "Google"}
+        config.SELECTED_TRANSLATION_ENGINES = {**config.SELECTED_TRANSLATION_ENGINES, self.TAB_NO: "OpenAI_API", "2": "Google"}
         self.controller.changeToCTranslate2Process()
         self.assertEqual(config.SELECTED_TRANSLATION_ENGINES[self.TAB_NO], "CTranslate2")
         self.assertEqual(config.SELECTED_TRANSLATION_ENGINES["2"], "Google")

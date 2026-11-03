@@ -312,11 +312,13 @@ class SwitchingToM2M100ResetsUnsupportedLanguageTests(_ControllerTestBase):
             engine: engine == "CTranslate2" for engine in config.SELECTABLE_TRANSLATION_ENGINE_STATUS
         }
         config.CTRANSLATE2_WEIGHT_TYPE = NLLB_600M
-        config.SELECTED_TRANSLATION_ENGINES = {self.TAB_NO: "CTranslate2"}
+        config.SELECTED_TRANSLATION_ENGINES = {**config.SELECTED_TRANSLATION_ENGINES, self.TAB_NO: "CTranslate2"}
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             self.TAB_NO: {"1": {"language": "Basque", "country": "Spain", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
+            **config.SELECTED_TARGET_LANGUAGES,
             self.TAB_NO: {
                 "1": {"language": "English", "country": "United States", "enable": True},
                 "2": {"language": "Telugu", "country": "India", "enable": True},
@@ -341,6 +343,7 @@ class SwitchingToM2M100ResetsUnsupportedLanguageTests(_ControllerTestBase):
 
     def test_supported_languages_switch_silently(self) -> None:
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             self.TAB_NO: {"1": {"language": "Japanese", "country": "Japan", "enable": True}},
         }
         targets = config.SELECTED_TARGET_LANGUAGES
