@@ -13,8 +13,13 @@ printLog (診断ログ) は有界キューであふれたら古いものから�
 """
 
 import time
+import inspect
+import statistics
+import sys
+import threading
 import unittest
 from queue import Queue
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import utils
@@ -46,6 +51,9 @@ class _StdoutWriterTestCase(unittest.TestCase):
 
     def tearDown(self) -> None:
         utils.stopStdoutWriter()
+        if utils._stdout_writer_thread is not None:
+            utils._stdout_writer_thread.join(timeout=1.0)
+            self.assertFalse(utils._stdout_writer_thread.is_alive())
         utils.setFrontendLostCallback(None)
 
 
@@ -81,7 +89,193 @@ class TestEnqueuedLinesAreWrittenAsynchronously(_StdoutWriterTestCase):
         self.assertEqual(written[1], "log-1")
 
 
+class _TimedStdout:
+    def __init__(self):
+        self.writes = Queue()
+        self.flushes = 0
+
+    def write(self, text):
+        self.writes.put((text, time.perf_counter()))
+
+    def flush(self):
+        self.flushes += 1
+
+
+def _idle_condition(module):
+    # 同じプローブを変更前の log_queue 待機にも適用できるようにする。
+    return getattr(module, "_stdout_writer_condition", module._stdout_log_queue.not_empty)
+
+
+def measure_idle_response_latency(module, iterations=200):
+    """実際の待機に入るたびに1件投入し、fake stdout の write までを測る。"""
+    idle = threading.Event()
+    condition = _idle_condition(module)
+    original_wait = condition.wait
+    stdout = _TimedStdout()
+    latencies = []
+
+    def wait(timeout=None):
+        idle.set()
+        return original_wait(timeout)
+
+    with patch.object(condition, "wait", wait), \
+            patch.object(module, "sys", SimpleNamespace(stdout=stdout)):
+        module._ensureStdoutWriterStarted()
+        try:
+            for index in range(iterations):
+                assert idle.wait(1.0), "writer did not become idle"
+                idle.clear()
+                started = time.perf_counter()
+                module._enqueueResponseLine(f"response-{index}")
+                text, written_at = stdout.writes.get(timeout=1.0)
+                assert text == f"response-{index}\n"
+                latencies.append((written_at - started) * 1000)
+        finally:
+            module.stopStdoutWriter()
+            module._stdout_writer_thread.join(timeout=1.0)
+            assert not module._stdout_writer_thread.is_alive()
+    assert stdout.flushes == iterations
+    return {"iterations": iterations, "median_ms": statistics.median(latencies),
+            "max_ms": max(latencies)}
+
+
+def measure_idle_writer(module, seconds=1.0):
+    """writer だけを trace し、空のまま再実行したループ回数と停止時間を測る。"""
+    loop = module._stdoutWriterLoop
+    source, first_line = inspect.getsourcelines(loop)
+    loop_line = first_line + next(i for i, line in enumerate(source) if line.lstrip().startswith("while "))
+    iterations = []
+    idle = threading.Event()
+    condition = _idle_condition(module)
+    original_wait = condition.wait
+
+    def trace(frame, event, arg):
+        if frame.f_code is loop.__code__:
+            if event == "line" and frame.f_lineno == loop_line:
+                iterations.append(time.perf_counter())
+            return trace
+        return None
+
+    def traced_loop():
+        sys.settrace(trace)
+        try:
+            loop()
+        finally:
+            sys.settrace(None)
+
+    def wait(timeout=None):
+        idle.set()
+        return original_wait(timeout)
+
+    stdout = _TimedStdout()
+    with patch.object(module, "_stdoutWriterLoop", traced_loop), \
+            patch.object(condition, "wait", wait), \
+            patch.object(module, "sys", SimpleNamespace(stdout=stdout)):
+        module._ensureStdoutWriterStarted()
+        try:
+            assert idle.wait(1.0), "writer did not become idle"
+            before = len(iterations)
+            started = time.perf_counter()
+            threading.Event().wait(seconds)
+            elapsed = time.perf_counter() - started
+            wakeups = len(iterations) - before
+        finally:
+            stopped_at = time.perf_counter()
+            module.stopStdoutWriter()
+            module._stdout_writer_thread.join(timeout=0.5)
+            stop_ms = (time.perf_counter() - stopped_at) * 1000
+            assert not module._stdout_writer_thread.is_alive()
+    assert stdout.writes.empty()
+    return {"idle_seconds": elapsed, "idle_loop_iterations": wakeups, "stop_ms": stop_ms}
+
+
+class TestWriterNotifications(_StdoutWriterTestCase):
+    def test_idle_responses_wake_writer_promptly(self) -> None:
+        result = measure_idle_response_latency(utils)
+        self.assertLess(result["median_ms"], 10.0, result)
+
+    def test_idle_writer_does_not_poll_and_stop_wakes_it(self) -> None:
+        result = measure_idle_writer(utils)
+        self.assertEqual(result["idle_loop_iterations"], 0, result)
+        self.assertLess(result["stop_ms"], 500.0, result)
+
+    def test_response_priority_and_fifo_after_idle_wakeup(self) -> None:
+        stdout = _TimedStdout()
+        idle = threading.Event()
+        condition = utils._stdout_writer_condition
+        original_wait = condition.wait
+
+        def wait(timeout=None):
+            idle.set()
+            return original_wait(timeout)
+
+        with patch.object(condition, "wait", wait), \
+                patch.object(utils, "sys", SimpleNamespace(stdout=stdout)):
+            utils._ensureStdoutWriterStarted()
+            try:
+                self.assertTrue(idle.wait(1.0))
+                with condition:
+                    for index in range(3):
+                        utils._enqueueLogLine(f"log-{index}")
+                        utils._enqueueResponseLine(f"response-{index}")
+                written = [stdout.writes.get(timeout=1.0)[0] for _ in range(6)]
+            finally:
+                utils.stopStdoutWriter()
+                utils._stdout_writer_thread.join(timeout=1.0)
+        self.assertEqual(written, [f"response-{i}\n" for i in range(3)] + [f"log-{i}\n" for i in range(3)])
+        self.assertEqual(stdout.flushes, 6)
+
+    def test_many_producers_keep_all_lines_and_each_producers_order(self) -> None:
+        stdout = _TimedStdout()
+        barrier = threading.Barrier(8)
+
+        def produce(producer):
+            barrier.wait(timeout=2.0)
+            for index in range(20):
+                utils._enqueueLogLine(f"log-{producer}-{index}")
+                utils._enqueueResponseLine(f"response-{producer}-{index}")
+
+        with patch.object(utils, "sys", SimpleNamespace(stdout=stdout)):
+            producers = [threading.Thread(target=produce, args=(p,)) for p in range(8)]
+            try:
+                for producer in producers:
+                    producer.start()
+                for producer in producers:
+                    producer.join(timeout=2.0)
+                    self.assertFalse(producer.is_alive())
+                written = [stdout.writes.get(timeout=1.0)[0] for _ in range(320)]
+            finally:
+                utils.stopStdoutWriter()
+                if utils._stdout_writer_thread is not None:
+                    utils._stdout_writer_thread.join(timeout=1.0)
+        for kind in ("log", "response"):
+            for producer in range(8):
+                prefix = f"{kind}-{producer}-"
+                self.assertEqual([line for line in written if line.startswith(prefix)],
+                                 [f"{prefix}{i}\n" for i in range(20)])
+        self.assertEqual(stdout.flushes, 320)
+
+    def test_stop_before_start_and_repeated_stop_allow_restart(self) -> None:
+        stdout = _TimedStdout()
+        with patch.object(utils, "sys", SimpleNamespace(stdout=stdout)):
+            for index in range(10):
+                utils.stopStdoutWriter()
+                utils.stopStdoutWriter()
+                utils._enqueueResponseLine(f"response-{index}")
+                self.assertEqual(stdout.writes.get(timeout=1.0)[0], f"response-{index}\n")
+                utils.stopStdoutWriter()
+                utils._stdout_writer_thread.join(timeout=0.5)
+                self.assertFalse(utils._stdout_writer_thread.is_alive())
+
+
 class TestLogQueueDropsOldestWhenFull(_StdoutWriterTestCase):
+    def test_repeated_overflow_keeps_exactly_latest_200_in_order(self) -> None:
+        self.assertEqual(utils._STDOUT_LOG_QUEUE_MAXSIZE, 200)
+        with patch.object(utils, "_ensureStdoutWriterStarted"):
+            for index in range(700):
+                utils._enqueueLogLine(f"log-{index}")
+        self.assertEqual(list(utils._stdout_log_queue.queue), [f"log-{i}" for i in range(500, 700)])
+
     def test_overflow_drops_the_oldest_entry(self) -> None:
         # 書き込みスレッド自体は起動させず (＝キューが誰にも drain されない
         # 状態で)、キューの詰め込み動作だけを検証する。
@@ -108,6 +302,27 @@ class TestResponseQueueNeverDropsUnderLoad(_StdoutWriterTestCase):
 
 
 class TestConsecutiveFailuresTriggerFrontendLostCallback(_StdoutWriterTestCase):
+    def test_broken_pipe_and_closed_stdout_keep_failure_threshold(self) -> None:
+        self.assertEqual(utils._MAX_CONSECUTIVE_STDOUT_FAILURES, 50)
+        for failure in (BrokenPipeError("pipe closed"), ValueError("I/O operation on closed file")):
+            for operation in ("write", "flush"):
+                with self.subTest(failure=type(failure).__name__, operation=operation):
+                    stdout = _TimedStdout()
+                    lost = threading.Event()
+                    utils.setFrontendLostCallback(lost.set)
+                    with patch.object(utils, "_ensureStdoutWriterStarted"):
+                        for index in range(50):
+                            utils._enqueueResponseLine(f"response-{index}")
+                    with patch.object(utils, "sys", SimpleNamespace(stdout=stdout)), \
+                            patch.object(stdout, operation, side_effect=failure) as failing, \
+                            patch.object(utils, "errorLogging") as error:
+                        utils._ensureStdoutWriterStarted()
+                        self.assertTrue(lost.wait(1.0))
+                        utils._stdout_writer_thread.join(timeout=0.5)
+                        self.assertFalse(utils._stdout_writer_thread.is_alive())
+                        self.assertEqual(failing.call_count, 50)
+                        self.assertEqual(error.call_count, 50)
+
     def test_callback_fires_after_the_configured_number_of_failures(self) -> None:
         callback_calls = []
         utils.setFrontendLostCallback(lambda: callback_calls.append(True))
