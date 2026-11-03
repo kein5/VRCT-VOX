@@ -184,6 +184,7 @@ class ShutdownStopsOscWebsocketObsOverlayTests(unittest.TestCase):
         self.assertEqual(
             stopped_fns,
             [
+                mock_model.stopOCRCapture,
                 mock_model.stopReceiveOSC,
                 mock_model.stopObsBrowserSourceServer,
                 mock_model.stopWebSocketServer,
@@ -195,6 +196,7 @@ class ShutdownStopsOscWebsocketObsOverlayTests(unittest.TestCase):
         self.assertEqual(
             labels,
             [
+                "OCR capture",
                 "OSC receive server",
                 "OBS browser source server",
                 "WebSocket server",

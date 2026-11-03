@@ -481,6 +481,9 @@ class TestShutdownStopsAutoSelectTrackers(unittest.TestCase):
     # 同じプロセス内で後から走る他のテストに影響しうる (コードレビュー指摘)。
     @patch("controller.model.speaker_lifecycle_worker")
     @patch("controller.model.mic_lifecycle_worker")
+    # 実物の requestOCRShutdown() は共有 model の受付を閉じたまま戻さない。
+    @patch("controller.model.stopOCRCapture", return_value=None)
+    @patch("controller.model.requestOCRShutdown", return_value=None)
     @patch("controller.device_manager")
     def test_stops_both_trackers_before_stopping_monitoring(self, mock_device_manager, *_mocks) -> None:
         calls = []

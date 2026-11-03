@@ -18,6 +18,8 @@ import {
 
     useOthers,
 
+    useOcr,
+
     useAdvancedSettings,
 } from "@logics_configs";
 import { ui_configs } from "./ui_configs";
@@ -55,6 +57,7 @@ export const _useBackendErrorHandling = () => {
     } = transcription;
 
     const { updateTranslationStatus, updateTranscriptionSendStatus, updateTranscriptionReceiveStatus, updateOcrCaptureStatus } = useMainFunction();
+    const { updateOcrSourceLanguage } = useOcr();
 
     const {
         updateDeepLAuthKey,
@@ -193,7 +196,11 @@ export const _useBackendErrorHandling = () => {
             case "OCR_DISABLED_CAPTURE_UNAVAILABLE":
             case "OCR_DISABLED_UNKNOWN":
                 // 理由ごとに、次に何をすればよいか (モデルのダウンロード、VRChatの起動) を出す
-                updateOcrCaptureStatus(data);
+                if (endpoint === "/set/data/ocr_source_language") {
+                    updateOcrSourceLanguage(data);
+                } else {
+                    updateOcrCaptureStatus(data);
+                }
                 showNotification_Error(t(OCR_ERROR_KEYS[error_code], { defaultValue: message }), { category_id: error_code });
                 return;
 

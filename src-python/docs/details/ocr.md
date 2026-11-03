@@ -305,20 +305,44 @@ OpenVR の初期化は**プロセス単位**で、Overlay・Clipboard と共有�
 
 ## 設定の反映タイミング
 
-OCR系の設定は**実行中でも次のtickから反映される**。`Controller` の各setterが
+OCR系の設定は**実行中でも次のtickから反映される**。言語以外は `Controller` の各setterが
 `model.updateOCRCaptureSettings()` を呼び、`OcrPipeline.applyConfig()` が値を預かって、
 ワーカースレッドが次のtickの頭で `_applyPending()` で取り込む。
 このとき認識結果の再利用用キャッシュも破棄する。
 
 | 設定 | 反映のされ方 |
 |---|---|
-| `OCR_SOURCE_LANGUAGE` | 使うモデルが変わる場合だけ推論器を作り直す (キャッシュ済みなら即座)。重複抑制のキャッシュも捨てる |
+| `OCR_SOURCE_LANGUAGE` | 停止中はそのまま保存する。稼働中は保存前に取得済みファイルを検証して推論器を準備し（キャッシュ済みなら再利用）、次のtickで切り替える。重複抑制のキャッシュも捨てる |
 | `OCR_WINDOW_TITLE` | キャプチャを開き直す |
 | `OCR_POLL_INTERVAL_MS` / `OCR_MIN_CONFIDENCE` / `OCR_BUBBLE_MIN_TEXT_LENGTH` | 値を差し替える |
 
-ReaderとキャプチャはOSリソース・スレッドに紐づくので、値を書き換えたスレッドではなく
-**使っているワーカースレッドの側で**作り直す。これが `applyConfig` が値を預かるだけで、
-実際の切り替えを `_applyPending()` に任せている理由。
+言語のsetterは `model.setOCRSourceLanguage()` で開始・停止と直列化する。
+停止中は検証せずに保存する（取得の案内が選んだ言語のモデルを示せるように。足りないファイルは開始時に知らせる）。
+稼働中は `resolveModelFiles()` でサイズ・SHA-256を検証し、開始時と同じ `getReader()` で推論器を準備してから保存する。読み込みは要求を処理する側で済ませ、
+`applyLanguage()` が言語と準備済み推論器を一緒に預かる。ワーカー上では読み込みを行わず、
+次のtickで参照だけを切り替えるので、保存後に読み込み失敗を黙殺する経路はない。
+言語以外の設定変更で、この待機中の切り替えを上書きしない。
+
+未取得なら `OCR_DISABLED_MODEL_MISSING`、破損や読み込み失敗なら
+`OCR_DISABLED_MODEL_LOAD_FAILED` を、変更前の言語を `data` に入れて返す。
+UIは言語の待機を解除してその値へ戻し、稼働スイッチと既存の推論器を維持する。
+ファイル検証は同意済みの取得先だけを使い、ダウンロードは起こさない。
+
+キャプチャのOSリソースはスレッドに紐づくので、開き直す処理は引き続き
+**使っているワーカースレッドの側で**行う。
+
+## アプリ終了時の停止
+
+`Controller.shutdown()` は最初にOCRの開始受付と結果の配送を閉じ、稼働スイッチをオフにして
+`model.requestOCRShutdown()` でワーカーの停止イベントを立てる。モデル読み込みが
+開始・停止のロックを保持していても、この通知は待たない。読み込み中だった開始要求も、
+終了通知を確認したらキャプチャを起動せずに戻る。
+
+その後、既存のサービス停止ヘルパーで `stopOCRCapture()` を最大5秒待ってから、
+翻訳・オーバーレイなどの出力先を終了する。期限を越えたワーカーは所有したままにし、
+戻った時点で自分が作ったキャプチャを閉じる。推論自体を強制中断することはできないが、
+終了後の新しいtickと結果のコールバックは抑止する。既に翻訳中だったOCRメッセージも
+`publication_guard` で遅れた出力を捨てる。watchdogの強制終了期限や他サービスの上限は変えない。
 
 ## 設定キー
 
@@ -357,7 +381,8 @@ ReaderとキャプチャはOSリソース・スレッドに紐づくので、値
   失敗したら `model.startOCRCapture` が投げた `OcrStartError` の `OCR_DISABLED_*`（それ以外の例外は
   `OCR_DISABLED_UNKNOWN`）を、翻訳の `TRANSLATION_DISABLED_VRAM` と同じく `/run/enable_ocr_capture` へ送って False を返す
 - `Controller.stopOcrCapture()` — 停止
-- `model.updateOCRCaptureSettings()` — 設定変更を実行中のパイプラインへ渡す（各setterから呼ばれる）
+- `model.setOCRSourceLanguage()` — 停止中は言語を保存する。稼働中はモデルを検証・準備してから保存し、推論器の切り替えを予約する
+- `model.updateOCRCaptureSettings()` — 言語以外の設定変更を実行中のパイプラインへ渡す
 - `Controller.ocrMessage(result)` — `OCR_MESSAGE_SPEC` を渡して `_processMessage` に委ねる
   (mic/speaker/chat と同じ共通パイプライン。差分は spec 側に持たせている)
   - OCR固有の差分: OSCへ送らない (`osc_send_gate_attr=None`)、小さいオーバーレイを使わない、
