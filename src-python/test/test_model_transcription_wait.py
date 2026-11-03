@@ -195,7 +195,7 @@ class TestTranscriptionWait(unittest.TestCase):
                     recorder = recorder_cls(FakeRecorder(), 300, False, 3, 5)
                     listener = "listen_energy_and_audio_in_background"
                 else:
-                    recorder = recorder_cls(FakeRecorder(), record_timeout=5)
+                    recorder = recorder_cls(FakeRecorder(), record_timeout=5, label="mic")
                     listener = "listen_with_segmenter_in_background"
                 captured = {}
 
@@ -207,13 +207,16 @@ class TestTranscriptionWait(unittest.TestCase):
                 getattr(recorder.recorder, listener).side_effect = listen
                 queue = _AudioQueue()
                 recorder.recordIntoQueue(queue)
-                with patch("models.transcription.transcription_recorder.printLog") as log:
+                from models.transcription.utterance_diagnostics import UtteranceDiagnostics
+                log = Mock()
+                diagnostics = UtteranceDiagnostics(log=log)
+                with patch("models.transcription.transcription_recorder.utterance_diagnostics", diagnostics):
                     for i in range(21):
                         frame = Mock(segment_reason="silence")
                         frame.get_raw_data.return_value = bytes([i, 0])
                         captured["callback"](None, frame)
                     log.assert_called_once_with(
-                        "audio_queue is full; dropped the oldest queued chunk to keep up"
+                        "audio_queue is full; dropped the oldest queued chunk to keep up [source=mic]"
                     )
                 self.assertEqual(queue.qsize(), 20)
                 self.assertEqual([queue.get_nowait()[0][0] for _ in range(20)], list(range(1, 21)))

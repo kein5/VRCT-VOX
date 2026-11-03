@@ -1,4 +1,5 @@
 import unittest
+from itertools import count
 from datetime import datetime, timedelta
 from queue import Queue
 from unittest.mock import MagicMock, patch
@@ -803,6 +804,14 @@ class TestAsrLanguageCallBreakdown(unittest.TestCase):
         self._saved_print_log = mod.printLog
         mod.printLog = lambda msg: logs.append(msg)
         self.addCleanup(lambda: setattr(mod, "printLog", self._saved_print_log))
+        from models.transcription.utterance_diagnostics import UtteranceDiagnostics
+        diagnostics = patch.object(mod, "utterance_diagnostics", UtteranceDiagnostics(clock=lambda: 0, log=logs.append))
+        diagnostics.start()
+        self.addCleanup(diagnostics.stop)
+        # 言語別の詳細は遅い呼び出しで従来通り見える。通常成功は集約する。
+        clock = patch.object(mod.time, "perf_counter", side_effect=count(0, 6).__next__)
+        clock.start()
+        self.addCleanup(clock.stop)
         return logs
 
     @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)

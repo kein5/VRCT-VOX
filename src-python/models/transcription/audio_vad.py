@@ -170,6 +170,7 @@ class VadSegmenter:
         pre_speech_pad_frames: int = 5,
         diagnostic_callback: Optional[Callable[[str], None]] = None,
         diagnostic_label: str = "vad",
+        diagnostic_observer: Optional[Callable] = None,
     ) -> None:
         self.probability = probability or SileroFrameProbability()
         self.speech_threshold = speech_threshold
@@ -186,6 +187,7 @@ class VadSegmenter:
         self.pre_speech_frames: Deque[bytes] = deque(maxlen=pre_speech_pad_frames)
         self.diagnostic_callback = diagnostic_callback
         self.diagnostic_label = diagnostic_label
+        self.diagnostic_observer = diagnostic_observer
         self._remainder = b""
         self._speech_frames: list[bytes] = []
         self._positive_frames = 0
@@ -261,7 +263,8 @@ class VadSegmenter:
                 self.pre_speech_frames.clear()
                 self._log(
                     f"speech_start segment_id={self._segment_id} prob={prob:.3f} "
-                    f"threshold={self.speech_threshold} pre_roll_frames={len(self._speech_frames)}"
+                    f"threshold={self.speech_threshold} pre_roll_frames={len(self._speech_frames)}",
+                    "speech_start",
                 )
                 if self._max_speech_reached():
                     return self._finish_segment(reason="max_duration")
@@ -290,6 +293,9 @@ class VadSegmenter:
 
     def _finish_segment(self, reason: SegmentEndReason) -> Optional[SpeechSegment]:
         frame_count = self._speech_frame_count
+        # 音声フレーム上の無音 anchor から終端まで。発話の長さとは分けて
+        # 集計する (デバイス読み取りや ASR キューでの待ち時間は含まない)。
+        wait_ms = (frame_count - self._silence_start_frame) * FRAME_DURATION_MS if self._silence_start_frame is not None else 0
         result = None
         if self._speaking and frame_count >= self.min_speech_frames:
             result = SpeechSegment(b"".join(self._speech_frames), self._segment_id, reason=reason)
@@ -306,7 +312,8 @@ class VadSegmenter:
         if result is not None:
             self._log(
                 f"speech_end segment_id={result.segment_id} reason={reason} "
-                f"duration_ms={result.duration_ms:.1f} frames={frame_count}"
+                f"duration_ms={result.duration_ms:.1f} frames={frame_count}",
+                "speech_end", {"segment_ms": result.duration_ms, "vad_wait_ms": wait_ms},
             )
 
         if reason != "max_duration":
@@ -321,11 +328,18 @@ class VadSegmenter:
                 reset()
         return result
 
-    def _log(self, message: str) -> None:
-        if self.diagnostic_callback is None:
+    def _log(self, message: str, event: str, stages=None) -> None:
+        if self.diagnostic_callback is None and self.diagnostic_observer is None:
             return
         try:
-            self.diagnostic_callback(f"[VAD][{self.diagnostic_label}] {message}")
+            detail = f"[VAD][{self.diagnostic_label}] {message}"
+            if self.diagnostic_observer is not None:
+                observed_detail = detail
+                if stages and "vad_wait_ms" in stages:
+                    observed_detail += f" wait_ms={stages['vad_wait_ms']:.1f}"
+                self.diagnostic_observer(self.diagnostic_label, event, stages, observed_detail)
+            if self.diagnostic_callback is not None:
+                self.diagnostic_callback(detail)
         except Exception:
             # 診断ログの失敗で VAD 自体を止めない。
             pass

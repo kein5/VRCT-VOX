@@ -24,6 +24,7 @@ from speech_recognition import AudioSource, Recognizer, Microphone
 from datetime import datetime
 from errors import AudioPipelineFailure, ERROR_METADATA, ErrorCode
 from utils import errorLogging, printLog, putDroppingOldestOnFull
+from .utterance_diagnostics import utterance_diagnostics
 from device_manager import pyaudio_op_lock
 from models.transcription.audio_vad import FRAME_DURATION_MS, VadRecognizerAdapter, VadSegmenter
 
@@ -227,6 +228,7 @@ def _wrapStopperWithBlockingReadUnblock(
     source: Any,
     raw_stop: Callable[..., None],
     before_stop: Optional[Callable[[], None]] = None,
+    after_stop: Optional[Callable[[], None]] = None,
 ) -> Callable[..., None]:
     """`listen_energy_and_audio_in_background`/`listen_with_segmenter_in_background`
     が返す生の stopper を、ブロッキング中の `stream.read()` を強制的に
@@ -261,7 +263,11 @@ def _wrapStopperWithBlockingReadUnblock(
         except Exception:
             # 既に停止済み等、想定内の失敗もあり得るが原因調査のため記録する
             errorLogging()
-        raw_stop(wait_for_stop=wait_for_stop)
+        try:
+            raw_stop(wait_for_stop=wait_for_stop)
+        finally:
+            if after_stop is not None:
+                after_stop()
 
     return stopper
 
@@ -379,8 +385,8 @@ class BaseEnergyAndAudioRecorder:
                 # チャンクを1つ捨てて追いつく方を優先する (フェーズ3項目20)。
                 # audio_queue に maxsize が無い場合 (_DiscardQueue 等) は
                 # 常にFalseが返る (Fullが発生しないため)。
-                if putDroppingOldestOnFull(audio_queue, item):
-                    printLog("audio_queue is full; dropped the oldest queued chunk to keep up")
+                dropped = putDroppingOldestOnFull(audio_queue, item)
+                utterance_diagnostics.queue_result(self.label, dropped)
             except Exception as error:  # noqa: BLE001 - report and preserve callback failure
                 self._set_device_error(error)
 
@@ -408,7 +414,8 @@ class BaseEnergyAndAudioRecorder:
             raise
 
         self.stop = _wrapStopperWithBlockingReadUnblock(
-            self.source, stop, before_stop=self._stop_requested.set
+            self.source, stop, before_stop=self._stop_requested.set,
+            after_stop=lambda: utterance_diagnostics.flush(self.label),
         )
         self.pause = pause
         self.resume = resume
@@ -480,17 +487,15 @@ class BaseVadAndAudioRecorder:
         # 参照)、この値はエンジンを問わず常に固定 (7秒) のままでよい。
         _MAX_SPEECH_DURATION_MS = 7000
         max_speech_frames = max(1, round(_MAX_SPEECH_DURATION_MS / FRAME_DURATION_MS))
-        # diagnostic_callback を printLog に繋いでおく。process.log に
-        # speech_start/speech_end の実測タイミングが残るので、体感の遅さの
-        # 原因 (hangover 待ち・モデル初回ロード・処理そのもの等) を
-        # 実機ログから切り分けられるようにするため。
+        # 通常の speech_start/speech_end は source 別に集約する。
+        # hangover 待ちの外れ値は従来の詳細をその場で残す。
         self.vad_adapter = VadRecognizerAdapter(
             native_sample_rate=source.SAMPLE_RATE,
             native_sample_width=source.SAMPLE_WIDTH,
             native_channels=getattr(source, "channels", 1),
             segmenter=VadSegmenter(
                 max_speech_frames=max_speech_frames,
-                diagnostic_callback=printLog,
+                diagnostic_observer=utterance_diagnostics.record,
                 diagnostic_label=label,
             ),
         )
@@ -571,8 +576,8 @@ class BaseVadAndAudioRecorder:
                 # BaseEnergyAndAudioRecorder.audio_callback と同じ理由
                 # (フェーズ3項目20)。VAD 経由でも文字起こしが実時間に
                 # 追いつけない状況は起こり得るため同じ有界化を適用する。
-                if putDroppingOldestOnFull(audio_queue, item):
-                    printLog("audio_queue is full; dropped the oldest queued chunk to keep up")
+                dropped = putDroppingOldestOnFull(audio_queue, item)
+                utterance_diagnostics.queue_result(self.label, dropped)
             except Exception as error:  # noqa: BLE001 - report callback failure
                 self._on_stream_read_error(error)
 
@@ -595,7 +600,8 @@ class BaseVadAndAudioRecorder:
             raise
 
         self.stop = _wrapStopperWithBlockingReadUnblock(
-            self.source, stop, before_stop=self._stop_requested.set
+            self.source, stop, before_stop=self._stop_requested.set,
+            after_stop=lambda: utterance_diagnostics.flush(self.label),
         )
         self.pause = pause
         self.resume = resume

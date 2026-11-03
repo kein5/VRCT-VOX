@@ -35,6 +35,7 @@ from models.transcription.transcription_recorder import (
     SelectedSpeakerVadRecorder,
 )
 from models.transcription.transcription_transcriber import AudioTranscriber
+from models.transcription.utterance_diagnostics import utterance_diagnostics
 from models.translation.translation_languages import translation_lang
 from models.transcription.transcription_languages import transcription_lang
 from models.translation.translation_utils import checkCTranslate2Weight, hasCTranslate2WeightFile, downloadCTranslate2Weight, downloadCTranslate2Tokenizer, backwardCompatibleRenameWeightsDir
@@ -758,6 +759,7 @@ class _AudioDeviceSession:
                         self._handle_pipeline_error(failure, recorder)
 
             def endTranscript() -> None:
+                utterance_diagnostics.flush(self._kind)
                 while True:
                     try:
                         audio_queue.get_nowait()
@@ -877,6 +879,7 @@ class _AudioDeviceSession:
             self._audio_queue = None
             self._active_device = None
             self.features = set()
+        utterance_diagnostics.flush(self._kind)
         return cleanup_timed_out
 
     def stop_for_handoff(self) -> bool:
