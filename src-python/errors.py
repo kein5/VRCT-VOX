@@ -194,6 +194,7 @@ class ErrorCode(str, Enum):
     # ============================================================================
     OBS_BROWSER_SOURCE_HOST_UNAVAILABLE = "OBS_BROWSER_SOURCE_HOST_UNAVAILABLE"
     OBS_BROWSER_SOURCE_PORT_UNAVAILABLE = "OBS_BROWSER_SOURCE_PORT_UNAVAILABLE"
+    OBS_BROWSER_SOURCE_PORT_INVALID = "OBS_BROWSER_SOURCE_PORT_INVALID"
     OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE = "OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE"
     OBS_BROWSER_SOURCE_FONT_COLOR_INVALID = "OBS_BROWSER_SOURCE_FONT_COLOR_INVALID"
     OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR_INVALID = "OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR_INVALID"
@@ -793,6 +794,12 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "category": ErrorCategory.OBS_BROWSER_SOURCE,
         "message": "OBS Browser Source server port is not available",
         "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.OBS_BROWSER_SOURCE_PORT_INVALID: {
+        "category": ErrorCategory.OBS_BROWSER_SOURCE,
+        "message": "OBS Browser Source port must be a number",
+        "severity": "warning",
         "user_action_required": True,
     },
     ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE: {

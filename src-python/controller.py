@@ -5306,7 +5306,7 @@ class Controller:
 
 
     @staticmethod
-    def _restoreWebSocketServer() -> None:
+    def _restoreWebSocketServer(*, restore_obs: bool = False) -> None:
         """ホストやポートの変更に失敗したあと、元のアドレスでサーバーを立て直す。
 
         止めている間に元のポートをほかのプロセスが取ると、立て直しも失敗する。そのときは
@@ -5314,12 +5314,21 @@ class Controller:
         有効と表示されたまま何も配信しない。UI はエラーを受けてこの2つを読み直す。
         """
         if model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT):
+            if restore_obs:
+                Controller._restoreObsBrowserSourceServer()
             return
         printLog("WebSocket server could not be restored on its previous address")
         if config.OBS_BROWSER_SOURCE is True:
             config.OBS_BROWSER_SOURCE = False
             model.stopObsBrowserSourceServer()
         config.WEBSOCKET_SERVER = False
+
+    @staticmethod
+    def _restoreObsBrowserSourceServer() -> None:
+        """Restore the saved OBS address, or expose the failed restore as off."""
+        if not model.startObsBrowserSourceServer(config.WEBSOCKET_HOST, config.OBS_BROWSER_SOURCE_PORT):
+            model.stopObsBrowserSourceServer()
+            config.OBS_BROWSER_SOURCE = False
 
     @staticmethod
     def setWebSocketHost(data, *args, **kwargs) -> dict:
@@ -5352,13 +5361,22 @@ class Controller:
                                 ErrorCode.WEBSOCKET_HOST_INVALID,
                                 data=config.WEBSOCKET_HOST
                             )
-                        config.WEBSOCKET_HOST = data
                         # The OBS overlay's HTTP server must stay bound to the
                         # same host the WebSocket server now listens on, or the
                         # overlay page it serves will point at a dead address.
                         if config.OBS_BROWSER_SOURCE is True:
                             model.stopObsBrowserSourceServer()
-                            model.startObsBrowserSourceServer(data, int(config.OBS_BROWSER_SOURCE_PORT))
+                            if not model.startObsBrowserSourceServer(data, int(config.OBS_BROWSER_SOURCE_PORT)):
+                                model.stopObsBrowserSourceServer()
+                                model.stopWebSocketServer()
+                                Controller._restoreWebSocketServer(restore_obs=True)
+                                return VRCTError.create_error_response(
+                                    ErrorCode.OBS_BROWSER_SOURCE_HOST_UNAVAILABLE,
+                                    data=config.WEBSOCKET_HOST,
+                                )
+                        # Commit only once both listeners are ready. Rollback
+                        # above uses the unchanged, previously saved address.
+                        config.WEBSOCKET_HOST = data
                         response = {"status":200, "result":config.WEBSOCKET_HOST}
                     else:
                         response = VRCTError.create_error_response(
@@ -5480,39 +5498,55 @@ class Controller:
         if config.OBS_BROWSER_SOURCE is True:
             return {"status":200, "result":config.OBS_BROWSER_SOURCE}
 
-        # OBS overlay depends on the WebSocket server to receive messages.
-        if model.checkWebSocketServerAlive() is False:
-            if (
-                isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True
-                and model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
-            ):
-                config.WEBSOCKET_SERVER = True
-            else:
+        # The dispatcher holds the shared OBS/WebSocket lifecycle lock. No
+        # other IPC operation can acquire this attempt's WebSocket before its
+        # cleanup; an already running WebSocket remains independently owned.
+        started_websocket = False
+        obs_attempted = False
+        try:
+            if model.checkWebSocketServerAlive() is False:
+                if (
+                    isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is not True
+                    or not model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                ):
+                    return VRCTError.create_error_response(
+                        ErrorCode.WEBSOCKET_SERVER_UNAVAILABLE,
+                        data=config.OBS_BROWSER_SOURCE,
+                    )
+                started_websocket = True
+
+            obs_host = config.WEBSOCKET_HOST
+            obs_port = int(config.OBS_BROWSER_SOURCE_PORT)
+
+            if isAvailableWebSocketServer(obs_host, obs_port) is not True:
+                return VRCTError.create_error_response(
+                    ErrorCode.OBS_BROWSER_SOURCE_PORT_UNAVAILABLE,
+                    data=config.OBS_BROWSER_SOURCE,
+                )
+
+            obs_attempted = True
+            if not model.startObsBrowserSourceServer(obs_host, obs_port):
                 return VRCTError.create_error_response(
                     ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE,
                     data=config.OBS_BROWSER_SOURCE,
-                    custom_message="WebSocket server host or port is not available",
                 )
 
-        obs_host = config.WEBSOCKET_HOST
-        obs_port = int(config.OBS_BROWSER_SOURCE_PORT)
-
-        if isAvailableWebSocketServer(obs_host, obs_port) is not True:
-            return VRCTError.create_error_response(
-                ErrorCode.OBS_BROWSER_SOURCE_PORT_UNAVAILABLE,
-                data=config.OBS_BROWSER_SOURCE_PORT
-            )
-
-        model.startObsBrowserSourceServer(obs_host, obs_port)
-
-        if model.checkObsBrowserSourceServerAlive() is not True:
+            config.WEBSOCKET_SERVER = True
+            config.OBS_BROWSER_SOURCE = True
+            return {"status":200, "result":config.OBS_BROWSER_SOURCE}
+        except Exception:
+            errorLogging()
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE,
-                data=config.OBS_BROWSER_SOURCE
+                data=config.OBS_BROWSER_SOURCE,
             )
-
-        config.OBS_BROWSER_SOURCE = True
-        return {"status":200, "result":config.OBS_BROWSER_SOURCE}
+        finally:
+            if config.OBS_BROWSER_SOURCE is not True:
+                if obs_attempted:
+                    model.stopObsBrowserSourceServer()
+                if started_websocket:
+                    model.stopWebSocketServer()
+                    config.WEBSOCKET_SERVER = False
 
     @staticmethod
     def setDisableObsBrowserSource(*args, **kwargs) -> dict:
@@ -5528,9 +5562,8 @@ class Controller:
             port = int(data)
         except Exception:
             return VRCTError.create_error_response(
-                ErrorCode.OBS_BROWSER_SOURCE_PORT_UNAVAILABLE,
+                ErrorCode.OBS_BROWSER_SOURCE_PORT_INVALID,
                 data=config.OBS_BROWSER_SOURCE_PORT,
-                custom_message="OBS Browser Source port must be a number",
             )
 
         if model.checkObsBrowserSourceServerAlive() is not True:
@@ -5547,12 +5580,12 @@ class Controller:
             )
 
         model.stopObsBrowserSourceServer()
-        model.startObsBrowserSourceServer(config.WEBSOCKET_HOST, port)
-        if model.checkObsBrowserSourceServerAlive() is not True:
-            config.OBS_BROWSER_SOURCE = False
+        if not model.startObsBrowserSourceServer(config.WEBSOCKET_HOST, port):
+            model.stopObsBrowserSourceServer()
+            Controller._restoreObsBrowserSourceServer()
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE,
-                data=config.OBS_BROWSER_SOURCE
+                data=config.OBS_BROWSER_SOURCE_PORT,
             )
 
         config.OBS_BROWSER_SOURCE_PORT = port

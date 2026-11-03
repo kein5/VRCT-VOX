@@ -2955,25 +2955,27 @@ class Model:
         with self._websocket_lifecycle_lock:
             return self.websocket_server is not None and self.websocket_server.is_running
 
-    def startObsBrowserSourceServer(self, host: str, port: int) -> None:
-        """Start the local HTTP server used as an OBS Browser Source."""
+    def startObsBrowserSourceServer(self, host: str, port: int) -> bool:
+        """Return true only when OBS is listening on the requested address."""
         self.ensure_initialized()
         with self._obs_lifecycle_lock:
             server = self.obs_browser_source_server
             if (server is not None and server.is_running
                     and server.host == host and server.port == port):
-                return
+                return True
             self.stopObsBrowserSourceServer()
             if self.obs_browser_source_server is not None:
-                return  # The previous worker still owns its server.
+                return False  # The previous worker still owns its server.
             try:
                 server = ObsBrowserSourceServer(host=host, port=port, ws_token=config.WEBSOCKET_AUTH_TOKEN)
                 self.obs_browser_source_server = server
                 server.start()
+                return server.is_running
             except Exception:
                 errorLogging()
                 if server is None or server.is_stopped:
                     self.obs_browser_source_server = None
+                return False
 
     def stopObsBrowserSourceServer(self) -> None:
         self.ensure_initialized()

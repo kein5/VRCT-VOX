@@ -35,7 +35,7 @@ const stubApi = (values = {}) => new Proxy({ __esModule: true, ...values }, {
     get: (target, key) => key in target ? target[key] : typeof key === "string" && key.startsWith("use") ? () => stubApi() : noop,
 });
 
-export const loadBridgeRoutes = async (loadCommon = async () => ({})) => {
+export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = null) => {
     const subject = await loadBridgeStore();
     const { runtime, stores, jotai } = subject;
     const notices = [], reads = [];
@@ -66,7 +66,8 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({})) => {
     const main = stubApi();
     const errors = await loadModule(new URL("../_useBackendErrorHandling.js", import.meta.url), runtime, {
         "@logics_common": common, "@logics_main": main, "@logics_configs": configs,
-        "@useI18n": { useI18n: () => ({ t: key => key, i18n: { exists: () => false } }) },
+        "@useI18n": { useI18n: () => i18n ? { t: i18n.t.bind(i18n), i18n } : { t: key => key, i18n: { exists: () => false } } },
+        "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython: send }) },
         "./ui_configs": { ui_configs: {} }, "./configs/cloudTranscription": { CLOUD_TRANSCRIPTION_ENGINES: [] },
     });
     const feature = values => stubApi({ send, reset: noop, backendStopped: noop, ...values });
