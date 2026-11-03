@@ -24,17 +24,13 @@ export const LogBox = memo(function LogBox() {
     const actions = useMessageActions();
     const logContainerRef = useRef(null);
     const followRef = useRef(true);
-    const anchorRef = useRef(null);
     const [startMargin, setStartMargin] = useState(0);
     const selection = useSelectedRows();
     const keepMounted = useMemo(() => rowsBetween(view.rows, selection), [view.rows, selection]);
 
-    // Stay at the end while following; otherwise remember the row being read.
     const follow = useCallback(() => {
         const element = logContainerRef.current;
-        if (!element) return;
-        if (followRef.current) element.scrollTop = element.scrollHeight;
-        else anchorRef.current = readAnchor(element);
+        if (element && followRef.current) element.scrollTop = element.scrollHeight;
     }, []);
 
     useLayoutEffect(() => {
@@ -49,7 +45,11 @@ export const LogBox = memo(function LogBox() {
         // After a click in the log, PageUp and friends scroll it with the focus on
         // <body>, so listen on the window; keys typed into a field do not scroll it.
         const onKeyDown = (event) => {
-            if (SCROLL_KEYS.has(event.key) && !event.target.closest?.(EDITABLE)) onInput();
+            if (!SCROLL_KEYS.has(event.key) || event.target.closest?.(EDITABLE)) return;
+            onInput();
+            // End scrolls smoothly toward an end that moves while virtua measures
+            // the newest rows; go there and follow them as the send button does.
+            if (event.key === "End") store.scroll_log_to_bottom();
         };
         const onPointerDown = () => { pointerDown = true; };
         // A short drag can be released before its scroll event arrives.
@@ -64,7 +64,7 @@ export const LogBox = memo(function LogBox() {
             const atEnd = element.scrollHeight - element.scrollTop - element.clientHeight < FOLLOW_THRESHOLD;
             if (pointerDown || performance.now() < userUntil) followRef.current = atEnd;
             else if (atEnd) followRef.current = true;
-            follow();
+            else follow();
         };
         // The padding before the rows is in rem, so it changes with the UI scale.
         const observer = new ResizeObserver(() => {
@@ -83,16 +83,7 @@ export const LogBox = memo(function LogBox() {
         };
     }, [follow]);
 
-    // virtua sizes rows by their index, so removing a row in the middle (a
-    // discarded caption) moves the rows after it. Put the row being read back.
-    useLayoutEffect(() => {
-        const element = logContainerRef.current, anchor = anchorRef.current;
-        if (element && anchor && !followRef.current) {
-            const row = element.querySelector(`[data-log-row="${CSS.escape(anchor.id)}"]`);
-            if (row) element.scrollTop += row.getBoundingClientRect().top - element.getBoundingClientRect().top - anchor.offset;
-        }
-        follow();
-    }, [view, follow]);
+    useLayoutEffect(() => follow(), [view, follow]);
 
     const showResendButton = !!actions && currentShowResendButton.data;
     return (
@@ -104,33 +95,24 @@ export const LogBox = memo(function LogBox() {
             {/* Rows measured later (new, or after a font size change) call onResize. */}
             <Virtualizer data={view.rows} shift={view.shift} scrollRef={logContainerRef} startMargin={startMargin} onResize={follow}
                 keepMounted={keepMounted}>
-                {message => <MessageContainer key={message.id} {...message} showResendButton={showResendButton}
-                    sendMessage={actions?.sendMessage} updateMessageInputValue={actions?.updateMessageInputValue} />}
+                {message => message.gone ? <div key={message.id} /> : <MessageContainer key={message.id} {...message}
+                    showResendButton={showResendButton} sendMessage={actions?.sendMessage}
+                    updateMessageInputValue={actions?.updateMessageInputValue} />}
             </Virtualizer>
         </div>
     );
 });
 
-// When the oldest rows leave, virtua has to see that change on its own (see
-// nextLogView), so that step is committed before the rest of the update.
+// The rows handed to virtua (see nextLogView). When the oldest rows leave,
+// virtua has to see that on its own, so that step is committed before the rest.
 const useLogView = (rows) => {
-    const [view, setView] = useState(() => ({ rows, shift: false }));
-    const next = view.rows === rows || view.shift ? view : nextLogView(view.rows, rows);
+    const [view, setView] = useState(() => ({ rows, shift: false, source: rows }));
+    const next = view.source === rows || view.shift ? view : { ...nextLogView(view.rows, rows), source: rows };
     if (next !== view) setView(next);
     useLayoutEffect(() => {
-        if (view.shift) setView({ rows, shift: false });
-    }, [view, rows]);
+        if (view.shift) setView({ ...nextLogView(view.rows, view.source), source: view.source });
+    }, [view]);
     return next;
-};
-
-// The first row in view and how far its top is from the top of the log.
-const readAnchor = (element) => {
-    const top = element.getBoundingClientRect().top;
-    for (const row of element.querySelectorAll("[data-log-row]")) {
-        const rect = row.getBoundingClientRect();
-        if (rect.bottom > top) return { id: row.dataset.logRow, offset: rect.top - top };
-    }
-    return null;
 };
 
 // The rows at both ends of a text selection in the log. The rows between them
