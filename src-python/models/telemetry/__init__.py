@@ -177,9 +177,11 @@ class Telemetry:
 
     async def _init_async(self, app_version: str):
         await self.core.start(app_version=app_version)
-        if self.state.should_send_app_started_today():
+        # Both operations take the state lock, also held during file I/O by
+        # synchronous callers. Even the read must stay off the event loop.
+        if await asyncio.to_thread(self.state.should_send_app_started_today):
             await self.core.send_event("app_started")
-            self.state.mark_app_started_sent_today()
+            await asyncio.to_thread(self.state.mark_app_started_sent_today)
 
     def shutdown(self):
         """テレメトリ終了。Aptabase クライアントを停止し、イベントループを閉じる。"""

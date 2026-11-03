@@ -2818,7 +2818,7 @@ class Model:
                     return
                 self.th_watchdog = None
 
-    def message_handler(self, websocket, message):
+    def message_handler(self, server, websocket, message):
         """WebSocketメッセージ受信時の処理"""
         pass
 
