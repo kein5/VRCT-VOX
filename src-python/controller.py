@@ -1,7 +1,7 @@
 from typing import Callable, Any, List, Optional
 from contextlib import nullcontext
 from subprocess import Popen
-from threading import Event, Thread, Lock
+from threading import Event, Thread, Lock, RLock
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeout
 from dataclasses import asdict, replace
 import copy
@@ -415,6 +415,7 @@ class Controller:
             suppress_direct=(self.voice_events.settings.mic_mode == 'translated'
                              and self.voice_events.settings.direct_policy == 'suppress'))
         self._voice_settings_lock = Lock()
+        self._language_settings_lock = RLock()
         direct = getattr(self._config, 'DIRECT_VOICE_SETTINGS', {})
         self._direct_settings = DirectSettings.from_dict(direct if isinstance(direct, dict) else {})
         self.direct_voice = DirectVoice(converted_factory=create_converted_process)
@@ -2740,10 +2741,11 @@ class Controller:
 
     def setSelectedTabNo(self, selected_tab_no:str, *args, **kwargs) -> dict:
         printLog("setSelectedTabNo", selected_tab_no)
-        with getattr(self, "_voice_settings_lock", nullcontext()):
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
             self._cancelMicVoice()
             config.SELECTED_TAB_NO = selected_tab_no
-        self.updateTranslationEngineAndEngineList()
+            self.updateTranslationEngineAndEngineList()
         return {"status":200, "result":config.SELECTED_TAB_NO}
 
     @staticmethod
@@ -2782,30 +2784,49 @@ class Controller:
 
 
     def setSelectedTranslationEngines(self, data:dict, *args, **kwargs) -> dict:
-        with getattr(self, "_voice_settings_lock", nullcontext()):
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            try:
+                config.SELECTED_TRANSLATION_ENGINES = data
+            except ConfigValidationError:
+                return VRCTError.create_error_response(
+                    ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
+                    data=config.SELECTED_TRANSLATION_ENGINES,
+                )
             self._cancelMicVoice()
-            config.SELECTED_TRANSLATION_ENGINES = data
-        # Resolves the engine (availability / same-language checks can still
-        # downgrade it to CTranslate2) and then validates the language
-        # against whichever engine actually ends up active.
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200,"result":config.SELECTED_TRANSLATION_ENGINES}
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.SELECTED_TRANSLATION_ENGINES}
 
 
     def setSelectedYourLanguages(self, select:dict, *args, **kwargs) -> dict:
-        with getattr(self, "_voice_settings_lock", nullcontext()):
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            try:
+                config.SELECTED_YOUR_LANGUAGES = select
+            except ConfigValidationError:
+                return VRCTError.create_error_response(
+                    ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
+                    data=config.SELECTED_YOUR_LANGUAGES,
+                )
             self._cancelMicVoice()
-            config.SELECTED_YOUR_LANGUAGES = select
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200, "result":config.SELECTED_YOUR_LANGUAGES}
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.SELECTED_YOUR_LANGUAGES}
 
 
     def setSelectedTargetLanguages(self, select:dict, *args, **kwargs) -> dict:
-        with getattr(self, "_voice_settings_lock", nullcontext()):
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            try:
+                config.SELECTED_TARGET_LANGUAGES = select
+            except ConfigValidationError:
+                return VRCTError.create_error_response(
+                    ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
+                    data=config.SELECTED_TARGET_LANGUAGES,
+                )
             self._cancelMicVoice()
-            config.SELECTED_TARGET_LANGUAGES = select
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200, "result":config.SELECTED_TARGET_LANGUAGES}
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.SELECTED_TARGET_LANGUAGES}
+
 
     @staticmethod
     def getTranscriptionEngines(*args, **kwargs) -> dict:
@@ -3622,28 +3643,32 @@ class Controller:
     @staticmethod
     def setMicAvgLogprob(data, *args, **kwargs) -> dict:
         try:
+            if isinstance(data, bool):
+                raise ValueError("Boolean is not an ASR threshold")
             value = float(data)
-        except Exception:
+            config.MIC_AVG_LOGPROB = value
+        except (TypeError, ValueError, OverflowError, ConfigValidationError):
             return VRCTError.create_error_response(
-                ErrorCode.GENERAL_EXCEPTION,
+                ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
                 data=config.MIC_AVG_LOGPROB,
-                custom_message="Mic average logprob must be a number",
+                custom_message="Mic average logprob must be finite and between -2 and 0",
             )
-        config.MIC_AVG_LOGPROB = value
         return {"status":200, "result":config.MIC_AVG_LOGPROB}
 
 
     @staticmethod
     def setMicNoSpeechProb(data, *args, **kwargs) -> dict:
         try:
+            if isinstance(data, bool):
+                raise ValueError("Boolean is not an ASR threshold")
             value = float(data)
-        except Exception:
+            config.MIC_NO_SPEECH_PROB = value
+        except (TypeError, ValueError, OverflowError, ConfigValidationError):
             return VRCTError.create_error_response(
-                ErrorCode.GENERAL_EXCEPTION,
+                ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
                 data=config.MIC_NO_SPEECH_PROB,
-                custom_message="Mic no-speech probability must be a number",
+                custom_message="Mic no-speech probability must be finite and between 0 and 1",
             )
-        config.MIC_NO_SPEECH_PROB = value
         return {"status":200, "result":config.MIC_NO_SPEECH_PROB}
 
 
@@ -3816,28 +3841,32 @@ class Controller:
     @staticmethod
     def setSpeakerAvgLogprob(data, *args, **kwargs) -> dict:
         try:
+            if isinstance(data, bool):
+                raise ValueError("Boolean is not an ASR threshold")
             value = float(data)
-        except Exception:
+            config.SPEAKER_AVG_LOGPROB = value
+        except (TypeError, ValueError, OverflowError, ConfigValidationError):
             return VRCTError.create_error_response(
-                ErrorCode.GENERAL_EXCEPTION,
+                ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
                 data=config.SPEAKER_AVG_LOGPROB,
-                custom_message="Speaker average logprob must be a number",
+                custom_message="Speaker average logprob must be finite and between -2 and 0",
             )
-        config.SPEAKER_AVG_LOGPROB = value
         return {"status":200, "result":config.SPEAKER_AVG_LOGPROB}
 
 
     @staticmethod
     def setSpeakerNoSpeechProb(data, *args, **kwargs) -> dict:
         try:
+            if isinstance(data, bool):
+                raise ValueError("Boolean is not an ASR threshold")
             value = float(data)
-        except Exception:
+            config.SPEAKER_NO_SPEECH_PROB = value
+        except (TypeError, ValueError, OverflowError, ConfigValidationError):
             return VRCTError.create_error_response(
-                ErrorCode.GENERAL_EXCEPTION,
+                ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
                 data=config.SPEAKER_NO_SPEECH_PROB,
-                custom_message="Speaker no-speech probability must be a number",
+                custom_message="Speaker no-speech probability must be finite and between 0 and 1",
             )
-        config.SPEAKER_NO_SPEECH_PROB = value
         return {"status":200, "result":config.SPEAKER_NO_SPEECH_PROB}
 
 
@@ -4851,22 +4880,22 @@ class Controller:
         return {"status": 200, "result": config.AUTO_DOWNLOAD_MODELS}
 
     def swapYourLanguageAndTargetLanguage(self, *args, **kwargs) -> dict:
-        your_languages = config.SELECTED_YOUR_LANGUAGES
-        your_language_temp = your_languages[config.SELECTED_TAB_NO]["1"]
-
-        target_languages = config.SELECTED_TARGET_LANGUAGES
-        target_language_temp = target_languages[config.SELECTED_TAB_NO]["1"]
-
-        your_languages[config.SELECTED_TAB_NO]["1"] = target_language_temp
-        target_languages[config.SELECTED_TAB_NO]["1"] = your_language_temp
-
-        self.setSelectedYourLanguages(your_languages)
-        self.setSelectedTargetLanguages(target_languages)
-        return {
-            "status":200,
-            "result":{
-                "your":config.SELECTED_YOUR_LANGUAGES,
-                "target":config.SELECTED_TARGET_LANGUAGES,
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            your_languages = config.SELECTED_YOUR_LANGUAGES
+            target_languages = config.SELECTED_TARGET_LANGUAGES
+            tab = config.SELECTED_TAB_NO
+            your_languages[tab]["1"], target_languages[tab]["1"] = (
+                target_languages[tab]["1"], your_languages[tab]["1"]
+            )
+            config.setSelectedLanguages(your_languages, target_languages)
+            self._cancelMicVoice()
+            self.updateTranslationEngineAndEngineList()
+            return {
+                "status":200,
+                "result":{
+                    "your":config.SELECTED_YOUR_LANGUAGES,
+                    "target":config.SELECTED_TARGET_LANGUAGES,
                 }
             }
 
@@ -5205,6 +5234,10 @@ class Controller:
             config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[weight_type] = model.checkTranslatorCTranslate2ModelWeight(weight_type)
 
     def updateTranslationEngineAndEngineList(self):
+        with getattr(self, "_language_settings_lock", nullcontext()):
+            self._updateTranslationEngineAndEngineListLocked()
+
+    def _updateTranslationEngineAndEngineListLocked(self):
         engines = config.SELECTED_TRANSLATION_ENGINES
         engine = engines[config.SELECTED_TAB_NO]
         selectable_engines = self.getTranslationEngines()["result"]

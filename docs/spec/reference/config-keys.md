@@ -26,8 +26,8 @@
 | `MIC_RECORD_TIMEOUT` | int | `3` | 2秒後にまとめて |
 | `MIC_PHRASE_TIMEOUT` | int | `3` | 2秒後にまとめて |
 | `MIC_MAX_PHRASES` | int | `10` | 2秒後にまとめて |
-| `MIC_AVG_LOGPROB` | (int, float) | `-0.8` | 2秒後にまとめて |
-| `MIC_NO_SPEECH_PROB` | (int, float) | `0.6` | 2秒後にまとめて |
+| `MIC_AVG_LOGPROB` | (int, float)、許可値 lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and (-2 <= v <= 0) | `-0.8` | 2秒後にまとめて |
+| `MIC_NO_SPEECH_PROB` | (int, float)、許可値 lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and (0 <= v <= 1) | `0.6` | 2秒後にまとめて |
 | `MIC_NO_REPEAT_NGRAM_SIZE` | int | `0` | 2秒後にまとめて |
 | `HOTKEYS` | 検証 lambda val, inst: {**inst.HOTKEYS, **{k: v if isinstance(v, list) or v is None else inst.HOTKEYS.get(k) for k, v in val.items()}} if isinstance(val, dict) and set(val.keys()) <= set(inst.HOTKEYS.keys()) else None | `{'open_quick_chat': None, 'toggle_vrct_visibility': None, 'toggle_translation': None, '…` | 即時 |
 | `SPEAKER_THRESHOLD` | int | `300` | 2秒後にまとめて |
@@ -35,8 +35,8 @@
 | `SPEAKER_RECORD_TIMEOUT` | int | `3` | 2秒後にまとめて |
 | `SPEAKER_PHRASE_TIMEOUT` | int | `3` | 2秒後にまとめて |
 | `SPEAKER_MAX_PHRASES` | int | `10` | 2秒後にまとめて |
-| `SPEAKER_AVG_LOGPROB` | (int, float) | `-0.8` | 2秒後にまとめて |
-| `SPEAKER_NO_SPEECH_PROB` | (int, float) | `0.6` | 2秒後にまとめて |
+| `SPEAKER_AVG_LOGPROB` | (int, float)、許可値 lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and (-2 <= v <= 0) | `-0.8` | 2秒後にまとめて |
+| `SPEAKER_NO_SPEECH_PROB` | (int, float)、許可値 lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and (0 <= v <= 1) | `0.6` | 2秒後にまとめて |
 | `SPEAKER_NO_REPEAT_NGRAM_SIZE` | int | `0` | 2秒後にまとめて |
 | `MIC_ENABLE_VAD` | bool | `False` | 2秒後にまとめて |
 | `SPEAKER_ENABLE_VAD` | bool | `False` | 2秒後にまとめて |

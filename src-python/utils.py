@@ -797,7 +797,7 @@ def printResponse(status: int, endpoint: str, result: Any = None) -> None:
         process_logger.info(logged_response)  # Log the (possibly masked) response, never the raw secret
 
     try:
-        serialized_response = json.dumps(response)
+        serialized_response = json.dumps(response, allow_nan=False)
     except Exception as e:
         errorLogging()  # Log the full traceback of the exception
         try:
@@ -812,7 +812,7 @@ def printResponse(status: int, endpoint: str, result: Any = None) -> None:
             "status": 500,
             "endpoint": endpoint,
             "result": {"error": "Failed to serialize response", "details": str(e)},
-        })
+        }, allow_nan=False)
         _enqueueResponseLine(error_json)
     else:
         _enqueueResponseLine(serialized_response)
