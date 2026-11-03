@@ -15,6 +15,7 @@ import time
 from uuid import uuid4
 
 from .pipewire_gate import VC_SINK
+from .pipewire_graph import GraphUnavailable, graph_source, read_graph
 
 START_TIMEOUT = 3.0
 MONITOR_INTERVAL = .1
@@ -159,11 +160,10 @@ def _sink(graph):
     return sink
 
 
-def _read_graph():
+def _read_graph(*, wait=True, after=None):
     try:
-        result = subprocess.run(['pw-dump'], env=external_process_env(), capture_output=True, check=True, timeout=1)
-        return json.loads(result.stdout)
-    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        return read_graph(wait=wait, after=after).data
+    except GraphUnavailable as exc:
         raise RuntimeError('source_bridge_graph_unavailable') from exc
 
 
@@ -301,6 +301,7 @@ class _Run:
     source: Endpoint
     tag: str = field(default_factory=lambda: uuid4().hex)
     stop: Event = field(default_factory=Event)
+    wake: Event = field(default_factory=Event)
     child: object = None
     thread: object = None
 
@@ -327,6 +328,7 @@ class SourceBridge:
                            generation=self._state['generation'] + 1)
         if self._run:
             self._run.stop.set()
+            self._run.wake.set()
             return self._run.child
         return None
 
@@ -384,7 +386,12 @@ class SourceBridge:
                 self._state.update(values)
 
     def _work(self, run):
+        observer = None
         try:
+            try:
+                observer = graph_source().subscribe(run.wake)
+            except GraphUnavailable as exc:
+                raise RuntimeError('source_bridge_graph_unavailable') from exc
             graph = _read_graph()
             if select_source(graph, run.source.name) != run.source:
                 raise RuntimeError('source_bridge_source_changed')
@@ -408,18 +415,22 @@ class SourceBridge:
                 except RuntimeError:
                     if time.monotonic() >= deadline:
                         raise
-                    run.stop.wait(MONITOR_INTERVAL)
+                    run.wake.wait(MONITOR_INTERVAL)
+                    run.wake.clear()
             else:
                 return
             if run.stop.is_set():
                 return
             _unmute(output, run.tag)
+            after = time.monotonic()
             while not run.stop.is_set():
                 if child.poll() is not None:
                     raise RuntimeError('source_bridge_process_exited')
-                _links(_read_graph(), run.source, sink, run.tag, child.pid, False)
+                _links(_read_graph(after=after), run.source, sink, run.tag, child.pid, False)
+                after = None
                 self._update(run, active=True, pending=False)
-                run.stop.wait(MONITOR_INTERVAL)
+                run.wake.wait(MONITOR_INTERVAL)
+                run.wake.clear()
         except Exception as exc:
             # No arbitrary subprocess output/paths in UI-facing diagnostics.
             code = str(exc) if isinstance(exc, RuntimeError) and str(exc).startswith('source_bridge_') else 'source_bridge_control_failed'
@@ -429,3 +440,5 @@ class SourceBridge:
                 _reap(run.child)
             finally:
                 self._update(run, requested=False, active=False, pending=False)
+                if observer is not None:
+                    observer.close()

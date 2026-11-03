@@ -40,7 +40,6 @@ def test_bad_or_ambiguous_graph_cannot_be_treated_as_muted(fault):
 
 
 def test_pair_reports_direct_branch_identity_and_mute_from_one_snapshot(monkeypatch):
-    import json
     from types import SimpleNamespace
     from models.audio_routing import pipewire_gate as module
     monkeypatch.setattr(module, 'sys', SimpleNamespace(platform='linux'))
@@ -49,14 +48,14 @@ def test_pair_reports_direct_branch_identity_and_mute_from_one_snapshot(monkeypa
     direct['props']['object.serial'] = 20
     direct['params'] = {'Props': [{'mute': False}]}
     calls = []
-    def run(args, **kwargs):
-        calls.append(args)
-        return SimpleNamespace(stdout=json.dumps(data))
-    monkeypatch.setattr(module.subprocess, 'run', run)
+    def read(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(data=data)
+    monkeypatch.setattr(module, 'read_graph', read)
     gate = module.PipeWireGate()
     assert gate.inspect_pair() == {'source': {'identity': (42, 15), 'muted': True},
                                    'direct': {'identity': (42, 20), 'muted': False}}
-    assert calls == [['pw-dump']]
+    assert calls == [{'after': None}]
     direct['params']['Props'] = []
     with pytest.raises(RuntimeError):
         gate.inspect_pair()
@@ -70,7 +69,7 @@ def test_direct_control_uses_fixed_selector_and_rechecks_identity(tmp_path, monk
     calls = []
     monkeypatch.setattr(module.subprocess, 'run', lambda args, **kwargs: calls.append(args))
     state = {'identity': (42, 20), 'muted': True}
-    monkeypatch.setattr(gate, 'inspect_pair', lambda: {'direct': state})
+    monkeypatch.setattr(gate, 'inspect_pair', lambda **kw: {'direct': state})
     assert gate.set_direct_muted(True, (42, 20)) == state
     assert calls == [[str(helper), '42', '20', '1', 'vc']]
     state['identity'] = (42, 21)
@@ -88,7 +87,7 @@ def test_resume_binds_and_confirms_both_gate_states(tmp_path, monkeypatch, chang
     pair = {'source': {'identity': (42, 15), 'muted': False},
             'direct': {'identity': (42, 21 if changed == 'identity' else 20),
                        'muted': changed != 'mute'}}
-    monkeypatch.setattr(gate, 'inspect_pair', lambda: pair)
+    monkeypatch.setattr(gate, 'inspect_pair', lambda **kw: pair)
     if changed:
         with pytest.raises(RuntimeError, match='direct_gate'):
             gate.resume((42, 15), (42, 20), True)

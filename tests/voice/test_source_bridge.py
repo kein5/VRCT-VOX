@@ -100,7 +100,7 @@ class Backend:
         self.release = threading.Event()
         self.block_at = None
 
-    def read(self):
+    def read(self, **kwargs):
         if self.query_error:
             raise RuntimeError('graph_unavailable')
         return copy.deepcopy(self.data)

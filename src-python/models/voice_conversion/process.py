@@ -12,6 +12,7 @@ import time
 from uuid import uuid4
 
 from models.audio_routing.devices_pipewire import PipeWireOutput
+from models.audio_routing.pipewire_graph import graph_source
 from models.audio_routing.monitor_output import MonitorTee, parse_monitor
 from models.audio_routing.source_bridge import _read_graph, _sink, select_source
 from models.transcription.capture_pipewire import (
@@ -20,8 +21,8 @@ from models.transcription.capture_pipewire import (
 from models.tts.speechcpp_tts import CancelToken, SpeechError
 from . import protocol as p
 
-def _binding(source):
-    graph = _read_graph()
+def _binding(source, *, wait=True):
+    graph = _read_graph(wait=wait)
     if select_source(graph, source.name) != source:
         raise p.ProtocolError('vc_source_changed')
     return _sink(graph)
@@ -33,17 +34,20 @@ def _output(endpoint):
 
 
 class _Deadline:
-    def __init__(self, token, end_ns):
+    def __init__(self, token, end_ns, check_graph=lambda: None):
         self.token, self.end_ns = token, end_ns
+        self.check_graph = check_graph
 
     def check(self):
         self.token.check()
+        self.check_graph()
         p.require_fresh(self.end_ns, time.monotonic_ns())
 
     def commit_audio_write(self, pcm, write):
         # Stop and the nonblocking write use the same cancellation lock. Check
         # age after acquiring it too: waiting for readiness is not a commit.
         def fresh_write():
+            self.check_graph()
             p.require_fresh(self.end_ns, time.monotonic_ns())
             return write()
         return self.token.commit_audio_write(pcm, fresh_write)
@@ -183,7 +187,9 @@ class VCProcess:
                 continue
 
     def _run(self, source):
+        observer = None
         try:
+            observer = graph_source().subscribe()
             sink = _binding(source)
             self._token.check()
             self._child = self._launch_worker()
@@ -207,20 +213,20 @@ class VCProcess:
             with self._lock:
                 self._token.check()
                 self._active, self._pending, self._state = True, False, 'ready'
-            checked = 0
+            def check_binding():
+                if _binding(source, wait=False) != sink:
+                    raise p.ProtocolError('vc_sink_changed')
+
             while True:
                 self._token.check()
                 if self._child.poll() is not None:
                     raise p.ProtocolError('vc_worker_eof')
-                if time.monotonic() - checked >= .1:
-                    if _binding(source) != sink:
-                        raise p.ProtocolError('vc_sink_changed')
-                    checked = time.monotonic()
+                check_binding()
                 try:
                     info, pcm = self._queue.get(timeout=.02)
                 except Empty:
                     continue
-                deadline = _Deadline(self._token, info['end_ns'])
+                deadline = _Deadline(self._token, info['end_ns'], check_binding)
                 deadline.check()
                 self._send(info, pcm, deadline)
                 result, converted = p.read_packet(self._child.stdout, timeout=1, check=deadline.check)
@@ -251,6 +257,8 @@ class VCProcess:
                     with self._lock:
                         self._error = self._error or 'vc_cleanup_failed'
                         self._cleanup_ok = False
+            if observer is not None:
+                observer.close()
             with self._lock:
                 self._pending = False
                 self._state = 'failed' if self._error else 'stopped'

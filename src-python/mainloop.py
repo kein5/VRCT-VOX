@@ -968,7 +968,11 @@ class Main:
             self.controller.shutdown()
         except Exception:
             errorLogging()
-        
+        finally:
+            if sys.platform.startswith('linux'):
+                from models.audio_routing.pipewire_graph import shutdown
+                shutdown()
+
         self._stop_event.set()
         # give threads a chance to exit
         start = time.time()

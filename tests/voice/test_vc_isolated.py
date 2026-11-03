@@ -37,7 +37,7 @@ while True:
    if mode=='ignore_stop':time.sleep(20)
    sys.exit(2 if mode=='cleanup' else 0)
 '''
-    def launch():
+    def launch(source):
         child = subprocess.Popen([sys.executable, '-u', '-c', script, mode, json.dumps(BASE_STATE)],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
         children.append(child)
