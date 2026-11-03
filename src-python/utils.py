@@ -705,6 +705,25 @@ def printLog(log: str, data: Any = None) -> None:
 # always-on process diagnostic log.
 _UNLOGGED_ENDPOINTS = {"/run/vr_panel_pointer", "/run/realtime_caption", "/run/word_filter"}
 
+# State the UI polls every 0.5-1 s (src-ui/logics/useReceiveRoutes.js). Logging
+# each request, result and response added about 12 MB an hour to process.log
+# even while idle; the file is truncated at 10 MB, so the polls pushed out the
+# startup and error records. Successful polls are not logged; failures are.
+POLLED_ENDPOINTS = frozenset({
+    "/get/data/voice_status",
+    "/get/data/voice_route",
+    "/get/data/direct_voice_state",
+    "/get/data/speech_server_state",
+    "/get/data/realtime_asr_state",
+    "/get/data/model_download_state",
+    "/get/data/model_download_hardware",
+})
+
+
+def isQuietPoll(endpoint: Any, status: int = 200) -> bool:
+    """A successful answer to a polled state request, which is not logged."""
+    return status == 200 and endpoint in POLLED_ENDPOINTS
+
 
 def printResponse(status: int, endpoint: str, result: Any = None) -> None:
     """Log and print a structured response object.
@@ -732,7 +751,7 @@ def printResponse(status: int, endpoint: str, result: Any = None) -> None:
     if endpoint in _CONVERSATION_ENDPOINTS:
         logged_result = _redactConversation(logged_result)
     logged_response = {**response, "result": logged_result}
-    if endpoint not in _UNLOGGED_ENDPOINTS:
+    if endpoint not in _UNLOGGED_ENDPOINTS and not isQuietPoll(endpoint, status):
         process_logger.info(logged_response)  # Log the (possibly masked) response, never the raw secret
 
     try:
