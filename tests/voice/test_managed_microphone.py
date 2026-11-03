@@ -224,6 +224,10 @@ def test_concurrent_preparation_installs_only_one_route(machine):
     from concurrent.futures import ThreadPoolExecutor
 
     setup, state, root = machine
+    # The fixture's 30 ms timeout also bounds the wait for the setup lock, and
+    # the first caller writes and fsyncs three units while holding it: on a slow
+    # CI disk the second caller gave up with managed_setup_busy.
+    setup.timeout = 5
     with ThreadPoolExecutor(max_workers=2) as pool:
         calls = [pool.submit(setup.ensure) for _ in range(2)]
         for call in calls:
