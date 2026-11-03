@@ -162,7 +162,10 @@ pub fn run() {
 static VR_PANEL_LOCK: tauri::async_runtime::Mutex<()> = tauri::async_runtime::Mutex::const_new(());
 
 #[tauri::command]
-async fn set_vr_panel_window(app: tauri::AppHandle, open: bool) -> Result<(), String> {
+async fn set_vr_panel_window(window: tauri::WebviewWindow, app: tauri::AppHandle, open: bool) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("vr_panel_forbidden".into());
+    }
     let _guard = VR_PANEL_LOCK.lock().await;
     match (open, app.get_webview_window("vr_panel")) {
         (true, None) => create_vr_panel_window(&app).map_err(|error| {
