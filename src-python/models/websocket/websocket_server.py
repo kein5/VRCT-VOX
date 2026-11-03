@@ -118,18 +118,23 @@ class WebSocketServer:
             async for message in websocket:
                 # メッセージ受信時にコールバック呼び出し
                 if self._message_handler:
-                    try:
-                        self._message_handler(self, websocket, message)
-                    except Exception:
-                        # A broken handler shouldn't tear down this client's
-                        # connection (or, if unlucky, the whole server task).
-                        errorLogging()
+                    await asyncio.to_thread(
+                        self._dispatch_message, self._message_handler, websocket, message
+                    )
         except websockets.exceptions.ConnectionClosed:
             # クライアントが切断した場合
             pass
         finally:
             # 切断時に集合から削除(既に削除済みでも例外にならないようdiscardを使用)
             self.clients.discard(websocket)
+
+    def _dispatch_message(self, handler, websocket, message):
+        # Callbacks can enter Model locks or perform I/O. Keep exception logging
+        # on the same worker too, so errorLogging retains the actual traceback.
+        try:
+            handler(self, websocket, message)
+        except Exception:
+            errorLogging()
 
     async def _broadcast_async(self, message: str):
         """
@@ -138,12 +143,20 @@ class WebSocketServer:
         # 全員に届くまで待つと、いちばん遅いクライアントが時間切れになるまで
         # 後続のメッセージも全員分止まる。websockets の broadcast() は待たずに
         # 各接続の書き込みバッファへ積み、遅い接続は keepalive の時間切れで切れる
-        broadcast(self.clients, message)
+        clients = tuple(self.clients)
+        for offset in range(0, len(clients), 32):
+            # Fanout is synchronous too. Bound each turn while preserving the
+            # library's nonblocking writes and slow-client keepalive policy.
+            broadcast(clients[offset:offset + 32], message)
+            await asyncio.sleep(0)
 
     async def _send_loop(self, run):
         while True:
             message = await run.send_queue.get()
             await self._broadcast_async(message)
+            # Queue.get() and broadcast() need not suspend while producers keep
+            # the queue full. Let keepalive, receive and stop callbacks run.
+            await asyncio.sleep(0)
 
     def send(self, message: str):
         run = self._run
@@ -293,8 +306,8 @@ if __name__ == "__main__":
         # サーバーを起動してメッセージハンドラを設定
         ws_server = WebSocketServer()
         ws_server.set_message_handler(message_handler)
-        ws_server.start()
-        print("WebSocket server started.")
+        await asyncio.to_thread(ws_server.start)
+        await asyncio.to_thread(print, "WebSocket server started.")
         # 定期的にサーバーからメッセージを送信する例
         import threading
         import time
@@ -306,7 +319,7 @@ if __name__ == "__main__":
                 send_message(ws_server, "Periodic message")
             print("Periodic message sender stopped.")
         # 別スレッドで定期的にメッセージを送信
-        time.sleep(5)
+        await asyncio.sleep(5)
         send_thread = threading.Thread(target=periodic_send, daemon=True)
         send_thread.start()
         # メインスレッドでサーバーを動かし続ける
@@ -317,8 +330,8 @@ if __name__ == "__main__":
 
         except KeyboardInterrupt:
             # Ctrl+Cでサーバーを停止
-            print("Stopping WebSocket server...")
-            ws_server.stop()
+            await asyncio.to_thread(print, "Stopping WebSocket server...")
+            await asyncio.to_thread(ws_server.stop)
 
     # 非同期メイン関数を実行
     try:
