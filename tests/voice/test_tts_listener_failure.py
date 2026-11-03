@@ -153,6 +153,10 @@ def test_failed_server_does_not_cancel_an_independent_request():
 
 @pytest.mark.parametrize('error', [TimeoutError, OSError])
 def test_inconclusive_probe_does_not_cancel_valid_audio(monkeypatch, error):
+    from models.tts import speechcpp_tts
+    # On Windows a readable listener table skips the TCP probe; make it
+    # inconclusive so every platform exercises the TCP fallback here.
+    monkeypatch.setattr(speechcpp_tts, '_windows_listener_missing', lambda *args, **kwargs: None)
     with buffered_server() as (url, sent, finish, _stop):
         token = CancelToken()
         stream = SpeechCppTTS(url).synthesize_stream('test', 'none', 'ja', token)

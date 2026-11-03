@@ -22,7 +22,10 @@ class ListenerTableProbe:
                 return None
             now = monotonic()
             fresh_after = now - self._freshness if not_before is None else not_before
-            if (self._result is not None and self._result_at is not None
+            # Windows' monotonic() ticks every ~15.6 ms before Python 3.13, so an
+            # older result can share this timestamp. Zero freshness never reuses.
+            reusable = not_before is not None or self._freshness > 0
+            if (reusable and self._result is not None and self._result_at is not None
                     and self._result_at >= fresh_after):
                 return self._result
             if self._inflight is not None and self._started_at >= fresh_after:
