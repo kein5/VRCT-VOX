@@ -15,6 +15,7 @@ import time
 
 from .settings import PROFILES
 from .low_latency import LowLatencyStandby
+from models.tts.listener_monitor import listener_monitors
 
 ROOT=resource_root()
 BUNDLE=ROOT/'build/speechcpp'
@@ -88,6 +89,7 @@ class SpeechServer:
         self._thread=self._child=None
         self._cleanup_ok=True
         self._standby=None
+        self._listener=None
         self._state=dict(state='stopped',base_url=None,error_code=None)
 
     def health(self):
@@ -136,6 +138,8 @@ class SpeechServer:
         except (KeyError,TypeError): raise _Failure('speech_server_model_tasks') from None
         expected=['recognition','detection'] if self.profile=='asr' else ['synthesis']
         if sorted(tasks)!=sorted(expected): raise _Failure('speech_server_model_tasks')
+        if self.profile!='asr' and self._listener is None:
+            self._listener=listener_monitors.own(('127.0.0.1',port),self._child)
         if self.options.get('low_latency'):
             speech=models['data'][0]['speech']
             if (self.profile!='japanese' or speech.get('architecture')!='irodori-tts'
@@ -194,6 +198,8 @@ class SpeechServer:
         except Exception:
             failure='speech_server_launch_failed'
         finally:
+            if self._listener is not None:
+                listener_monitors.forget(self._listener)
             if self._standby is not None and not self._standby.close(): self._cleanup_ok=False
             if self._child is not None:
                 try:
