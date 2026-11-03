@@ -10,9 +10,12 @@ wrong whenever VRCT overlaps the VRChat window.
 from __future__ import annotations
 
 import sys
+import time
 from typing import Optional, Tuple
 
 import numpy as np
+
+from .ocr_failure import OcrFailureLog
 
 try:
     from psutil import Process
@@ -239,6 +242,7 @@ class HwndCapture:
     def __init__(self, window_title: str = _VRCHAT_WINDOW_TITLE) -> None:
         self.window_title = window_title
         self._hwnd: Optional[int] = None
+        self._failures = OcrFailureLog("OCR HWND capture", lambda: errorLogging(), lambda message: printLog(message))
 
     def isAvailable(self) -> bool:
         return sys.platform == "win32"
@@ -249,6 +253,7 @@ class HwndCapture:
         return hwnd
 
     def capture(self) -> Optional[np.ndarray]:
+        self._failures.report(time.monotonic())
         if not self.isAvailable():
             return None
         hwnd = self._hwnd
@@ -265,14 +270,17 @@ class HwndCapture:
         _left, _top, width, height = rect
         try:
             frame = _print_window(hwnd, width, height)
-        except Exception:
-            errorLogging()
+        except Exception as exc:
+            self._failures.failure(exc)
             self._hwnd = None
             return None
+        if frame is not None:
+            self._failures.success()
         return frame
 
     def close(self) -> None:
         self._hwnd = None
+        self._failures.reset()
 
 
 def isFrameBlank(frame: Optional[np.ndarray], mean_threshold: float = 3.0, var_threshold: float = 20.0) -> bool:

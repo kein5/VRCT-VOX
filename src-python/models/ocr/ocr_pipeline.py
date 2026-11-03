@@ -31,14 +31,13 @@ from collections import OrderedDict
 from threading import Event, Lock, RLock, Thread, current_thread
 from typing import Callable, List, Optional
 
-import numpy as np
-
 from ..background_priority import BackgroundThreads, lowerCurrentThread
 from .ocr_capture import CAPTURE_OK, CAPTURE_UNAVAILABLE, OcrCapture, probeCapture
 from .ocr_detection import FULL_REGION, RegionCandidates, blockBounds, groupLines, looksLikeChatbox, regionPixels
 from . import ocr_engine_rapidocr as ocr_engine
 from .ocr_languages import OcrModelSpec, resolveModelSpec
 from .ocr_models import OcrModelsInvalid, OcrModelsMissing, resolveModelFiles
+from .ocr_failure import OcrFailureLog
 from errors import ErrorCode, OcrStartError
 
 try:
@@ -56,6 +55,9 @@ except Exception:  # pragma: no cover
 # and how long that OCR work may take before the tick yields.
 MAX_CANDIDATES_PER_TICK = 6
 TICK_OCR_BUDGET_RATIO = 0.8
+ENGINE_BACKOFF_THRESHOLD = 3
+ENGINE_BACKOFF_INITIAL_SEC = 1.0
+ENGINE_BACKOFF_MAX_SEC = 30.0
 
 # 何も出ないときの原因が「フレームが来ない」「吹き出しが検出されない」
 # 「文字が読めない」のどれなのか、ログから区別できなかったので定期的に内訳を出す。
@@ -207,6 +209,19 @@ class OcrPipeline:
         self._counts = {"tick": 0, "frame": 0, "candidate": 0, "ocr": 0, "text": 0, "bubble": 0, "emit": 0}
         self._counts_since = 0.0
         self._last_tick_at = 0.0
+        self._engine_failures = OcrFailureLog("OCR engine", lambda: errorLogging(), lambda message: printLog(message))
+        self._tick_failures = OcrFailureLog("OCR tick", lambda: errorLogging(), lambda message: printLog(message))
+        self._resetFailures()
+
+    def _resetFailures(self) -> None:
+        self._engine_failures.reset()
+        self._tick_failures.reset()
+        self._resetEngineBackoff()
+
+    def _resetEngineBackoff(self) -> None:
+        self._engine_failure_count = 0
+        self._engine_backoff = 0.0
+        self._engine_retry_at = 0.0
 
     @property
     def detectorName(self) -> str:
@@ -246,6 +261,7 @@ class OcrPipeline:
             raise OcrStartError(ErrorCode.OCR_DISABLED_ENGINE_UNAVAILABLE)
         self._stop_event.clear()
         self._stop_logged = False
+        self._resetFailures()
         spec = resolveModelSpec(self._source_language)
         if spec is None:
             printLog(f"OCR pipeline: language {self._source_language!r} is not supported by the OCR engine")
@@ -304,6 +320,7 @@ class OcrPipeline:
             self._thread = None
             # _run() closes capture on its creating thread before exiting.
             self._capture = None
+            self._resetFailures()
             return True
 
     def applyConfig(self, settings: dict) -> None:
@@ -367,6 +384,9 @@ class OcrPipeline:
                 if reader is None:
                     printLog(f"OCR pipeline: could not load {spec.label}, keeping {self._source_language!r}")
                 else:
+                    if reader is not self._reader:
+                        self._engine_failures.reset()
+                        self._resetEngineBackoff()
                     self._reader = reader
                     self._source_language = language
                     # 言語が変われば同じ吹き出しでも読める内容が変わるので、
@@ -454,8 +474,10 @@ class OcrPipeline:
                 try:
                     self._applyPending()
                     self._tick()
-                except Exception:
-                    errorLogging()
+                except Exception as exc:
+                    self._tick_failures.failure(exc)
+                else:
+                    self._tick_failures.success()
                 ticks += 1
                 if ticks <= 2 and self._background_threads is not None:
                     # 推論を始めてから作られるスレッドもある
@@ -489,7 +511,13 @@ class OcrPipeline:
 
     def _tick(self) -> None:
         self._counts["tick"] += 1
-        self._logStatus(time.monotonic())
+        tick_at = time.monotonic()
+        self._logStatus(tick_at)
+        self._engine_failures.report(tick_at)
+        # Keep polling settings/status and the stop event during cooldown;
+        # do not capture, detect or run inference until the next probe is due.
+        if tick_at < self._engine_retry_at:
+            return
         if self._capture is None or self._reader is None:
             return
         frame = self._capture.get()
@@ -527,7 +555,20 @@ class OcrPipeline:
             if time.monotonic() > deadline:
                 break
             self._counts["ocr"] += 1
-            words = ocr_engine.readtext_bgr(self._reader, crop, self._min_confidence)
+            try:
+                words = ocr_engine.readtext_bgr_or_raise(self._reader, crop, self._min_confidence)
+            except Exception as exc:
+                self._engine_failures.failure(exc)
+                self._engine_failure_count += 1
+                if self._engine_failure_count >= ENGINE_BACKOFF_THRESHOLD:
+                    self._engine_backoff = min(
+                        ENGINE_BACKOFF_MAX_SEC,
+                        max(ENGINE_BACKOFF_INITIAL_SEC, self._engine_backoff * 2.0))
+                    self._engine_retry_at = time.monotonic() + self._engine_backoff
+                # Other crops use the same reader: retry on a later tick.
+                return
+            self._engine_failures.success()
+            self._resetEngineBackoff()
             if not words:
                 continue
             self._counts["text"] += 1

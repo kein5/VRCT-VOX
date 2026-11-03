@@ -98,6 +98,8 @@ VRChatの画面上に浮かぶチャット吹き出し（他プレイヤーの�
 ### ocr_engine_rapidocr.py — OCRエンジン (RapidOCR / ONNX PP-OCR)
 - モデル指定ごとに推論器を遅延生成してキャッシュする。`readtext_bgr(crop)` は
   `[{"text", "confidence"}, ...]` を返し、例外は投げない (失敗時は空リスト)
+- パイプラインは `readtext_bgr_or_raise` を使い、推論・結果の変換の例外を
+  「読める文字がない」と区別する。文字だけを使う既存の呼び出し元には空リストを返す契約を保つ。
 - **onnxruntimeのみで動く**。faster-whisper が Silero VAD 用に既に依存しているので、
   実行時依存は増えない。PaddlePaddle も torch も要らない
 - `Det.limit_side_len=320`。RapidOCRの既定は短辺を736pxまで**拡大**する設定
@@ -258,6 +260,8 @@ OCRは吹き出し内の各行を別々に返す。そこには「送信者が�
 
 - `MAX_CANDIDATES_PER_TICK`（既定 6）で件数を制限（detector が面積降順に並べているので大きい吹き出しが優先されます）
 - `TICK_OCR_BUDGET_RATIO`（既定 0.8）× poll interval を時間予算とし、超過した時点でその tick を打ち切り
+- 推論例外が出たtickは残りの候補を読まず、連続失敗時は取得・検出・推論を待機する。
+  ログの集約、待機時間、復旧の条件は [UC-05](../../../docs/spec/use-cases.md#uc-05-vrchatのチャットボックスを読み取って訳す) を参照。
 
 ## OpenVR セッションの共有について
 

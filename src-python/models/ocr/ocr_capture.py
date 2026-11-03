@@ -24,6 +24,7 @@ from ..process_check import isProcessRunning
 from .ocr_capture_hwnd import HwndCapture, _find_vrchat_hwnd, isFrameBlank
 from .ocr_capture_openvr import OpenVRMirrorCapture
 from .ocr_capture_x11 import X11WindowCapture
+from .ocr_failure import OcrFailureLog
 
 try:
     from utils import errorLogging, printLog
@@ -94,6 +95,7 @@ class OcrCapture:
         # 試した経路ではなく取れた経路が変わったときだけログに出す。
         self._source = self.BACKEND_NONE
         self._last_check = 0.0
+        self._failures = OcrFailureLog("OCR capture", lambda: errorLogging(), lambda message: printLog(message))
 
     def _selectBackend(self, force: bool = False) -> str:
         now = time.monotonic()
@@ -130,6 +132,7 @@ class OcrCapture:
         return self._backend
 
     def get(self) -> Optional[np.ndarray]:
+        self._failures.report(time.monotonic())
         backend = self._selectBackend()
         try:
             if backend == self.BACKEND_OPENVR and self._openvr is not None:
@@ -143,6 +146,7 @@ class OcrCapture:
                     if frame.min() == frame.max():
                         return None
                     self._noteSource(self.BACKEND_OPENVR)
+                    self._failures.success()
                     return frame
                 # VRChat is not the SteamVR scene (desktop mode, SteamVR Home)
                 # or the VR read failed: use the desktop window until the
@@ -156,12 +160,14 @@ class OcrCapture:
                 if isFrameBlank(frame):
                     return None
                 self._noteSource(self._window_backend)
+                self._failures.success()
                 return frame
-        except Exception:
-            errorLogging()
+        except Exception as exc:
+            self._failures.failure(exc)
         return None
 
     def close(self) -> None:
+        self._failures.reset()
         try:
             self._window.close()
         except Exception:

@@ -196,7 +196,7 @@ class TestDedupWithSlowTicks(unittest.TestCase):
         pipeline._detector = Mock()
         pipeline._detector.detect.return_value = [((0, 0, 10, 10), "crop")]
 
-        with patch("models.ocr.ocr_pipeline.ocr_engine.readtext_bgr",
+        with patch("models.ocr.ocr_pipeline.ocr_engine.readtext_bgr_or_raise",
                    return_value=[{"text": "こんにちは", "confidence": 0.9}]),                 patch("models.ocr.ocr_pipeline.time.monotonic", side_effect=[100.0, 100.0, 100.0,
                                                                             103.0, 103.0, 103.0]):
             pipeline._tick()   # 1回目: 間隔が測れないので設定値のまま
