@@ -402,6 +402,7 @@ class Controller:
         self._tts_owner_lock = Lock()
         self._tts_owned = {}
         self._tts_released = {}
+        self._tts_ended = {}
         self._tts_attempts = set()
         self._tts_waiting = 0
         voice_settings = getattr(self._config, "VOICE_SETTINGS", {})
@@ -584,18 +585,59 @@ class Controller:
             return {"status": 409, "result": {"error_code": code}}
         return self.getSpeechServerState()
 
-    def _speechServerEnded(self, profile):
+    def _enableSpeechServerTts(self, roles, generation):
+        """Commit ON after rechecking bundled availability under the end lock."""
+        with self._tts_owner_lock:
+            settings = self.voice_events.settings
+            try:
+                for role in roles:
+                    if getattr(settings, role + '_server') == 'bundled':
+                        self.speech_servers.binding(role)
+            except RuntimeError:
+                return 'speech_server_not_ready'
+            # A terminal callback takes this lock too, so it cannot miss the
+            # dependency between the final readiness check and enabling TTS.
+            if not self.voice_events.set_enabled(True, expected_generation=generation):
+                return 'tts_state_changed'
+        return None
+
+    def _speechTtsDependency(self, profile, run):
+        """Snapshot the TTS epoch currently using this exact bundled run."""
+        while True:
+            state = self.voice_events.status()
+            if (not state['tts_enabled'] or state['closed']
+                    or self.speech_servers.current_run(profile) != run
+                    or getattr(self.voice_events.settings, profile + '_server') != 'bundled'):
+                return None
+            # Saves/language changes can alter the selected roles while TTS
+            # stays on. Stop/Mute can advance its epoch without ending it.
+            code, roles = self._ttsRolesLocked(state['tts_generation'], allow_muted=True)
+            if code == 'tts_state_changed':
+                continue
+            return state['tts_generation'] if code is None and profile in roles else None
+
+    def _speechServerEnded(self, profile, run=None):
         # Called after releasing hub locks, including on natural child failure.
-        # One shared TTS scheduler deliberately cancels all pending speech.
         if profile in ("japanese", "multilingual"):
             with self._tts_owner_lock:
-                released = self._tts_released.pop(profile, None)
-                if released is not None and released == self.speech_servers.state()[profile]["generation"]:
+                if run is None or run <= self._tts_ended.get(profile, -1):
+                    return
+                self._tts_ended[profile] = run
+                if self._tts_released.get(profile) == run:
+                    del self._tts_released[profile]
                     return  # The end of a run the TTS toggle's own OFF stopped.
-            self.voice_events.set_enabled(False)
+                while True:
+                    generation = self._speechTtsDependency(profile, run)
+                    if generation is None:
+                        return
+                    # Settings/Stop/Mute can change the epoch without this lock.
+                    # Invalidate only the session whose dependency we checked.
+                    if self.voice_events.set_enabled(False, expected_generation=generation):
+                        break
+                owned = dict(self._tts_owned)
             # TTS is off now, so servers the main toggle started for it go too.
             # A waiting ON is not cancelled here: it reports this failure itself.
-            self._releaseTtsServers()
+            self._releaseTtsServers(only=owned)
         elif profile == "asr":
             with self._realtime_lock:
                 bundled = self._realtime_settings["server"] == "bundled"
@@ -616,8 +658,7 @@ class Controller:
             return {"status": 400, "result": {"error_code": "speech_server_request_invalid"}}
         # Revoke endpoint availability first; new work cannot bind between
         # invalidating clients and the Stop signal. Neither operation joins.
-        self.speech_servers.stop(profile)
-        self._speechServerEnded(profile)
+        self.speech_servers.stop(profile, on_stop=self._speechServerEnded)
         return self.getSpeechServerState()
 
     def _initRealtimeASR(self, choices):
@@ -2459,19 +2500,17 @@ class Controller:
             except (ValueError, KeyError, TypeError):
                 return 'speech_server_or_settings_not_ready'
             # OFF bypasses this lock; the epoch must be rechecked after probing.
-            if not self.voice_events.set_enabled(True, expected_generation=generation):
-                return 'tts_state_changed'
-        return None
+            return self._enableSpeechServerTts(roles, generation)
 
-    def _ttsRolesLocked(self, generation):
-        """Check an ON request; return (error_code, server roles) without probing servers."""
+    def _ttsRolesLocked(self, generation, *, allow_muted=False):
+        """Check selected roles at an epoch; allow mute only for end dependency checks."""
         state = self.voice_events.status()
         if generation != state['tts_generation']:
             return 'tts_state_changed', None
         # Name the blocking condition: the UI turns each code into its next step.
         if state['closed']:
             return 'voice_route_closed', None
-        if state['muted']:
+        if state['muted'] and not allow_muted:
             return 'voice_route_muted', None
         settings = self.voice_events.settings
         if settings.mode == 'off' and settings.mic_mode == 'off':
@@ -2561,15 +2600,15 @@ class Controller:
             owned = {role: run for role, run in self._tts_owned.items() if only is None or only.get(role) == run}
             for role, run in owned.items():
                 del self._tts_owned[role]
-                # Stop takes run + 1 and the published end run + 2. TTS is
-                # already off, so that end must not bump the epoch again and
-                # turn a quick OFF -> ON into tts_state_changed.
-                self._tts_released[role] = run + 2
+                # Match the immutable run, not the public Stop/end generation.
+                # Its late end must not invalidate a quick OFF -> ON.
+                self._tts_released[role] = run
         for role, run in owned.items():
             # Non-joining like stopSpeechServer; a newer run is left alone.
             if not self.speech_servers.stop(role, generation=run):
                 with self._tts_owner_lock:
-                    self._tts_released.pop(role, None)
+                    if self._tts_released.get(role) == run:
+                        del self._tts_released[role]
 
     def disableTts(self, *args, **kwargs) -> dict:
         self.voice_events.set_enabled(False)

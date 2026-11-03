@@ -140,12 +140,13 @@ def test_bundled_not_ready_never_calls_external_http_and_preserves_chat(app, pcm
 
 
 @pytest.mark.parametrize('ending', ['stop', 'fault'])
-def test_owned_tts_ending_cancels_active_and_queued_audio_only(app, owned, ending):
-    c, _, _ = app
+def test_owned_tts_ending_cancels_active_and_queued_audio_only(app, owned, monkeypatch, ending):
+    c, m, _ = app
     c.setSpeechServerSettings(owned[0])
     run_server(c, 'japanese')
     assert c.setVoiceSettings(dict(mode='original', output_device='cable', japanese_server='bundled'))['status'] == 200
-    assert c.voice_events.set_enabled(True)
+    monkeypatch.setattr(m.SpeechCppTTS, 'check_health', lambda self: None)
+    assert c.enableTts({'generation': c.voice_events.generation()})['status'] == 200
     started = Event()
 
     class Provider:

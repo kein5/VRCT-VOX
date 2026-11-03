@@ -226,6 +226,8 @@ class SpeechServers:
         self._lock=Lock();self._closed=False;self.on_end=on_end
         self._owners={name:None for name in PROFILES}
         self._generations={name:0 for name in PROFILES}
+        # Unlike the public generation, a run does not change on Stop/end.
+        self._runs={name:None for name in PROFILES}
 
     def _profile(self,profile):
         if profile not in PROFILES: raise ValueError('speech_server_profile_invalid')
@@ -244,6 +246,11 @@ class SpeechServers:
                 raise RuntimeError('speech_server_not_ready')
             return state['base_url']
 
+    def current_run(self,profile):
+        self._profile(profile)
+        with self._lock:
+            return self._runs[profile]
+
     def start(self,profile,options,expected_generation):
         self._profile(profile)
         with self._lock:
@@ -253,16 +260,21 @@ class SpeechServers:
             old=self._owners[profile]
             if old and (old.health()['state'] in ('ready','preparing') or not old.close(timeout=0)):
                 raise RuntimeError('speech_server_busy')
+            run=self._generations[profile]+1
+            notified=False
             def ended(name):
+                nonlocal notified
                 with self._lock:
-                    if self._owners[name] is not owner: return
+                    if self._owners[name] is not owner or notified: return
+                    notified=True
                     self._generations[name]+=1
-                if self.on_end: self.on_end(name)
+                if self.on_end: self.on_end(name,run)
             owner=SpeechServer(profile,options,on_end=ended)
             self._owners[profile]=owner;self._generations[profile]+=1
+            self._runs[profile]=run
             owner.start()
 
-    def stop(self,profile,generation=None):
+    def stop(self,profile,generation=None,*,on_stop=None):
         # With a generation, stop only that exact start: a caller that owns one
         # run must not stop a newer server the user started after it ended.
         self._profile(profile)
@@ -271,8 +283,12 @@ class SpeechServers:
                 return False
             self._generations[profile]+=1
             owner=self._owners[profile]
+            run=self._runs[profile]
             if owner: owner.stop()
-            return True
+        # Carry the stopped run across the unlocked notification; a new Start
+        # or a late child cleanup must not turn this into another run's end.
+        if on_stop: on_stop(profile,run)
+        return True
 
     def close(self,timeout=3):
         deadline=time.monotonic()+timeout
