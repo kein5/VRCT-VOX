@@ -839,8 +839,14 @@ class Controller:
             # and keeps running; so does one started after this run ended.
             self.speech_servers.stop("asr", generation=owned)
 
-    def _awaitAsrServer(self):
+    def _realtimeStartCurrent(self, source, expected):
+        with self._realtime_lock:
+            return not self._realtime_closed and expected == self._realtime_generation[source]
+
+    def _awaitAsrServer(self, source, expected):
         """Start the bundled ASR server if it is stopped, then wait until it is ready."""
+        if not self._realtimeStartCurrent(source, expected):
+            return "realtime_stale_start"
         row = self.speech_servers.state()["asr"]
         if row["state"] == "stopping":
             return "speech_server_busy"
@@ -866,6 +872,8 @@ class Controller:
                 self._asr_server_owned = run
         deadline = time.monotonic() + self._ASR_SERVER_WAIT
         while True:
+            if not self._realtimeStartCurrent(source, expected):
+                return "realtime_stale_start"
             row = self.speech_servers.state()["asr"]
             if row["state"] == "failed":
                 code = row.get("error_code")
@@ -878,9 +886,11 @@ class Controller:
                 return "speech_server_start_timeout"
             time.sleep(0.05)
 
-    def _prepareRealtimeToggle(self, source):
+    def _prepareRealtimeToggle(self, source, expected):
         """Check a toggle ON against settings and the server; (code, None) names what is missing."""
         with self._realtime_lock:
+            if self._realtime_closed or expected != self._realtime_generation[source]:
+                return "realtime_stale_start", None
             settings = normalize_realtime_settings(self._realtime_settings)
         row = settings[source]
         try:
@@ -888,8 +898,10 @@ class Controller:
                 default_endpoint(source)  # Fail before loading a model for a missing device.
         except ValueError as exc:
             return str(exc), None
+        if not self._realtimeStartCurrent(source, expected):
+            return "realtime_stale_start", None
         if settings["server"] == "bundled":
-            code = self._awaitAsrServer()
+            code = self._awaitAsrServer(source, expected)
             if code:
                 return code, None
             try:
@@ -898,10 +910,14 @@ class Controller:
                 return "speech_server_not_ready", None
         else:
             base_url = settings["base_url"]
+        if not self._realtimeStartCurrent(source, expected):
+            return "realtime_stale_start", None
         try:
             models = SpeechCppASR(base_url, timeout=5).recognizers()
         except Exception:
             return "realtime_models_unavailable", None
+        if not self._realtimeStartCurrent(source, expected):
+            return "realtime_stale_start", None
         chosen = next((m for m in models if m.id == settings["model"]), None)
         if chosen is None and settings["server"] == "bundled" and len(models) == 1:
             # The bundled server loads exactly one recognizer: switching the
@@ -914,23 +930,33 @@ class Controller:
                     else "realtime_language_unsupported"), None
         return None, SessionOptions(base_url, chosen.id, row["language"], merged_terms(settings["vocabulary"]))
 
-    def _enableRealtimeToggle(self, source):
+    def _enableRealtimeToggle(self, source, data=None):
         with self._realtime_lock:
+            # IPC supplies the receipt-time stamp. Direct callers take their
+            # snapshot here, before any potentially blocking preparation.
+            expected = self._realtime_generation[source]
+            if isinstance(data, dict):
+                expected = data.get("_realtime_generation", expected)
+            if type(expected) is not int or expected < 0:
+                return self._realtimeNotReady(source, "realtime_start_invalid")
+            if self._realtime_closed or expected != self._realtime_generation[source]:
+                return self._realtimeNotReady(source, "realtime_stale_start")
             active = self._realtimeActiveLocked(source)
         if not active:
             with self._realtime_toggle_lock:
                 self._asr_toggle_starting += 1  # Keeps a just-started server from release.
             try:
-                code, options = self._prepareRealtimeToggle(source)
+                code, options = self._prepareRealtimeToggle(source, expected)
                 if code is None:
-                    with self._realtime_lock:
-                        generation = self._realtime_generation[source]
-                    result = self._startRealtime(source, generation, options)
+                    result = self._startRealtime(source, expected, options)
                     if result["status"] != 200:
                         code = result["result"]["error_code"]
             finally:
                 with self._realtime_toggle_lock:
                     self._asr_toggle_starting -= 1
+                # Includes cancellation and preparation exceptions. Only stop
+                # the server incarnation owned by toggles, when none uses it.
+                self._releaseAsrServer()
             if code is not None:
                 self._publishRealtimeToggle(source)
                 return self._realtimeNotReady(source, code)
@@ -4766,9 +4792,9 @@ class Controller:
         Popen(['explorer', config.PATH_LOCAL.replace('/', '\\')], shell=False)
         return {"status":200, "result":True}
 
-    def setEnableTranscriptionSend(self, *args, **kwargs) -> dict:
+    def setEnableTranscriptionSend(self, data=None, *args, **kwargs) -> dict:
         if self._realtimeToggles():
-            return self._enableRealtimeToggle("mic")
+            return self._enableRealtimeToggle("mic", data)
         if config.ENABLE_TRANSCRIPTION_SEND is False:
             config.ENABLE_TRANSCRIPTION_SEND = self.startTranscriptionSendMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
@@ -4781,9 +4807,9 @@ class Controller:
             config.ENABLE_TRANSCRIPTION_SEND = False
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
 
-    def setEnableTranscriptionReceive(self, *args, **kwargs) -> dict:
+    def setEnableTranscriptionReceive(self, data=None, *args, **kwargs) -> dict:
         if self._realtimeToggles():
-            return self._enableRealtimeToggle("speaker")
+            return self._enableRealtimeToggle("speaker", data)
         if config.ENABLE_TRANSCRIPTION_RECEIVE is False:
             config.ENABLE_TRANSCRIPTION_RECEIVE = self.startTranscriptionReceiveMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}

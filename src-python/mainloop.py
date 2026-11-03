@@ -837,6 +837,13 @@ class Main:
                         data["_voice_generation"] = self.controller.voice_events.generation()
                     if endpoint == "/run/start_direct_voice" and isinstance(data, dict):
                         data['_direct_generation'] = self.controller.direct_voice.health()['generation']
+                    if endpoint in {"/set/enable/transcription_send", "/set/enable/transcription_receive"}:
+                        # Main toggles usually have no payload. Stamp before
+                        # queueing so a fast stop also cancels their preparation.
+                        source = "mic" if endpoint.endswith("_send") else "speaker"
+                        data = dict(data) if isinstance(data, dict) else {}
+                        state = self.controller.getRealtimeASRState()["result"]
+                        data["_realtime_generation"] = state[source]["generation"]
                     if endpoint == "/run/start_realtime_asr" and isinstance(data, dict):
                         state = self.controller.getRealtimeASRState()["result"]
                         source = data.get("source")
