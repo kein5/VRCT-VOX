@@ -10,6 +10,8 @@ import sys
 import traceback
 import logging
 import threading
+import time
+from collections import OrderedDict
 from logging.handlers import RotatingFileHandler
 
 import requests
@@ -98,21 +100,55 @@ _WEIGHT_VERIFIED_MARKER_NAME = ".weight_verified.json"
 _stdout_write_lock = threading.Lock()
 
 
-def _writeStdoutLine(line: str) -> bool:
-    """flush 付きで 1 行 stdout に書き込む。呼び出し元 (専用の書き込み
-    スレッド、下記参照) には例外を伝播させず、ログにだけ記録する。
-
-    戻り値は成功したかどうか (フェーズ3項目18: 呼び出し元が連続失敗を
-    数えてフロントエンド消失を検知するために使う)。
-    """
+def _logStdoutTransport(message: str) -> None:
+    """輸送自体の診断は error.log だけへ。失敗しても stdout に戻さない。"""
+    global error_logger
     try:
-        with _stdout_write_lock:
-            sys.stdout.write(line + "\n")
-            sys.stdout.flush()
-        return True
+        if error_logger is None:
+            error_logger = setupLogger("error", "error.log", logging.ERROR)
+        error_logger.error(message)
     except Exception:
-        errorLogging()
-        return False
+        pass
+
+
+_STDOUT_WRITE_ATTEMPTS = 3
+_stdout_needs_separator = False
+
+
+def _writeStdoutLine(line: str) -> bool:
+    """一時的な OSError は同じ行を最大3回試す。要求の処理は再実行しない。
+
+    write/flush の例外では途中まで出た可能性がある。次の試行・次の行の
+    前に改行を flush し、断片と次の JSON を連結しない。改行の失敗も
+    試行回数に含める。改行済みの行で flush が失敗した場合の重複は、
+    受信確認のない現行プロトコルでは判別できない。
+    """
+    global _stdout_needs_separator
+
+    def write(text):
+        count = sys.stdout.write(text)
+        if count is not None and count != len(text):
+            raise OSError("short stdout write")
+        sys.stdout.flush()
+
+    with _stdout_write_lock:
+        for attempt in range(_STDOUT_WRITE_ATTEMPTS):
+            try:
+                if _stdout_needs_separator:
+                    write("\n")
+                    _stdout_needs_separator = False
+                write(line + "\n")
+                return True
+            except Exception as exc:
+                _stdout_needs_separator = True
+                # 例外の本文には出力内容が含まれ得るため、型と errno だけ残す。
+                _logStdoutTransport(
+                    f"stdout write failed: attempt={attempt + 1} "
+                    f"type={type(exc).__name__} errno={getattr(exc, 'errno', None)}"
+                )
+                if not isinstance(exc, OSError) or isinstance(exc, BrokenPipeError):
+                    break
+    return False
 
 
 # --- stdout 専用書き込みスレッド (フェーズ3項目18) ---
@@ -127,27 +163,162 @@ def _writeStdoutLine(line: str) -> bool:
 # (freeze_trace.log 2026-08-27、35秒フリーズで実際に確認済み)。
 #
 # 書き込み自体を専用スレッド1本に閉じ込め、呼び出し元は「キューに積む」
-# だけにすることでこの連鎖を断つ。printResponse (実際のエンドポイント
-# 応答) は無制限キューに積み絶対に取りこぼさない。printLog (診断ログ)
-# は有界キューにし、あふれたら古いものから捨てる (診断用途なので
-# 欠落しても機能に影響しない)。
-#
-# NOTE: 「例外を出さずに書き込みが永久にブロックし続ける」ケース
-# (パイプが読まれずに埋まる場合) はこの実装では検知できない
-# (連続失敗カウンタは書き込みが実際に失敗して初めて進む)。実際に
-# freeze_trace.log で観測された障害は全スレッドのロック待ち連鎖であり、
-# それはこの分離だけで解消する。無応答のままブロックし続けるケースへの
-# 対応は、書き込みスレッドの進捗を外部から監視する別の仕組みが必要な
-# ため、別項目として切り出す方針とした。
+# だけにすることでこの連鎖を断つ。応答と確定通知は上限なしで保持し、
+# 許可した状態通知だけを集約する。独立した監視スレッドが詰まりを記録する。
+# 診断ログは古いものから捨てる200件のキューを維持する。
 _STDOUT_LOG_QUEUE_MAXSIZE = 200
+_STDOUT_REPLACEABLE_MAX_KEYS = 64
+_STDOUT_CAPTION_TERMINAL_MAX_KEYS = 256
+_STDOUT_STALL_SECONDS = 20.0
 _MAX_CONSECUTIVE_STDOUT_FAILURES = 50
-_stdout_response_queue: "queue.Queue" = queue.Queue()
+
+
+class _StdoutResponseQueue:
+    """呼び出し元が _stdout_writer_condition で保護する順序付きバッファ。
+
+    集約した値は新しい投入位置へ移す。これにより開始応答を追い越さず、
+    残った行同士の順序も変えない。異なる字幕行などは互いの代替にならない。
+    64キーを超える新規キーは通常の行として保持し、勝手に捨てない。
+    """
+    def __init__(self):
+        self._lines = OrderedDict()
+        self._replaceable = {}
+        self._terminal = OrderedDict()
+        self._pending_terminals = {}
+        self._sequence = 0
+
+    def put(self, line, replaceable_key=None, terminal_key=None):
+        if terminal_key is not None:
+            previous = self._replaceable.pop(terminal_key, None)
+            if previous is not None:
+                del self._lines[previous]
+            self._pending_terminals[terminal_key] = self._pending_terminals.get(terminal_key, 0) + 1
+        if replaceable_key is not None:
+            if replaceable_key in self._terminal or replaceable_key in self._pending_terminals:
+                return  # 確定済み字幕の遅い partial は表示を巻き戻さない。
+            previous = self._replaceable.pop(replaceable_key, None)
+            if previous is not None:
+                del self._lines[previous]
+            elif len(self._replaceable) >= _STDOUT_REPLACEABLE_MAX_KEYS:
+                replaceable_key = None  # 別の行を捨てるより、集約を諦める。
+        self._sequence += 1
+        self._lines[self._sequence] = (line, replaceable_key, terminal_key)
+        if replaceable_key is not None:
+            self._replaceable[replaceable_key] = self._sequence
+
+    def get_nowait(self):
+        if not self._lines:
+            raise queue.Empty
+        _, (line, key, terminal_key) = self._lines.popitem(last=False)
+        if key is not None:
+            del self._replaceable[key]
+        if terminal_key is not None:
+            self._pending_terminals[terminal_key] -= 1
+            if not self._pending_terminals[terminal_key]:
+                del self._pending_terminals[terminal_key]
+            # 待機中の確定行はすべて保護。取り出した履歴だけを字幕生成側と同じ256件にする。
+            self._terminal[terminal_key] = None
+            self._terminal.move_to_end(terminal_key)
+            if len(self._terminal) > _STDOUT_CAPTION_TERMINAL_MAX_KEYS:
+                self._terminal.popitem(last=False)
+        return line
+
+    def qsize(self):
+        return len(self._lines)
+
+    def empty(self):
+        return not self._lines
+
+
+def _stdoutDeliveryKeys(status, endpoint, result):
+    """通知だけの許可リスト。要求の応答には呼ばない。不明な形は保持する。"""
+    if status != 200:
+        return None, None
+    if endpoint in ("/run/check_mic_volume", "/run/check_speaker_volume"):
+        if type(result) in (int, float):
+            return (endpoint,), None  # useVolume は現在値を置き換えるだけ。
+    elif endpoint == "/run/vr_panel_pointer":
+        if result is None or (isinstance(result, dict)
+                and all(type(result.get(axis)) in (int, float) for axis in ("x", "y"))):
+            return (endpoint,), None  # hover 表示の座標。クリックは別経路。
+    elif endpoint in ("/run/download_progress_ctranslate2_weight", "/run/download_progress_whisper_weight"):
+        if (isinstance(result, dict) and isinstance(result.get("weight_type"), str)
+                and 0 < len(result["weight_type"]) <= 256
+                and type(result.get("progress")) in (int, float) and 0 <= result["progress"] <= 1):
+            return (endpoint, result["weight_type"]), None  # 完了処理は downloaded 通知。
+    elif endpoint == "/run/realtime_caption" and isinstance(result, dict):
+        if (result.get("source") in ("mic", "speaker")
+                and type(result.get("generation")) is int and result["generation"] >= 0
+                and isinstance(result.get("namespace"), str) and 0 < len(result["namespace"]) <= 128
+                and isinstance(result.get("item_id"), str) and 0 < len(result["item_id"]) <= 256
+                and type(result.get("revision")) is int and result["revision"] >= 1
+                and isinstance(result.get("text"), str)):
+            key = (endpoint, result["source"], result["generation"], result["namespace"], result["item_id"])
+            if result.get("state") == "partial" and result["text"].strip():
+                return key, None  # 同じ字幕行の全文。空文字は UI の retire 操作なので保持。
+            if result.get("state") in ("final", "translated", "discarded"):
+                return None, key
+    return None, None
+
+
+_stdout_response_queue = _StdoutResponseQueue()
 _stdout_log_queue: "queue.Queue" = queue.Queue(maxsize=_STDOUT_LOG_QUEUE_MAXSIZE)
 _stdout_writer_thread: Optional[threading.Thread] = None
+_stdout_monitor_thread: Optional[threading.Thread] = None
 _stdout_writer_start_lock = threading.Lock()
 _stdout_writer_stop_event = threading.Event()
-_stdout_writer_condition = threading.Condition()
+# 状態の更新は同じロックで保護し、起こす相手だけ条件変数で分ける。
+_stdout_state_lock = threading.RLock()
+_stdout_writer_condition = threading.Condition(_stdout_state_lock)
+_stdout_monitor_condition = threading.Condition(_stdout_state_lock)
+_stdout_monitor_deadline: Optional[float] = None
+_stdout_stalled_at: Optional[int] = None
+_stdout_pending_since: Optional[float] = None
+_stdout_in_flight = False
+_stdout_completed_lines = 0
+_stdout_lost_lines = 0
 _on_frontend_lost: Optional[Callable[[], None]] = None
+
+
+def _stdoutBacklogCounts():
+    replaceable = len(_stdout_response_queue._replaceable)
+    return (f"reliable={_stdout_response_queue.qsize() - replaceable} "
+            f"replaceable={replaceable} logs={_stdout_log_queue.qsize()} "
+            f"in_flight={int(_stdout_in_flight)} lost_lines={_stdout_lost_lines}")
+
+
+def _stdoutMonitorLoop() -> None:
+    """専用の条件変数で期限まで眠り、20秒進捗がなければ1回記録する。"""
+    global _stdout_monitor_deadline, _stdout_stalled_at
+    while not _stdout_writer_stop_event.is_set():
+        with _stdout_monitor_condition:
+            if _stdout_writer_stop_event.is_set():
+                return
+            if _stdout_stalled_at is not None and _stdout_completed_lines != _stdout_stalled_at:
+                message = "stdout recovered: " + _stdoutBacklogCounts()
+                _stdout_stalled_at = None
+                _stdout_monitor_deadline = (None if _stdout_pending_since is None
+                                            else _stdout_pending_since + _STDOUT_STALL_SECONDS)
+            elif _stdout_stalled_at is not None or _stdout_monitor_deadline is None:
+                _stdout_monitor_condition.wait()
+                continue
+            else:
+                remaining = _stdout_monitor_deadline - time.monotonic()
+                if remaining > 0:
+                    _stdout_monitor_condition.wait(remaining)
+                    continue
+                if _stdout_pending_since is None:
+                    _stdout_monitor_deadline = None
+                    continue
+                # 正常な完了は時刻だけ更新する。期限が来てから最新の進捗を読む。
+                _stdout_monitor_deadline = _stdout_pending_since + _STDOUT_STALL_SECONDS
+                if _stdout_monitor_deadline > time.monotonic():
+                    continue
+                _stdout_stalled_at = _stdout_completed_lines
+                _stdout_monitor_deadline = None
+                message = f"stdout stalled: threshold_seconds={_STDOUT_STALL_SECONDS} " + _stdoutBacklogCounts()
+        # ディスク書き込み中は投入側のロックを持たない。停止・再送はしない。
+        _logStdoutTransport(message)
 
 
 def setFrontendLostCallback(callback: Optional[Callable[[], None]]) -> None:
@@ -161,6 +332,7 @@ def setFrontendLostCallback(callback: Optional[Callable[[], None]]) -> None:
 
 
 def _stdoutWriterLoop() -> None:
+    global _stdout_pending_since, _stdout_in_flight, _stdout_completed_lines, _stdout_lost_lines
     consecutive_failures = 0
     while not _stdout_writer_stop_event.is_set():
         # 両キューへの投入と停止を同じ条件変数で通知する。
@@ -178,19 +350,34 @@ def _stdoutWriterLoop() -> None:
                 line = _stdout_response_queue.get_nowait()
             except queue.Empty:
                 line = _stdout_log_queue.get_nowait()
+            _stdout_in_flight = True
 
-        if _writeStdoutLine(line):
+        success = _writeStdoutLine(line)
+        with _stdout_writer_condition:
+            _stdout_in_flight = False
+            if success:
+                _stdout_completed_lines += 1
+                _stdout_pending_since = time.monotonic()
+                if _stdout_stalled_at is not None and _stdout_completed_lines == _stdout_stalled_at + 1:
+                    _stdout_monitor_condition.notify()  # 詰まりの報告後、最初の成功だけ復旧を通知。
+            else:
+                _stdout_lost_lines += 1
+            if _stdout_response_queue.empty() and _stdout_log_queue.empty():
+                _stdout_pending_since = None
+        if success:
             consecutive_failures = 0
             continue
 
         consecutive_failures += 1
+        # 次の行の成功で連続失敗は戻すが、欠落の累計と記録は消さない。
+        _logStdoutTransport(f"stdout line lost: lost_lines={_stdout_lost_lines} consecutive_failures={consecutive_failures}")
         if consecutive_failures >= _MAX_CONSECUTIVE_STDOUT_FAILURES:
             callback = _on_frontend_lost
             if callback is not None:
                 try:
                     callback()
                 except Exception:
-                    errorLogging()
+                    _logStdoutTransport("stdout frontend-lost callback failed")
             else:
                 os._exit(1)
             return  # コールバック指定時は書き込みスレッドを終了する
@@ -202,7 +389,7 @@ def _ensureStdoutWriterStarted() -> None:
     # 書き込みスレッドが2本立ち上がりうる (直そうとしている「複数スレッドが
     # 同時に stdout へ書き込む」問題の再発になる)。起動処理自体をロックで
     # 直列化する。
-    global _stdout_writer_thread
+    global _stdout_writer_thread, _stdout_monitor_thread
     with _stdout_writer_start_lock:
         if _stdout_writer_thread is not None and _stdout_writer_thread.is_alive():
             return
@@ -211,6 +398,11 @@ def _ensureStdoutWriterStarted() -> None:
             target=_stdoutWriterLoop, name="StdoutWriter", daemon=True
         )
         _stdout_writer_thread.start()
+        if _stdout_monitor_thread is None or not _stdout_monitor_thread.is_alive():
+            _stdout_monitor_thread = threading.Thread(
+                target=_stdoutMonitorLoop, name="StdoutMonitor", daemon=True
+            )
+            _stdout_monitor_thread.start()
 
 
 def stopStdoutWriter() -> None:
@@ -220,12 +412,27 @@ def stopStdoutWriter() -> None:
     with _stdout_writer_condition:
         _stdout_writer_stop_event.set()
         _stdout_writer_condition.notify()
+        _stdout_monitor_condition.notify()
 
 
-def _enqueueResponseLine(line: str) -> None:
+def _markStdoutPending() -> None:
+    """共有ロック内で呼ぶ。監視の期限が未設定なら、最初の投入だけ通知する。"""
+    global _stdout_pending_since, _stdout_monitor_deadline
+    if _stdout_pending_since is None:
+        _stdout_pending_since = time.monotonic()
+        if _stdout_monitor_deadline is None and _stdout_stalled_at is None:
+            # 一度セットした期限は、途中でキューが空になっても監視側まで維持する。
+            # すぐ書けるメーターでも、空→投入のたびに監視を起こさないため。
+            _stdout_monitor_deadline = _stdout_pending_since + _STDOUT_STALL_SECONDS
+            _stdout_monitor_condition.notify()
+
+
+def _enqueueResponseLine(line: str, replaceable_key=None, terminal_key=None) -> None:
     _ensureStdoutWriterStarted()
     with _stdout_writer_condition:
-        _stdout_response_queue.put(line)
+        _stdout_response_queue.put(line, replaceable_key, terminal_key)
+        if not _stdout_response_queue.empty():
+            _markStdoutPending()
         _stdout_writer_condition.notify()
 
 
@@ -261,6 +468,7 @@ def _enqueueLogLine(line: str) -> None:
     _ensureStdoutWriterStarted()
     with _stdout_writer_condition:
         putDroppingOldestOnFull(_stdout_log_queue, line)
+        _markStdoutPending()
         _stdout_writer_condition.notify()
 
 
@@ -767,7 +975,7 @@ def _shapeOf(value: Any, depth: int = 0) -> Any:
     return type(value).__name__
 
 
-def printResponse(status: int, endpoint: str, result: Any = None) -> None:
+def printResponse(status: int, endpoint: str, result: Any = None, *, notification: bool = False) -> None:
     """Log and print a structured response object.
 
     If JSON serialization fails, record the error and emit a generic error payload.
@@ -815,7 +1023,10 @@ def printResponse(status: int, endpoint: str, result: Any = None) -> None:
         }, allow_nan=False)
         _enqueueResponseLine(error_json)
     else:
-        _enqueueResponseLine(serialized_response)
+        if notification:
+            _enqueueResponseLine(serialized_response, *_stdoutDeliveryKeys(status, endpoint, result))
+        else:
+            _enqueueResponseLine(serialized_response)
 
 error_logger: Optional[logging.Logger] = None
 

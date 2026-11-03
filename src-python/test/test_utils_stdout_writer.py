@@ -44,9 +44,23 @@ class _StdoutWriterTestCase(unittest.TestCase):
         utils.stopStdoutWriter()
         # 直前のテストが残したスレッドが完全に停止するのを待つ。
         _wait_until(lambda: utils._stdout_writer_thread is None or not utils._stdout_writer_thread.is_alive())
-        utils._stdout_response_queue = Queue()
+        if utils._stdout_monitor_thread is not None:
+            utils._stdout_monitor_thread.join(timeout=1.0)
+            self.assertFalse(utils._stdout_monitor_thread.is_alive())
+        utils._stdout_response_queue = utils._StdoutResponseQueue()
         utils._stdout_log_queue = Queue(maxsize=utils._STDOUT_LOG_QUEUE_MAXSIZE)
         utils._stdout_writer_thread = None
+        utils._stdout_monitor_thread = None
+        utils._stdout_monitor_deadline = None
+        utils._stdout_stalled_at = None
+        utils._stdout_pending_since = None
+        utils._stdout_in_flight = False
+        utils._stdout_completed_lines = 0
+        utils._stdout_lost_lines = 0
+        utils._stdout_needs_separator = False
+        diagnostics = patch.object(utils, "_logStdoutTransport")
+        self._diagnostics = diagnostics.start()
+        self.addCleanup(diagnostics.stop)
         utils.setFrontendLostCallback(None)
 
     def tearDown(self) -> None:
@@ -54,6 +68,9 @@ class _StdoutWriterTestCase(unittest.TestCase):
         if utils._stdout_writer_thread is not None:
             utils._stdout_writer_thread.join(timeout=1.0)
             self.assertFalse(utils._stdout_writer_thread.is_alive())
+        if utils._stdout_monitor_thread is not None:
+            utils._stdout_monitor_thread.join(timeout=1.0)
+            self.assertFalse(utils._stdout_monitor_thread.is_alive())
         utils.setFrontendLostCallback(None)
 
 
@@ -115,7 +132,8 @@ def measure_idle_response_latency(module, iterations=200):
     latencies = []
 
     def wait(timeout=None):
-        idle.set()
+        if threading.current_thread().name == "StdoutWriter":
+            idle.set()
         return original_wait(timeout)
 
     with patch.object(condition, "wait", wait), \
@@ -164,7 +182,8 @@ def measure_idle_writer(module, seconds=1.0):
             sys.settrace(None)
 
     def wait(timeout=None):
-        idle.set()
+        if threading.current_thread().name == "StdoutWriter":
+            idle.set()
         return original_wait(timeout)
 
     stdout = _TimedStdout()
@@ -315,13 +334,15 @@ class TestConsecutiveFailuresTriggerFrontendLostCallback(_StdoutWriterTestCase):
                             utils._enqueueResponseLine(f"response-{index}")
                     with patch.object(utils, "sys", SimpleNamespace(stdout=stdout)), \
                             patch.object(stdout, operation, side_effect=failure) as failing, \
-                            patch.object(utils, "errorLogging") as error:
+                            patch.object(utils, "_logStdoutTransport") as error:
                         utils._ensureStdoutWriterStarted()
                         self.assertTrue(lost.wait(1.0))
                         utils._stdout_writer_thread.join(timeout=0.5)
                         self.assertFalse(utils._stdout_writer_thread.is_alive())
                         self.assertEqual(failing.call_count, 50)
-                        self.assertEqual(error.call_count, 50)
+                        messages = [call.args[0] for call in error.call_args_list]
+                        self.assertEqual(sum(message.startswith("stdout write failed:") for message in messages), 50)
+                        self.assertEqual(sum(message.startswith("stdout line lost:") for message in messages), 50)
 
     def test_callback_fires_after_the_configured_number_of_failures(self) -> None:
         callback_calls = []

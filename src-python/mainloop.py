@@ -184,7 +184,7 @@ run_mapping = {
 }
 
 def run(status:int, endpoint:str, result:Any) -> None:
-    printResponse(status, endpoint, result)
+    printResponse(status, endpoint, result, notification=True)
 
 controller = Controller()
 controller.setRunMapping(run_mapping)
