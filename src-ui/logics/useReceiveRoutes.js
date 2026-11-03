@@ -286,6 +286,9 @@ export const useReceiveRoutes = () => {
         }
         if (!pendingRequestRecovery.acceptResponse(endpoint)) return;
         pendingRequestRecovery.receive(parsed_data, asyncStdoutToPython);
+        if (endpoint === "/run/send_message_box" && [400, 404, 423, 500].includes(status)) {
+            hook_results.useMessage.failSentMessageLog(result?.data ?? result);
+        }
         if (status === 500 && featureResyncReads[endpoint]) asyncStdoutToPython(featureResyncReads[endpoint]);
         if (status !== 200 && endpoint.includes("model_download")) {
             updateDownloadError(result?.error_code || "download_failed", endpoint);
@@ -425,6 +428,7 @@ export const useReceiveRoutes = () => {
 
     const backendStopped = () => {
         pendingRequestRecovery.stop();
+        hook_results.useMessage.failSentMessageLog();
         resetLanguageMutations();
         stopVoicePending();
         stopSpeechPending();

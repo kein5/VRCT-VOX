@@ -117,6 +117,8 @@ sequenceDiagram
   UI->>UI: 行を訳つきに置き換える
 ```
 
+送信に失敗した場合の行の状態は、[会話メッセージのデータ形式](data-and-persistence.md)を参照。
+
 ## マイクの文字起こし
 
 ```mermaid
