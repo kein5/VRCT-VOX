@@ -109,9 +109,11 @@ const ExampleComponent = ({ format, format_id }) => {
         }
     };
 
-    const ExampleBox = ({label, example_text_id}) => {
+    // Plain render functions, not components: a component defined in here is a
+    // new type on every render, so React would remount it (and drop its focus).
+    const renderExampleBox = (label, example_text_id) => {
         return (
-            <div className={styles.example_wrapper}>
+            <div key={example_text_id} className={styles.example_wrapper}>
                 <p className={styles.example_label}>{label}</p>
                 <div className={styles.example_chatbox}>
                     <p className={styles.example_text}>{createExampleMessage(example_text_id)}</p>
@@ -127,31 +129,31 @@ const ExampleComponent = ({ format, format_id }) => {
     });
 
 
-    const FilteredExampleBox = ({format_id, id}) => {
+    const renderFilteredExampleBox = (format_id, id) => {
         if (format_id === "send" && id === "Simplified") {
             return (
                 <>
-                    <ExampleBox label={label_original_translated} example_text_id="original_translated" />
-                    <ExampleBox label={label_original_translated_multi} example_text_id="original_translated_multi" />
+                    {renderExampleBox(label_original_translated, "original_translated")}
+                    {renderExampleBox(label_original_translated_multi, "original_translated_multi")}
                 </>
             );
         } else if ( format_id === "send" && id === "All") {
             return (
                 <>
-                    <ExampleBox label={label_original_translated} example_text_id="original_translated" />
-                    <ExampleBox label={label_original_translated_multi} example_text_id="original_translated_multi" />
-                    <ExampleBox label={label_translated_only_multi} example_text_id="translated_only_multi" />
-                    <ExampleBox label={label_translated_only} example_text_id="translated_only" />
-                    <ExampleBox label={label_original_only} example_text_id="original_only" />
+                    {renderExampleBox(label_original_translated, "original_translated")}
+                    {renderExampleBox(label_original_translated_multi, "original_translated_multi")}
+                    {renderExampleBox(label_translated_only_multi, "translated_only_multi")}
+                    {renderExampleBox(label_translated_only, "translated_only")}
+                    {renderExampleBox(label_original_only, "original_only")}
                 </>
             );
 
         } else if (format_id === "received") {
             return (
                 <>
-                    <ExampleBox label={label_original_translated} example_text_id="original_translated" />
-                    <ExampleBox label={label_original_only} example_text_id="original_only" />
-                    <ExampleBox label={label_translated_only} example_text_id="translated_only" />
+                    {renderExampleBox(label_original_translated, "original_translated")}
+                    {renderExampleBox(label_original_only, "original_only")}
+                    {renderExampleBox(label_translated_only, "translated_only")}
                 </>
             );
         }
@@ -172,7 +174,7 @@ const ExampleComponent = ({ format, format_id }) => {
         <div className={styles.example_container}>
             <p className={styles.section_title}>{label_title}</p>
             <div className={styles.example_view_container}>
-                <FilteredExampleBox format_id={format_id} id={currentMessageFormat_ExampleViewFilter.data[format_id]} />
+                {renderFilteredExampleBox(format_id, currentMessageFormat_ExampleViewFilter.data[format_id])}
             </div>
             { format_id === "send" &&
                 <div className={styles.show_more_container} onClick={() => exampleViewFilterToggleFunction(format_id)}
@@ -270,7 +272,8 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
         setFunction(new_val);
     };
 
-    const SwapButton = ({ variable, setFunction }) => {
+    // Rendered by a call, not as <SwapButton />, so pressing it keeps the keyboard focus.
+    const renderSwapButton = (variable) => {
         const swapMessageAndTranslate = () => {
             const new_var = { ...variable, translation_first: !variable.translation_first };
             setLocalVar(new_var);
@@ -293,7 +296,7 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
             <p className={styles.section_title}>{label_title}</p>
             <div className={styles.message_format_settings_wrapper}>
                 <div className={styles.swap_button_container}>
-                    <SwapButton variable={local_var} setFunction={setFunction} />
+                    {renderSwapButton(local_var)}
                 </div>
                 { !local_var.translation_first ?
                 <div className={styles.input_wrapper}>
