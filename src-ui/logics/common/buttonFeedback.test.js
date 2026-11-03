@@ -6,6 +6,7 @@ import React from "react";
 import * as jsx from "react/jsx-runtime";
 import clsx from "clsx";
 import * as chatboxLength from "./chatboxLength.js";
+import { nextLogView } from "./messageLogView.js";
 
 // Exercise the production JSX handlers without a WebView or a new test runtime.
 // Hooks retain state across explicit renders; IPC promises are controlled by tests.
@@ -225,33 +226,41 @@ test("LogBox subscribes only to its log and resend setting; unchanged row props 
     const message = { id: "first", messages: { original: { message: "hello" }, translations: [] } };
     let logs = [message];
     const actions = { sendMessage() {}, updateMessageInputValue() {} };
+    const Virtualizer = () => null;
     const { LogBox } = await load("app/main_page/main_section/message_container/log_box/LogBox.jsx", runtime, {
+        "virtua": { Virtualizer },
         "./message_container/MessageContainer": { MessageContainer: React.memo(icon) },
         "jotai": { useAtomValue: atom => { assert.equal(atom, "logs"); subscriptions.push(atom); return { data: logs }; } },
         "@store": { store: {}, Atom_MessageLogs: "logs" },
-        "@logics_common": { useMessageActions: () => actions },
-        "@logics_main": { useMessageLogScroll: () => ({ scrollToBottom() {}, isScrolling: false }) },
+        "@logics_common": { useMessageActions: () => actions, nextLogView },
         "@logics_configs": { useSettingValue: name => { subscriptions.push(name); return { data: true }; } },
     });
     assert.equal(LogBox.$$typeof, Symbol.for("react.memo"));
-    const rows = () => find(runtime.render(LogBox.type), node => node.props?.messages);
+    const list = () => find(runtime.render(LogBox.type), node => node.type === Virtualizer).props;
+    // virtua renders only the rows in view; build them all here.
+    const rows = () => { const { data, children } = list(); return Array.from(data, children); };
     const initial = rows();
     const typed = rows();
-    // Every prop is Object.is-equal: React.memo skips the entire list traversal.
-    for (const key of Object.keys(initial.props)) assert.equal(typed.props[key], initial.props[key]);
+    // Every prop is Object.is-equal, so React.memo skips the row.
+    for (const key of Object.keys(initial[0].props)) assert.equal(typed[0].props[key], initial[0].props[key]);
     assert.deepEqual(subscriptions, ["logs", "ShowResendButton", "logs", "ShowResendButton"]);
-    const before = initial.type.type(initial.props);
     logs = [...logs, { ...message, id: "second" }];
-    const appended = rows();
-    const after = appended.type.type(appended.props);
+    const after = rows();
     assert.equal(after.length, 2);
-    for (const key of Object.keys(before[0].props)) assert.equal(after[0].props[key], before[0].props[key]);
+    for (const key of Object.keys(initial[0].props)) assert.equal(after[0].props[key], initial[0].props[key]);
     logs = [{ ...message, status: "ok", messages: { ...message.messages, translations: [{ message: "translated" }] } }, logs[1]];
     const confirmed = rows();
-    const confirmedRows = confirmed.type.type(confirmed.props);
-    assert.equal(confirmedRows[0].props.status, "ok");
-    assert.equal(confirmedRows[0].props.messages, logs[0].messages);
-    for (const key of Object.keys(after[1].props)) assert.equal(confirmedRows[1].props[key], after[1].props[key]);
+    assert.equal(confirmed[0].props.status, "ok");
+    assert.equal(confirmed[0].props.messages, logs[0].messages);
+    for (const key of Object.keys(after[1].props)) assert.equal(confirmed[1].props[key], after[1].props[key]);
+    // At the cap the oldest row leaves on its own first, so virtua keeps the reading position.
+    logs = [logs[1], { ...message, id: "third" }];
+    const ids = view => Array.from(view.data, row => row.id);
+    const dropped = list();
+    assert.deepEqual([ids(dropped), dropped.shift], [["second"], true]);
+    list(); // React commits the drop; its layout effect then asks for the rest
+    const appended = list();
+    assert.deepEqual([ids(appended), appended.shift], [["second", "third"], false]);
 });
 
 test("composer reads history only on explicit recall and sees the latest retained rows", async () => {

@@ -10,6 +10,7 @@ export { useNotificationStatus } from "./useNotificationStatus";
 export { useOpenFolder } from "./useOpenFolder";
 export { useMessage } from "./useMessage";
 export { MessageActionsProvider, useMessageActions } from "./MessageActions";
+export { nextLogView } from "./messageLogView";
 export { useUpdateSoftware } from "./useUpdateSoftware";
 export { useVolume } from "./useVolume";
 export { useHandleNetworkConnection } from "./useHandleNetworkConnection";

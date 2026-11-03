@@ -20,7 +20,7 @@ import { pendingRequestRecovery, restorePendingValue, restoreDownloadPending, st
 export const store = {
     backend_subprocess: null,
     setting_box_scroll_container: null,
-    log_box_ref: null,
+    scroll_log_to_bottom: null,
     text_area_ref: null,
     is_fetched_available_releases_already: false,
     last_executed_time_startTyping: 0,

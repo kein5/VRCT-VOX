@@ -55,6 +55,7 @@ export const MessageContainer = memo(function MessageContainer({ messages, statu
 
     return (
         <div
+            data-log-row=""
             className={clsx(styles.container, message_type_class_name)}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}

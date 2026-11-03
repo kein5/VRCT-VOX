@@ -225,7 +225,7 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                     assert relative_error < .05, report['branch_alignment']
                 # Both original and translated text must be in each single OSC
                 # datagram; a partial, duplicate or untranslated send fails.
-                rows = ui.evaluate("return [...document.querySelectorAll('#log_container > div')].filter(e => e.querySelector('[class*=category]')?.textContent === 'Sent').map(e => [...e.querySelectorAll('[class*=message_main],[class*=message_second]')].map(p => p.textContent));")
+                rows = ui.evaluate("return [...document.querySelectorAll('#log_container [data-log-row]')].filter(e => e.querySelector('[class*=category]')?.textContent === 'Sent').map(e => [...e.querySelectorAll('[class*=message_main],[class*=message_second]')].map(p => p.textContent));")
                 assert len(rows) == 2 and all(len(row) == 2 and all(row) for row in rows), rows
                 from pythonosc.osc_packet import OscPacket
                 messages = []
