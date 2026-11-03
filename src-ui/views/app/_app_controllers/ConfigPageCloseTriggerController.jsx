@@ -66,8 +66,8 @@ export const ConfigPageCloseTriggerController = () => {
             memorizeLatestMainFunctionsState();
             unregisterAll();
             if (currentTranslationStatus.data === true) setTranslation(false);
-            if (currentTranscriptionSendStatus.data === true) setTranscriptionSend(false);
-            if (currentTranscriptionReceiveStatus.data === true) setTranscriptionReceive(false);
+            if (currentTranscriptionSendStatus.data === true) setTranscriptionSend(false, { reason: "settings_pause" });
+            if (currentTranscriptionReceiveStatus.data === true) setTranscriptionReceive(false, { reason: "settings_pause" });
         } else if (currentIsOpenedConfigPage.data === false) { // When config page is closed.
             registerShortcuts();
             if (currentMicThresholdCheckStatus.data === true) volumeCheckStop_Mic();

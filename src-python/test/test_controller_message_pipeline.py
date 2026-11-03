@@ -18,6 +18,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from controller import Controller, config
+from models.message_delivery import DeliveryEpochs
 
 
 _CONFIG_KEYS = [
@@ -108,6 +109,13 @@ class _MessagePipelineTestBase(unittest.TestCase):
         import controller as controller_module
         self._model = controller_module.model
         self._model_patches: dict = {}
+
+        def publish_large(*args, current):
+            if current():
+                image = self._model.createOverlayImageLargeLog(*args)
+                if current():
+                    self._model.updateOverlayLargeLog(image)
+
         for name, value in (
             ("checkKeywords", MagicMock(return_value=False)),
             ("detectRepeatSendMessage", MagicMock(return_value=False)),
@@ -118,6 +126,7 @@ class _MessagePipelineTestBase(unittest.TestCase):
             ("convertMessageToTransliteration", MagicMock(return_value=["TRANSLITERATED"])),
             ("oscSendMessage", MagicMock()),
             ("createOverlayImageLargeLog", MagicMock(return_value="LARGE_IMG")),
+            ("publishMessageOverlayLargeLog", MagicMock(side_effect=publish_large)),
             ("createOverlayImageSmallLog", MagicMock(return_value="SMALL_IMG")),
             ("updateOverlayLargeLog", MagicMock()),
             ("updateOverlaySmallLog", MagicMock()),
@@ -126,6 +135,8 @@ class _MessagePipelineTestBase(unittest.TestCase):
             ("websocketSendMessage", MagicMock()),
             ("addTranslationHistory", MagicMock()),
             ("logger", MagicMock()),
+            # Fresh per test; injected models (tests/voice) have no Model class attribute.
+            ("message_delivery", DeliveryEpochs()),
         ):
             self._model_patches[name] = getattr(self._model, name, None)
             setattr(self._model, name, value)

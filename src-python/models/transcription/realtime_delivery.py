@@ -18,11 +18,13 @@ class RealtimeDelivery:
         *,
         clock=monotonic,
         on_stopped=None,
+        admit=None,
     ):
         self.session = session
         self._publish, self._process, self._error = publish, process_final, on_error
         self._clock = clock
         self._on_stopped = on_stopped
+        self._admit = admit
         self._stop = Event()
         self._finals = Queue(maxsize=4)
         self._terminal = OrderedDict()
@@ -104,10 +106,12 @@ class RealtimeDelivery:
                     self._terminal[update.item_id] = None
                     if len(self._terminal) > 256:
                         self._terminal.popitem(last=False)
-                self._publish(payload)
+                # Bind delivery/voice intent before publishing or queueing a final.
+                publish, process = self._admit(update) if self._admit else (self._publish, self._process)
+                publish(payload)
                 if update.is_final and not expired and not empty_final and self._current(update):
                     try:
-                        self._finals.put_nowait((update, deadline))
+                        self._finals.put_nowait((update, deadline, publish, process))
                     except Full:
                         self._report("realtime_final_queue_full", terminal=True)
         except Exception:
@@ -123,7 +127,7 @@ class RealtimeDelivery:
         try:
             while not self._stop.is_set():
                 try:
-                    update, deadline = self._finals.get(timeout=0.05)
+                    update, deadline, publish, process = self._finals.get(timeout=0.05)
                 except Empty:
                     continue
 
@@ -138,7 +142,7 @@ class RealtimeDelivery:
                 if not current():
                     continue
                 try:
-                    result = self._process(update, current)
+                    result = process(update, current)
                     if result is not None and current():
                         payload = self._payload(update)
                         payload.update(
@@ -147,7 +151,7 @@ class RealtimeDelivery:
                             original=result["original"],
                             translations=result["translations"],
                         )
-                        self._publish(payload)
+                        publish(payload)
                 except Exception:
                     if current():
                         self._report("realtime_final_failed")
