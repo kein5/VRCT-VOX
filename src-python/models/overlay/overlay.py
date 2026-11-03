@@ -3038,7 +3038,18 @@ class Overlay:
                             # ponytail: この直後に ON にされる1秒未満の間は取りこぼす。起こるようなら状態を1つにまとめる
                             self.start_cancelled = False
                             self.initialized = False
-                    return
+                            return
+                        if self.loop is False:
+                            return  # shutdownOverlay が止めた。後片付けと initialized はそちらで
+                        # SteamVR が終わった (VREvent_Quit) か、接続が切れた。mainloop がハンドルを
+                        # 片付け済みなのに initialized が True のまま残り、次の字幕は作り直しを
+                        # 5秒待ち、VR画面は SteamVR を起動し直しても戻らなかった。起動を待ち直す
+                        self.initialized = False
+                        self.init_process = True
+                    printLog("overlay: SteamVR が終わりました。もう一度起動したらつなぎ直します")
+                    if self.waitUnlessCancelled(_STEAMVR_POLL_SEC):
+                        return
+                    continue
                 if not self.connect_failed:
                     return  # 接続以外の失敗は確かめ直さない (途中まで作ったものが残るため)
                 # SteamVR にまだつながらない (HMD が見つからないなど)。「作っている途中」のまま待って確かめ直す
