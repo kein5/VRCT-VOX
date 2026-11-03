@@ -12,6 +12,8 @@ import { store, Atom_MessageLogs } from "@store";
 const FOLLOW_THRESHOLD = 5;
 // A scroll this soon after wheel, touch or key input counts as the user's.
 const USER_SCROLL_MS = 300;
+const SCROLL_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "]);
+const EDITABLE = "input, textarea, select, [contenteditable]";
 
 // Only the rows in view (plus a margin) are in the DOM, so a full log no longer
 // slows down typing, layout or the style recalculation when settings open.
@@ -38,6 +40,11 @@ export const LogBox = memo(function LogBox() {
         };
         let userUntil = 0, pointerDown = false;
         const onInput = () => { userUntil = performance.now() + USER_SCROLL_MS; };
+        // After a click in the log, PageUp and friends scroll it with the focus on
+        // <body>, so listen on the window; keys typed into a field do not scroll it.
+        const onKeyDown = (event) => {
+            if (SCROLL_KEYS.has(event.key) && !event.target.closest?.(EDITABLE)) onInput();
+        };
         const onPointerDown = () => { pointerDown = true; };
         const onPointerUp = () => { pointerDown = false; };
         // Only the user (wheel, touch, keys, dragging the scrollbar or a selection)
@@ -55,7 +62,7 @@ export const LogBox = memo(function LogBox() {
             follow();
         });
         const listeners = [[element, "scroll", onScroll], [element, "wheel", onInput], [element, "touchmove", onInput],
-            [element, "keydown", onInput], [element, "pointerdown", onPointerDown],
+            [window, "keydown", onKeyDown], [element, "pointerdown", onPointerDown],
             [window, "pointerup", onPointerUp], [window, "pointercancel", onPointerUp]];
         listeners.forEach(([target, type, listener]) => target.addEventListener(type, listener, { passive: true }));
         observer.observe(element);
@@ -70,7 +77,9 @@ export const LogBox = memo(function LogBox() {
 
     const showResendButton = !!actions && currentShowResendButton.data;
     return (
-        <div id="log_container" className={styles.container} ref={logContainerRef}>
+        // Focusable so the keys keep scrolling it after the clicked row leaves the DOM.
+        <div id="log_container" className={styles.container} ref={logContainerRef}
+            tabIndex={0} role="region" aria-label={t("main_page.message_log.region_label")}>
             <MessageLogUiSizeController />
             {view.rows.length === 0 && <div className={styles.empty}><h1>{t("studio.empty_title")}</h1><p>{t("studio.empty_description")}</p></div>}
             {/* Rows measured later (new, or after a font size change) call onResize. */}
