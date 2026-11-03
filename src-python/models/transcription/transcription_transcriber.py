@@ -205,6 +205,22 @@ class AudioTranscriber:
             return self._api_provider
         return GoogleProvider(self.audio_recognizer)
 
+    def getAudioWaitTimeout(self) -> Optional[float]:
+        """次の入力なしでもフレーズのリセットが必要になるまでの秒数。"""
+        source_info = self.audio_sources
+        if (
+            self.vad_segmented
+            or not source_info["last_sample"]
+            or source_info["last_spoken"] is None
+        ):
+            return None
+        # 既存の判定は elapsed > phrase_timeout。datetime の最小単位を
+        # 足し、ちょうど境界の時刻でもゼロ秒の待機を繰り返さない。
+        deadline = source_info["last_spoken"] + timedelta(
+            seconds=self.phrase_timeout, microseconds=1
+        )
+        return max(0.0, (deadline - datetime.now()).total_seconds())
+
     def transcribeAudioQueue(
         self,
         audio_queue: Any,
@@ -396,8 +412,6 @@ class AudioTranscriber:
                     # 直後に translate=30秒 が観測された。
                     return True
 
-            if not transcribed:
-                time.sleep(0.01)
             return transcribed
 
         while True:
@@ -475,8 +489,6 @@ class AudioTranscriber:
             else:
                 finalize()
 
-        if not transcribed:
-            time.sleep(0.01)
         return transcribed
 
     def _padWithSilenceForVad(self, data: bytes) -> bytes:

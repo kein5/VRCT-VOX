@@ -40,6 +40,9 @@ class _PartiallyInitializedRecorder:
 class _FakeTranscriber:
     last_recognition_error = False
 
+    def getAudioWaitTimeout(self):
+        return None  # no pending phrase: wait for audio, stop or an error
+
     def getTranscript(self) -> dict:
         return {"text": "", "language": None}
 
@@ -151,6 +154,8 @@ class TestAudioPipelineFailure(unittest.TestCase):
             session, "_create_transcriber", return_value=_FailingTranscriber()
         ):
             session.reconfigure(transcript=True, device=DEVICE)
+            # The worker waits for audio, so feed one chunk to reach ASR.
+            recorder.audio_queue.put((b"\0\0", None))
 
         self.assertTrue(self._wait_for(lambda: len(received) == 1))
         self.assertEqual(received[0]["error_code"], ErrorCode.ASR_ERROR.value)

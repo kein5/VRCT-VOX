@@ -252,6 +252,7 @@ def test_late_asr_result_or_error_is_not_published_after_timeout(fails):
     recorder = Mock(device_error_event=Event(), stop=None)
     transcriber = Mock()
     transcriber.hasTranscript.return_value = True
+    transcriber.getAudioWaitTimeout.return_value = 0  # process this round now
 
     def late_transcription(*args):
         session._stop()

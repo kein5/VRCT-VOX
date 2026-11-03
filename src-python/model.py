@@ -175,6 +175,42 @@ class _DiscardQueue(Queue):
         pass
 
 
+class _AudioQueueEvent(Event):
+    """録音エラーを記録し、入力待ちの文字起こしも起こす。"""
+
+    def __init__(self, queue) -> None:
+        super().__init__()
+        self._queue = queue
+
+    def set(self) -> None:
+        with self._queue.not_empty:
+            super().set()
+            self._queue.not_empty.notify_all()
+
+
+class _AudioQueue(Queue):
+    """入力・フレーズ期限・停止・録音エラーまで待つ有界キュー。"""
+
+    def __init__(self) -> None:
+        super().__init__(maxsize=_AUDIO_QUEUE_MAXSIZE)
+        self._stopped = False
+        self.device_error_event = _AudioQueueEvent(self)
+
+    def waitForWork(self, timeout: Optional[float]) -> bool:
+        with self.not_empty:
+            self.not_empty.wait_for(
+                lambda: self._stopped or self._qsize() or self.device_error_event.is_set(),
+                timeout=timeout,
+            )
+            return not self._stopped
+
+    def stop(self) -> None:
+        # 終端値は drop-oldest で失われるため、停止状態はキューの外に持つ。
+        with self.not_empty:
+            self._stopped = True
+            self.not_empty.notify_all()
+
+
 class _EnergyQueue(Queue):
     """最新の未読み取り値を保持し、停止でも待機中の consumer を起こす。"""
 
@@ -632,13 +668,19 @@ class _AudioDeviceSession:
                 )
                 raise
 
-            audio_queue = Queue(maxsize=_AUDIO_QUEUE_MAXSIZE) if "transcript" in self.features else _DiscardQueue()
+            audio_queue = _AudioQueue() if "transcript" in self.features else _DiscardQueue()
             # energy_queue はメーター表示用で直近の値のみ意味を持つため、
             # audio_queue と同じ理由 (レビュー指摘、フェーズ3項目20) で
             # 有界化する。maxsize=1 で「最新の未読み取り値のみ保持」にする。
             energy_queue = _EnergyQueue() if "energy" in self.features else None
             self._audio_queue = audio_queue
             self._energy_queue = energy_queue
+            if "transcript" in self.features:
+                # listener を起動する前に通知付き Event にする。録音側の
+                # set/is_set/clear 契約と、既に発生していたエラーを保つ。
+                if self._recorder.device_error_event.is_set():
+                    audio_queue.device_error_event.set()
+                self._recorder.device_error_event = audio_queue.device_error_event
             self._recorder.recordIntoQueue(audio_queue, energy_queue)
             if "transcript" in self.features:
                 try:
@@ -672,6 +714,8 @@ class _AudioDeviceSession:
             recorder = self._recorder
 
             def sendTranscript() -> None:
+                if not audio_queue.waitForWork(transcriber.getAudioWaitTimeout()):
+                    return
                 if self._recorder is not recorder:
                     return
                 if recorder.device_error_event.is_set():
@@ -711,8 +755,11 @@ class _AudioDeviceSession:
                         self._handle_pipeline_error(failure, recorder)
 
             def endTranscript() -> None:
-                while not audio_queue.empty():
-                    audio_queue.get()
+                while True:
+                    try:
+                        audio_queue.get_nowait()
+                    except Empty:
+                        break
                 # A timed-out old worker may finish after reconfigure() has
                 # already installed a new transcriber. Only clear the object
                 # owned by this worker; otherwise the late cleanup can make
@@ -754,6 +801,8 @@ class _AudioDeviceSession:
             transcript_thread = self._print_transcript
             if isinstance(transcript_thread, threadFnc):
                 transcript_thread.stop()
+                if isinstance(self._audio_queue, _AudioQueue):
+                    self._audio_queue.stop()
                 if transcript_thread is not current_thread():
                     transcript_thread.join(timeout=TRANSCRIPT_STOP_JOIN_TIMEOUT)
                     if transcript_thread.is_alive():

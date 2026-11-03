@@ -117,18 +117,26 @@ class RealtimeIngress:
         self._last_stamp = -1
         self._reason = None
         self._pumping = False
-        self._loop = self._closing = None
+        self._loop = self._closing = self._available = None
 
     @property
     def error(self):
         with self._lock:
             return self._reason
 
+    def _signal_locked(self, event):
+        if self._loop is not None:
+            try:
+                self._loop.call_soon_threadsafe(event.set)
+            except RuntimeError:
+                # A capture callback may race event-loop shutdown. The locked
+                # queue/reason remains authoritative; don't raise on its thread.
+                pass
+
     def _close_locked(self, reason):
         if self._reason is None:
             self._reason = reason
-            if self._loop is not None:
-                self._loop.call_soon_threadsafe(self._closing.set)
+            self._signal_locked(self._closing)
         self._queue.clear()
         self._samples_queued = 0
 
@@ -156,7 +164,10 @@ class RealtimeIngress:
                 return False
             self._last_stamp = captured_ns
             self._samples_queued += count
+            was_empty = not self._queue
             self._queue.append(CapturedAudio(audio, captured_ns))
+            if was_empty:
+                self._signal_locked(self._available)
             return True
 
     async def _consume(self, client):
@@ -174,8 +185,13 @@ class RealtimeIngress:
                         self._samples_queued -= len(item.audio.pcm) // (
                             2 * self.channels
                         )
+                    else:
+                        # Clear under the producer's lock after checking empty.
+                        # A subsequent push schedules set on this loop, including
+                        # in the gap before wait(), so it cannot lose a wakeup.
+                        self._available.clear()
                 if item is None:
-                    await asyncio.sleep(0.005)
+                    await self._available.wait()
                     continue
                 if not 0 <= self._clock() - item.captured_ns <= MAX_AGE_NS:
                     raise ValueError("stale_capture")
@@ -196,6 +212,7 @@ class RealtimeIngress:
             self._pumping = True
             self._loop = asyncio.get_running_loop()
             self._closing = asyncio.Event()
+            self._available = asyncio.Event()
             if self._reason is not None:
                 self._closing.set()
         worker = asyncio.create_task(self._consume(client))
@@ -225,4 +242,4 @@ class RealtimeIngress:
                 closing.cancel()
                 await asyncio.gather(worker, closing, return_exceptions=True)
                 with self._lock:
-                    self._loop = self._closing = None
+                    self._loop = self._closing = self._available = None
