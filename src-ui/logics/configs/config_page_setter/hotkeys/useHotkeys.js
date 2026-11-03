@@ -1,4 +1,6 @@
-import { store, useStore_Hotkeys } from "@store";
+import { useEffect, useRef } from "react";
+import { getDefaultStore } from "jotai";
+import { store, useStore_Hotkeys, Atom_IsOpenedConfigPage, Atom_IsBackendReady, Atom_IsSoftwareUpdating } from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useNotificationStatus } from "@logics_common";
 import { useMainFunction } from "@logics_main";
@@ -19,18 +21,63 @@ const shortcutPlatform = () => {
 };
 let portalHandler = null;
 let portalPaused = true; // Like the plugin's unregisterAll while settings are open.
-// Whether this process has bound portal shortcuts. With no key assigned and
-// nothing to clear, the portal (and its first-time dialog) is left alone.
-let portalBound = false;
+let registrationGeneration = 0;
+let registrationOwner = null;
+let disposed = false;
+// Remember that a bind may have reached Rust, even if its UI owner was disposed.
+let portalBound = import.meta.hot?.data.portalBound ?? false;
 let portalListener = null;
-const ensurePortalListener = () => {
-    portalListener ??= listen("portal-shortcut", ({ payload }) => {
-        if (!portalPaused && portalHandler) portalHandler(payload.id, payload.activation_token ?? null);
-    });
-    return portalListener;
+const shortcutsEnabled = () => {
+    const atoms = getDefaultStore();
+    return atoms.get(Atom_IsBackendReady).data === true &&
+        atoms.get(Atom_IsOpenedConfigPage).data === false &&
+        atoms.get(Atom_IsSoftwareUpdating).data === false;
 };
+const pauseShortcuts = () => {
+    registrationGeneration++;
+    portalPaused = true;
+    portalHandler = null;
+};
+const disposePortalListener = () => {
+    pauseShortcuts();
+    registrationOwner = null;
+    const listener = portalListener;
+    portalListener = null;
+    listener?.unlisten?.();
+};
+const ensurePortalListener = () => {
+    if (!portalListener) {
+        const listener = { unlisten: null, ready: null };
+        portalListener = listener;
+        listener.ready = listen("portal-shortcut", ({ payload }) => {
+            if (portalListener === listener && !portalPaused && shortcutsEnabled() && portalHandler) {
+                portalHandler(payload.id, payload.activation_token ?? null);
+            }
+        }).then(unlisten => {
+            if (portalListener !== listener) unlisten();
+            else listener.unlisten = unlisten;
+        }).catch(error => {
+            if (portalListener === listener) portalListener = null;
+            throw error;
+        });
+    }
+    return portalListener.ready;
+};
+if (import.meta.hot) import.meta.hot.dispose(data => {
+    data.portalBound = portalBound;
+    disposed = true;
+    disposePortalListener();
+});
 
 export const useHotkeys = () => {
+    const owner = useRef({ mounted: true }).current;
+    useEffect(() => {
+        owner.mounted = true;
+        return () => {
+            owner.mounted = false;
+            if (registrationOwner === owner) disposePortalListener();
+        };
+    }, [owner]);
     const appWindow = store.appWindow;
     const { t, i18n } = useI18n();
 
@@ -100,8 +147,9 @@ export const useHotkeys = () => {
         }
     };
 
-    const registerPortalShortcuts = async () => {
+    const registerPortalShortcuts = async (isCurrent) => {
         await unregisterAll();
+        if (!isCurrent()) return;
         portalHandler = runAction;
         const shortcuts = Object.fromEntries(Object.entries(currentHotkeys.data ?? {}).filter(([, keys]) => keys));
         if (!Object.keys(shortcuts).length && !portalBound) {
@@ -110,9 +158,11 @@ export const useHotkeys = () => {
         }
         try {
             await ensurePortalListener();
+            if (!isCurrent()) return;
+            portalBound = true;
             // The desktop may show its confirmation dialog the first time.
             const assigned = await invoke("portal_shortcuts_bind", { shortcuts });
-            portalBound = true;
+            if (!isCurrent()) return;
             portalPaused = false;
             // The desktop may keep another key, e.g. when VRCT's is taken.
             for (const [actionKey, row] of Object.entries(assigned ?? {})) {
@@ -124,6 +174,7 @@ export const useHotkeys = () => {
                 }), { hide_duration: 10000 });
             }
         } catch (code) {
+            if (!isCurrent()) return;
             const key = `quick_chat.portal_errors.${code}`;
             showNotification_Error(i18n.exists(key) ? t(key) : t("quick_chat.portal_failed", { code: String(code) }),
                 { hide_duration: 8000 });
@@ -194,9 +245,18 @@ export const useHotkeys = () => {
     };
 
     const registerShortcuts = async () => {
-        if (await currentPlatform() === "wayland") return registerPortalShortcuts();
+        pauseShortcuts();
+        registrationOwner = owner;
+        const generation = registrationGeneration;
+        const isCurrent = () => !disposed && owner.mounted && registrationOwner === owner &&
+            generation === registrationGeneration && shortcutsEnabled();
+        if (!isCurrent()) return;
+        const platform = await currentPlatform();
+        if (!isCurrent()) return;
+        if (platform === "wayland") return registerPortalShortcuts(isCurrent);
         try {
             await unregisterAll();
+            if (!isCurrent()) return;
 
             const hotkeyEntries = Object.entries(currentHotkeys.data);
             const failedHotkeys = [];
@@ -210,10 +270,12 @@ export const useHotkeys = () => {
                         // Moving focus during an X11 key grab can lose its release
                         // event and leave the shortcut stuck in the pressed state.
                         const trigger = actionKey === "open_quick_chat" ? "Released" : "Pressed";
-                        if (event.state !== trigger) return;
+                        if (event.state !== trigger || !isCurrent()) return;
                         await runAction(actionKey);
                     });
+                    if (!isCurrent()) return;
                 } catch (error) {
+                    if (!isCurrent()) return;
                     console.warn(`Failed to register global shortcut ${shortcut} for ${actionKey}:`, error);
                     failedHotkeys.push({
                         actionKey,
@@ -236,6 +298,7 @@ export const useHotkeys = () => {
                 });
             }
         } catch (error) {
+            if (!isCurrent()) return;
             console.error("Failed to register global shortcuts:", error);
         }
     };
@@ -253,7 +316,7 @@ export const useHotkeys = () => {
         setSuccessHotkeys,
         registerShortcuts,
         unregisterAll: async () => {
-            portalPaused = true;
+            pauseShortcuts();
             await unregisterAll();
         },
         openQuickChat,
