@@ -247,6 +247,7 @@ main_page:
         is_selected_same_language: "You are selecting the same language for '{{your_language}}' and '{{target_language}}' so only '{{ctranslate2}}' is available."
 
     message_log:
+        region_label: "Message log"
         all: "All"
         sent: "Sent"
         received: "Received"

@@ -144,7 +144,7 @@ def instrument_rows(ui):
         window.__captionRows = []; window.__captionSnapshots = [];
         const ids = new WeakMap(); let serial = 0;
         function sample() {
-            const rows = [...document.querySelectorAll('#log_container > div')]
+            const rows = [...document.querySelectorAll('#log_container [data-log-row]')]
                 .filter(e => e.querySelector('[class*=category]'));
             window.__captionRows = rows.map(e => {
                 if (!ids.has(e)) ids.set(e, ++serial);
@@ -229,7 +229,7 @@ def test_real_asr_native_caption_translation_and_stop(tmp_path):
             assert len(translation.requests) == 4
             assert any(not row["translated"] for snapshot in snapshots for row in snapshot["rows"])
             assert len({row["node"] for snapshot in snapshots for row in snapshot["rows"]}) == 4
-            expected_osc = ui.evaluate("return [...document.querySelectorAll('#log_container > div')].filter(e => e.querySelector('[class*=category]')?.textContent === 'Sent').map(e => e.querySelector('[class*=message_main]').textContent)")
+            expected_osc = ui.evaluate("return [...document.querySelectorAll('#log_container [data-log-row]')].filter(e => e.querySelector('[class*=category]')?.textContent === 'Sent').map(e => e.querySelector('[class*=message_main]').textContent)")
             from pythonosc.osc_packet import OscPacket
             messages = []
             while True:

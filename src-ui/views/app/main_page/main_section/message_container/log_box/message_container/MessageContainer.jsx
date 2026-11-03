@@ -5,7 +5,7 @@ import styles from "./MessageContainer.module.scss";
 import { MessageSubMenuContainer } from "./message_sub_menu_container/MessageSubMenuContainer";
 import { store } from "@store";
 
-export const MessageContainer = memo(function MessageContainer({ messages, status, category, created_at, source,
+export const MessageContainer = memo(function MessageContainer({ id, messages, status, category, created_at, source,
     sendMessage, updateMessageInputValue, showResendButton }) {
     const { t } = useI18n();
     const [is_hovered, setIsHovered] = useState(false);
@@ -55,6 +55,7 @@ export const MessageContainer = memo(function MessageContainer({ messages, statu
 
     return (
         <div
+            data-log-row={id}
             className={clsx(styles.container, message_type_class_name)}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
