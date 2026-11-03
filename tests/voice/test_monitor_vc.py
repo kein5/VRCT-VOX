@@ -82,8 +82,11 @@ def converted(tmp_path, monkeypatch, monitor, *, opener=None):
     monkeypatch.setattr(transport, '_binding', lambda source, **kw: SINK)
     monkeypatch.setattr(transport, '_output', lambda endpoint: managed_sink)
     monkeypatch.setattr(transport, 'MonitorTee', tee)
+    monkeypatch.setattr(transport, 'graph_source', lambda: SimpleNamespace(
+        subscribe=lambda: SimpleNamespace(close=lambda: None)))
     extra = {} if monitor is None else {'monitor': monitor}
     vc = seed_process.SeedProcess({'runtime': str(runtime), 'reference': str(tmp_path / 'reference.wav')}, **extra)
+    vc.set_monitor_muted(False)
     try:
         vc.start(source=SOURCE)
         wait_for(lambda: captures and vc.health()['active'], timeout=3)
@@ -163,6 +166,30 @@ def test_disabled_monitor_opens_nothing(tmp_path, monkeypatch):
         assert tees == [] and vc.health()['monitor_error'] is None
 
 
+@linux
+def test_mute_keeps_conversion_and_managed_output_running(tmp_path, monkeypatch):
+    monitor_sink = Sink()
+    opener, _ = opener_for(monitor_sink)
+    with converted(tmp_path, monkeypatch, {'device': '', 'volume': 100}, opener=opener) as (
+            vc, capture, main, tees):
+        worker = vc._child
+        send(capture)
+        wait_for(lambda: len(monitor_sink.data) == 1)
+        vc.set_monitor_muted(True)
+        assert vc._monitor.join(1)
+        send(capture)
+        until_written(vc, main, 2)
+        assert len(monitor_sink.data) == 1 and len(tees) == 1
+        assert vc._child is worker and worker.poll() is None
+        assert vc.health()['active'] and vc.health()['conversion_verified']
+        vc.set_monitor_muted(False)
+        send(capture)
+        until_written(vc, main, 3)
+        wait_for(lambda: len(monitor_sink.data) == 2)
+        assert len(tees) == 2 and vc._child is worker
+        assert monitor_sink.data == main.data[::2]
+
+
 def test_monitor_spec_crosses_processes_only_when_valid():
     assert monitor_spec(None) is None and parse_monitor(None) is None
     assert monitor_spec(('', 40)) == {'device': '', 'volume': 40}
@@ -218,6 +245,9 @@ def test_router_worker_passes_the_monitor_to_the_worker(monkeypatch, monitor):
     started, created = Event(), []
 
     class Process:
+        def set_monitor_muted(self, muted):
+            pass
+
         def start(self, **kwargs):
             started.set()
 

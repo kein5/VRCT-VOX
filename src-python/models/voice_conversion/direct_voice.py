@@ -40,6 +40,15 @@ class DirectVoice:
         self._generation = self._observation = 0
         self._requested = self._closed = False
         self._error = None
+        self._monitor_muted = True
+        self._monitor_enabled = False
+
+    def set_monitor_muted(self, muted):
+        """Latch route intent, including before Start; never toggle either producer."""
+        with self._lock:
+            self._monitor_muted = bool(muted)
+            if self._requested and self._monitor_enabled:
+                self._backend.set_monitor_muted(self._monitor_muted)
 
     def start(self, *, source, expected_generation, mode='passthrough', options=None, monitor=None):
         """monitor applies to converted output only; it is fixed for this Start."""
@@ -68,6 +77,7 @@ class DirectVoice:
                 self._backend = None
             self._generation += 1
             self._source, self._mode, self._options = source, mode, choices
+            self._monitor_enabled = mode == 'converted' and monitor is not None
             self._error = None
             try:
                 if mode == 'passthrough':
@@ -77,6 +87,8 @@ class DirectVoice:
                 else:
                     self._backend = self._converted(deepcopy(choices), monitor=dict(monitor))
                 self._requested = True
+                if self._monitor_enabled:
+                    self._backend.set_monitor_muted(self._monitor_muted)
                 self._backend.start(source=source)
             except Exception:
                 self._requested = False

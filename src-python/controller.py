@@ -414,8 +414,10 @@ class Controller:
             config_path = 'config.json'
         self.model_downloads = Downloads(Path(config_path).absolute().parent / 'downloaded_models')
         self.model_hardware = HardwareProbe()
+        self.direct_voice = DirectVoice(converted_factory=create_converted_process)
         self.voice_route = VoiceRoute(self.voice_events, gate=PipeWireGate(),
-                                     store=MuteState(Path(config_path).with_name('voice_mute_state.json')))
+                                     store=MuteState(Path(config_path).with_name('voice_mute_state.json')),
+                                     on_muted=self.direct_voice.set_monitor_muted)
         self.voice_route.configure(self.voice_events.settings.routing == 'managed',
             suppress_direct=(self.voice_events.settings.mic_mode == 'translated'
                              and self.voice_events.settings.direct_policy == 'suppress'))
@@ -423,7 +425,6 @@ class Controller:
         self._language_settings_lock = RLock()
         direct = getattr(self._config, 'DIRECT_VOICE_SETTINGS', {})
         self._direct_settings = DirectSettings.from_dict(direct if isinstance(direct, dict) else {})
-        self.direct_voice = DirectVoice(converted_factory=create_converted_process)
         self._direct_voice_closed = False
         choices = getattr(self._config, "REALTIME_ASR_SETTINGS", {})
         self._initRealtimeASR(choices if isinstance(choices, dict) else {})
