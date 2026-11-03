@@ -794,7 +794,8 @@ def printResponse(status: int, endpoint: str, result: Any = None) -> None:
             logged_result = _maskSensitiveData(result)
         if endpoint in _CONVERSATION_ENDPOINTS:
             logged_result = _redactConversation(logged_result)
-        process_logger.info({**response, "result": logged_result})  # Log the (possibly masked) response, never the raw secret
+        # Built from the masked result only, never from `response` (which holds the raw one).
+        process_logger.info({"status": status, "endpoint": endpoint, "result": logged_result})
 
     try:
         serialized_response = json.dumps(response)
