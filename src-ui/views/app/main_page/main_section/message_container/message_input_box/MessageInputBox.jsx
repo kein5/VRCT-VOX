@@ -1,4 +1,4 @@
-import { memo, useState, useLayoutEffect, useRef } from "react";
+import { memo, useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useStore } from "jotai";
 import styles from "./MessageInputBox.module.scss";
 import SendMessageSvg from "@images/send_message.svg?react";
@@ -28,12 +28,17 @@ export const MessageInputBox = memo(function MessageInputBox() {
         store.text_area_ref = log_box_ref;
     }, []);
 
+    useEffect(() => {
+        // Auto-clear and history recall also change the value without onChange.
+        if (!currentMessageInputValue.data.trim()) stopTyping();
+    }, [currentMessageInputValue.data, stopTyping]);
+
     const onSubmitFunction = (e) => {
         e.preventDefault();
 
-        if (!currentMessageInputValue.data.trim()) return updateMessageInputValue("");
-
         sendMessage(currentMessageInputValue.data);
+
+        if (!currentMessageInputValue.data.trim()) return updateMessageInputValue("");
 
         if (currentEnableAutoClearMessageInputBox.data) updateMessageInputValue("");
 

@@ -32,6 +32,8 @@ export const useMessage = () => {
     };
 
     const sendMessage = async (message, uuid = crypto.randomUUID()) => {
+        // Reset before validation/transport so empty and failed sends also stop typing.
+        stopTyping();
         if (typeof message !== "string" || !message.trim()) return false;
         const send_message_object = {
             id: uuid,
@@ -112,14 +114,17 @@ export const useMessage = () => {
 
     const startTyping = () => {
         const now = Date.now();
-        if (now - store.last_executed_time_startTyping >= 2000) {
+        if (now - store.last_executed_time_startTyping >= COOLDOWN) {
             store.last_executed_time_startTyping = now;
             asyncStdoutToPython("/run/typing_message_box");
         }
     };
 
     const stopTyping = () => {
-        asyncStdoutToPython("/run/stop_typing_message_box");
+        // A best-effort indicator reset must not prevent sending or settling a row.
+        try {
+            Promise.resolve(asyncStdoutToPython("/run/stop_typing_message_box")).catch(() => {});
+        } catch { /* The transport can also fail before returning a promise. */ }
     };
 
     return {
@@ -173,6 +178,7 @@ const updateItemById = (id, updated_data) => (current_items) => {
                 status: "ok",
                 messages: {
                     ...item.messages,
+                    original: updated_data.original ?? item.messages.original,
                     translations: updated_data.translations ?? item.messages.translations,
                 },
             };
