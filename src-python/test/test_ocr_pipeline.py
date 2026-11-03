@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 
 from models.ocr.ocr_pipeline import NEWLINE, OcrPipeline, _DedupCache, _similar, _textHash
+from errors import ErrorCode, OcrStartError
 
 _mergeWords = OcrPipeline._mergeWords
 
@@ -269,9 +270,11 @@ class TestApplyConfig(unittest.TestCase):
         pipeline = self._pipeline()
         pipeline._reader = "reader-for-auto"
         with patch("models.ocr.ocr_pipeline.ocr_engine.getReader") as get_reader:
-            pipeline.applyConfig({"source_language": "Klingon"})
+            with self.assertRaises(OcrStartError) as caught:
+                pipeline.applyConfig({"source_language": "Klingon"})
             pipeline._applyPending()
 
+        self.assertEqual(caught.exception.error_code, ErrorCode.OCR_DISABLED_UNSUPPORTED_LANGUAGE)
         get_reader.assert_not_called()
         self.assertEqual(pipeline._reader, "reader-for-auto")
         self.assertEqual(pipeline._source_language, "auto")
@@ -280,9 +283,11 @@ class TestApplyConfig(unittest.TestCase):
         pipeline = self._pipeline()
         pipeline._reader = "reader-for-auto"
         with patch("models.ocr.ocr_pipeline.ocr_engine.getReader", return_value=None):
-            pipeline.applyConfig({"source_language": "Korean"})
+            with self.assertRaises(OcrStartError) as caught:
+                pipeline.applyConfig({"source_language": "Korean"})
             pipeline._applyPending()
 
+        self.assertEqual(caught.exception.error_code, ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
         self.assertEqual(pipeline._reader, "reader-for-auto")
         self.assertEqual(pipeline._source_language, "auto")
 

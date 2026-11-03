@@ -68,6 +68,9 @@ _DOWNLOAD_PROGRESS_MIN_INTERVAL_SEC = 0.5
 # 重なると片方が消えるので、読み書きを直列にする
 _VR_WINDOW_SETTINGS_LOCK = Lock()
 
+# Only short OCR intent updates belong here; model loading/joins stay outside.
+_OCR_CONTROL_LOCK = Lock()
+
 
 def vrLayoutToJson(layout: dict) -> dict:
     """VR画面の並びを UI へ送る形 (リスト) にする。src-ui/views/vr/vr_layout.json と同じ形。"""
@@ -1221,6 +1224,12 @@ class Controller:
         Returns:
             dict with status 200 and result True on success.
         """
+        with _OCR_CONTROL_LOCK:
+            self._ocr_shutting_down = True
+            config.ENABLE_OCR_CAPTURE = False
+            # Signal without waiting for a concurrent model load/lifecycle lock.
+            model.requestOCRShutdown()
+        self._stopServiceForShutdown(model.stopOCRCapture, "OCR capture")
         if getattr(self, 'model_downloads', None) is not None:
             if not self.model_downloads.close():
                 printLog('[models] download cancellation pending; no model path will be applied')
@@ -2229,7 +2238,7 @@ class Controller:
         OSCチャットボックスへは送らない。他人の発言を自分のチャットボックスへ
         流し返すことになり、スパムに当たるため (設定ではなく仕様で封じている)。
         """
-        if config.ENABLE_OCR_CAPTURE is not True:
+        if getattr(self, "_ocr_shutting_down", False) or config.ENABLE_OCR_CAPTURE is not True:
             return
 
         message = result.get("text")
@@ -2245,7 +2254,10 @@ class Controller:
 
         segment_id = result.get("segment_id")
         msg_id = f"transcription-ocr-{segment_id}" if segment_id is not None else None
-        self._processMessage(OCR_MESSAGE_SPEC, message, source_language, msg_id=msg_id)
+        self._processMessage(
+            OCR_MESSAGE_SPEC, message, source_language, msg_id=msg_id,
+            publication_guard=lambda: not getattr(self, "_ocr_shutting_down", False),
+        )
 
     def _disableTranscriptionAfterPipelineError(self, source: str) -> None:
         """エラー停止後の実状態を config と UI に同期する。"""
@@ -4935,6 +4947,8 @@ class Controller:
         開始できなければ、翻訳の TRANSLATION_DISABLED_VRAM と同じく
         OCR_DISABLED_* を /run/enable_ocr_capture へ送って False を返す。
         """
+        if getattr(self, "_ocr_shutting_down", False):
+            return False
         try:
             return model.startOCRCapture(self.ocrMessage, model_root=self._ocrModelRoot())
         except OcrStartError as e:
@@ -5692,8 +5706,14 @@ class Controller:
     # ---------- VRChat chat-bubble OCR settings ----------
 
     def setEnableOcrCapture(self, *args, **kwargs) -> dict:
-        if config.ENABLE_OCR_CAPTURE is False:
-            config.ENABLE_OCR_CAPTURE = self.startOcrCapture()
+        with _OCR_CONTROL_LOCK:
+            if getattr(self, "_ocr_shutting_down", False):
+                return {"status": 200, "result": False}
+            enabled = config.ENABLE_OCR_CAPTURE
+        if enabled is False:
+            started = self.startOcrCapture()
+            with _OCR_CONTROL_LOCK:
+                config.ENABLE_OCR_CAPTURE = started and not getattr(self, "_ocr_shutting_down", False)
         return {"status": 200, "result": config.ENABLE_OCR_CAPTURE}
 
     def setDisableOcrCapture(self, *args, **kwargs) -> dict:
@@ -5702,11 +5722,20 @@ class Controller:
             config.ENABLE_OCR_CAPTURE = False
         return {"status": 200, "result": config.ENABLE_OCR_CAPTURE}
 
-    @staticmethod
     @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
-    def setOcrSourceLanguage(data, *args, **kwargs) -> dict:
-        config.OCR_SOURCE_LANGUAGE = str(data)
-        model.updateOCRCaptureSettings()
+    def setOcrSourceLanguage(self, data, *args, **kwargs) -> dict:
+        previous = config.OCR_SOURCE_LANGUAGE
+        language = str(data)
+        if language not in ocr_languages.SELECTABLE_LANGUAGES:
+            return VRCTError.create_error_response(
+                ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=previous)
+        try:
+            if not model.setOCRSourceLanguage(language, model_root=self._ocrModelRoot()):
+                return {"status": 423, "result": previous}
+        except OcrStartError as exc:
+            return VRCTError.create_error_response(
+                exc.error_code, data=previous,
+                details={"requested_language": language, "previous_language": previous})
         return {"status":200, "result":config.OCR_SOURCE_LANGUAGE}
 
     @staticmethod

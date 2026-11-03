@@ -228,6 +228,7 @@ class OcrPipeline:
         self._min_text_length = max(1, int(min_text_length))
 
         self._stop_event = Event()
+        self._shutdown_requested = Event()
         self._thread: Optional[Thread] = None
         self._lifecycle_lock = RLock()
         self._stop_logged = False
@@ -242,8 +243,8 @@ class OcrPipeline:
         self._reader = None
         self._resetRecognition()
         # 設定変更はここに積んでおき、ワーカースレッドが次のtickの頭で取り込む。
-        # 推論器とキャプチャはスレッドに紐づくので、値を書き換える
-        # スレッドではなく、使っているスレッドの側で作り直す。
+        # 推論器は要求側で準備し、使用中の参照はワーカーだけが切り替える。
+        # キャプチャのOSリソースも、使っているワーカー側で作り直す。
         self._pending: dict = {}
         self._pending_lock = Lock()
         self._counts = {"tick": 0, "frame": 0, "candidate": 0, "ocr": 0, "reused": 0,
@@ -321,6 +322,8 @@ class OcrPipeline:
         return self._thread is not None and self._thread.is_alive()
 
     def _start(self) -> bool:
+        if self._shutdown_requested.is_set():
+            return False
         if self.is_alive:
             return not self._stop_event.is_set()
         self._resetRecognition()
@@ -346,6 +349,8 @@ class OcrPipeline:
             errorLogging()
             self.stop()
             raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
+        if self._shutdown_requested.is_set():
+            return False
         if self._reader is None:
             printLog(f"OCR pipeline: OCR engine init failed for {spec.label}")
             self.stop()
@@ -360,12 +365,16 @@ class OcrPipeline:
             printLog("OCR pipeline: bubble detector model load failed")
             self.stop()
             raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
+        if self._shutdown_requested.is_set():
+            return False
         capture = self._capture_probe(self._window_title)
         if capture != CAPTURE_OK:
             printLog(f"OCR pipeline: capture not ready ({capture}) for window {self._window_title!r}")
             self.stop()
             raise OcrStartError(ErrorCode.OCR_DISABLED_CAPTURE_UNAVAILABLE if capture == CAPTURE_UNAVAILABLE
                                 else ErrorCode.OCR_DISABLED_WINDOW_NOT_FOUND)
+        if self._shutdown_requested.is_set():
+            return False
         printLog(f"OCR pipeline: started ({spec.label}, candidates={getattr(self._detector, 'name', 'custom')}, "
                  f"region={self._region_source.region}, chatbox_filter={self._chatbox_filter})")
         self._background_threads.lower()
@@ -373,7 +382,14 @@ class OcrPipeline:
         self._thread.start()
         return True
 
+    def requestShutdown(self) -> None:
+        """Irreversibly close admission, including a start still loading models."""
+        self._shutdown_requested.set()
+        self._stop_event.set()
+
     def stop(self) -> bool:
+        # Wake/suppress callbacks even while start() owns the lifecycle lock.
+        self._stop_event.set()
         with self._lifecycle_lock:
             self._stop_event.set()
             th = self._thread
@@ -392,19 +408,51 @@ class OcrPipeline:
             self._resetRecognition()
             return True
 
+    def applyLanguage(self, language: str, reader) -> None:
+        """Queue an already loaded reader; no fallible load remains on the worker."""
+        if self._shutdown_requested.is_set() or self._stop_event.is_set():
+            return
+        with self._pending_lock:
+            self._pending["language_reader"] = (language, reader)
+
     def applyConfig(self, settings: dict) -> None:
         """実行中のパイプラインへ設定変更を反映する (OFF→ONを挟まない)。
 
         呼び出し元(Controller)はUIスレッド側なので、ここでは値を預かるだけ。
         実際の切り替えはワーカースレッドが次のtickの頭で行う。
+        言語の読み込みだけは同期で確認し、失敗を呼び出し元へ返す。
         """
         if not isinstance(settings, dict) or not settings:
             return
+        if self._shutdown_requested.is_set() or self._stop_event.is_set():
+            return
+        settings = dict(settings)
+        language = settings.pop("source_language", None)
+        reader = self._reader
+        if language is not None and language != self._source_language:
+            spec = resolveModelSpec(language)
+            if spec is None:
+                raise OcrStartError(ErrorCode.OCR_DISABLED_UNSUPPORTED_LANGUAGE)
+            try:
+                reader = self._readerFor(spec)
+            except OcrModelsMissing:
+                raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_MISSING)
+            except Exception:
+                errorLogging()
+                raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
+            if reader is None:
+                raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
+        if language is not None:
+            # Returning to the active language also supersedes an earlier
+            # queued switch that the worker has not consumed yet.
+            settings["language_reader"] = (language, reader)
         with self._pending_lock:
             self._pending.update(settings)
 
     def _applyPending(self) -> None:
         """預かった設定を取り込む。ワーカースレッドからのみ呼ぶこと。"""
+        if self._stop_event.is_set():
+            return
         with self._pending_lock:
             if not self._pending:
                 return
@@ -437,35 +485,21 @@ class OcrPipeline:
         # 言語を変えると使うモデルが変わることがある (auto/日英中+ラテンは同じモデル、
         # ハングル・キリル・タイ等はPP-OCRv5の別モデル)。同じモデルはキャッシュ
         # されているので、一度使った組み合わせへ戻すときは即座に切り替わる。
-        language = pending.get("source_language", self._source_language)
+        language, reader = pending.get("language_reader", (self._source_language, self._reader))
         if language != self._source_language:
-            spec = resolveModelSpec(language)
-            if spec is None:
-                printLog(f"OCR pipeline: language {language!r} is not supported, keeping {self._source_language!r}")
-            else:
-                try:
-                    reader = self._readerFor(spec)
-                except OcrModelsMissing as missing:
-                    printLog(f"OCR pipeline: models for {language!r} not downloaded ({', '.join(missing.model_ids)})")
-                    reader = None
-                except (OcrModelsInvalid, OSError):
-                    errorLogging()
-                    reader = None
-                if reader is None:
-                    printLog(f"OCR pipeline: could not load {spec.label}, keeping {self._source_language!r}")
-                else:
-                    if reader is not self._reader:
-                        self._engine_failures.reset()
-                        self._resetEngineBackoff()
-                    self._reader = reader
-                    self._source_language = language
-                    # 言語が変われば同じ吹き出しでも読める内容が変わるので、
-                    # 抑制済みの文言を引きずらないようにキャッシュを捨てる。
-                    self._dedup = _DedupCache()
+            if reader is not self._reader:
+                self._engine_failures.reset()
+                self._resetEngineBackoff()
+            self._reader = reader
+            self._source_language = language
+            # 言語が変われば同じ吹き出しでも読める内容が変わるので、
+            # 抑制済みの文言を引きずらないようにキャッシュを捨てる。
+            self._dedup = _DedupCache()
 
         # キャプチャはOSリソースをこのスレッドで掴んでいるので、ここで開き直す。
         window_title = pending.get("window_title")
-        if isinstance(window_title, str) and window_title and window_title != self._window_title:
+        if (not self._stop_event.is_set() and isinstance(window_title, str)
+                and window_title and window_title != self._window_title):
             self._window_title = window_title
             try:
                 if self._capture is not None:
@@ -535,6 +569,8 @@ class OcrPipeline:
     def _run(self) -> None:
         # Capture backends hold OS resources tied to the creating thread,
         # so construct on this thread rather than the one that called start().
+        if self._stop_event.is_set() or self._shutdown_requested.is_set():
+            return
         self._capture = OcrCapture(window_title=self._window_title)
         lowerCurrentThread()  # OCR を VR UI や VRChat より先に動かさない
         ticks = 0
@@ -582,6 +618,8 @@ class OcrPipeline:
         self._counts_since = now
 
     def _tick(self) -> None:
+        if self._stop_event.is_set():
+            return
         self._counts["tick"] += 1
         tick_at = time.monotonic()
         self._logStatus(tick_at)
@@ -593,6 +631,8 @@ class OcrPipeline:
         if self._capture is None or self._reader is None:
             return
         frame = self._capture.get()
+        if self._stop_event.is_set():
+            return
         # get() can select a different backend or fall back from VR to desktop.
         self._syncRecognitionContext()
         if frame is None:

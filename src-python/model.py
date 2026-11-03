@@ -56,6 +56,9 @@ from models.clipboard.clipboard import Clipboard
 from models.ocr import OcrPipeline
 from models.ocr.ocr_chatbox_detector import buildChatboxDetector
 from models.ocr.ocr_languages import isSupported as isSupportedOcrLanguage
+from models.ocr.ocr_languages import resolveModelSpec
+from models.ocr.ocr_models import resolveModelFiles, OcrModelsMissing
+from models.ocr import ocr_engine_rapidocr as ocr_engine
 from models.telemetry import Telemetry
 from utils import errorLogging, setupLogger, printLog, openTraceLog
 from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, OcrStartError
@@ -1020,6 +1023,7 @@ class Model:
     # arrive on different IPC handler threads.
     _watchdog_lifecycle_lock = Lock()
     _ocr_lifecycle_lock = Lock()
+    _ocr_shutdown_requested = False
     _obs_lifecycle_lock = RLock()
     # OSC 受信と OSCQuery の結果を反映するスレッドの間で、確認と更新を一度に行う。
     _mute_status_lock = Lock()
@@ -2384,8 +2388,12 @@ class Model:
         Returns True once the pipeline started (models loaded). Raises
         OcrStartError carrying the OCR_DISABLED_* reason when it cannot start.
         """
+        if self._ocr_shutdown_requested:
+            return False
         self.ensure_initialized()
         with self._ocr_lifecycle_lock:
+            if self._ocr_shutdown_requested:
+                return False
             if isinstance(self.ocr_pipeline, OcrPipeline):
                 if self.ocr_pipeline.is_alive:
                     # False when the previous stop is still waiting for cleanup.
@@ -2419,6 +2427,10 @@ class Model:
                     detector=detector,
                 )
                 self._ocr_detector_path = getattr(detector, "model_path", None)
+                # Shutdown may have raced construction before publication.
+                if self._ocr_shutdown_requested:
+                    self.ocr_pipeline.requestShutdown()
+                    return False
                 return self.ocr_pipeline.start()
             except Exception:
                 self.ocr_pipeline = None
@@ -2433,17 +2445,55 @@ class Model:
             return None
         return buildChatboxDetector(getattr(self, "_ocr_model_root", None))
 
+    def setOCRSourceLanguage(self, language: str, model_root=None) -> bool:
+        """While active, validate and load before saving; the worker only swaps readers.
+
+        Serialize with start/stop so a new pipeline cannot start on the old
+        setting while this request is preparing its reader. Never download.
+        """
+        if self._ocr_shutdown_requested:
+            return False
+        with self._ocr_lifecycle_lock:
+            if self._ocr_shutdown_requested:
+                return False
+            spec = resolveModelSpec(language)
+            if spec is None:
+                raise OcrStartError(ErrorCode.OCR_DISABLED_UNSUPPORTED_LANGUAGE)
+            pipeline = getattr(self, "ocr_pipeline", None)
+            active = isinstance(pipeline, OcrPipeline) and pipeline.is_alive
+            if not active:
+                # The download list follows the selected language, so a stopped
+                # pipeline accepts it; missing files are reported at start.
+                config.OCR_SOURCE_LANGUAGE = language
+                return True
+            try:
+                files = resolveModelFiles(model_root, spec)
+                reader = ocr_engine.getReader(spec, files)
+                if reader is None:
+                    raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
+            except OcrModelsMissing:
+                raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_MISSING)
+            except OcrStartError:
+                raise
+            except Exception:
+                errorLogging()
+                raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
+            if self._ocr_shutdown_requested:
+                return False
+            config.OCR_SOURCE_LANGUAGE = language
+            pipeline.applyLanguage(language, reader)
+            return True
+
     def updateOCRCaptureSettings(self) -> None:
         """設定変更を実行中のOCRパイプラインへ渡す。停止中なら何もしない。
 
-        OFF→ONを挟まずに言語やしきい値を切り替えられるようにするための経路。
+        OFF→ONを挟まずにしきい値などを切り替える。言語は専用のsetterで扱う。
         """
         pipeline = self.ocr_pipeline
-        if not isinstance(pipeline, OcrPipeline):
+        if self._ocr_shutdown_requested or not isinstance(pipeline, OcrPipeline):
             return
         try:
             pipeline.applyConfig({
-                "source_language": config.OCR_SOURCE_LANGUAGE,
                 "window_title": config.OCR_WINDOW_TITLE,
                 "poll_interval_ms": config.OCR_POLL_INTERVAL_MS,
                 "min_confidence": config.OCR_MIN_CONFIDENCE,
@@ -2464,10 +2514,16 @@ class Model:
         self._ocr_detector_path = path
         return {"detector": detector}
 
+    def requestOCRShutdown(self) -> None:
+        """Close admission and signal the worker without a blocking lock/join."""
+        self._ocr_shutdown_requested = True
+        pipeline = getattr(self, "ocr_pipeline", None)
+        if isinstance(pipeline, OcrPipeline):
+            pipeline.requestShutdown()
+
     def stopOCRCapture(self) -> None:
-        self.ensure_initialized()
         with self._ocr_lifecycle_lock:
-            pipeline = self.ocr_pipeline
+            pipeline = getattr(self, "ocr_pipeline", None)
             if isinstance(pipeline, OcrPipeline):
                 try:
                     if pipeline.stop() is False:
