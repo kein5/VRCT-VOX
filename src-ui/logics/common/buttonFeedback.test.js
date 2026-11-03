@@ -274,13 +274,14 @@ test("composer reads history only on explicit recall and sees the latest retaine
     let logs = [{ category: "sent", messages: { original: { message: "older" } } },
         { category: "received", messages: { original: { message: "incoming" } } },
         { category: "sent", messages: { original: { message: "newest" } } }];
+    const actions = { sendMessage: text => sent.push(text),
+        startTyping: () => typing.push("start"), stopTyping: () => typing.push("stop") };
     const { MessageInputBox } = await load("app/main_page/main_section/message_container/message_input_box/MessageInputBox.jsx", runtime, {
         "@store": { store: {}, Atom_MessageLogs: "logs", useStore_MessageInputValue: () => ({
             currentMessageInputValue: { data: input }, updateMessageInputValue: text => { input = text; edited.push(text); },
         }) },
         "jotai": { useStore: () => ({ get: atom => { assert.equal(atom, "logs"); reads++; return { data: logs }; } }) },
-        "@logics_common": { useMessageActions: () => ({ sendMessage: text => sent.push(text),
-            startTyping: () => typing.push("start"), stopTyping: () => typing.push("stop") }) },
+        "@logics_common": { useMessageActions: () => actions },
         "@logics_configs": { useSettingValue: name => {
             settingReads.push(name);
             return { data: name === "SendMessageButtonType" ? "show" : true };
@@ -297,7 +298,7 @@ test("composer reads history only on explicit recall and sees the latest retaine
     key("a");
     render().props.onChange({ currentTarget: { value: "a" } });
     assert.equal(reads, 0);
-    assert.deepEqual(typing, ["start"]);
+    assert.deepEqual(typing, ["stop", "start"]);
     assert.deepEqual([...new Set(settingReads)], ["EnableAutoClearMessageInputBox", "SendMessageButtonType"]);
     key("ArrowUp", true);
     assert.equal(input, "newest");

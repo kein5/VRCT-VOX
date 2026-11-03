@@ -4591,15 +4591,18 @@ class Controller:
 
     @staticmethod
     def setEnableSendMessageToVrc(*args, **kwargs) -> dict:
-        if config.SEND_MESSAGE_TO_VRC is False:
-            config.SEND_MESSAGE_TO_VRC = True
-        return {"status":200, "result":config.SEND_MESSAGE_TO_VRC}
+        with Controller._typing_lock:
+            if config.SEND_MESSAGE_TO_VRC is False:
+                config.SEND_MESSAGE_TO_VRC = True
+            return {"status":200, "result":config.SEND_MESSAGE_TO_VRC}
 
     @staticmethod
     def setDisableSendMessageToVrc(*args, **kwargs) -> dict:
-        if config.SEND_MESSAGE_TO_VRC is True:
-            config.SEND_MESSAGE_TO_VRC = False
-        return {"status":200, "result":config.SEND_MESSAGE_TO_VRC}
+        with Controller._typing_lock:
+            if config.SEND_MESSAGE_TO_VRC is True:
+                config.SEND_MESSAGE_TO_VRC = False
+            Controller.stopTypingMessageBox()
+            return {"status":200, "result":config.SEND_MESSAGE_TO_VRC}
 
 
     @staticmethod
@@ -4720,16 +4723,24 @@ class Controller:
         response = self.chatMessage(data)
         return response
 
+    # Typing endpoints and the output toggle run on different IPC workers.
+    _typing_lock = RLock()
+    _typing_active = False
+
     @staticmethod
     def typingMessageBox(*args, **kwargs) -> dict:
-        if config.SEND_MESSAGE_TO_VRC is True:
-            model.oscStartSendTyping()
+        with Controller._typing_lock:
+            if config.SEND_MESSAGE_TO_VRC is True:
+                model.oscStartSendTyping()
+                Controller._typing_active = True
         return {"status":200, "result":True}
 
     @staticmethod
     def stopTypingMessageBox(*args, **kwargs) -> dict:
-        if config.SEND_MESSAGE_TO_VRC is True:
-            model.oscStopSendTyping()
+        with Controller._typing_lock:
+            if Controller._typing_active:
+                model.oscStopSendTyping()
+                Controller._typing_active = False
         return {"status":200, "result":True}
 
     @staticmethod

@@ -1,16 +1,23 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { loadModule } from "../test/hookHarness.js";
-import { loadBridgeRoutes, deferred } from "../test/bridgeHarness.js";
+import { find, hooks, loadModule } from "../test/hookHarness.js";
+import { loadBridgeRoutes, deferred, flush } from "../test/bridgeHarness.js";
 import { keepRecentLogs } from "./messageLogLimit.js";
+import * as chatboxLength from "./chatboxLength.js";
+import { decodeLogUpdate, encodeLogUpdate } from "./vrPanelWire.js";
 
-async function setup(send = async () => true) {
+async function setup(send = async () => true, reset = async () => true) {
     let useMessage;
-    const writes = [];
+    const writes = [], typingWrites = [], endpoints = [];
     const subject = await loadBridgeRoutes(async ({ runtime, stores }) => {
         ({ useMessage } = await loadModule(new URL("./useMessage.js", import.meta.url), runtime, {
             "@store": stores,
             "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython: (...args) => {
+                endpoints.push(args[0]);
+                if (args[0] !== "/run/send_message_box") {
+                    typingWrites.push(args[0]);
+                    return reset(...args);
+                }
                 writes.push(args);
                 return send(...args);
             } }) },
@@ -19,7 +26,7 @@ async function setup(send = async () => true) {
         }));
         return { useMessage };
     });
-    return { ...subject, writes, message: subject.runtime.render(useMessage),
+    return { ...subject, writes, typingWrites, endpoints, message: subject.runtime.render(useMessage),
         rows: () => subject.runtime.store.get(subject.stores.Atom_MessageLogs).data,
         receive: (status, result) => subject.receiveRoutes({ endpoint: "/run/send_message_box", status, result }),
     };
@@ -36,6 +43,7 @@ for (const mode of ["false", "throw", "reject"]) test(`send ${mode} resolves onl
     assert.deepEqual(subject.rows().map(row => [row.id, row.status]), [["other", "pending"], ["failed", "failed"]]);
     assert.equal(subject.rows()[1].messages.original.message, "Keep this text");
     assert.equal(subject.writes.length, 2);
+    assert.deepEqual(subject.typingWrites, ["/run/stop_typing_message_box", "/run/stop_typing_message_box"]);
 });
 
 for (const status of [400, 404, 423, 500]) test(`terminal ${status} response clears pending and a late success can settle an uncertain row`, async context => {
@@ -89,4 +97,158 @@ test("late transport failure cannot downgrade success; backend stop settles rema
     waiting.backendStopped();
     assert.equal(waiting.rows()[0].status, "failed");
     assert.equal(waiting.writes.length, 1);
+});
+
+test("submit resets typing before an outstanding send and keeps the two-second start cooldown", async context => {
+    let now = 2000;
+    context.mock.method(Date, "now", () => now);
+    const write = deferred(), subject = await setup(() => write.promise);
+    subject.message.startTyping();
+    const sent = subject.message.sendMessage("Hello", "pending");
+    assert.deepEqual(subject.endpoints, ["/run/typing_message_box", "/run/stop_typing_message_box", "/run/send_message_box"]);
+    assert.equal(subject.rows()[0].status, "pending");
+    now = 3999;
+    subject.message.startTyping();
+    assert.equal(subject.typingWrites.length, 2);
+    now = 4000;
+    subject.message.startTyping();
+    assert.equal(subject.typingWrites.at(-1), "/run/typing_message_box");
+    assert.equal(subject.typingWrites.length, 3);
+    write.resolve(true);
+    await sent;
+});
+
+test("empty submissions reset typing without creating or sending a row", async () => {
+    const subject = await setup();
+    for (const value of ["", " \n\t", null]) assert.equal(await subject.message.sendMessage(value), false);
+    assert.deepEqual(subject.rows(), []);
+    assert.deepEqual(subject.writes, []);
+    assert.deepEqual(subject.typingWrites, Array(3).fill("/run/stop_typing_message_box"));
+});
+
+for (const mode of ["throw", "reject"]) test(`a reset ${mode} does not block message settlement`, async () => {
+    const subject = await setup(async () => true, () => {
+        if (mode === "throw") throw Error("reset failed");
+        return Promise.reject(Error("reset failed"));
+    });
+    assert.equal(await subject.message.sendMessage("Hello", "ok"), true);
+    subject.receive(200, { id: "ok", translations: [] });
+    assert.equal(subject.rows()[0].status, "ok");
+});
+
+for (const failed of [false, true]) test(`acknowledgement preserves original readings and translations after ${failed ? "unconfirmed" : "pending"} state, including VR mirroring`, async () => {
+    const subject = await setup();
+    await subject.message.sendMessage("日本語", "readings");
+    const before = subject.rows(), pending = before[0];
+    if (failed) subject.message.failSentMessageLog({ id: "readings" });
+    const original = { message: "日本語", transliteration: [{ orig: "日本語", hira: "にほんご", hepburn: "nihongo" }] };
+    const translations = [{ message: "Japanese", transliteration: [] }];
+    subject.receive(200, { id: "readings", original, translations });
+    assert.deepEqual(subject.rows()[0], { ...pending, status: "ok", messages: { original, translations } });
+    const first = encodeLogUpdate(null, { state: "ok", data: before });
+    const mirror = decodeLogUpdate(null, first.message);
+    const update = encodeLogUpdate(first.sent, { state: "ok", data: subject.rows() });
+    assert.deepEqual(decodeLogUpdate(mirror, update.message).rows, subject.rows());
+    subject.message.failSentMessageLog({ id: "readings" });
+    assert.equal(subject.rows()[0].status, "ok");
+});
+
+test("translation-off acknowledgements retain original readings and partial replies retain existing content", async () => {
+    const subject = await setup();
+    await subject.message.sendMessage("日本語", "original");
+    const original = { message: "日本語", transliteration: [{ orig: "日本語", hira: "にほんご", hepburn: "nihongo" }] };
+    subject.receive(200, { id: "original", original, translations: [] });
+    subject.receive(200, { id: "original" });
+    assert.deepEqual(subject.rows()[0].messages, { original, translations: [] });
+});
+
+async function composer(subject, autoClear = false) {
+    const runtime = hooks();
+    runtime.store = subject.runtime.store;
+    const { MessageInputBox } = await loadModule(new URL("../../views/app/main_page/main_section/message_container/message_input_box/MessageInputBox.jsx", import.meta.url), runtime, {
+        "@store": subject.stores,
+        "@logics_common": { useMessageActions: () => subject.message },
+        "@logics_configs": { useSettingValue: name => ({ data: name === "SendMessageButtonType" ? "show" : autoClear }) },
+        "@logics_main": { useMessageLogScroll: () => ({ scrollToBottom() {} }) },
+        "../../../../../../logics/common/chatboxLength": chatboxLength,
+        "./ChatboxLengthWarning": { CHATBOX_LENGTH_WARNING_ID: "length-warning" },
+    });
+    const render = () => runtime.render(MessageInputBox.type);
+    const field = () => find(render(), node => node.type === "textarea");
+    return { render, field, input: () => runtime.store.get(subject.stores.Atom_MessageInputValue).data,
+        change: value => { field().props.onChange({ currentTarget: { value } }); render(); },
+        enter: () => field().props.onKeyDown({ keyCode: 13, nativeEvent: {}, preventDefault() {} }),
+    };
+}
+
+for (const success of [true, false]) for (const autoClear of [true, false]) {
+    test(`desktop Enter resets typing with success=${success}, auto-clear=${autoClear}`, async context => {
+        context.mock.method(globalThis, "setTimeout", () => 0);
+        const subject = await setup(async () => success), input = await composer(subject, autoClear);
+        input.change("Hello");
+        input.enter();
+        input.render();
+        await flush();
+        assert.equal(subject.typingWrites.at(-1), "/run/stop_typing_message_box");
+        assert.equal(subject.rows()[0].status, success ? "pending" : "failed");
+        assert.equal(input.input(), autoClear ? "" : "Hello");
+        const sendIndex = subject.endpoints.indexOf("/run/send_message_box");
+        assert.equal(subject.endpoints[sendIndex - 1], "/run/stop_typing_message_box");
+    });
+}
+
+test("desktop empty submit, user clear, programmatic clear and blur reset typing", async () => {
+    const subject = await setup(), input = await composer(subject);
+    input.change("Hello");
+    input.change(" ");
+    assert.equal(subject.typingWrites.at(-1), "/run/stop_typing_message_box");
+    const beforeEmptySubmit = subject.typingWrites.length;
+    input.enter();
+    assert.equal(subject.typingWrites.length, beforeEmptySubmit + 1);
+    assert.equal(subject.rows().length, 0);
+    assert.equal(subject.writes.length, 0);
+    input.change("Hello again");
+    const beforeClear = subject.typingWrites.length;
+    subject.message.updateMessageInputValue("");
+    input.render();
+    assert.equal(subject.typingWrites.length, beforeClear + 1);
+    input.change("Retained draft");
+    input.field().props.onBlur();
+    assert.equal(subject.typingWrites.at(-1), "/run/stop_typing_message_box");
+});
+
+for (const success of [true, false]) test(`Quick Chat handoff resets typing and preserves acceptance=${success}`, async () => {
+    const subject = await setup(async () => success), runtime = hooks(), finished = [];
+    let receive, request = null;
+    const { QuickChatController } = await loadModule(new URL("../../views/app/_app_controllers/QuickChatController.jsx", import.meta.url), runtime, {
+        "@tauri-apps/api/core": { invoke: async (name, args) => {
+            if (name === "quick_chat_take") { const next = request; request = null; return next; }
+            if (name === "quick_chat_finish") finished.push(args);
+        } },
+        "@tauri-apps/api/event": { listen: async (_, callback) => { receive = callback; return () => {}; } },
+        "@useI18n": { useI18n: () => ({ i18n: { language: "en" } }) },
+        "../../../logics/common/useMessage": { useMessage: () => subject.message },
+        "@logics_common": {
+            useIsBackendReady: () => ({ currentIsBackendReady: { data: true } }),
+            useIsSoftwareUpdating: () => ({ currentIsSoftwareUpdating: { data: false } }),
+            useIsOpenedConfigPage: () => ({ currentIsOpenedConfigPage: { data: false } }),
+        },
+        "@logics_configs": {
+            useAppearance: () => ({ currentSendMessageButtonType: { data: "show" } }),
+            useOthers: () => ({ currentEnableAutoClearMessageInputBox: { data: true } }),
+        },
+    });
+    runtime.render(QuickChatController);
+    await flush();
+    request = { id: "quick", message: "日本語" };
+    await receive();
+    assert.deepEqual(subject.endpoints, ["/run/stop_typing_message_box", "/run/send_message_box"]);
+    assert.deepEqual(finished, [{ id: "quick", accepted: success }]);
+    assert.equal(subject.rows()[0].status, success ? "pending" : "failed");
+    if (success) {
+        const original = { message: "日本語", transliteration: [{ orig: "日本語", hira: "にほんご", hepburn: "nihongo" }] };
+        subject.receive(200, { id: "quick", original, translations: [] });
+        assert.deepEqual(subject.rows()[0].messages.original, original);
+    }
+    runtime.unmount();
 });
