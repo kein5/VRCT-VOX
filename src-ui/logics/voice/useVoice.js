@@ -2,7 +2,7 @@ import { atom, useAtom, useStore } from "jotai";
 import { useCallback } from "react";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { pendingAfterVoiceFailure, stoppedVoiceStatus, stoppedDirectState } from "./pendingVoiceRequest.js";
-import { newerRoute } from "./routeState";
+import { newerRoute, newerDirectState } from "./routeState";
 
 const settingsAtom = atom(null), statusAtom = atom({}), routeAtom = atom({});
 const devicesAtom = atom({ devices: [], error: null }), errorAtom = atom(null);
@@ -77,7 +77,7 @@ export const useVoice = () => {
     }, [atoms]);
     const updateRoute = useCallback(value => setRoute(previous => newerRoute(previous, value)), [setRoute]);
     const updateDirectState = useCallback(value => {
-        const previous = atoms.get(directStateAtom), next = newerRoute(previous, value);
+        const previous = atoms.get(directStateAtom), next = newerDirectState(previous, value);
         if (next === previous) return;
         atoms.set(directStateAtom, next);
         if (next.mode && next.mode !== "off")
