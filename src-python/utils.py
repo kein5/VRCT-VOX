@@ -141,18 +141,12 @@ def _writeStdoutLine(line: str) -> bool:
 # ため、別項目として切り出す方針とした。
 _STDOUT_LOG_QUEUE_MAXSIZE = 200
 _MAX_CONSECUTIVE_STDOUT_FAILURES = 50
-# ログが無い間、応答キューと停止フラグを再確認する間隔。
-# queue.Queue.get(timeout=...) は条件変数によるブロッキング待ちであり
-# ビジーループではないため、短くしてもCPU負荷はほぼ増えない。短いほど
-# 「ログだけが流れていて応答が来ていない」状況での応答の検知遅延と、
-# stopStdoutWriter() の反映遅延の両方が縮む。
-_LOG_QUEUE_POLL_TIMEOUT_SECONDS = 0.02
-
 _stdout_response_queue: "queue.Queue" = queue.Queue()
 _stdout_log_queue: "queue.Queue" = queue.Queue(maxsize=_STDOUT_LOG_QUEUE_MAXSIZE)
 _stdout_writer_thread: Optional[threading.Thread] = None
 _stdout_writer_start_lock = threading.Lock()
 _stdout_writer_stop_event = threading.Event()
+_stdout_writer_condition = threading.Condition()
 _on_frontend_lost: Optional[Callable[[], None]] = None
 
 
@@ -169,20 +163,21 @@ def setFrontendLostCallback(callback: Optional[Callable[[], None]]) -> None:
 def _stdoutWriterLoop() -> None:
     consecutive_failures = 0
     while not _stdout_writer_stop_event.is_set():
-        # 応答キューを先に (ブロックせず) 確認し、優先して処理する。
-        # 無ければログキューを短いタイムアウト付きで待つ。もし逆に
-        # 応答キューを毎回 get(timeout=...) で待ってしまうと、ログだけが
-        # 溜まっている状況でも1件処理するごとにこのタイムアウト分の
-        # 遅延が入り、ログのスループットが不必要に制限されてしまう
-        # (energy メーターだけで秒15回程度 printLog が呼ばれるため、
-        # 実際にテストでタイムアウトとして検出された)。
-        try:
-            line = _stdout_response_queue.get_nowait()
-        except queue.Empty:
+        # 両キューへの投入と停止を同じ条件変数で通知する。
+        # 空の確認から待機までをロックで保護し、通知の取りこぼしを防ぐ。
+        # 起床後も応答を先に取り出す。実際の書き込み中はロックを離す。
+        with _stdout_writer_condition:
+            _stdout_writer_condition.wait_for(
+                lambda: _stdout_writer_stop_event.is_set()
+                or not _stdout_response_queue.empty()
+                or not _stdout_log_queue.empty()
+            )
+            if _stdout_writer_stop_event.is_set():
+                return
             try:
-                line = _stdout_log_queue.get(timeout=_LOG_QUEUE_POLL_TIMEOUT_SECONDS)
+                line = _stdout_response_queue.get_nowait()
             except queue.Empty:
-                continue
+                line = _stdout_log_queue.get_nowait()
 
         if _writeStdoutLine(line):
             consecutive_failures = 0
@@ -222,12 +217,16 @@ def stopStdoutWriter() -> None:
     """通常のシャットダウン時に書き込みスレッドを止める。デーモンスレッド
     なのでプロセス終了自体はこれを呼ばなくてもブロックしないが、
     行儀よく止めておく。"""
-    _stdout_writer_stop_event.set()
+    with _stdout_writer_condition:
+        _stdout_writer_stop_event.set()
+        _stdout_writer_condition.notify()
 
 
 def _enqueueResponseLine(line: str) -> None:
     _ensureStdoutWriterStarted()
-    _stdout_response_queue.put(line)
+    with _stdout_writer_condition:
+        _stdout_response_queue.put(line)
+        _stdout_writer_condition.notify()
 
 
 def putDroppingOldestOnFull(q: "queue.Queue", item: Any) -> bool:
@@ -260,7 +259,9 @@ def putDroppingOldestOnFull(q: "queue.Queue", item: Any) -> bool:
 
 def _enqueueLogLine(line: str) -> None:
     _ensureStdoutWriterStarted()
-    putDroppingOldestOnFull(_stdout_log_queue, line)
+    with _stdout_writer_condition:
+        putDroppingOldestOnFull(_stdout_log_queue, line)
+        _stdout_writer_condition.notify()
 
 
 def _collectWeightFileStats(root: str) -> Dict[str, Dict[str, float]]:

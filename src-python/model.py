@@ -175,6 +175,30 @@ class _DiscardQueue(Queue):
         pass
 
 
+class _EnergyQueue(Queue):
+    """最新の未読み取り値を保持し、停止でも待機中の consumer を起こす。"""
+
+    def __init__(self) -> None:
+        super().__init__(maxsize=1)
+        self._stopped = False
+
+    def getUntilStopped(self) -> Optional[float]:
+        with self.not_empty:
+            self.not_empty.wait_for(lambda: self._stopped or self._qsize())
+            if self._stopped:
+                return None
+            value = self._get()
+            self.not_full.notify()
+            return value
+
+    def stop(self) -> None:
+        # 終端値をキューへ積むと producer の古い値を捨てる処理と競合するため、
+        # 停止状態はキューの外に持ち、同じ条件変数で通知する。
+        with self.not_empty:
+            self._stopped = True
+            self.not_empty.notify_all()
+
+
 class threadFnc(Thread):
     """A tiny Thread wrapper that repeatedly calls a function.
 
@@ -344,6 +368,7 @@ class _AudioDeviceSession:
         self._recorder = None
         self._transcriber: Optional[AudioTranscriber] = None
         self._audio_queue: Optional[Queue] = None
+        self._energy_queue: Optional[_EnergyQueue] = None
         self._print_transcript: Optional[threadFnc] = None
         self._energy_progressbar: Optional[threadFnc] = None
         self.transcript_fnc: Optional[Callable[[dict], None]] = None
@@ -611,8 +636,9 @@ class _AudioDeviceSession:
             # energy_queue はメーター表示用で直近の値のみ意味を持つため、
             # audio_queue と同じ理由 (レビュー指摘、フェーズ3項目20) で
             # 有界化する。maxsize=1 で「最新の未読み取り値のみ保持」にする。
-            energy_queue: Optional[Queue] = Queue(maxsize=1) if "energy" in self.features else None
+            energy_queue = _EnergyQueue() if "energy" in self.features else None
             self._audio_queue = audio_queue
+            self._energy_queue = energy_queue
             self._recorder.recordIntoQueue(audio_queue, energy_queue)
             if "transcript" in self.features:
                 try:
@@ -707,15 +733,13 @@ class _AudioDeviceSession:
         if "energy" in self.features:
             energy_recorder = self._recorder
             def sendEnergy() -> None:
-                if self._recorder is not energy_recorder:
+                energy = energy_queue.getUntilStopped()
+                if energy is None or self._recorder is not energy_recorder:
                     return
-                if not energy_queue.empty():
-                    energy = energy_queue.get()
-                    try:
-                        self.energy_fnc(energy)
-                    except Exception:
-                        errorLogging()
-                sleep(0.01)
+                try:
+                    self.energy_fnc(energy)
+                except Exception:
+                    errorLogging()
 
             self._energy_progressbar = threadFnc(sendEnergy)
             self._energy_progressbar.daemon = True
@@ -744,6 +768,8 @@ class _AudioDeviceSession:
             energy_thread = self._energy_progressbar
             if isinstance(energy_thread, threadFnc):
                 energy_thread.stop()
+                if self._energy_queue is not None:
+                    self._energy_queue.stop()
                 if energy_thread is not current_thread():
                     energy_thread.join(timeout=TRANSCRIPT_STOP_JOIN_TIMEOUT)
                     if energy_thread.is_alive():
