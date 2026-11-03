@@ -1,3 +1,5 @@
+import { sameValue } from "../common/polledState.js";
+
 // Pure caption state. Receipt time is enforced by Python, identity/order here.
 const sources = ["mic", "speaker"];
 const states = ["partial", "final", "translated", "discarded"];
@@ -9,7 +11,7 @@ const live = (p, active) => {
 };
 
 export const mergeRealtimeState = (current, incoming) => {
-    const result = { ...current };
+    let result = current;
     for (const source of sources) {
         const next = incoming?.[source], previous = current[source];
         if (!Number.isSafeInteger(next?.generation) || next.generation < 0) continue;
@@ -20,8 +22,12 @@ export const mergeRealtimeState = (current, incoming) => {
         if (!previous || next.generation >= previous.generation) {
             // A delayed starting snapshot may omit a namespace learned from a
             // newer caption in the same generation; do not forget its identity.
-            result[source] = { ...next, namespace: next.namespace ??
+            const row = { ...next, namespace: next.namespace ??
                 (next.generation === previous?.generation ? previous.namespace : null) };
+            if (!sameValue(previous, row)) {
+                if (result === current) result = { ...current };
+                result[source] = row;
+            }
         }
     }
     return result;
@@ -65,5 +71,5 @@ export const pruneRealtimeCaptions = (current, activeNamespaces) => {
         retired = retire(retired, row.id);
         return false;
     });
-    return { rows, retired };
+    return rows.length === current.rows.length ? current : { rows, retired };
 };

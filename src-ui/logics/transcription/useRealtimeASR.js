@@ -24,7 +24,7 @@ export const useRealtimeASR = () => {
         atoms.set(realtimeStateAtom, next);
         const logs = atoms.get(Atom_MessageLogs);
         const pruned = pruneRealtimeCaptions({ rows: logs.data, retired: atoms.get(realtimeRetiredAtom) }, next);
-        atoms.set(Atom_MessageLogs, { ...logs, data: pruned.rows });
+        if (pruned.rows !== logs.data) atoms.set(Atom_MessageLogs, { ...logs, data: pruned.rows });
         atoms.set(realtimeRetiredAtom, pruned.retired);
     }, [atoms]);
     const backendStopped = useCallback(() => {

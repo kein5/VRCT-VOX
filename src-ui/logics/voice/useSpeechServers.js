@@ -1,6 +1,7 @@
 import { atom, useAtom, useStore } from "jotai";
 import { useCallback } from "react";
 import { useStdoutToPython } from "@useStdoutToPython";
+import { sameValue } from "../common/polledState.js";
 
 const settingsAtom = atom(null), stateAtom = atom({}), pendingAtom = atom({}), errorAtom = atom(null);
 const phases = { stopped: 0, preparing: 1, ready: 2, stopping: 3, failed: 4 };
@@ -19,14 +20,21 @@ export const useSpeechServers = () => {
     }, [atoms, setError]);
     const updateSettings = useCallback(value => { setSettings(value); setError(null); }, [setSettings, setError]);
     const updateState = useCallback(value => {
-        const next = { ...atoms.get(stateAtom) }, waiting = { ...atoms.get(pendingAtom) };
+        const current = atoms.get(stateAtom), pending = atoms.get(pendingAtom);
+        let next = current, waiting = pending;
         for (const name of profiles) {
             const row = value?.[name], previous = next[name];
             if (!Number.isSafeInteger(row?.generation) || row.generation < 0 || !(row.state in phases)) continue;
             if (previous && (row.generation < previous.generation ||
                 (row.generation === previous.generation && phases[row.state] < phases[previous.state]))) continue;
-            next[name] = row;
-            if (waiting[name] && row.generation > waiting[name].generation) delete waiting[name];
+            if (!sameValue(previous, row)) {
+                if (next === current) next = { ...current };
+                next[name] = row;
+            }
+            if (waiting[name] && row.generation > waiting[name].generation) {
+                if (waiting === pending) waiting = { ...pending };
+                delete waiting[name];
+            }
         }
         atoms.set(stateAtom, next);
         atoms.set(pendingAtom, waiting);

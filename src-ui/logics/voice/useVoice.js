@@ -3,6 +3,7 @@ import { useCallback } from "react";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { pendingAfterVoiceFailure, stoppedVoiceStatus, stoppedDirectState } from "./pendingVoiceRequest.js";
 import { newerRoute, newerDirectState } from "./routeState";
+import { acceptObservation, resetObservations } from "../common/polledState.js";
 
 const settingsAtom = atom(null), statusAtom = atom({}), routeAtom = atom({});
 const devicesAtom = atom({ devices: [], error: null }), errorAtom = atom(null);
@@ -28,7 +29,7 @@ export const useVoice = () => {
     }, [atoms]);
     const [settings, setSettings] = useAtom(settingsAtom);
     const [status] = useAtom(statusAtom);
-    const [route, setRoute] = useAtom(routeAtom);
+    const [route] = useAtom(routeAtom);
     const [devices, updateDevices] = useAtom(devicesAtom);
     const [error, updateError] = useAtom(errorAtom);
     const [directState] = useAtom(directStateAtom);
@@ -66,26 +67,29 @@ export const useVoice = () => {
     }, [atoms]);
     const updateSettings = useCallback(value => { setSettings(value); updateError(null); }, [setSettings, updateError]);
     const updateStatus = useCallback(value => {
-        const previous = atoms.get(statusAtom), next = newerRoute(previous, value);
-        if (next === previous || (previous.tts_generation != null && next.tts_generation < previous.tts_generation)) return;
-        atoms.set(statusAtom, next);
+        const previous = atoms.get(statusAtom);
+        if ((previous.tts_generation != null && value?.tts_generation < previous.tts_generation) ||
+            !acceptObservation(atoms, statusAtom, value)) return;
+        atoms.set(statusAtom, newerRoute(previous, value));
         const waiting = atoms.get(ttsPendingAtom);
-        if (waiting && next.tts_generation > waiting.generation && next.tts_enabled === waiting.intent) {
+        if (waiting && value.tts_generation > waiting.generation && value.tts_enabled === waiting.intent) {
             atoms.set(ttsPendingAtom, null);
             if (["voice_request_unconfirmed", "backend_unavailable"].includes(atoms.get(ttsErrorAtom))) atoms.set(ttsErrorAtom, null);
         }
     }, [atoms]);
-    const updateRoute = useCallback(value => setRoute(previous => newerRoute(previous, value)), [setRoute]);
+    const updateRoute = useCallback(value => {
+        if (acceptObservation(atoms, routeAtom, value)) atoms.set(routeAtom, previous => newerRoute(previous, value));
+    }, [atoms]);
     const updateDirectState = useCallback(value => {
+        if (!acceptObservation(atoms, directStateAtom, value)) return;
         const previous = atoms.get(directStateAtom), next = newerDirectState(previous, value);
-        if (next === previous) return;
         atoms.set(directStateAtom, next);
-        if (next.mode && next.mode !== "off")
-            atoms.set(directOwnerAtom, inputOwner(next.mode, next.settings?.engine));
+        if (value.mode && value.mode !== "off")
+            atoms.set(directOwnerAtom, inputOwner(value.mode, value.settings?.engine));
         const waiting = atoms.get(directPendingAtom);
-        if (waiting && next.generation > waiting.generation &&
-            ((!!next.requested === waiting.intent && (waiting.intent || (!next.pending && !next.stopping))) ||
-             (waiting.intent && next.error))) {
+        if (waiting && value.generation > waiting.generation &&
+            ((!!value.requested === waiting.intent && (waiting.intent || (!value.pending && !value.stopping))) ||
+             (waiting.intent && value.error))) {
             atoms.set(directPendingAtom, null);
             if (["voice_request_unconfirmed", "backend_unavailable"].includes(atoms.get(directErrorAtom))) atoms.set(directErrorAtom, null);
         }
@@ -139,6 +143,7 @@ export const useVoice = () => {
         for (const target of [errorAtom, directErrorAtom, ttsErrorAtom]) atoms.set(target, "backend_unavailable");
     }, [atoms]);
     const reset = useCallback(() => {
+        resetObservations(atoms, [statusAtom, routeAtom, directStateAtom]);
         atoms.set(modelOptionsAtom, {});
         atoms.set(settingsAtom, null); atoms.set(statusAtom, {}); atoms.set(routeAtom, {}); atoms.set(directStateAtom, {});
         atoms.set(selectedSourceAtom, ""); atoms.set(preferredSourceAtom, ""); atoms.set(directSourcesAtom, { sources: [], error: null });

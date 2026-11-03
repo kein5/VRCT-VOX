@@ -1,6 +1,7 @@
 import { atom, useAtom, useStore } from "jotai";
 import { useCallback, useRef } from "react";
 import { useStdoutToPython } from "@useStdoutToPython";
+import { acceptObservation, resetObservations, sameSnapshot } from "../common/polledState.js";
 
 const catalogAtom = atom(null), stateAtom = atom({ observation_id: "0", jobs: {} });
 const errorAtom = atom(null), pendingAtom = atom(null);
@@ -16,14 +17,12 @@ export const useModelDownloads = () => {
     transport.current = asyncStdoutToPython;
     const updateCatalog = useCallback(value => setCatalog(value), [setCatalog]);
     const updateHardware = useCallback(value => {
-        if (!/^\d+$/.test(value?.observation_id) || !Array.isArray(value.devices) ||
-            BigInt(value.observation_id) <= BigInt(store.get(hardwareAtom).observation_id)) return;
-        store.set(hardwareAtom, value);
+        if (!Array.isArray(value?.devices) || !acceptObservation(store, hardwareAtom, value)) return;
+        store.set(hardwareAtom, previous => sameSnapshot(previous, value) ? previous : value);
     }, [store]);
     const updateState = useCallback(value => {
-        if (!/^\d+$/.test(value?.observation_id) || !value.jobs ||
-            BigInt(value.observation_id) <= BigInt(store.get(stateAtom).observation_id)) return false;
-        store.set(stateAtom, value);
+        if (!value?.jobs || !acceptObservation(store, stateAtom, value)) return false;
+        store.set(stateAtom, previous => sameSnapshot(previous, value) ? previous : value);
         return true;
     }, [store]);
     const acknowledge = useCallback(value => {
@@ -44,6 +43,7 @@ export const useModelDownloads = () => {
         store.set(hardwareAtom, value => value.phase === "probing" ? { ...value, phase: "failed", error_code: "backend_unavailable" } : value);
     }, [store, updateError]);
     const reset = useCallback(() => {
+        resetObservations(store, [stateAtom, hardwareAtom]);
         store.set(catalogAtom, null); store.set(stateAtom, { observation_id: "0", jobs: {} });
         store.set(errorAtom, null); store.set(pendingAtom, null);
         store.set(hardwareAtom, { phase: 'unknown', devices: [], observation_id: '0' });

@@ -27,11 +27,22 @@ test("missing or invalid ordering data cannot assert mute", () => {
 test("a newer direct state keeps the previous settings object when they are unchanged", () => {
     const first = { observation_id: "1", requested: false, settings: { mode: "converted", rvc_model: "a.pth" } };
     const same = newerDirectState(first, { observation_id: "2", requested: false, settings: { mode: "converted", rvc_model: "a.pth" } });
-    assert.equal(same.observation_id, "2");
+    assert.equal(same, first);
     assert.equal(same.settings, first.settings);
     const changed = newerDirectState(same, { observation_id: "3", settings: { mode: "converted", rvc_model: "b.pth" } });
     assert.deepEqual(changed.settings, { mode: "converted", rvc_model: "b.pth" });
     assert.notEqual(changed.settings, first.settings);
-    assert.equal(newerDirectState(changed, { ...first, observation_id: "2" }), changed); // 古い観測は捨てる
+    assert.equal(newerDirectState(changed, { ...first, observation_id: "2" }), changed);
     assert.deepEqual(newerDirectState({}, first), first);
+});
+
+test("changed direct status keeps settings, while nested changes and generations publish", () => {
+    const first = { observation_id: "1", generation: 1, requested: false, settings: { engine: "rvc", options: [1, 2] } };
+    const changed = newerDirectState(first, { ...first, observation_id: "2", requested: true,
+        settings: { options: [1, 2], engine: "rvc" } });
+    assert.notEqual(changed, first);
+    assert.equal(changed.settings, first.settings);
+    assert.notEqual(newerRoute(first, { ...first, observation_id: "3", generation: 2 }), first);
+    assert.notEqual(newerRoute(first, { ...first, observation_id: "4", settings: { engine: "rvc", options: [2, 1] } }), first);
+    assert.notEqual(newerRoute(first, { ...first, observation_id: "5", error: null }), first);
 });
