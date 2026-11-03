@@ -35,7 +35,7 @@ const stubApi = (values = {}) => new Proxy({ __esModule: true, ...values }, {
     get: (target, key) => key in target ? target[key] : typeof key === "string" && key.startsWith("use") ? () => stubApi() : noop,
 });
 
-export const loadBridgeRoutes = async () => {
+export const loadBridgeRoutes = async (loadCommon = async () => ({})) => {
     const subject = await loadBridgeStore();
     const { runtime, stores, jotai } = subject;
     const notices = [], reads = [];
@@ -48,6 +48,7 @@ export const loadBridgeRoutes = async () => {
         useNotificationStatus: () => notification,
         useIsBackendReady: stores.useStore_IsBackendReady,
         useIsSoftwareUpdating: stores.useStore_IsSoftwareUpdating,
+        ...await loadCommon(subject),
     });
     const send = async endpoint => { reads.push(endpoint); return true; };
     const settingsLogics = await loadModule(new URL("../configs/config_page_setter/useSettingsLogics.js", import.meta.url), runtime, {

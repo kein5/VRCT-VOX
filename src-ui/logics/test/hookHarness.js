@@ -96,3 +96,22 @@ export function eventTarget() {
         dispatch: (type, event) => { for (const fn of listeners.get(type) ?? []) fn(event); },
     };
 }
+
+const globalsByTest = new WeakMap();
+export function stubGlobals(context, values) {
+    let originals = globalsByTest.get(context);
+    if (!originals) {
+        originals = new Map();
+        globalsByTest.set(context, originals);
+        context.after(() => {
+            for (const [key, descriptor] of originals) {
+                if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+                else delete globalThis[key];
+            }
+        });
+    }
+    for (const [key, value] of Object.entries(values)) {
+        if (!originals.has(key)) originals.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+        Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
+    }
+}

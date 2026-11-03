@@ -16,14 +16,20 @@ const SCROLL_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "Ar
 
 // Only the rows in view (plus a margin) are in the DOM, so a full log no longer
 // slows down typing, layout or the style recalculation when settings open.
-export const LogBox = memo(function LogBox() {
+export const LogBox = memo(function LogBox({ savedView } = {}) {
     const { t } = useI18n();
-    const followRef = useRef(true);
-    const view = useLogView(useAtomValue(Atom_MessageLogs).data, followRef);
+    // Only the VR window supplies a snapshot. Restore its old rows and measured
+    // sizes together before reconciling the log received while it was closed.
+    const [restored] = useState(() => savedView?.current);
+    const followRef = useRef(restored?.follow ?? true);
+    const view = useLogView(useAtomValue(Atom_MessageLogs).data, followRef, restored?.view);
     const currentShowResendButton = useSettingValue("ShowResendButton");
     const actions = useMessageActions();
     const logContainerRef = useRef(null);
-    const [startMargin, setStartMargin] = useState(0);
+    const virtualizerRef = useRef(null);
+    const [startMargin, setStartMargin] = useState(restored?.startMargin ?? 0);
+    const latestView = useRef(null);
+    latestView.current = { view, startMargin };
     const selection = useSelectedRows();
     const keepMounted = useMemo(() => rowsBetween(view.rows, selection), [view.rows, selection]);
 
@@ -35,6 +41,7 @@ export const LogBox = memo(function LogBox() {
     useLayoutEffect(() => {
         const element = logContainerRef.current;
         if (!element) return;
+        if (restored) element.scrollTop = restored.scrollTop;
         store.scroll_log_to_bottom = () => {
             followRef.current = true;
             follow();
@@ -78,11 +85,13 @@ export const LogBox = memo(function LogBox() {
         listeners.forEach(([target, type, listener]) => target.addEventListener(type, listener, { passive: true }));
         observer.observe(element);
         return () => {
+            if (savedView) savedView.current = { ...latestView.current, follow: followRef.current,
+                scrollTop: element.scrollTop, cache: virtualizerRef.current?.cache };
             listeners.forEach(([target, type, listener]) => target.removeEventListener(type, listener));
             observer.disconnect();
             store.scroll_log_to_bottom = null;
         };
-    }, [follow]);
+    }, [follow, savedView, restored]);
 
     useLayoutEffect(() => follow(), [view, follow]);
 
@@ -94,7 +103,8 @@ export const LogBox = memo(function LogBox() {
             <MessageLogUiSizeController />
             {view.rows.length === 0 && <div className={styles.empty}><h1>{t("studio.empty_title")}</h1><p>{t("studio.empty_description")}</p></div>}
             {/* Rows measured later (new, or after a font size change) call onResize. */}
-            <Virtualizer data={view.rows} shift={view.shift} scrollRef={logContainerRef} startMargin={startMargin} onResize={follow}
+            <Virtualizer ref={virtualizerRef} cache={restored?.cache}
+                data={view.rows} shift={view.shift} scrollRef={logContainerRef} startMargin={startMargin} onResize={follow}
                 keepMounted={keepMounted}>
                 {message => message.gone ? <div key={message.id} /> : <MessageContainer key={message.id} {...message}
                     showResendButton={showResendButton} sendMessage={actions?.sendMessage}
@@ -107,14 +117,16 @@ export const LogBox = memo(function LogBox() {
 // The rows handed to virtua (see nextLogView). When the oldest rows leave,
 // virtua has to see that on its own, so that step is committed before the rest.
 // Removed rows stay as empty rows only while the user reads above the end.
-const useLogView = (rows, followRef) => {
-    const [view, setView] = useState(() => ({ rows, shift: false, source: rows }));
-    const next = view.source === rows || view.shift ? view
+const useLogView = (rows, followRef, restoredView) => {
+    const [view, setView] = useState(() => restoredView ?? { rows, shift: false, source: rows });
+    const restoring = view === restoredView;
+    const next = restoring || view.source === rows || view.shift ? view
         : { ...nextLogView(view.rows, rows, !followRef.current), source: rows };
     if (next !== view) setView(next);
     useLayoutEffect(() => {
-        if (view.shift) setView({ ...nextLogView(view.rows, view.source, !followRef.current), source: view.source });
-    }, [view, followRef]);
+        if (restoring) setView({ ...nextLogView(view.rows, rows, !followRef.current), source: rows });
+        else if (view.shift) setView({ ...nextLogView(view.rows, view.source, !followRef.current), source: view.source });
+    }, [view, followRef, restoring, rows]);
     return next;
 };
 

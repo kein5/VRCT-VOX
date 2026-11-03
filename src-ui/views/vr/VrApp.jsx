@@ -19,6 +19,7 @@ import { VrToolbar } from "./VrToolbar";
 import { VrTooltip } from "./VrTooltip";
 import { keepNewestVrLayout } from "../../logics/common/vrPanelTooltip";
 import { decodeLogUpdate, decodeOrdered, isLogUpdate } from "../../logics/common/vrPanelWire";
+import { trackVrPointerHover } from "./vrPanelHover";
 
 import styles from "./VrApp.module.scss";
 
@@ -26,10 +27,11 @@ import styles from "./VrApp.module.scss";
 // Python 側 (models/overlay/overlay.py) が1回だけ撮影し、領域ごとに別のオーバーレイとして表示する。
 // VRでは px で固定する (デスクトップのUI倍率 UiSizeController は使わない。
 // 大きさはVR内で掴んで拡大縮小できる)。
-const Region = ({ layout, name, children }) => {
+const Region = ({ layout, name, children, hidden = false }) => {
     const [x, y, w, h] = layout.regions[name];
     return (
-        <div className={styles.region} data-vr-region={name} style={{ left: x, top: y, width: w, height: h }}>
+        <div className={styles.region} data-vr-region={name} inert={hidden ? "" : undefined} aria-hidden={hidden || undefined}
+            style={{ left: x, top: y, width: w, height: h, visibility: hidden ? "hidden" : undefined }}>
             {children}
         </div>
     );
@@ -89,11 +91,11 @@ export const VrApp = () => {
     return (
         <div ref={atlas} className={styles.atlas} style={{ width: atlas_width, height: atlas_height }}>
             <VrStateReceiver />
-            <VrPointerHover />
+            <VrPointerHover atlasRef={atlas} />
             <UiLanguageController />
             <FontFamilyController />
 
-            <Region layout={layout} name="panel"><VrLogWindow onClose={toggleLog} /></Region>
+            <Region layout={layout} name="panel" hidden={!windows.log}><VrLogWindow open={windows.log} onClose={toggleLog} /></Region>
             <Region layout={layout} name="launcher"><VrLauncher windows={windows} toggleLog={toggleLog} openLog={openLog} togglePopup={togglePopup} /></Region>
             <Region layout={layout} name="popup"><VrPopupWindow popup={windows.popup} onClose={closePopup} /></Region>
             <Region layout={layout} name="toolbar"><VrToolbar /></Region>
@@ -104,20 +106,15 @@ export const VrApp = () => {
 
 // WebView2 はOSの本物のカーソル位置でホバーを判定するため、VRのポインタでは :hover が付かない。
 // Python から届くポインタ位置 (この画面の論理px) にある要素へ data-vr-hover を付けて代わりにする。
-const HOVER_TARGET = "button, [data-vr-hoverable]";
-const VrPointerHover = () => {
+const VrPointerHover = ({ atlasRef }) => {
     useEffect(() => {
-        let hovered = null;
-        const unlisten = listen("vr-panel-pointer", ({ payload }) => {
-            const element = payload ? document.elementFromPoint(payload.x, payload.y) : null;
-            const target = element?.closest(HOVER_TARGET) ?? null;
-            if (target === hovered) return;
-            hovered?.removeAttribute("data-vr-hover");
-            target?.setAttribute("data-vr-hover", "");
-            hovered = target;
-        });
-        return () => { unlisten.then(f => f()); };
-    }, []);
+        const hover = trackVrPointerHover(atlasRef.current);
+        const unlisten = listen("vr-panel-pointer", ({ payload }) => hover.setPointer(payload));
+        return () => {
+            hover.dispose();
+            unlisten.then(f => f());
+        };
+    }, [atlasRef]);
     return null;
 };
 

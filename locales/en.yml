@@ -253,6 +253,8 @@ main_page:
         region_label: "Message log"
         all: "All"
         sent: "Sent"
+        sending: "Sending…"
+        send_unconfirmed: "Send unconfirmed"
         received: "Received"
         received_ocr: "Received ({{ocr}})"
         system: "System"

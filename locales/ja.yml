@@ -253,6 +253,8 @@ main_page:
         region_label: "会話ログ"
         all: "全て"
         sent: "送信"
+        sending: "送信中…"
+        send_unconfirmed: "送信を確認できません"
         received: "受信"
         received_ocr: "受信({{ocr}})"
         system: "システム"

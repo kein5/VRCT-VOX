@@ -69,6 +69,9 @@
     &.ocr_category {
         color: var(--received_300_color);
     }
+    &.failed {
+        color: var(--vox_state_failed);
+    }
 }
 
 .message_box {

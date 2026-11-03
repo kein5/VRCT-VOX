@@ -24,14 +24,19 @@ export const useMessage = () => {
         updateMessageLogs((current) => keepRecentLogs([...current.data, message_object]));
     };
 
-    const sendMessage = (message, uuid = crypto.randomUUID()) => {
-        if (typeof message !== "string" || !message.trim()) return Promise.resolve(false);
+    const failSentMessageLog = (payload) => {
+        // Legacy terminal errors have no request ID. In that case all pending
+        // sends are uncertain; a later successful response can still settle one.
+        updateMessageLogs(current => current.data.map(item => item.category === "sent" && item.status === "pending"
+            && (payload?.id === undefined || item.id === payload.id) ? { ...item, status: "failed" } : item));
+    };
+
+    const sendMessage = async (message, uuid = crypto.randomUUID()) => {
+        if (typeof message !== "string" || !message.trim()) return false;
         const send_message_object = {
             id: uuid,
             message: message,
         };
-        const sent = asyncStdoutToPython("/run/send_message_box", send_message_object);
-
         addMessageLog({
             id: uuid,
             category: "sent",
@@ -42,7 +47,15 @@ export const useMessage = () => {
                 translations: [],
             },
         });
-        return sent;
+        // Add before sending: even an immediate response must find its row.
+        try {
+            const sent = await asyncStdoutToPython("/run/send_message_box", send_message_object);
+            if (sent === false) failSentMessageLog({ id: uuid });
+            return sent;
+        } catch {
+            failSentMessageLog({ id: uuid });
+            return false;
+        }
     };
 
     const addSystemMessageLog = (message) => {
@@ -115,6 +128,7 @@ export const useMessage = () => {
         addSystemMessageLog,
         addSystemMessageLog_FromBackend,
         updateSentMessageLogById,
+        failSentMessageLog,
         addSentMessageLog,
         addReceivedMessageLog,
         updateRealtimeCaption,

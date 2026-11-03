@@ -42,7 +42,8 @@ IPCでやり取りする主なデータの形と、ディスクに残すファ�
 | `translations` | 有効な相手の言語の順に並んだ訳。翻訳がオフ、または空のメッセージでは空配列 |
 | `source` | OCRのときだけ`"ocr"` |
 
-- 入力欄からは`/run/send_message_box`に`{"id", "message"}`を送り、応答で上の形を受け取る。UIは送った時点で行を「送信中」として出し、応答で置き換える。
+- 入力欄からは`/run/send_message_box`に`{"id", "message"}`を送り、応答で上の形を受け取る。UIは送る前に行を「送信中」として出し、200の応答で送信中を解除する。デスクトップでは待機中のアイコンが回転し、VRパネルでは動かない文言で示す。
+- 通信失敗、400・404・423・500の応答、バックエンドの停止では、該当する送信中の行を`status: "failed"`にし、本文を残して「送信を確認できません」と表示する。自動では再送しない。エラー応答にIDがない場合は送信中の全行を対象にする。その後にID付きの200が届けば、その行の状態と訳を更新する。
 - マイクは`/run/transcription_send_mic_message`、スピーカーは`/run/transcription_receive_speaker_message`、OCRは`/run/transcription_ocr_message`で届く。
 
 ### WebSocketとOBSへ送るメッセージ
