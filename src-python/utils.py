@@ -749,6 +749,23 @@ def isQuietPoll(endpoint: Any, status: int = 200) -> bool:
     return status == 200 and endpoint in POLLED_ENDPOINTS
 
 
+# The volume meters push one value per audio read (sample rate / 1024 a second
+# per meter) while the settings page checks a device: logging each one filled
+# the 10 MB process.log in about 17 minutes with a 48 kHz microphone.
+_METER_ENDPOINTS = frozenset({"/run/check_mic_volume", "/run/check_speaker_volume"})
+
+
+def _shapeOf(value: Any, depth: int = 0) -> Any:
+    """The types in a value, without the values themselves (for diagnostics)."""
+    if depth >= 4:
+        return "..."
+    if isinstance(value, dict):
+        return {str(key): _shapeOf(item, depth + 1) for key, item in list(value.items())[:20]}
+    if isinstance(value, (list, tuple)):
+        return [_shapeOf(item, depth + 1) for item in list(value)[:5]] + ([f"... {len(value)} items"] if len(value) > 5 else [])
+    return type(value).__name__
+
+
 def printResponse(status: int, endpoint: str, result: Any = None) -> None:
     """Log and print a structured response object.
 
@@ -764,26 +781,29 @@ def printResponse(status: int, endpoint: str, result: Any = None) -> None:
         "result": result,
     }
 
-    # エンドポイント自体が機微な場合 (/get/data/openrouter_auth_key 等) は
-    # result 全体を、そうでない場合 (/run/initialization_complete のような
-    # 集約レスポンス) は result 内部を再帰的に走査してマスクする。
-    # エンドポイント名だけを見る判定は集約レスポンスに対して機能しないため。
-    if _isSensitiveEndpoint(endpoint):
-        logged_result = _maskSensitiveValue(result)
-    else:
-        logged_result = _maskSensitiveData(result)
-    if endpoint in _CONVERSATION_ENDPOINTS:
-        logged_result = _redactConversation(logged_result)
-    logged_response = {**response, "result": logged_result}
-    if endpoint not in _UNLOGGED_ENDPOINTS and not isQuietPoll(endpoint, status):
-        process_logger.info(logged_response)  # Log the (possibly masked) response, never the raw secret
+    quiet = isQuietPoll(endpoint, status) or (status == 200 and endpoint in _METER_ENDPOINTS)
+    if endpoint not in _UNLOGGED_ENDPOINTS and not quiet:
+        # エンドポイント自体が機微な場合 (/get/data/openrouter_auth_key 等) は
+        # result 全体を、そうでない場合 (/run/initialization_complete のような
+        # 集約レスポンス) は result 内部を再帰的に走査してマスクする。
+        # エンドポイント名だけを見る判定は集約レスポンスに対して機能しないため。
+        # 書かない応答では、この走査もしない。
+        if _isSensitiveEndpoint(endpoint):
+            logged_result = _maskSensitiveValue(result)
+        else:
+            logged_result = _maskSensitiveData(result)
+        if endpoint in _CONVERSATION_ENDPOINTS:
+            logged_result = _redactConversation(logged_result)
+        process_logger.info({**response, "result": logged_result})  # Log the (possibly masked) response, never the raw secret
 
     try:
         serialized_response = json.dumps(response)
     except Exception as e:
         errorLogging()  # Log the full traceback of the exception
         try:
-            process_logger.error(f"Problematic response object before json.dumps: {response}")
+            # Only the shape: the raw object can hold captions or keys that the
+            # normal path above masks or never writes.
+            process_logger.error(f"Response for {endpoint} could not be serialized; shape: {_shapeOf(result)}")
             process_logger.error(f"Exception during json.dumps: {e}")
         except Exception:
             pass

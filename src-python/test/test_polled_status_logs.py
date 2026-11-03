@@ -40,6 +40,29 @@ class PolledResponseLogTests(unittest.TestCase):
         self.assertEqual([(entry["status"], entry["endpoint"]) for entry in logged],
                          [(500, POLL), (200, "/get/data/voice_settings")])
 
+    def test_volume_meter_samples_reach_the_ui_without_being_logged(self):
+        logged, written = [], []
+        utils.process_logger.info = logged.append
+        with patch.object(utils, "_enqueueResponseLine", written.append):
+            for value in (0, 12, 0):
+                utils.printResponse(200, "/run/check_mic_volume", value)
+                utils.printResponse(200, "/run/check_speaker_volume", value)
+        self.assertEqual(len(written), 6)
+        self.assertEqual(logged, [])
+
+    def test_a_response_that_cannot_be_serialized_logs_only_its_shape(self):
+        errors, written = [], []
+        utils.process_logger.info = lambda record: None
+        utils.process_logger.error = errors.append
+        with patch.object(utils, "_enqueueResponseLine", written.append), patch.object(utils, "errorLogging"):
+            utils.printResponse(200, "/run/realtime_caption", {"text": "private caption", "bad": object()})
+            utils.printResponse(200, "/get/data/voice_settings", {"nested": {"api_key": "sk-secret"}, "bad": {1, 2}})
+        self.assertEqual([json.loads(line)["status"] for line in written], [500, 500])
+        self.assertNotIn("private caption", " ".join(errors))
+        self.assertNotIn("sk-secret", " ".join(errors))
+        self.assertIn("/run/realtime_caption", errors[0])
+        self.assertIn("'text': 'str'", errors[0])
+
     def test_every_quiet_endpoint_is_one_the_ui_polls(self):
         source = (Path(__file__).resolve().parents[2] / "src-ui/logics/useReceiveRoutes.js").read_text(encoding="utf-8")
         for endpoint in utils.POLLED_ENDPOINTS:
