@@ -13,6 +13,7 @@ from .realtime_settings import SessionOptions, language_supported
 from .asr_vocabulary import request_options
 from .speechcpp_asr import SpeechCppASR
 from .speechcpp_realtime import SpeechCppRealtime
+from .utterance_diagnostics import utterance_diagnostics
 
 
 class SessionError(RuntimeError):
@@ -132,6 +133,7 @@ class RealtimeSession:
                 if self._state != "failed":
                     self._state = "closed"
                 self._loop = self._stop_async = None
+            utterance_diagnostics.flush(self.source)
 
     def _preflight(self):
         models = SpeechCppASR(self.options.base_url, timeout=5).recognizers(

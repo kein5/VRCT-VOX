@@ -5,6 +5,8 @@ from queue import Empty, Full, Queue
 from threading import Event, Thread, current_thread
 from time import monotonic
 
+from .utterance_diagnostics import utterance_diagnostics
+
 
 class RealtimeDelivery:
     def __init__(
@@ -46,6 +48,7 @@ class RealtimeDelivery:
         for thread in self._threads:
             if thread is not current_thread():
                 thread.join(max(0.0, deadline - monotonic()))
+        utterance_diagnostics.flush(self.session.source)
         return all(not thread.is_alive() for thread in self._threads)
 
     def _current(self, update):
@@ -117,28 +120,42 @@ class RealtimeDelivery:
                     self._report("realtime_caption_cleanup_failed")
 
     def _translate(self):
-        while not self._stop.is_set():
-            try:
-                update, deadline = self._finals.get(timeout=0.05)
-            except Empty:
-                continue
+        try:
+            while not self._stop.is_set():
+                try:
+                    update, deadline = self._finals.get(timeout=0.05)
+                except Empty:
+                    continue
 
-            def current():
-                return self._current(update) and self._clock() < deadline
+                def current():
+                    return self._current(update) and self._clock() < deadline
 
-            if not current():
-                continue
-            try:
-                result = self._process(update, current)
-                if result is not None and current():
-                    payload = self._payload(update)
-                    payload.update(
-                        state="translated",
-                        revision=update.revision + 1,
-                        original=result["original"],
-                        translations=result["translations"],
+                queue_ms = max(0.0, (self._clock() - update.received_ns / 1e9) * 1000)
+                utterance_diagnostics.record(
+                    update.source, "realtime_delivery", {"realtime_queue_ms": queue_ms},
+                    f"[ASR-queue][{update.source}] realtime wait={queue_ms:.1f}ms",
+                )
+                if not current():
+                    continue
+                try:
+                    result = self._process(update, current)
+                    if result is not None and current():
+                        payload = self._payload(update)
+                        payload.update(
+                            state="translated",
+                            revision=update.revision + 1,
+                            original=result["original"],
+                            translations=result["translations"],
+                        )
+                        self._publish(payload)
+                except Exception:
+                    if current():
+                        self._report("realtime_final_failed")
+                finally:
+                    elapsed_ms = max(0.0, (self._clock() - update.received_ns / 1e9) * 1000)
+                    utterance_diagnostics.record(
+                        update.source, "realtime_processed", {"realtime_total_ms": elapsed_ms},
+                        f"[latency][{update.source}] realtime delivery={elapsed_ms:.1f}ms queue={queue_ms:.1f}ms",
                     )
-                    self._publish(payload)
-            except Exception:
-                if current():
-                    self._report("realtime_final_failed")
+        finally:
+            utterance_diagnostics.flush(self.session.source)

@@ -15,7 +15,7 @@ WebSocket送信・ロガー・エラーハンドリング)を固定化するた�
 """
 
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from controller import Controller, config
 
@@ -620,6 +620,12 @@ class TestLatencyInstrumentation(_MessagePipelineTestBase):
         self._saved_print_log = controller_module.printLog
         self.logs: list = []
         controller_module.printLog = lambda msg: self.logs.append(msg)
+        from models.transcription.utterance_diagnostics import UtteranceDiagnostics
+        self.now = 0.0
+        self.diagnostics = UtteranceDiagnostics(clock=lambda: self.now, log=self.logs.append)
+        diagnostics = patch.object(controller_module, "utterance_diagnostics", self.diagnostics)
+        diagnostics.start()
+        self.addCleanup(diagnostics.stop)
 
     def tearDown(self) -> None:
         import controller as controller_module
@@ -631,25 +637,64 @@ class TestLatencyInstrumentation(_MessagePipelineTestBase):
 
     def test_mic_latency_line_includes_asr_time_from_the_transcriber(self) -> None:
         self._model.getInputTranslate.return_value = (["hola"], [True])
-        self.controller.micMessage({"text": "hello", "language": "English", "asr_ms": 890})
+        self.controller.micMessage({"text": "hello", "language": "English", "asr_ms": 5890})
 
         lines = self._latencyLines()
-        self.assertEqual(len(lines), 1, f"[latency] は1発話につき1行: {self.logs}")
+        self.assertEqual(len(lines), 1, f"遅い発話は従来通り詳細を残す: {self.logs}")
         line = lines[0]
         self.assertIn("[latency][mic]", line)
-        self.assertIn("asr=890ms", line)
+        self.assertIn("asr=5890ms", line)
         self.assertIn("translate=", line)
         self.assertIn("output=", line)
         self.assertIn("total=", line)
 
     def test_speaker_latency_line_is_tagged_by_direction(self) -> None:
         self._model.getOutputTranslate.return_value = (["hola"], [True])
-        self.controller.speakerMessage({"text": "hello", "language": "English", "asr_ms": 12})
+        self.controller.speakerMessage({"text": "hello", "language": "English", "asr_ms": 5012})
 
         lines = self._latencyLines()
         self.assertEqual(len(lines), 1)
         self.assertIn("[latency][speaker]", lines[0])
-        self.assertIn("asr=12ms", lines[0])
+        self.assertIn("asr=5012ms", lines[0])
+
+    def test_routine_latency_is_aggregated_without_private_text(self):
+        self._model.getInputTranslate.return_value = (["private translation"], [True])
+        with patch("controller.time.perf_counter", return_value=0):
+            for _ in range(30):
+                self.controller.micMessage({"text": "private original", "language": "English", "asr_ms": 100})
+        self.assertEqual(self.logs, [])
+        self.now = 60
+        self.diagnostics.record("mic", "speech_start")
+        self.assertEqual(len(self.logs), 1)
+        self.assertIn("message=30", self.logs[0])
+        self.assertIn("total_ms(n=30,samples=30,p50=100.0,p95=100.0,max=100.0)", self.logs[0])
+        self.assertNotIn("private", self.logs[0])
+        self.assertEqual(len(self.run_calls), 30)
+
+    def test_slow_translation_keeps_all_latency_fields(self):
+        with patch("controller.time.perf_counter", side_effect=[0, 0, 5, 5]):
+            self.controller.micMessage({"text": "private", "language": "English", "asr_ms": 100})
+        self.assertEqual(self.logs, ["[latency][mic] asr=100ms translate=5000ms output=0ms total=5100ms"])
+
+    def test_realtime_expired_translation_is_logged_without_publishing(self):
+        from models.message_pipeline import REALTIME_MIC_SPEC
+
+        def translate(*args, **kwargs):
+            self.now = 3
+            return ["private translation"], [True]
+
+        self._model.getInputTranslate.side_effect = translate
+        with patch("controller.time.perf_counter", side_effect=lambda: self.now):
+            result = self.controller._processMessage(
+                REALTIME_MIC_SPEC, "private original", "English",
+                publication_guard=lambda: self.now < 2,
+            )
+        self.assertIsNone(result)
+        self.assertEqual(self.run_calls, [])
+        self.assertEqual(self.logs, ["[latency][mic] translate=3000ms output=0ms total=3000ms publication=aborted"])
+        self.diagnostics.flush("mic")
+        self.assertIn("message_aborted=1", self.logs[-1])
+        self.assertIn("realtime_translate_ms(n=1,samples=1,p50=3000.0,p95=3000.0,max=3000.0)", self.logs[-1])
 
     def test_chat_latency_line_omits_asr_because_there_is_no_asr_stage(self) -> None:
         self._model.getInputTranslate.return_value = (["hola"], [True])

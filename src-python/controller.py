@@ -20,6 +20,7 @@ from models.translation.translation_providers import TRANSLATION_PROVIDER_REGIST
 from models.translation.translation_utils import ctranslate2_weights, isNonCommercialCTranslate2Weight
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
 from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
+from models.transcription.utterance_diagnostics import SLOW_MS, utterance_diagnostics
 from models.transcription.realtime_settings import (
     normalize_settings as normalize_realtime_settings, session_options, endpoint_dict,
     realtime_endpoint, language_supported, SessionOptions)
@@ -1338,6 +1339,7 @@ class Controller:
             config.saveConfigToFile()
         except Exception:
             errorLogging()
+        utterance_diagnostics.flush(reason="shutdown")
         try:
             model.telemetryShutdown()
             return {"status": 200, "result": True}
@@ -1876,6 +1878,7 @@ class Controller:
             pass
         else:
             translate_started_at = time.perf_counter()
+            translation_completed = False
             try:
                 translate = getattr(model, spec.translate_attr)
                 translation, success = translate(message, source_language=language)
@@ -1892,6 +1895,7 @@ class Controller:
                         self.run_mapping["error_translation_engine"],
                         error_response["result"],
                     )
+                translation_completed = True
             except Exception as e:
                 if not current():
                     return None
@@ -1933,6 +1937,14 @@ class Controller:
                 return None
             finally:
                 translate_elapsed_ms = round((time.perf_counter() - translate_started_at) * 1000)
+                # Realtime expiry/stop can return inside this try. Keep slow
+                # translation evidence even when publication is invalidated.
+                if not translation_completed and spec.kind in ("mic", "speaker"):
+                    self._recordMessageLatency(
+                        spec, asr_ms, translate_elapsed_ms,
+                        round((time.perf_counter() - pipeline_started_at) * 1000),
+                        aborted=True,
+                    )
 
         if not current():
             return None
@@ -2122,22 +2134,39 @@ class Controller:
             self._publishMicVoice(mic_snapshot, speech_update, language, translation, success, current)
 
         pipeline_elapsed_ms = round((time.perf_counter() - pipeline_started_at) * 1000)
-        # asr= は mic/speaker のみ (chat には ASR 段が無い)。
-        # output= は翻訳以外の全て (transliteration/OSC/オーバーレイ生成/
-        # クリップボード/UI配信/WebSocket/ロガー)。
-        # total= は ASR を含む「文字起こし結果が出てから出力完了まで」。
+        self._recordMessageLatency(spec, asr_ms, translate_elapsed_ms, pipeline_elapsed_ms)
+
+        if spec.delivery == "return":
+            return {"id": msg_id, **payload}
+        return None
+
+    @staticmethod
+    def _recordMessageLatency(spec, asr_ms, translate_elapsed_ms, pipeline_elapsed_ms, *, aborted=False):
+        # total は従来通り ASR + 出力処理。録音/VAD/キュー待ちは含まない。
+        # realtime の ASR 所要時間はサーバーから提供されない。
         asr_part = f"asr={asr_ms}ms " if asr_ms is not None else ""
         total_ms = pipeline_elapsed_ms + (asr_ms or 0)
-        printLog(
+        detail = (
             f"[latency][{spec.kind}] {asr_part}"
             f"translate={translate_elapsed_ms}ms "
             f"output={pipeline_elapsed_ms - translate_elapsed_ms}ms "
             f"total={total_ms}ms"
         )
-
-        if spec.delivery == "return":
-            return {"id": msg_id, **payload}
-        return None
+        if spec.kind not in ("mic", "speaker"):
+            printLog(detail)
+            return
+        realtime = spec is REALTIME_MIC_SPEC or spec is REALTIME_SPEAKER_SPEC
+        stages = {
+            "realtime_translate_ms" if realtime else "translate_ms": translate_elapsed_ms,
+            "output_ms": pipeline_elapsed_ms - translate_elapsed_ms,
+        }
+        if not realtime:
+            stages["total_ms"] = total_ms
+        utterance_diagnostics.record(
+            spec.kind, "message_aborted" if aborted else "message", stages,
+            detail + (" publication=aborted" if aborted else ""),
+            immediate=asr_ms is not None and asr_ms >= SLOW_MS["asr_ms"],
+        )
 
     def micMessage(self, result: dict) -> None:
         if (

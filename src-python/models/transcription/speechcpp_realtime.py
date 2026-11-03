@@ -15,6 +15,7 @@ from websockets.asyncio.client import connect
 from models.tts.settings import local_url
 from models.voice_events import AudioFrame
 from .realtime_events import TranscriptEvents
+from .utterance_diagnostics import utterance_diagnostics
 
 PENDING_TIMEOUT = 15.0
 MAX_EVENT = 1024 * 1024
@@ -221,6 +222,14 @@ class SpeechCppRealtime:
                     self._check_config(event)
                 previous_pending = self._events.pending_ids
                 for update in self._events.accept(event):
+                    if update.is_final:
+                        started = self._pending_since.get(update.item_id)
+                        stages = {} if started is None else {"realtime_pending_ms": (monotonic() - started) * 1000}
+                        pending = f"{stages['realtime_pending_ms']:.1f}ms" if stages else "unknown"
+                        utterance_diagnostics.record(
+                            update.source, "realtime_final" if update.text.strip() else "realtime_empty_final", stages,
+                            f"[ASR-realtime][{update.source}] state={update.state} pending={pending}",
+                        )
                     self._updates.put_nowait(replace(update, received_ns=monotonic_ns()))
                 pending = self._events.pending_ids
                 # Manual mode has no speech_started: a successful commit must

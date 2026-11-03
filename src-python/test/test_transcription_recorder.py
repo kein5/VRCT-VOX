@@ -581,7 +581,10 @@ class TestRecorderPipeline(unittest.TestCase):
             return fake_audio
 
         callback = captured["audio_callback"]
-        with patch("models.transcription.transcription_recorder.printLog") as mock_print_log:
+        from models.transcription.utterance_diagnostics import UtteranceDiagnostics
+        mock_print_log = MagicMock()
+        diagnostics = UtteranceDiagnostics(log=mock_print_log)
+        with patch("models.transcription.transcription_recorder.utterance_diagnostics", diagnostics):
             callback(None, make_audio(b"\x01"))
             mock_print_log.assert_not_called()
             callback(None, make_audio(b"\x02"))  # ここで満杯になり \x01 を捨てる
@@ -752,8 +755,8 @@ class TestVadRecorderPipeline(unittest.TestCase):
 
     def test_wires_diagnostic_logging_with_a_kind_specific_label(self) -> None:
         """体感の遅さ (モデル初回ロード・hangover 待ち等) を実機ログから
-        切り分けられるよう、speech_start/speech_end が process.log に
-        記録されるようになっていること。mic/speaker を区別できるラベルも
+        切り分けられるよう、speech_start/speech_end を集約すること。
+        mic/speaker を区別できるラベルも
         併せて確認する。"""
         mic_recorder = BaseVadAndAudioRecorder(RecorderAudioSource(), record_timeout=5, label="mic")
         speaker_recorder = BaseVadAndAudioRecorder(RecorderAudioSource(), record_timeout=5, label="speaker")
@@ -761,9 +764,11 @@ class TestVadRecorderPipeline(unittest.TestCase):
         mic_segmenter = mic_recorder.vad_adapter.segmenter
         speaker_segmenter = speaker_recorder.vad_adapter.segmenter
 
-        self.assertIsNotNone(mic_segmenter.diagnostic_callback)
+        self.assertIsNotNone(mic_segmenter.diagnostic_observer)
+        self.assertIsNone(mic_segmenter.diagnostic_callback)
         self.assertEqual(mic_segmenter.diagnostic_label, "mic")
-        self.assertIsNotNone(speaker_segmenter.diagnostic_callback)
+        self.assertIsNotNone(speaker_segmenter.diagnostic_observer)
+        self.assertIsNone(speaker_segmenter.diagnostic_callback)
         self.assertEqual(speaker_segmenter.diagnostic_label, "speaker")
 
     def test_recordIntoQueue_wires_listen_with_segmenter_in_background_control_handles(

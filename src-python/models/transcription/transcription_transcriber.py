@@ -50,6 +50,7 @@ import numpy as np
 from pydub import AudioSegment
 from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode
 from utils import errorLogging, printLog
+from .utterance_diagnostics import utterance_diagnostics
 
 import warnings
 warnings.simplefilter('ignore', RuntimeWarning)
@@ -355,6 +356,7 @@ class AudioTranscriber:
                 except Empty:
                     break
 
+                self._recordQueueWait(time_spoken)
                 if source_info["phrase_started_at"] is None:
                     source_info["phrase_started_at"] = time_spoken
                 source_info["last_sample"] += data
@@ -370,7 +372,8 @@ class AudioTranscriber:
                 if reason != "max_duration":
                     # 自然な区切り (silence/flush) → ここまでの蓄積分を
                     # まとめて確定・送信する。
-                    printLog(
+                    utterance_diagnostics.record(
+                        kind, "vad_finalize", {"vad_buffer_ms": accumulated_sec * 1000},
                         f"[VAD-merge][{kind}] finalize reason={reason!r} "
                         f"accumulated={accumulated_sec:.2f}s bytes={len(source_info['last_sample'])}"
                     )
@@ -379,7 +382,8 @@ class AudioTranscriber:
                     # 話者が本当にノンストップで話し続け、VAD 側の
                     # max_speech_frames が silence/flush を伴わず
                     # max_duration を繰り返し返し続ける病的なケースの保険。
-                    printLog(
+                    utterance_diagnostics.record(
+                        kind, "vad_safety_finalize", {"vad_buffer_ms": accumulated_sec * 1000},
                         f"[VAD-merge][{kind}] safety-net finalize reason={reason!r} "
                         f"accumulated={accumulated_sec:.2f}s bytes={len(source_info['last_sample'])}"
                     )
@@ -390,7 +394,8 @@ class AudioTranscriber:
                     # 状態で送っても、後でより完全なテキストに置き換わる
                     # だけの中間結果に ASR 1回分と翻訳1回分を払うことに
                     # なる。控えている間は下の else と同じく蓄積を続ける。
-                    printLog(
+                    utterance_diagnostics.record(
+                        kind, "vad_interim", {"vad_buffer_ms": accumulated_sec * 1000},
                         f"[VAD-merge][{kind}] interim-send ({self.transcription_engine}) reason={reason!r} "
                         f"accumulated={accumulated_sec:.2f}s bytes={len(source_info['last_sample'])}"
                     )
@@ -398,7 +403,8 @@ class AudioTranscriber:
                 else:
                     # reason == "max_duration" かつキューに次の segment が
                     # 控えている → 送らず蓄積を継続する (次のアイテムへ)。
-                    printLog(
+                    utterance_diagnostics.record(
+                        kind, "vad_accumulate", {"vad_buffer_ms": accumulated_sec * 1000},
                         f"[VAD-merge][{kind}] accumulate reason={reason!r} "
                         f"accumulated={accumulated_sec:.2f}s bytes={len(source_info['last_sample'])}"
                     )
@@ -420,6 +426,7 @@ class AudioTranscriber:
             except Empty:
                 break
 
+            self._recordQueueWait(time_spoken)
             if (
                 source_info["last_spoken"] is not None
                 and time_spoken - source_info["last_spoken"] > timedelta(seconds=self.phrase_timeout)
@@ -490,6 +497,15 @@ class AudioTranscriber:
                 finalize()
 
         return transcribed
+
+    def _recordQueueWait(self, recorded_at: datetime) -> None:
+        # キューの既存 timestamp は wall clock。負値は時計補正として0に丸める。
+        # VAD hangover / 蓄積音声長とは別の、完成済みチャンクの滞留時間。
+        wait_ms = max(0.0, (datetime.now() - recorded_at).total_seconds() * 1000)
+        utterance_diagnostics.record(
+            self.source, "audio_chunk", {"queue_ms": wait_ms},
+            f"[ASR-queue][{self.source}] wait={wait_ms:.1f}ms vad={self.vad_segmented}",
+        )
 
     def _padWithSilenceForVad(self, data: bytes) -> bytes:
         """VAD が確定したクリップの前後に無音 (ゼロバイト) を付与する。
@@ -615,6 +631,7 @@ class AudioTranscriber:
                 message=ERROR_METADATA[ErrorCode.ASR_ERROR]["message"],
                 exception_type=type(provider_error).__name__,
             )
+            utterance_diagnostics.record(self.source, "asr_error", {"asr_ms": asr_elapsed_ms})
             printLog(
                 f"[ASR-error][{self.source}][{self.transcription_engine}] "
                 f"error_type={type(provider_error).__name__} asr={asr_elapsed_ms}ms "
@@ -627,12 +644,14 @@ class AudioTranscriber:
             best["asr_ms"] = asr_elapsed_ms
             self.updateTranscript(best)
         success_rate = (self.asr_successes / self.asr_attempts) * 100
-        printLog(
+        utterance_diagnostics.record(
+            self.source, "asr_success" if succeeded else "asr_failure", {"asr_ms": asr_elapsed_ms},
             f"[ASR-stats][{'speaker' if self.speaker else 'mic'}][{self.transcription_engine}] "
             f"this_call={'success' if succeeded else 'failure'} "
             f"attempts={self.asr_attempts} successes={self.asr_successes} rate={success_rate:.1f}% "
             f"asr={asr_elapsed_ms}ms calls={len(language_calls)}/{len(languages)} "
-            f"[{' '.join(language_calls)}]"
+            f"[{' '.join(language_calls)}]",
+            immediate=not succeeded or provider_error is not None,
         )
         return True
 

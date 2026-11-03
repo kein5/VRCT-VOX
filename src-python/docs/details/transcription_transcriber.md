@@ -72,9 +72,14 @@ class AudioTranscriber:
 `_finalizeAndTranscribe` が呼ばれるたびに (VAD方式のinterim_send含め、
 実際にエンジンを呼ぶ1回を1試行として) `self.asr_attempts` をインクリメント
 し、テキストが得られた場合のみ `self.asr_successes` もインクリメントする
-(2026-09-07)。呼び出しのたびに `printLog` で
+(2026-09-07)。失敗、候補言語の一部でのエラー、5秒以上のASRでは `printLog` で
 `[ASR-stats][mic|speaker][エンジン名] this_call=success|failure
-attempts=N successes=M rate=X%` の形式でログに残す。Google無料エンドポ
+attempts=N successes=M rate=X%` に所要時間と言語別呼び出し内訳を付けて即時にログに残す。
+通常成功はVAD・メッセージ処理の観測とともに、mic/speaker別に60秒間隔で遅延集約する。
+活動がなければ出力せず、停止・終了時には残りを出力する。件数と最大値は区間全体、
+p50/p95は各段階の直近256件から計算する。詳しい項目と基準は
+[文字起こしの診断ログ](../../../docs/spec/data-and-persistence.md#文字起こしの診断ログ)を参照。
+Google無料エンドポ
 イントの信頼性対策 (無音パディング・interim_send) の効果を、ログの手動
 突き合わせではなく数値で継続的に確認できるようにするための計測機能。
 セッション中は `AudioTranscriber` インスタンスが存続する限り累積し
