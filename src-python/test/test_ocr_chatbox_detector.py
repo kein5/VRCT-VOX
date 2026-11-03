@@ -274,7 +274,7 @@ class _PipelineHarness(_DownloadRoot):
         for p in (patch.object(ocr_pipeline, "resolveModelFiles", return_value="files"),
                   patch.object(ocr_pipeline.ocr_engine, "isAvailable", return_value=True),
                   patch.object(ocr_pipeline.ocr_engine, "getReader", return_value=object()),
-                  patch.object(ocr_pipeline.ocr_engine, "readtext_bgr", side_effect=_fake_ocr(scene)),
+                  patch.object(ocr_pipeline.ocr_engine, "readtext_bgr_or_raise", side_effect=_fake_ocr(scene)),
                   patch.object(ocr_pipeline, "OcrCapture", return_value=capture)):
             p.start()
             self.addCleanup(p.stop)

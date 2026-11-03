@@ -2,7 +2,8 @@
 
 readtext_bgr(crop) -> [{"text": str, "confidence": float, "left"/"right"/"top"/"bottom": float}, ...]。
 EasyOCRラッパーと同じ形を返すので、パイプライン側の扱いは変わらない。
-例外は投げず、失敗時は空リストを返してそのtickを飛ばす。
+失敗時は空リストを返す。パイプラインは readtext_bgr_or_raise を使い、
+例外と「読める文字が無い」を区別して再試行の間隔を調整する。
 
 EasyOCRから乗り換えた理由と実測は ocr_languages.py と
 docs/details/ocr.md を参照。onnxruntime は faster-whisper が
@@ -18,6 +19,7 @@ import numpy as np
 
 from .ocr_languages import OcrModelSpec, ocr_onnx_threads
 from .ocr_models import OcrModelFiles
+from .ocr_failure import OcrFailureLog
 
 try:
     from utils import errorLogging, printLog
@@ -77,6 +79,9 @@ DET_STD = [0.229, 0.224, 0.225]
 
 _engine_cache: Dict[tuple, object] = {}
 _engine_lock = Lock()
+# 文字だけを使う既存の呼び出し元にも、同じ失敗を毎回記録しない。
+_read_failure_lock = Lock()
+_read_failures = OcrFailureLog("OCR engine", lambda: errorLogging(), lambda message: printLog(message))
 
 
 def isAvailable() -> bool:
@@ -140,10 +145,21 @@ def readtext_bgr(reader: object, crop_bgr: np.ndarray, min_confidence: float = 0
     if reader is None or crop_bgr is None or crop_bgr.size == 0:
         return []
     try:
-        result = reader(crop_bgr)  # type: ignore[operator]
-    except Exception:
-        errorLogging()
+        words = readtext_bgr_or_raise(reader, crop_bgr, min_confidence)
+    except Exception as exc:
+        with _read_failure_lock:
+            _read_failures.failure(exc)
         return []
+    with _read_failure_lock:
+        _read_failures.success()
+    return words
+
+
+def readtext_bgr_or_raise(reader: object, crop_bgr: np.ndarray, min_confidence: float = 0.5) -> List[dict]:
+    """読める文字が無ければ空リスト。推論・結果の変換の例外は呼び出し元で扱う。"""
+    if reader is None or crop_bgr is None or crop_bgr.size == 0:
+        return []
+    result = reader(crop_bgr)  # type: ignore[operator]
 
     # boxes は ndarray なので or でのフォールバックは使えない (真偽判定が曖昧になる)。
     texts = list(getattr(result, "txts", None) or [])
