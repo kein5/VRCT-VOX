@@ -79,7 +79,7 @@ IPCでやり取りする主なデータの形と、ディスクに残すファ�
 
 | ファイル | 置き場所 | 内容 |
 |---|---|---|
-| `process.log`、`error.log`、`freeze_trace.log`、`crash_trace.log` | `$VRCT_CONFIG_DIR/logs/`（なければ作業フォルダ） | 診断ログ。10MBで切り詰める。`process.log`は起動のたびに空にする |
+| `process.log`、`error.log`、`freeze_trace.log`、`crash_trace.log` | `$VRCT_CONFIG_DIR/logs/`（なければ作業フォルダ） | 診断ログ。`process.log`と`error.log`は10MBで切り詰め、`process.log`は起動のたびに空にする。`crash_trace.log`と`freeze_trace.log`（faulthandlerのスタックダンプ）は、起動のときに10MBを超えていたら新しい1MBだけを残す |
 | `startup.log` | 同上（Tauri側） | ウィンドウの起動記録 |
 | 会話ログ `YYYY-MM-DD_HH-MM-SS.log` | `PATH_LOGS` | 「会話ログを自動的に保存する」がオンのときだけ。行頭は`[SENT]`、`[RECEIVED]`、`[OCR]`、`[CHAT]`。画面は新しい1,000件しか残さないが、ファイルには古いものも残る |
 | `downloaded_models/<id>/<版>/`と`receipt.json` | `config.json`と同じフォルダ | 取得したモデル。取得中は`.partial-<16進>/` |

@@ -45,7 +45,7 @@ warnings.filterwarnings(
 )
 
 from controller import Controller  # noqa: E402
-from utils import printLog, printResponse, errorLogging, encodeBase64, diagnosticLogPath, isQuietPoll # noqa: E402
+from utils import printLog, printResponse, errorLogging, encodeBase64, isQuietPoll, openTraceLog # noqa: E402
 
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
@@ -59,8 +59,7 @@ logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 # faulthandler は enable() 時点で fd を掴むため遅延 open できず、
 # クラッシュ無しの通常終了でも 0 バイトのファイルが残る。運用上のゴミ
 # 化を避けるため、atexit で「書き込みが無ければ削除」する。
-_crash_trace_path = diagnosticLogPath("crash_trace.log")
-_crash_trace_file = open(_crash_trace_path, "a", encoding="utf-8")
+_crash_trace_path, _crash_trace_file = openTraceLog("crash_trace.log")
 faulthandler.enable(file=_crash_trace_file, all_threads=True)
 
 
