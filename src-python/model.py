@@ -61,7 +61,7 @@ from models.ocr.ocr_languages import resolveModelSpec
 from models.ocr.ocr_models import resolveModelFiles, OcrModelsMissing
 from models.ocr import ocr_engine_rapidocr as ocr_engine
 from models.telemetry import Telemetry
-from utils import errorLogging, setupLogger, printLog, openTraceLog
+from utils import ConversationLogger, errorLogging, printLog, openTraceLog
 from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, OcrStartError
 
 TRANSCRIPT_STOP_JOIN_TIMEOUT = 15
@@ -1022,6 +1022,8 @@ class SpeakerSession(_AudioDeviceSession):
 
 class Model:
     _instance = None
+    # 停止時に None にせず、メッセージ処理から常に安全に参照できるようにする。
+    logger = ConversationLogger()
     # Model is a singleton. Serialize feature ownership even when start/stop
     # arrive on different IPC handler threads.
     _watchdog_lifecycle_lock = Lock()
@@ -1070,7 +1072,6 @@ class Model:
         # 生成が失敗するケースは再試行しても直らないため、1 回で諦める。
         self._init_failed = True
 
-        self.logger = None
         self.th_check_device = None
         # startWatchdog() より前に shutdown() が走る経路 (init 失敗時など) で
         # stopWatchdog() の isinstance チェックが AttributeError にならないよう
@@ -1398,13 +1399,11 @@ class Model:
         self.ensure_initialized()
         os_makedirs(config.PATH_LOGS, exist_ok=True)
         file_name = os_path.join(config.PATH_LOGS, f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
-        self.logger = setupLogger("log", file_name)
-        self.logger.disabled = False
+        self.logger.start(file_name)
 
     def stopLogger(self):
         self.ensure_initialized()
-        self.logger.disabled = True
-        self.logger = None
+        self.logger.stop()
 
     def getListLanguageAndCountry(self):
         """List every language any translation engine supports for the UI.

@@ -260,7 +260,8 @@ LIFECYCLE_ENDPOINTS = {
 ])
 def test_ipc_interleaving_serializes_dependency_and_cleanup(services, monkeypatch, next_endpoint, obs_succeeds):
     s = services
-    entered, release, retried = Event(), Event(), Event()
+    entered, release, waiting = Event(), Event(), Event()
+    first_finished, next_entered = Event(), Event()
     responses = Queue()
     main = Main(None, {ep: {"status": True, "variable": fn} for ep, fn in LIFECYCLE_ENDPOINTS.items()}, worker_count=2)
     assert len({main._canonical_lock_key(ep) for ep in LIFECYCLE_ENDPOINTS}) == 1
@@ -270,26 +271,45 @@ def test_ipc_interleaving_serializes_dependency_and_cleanup(services, monkeypatc
         assert release.wait(3), "test did not release OBS startup"
     s.before_obs_start = blocked_start
     s.obs_results = [obs_succeeds]
-    original_put = main.queue.put
-    def put(item):
-        if item[0] == next_endpoint and item[2] > 0:
-            retried.set()
-        original_put(item)
-    monkeypatch.setattr(main.queue, "put", put)
+    def first_handler(data):
+        try:
+            return Controller.setEnableObsBrowserSource(data)
+        finally:
+            first_finished.set()
+
+    def next_handler(data):
+        next_entered.set()
+        assert first_finished.is_set(), "dependent request started before OBS cleanup finished"
+        return LIFECYCLE_ENDPOINTS[next_endpoint](data)
+
+    main.mapping["/set/enable/obs_browser_source"]["variable"] = first_handler
+    main.mapping[next_endpoint]["variable"] = next_handler
+    original_wait = main.queue.not_empty.wait
+
+    def wait(timeout=None):
+        # 条件変数のロック下で、後続をキューに残して待つ瞬間を観測する。
+        if any(request.endpoint == next_endpoint for request in main.queue.queue):
+            waiting.set()
+        return original_wait(timeout)
+
+    monkeypatch.setattr(main.queue.not_empty, "wait", wait)
     monkeypatch.setattr(mainloop_module, "printLog", lambda *args: None)
     monkeypatch.setattr(mainloop_module, "printResponse", lambda *args: responses.put(args))
-    monkeypatch.setattr(mainloop_module, "_LOCK_BUSY_RETRY_INTERVAL_SEC", 0.001)
     main.startHandler()
     try:
         main.queue.put(("/set/enable/obs_browser_source", None, 0))
         assert entered.wait(2)
         main.queue.put((next_endpoint, None, 0))
-        assert retried.wait(2), "dependent request bypassed the lifecycle lock"
+        assert waiting.wait(2), "dependent request did not wait in the lifecycle queue"
+        assert main._endpoint_locks[main._canonical_lock_key(next_endpoint)].locked()
+        assert not next_entered.is_set(), "dependent request bypassed the lifecycle lock"
+        assert not first_finished.is_set()
         assert responses.empty()
         release.set()
         results = {ep: (status, result) for status, ep, result in (responses.get(timeout=2), responses.get(timeout=2))}
         assert results[next_endpoint][0] == 200
         assert results["/set/enable/obs_browser_source"][0] == (200 if obs_succeeds else 400)
+        assert next_entered.is_set(), "dependent request did not run after the lock was released"
     finally:
         release.set()
         main._stop_event.set()

@@ -821,6 +821,37 @@ class TruncatingFileHandler(RotatingFileHandler):
         if not self.delay:
             self.stream = self._open()
 
+class ConversationLogger:
+    """会話ログの開始・停止・書き込みを同じロックで直列化する窓口。"""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._logger = logging.getLogger("log")
+        self._logger.disabled = True
+
+    def _stop(self):
+        self._logger.disabled = True
+        for handler in self._logger.handlers[:]:
+            self._logger.removeHandler(handler)
+            handler.close()
+
+    def start(self, log_file: str):
+        with self._lock:
+            # 同じ秒で再開した場合も含め、古いハンドラーを残さない。
+            self._stop()
+            setupLogger("log", log_file)
+            self._logger.disabled = False
+
+    def stop(self):
+        with self._lock:
+            self._stop()
+
+    def info(self, message, *args, **kwargs):
+        with self._lock:
+            # 停止後も窓口を残す。機能フラグの確認直後に停止されても安全。
+            self._logger.info(message, *args, **kwargs)
+
+
 def setupLogger(name: str, log_file: str, level: int = logging.INFO) -> logging.Logger:
     """
     特定の名前とログファイルを持つロガーを設定します。
