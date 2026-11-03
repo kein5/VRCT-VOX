@@ -1,16 +1,20 @@
 import {
-    useStore_MicVolume,
-    useStore_SpeakerVolume,
+    Atom_MicVolume,
+    Atom_SpeakerVolume,
     useStore_MicThresholdCheckStatus,
     useStore_SpeakerThresholdCheckStatus,
 } from "@store";
 
 import { useStdoutToPython } from "@useStdoutToPython";
+import { useSetAtom } from "jotai";
+import { updateMeterValue } from "./meterValue.js";
 
 export const useVolume = () => {
     const { asyncStdoutToPython } = useStdoutToPython();
-    const { updateMicVolume } = useStore_MicVolume();
-    const { updateSpeakerVolume } = useStore_SpeakerVolume();
+    const setMicVolume = useSetAtom(Atom_MicVolume);
+    const setSpeakerVolume = useSetAtom(Atom_SpeakerVolume);
+    const updateMicVolume = value => setMicVolume(previous => updateMeterValue(previous, value));
+    const updateSpeakerVolume = value => setSpeakerVolume(previous => updateMeterValue(previous, value));
     const {
         currentMicThresholdCheckStatus,
         updateMicThresholdCheckStatus,

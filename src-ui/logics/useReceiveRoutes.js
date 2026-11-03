@@ -13,6 +13,12 @@ import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { pendingRequestRecovery, featureResyncReads } from "./common/pendingRequestRecovery.js";
 import { receiveLanguageMutation, resetLanguageMutations, isLanguageMutation } from "./main/languageMutations";
+import { applyInitializationFields } from "./common/initializationFields.js";
+import { isBackendUpdate, rejectExpectedExit } from "./common/sidecarExitExpectation.js";
+
+const INIT_ARRAY_FIELDS = new Set(SETTINGS_ARRAY
+    .filter(setting => ["arrayToObject", "arrayToIdLabel", "transformToIndexedArray"].includes(setting.response_transform))
+    .map(setting => `/get/data/${setting.base_endpoint_name}`));
 
 export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/model_download_catalog", ns: downloads, hook_name: "useModelDownloads", method_name: "updateCatalog" },
@@ -189,7 +195,7 @@ const TRANSCRIPTION_TOGGLES = ["/set/enable/transcription_send", "/set/disable/t
 
 export const useReceiveRoutes = () => {
     const { showNotification_Error, showNotification_Warning, showNotification_Success, dismissNotification } = common.useNotificationStatus();
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
     const { errorHandling_Backend } = _useBackendErrorHandling();
     const { settings: voiceSettings, status: voiceStatus, send: sendVoice, reset: resetVoice, backendStopped: stopVoicePending, updateTtsError, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
     const voiceConnected = voiceSettings !== null;
@@ -238,9 +244,8 @@ export const useReceiveRoutes = () => {
         return () => clearInterval(timer);
     }, [realtimeActive, sendRealtime]);
     const { updateIsBackendReady } = common.useIsBackendReady();
+    const { updateIsSoftwareUpdating } = common.useIsSoftwareUpdating();
     const { asyncStdoutToPython } = useStdoutToPython();
-
-    const ROUTE_META_LIST = buildRouteMetaList();
 
     const handleInvalidEndpoint = (parsed_data) => {
         console.error(`Invalid endpoint: ${parsed_data.endpoint}\nresult: ${JSON.stringify(parsed_data.result)}`);
@@ -275,6 +280,10 @@ export const useReceiveRoutes = () => {
 
     const receiveRoutes = (parsed_data) => {
         const { endpoint = "", status, result } = parsed_data;
+        if (status !== 200 && (isBackendUpdate(endpoint) || endpoint === "/run/shutdown")) {
+            rejectExpectedExit(store.backend_session, endpoint);
+            if (isBackendUpdate(endpoint)) updateIsSoftwareUpdating(false);
+        }
         if (!pendingRequestRecovery.acceptResponse(endpoint)) return;
         pendingRequestRecovery.receive(parsed_data, asyncStdoutToPython);
         if (status === 500 && featureResyncReads[endpoint]) asyncStdoutToPython(featureResyncReads[endpoint]);
@@ -337,15 +346,16 @@ export const useReceiveRoutes = () => {
             sendRealtime("/get/data/realtime_asr_settings");
             sendRealtime("/get/data/realtime_asr_state");
             for (const source of ["mic", "speaker"]) sendRealtime("/get/data/realtime_asr_endpoints", { source });
-            Object.entries(result).forEach(([ep, value]) => {
-                if (ep in routes) {
-                    routes[ep](value);
-                } else {
-                    handleInvalidEndpoint({ endpoint: ep, result: value });
-                }
-            });
+            const failedFields = applyInitializationFields(result, routes, INIT_ARRAY_FIELDS, handleInvalidEndpoint);
             updateIsBackendReady(true);
             resetLanguageMutations();
+            if (failedFields.length > 0) {
+                // The UI language from this same result is applied later by an effect.
+                const language = result?.["/get/data/ui_language"];
+                const translate = typeof language === "string" && i18n?.getFixedT ? i18n.getFixedT(language) : t;
+                showNotification_Warning(translate("common_warning.startup_degraded"),
+                    { hide_duration: null, category_id: "startup_degraded" });
+            }
             return;
         }
 
@@ -601,3 +611,5 @@ const buildRouteMetaList = () => {
 
     return mergedList;
 };
+
+const ROUTE_META_LIST = buildRouteMetaList();

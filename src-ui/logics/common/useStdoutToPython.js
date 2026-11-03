@@ -3,6 +3,7 @@ import { encode } from "js-base64";
 import { useNotificationStatus } from "./useNotificationStatus";
 import { useI18n } from "@useI18n";
 import { pendingRequestRecovery, sendWithRecovery } from "./pendingRequestRecovery.js";
+import { expectBackendExit, undoExpectedExit } from "./sidecarExitExpectation.js";
 import { emit } from "@tauri-apps/api/event";
 import { isLanguageMutation, beginLanguageMutation, createLanguageRequestId, getLanguageSnapshot,
     failLanguageMutationBeforeSend, failLanguageRead, languageMutationWriteUnconfirmed } from "../main/languageMutations";
@@ -18,8 +19,9 @@ export const useStdoutToPython = () => {
             expectedSnapshot: languageRequest?.expectedSnapshot ?? getLanguageSnapshot() } : undefined;
         const pendingVersion = pendingRequestRecovery.beginSend(path);
         let writeAttempted = false, languageRejected = false;
-        const exitExpected = store.backend_exit_expected;
-        const exitsBackend = path === "/run/shutdown" || path === "/run/update_software";
+        const session = store.backend_session;
+        const backend_subprocess = store.backend_subprocess;
+        let exitToken = null;
         return sendWithRecovery(async () => {
             // The main window owns the sidecar and restores mirrored atoms on failure.
             if (store.is_vr_panel) {
@@ -32,14 +34,17 @@ export const useStdoutToPython = () => {
             }
             const send_object = { endpoint: path };
             if (value !== undefined) send_object.data = encode(JSON.stringify(value));
-            const backend_subprocess = store.backend_subprocess;
             if (!backend_subprocess) return false;
-            if (exitsBackend) store.backend_exit_expected = true;
+            exitToken = expectBackendExit(session, path);
             writeAttempted = true;
-            return await backend_subprocess.write(JSON.stringify(send_object) + "\n") !== false;
+            const sent = await backend_subprocess.write(JSON.stringify(send_object) + "\n") !== false;
+            return sent && store.backend_session === session && store.backend_subprocess === backend_subprocess;
         }, () => {
+            // An old write completion owns neither the new session's exit latch
+            // nor its pending controls. Uncertain writes are never replayed.
+            if (store.backend_session !== session || store.backend_subprocess !== backend_subprocess) return;
             if (languageRejected) return;
-            if (exitsBackend) store.backend_exit_expected = exitExpected;
+            undoExpectedExit(session, exitToken);
             if (is_language_write) {
                 // Preserve language ownership when a write may have reached Python.
                 if (writeAttempted) languageMutationWriteUnconfirmed(request.requestId);

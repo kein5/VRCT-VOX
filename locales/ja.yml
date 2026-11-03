@@ -123,6 +123,8 @@ common:
     loading: "読み込み中…"
 
 common_error:
+    backend_startup_failed: "VRCT-VOXの処理部分を起動できませんでした。もう一度お試しください。繰り返し起きる場合は、VRCT-VOXをインストールし直してください。"
+    backend_startup_retry: "もう一度起動する"
     request_404: "この操作は利用できません。VRCT-VOXを再起動して、もう一度お試しください。"
     request_423: "別の処理が続いているため、操作できませんでした。処理が終わってから、もう一度お試しください。"
     request_send_failed: "要求を送信できませんでした。表示されている値を確認して、もう一度お試しください。繰り返し起きる場合は、VRCT-VOXを再起動してください。"
@@ -222,6 +224,7 @@ backend_errors:
     VRC_MIC_MUTE_SYNC_OSC_DISABLED: "OSCQueryが使えないため、VRCマイクミュート同期をオンにできません。OSCの送信先が127.0.0.1かlocalhostか確認してください。"
 
 common_warning:
+    startup_degraded: "一部の設定を読み込めなかったため、その項目を初期値にして起動しました。使う前に設定を確認してください。繰り返し起きる場合は、VRCT-VOXを再起動してください。"
     config_file_unreadable: "設定ファイル（config.json）を読み込めなかったため、既定の設定で起動しました。元のファイルは{{file}}として残しています。"
     unable_to_use_osc_query: "OSCの送信先IPアドレスの設定によりOSCデータの受信ができないため、以下の機能が自動的に無効になっています。"
 
