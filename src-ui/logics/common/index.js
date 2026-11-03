@@ -3,7 +3,7 @@ export { useAvailableReleases } from "./useAvailableReleases";
 export { useComputeMode } from "./useComputeMode";
 export { useInitProgress } from "./useInitProgress";
 export { useIsBackendReady } from "./useIsBackendReady";
-export { useWindow } from "./useWindow";
+export { useWindow, WindowGeometryController } from "./useWindow";
 export { useIsOpenedConfigPage } from "./useIsOpenedConfigPage";
 export { useIsSoftwareUpdating } from "./useIsSoftwareUpdating";
 export { useNotificationStatus } from "./useNotificationStatus";

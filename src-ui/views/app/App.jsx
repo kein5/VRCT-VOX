@@ -28,7 +28,7 @@ import {
     AppErrorBoundary,
 } from "./others";
 
-import { useIsBackendReady, useIsSoftwareUpdating, useWindow } from "@logics_common";
+import { useIsBackendReady, useIsSoftwareUpdating, WindowGeometryController } from "@logics_common";
 
 export const App = () => {
     const { currentIsBackendReady } = useIsBackendReady();
@@ -61,7 +61,6 @@ export const App = () => {
 };
 
 const Contents = () => {
-    const { WindowGeometryController } = useWindow();
     const { currentIsSoftwareUpdating } = useIsSoftwareUpdating();
     return (
         <>

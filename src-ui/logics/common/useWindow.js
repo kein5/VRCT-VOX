@@ -95,59 +95,12 @@ export const useWindow = () => {
         const size = await appWindow.innerSize();
         const dynamicBreakPoint = 800 * (currentUiScaling.data / 100);
         const narrow = size.width <= dynamicBreakPoint;
+        // Every update re-renders whatever reads IsBreakPoint, so only send changes.
+        if (document.documentElement.hasAttribute("data-narrow") === narrow) return;
         updateIsBreakPoint(narrow);
         // CSS width queries miss the UI size: at 200% an 870px window lays
         // out like a 435px one. Narrow styles also key on this attribute.
         document.documentElement.toggleAttribute("data-narrow", narrow);
-    };
-
-    const WindowGeometryController = () => {
-
-        const resizeTimeout = useRef(null);
-        const moveTimeout   = useRef(null);
-        const unlistenResize = useRef(null);
-        const unlistenMove   = useRef(null);
-
-        // Also decide at startup and once the saved UI size arrives: a window that opens
-        // narrow (or at a large UI size) never fires a resize event, so it kept the wide layout.
-        useEffect(() => {
-            asyncUpdateBreakPoint();
-        }, [currentUiScaling.data]);
-
-        useEffect(() => {
-            const setup = () => {
-                unlistenResize.current = appWindow.onResized(() => {
-                    clearTimeout(resizeTimeout.current);
-                    resizeTimeout.current = setTimeout(() => {
-                        asyncSaveWindowGeometry();
-                        asyncUpdateBreakPoint();
-                    }, 200);
-                });
-
-                unlistenMove.current = appWindow.onMoved(() => {
-                    clearTimeout(moveTimeout.current);
-                    moveTimeout.current = setTimeout(() => {
-                        asyncSaveWindowGeometry();
-                    }, 200);
-                });
-            };
-
-            setup();
-
-            return () => {
-                if (unlistenResize.current) {
-                    unlistenResize.current.then(dispose => dispose());
-                }
-                if (unlistenMove.current) {
-                    unlistenMove.current.then(dispose => dispose());
-                }
-
-                clearTimeout(resizeTimeout.current);
-                clearTimeout(moveTimeout.current);
-            };
-        }, []);
-
-        return null;
     };
 
     const asyncToggleMaximizeApp = async () => {
@@ -170,7 +123,6 @@ export const useWindow = () => {
     };
 
     return {
-        WindowGeometryController,
         asyncSaveWindowGeometry,
         restoreWindowGeometry,
         asyncUpdateBreakPoint,
@@ -179,4 +131,49 @@ export const useWindow = () => {
         asyncToggleMaximizeApp,
         asyncMinimizeApp,
     };
+};
+
+// Saves the window geometry and keeps the narrow layout in step with the window.
+// It is a module-level component: defined inside useWindow it was a new type on
+// every render, so React remounted it each time, and the mount effect's
+// IsBreakPoint update re-rendered its parent, which made it new again. That loop
+// re-rendered the whole app and re-registered the window listeners about 40
+// times a second while idle.
+export const WindowGeometryController = () => {
+    const { asyncSaveWindowGeometry, asyncUpdateBreakPoint } = useWindow();
+    const { currentUiScaling } = useAppearance();
+    const latest = useRef(null);
+    latest.current = { asyncSaveWindowGeometry, asyncUpdateBreakPoint };
+
+    // Also decide at startup and once the saved UI size arrives: a window that opens
+    // narrow (or at a large UI size) never fires a resize event, so it kept the wide layout.
+    useEffect(() => {
+        asyncUpdateBreakPoint();
+    }, [currentUiScaling.data]);
+
+    useEffect(() => {
+        const appWindow = store.appWindow;
+        let resizeTimeout = null, moveTimeout = null;
+        const unlistenResize = appWindow.onResized(() => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                latest.current.asyncSaveWindowGeometry();
+                latest.current.asyncUpdateBreakPoint();
+            }, 200);
+        });
+        const unlistenMove = appWindow.onMoved(() => {
+            clearTimeout(moveTimeout);
+            moveTimeout = setTimeout(() => {
+                latest.current.asyncSaveWindowGeometry();
+            }, 200);
+        });
+        return () => {
+            unlistenResize.then(dispose => dispose());
+            unlistenMove.then(dispose => dispose());
+            clearTimeout(resizeTimeout);
+            clearTimeout(moveTimeout);
+        };
+    }, []);
+
+    return null;
 };

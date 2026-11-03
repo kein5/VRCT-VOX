@@ -310,6 +310,41 @@ test("composer reads history only on explicit recall and sees the latest retaine
     assert.equal(reads, readsBeforeIme);
 });
 
+test("the window geometry controller keeps its listeners and only sends layout changes", async t => {
+    const runtime = hooks(), listened = [], disposed = [], updates = [];
+    let width = 870, scaling = 100;
+    const listen = name => () => { listened.push(name); return Promise.resolve(() => disposed.push(name)); };
+    const appWindow = { innerSize: async () => ({ width }), onResized: listen("resized"), onMoved: listen("moved") };
+    const attributes = new Set();
+    globalThis.document = { documentElement: {
+        hasAttribute: name => attributes.has(name),
+        toggleAttribute: (name, on) => { if (on) attributes.add(name); else attributes.delete(name); },
+    } };
+    t.after(() => { delete globalThis.document; });
+    const { WindowGeometryController } = await load("../logics/common/useWindow.js", runtime, {
+        "@tauri-apps/api/window": {},
+        "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython() {} }) },
+        "@store": { store: { appWindow }, useStore_IsBreakPoint: () => ({ updateIsBreakPoint: value => updates.push(value) }) },
+        "@logics_configs": { useAppearance: () => ({ currentUiScaling: { data: scaling } }) },
+    });
+    const settle = () => new Promise(resolve => setTimeout(resolve));
+    // A module-level component: re-rendering its parent must not remount it.
+    for (let i = 0; i < 3; i++) runtime.render(WindowGeometryController);
+    await settle();
+    assert.deepEqual(listened, ["resized", "moved"]);
+    assert.deepEqual(updates, []); // 870 px at 100 % is wide, as the layout already is
+    width = 700; scaling = 120;
+    runtime.render(WindowGeometryController);
+    await settle();
+    runtime.render(WindowGeometryController);
+    await settle();
+    assert.deepEqual(updates, [true]);
+    assert.deepEqual(listened, ["resized", "moved"]);
+    runtime.unmount();
+    await settle();
+    assert.deepEqual(disposed, ["resized", "moved"]);
+});
+
 test("opening and closing settings keeps the same MainSection type and key mounted", async () => {
     const runtime = hooks();
     let open = false;
