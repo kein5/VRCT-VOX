@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { useI18n } from "@useI18n";
 import clsx from "clsx";
+import { VrPickerList } from "./VrPickerList";
 
 import styles from "./VrSettingsWindow.module.scss";
 
@@ -180,22 +181,24 @@ export const ThresholdRow = ({
 };
 
 // 選択肢の一覧 (右側の一覧の代わりに表示する)。options: [{ id, label }]
-export const Picker = ({ title, options, selected_id, back_label, onPick, onBack }) => (
+export const Picker = ({ title, options, selected_id, back_label, onPick, onBack, scrollRef }) => (
     <>
         <div className={styles.picker_head}>
             <button className={clsx(styles.button, styles.back)} onClick={onBack}>‹ {back_label}</button>
             <span className={styles.picker_title}>{title}</span>
         </div>
-        {options.map(option => (
-            <button
-                key={option.id}
-                className={clsx(styles.row, styles.clickable, styles.option, { [styles.is_selected]: option.id === selected_id })}
-                aria-pressed={option.id === selected_id}
-                onClick={() => onPick(option.id)}
-            >
-                <span className={styles.label}>{option.label}</span>
-            </button>
-        ))}
+        <VrPickerList options={options} scrollRef={scrollRef} stickyHeader initialIndex={options.findIndex(option => option.id === selected_id)}>
+            {option => (
+                <button
+                    key={option.id}
+                    className={clsx(styles.row, styles.clickable, styles.option, { [styles.is_selected]: option.id === selected_id })}
+                    aria-pressed={option.id === selected_id}
+                    onClick={() => onPick(option.id)}
+                >
+                    <span className={styles.label}>{option.label}</span>
+                </button>
+            )}
+        </VrPickerList>
     </>
 );
 

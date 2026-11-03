@@ -122,7 +122,7 @@ export const VrSettingsWindow = ({ onClose }) => {
                         <Category id={category} t={t} openPicker={openPicker} />
                     </div>
                     {picker && <div ref={pickerRef} className={styles.list} data-vr-settings-list="picker" onKeyDown={(event) => { if (event.key === "Escape") setPicker(null); }}>
-                        <Picker {...picker} options={languageOptions} title={`${category_label(category)} › ${pickerTitle}`} back_label={t("common.go_back_button_label")}
+                        <Picker {...picker} options={languageOptions} scrollRef={pickerRef} title={`${category_label(category)} › ${pickerTitle}`} back_label={t("common.go_back_button_label")}
                             onPick={(id) => { picker.onPick(id); setPicker(null); }} onBack={() => setPicker(null)} />
                     </div>}
                 </fieldset>
