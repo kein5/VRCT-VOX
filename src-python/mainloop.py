@@ -45,7 +45,7 @@ warnings.filterwarnings(
 )
 
 from controller import Controller  # noqa: E402
-from utils import printLog, printResponse, errorLogging, encodeBase64, diagnosticLogPath # noqa: E402
+from utils import printLog, printResponse, errorLogging, encodeBase64, diagnosticLogPath, isQuietPoll # noqa: E402
 
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
@@ -822,7 +822,8 @@ class Main:
                     endpoint = received_data.get("endpoint")
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
-                    printLog(endpoint, {"receive_data": data})
+                    if not isQuietPoll(endpoint):
+                        printLog(endpoint, {"receive_data": data})
                     if endpoint in {"/run/stop_voice", "/run/disable_tts", "/run/mute_voice", "/run/resume_voice", "/run/stop_direct_voice", "/run/stop_realtime_asr", "/run/stop_speech_server"}:
                         # These requests only signal workers; they do not
                         # join, infer, or close a driver here. Busy ordinary
@@ -938,7 +939,8 @@ class Main:
                 time.sleep(_ENDPOINT_LOCKED_RETRY_INTERVAL_SEC)
                 self.queue.put((endpoint, data, attempt + 1))
             else:
-                printLog(endpoint, {"status": status, "send_data": result})
+                if not isQuietPoll(endpoint, status):
+                    printLog(endpoint, {"status": status, "send_data": result})
                 printResponse(status, endpoint, _request_error_result(endpoint, data, result, status))
 
     def startHandler(self) -> None:
