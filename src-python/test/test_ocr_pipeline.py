@@ -8,6 +8,8 @@ capture/EasyOCR/cv2 本体のスレッドループ(_run/_tick)は実機依存が
 import unittest
 from unittest.mock import Mock, patch
 
+import numpy as np
+
 from models.ocr.ocr_pipeline import NEWLINE, OcrPipeline, _DedupCache, _similar, _textHash
 
 _mergeWords = OcrPipeline._mergeWords
@@ -194,7 +196,7 @@ class TestDedupWithSlowTicks(unittest.TestCase):
         pipeline._capture.get.return_value = "frame"
         pipeline._reader = object()
         pipeline._detector = Mock()
-        pipeline._detector.detect.return_value = [((0, 0, 10, 10), "crop")]
+        pipeline._detector.detect.return_value = [((0, 0, 10, 10), np.zeros((10, 10, 3), dtype=np.uint8))]
 
         with patch("models.ocr.ocr_pipeline.ocr_engine.readtext_bgr_or_raise",
                    return_value=[{"text": "こんにちは", "confidence": 0.9}]),                 patch("models.ocr.ocr_pipeline.time.monotonic", side_effect=[100.0, 100.0, 100.0,
