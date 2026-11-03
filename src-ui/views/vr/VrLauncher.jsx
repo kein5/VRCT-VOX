@@ -86,8 +86,21 @@ const WindowButton = ({ Svg, label, name = label, is_open, is_attention = false,
     const timer = useRef(null);
     const long_pressed = useRef(false);
     const [is_holding, setIsHolding] = useState(false);
-    useEffect(() => () => clearTimeout(timer.current), []);
     const stopTimer = () => { clearTimeout(timer.current); timer.current = null; setIsHolding(false); };
+    useEffect(() => {
+        // The overlay releases outside the button when tracking or input ownership is lost.
+        document.addEventListener("mouseup", stopTimer, true);
+        document.addEventListener("mouseleave", stopTimer);
+        document.addEventListener("pointercancel", stopTimer, true);
+        window.addEventListener("blur", stopTimer);
+        return () => {
+            clearTimeout(timer.current);
+            document.removeEventListener("mouseup", stopTimer, true);
+            document.removeEventListener("mouseleave", stopTimer);
+            document.removeEventListener("pointercancel", stopTimer, true);
+            window.removeEventListener("blur", stopTimer);
+        };
+    }, []);
     const onMouseDown = event => {
         if (event.button !== 0) return;
         clearTimeout(timer.current);

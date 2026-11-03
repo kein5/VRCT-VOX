@@ -8,6 +8,11 @@
     box-shadow: inset 0 0 0 3px var(--primary_300_color);
 }
 .language_window button:disabled, .language_window button[aria-disabled='true'] { cursor: default; }
+.language_window button:active:not(:disabled):not([aria-disabled='true']),
+.language_window summary:active:not(:disabled):not([aria-disabled='true']) {
+    background-color: var(--primary_600_color);
+    transition: none;
+}
 .language_window summary:focus-visible { outline: 3px solid var(--primary_100_color); outline-offset: -3px; }
 .language_window fieldset { border: 0; margin: 0; min-width: 0; }
 .main, .picker { flex: 1; min-height: 0; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 8px; }

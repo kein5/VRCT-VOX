@@ -120,6 +120,10 @@
     &[data-vr-hover] {
         background-color: var(--dark_750_color);
     }
+    &:active:not(:disabled):not([aria-disabled="true"]) {
+        background-color: var(--primary_600_color);
+        transition: none;
+    }
 }
 
 .close_icon {
