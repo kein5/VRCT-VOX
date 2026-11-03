@@ -20,7 +20,7 @@ sequenceDiagram
   end
   S-->>UI: /run/enable_ai_models（真偽）
   S->>Net: 各エンジンのキーとモデル一覧の確認
-  Note over S: 無効なキーは消す
+  Note over S: 確認できないキーも保存したままにする
   S-->>UI: /run/initialization_progress = 2
   S-->>UI: /run/selected_translation_engines、/run/translation_engines
   S-->>UI: /run/initialization_progress = 3、4
@@ -196,17 +196,18 @@ sequenceDiagram
   participant C as クラウドのサービス
   P->>S: /set/data/groq_whisper_auth_key（保存バーの「保存」）
   S->>C: モデル一覧の取得（Deepgram は /v1/auth/token で確認）
-  alt キーが通る
+  alt 認証とモデルの確認がすべて成功
+    S->>S: 共有ロック内で対象のキーと準備済みの状態を反映
     S-->>P: /run/selectable_groq_whisper_model_list
     S-->>P: /run/selected_groq_whisper_model
     S-->>P: 200 キー
     P->>S: /get/data/selectable_transcription_engines、/get/data/selected_transcription_engine
     P->>P: エンジンを選べるようにする
-  else 確かめられない（拒否、形式の誤り、オフライン、429、5xx）
+  else 確かめられない（拒否、形式の誤り、通信失敗、モデルなし、初期化失敗）
     S->>S: 保存してあるキーと状態はそのまま
     S-->>P: 400 {error_code: TRANSCRIPTION_API_AUTH_FAILED, data: 保存してあるキー}
     P->>P: 欄を保存してあるキーに戻し、理由を通知
   end
 ```
 
-翻訳のキー（`/set/data/groq_auth_key`など）も同じ流れで、エラーコードは`AUTH_…`になる。
+翻訳のキー（`/set/data/groq_auth_key`など）も同じ流れで、エラーコードは`AUTH_…`になる。準備と反映、同時変更、OpenAI互換URLの失敗時の扱いは[APIキーの変更](cross-cutting.md#apiキーの変更)に従う。

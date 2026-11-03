@@ -1228,6 +1228,17 @@ class Model:
         del self.keyword_processor
         self.keyword_processor = KeywordProcessor()
 
+    def prepareTranslatorCredential(self, engine_key: str, auth_key: str,
+                                    selected_model=None, base_url=None):
+        self.ensure_initialized()
+        return self.translator.prepareCredential(
+            engine_key, auth_key, selected_model=selected_model,
+            root_path=config.PATH_LOCAL, base_url=base_url,
+        )
+
+    def commitTranslatorCredential(self, engine_key: str, candidate) -> None:
+        self.translator.commitCredential(engine_key, candidate)
+
     def authenticationTranslatorDeepLAuthKey(self, auth_key: str) -> bool:
         self.ensure_initialized()
         result = self.translator.authenticationDeepLAuthKey(auth_key)

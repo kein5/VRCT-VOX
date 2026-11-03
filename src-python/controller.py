@@ -2884,69 +2884,73 @@ class Controller:
     # model.setTranslatorXModel(...) 相当は行わず、
     # SELECTABLE_*_MODEL_LIST に含まれているかどうかだけで判定する。
     # ------------------------------------------------------------------
+    def _setTranscriptionCredential(self, engine, data, base_url=None):
+        printLog(f"Set {engine} Auth Key")
+        prefix = engine.upper()
+        try:
+            data = str(data).strip()
+            if not data:
+                raise ValueError("Empty credential")
+            if engine == "Deepgram":
+                if model.authenticationDeepgramApiKey(api_key=data) is not True:
+                    raise ValueError("Credential authentication failed")
+                models_detailed = model.getDeepgramModelListDetailed(api_key=data)
+                model_list = [item["name"] for item in models_detailed]
+                languages = {item["name"]: item["languages"] for item in models_detailed}
+            else:
+                if model.authenticationTranscriptionApiKey(api_key=data, base_url=base_url) is not True:
+                    raise ValueError("Credential authentication failed")
+                filters = {} if engine == "Custom_Whisper" else {"keyword_filter": TRANSCRIPTION_MODEL_KEYWORDS}
+                model_list = model.getTranscriptionApiModelList(api_key=data, base_url=base_url, **filters)
+            if not isinstance(model_list, list) or not model_list or any(
+                not isinstance(name, str) or not name.strip() for name in model_list
+            ):
+                raise ValueError("No supported models available")
+            model_list = list(model_list)
+            selected_model = getattr(config, f"SELECTED_{prefix}_MODEL")
+            if selected_model not in model_list:
+                selected_model = model_list[0]
+        except Exception:
+            errorLogging()
+            return VRCTError.create_error_response(
+                ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
+                data=config.TRANSCRIPTION_AUTH_KEYS.get(engine),
+            )
+        with config.credential_lock:
+            if engine == "Custom_Whisper" and config.TRANSCRIPTION_CUSTOM_URL != base_url:
+                return VRCTError.create_error_response(
+                    ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
+                    data=config.TRANSCRIPTION_AUTH_KEYS.get(engine),
+                )
+            config.updateCredential("TRANSCRIPTION_AUTH_KEYS", engine, data)
+            setattr(config, f"SELECTABLE_{prefix}_MODEL_LIST", model_list)
+            setattr(config, f"SELECTED_{prefix}_MODEL", selected_model)
+            if engine == "Deepgram":
+                config.DEEPGRAM_MODEL_LANGUAGES = languages
+            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
+            self.run(200, self.run_mapping[f"selectable_{engine.lower()}_model_list"], model_list)
+            self.run(200, self.run_mapping[f"selected_{engine.lower()}_model"], selected_model)
+            self.updateTranscriptionEngine()
+        return {"status": 200, "result": data}
+
     @staticmethod
     def getGroqWhisperAuthKey(*args, **kwargs) -> dict:
         return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS["Groq_Whisper"]}
 
     def setGroqWhisperAuthKey(self, data, *args, **kwargs) -> dict:
-        printLog("Set Groq Whisper Auth Key")
-        engine = "Groq_Whisper"
-        try:
-            data = str(data).strip()
-            if len(data) == 0:
-                response = VRCTError.create_error_response(
-                    ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                    data=None
-                )
-            else:
-                result = model.authenticationTranscriptionApiKey(api_key=data, base_url=config.GROQ_WHISPER_BASE_URL)
-                if result is True:
-                    model_list = model.getTranscriptionApiModelList(
-                        api_key=data, base_url=config.GROQ_WHISPER_BASE_URL, keyword_filter=TRANSCRIPTION_MODEL_KEYWORDS,
-                    )
-                    if len(model_list) == 0:
-                        response = VRCTError.create_error_response(
-                            ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                            data=None
-                        )
-                    else:
-                        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-                        auth_keys[engine] = data
-                        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-                        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
-                        config.SELECTABLE_GROQ_WHISPER_MODEL_LIST = model_list
-                        self.run(200, self.run_mapping["selectable_groq_whisper_model_list"], config.SELECTABLE_GROQ_WHISPER_MODEL_LIST)
-                        if config.SELECTED_GROQ_WHISPER_MODEL not in config.SELECTABLE_GROQ_WHISPER_MODEL_LIST:
-                            config.SELECTED_GROQ_WHISPER_MODEL = config.SELECTABLE_GROQ_WHISPER_MODEL_LIST[0]
-                        self.run(200, self.run_mapping["selected_groq_whisper_model"], config.SELECTED_GROQ_WHISPER_MODEL)
-                        self.updateTranscriptionEngine()
-                        response = {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                        data=None
-                    )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=None
-            )
-        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("Groq_Whisper"))
+        return self._setTranscriptionCredential("Groq_Whisper", data, base_url=config.GROQ_WHISPER_BASE_URL)
 
     def delGroqWhisperAuthKey(self, *args, **kwargs) -> dict:
-        engine = "Groq_Whisper"
-        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-        auth_keys[engine] = None
-        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-        config.SELECTABLE_GROQ_WHISPER_MODEL_LIST = []
-        config.SELECTED_GROQ_WHISPER_MODEL = None
-        self.run(200, self.run_mapping["selectable_groq_whisper_model_list"], config.SELECTABLE_GROQ_WHISPER_MODEL_LIST)
-        self.run(200, self.run_mapping["selected_groq_whisper_model"], config.SELECTED_GROQ_WHISPER_MODEL)
-        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-        self.updateTranscriptionEngine()
-        return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-
+        with config.credential_lock:
+            engine = "Groq_Whisper"
+            config.updateCredential("TRANSCRIPTION_AUTH_KEYS", engine, None)
+            config.SELECTABLE_GROQ_WHISPER_MODEL_LIST = []
+            config.SELECTED_GROQ_WHISPER_MODEL = None
+            self.run(200, self.run_mapping["selectable_groq_whisper_model_list"], config.SELECTABLE_GROQ_WHISPER_MODEL_LIST)
+            self.run(200, self.run_mapping["selected_groq_whisper_model"], config.SELECTED_GROQ_WHISPER_MODEL)
+            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
+            self.updateTranscriptionEngine()
+            return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
 
 
     @staticmethod
@@ -2966,64 +2970,19 @@ class Controller:
         return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS["OpenAI_Whisper"]}
 
     def setOpenAIWhisperAuthKey(self, data, *args, **kwargs) -> dict:
-        printLog("Set OpenAI Whisper Auth Key")
-        engine = "OpenAI_Whisper"
-        try:
-            data = str(data).strip()
-            if len(data) == 0:
-                response = VRCTError.create_error_response(
-                    ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                    data=None
-                )
-            else:
-                result = model.authenticationTranscriptionApiKey(api_key=data, base_url=config.OPENAI_WHISPER_BASE_URL)
-                if result is True:
-                    model_list = model.getTranscriptionApiModelList(
-                        api_key=data, base_url=config.OPENAI_WHISPER_BASE_URL, keyword_filter=TRANSCRIPTION_MODEL_KEYWORDS,
-                    )
-                    if len(model_list) == 0:
-                        response = VRCTError.create_error_response(
-                            ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                            data=None
-                        )
-                    else:
-                        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-                        auth_keys[engine] = data
-                        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-                        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
-                        config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST = model_list
-                        self.run(200, self.run_mapping["selectable_openai_whisper_model_list"], config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST)
-                        if config.SELECTED_OPENAI_WHISPER_MODEL not in config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST:
-                            config.SELECTED_OPENAI_WHISPER_MODEL = config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST[0]
-                        self.run(200, self.run_mapping["selected_openai_whisper_model"], config.SELECTED_OPENAI_WHISPER_MODEL)
-                        self.updateTranscriptionEngine()
-                        response = {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                        data=None
-                    )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=None
-            )
-        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("OpenAI_Whisper"))
+        return self._setTranscriptionCredential("OpenAI_Whisper", data, base_url=config.OPENAI_WHISPER_BASE_URL)
 
     def delOpenAIWhisperAuthKey(self, *args, **kwargs) -> dict:
-        engine = "OpenAI_Whisper"
-        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-        auth_keys[engine] = None
-        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-        config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST = []
-        config.SELECTED_OPENAI_WHISPER_MODEL = None
-        self.run(200, self.run_mapping["selectable_openai_whisper_model_list"], config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST)
-        self.run(200, self.run_mapping["selected_openai_whisper_model"], config.SELECTED_OPENAI_WHISPER_MODEL)
-        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-        self.updateTranscriptionEngine()
-        return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-
+        with config.credential_lock:
+            engine = "OpenAI_Whisper"
+            config.updateCredential("TRANSCRIPTION_AUTH_KEYS", engine, None)
+            config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST = []
+            config.SELECTED_OPENAI_WHISPER_MODEL = None
+            self.run(200, self.run_mapping["selectable_openai_whisper_model_list"], config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST)
+            self.run(200, self.run_mapping["selected_openai_whisper_model"], config.SELECTED_OPENAI_WHISPER_MODEL)
+            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
+            self.updateTranscriptionEngine()
+            return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
 
 
     @staticmethod
@@ -3043,62 +3002,19 @@ class Controller:
         return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"]}
 
     def setCustomWhisperAuthKey(self, data, *args, **kwargs) -> dict:
-        printLog("Set Custom Whisper Auth Key")
-        engine = "Custom_Whisper"
-        try:
-            data = str(data).strip()
-            if len(data) == 0:
-                response = VRCTError.create_error_response(
-                    ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                    data=None
-                )
-            else:
-                result = model.authenticationTranscriptionApiKey(api_key=data, base_url=config.TRANSCRIPTION_CUSTOM_URL)
-                if result is True:
-                    # カスタムサーバーはどんなモデル名を使っているか分からないため絞り込まない
-                    model_list = model.getTranscriptionApiModelList(api_key=data, base_url=config.TRANSCRIPTION_CUSTOM_URL)
-                    if len(model_list) == 0:
-                        response = VRCTError.create_error_response(
-                            ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                            data=None
-                        )
-                    else:
-                        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-                        auth_keys[engine] = data
-                        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-                        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
-                        config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = model_list
-                        self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
-                        if config.SELECTED_CUSTOM_WHISPER_MODEL not in config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST:
-                            config.SELECTED_CUSTOM_WHISPER_MODEL = config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST[0]
-                        self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
-                        self.updateTranscriptionEngine()
-                        response = {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                        data=None
-                    )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=None
-            )
-        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("Custom_Whisper"))
+        return self._setTranscriptionCredential("Custom_Whisper", data, base_url=config.TRANSCRIPTION_CUSTOM_URL)
 
     def delCustomWhisperAuthKey(self, *args, **kwargs) -> dict:
-        engine = "Custom_Whisper"
-        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-        auth_keys[engine] = None
-        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-        config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = []
-        config.SELECTED_CUSTOM_WHISPER_MODEL = None
-        self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
-        self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
-        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-        self.updateTranscriptionEngine()
-        return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
+        with config.credential_lock:
+            engine = "Custom_Whisper"
+            config.updateCredential("TRANSCRIPTION_AUTH_KEYS", engine, None)
+            config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = []
+            config.SELECTED_CUSTOM_WHISPER_MODEL = None
+            self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
+            self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
+            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
+            self.updateTranscriptionEngine()
+            return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
 
 
     def setCustomWhisperURL(self, data, *args, **kwargs) -> dict:
@@ -3179,65 +3095,20 @@ class Controller:
         return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS["Deepgram"]}
 
     def setDeepgramAuthKey(self, data, *args, **kwargs) -> dict:
-        printLog("Set Deepgram Auth Key")
-        engine = "Deepgram"
-        try:
-            data = str(data).strip()
-            if len(data) == 0:
-                response = VRCTError.create_error_response(
-                    ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                    data=None
-                )
-            else:
-                result = model.authenticationDeepgramApiKey(api_key=data)
-                if result is True:
-                    models_detailed = model.getDeepgramModelListDetailed(api_key=data)
-                    model_list = [m["name"] for m in models_detailed]
-                    if len(model_list) == 0:
-                        response = VRCTError.create_error_response(
-                            ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                            data=None
-                        )
-                    else:
-                        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-                        auth_keys[engine] = data
-                        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-                        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
-                        config.SELECTABLE_DEEPGRAM_MODEL_LIST = model_list
-                        config.DEEPGRAM_MODEL_LANGUAGES = {m["name"]: m["languages"] for m in models_detailed}
-                        self.run(200, self.run_mapping["selectable_deepgram_model_list"], config.SELECTABLE_DEEPGRAM_MODEL_LIST)
-                        if config.SELECTED_DEEPGRAM_MODEL not in config.SELECTABLE_DEEPGRAM_MODEL_LIST:
-                            config.SELECTED_DEEPGRAM_MODEL = config.SELECTABLE_DEEPGRAM_MODEL_LIST[0]
-                        self.run(200, self.run_mapping["selected_deepgram_model"], config.SELECTED_DEEPGRAM_MODEL)
-                        self.updateTranscriptionEngine()
-                        response = {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                        data=None
-                    )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=None
-            )
-        return self._keepSavedKeyOnError(response, config.TRANSCRIPTION_AUTH_KEYS.get("Deepgram"))
+        return self._setTranscriptionCredential("Deepgram", data, base_url=None)
 
     def delDeepgramAuthKey(self, *args, **kwargs) -> dict:
-        engine = "Deepgram"
-        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-        auth_keys[engine] = None
-        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-        config.SELECTABLE_DEEPGRAM_MODEL_LIST = []
-        config.DEEPGRAM_MODEL_LANGUAGES = {}
-        config.SELECTED_DEEPGRAM_MODEL = None
-        self.run(200, self.run_mapping["selectable_deepgram_model_list"], config.SELECTABLE_DEEPGRAM_MODEL_LIST)
-        self.run(200, self.run_mapping["selected_deepgram_model"], config.SELECTED_DEEPGRAM_MODEL)
-        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-        self.updateTranscriptionEngine()
-        return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-
+        with config.credential_lock:
+            engine = "Deepgram"
+            config.updateCredential("TRANSCRIPTION_AUTH_KEYS", engine, None)
+            config.SELECTABLE_DEEPGRAM_MODEL_LIST = []
+            config.DEEPGRAM_MODEL_LANGUAGES = {}
+            config.SELECTED_DEEPGRAM_MODEL = None
+            self.run(200, self.run_mapping["selectable_deepgram_model_list"], config.SELECTABLE_DEEPGRAM_MODEL_LIST)
+            self.run(200, self.run_mapping["selected_deepgram_model"], config.SELECTED_DEEPGRAM_MODEL)
+            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
+            self.updateTranscriptionEngine()
+            return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
 
 
     def setDeepgramModel(self, data, *args, **kwargs) -> dict:
@@ -3920,74 +3791,47 @@ class Controller:
 
     def _setTranslationEngineAuthKey(self, engine_key: str, data) -> dict:
         spec = TRANSLATION_PROVIDER_REGISTRY[engine_key]
-        bindings = _ENGINE_MODEL_BINDINGS[engine_key]
-        display_name = engine_key[:-len("_API")] if engine_key.endswith("_API") else engine_key
-        printLog(f"Set {display_name} Auth Key")
+        printLog(f"Set {engine_key} Auth Key")
         try:
             data = str(data)
-            if spec.auth_validate(data):
-                result = getattr(model, bindings["authenticate"])(auth_key=data)
-                if result is True:
-                    auth_keys = config.AUTH_KEYS
-                    auth_keys[engine_key] = data
-                    config.AUTH_KEYS = auth_keys
-                    config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine_key] = True
-                    model_list = getattr(model, bindings["get_model_list"])()
-                    setattr(config, spec.selectable_model_list_attr, model_list)
-                    self.run(200, self.run_mapping[spec.run_mapping_selectable_key], model_list)
-                    if getattr(config, spec.selected_model_attr) not in model_list:
-                        setattr(config, spec.selected_model_attr, model_list[0])
-                    getattr(model, bindings["set_model"])(model=getattr(config, spec.selected_model_attr))
-                    self.run(200, self.run_mapping[spec.run_mapping_selected_key], getattr(config, spec.selected_model_attr))
-                    getattr(model, bindings["update_client"])()
-                    self.updateTranslationEngineAndEngineList()
-                    response = {"status":200, "result":config.AUTH_KEYS[engine_key]}
-                else:
-                    response = VRCTError.create_error_response(
-                        spec.error_auth_failed,
-                        data=None
-                    )
-            else:
-                response = VRCTError.create_error_response(
-                    spec.error_auth_invalid,
-                    data=None
+            if not spec.auth_validate(data):
+                return VRCTError.create_error_response(
+                    spec.error_auth_invalid, data=config.AUTH_KEYS.get(engine_key),
                 )
+            candidate = model.prepareTranslatorCredential(
+                engine_key, data, selected_model=getattr(config, spec.selected_model_attr),
+            )
         except Exception:
             errorLogging()
-            # SDK の例外内容には認証キーやリクエスト情報が含まれる
-            # 可能性があるため、そのまま UI へ返さない。詳細は
-            # errorLogging() で記録し、UI には認証失敗の安全な概要だけを
-            # 返す。
-            response = VRCTError.create_error_response(
-                spec.error_auth_failed,
-                data=None,
+            return VRCTError.create_error_response(
+                spec.error_auth_failed, data=config.AUTH_KEYS.get(engine_key),
             )
-        return self._keepSavedKeyOnError(response, config.AUTH_KEYS.get(engine_key))
 
-    @staticmethod
-    def _keepSavedKeyOnError(response: dict, saved_key) -> dict:
-        """キーの登録に失敗しても、保存してあるキーは消さない。
+        _, model_list, selected_model = candidate
+        with config.credential_lock:
+            config.updateCredential("AUTH_KEYS", engine_key, data)
+            setattr(config, spec.selectable_model_list_attr, model_list)
+            setattr(config, spec.selected_model_attr, selected_model)
+            model.commitTranslatorCredential(engine_key, candidate)
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine_key] = True
+            self.run(200, self.run_mapping[spec.run_mapping_selectable_key], model_list)
+            self.run(200, self.run_mapping[spec.run_mapping_selected_key], selected_model)
+            self.updateTranslationEngineAndEngineList()
+        return {"status": 200, "result": data}
 
-        確認の失敗は、キーの拒否のほかに、形式の誤り、オフライン、タイムアウト、429、5xx でも
-        起きる。以前はどの失敗でも保存済みのキーを消していた。消すのは利用者が削除したときだけにし、
-        画面の欄は保存してあるキーに戻す (`data` が戻す値になる)。
-        """
-        if response.get("status") == 400 and isinstance(response.get("result"), dict):
-            response["result"]["data"] = saved_key
-        return response
 
     def _delTranslationEngineAuthKey(self, engine_key: str) -> dict:
-        spec = TRANSLATION_PROVIDER_REGISTRY[engine_key]
-        auth_keys = config.AUTH_KEYS
-        auth_keys[engine_key] = None
-        config.AUTH_KEYS = auth_keys
-        setattr(config, spec.selectable_model_list_attr, [])
-        setattr(config, spec.selected_model_attr, None)
-        self.run(200, self.run_mapping[spec.run_mapping_selectable_key], getattr(config, spec.selectable_model_list_attr))
-        self.run(200, self.run_mapping[spec.run_mapping_selected_key], getattr(config, spec.selected_model_attr))
-        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine_key] = False
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200, "result":config.AUTH_KEYS[engine_key]}
+        with config.credential_lock:
+            spec = TRANSLATION_PROVIDER_REGISTRY[engine_key]
+            config.updateCredential("AUTH_KEYS", engine_key, None)
+            setattr(config, spec.selectable_model_list_attr, [])
+            setattr(config, spec.selected_model_attr, None)
+            self.run(200, self.run_mapping[spec.run_mapping_selectable_key], getattr(config, spec.selectable_model_list_attr))
+            self.run(200, self.run_mapping[spec.run_mapping_selected_key], getattr(config, spec.selected_model_attr))
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine_key] = False
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.AUTH_KEYS[engine_key]}
+
 
     def _getTranslationEngineModelList(self, engine_key: str) -> dict:
         spec = self._resolveEngineSpec(engine_key)
@@ -4084,45 +3928,34 @@ class Controller:
 
     def setDeeplAuthKey(self, data, *args, **kwargs) -> dict:
         printLog("Set DeepL Auth Key")
-        translator_name = "DeepL_API"
+        engine = "DeepL_API"
         try:
             data = str(data)
-            if len(data) == 36 or len(data) == 39:
-                result = model.authenticationTranslatorDeepLAuthKey(auth_key=data)
-                if result is True:
-                    key = data
-                    auth_keys = config.AUTH_KEYS
-                    auth_keys[translator_name] = key
-                    config.AUTH_KEYS = auth_keys
-                    config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = True
-                    self.updateTranslationEngineAndEngineList()
-                    response = {"status":200, "result":config.AUTH_KEYS[translator_name]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.AUTH_DEEPL_FAILED,
-                        data=config.AUTH_KEYS[translator_name]
-                    )
-            else:
-                response = VRCTError.create_error_response(
-                    ErrorCode.AUTH_DEEPL_LENGTH,
-                    data=config.AUTH_KEYS[translator_name]
+            if len(data) not in (36, 39):
+                return VRCTError.create_error_response(
+                    ErrorCode.AUTH_DEEPL_LENGTH, data=config.AUTH_KEYS[engine],
                 )
-        except Exception as e:
+            candidate = model.prepareTranslatorCredential(engine, data)
+        except Exception:
             errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=config.AUTH_KEYS[translator_name]
+            return VRCTError.create_error_response(
+                ErrorCode.AUTH_DEEPL_FAILED, data=config.AUTH_KEYS[engine],
             )
-        return response
+        with config.credential_lock:
+            config.updateCredential("AUTH_KEYS", engine, data)
+            model.commitTranslatorCredential(engine, candidate)
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine] = True
+            self.updateTranslationEngineAndEngineList()
+        return {"status": 200, "result": data}
 
     def delDeeplAuthKey(self, *args, **kwargs) -> dict:
-        translator_name = "DeepL_API"
-        auth_keys = config.AUTH_KEYS
-        auth_keys[translator_name] = None
-        config.AUTH_KEYS = auth_keys
-        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200, "result":config.AUTH_KEYS[translator_name]}
+        with config.credential_lock:
+            translator_name = "DeepL_API"
+            config.updateCredential("AUTH_KEYS", translator_name, None)
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.AUTH_KEYS[translator_name]}
+
 
     def getPlamoAuthKey(self, *args, **kwargs) -> dict:
         return self._getTranslationEngineAuthKey("Plamo_API")
@@ -4290,139 +4123,90 @@ class Controller:
 
     def setOpenAICompatibleAuthKey(self, data, *args, **kwargs) -> dict:
         printLog("Set OpenAI Compatible Auth Key")
-        translator_name = "OpenAI_Compatible"
+        engine = "OpenAI_Compatible"
         try:
             data = str(data).strip()
-            if len(data) == 0:
-                response = VRCTError.create_error_response(
-                    ErrorCode.AUTH_OPENAI_COMPATIBLE_INVALID,
-                    data=None
+            if not data:
+                return VRCTError.create_error_response(
+                    ErrorCode.AUTH_OPENAI_COMPATIBLE_INVALID, data=config.AUTH_KEYS[engine],
                 )
-            else:
-                result = model.authenticationTranslatorOpenAICompatibleAuthKey(
-                    auth_key=data,
-                    base_url=config.OPENAI_COMPATIBLE_URL,
-                )
-                if result is True:
-                    model_list = model.getTranslatorOpenAICompatibleModelList()
-                    if len(model_list) == 0:
-                        response = VRCTError.create_error_response(
-                            ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED,
-                            data=None
-                        )
-                    else:
-                        auth_keys = config.AUTH_KEYS
-                        auth_keys[translator_name] = data
-                        config.AUTH_KEYS = auth_keys
-                        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = True
-                        config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = model_list
-                        self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
-                        if config.SELECTED_OPENAI_COMPATIBLE_MODEL not in config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST:
-                            config.SELECTED_OPENAI_COMPATIBLE_MODEL = config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST[0]
-                        model.setTranslatorOpenAICompatibleModel(model=config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                        self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                        model.updateTranslatorOpenAICompatibleClient()
-                        self.updateTranslationEngineAndEngineList()
-                        response = {"status":200, "result":config.AUTH_KEYS[translator_name]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED,
-                        data=None
-                    )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=None
+            base_url = config.OPENAI_COMPATIBLE_URL
+            candidate = model.prepareTranslatorCredential(
+                engine, data, selected_model=config.SELECTED_OPENAI_COMPATIBLE_MODEL,
+                base_url=base_url,
             )
-        return self._keepSavedKeyOnError(response, config.AUTH_KEYS.get("OpenAI_Compatible"))
+        except Exception:
+            errorLogging()
+            return VRCTError.create_error_response(
+                ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED, data=config.AUTH_KEYS[engine],
+            )
+        with config.credential_lock:
+            # A URL change may finish while the candidate is being checked.
+            if config.OPENAI_COMPATIBLE_URL != base_url:
+                return VRCTError.create_error_response(
+                    ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED, data=config.AUTH_KEYS[engine],
+                )
+            config.updateCredential("AUTH_KEYS", engine, data)
+            self._commitOpenAICompatibleCandidate(candidate)
+        return {"status": 200, "result": data}
+
+    def _commitOpenAICompatibleCandidate(self, candidate):
+        """Publish prepared state while the caller holds credential_lock."""
+        _, model_list, selected_model = candidate
+        config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = model_list
+        config.SELECTED_OPENAI_COMPATIBLE_MODEL = selected_model
+        model.commitTranslatorCredential("OpenAI_Compatible", candidate)
+        config.SELECTABLE_TRANSLATION_ENGINE_STATUS["OpenAI_Compatible"] = True
+        self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], model_list)
+        self.run(200, self.run_mapping["selected_openai_compatible_model"], selected_model)
+        self.updateTranslationEngineAndEngineList()
 
     def delOpenAICompatibleAuthKey(self, *args, **kwargs) -> dict:
-        translator_name = "OpenAI_Compatible"
-        auth_keys = config.AUTH_KEYS
-        auth_keys[translator_name] = None
-        config.AUTH_KEYS = auth_keys
-        config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = []
-        config.SELECTED_OPENAI_COMPATIBLE_MODEL = None
-        self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
-        self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200, "result":config.AUTH_KEYS[translator_name]}
+        with config.credential_lock:
+            translator_name = "OpenAI_Compatible"
+            config.updateCredential("AUTH_KEYS", translator_name, None)
+            config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = []
+            config.SELECTED_OPENAI_COMPATIBLE_MODEL = None
+            self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
+            self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.AUTH_KEYS[translator_name]}
 
 
     def setOpenAICompatibleURL(self, data, *args, **kwargs) -> dict:
-        """URL 変更時は「認証成功後に URL を確定」する順序を守る。
-
-        Auth Key が未設定の場合は URL だけ保存して終わる（次回 Auth Key 入力時に検証される）。
-        """
+        """Keep the previous URL/client unless the candidate is ready to translate."""
         printLog("Set OpenAI Compatible URL", data)
-        translator_name = "OpenAI_Compatible"
+        engine = "OpenAI_Compatible"
         try:
             data = str(data).strip()
-            if len(data) == 0:
-                return VRCTError.create_error_response(
-                    ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID,
-                    data=config.OPENAI_COMPATIBLE_URL
-                )
-
-            auth_key = config.AUTH_KEYS[translator_name]
-
-            if not auth_key:
-                # Auth Key 未設定：URL のみ更新して終了
-                config.OPENAI_COMPATIBLE_URL = data
-                return {"status":200, "result":config.OPENAI_COMPATIBLE_URL}
-
-            result = model.authenticationTranslatorOpenAICompatibleAuthKey(
-                auth_key=auth_key,
+            if not data:
+                raise ValueError("Empty endpoint URL")
+            with config.credential_lock:
+                auth_key = config.AUTH_KEYS[engine]
+                if not auth_key:
+                    config.OPENAI_COMPATIBLE_URL = data
+                    return {"status": 200, "result": config.OPENAI_COMPATIBLE_URL}
+            candidate = model.prepareTranslatorCredential(
+                engine, auth_key, selected_model=config.SELECTED_OPENAI_COMPATIBLE_MODEL,
                 base_url=data,
             )
-            if result is True:
-                model_list = model.getTranslatorOpenAICompatibleModelList()
-                if len(model_list) == 0:
-                    # URL は疎通したが翻訳可能モデルが 0 件
-                    config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
-                    config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = []
-                    config.SELECTED_OPENAI_COMPATIBLE_MODEL = None
-                    self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
-                    self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                    self.updateTranslationEngineAndEngineList()
-                    response = VRCTError.create_error_response(
-                        ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED,
-                        data=config.OPENAI_COMPATIBLE_URL
-                    )
-                else:
-                    config.OPENAI_COMPATIBLE_URL = data
-                    config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = True
-                    config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = model_list
-                    self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
-                    if config.SELECTED_OPENAI_COMPATIBLE_MODEL not in config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST:
-                        config.SELECTED_OPENAI_COMPATIBLE_MODEL = config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST[0]
-                    model.setTranslatorOpenAICompatibleModel(model=config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                    self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                    model.updateTranslatorOpenAICompatibleClient()
-                    self.updateTranslationEngineAndEngineList()
-                    response = {"status":200, "result":config.OPENAI_COMPATIBLE_URL}
-            else:
-                config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
-                config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = []
-                config.SELECTED_OPENAI_COMPATIBLE_MODEL = None
-                self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
-                self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                self.updateTranslationEngineAndEngineList()
-                response = VRCTError.create_error_response(
-                    ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID,
-                    data=config.OPENAI_COMPATIBLE_URL
-                )
-        except Exception as e:
+        except Exception:
             errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=config.OPENAI_COMPATIBLE_URL
+            return VRCTError.create_error_response(
+                ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID,
+                data=config.OPENAI_COMPATIBLE_URL,
             )
-        return response
-
-
+        with config.credential_lock:
+            # Do not publish a client for a key replaced/deleted during the check.
+            if config.AUTH_KEYS[engine] != auth_key:
+                return VRCTError.create_error_response(
+                    ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID,
+                    data=config.OPENAI_COMPATIBLE_URL,
+                )
+            config.OPENAI_COMPATIBLE_URL = data
+            self._commitOpenAICompatibleCandidate(candidate)
+        return {"status": 200, "result": data}
 
     def setOpenAICompatibleModel(self, data, *args, **kwargs) -> dict:
         printLog("Set OpenAI Compatible Model", data)

@@ -146,6 +146,46 @@ class Translator:
         # (現状のコードパスでは再入は起きない)。
         self._ctranslate2_lock: RLock = RLock()
 
+    def prepareCredential(self, engine_key: str, auth_key: str, selected_model=None,
+                          root_path=None, base_url=None):
+        """Build a usable candidate without changing any live client.
+
+        Authentication alone is insufficient: model discovery, selection and
+        SDK client construction must all succeed before the caller commits.
+        """
+        if engine_key == "DeepL_API":
+            client = DeepLClient(auth_key)
+            client.translate_text(" ", target_lang="EN-US")
+            return client, [], None
+        if engine_key == "OpenAI_Compatible":
+            client = OpenAICompatibleClient(base_url=base_url, root_path=root_path)
+        else:
+            client = TRANSLATION_PROVIDER_REGISTRY[engine_key].client_class(root_path=root_path)
+        if not client.setAuthKey(auth_key):
+            raise ValueError("Credential authentication failed")
+        model_list = client.getModelList()
+        if not isinstance(model_list, list) or not model_list or any(
+            not isinstance(name, str) or not name.strip() for name in model_list
+        ):
+            raise ValueError("No supported models available")
+        model_list = list(model_list)
+        if selected_model not in model_list:
+            selected_model = model_list[0]
+        if client.setModel(selected_model) is not True:
+            raise ValueError("Model selection failed")
+        client.updateClient()
+        return client, model_list, selected_model
+
+    def commitCredential(self, engine_key: str, candidate) -> None:
+        """Publish a prepared client under the caller's credential commit lock."""
+        client, _, _ = candidate
+        if engine_key == "DeepL_API":
+            self.deepl_client = client
+        elif engine_key == "OpenAI_Compatible":
+            self.openai_compatible_client = client
+        else:
+            self._provider_clients[engine_key] = client
+
     def authenticationDeepLAuthKey(self, auth_key: str) -> bool:
         """Authenticate DeepL API with the provided key.
 

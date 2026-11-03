@@ -770,6 +770,27 @@ class Config:
     _timer: Optional[threading.Timer] = None
     _debounce_time: int = 2
     _file_lock: threading.Lock = threading.Lock()
+    # Shared by translation and transcription credential commits. Provider
+    # requests must finish before taking this lock.
+    credential_lock = threading.RLock()
+
+    def updateCredential(self, map_name: str, engine_key: str, value: Optional[str]) -> None:
+        """Merge one credential without overwriting another provider's update.
+
+        Callers may hold credential_lock to publish prepared client/model state
+        in the same commit. This does not change the persistence policy.
+        """
+        if map_name not in ("AUTH_KEYS", "TRANSCRIPTION_AUTH_KEYS"):
+            raise ValueError("Unknown credential map")
+        if value is not None and not isinstance(value, str):
+            raise ValueError("Invalid credential value")
+        with self.credential_lock:
+            keys = getattr(self, map_name)
+            if engine_key not in keys:
+                raise ValueError("Unknown credential provider")
+            keys[engine_key] = value
+            setattr(self, map_name, keys)
+
     # 保存の失敗を知らせる先。controller が起動時に設定する。
     # on_save_failed(reason, path) と on_save_recovered() を呼ぶ
     on_save_failed: Optional[Callable[[str, str], None]] = None
