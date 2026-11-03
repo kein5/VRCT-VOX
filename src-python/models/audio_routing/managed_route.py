@@ -117,6 +117,14 @@ class VoiceRoute:
             self._wake.set()
 
     def _work(self):
+        try:
+            self._work_loop()
+        finally:
+            close = getattr(self.gate, 'close_observer', None)
+            if close:
+                close()
+
+    def _work_loop(self):
         while True:
             self._wake.wait(self.poll_interval)
             self._wake.clear()
@@ -128,11 +136,14 @@ class VoiceRoute:
                 direct_identity = self._direct_identity
                 suppress_direct = self._suppress_direct
                 pending = self._pending
-                if not managed and not pending:
-                    continue
             observed = None
             direct_observed = None
             try:
+                observe = getattr(self.gate, 'observe', None)
+                if observe:
+                    observe(managed, self._wake)
+                if not managed and not pending:
+                    continue
                 if managed:
                     with self._condition:
                         prepare = self._prepare_needed and not self._closed

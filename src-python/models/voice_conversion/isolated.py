@@ -18,17 +18,32 @@ ROOT = resource_root()
 HELPER = ROOT / 'build/vrct-vc-worker'
 
 
-def _launch():
+def _launch(source):
+    from models.audio_routing.pipewire_graph_pipe import GraphFeed, _ENV
+    from models.audio_routing.pipewire_gate import VC_SINK
+    feed = GraphFeed((source.name, VC_SINK))
+    try:
+        return _launch_with_graph(feed, _ENV)
+    except BaseException:
+        feed.close()
+        raise
+
+
+def _launch_with_graph(feed, key):
     owner = os.pidfd_open(get_native_id(), os.O_EXCL)
     env = external_process_env()
+    env[key] = str(feed.read_fd)
     frozen = bool(getattr(sys, 'frozen', False))
     if not frozen:
         # Fixed application code, independent of the shell's PYTHONPATH.
         env['PYTHONPATH'] = str(ROOT / 'src-python') + os.pathsep + str(ROOT)
     try:
-        return subprocess.Popen([str(HELPER), str(os.getpid()), str(owner), sys.executable,
-            'router-frozen' if frozen else 'router'], cwd=ROOT, env=env, pass_fds=(owner,),
+        child = subprocess.Popen([str(HELPER), str(os.getpid()), str(owner), sys.executable,
+            'router-frozen' if frozen else 'router'], cwd=ROOT, env=env, pass_fds=(owner, feed.read_fd),
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0)
+        child.graph_feed = feed
+        feed.close_reader()
+        return child
     finally:
         os.close(owner)
 
@@ -57,7 +72,7 @@ class IsolatedVCProcess:
             if self._thread is not None or self._stop.is_set():
                 raise RuntimeError('vc_single_use')
             self._state.update(requested=True, pending=True, state='preparing')
-            self._thread = Thread(target=self._run, args=(request,), name='vrct-vc-owner', daemon=True)
+            self._thread = Thread(target=self._run, args=(request, source), name='vrct-vc-owner', daemon=True)
             self._thread.start()
 
     def stop(self):
@@ -81,11 +96,11 @@ class IsolatedVCProcess:
         if self._stop.is_set():
             raise RuntimeError('cancelled')
 
-    def _run(self, request):
+    def _run(self, request, source):
         child = None
         try:
             self._check()
-            child = self._child = _launch()
+            child = self._child = _launch(source)
             os.set_blocking(child.stdin.fileno(), False)
             pending, deadline = memoryview(request), time.monotonic()+5
             while pending:
@@ -136,6 +151,10 @@ class IsolatedVCProcess:
                     child.stdout.close()
                 except Exception:
                     self._cleanup_ok = False
+                finally:
+                    feed = getattr(child, 'graph_feed', None)
+                    if feed is not None:
+                        feed.close()
             with self._lock:
                 self._state.update(pending=False, active=False, requested=False,
                                    state='failed' if self._state['error'] else 'stopped')

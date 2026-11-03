@@ -70,7 +70,7 @@ def converted(tmp_path, monkeypatch, monitor, *, opener=None):
     def launch(*args):
         child = subprocess.Popen([sys.executable, '-u', '-c', WORKER, 'converted', args[-1], 'seed-vc'],
                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, bufsize=0,
-                                 env={**os.environ, 'PYTHONPATH': str(Path('src-python').resolve())})
+                                 env={**os.environ, 'PYTHONPATH': str(Path(__file__).resolve().parents[2] / 'src-python')})
         children.append(child)
         return child
 
@@ -79,7 +79,7 @@ def converted(tmp_path, monkeypatch, monitor, *, opener=None):
         return MonitorTee(*args, output_factory=opener, **kwargs)
     monkeypatch.setattr(seed_process, '_launch', launch)
     monkeypatch.setattr(transport, 'PipeWireCapture', Capture)
-    monkeypatch.setattr(transport, '_binding', lambda source: SINK)
+    monkeypatch.setattr(transport, '_binding', lambda source, **kw: SINK)
     monkeypatch.setattr(transport, '_output', lambda endpoint: managed_sink)
     monkeypatch.setattr(transport, 'MonitorTee', tee)
     extra = {} if monitor is None else {'monitor': monitor}
@@ -277,7 +277,7 @@ def test_isolated_owner_sends_the_monitor_in_its_start_request(monkeypatch, tmp_
     received = tmp_path / 'request.json'
     script = 'import sys; open(sys.argv[1], "wb").write(sys.stdin.buffer.readline())'
 
-    def launch():
+    def launch(source):
         return subprocess.Popen([sys.executable, '-c', script, str(received)],
                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
     monkeypatch.setattr(isolated, '_launch', launch)

@@ -12,7 +12,12 @@ from models.audio_routing.source_bridge import parse_source
 
 def main():
     process = None
+    graph = observer = None
     try:
+        from models.audio_routing.pipewire_graph_pipe import receive_from_parent
+        graph = receive_from_parent()
+        if graph is not None:
+            observer = graph.subscribe()
         reader = Reader(sys.stdin.buffer)
         request = reader.read(timeout=5)
         if (not isinstance(request, dict) or request.get('kind') != 'start'
@@ -49,6 +54,10 @@ def main():
     except (EOFError, OSError, ValueError, RuntimeError):
         return 1
     finally:
+        if observer is not None:
+            observer.close()
+        if graph is not None:
+            graph.close()
         if process is not None and not process.close(timeout=2):
             # Exiting also invokes the existing native parent-death chain.
             # The supervisor's nonzero status reports incomplete cleanup.

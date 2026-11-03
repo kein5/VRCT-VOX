@@ -1,9 +1,11 @@
 """Inspect named managed nodes; mutate a bound identity with a tiny native helper."""
-import json
 from pathlib import Path
 import subprocess
 from runtime_paths import resource_root, external_process_env
 import sys
+import time
+
+from .pipewire_graph import GraphUnavailable, graph_source, read_graph
 
 SOURCE = 'vrct.managed.source'
 TTS_SINK = 'vrct.managed.tts'
@@ -41,25 +43,39 @@ def parse_graph(data, *, direct=False):
 class PipeWireGate:
     def __init__(self, helper=None):
         self.helper = Path(helper) if helper else resource_root() / 'build/vrct-voice-gate'
+        self._observer = None
+
+    def observe(self, enabled, wake):
+        if enabled and self._observer is None:
+            try:
+                self._observer = graph_source().subscribe(wake)
+            except GraphUnavailable as exc:
+                raise RuntimeError('managed_graph_unavailable') from exc
+        elif not enabled:
+            self.close_observer()
+
+    def close_observer(self):
+        if self._observer is not None:
+            self._observer.close()
+            self._observer = None
 
     def prepare(self):
         from .managed_microphone import ManagedMicrophone
         ManagedMicrophone(self._snapshot).ensure()
 
-    def inspect(self):
-        return parse_graph(self._snapshot())
+    def inspect(self, *, after=None):
+        return parse_graph(self._snapshot(after=after))
 
-    def inspect_pair(self):
-        data = self._snapshot()
+    def inspect_pair(self, *, after=None):
+        data = self._snapshot(after=after)
         return {'source': parse_graph(data), 'direct': parse_graph(data, direct=True)}
 
-    def _snapshot(self):
+    def _snapshot(self, *, after=None):
         if not sys.platform.startswith('linux'):
             raise RuntimeError('managed_route_linux_only')
         try:
-            result = subprocess.run(['pw-dump'], env=external_process_env(), capture_output=True, check=True, timeout=1)
-            return json.loads(result.stdout)
-        except (OSError, ValueError, subprocess.SubprocessError) as exc:
+            return read_graph(after=after).data
+        except GraphUnavailable as exc:
             raise RuntimeError('managed_graph_unavailable') from exc
 
     def set_muted(self, value, expected_identity):
@@ -79,7 +95,7 @@ class PipeWireGate:
                 check=True, capture_output=True, timeout=2.5)
         except (OSError, subprocess.SubprocessError) as exc:
             raise RuntimeError('gate_identity_or_control_failed') from exc
-        pair = self.inspect_pair()
+        pair = self.inspect_pair(after=time.monotonic())
         if pair['source']['identity'] != expected_identity or pair['source']['muted']:
             raise RuntimeError('gate_change_unconfirmed')
         if (pair['direct']['identity'] != expected_direct_identity
@@ -96,7 +112,8 @@ class PipeWireGate:
                            check=True, capture_output=True, timeout=2.5)
         except (OSError, subprocess.SubprocessError) as exc:
             raise RuntimeError('gate_identity_or_control_failed') from exc
-        state = self.inspect_pair()['direct'] if direct else self.inspect()
+        after = time.monotonic()
+        state = self.inspect_pair(after=after)['direct'] if direct else self.inspect(after=after)
         if state['identity'] != expected_identity:
             raise RuntimeError('managed_endpoint_changed')
         if state['muted'] != value:
