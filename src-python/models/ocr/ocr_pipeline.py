@@ -58,6 +58,10 @@ TICK_OCR_BUDGET_RATIO = 0.8
 ENGINE_BACKOFF_THRESHOLD = 3
 ENGINE_BACKOFF_INITIAL_SEC = 1.0
 ENGINE_BACKOFF_MAX_SEC = 30.0
+# A few dozen word lists, never full frames. Twenty seconds bounds reuse of
+# nondeterministic results while avoiding most inference on static chatboxes.
+RECOGNITION_CACHE_SIZE = 32
+RECOGNITION_REFRESH_SEC = 20.0
 
 # 何も出ないときの原因が「フレームが来ない」「吹き出しが検出されない」
 # 「文字が読めない」のどれなのか、ログから区別できなかったので定期的に内訳を出す。
@@ -84,6 +88,41 @@ def _isLatin(char: str) -> bool:
 
 def _textHash(text: str) -> str:
     return hashlib.blake2b(text.casefold().encode("utf-8"), digest_size=8).hexdigest()
+
+
+def _cropKey(crop) -> tuple:
+    """Hash every pixel, including shape/dtype; strided crops use C order."""
+    pixels = memoryview(crop if crop.flags.c_contiguous else crop.copy(order="C"))
+    return (crop.shape, crop.dtype.str, hashlib.blake2b(pixels, digest_size=16).digest())
+
+
+class _RecognitionCache:
+    """LRU of successful reads (including empty words), scoped by the pipeline.
+
+    Hits update recency, not the read timestamp: a continuously visible crop
+    must still be re-read on the first eligible tick after twenty seconds.
+    """
+
+    def __init__(self, max_items: int = RECOGNITION_CACHE_SIZE) -> None:
+        self._items: "OrderedDict[tuple, tuple[float, List[dict]]]" = OrderedDict()
+        self._max_items = max_items
+
+    def get(self, key: tuple, now: float) -> Optional[List[dict]]:
+        entry = self._items.get(key)
+        if entry is None:
+            return None
+        read_at, words = entry
+        if now - read_at >= RECOGNITION_REFRESH_SEC:
+            del self._items[key]
+            return None
+        self._items.move_to_end(key)
+        return words
+
+    def record(self, key: tuple, words: List[dict], read_at: float) -> None:
+        self._items[key] = (read_at, words)
+        self._items.move_to_end(key)
+        while len(self._items) > self._max_items:
+            self._items.popitem(last=False)
 
 
 def _similar(a: str, b: str, max_distance: int = 2) -> bool:
@@ -201,12 +240,14 @@ class OcrPipeline:
         self._capture_probe = capture_probe or probeCapture
         self._dedup = _DedupCache()
         self._reader = None
+        self._resetRecognition()
         # 設定変更はここに積んでおき、ワーカースレッドが次のtickの頭で取り込む。
         # 推論器とキャプチャはスレッドに紐づくので、値を書き換える
         # スレッドではなく、使っているスレッドの側で作り直す。
         self._pending: dict = {}
         self._pending_lock = Lock()
-        self._counts = {"tick": 0, "frame": 0, "candidate": 0, "ocr": 0, "text": 0, "bubble": 0, "emit": 0}
+        self._counts = {"tick": 0, "frame": 0, "candidate": 0, "ocr": 0, "reused": 0,
+                        "text": 0, "bubble": 0, "emit": 0}
         self._counts_since = 0.0
         self._last_tick_at = 0.0
         self._engine_failures = OcrFailureLog("OCR engine", lambda: errorLogging(), lambda message: printLog(message))
@@ -222,6 +263,32 @@ class OcrPipeline:
         self._engine_failure_count = 0
         self._engine_backoff = 0.0
         self._engine_retry_at = 0.0
+
+    def _resetRecognition(self) -> None:
+        self._recognition = _RecognitionCache()
+        self._recognition_context = None
+        self._recognition_objects = ()
+
+    def _syncRecognitionContext(self) -> None:
+        # Retain and compare objects by identity (not equality or recycled ids).
+        objects = (self._reader, self._capture, self._detector)
+        context = (
+            self._source_language, resolveModelSpec(self._source_language), str(self._model_root),
+            self._min_confidence, self._min_text_length, self._poll_interval,
+            self._region_source.region, self._chatbox_filter, self._window_title,
+            getattr(self._capture, "backend", None),
+            # Built-in detector settings; custom detectors changed through
+            # applyConfig also invalidate, even when reusing the same object.
+            tuple(getattr(self._detector, name, None) for name in (
+                "model_path", "image_size", "confidence", "crop_padding", "nms_iou",
+                "max_side", "splits_bubbles")),
+        )
+        if (context != self._recognition_context
+                or len(objects) != len(self._recognition_objects)
+                or any(new is not old for new, old in zip(objects, self._recognition_objects))):
+            self._resetRecognition()
+            self._recognition_context = context
+            self._recognition_objects = objects
 
     @property
     def detectorName(self) -> str:
@@ -256,6 +323,7 @@ class OcrPipeline:
     def _start(self) -> bool:
         if self.is_alive:
             return not self._stop_event.is_set()
+        self._resetRecognition()
         if not self.isEngineAvailable():
             printLog("OCR pipeline: engine or opencv unavailable, refusing to start")
             raise OcrStartError(ErrorCode.OCR_DISABLED_ENGINE_UNAVAILABLE)
@@ -321,6 +389,7 @@ class OcrPipeline:
             # _run() closes capture on its creating thread before exiting.
             self._capture = None
             self._resetFailures()
+            self._resetRecognition()
             return True
 
     def applyConfig(self, settings: dict) -> None:
@@ -341,6 +410,7 @@ class OcrPipeline:
                 return
             pending, self._pending = self._pending, {}
 
+        self._resetRecognition()
         if "poll_interval_ms" in pending:
             try:
                 self._poll_interval = max(0.1, int(pending["poll_interval_ms"]) / 1000.0)
@@ -487,6 +557,7 @@ class OcrPipeline:
                 if sleep_for > 0:
                     self._stop_event.wait(sleep_for)
         finally:
+            self._resetRecognition()
             try:
                 self._capture.close()
             except Exception:
@@ -503,7 +574,8 @@ class OcrPipeline:
         printLog(
             f"OCR status ({now - self._counts_since:.0f}s): "
             f"tick={counts['tick']} frame={counts['frame']} candidate={counts['candidate']} "
-            f"ocr={counts['ocr']} text={counts['text']} bubble={counts['bubble']} emit={counts['emit']} "
+            f"ocr={counts['ocr']} reused={counts['reused']} "
+            f"text={counts['text']} bubble={counts['bubble']} emit={counts['emit']} "
             f"lang={self._source_language!r}")
         for key in counts:
             counts[key] = 0
@@ -521,7 +593,10 @@ class OcrPipeline:
         if self._capture is None or self._reader is None:
             return
         frame = self._capture.get()
+        # get() can select a different backend or fall back from VR to desktop.
+        self._syncRecognitionContext()
         if frame is None:
+            self._resetRecognition()
             return
         self._counts["frame"] += 1
         candidates = self._detector.detect(frame)
@@ -552,23 +627,35 @@ class OcrPipeline:
         for bbox, crop in candidates:
             if self._stop_event.is_set():
                 return
-            if time.monotonic() > deadline:
+            read_at = time.monotonic()
+            if read_at > deadline:
                 break
-            self._counts["ocr"] += 1
-            try:
-                words = ocr_engine.readtext_bgr_or_raise(self._reader, crop, self._min_confidence)
-            except Exception as exc:
-                self._engine_failures.failure(exc)
-                self._engine_failure_count += 1
-                if self._engine_failure_count >= ENGINE_BACKOFF_THRESHOLD:
-                    self._engine_backoff = min(
-                        ENGINE_BACKOFF_MAX_SEC,
-                        max(ENGINE_BACKOFF_INITIAL_SEC, self._engine_backoff * 2.0))
-                    self._engine_retry_at = time.monotonic() + self._engine_backoff
-                # Other crops use the same reader: retry on a later tick.
-                return
-            self._engine_failures.success()
-            self._resetEngineBackoff()
+            key = _cropKey(crop)
+            words = self._recognition.get(key, read_at)
+            if words is not None:
+                # Reuse says nothing about engine health. Only a real read may
+                # clear failures/backoff; words still take the usual dedup path.
+                self._counts["reused"] += 1
+            else:
+                self._counts["ocr"] += 1
+                try:
+                    words = ocr_engine.readtext_bgr_or_raise(self._reader, crop, self._min_confidence)
+                except Exception as exc:
+                    # Do not let earlier cached successes mask a broken reader,
+                    # including on the first probe after a cooldown.
+                    self._resetRecognition()
+                    self._engine_failures.failure(exc)
+                    self._engine_failure_count += 1
+                    if self._engine_failure_count >= ENGINE_BACKOFF_THRESHOLD:
+                        self._engine_backoff = min(
+                            ENGINE_BACKOFF_MAX_SEC,
+                            max(ENGINE_BACKOFF_INITIAL_SEC, self._engine_backoff * 2.0))
+                        self._engine_retry_at = time.monotonic() + self._engine_backoff
+                    # Other crops use the same reader: retry on a later tick.
+                    return
+                self._engine_failures.success()
+                self._resetEngineBackoff()
+                self._recognition.record(key, words, read_at)
             if not words:
                 continue
             self._counts["text"] += 1

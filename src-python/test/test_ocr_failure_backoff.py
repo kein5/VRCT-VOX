@@ -95,7 +95,9 @@ class TestPipelineBackoff(_Harness):
         self.pipeline._reader = self.reader
         self.pipeline._capture = self.capture
         self.pipeline._detector = Mock()
-        self.pipeline._detector.detect.return_value = [((0, 0, 8, 8), self.frame)] * 6
+        # Distinct pixels keep the six-candidate recovery check independent of reuse.
+        self.pipeline._detector.detect.return_value = [
+            ((0, 0, 8, 8), np.full_like(self.frame, i)) for i in range(6)]
 
     def _fail_three_times(self):
         for _ in range(3):
@@ -146,6 +148,7 @@ class TestPipelineBackoff(_Harness):
         self.pipeline._tick()
         self.assertEqual(len(self._messages("recovered")), 1)
         self.reader.side_effect = RuntimeError("broken reader")
+        self.now += ocr_pipeline.RECOGNITION_REFRESH_SEC  # Force a real health probe.
         self.pipeline._tick()
         self.assertEqual(len(self.tracebacks), 2)
         self.assertEqual(self.pipeline._engine_backoff, 0)
