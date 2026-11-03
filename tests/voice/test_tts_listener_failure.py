@@ -203,10 +203,21 @@ def test_request_end_releases_monitor_and_prevents_late_cancellation(ending):
             stream.close()
 
 
+@pytest.fixture
+def fresh_windows_table(monkeypatch):
+    from models.tts import listener_table, speechcpp_tts
+    # These tests change OS rows immediately to exercise address matching.
+    # Shared-cache freshness is covered separately with a controlled clock.
+    probe = listener_table.ListenerTableProbe(listener_table._query_windows_table, freshness=0)
+    monkeypatch.setattr(speechcpp_tts, 'windows_listener_table', probe)
+    yield
+    assert probe.close(.5)
+
+
 @pytest.mark.parametrize('host,listener_ip', [('127.0.0.1', '127.0.0.1'),
     ('127.0.0.1', '0.0.0.0'), ('127.0.0.1', '::'), ('::1', '::1'), ('::1', '::'),
     ('localhost', '127.0.0.1'), ('localhost', '::1')])
-def test_windows_listener_table_requires_exact_port_and_listen_state(monkeypatch, host, listener_ip):
+def test_windows_listener_table_requires_exact_port_and_listen_state(monkeypatch, fresh_windows_table, host, listener_ip):
     import psutil
     from types import SimpleNamespace
     from models.tts.speechcpp_tts import _windows_listener_missing
@@ -220,7 +231,7 @@ def test_windows_listener_table_requires_exact_port_and_listen_state(monkeypatch
     assert _windows_listener_missing((host, 1234))
 
 
-def test_windows_listener_query_failure_is_inconclusive(monkeypatch):
+def test_windows_listener_query_failure_is_inconclusive(monkeypatch, fresh_windows_table):
     import psutil
     from models.tts.speechcpp_tts import _windows_listener_missing
     def unavailable(**kwargs):
