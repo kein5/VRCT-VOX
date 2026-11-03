@@ -29,9 +29,12 @@ import {
 } from "./others";
 
 import { useIsBackendReady, useIsSoftwareUpdating, WindowGeometryController } from "@logics_common";
+import { useBackendStartup } from "../../logics/common/useBackendStartup";
+import { StartupFailedComponent } from "./others/splash_component/StartupFailedComponent";
 
 export const App = () => {
     const { currentIsBackendReady } = useIsBackendReady();
+    const { startupState } = useBackendStartup();
     const { i18n } = useI18n();
 
     return (
@@ -49,7 +52,9 @@ export const App = () => {
                 <CornerRadiusController />
                 <VrPanelSyncController />
 
-                {currentIsBackendReady.data === false
+                {startupState === "failed"
+                    ? <StartupFailedComponent />
+                    : currentIsBackendReady.data === false
                     ? <SplashComponent />
                     : <Contents key={i18n.language} />
                 }

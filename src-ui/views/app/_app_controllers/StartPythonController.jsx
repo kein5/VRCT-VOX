@@ -4,143 +4,75 @@ import { useEffect, useRef } from "react";
 
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useReceiveRoutes } from "@useReceiveRoutes";
-import { store, useStore_SelectableFontFamilyList } from "@store";
+import { store, useStore_SelectableFontFamilyList, useStore_BackendStartupState, useStore_InitProgress } from "@store";
 import { arrayToObject } from "@utils";
-import { isSidecarWarning } from "../../../logics/common/sidecarDiagnostics";
+import { createSidecarSessionOwner } from "../../../logics/common/sidecarSession.js";
 import { useI18n } from "@useI18n";
-
-import {
-    useNotificationStatus,
-} from "@logics_common";
+import { useNotificationStatus, useIsBackendReady } from "@logics_common";
 
 export const StartPythonController = () => {
-    const { asyncStartPython } = useStartPython();
-    const hasRunRef = useRef(false);
-    const watchdogIntervalIdRef = useRef(null);
+    const { t } = useI18n();
+    const { receiveRoutes, backendStopped } = useReceiveRoutes();
+    const { showNotification_Error } = useNotificationStatus();
+    const { updateIsBackendReady } = useIsBackendReady();
+    const { updateBackendStartupState } = useStore_BackendStartupState();
+    const { updateInitProgress } = useStore_InitProgress();
     const { asyncFetchFonts } = useAsyncFetchFonts();
     const { asyncStdoutToPython } = useStdoutToPython();
+    const handlersRef = useRef(null);
+    handlersRef.current = {
+        receiveRoutes,
+        backendStopped,
+        feedWatchdog: () => asyncStdoutToPython("/run/feed_watchdog"),
+        beginStartup: () => {
+            updateIsBackendReady(false);
+            updateInitProgress(0);
+        },
+        setStartupState: phase => {
+            updateBackendStartupState(phase);
+            if (phase === "failed") updateIsBackendReady(false);
+        },
+        started: asyncFetchFonts,
+        unexpectedExit: ({ code, signal }) => {
+            console.error("sidecar exited", { code, signal });
+            showNotification_Error(t("common_error.backend_stopped", { code: code ?? signal ?? "?" }),
+                { hide_duration: null, category_id: "backend_stopped" });
+        },
+        stderr: line => {
+            showNotification_Error(
+                `An error occurred. Please restart VRCT-VOX or contact the developers. The last line:${JSON.stringify(line)}`, { hide_duration: null }
+            );
+            console.error("stderr", line);
+        },
+    };
 
     useEffect(() => {
-        if (hasRunRef.current) {
-            // A re-run (StrictMode, or Fast Refresh after editing a module this
-            // imports) keeps the running sidecar. The cleanup below stopped feeding
-            // its watchdog, so start again: without a feed the sidecar shuts itself
-            // down about a minute later and every switch stops answering.
-            if (watchdogIntervalIdRef.current === null && store.backend_subprocess) {
-                watchdogIntervalIdRef.current = startFeedingToWatchDogController(asyncStdoutToPython);
-            }
-            return () => {
-                if (watchdogIntervalIdRef.current !== null) {
-                    clearInterval(watchdogIntervalIdRef.current);
-                    watchdogIntervalIdRef.current = null;
-                }
-            };
-        }
-
-        // StrictMode で effect が再実行されても sidecar 起動を二重化しない。
-        // 非同期処理の完了前に cleanup が走るため、interval ID は effect の
-        // ローカル変数ではなく ref で保持する。
-        hasRunRef.current = true;
-        const startPython = async () => {
-            try {
-                await asyncStartPython();
-                if (watchdogIntervalIdRef.current === null) {
-                    watchdogIntervalIdRef.current = startFeedingToWatchDogController(asyncStdoutToPython);
-                }
-                asyncFetchFonts();
-            } catch (err) {
-                console.error(err);
-            }
-        };
-        startPython();
-
-        return () => {
-            if (watchdogIntervalIdRef.current !== null) {
-                clearInterval(watchdogIntervalIdRef.current);
-                watchdogIntervalIdRef.current = null;
-            }
-        };
+        store.backend_session_owner ??= createSidecarSessionOwner({
+            store,
+            createCommand: () => Command.sidecar("bin/vrct-vox-sidecar"),
+            setInterval,
+            clearInterval,
+        });
+        // StrictMode replay and genuine remounts attach to the same session.
+        // Detach stops its timer only when the last controller leaves; a late
+        // spawn cannot install a timer while no controller is mounted.
+        return store.backend_session_owner.attach(() => handlersRef.current);
     }, []);
 
     return null;
 };
 
-const useStartPython = () => {
-    const { t } = useI18n();
-    const { receiveRoutes, backendStopped } = useReceiveRoutes();
-    const { showNotification_Success, showNotification_Error } = useNotificationStatus();
-
-    const asyncStartPython = async () => {
-        store.backend_stopped = false;
-        store.backend_exit_expected = false;
-        const command = Command.sidecar("bin/vrct-vox-sidecar");
-        command.on("error", error => console.error(`error: "${error}"`));
-        // An exit nobody asked for (a crash or a kill) would otherwise leave
-        // every switch waiting for an answer that never comes.
-        command.on("close", ({ code, signal } = {}) => {
-            store.backend_subprocess = null;
-            store.backend_stopped = true;
-            backendStopped();
-            if (store.backend_exit_expected) return;
-            console.error("sidecar exited", { code, signal });
-            showNotification_Error(t("common_error.backend_stopped", { code: code ?? signal ?? "?" }),
-                { hide_duration: null, category_id: "backend_stopped" });
-        });
-        command.stdout.on("data", (line) => {
-            if (store.backend_stopped) return;
-            // Windows上のPython(CRLF)とTauriのread_line(\rまたは\nで区切る仕様)により、
-            // バッファ境界等で改行単体('\n')が空行として渡ることがある。
-            // JSON内の改行はエスケープされるためデータ欠落ではなく、パースエラーを防ぐため空行はスキップする。
-            if (typeof line === "string" && line.trim() === "") {
-                console.debug("Empty line received from sidecar stdout:", JSON.stringify(line));
-                return;
-            }
-
-            let parsed_data = "";
-            try {
-                parsed_data = JSON.parse(line);
-                receiveRoutes(parsed_data);
-            } catch (error) {
-                console.log(error, line);
-            }
-        });
-        command.stderr.on("data", line => {
-            // Python の warnings.warn() は既定で stderr に書き出される。良性の警告
-            // (FutureWarning 等: 依存ライブラリの将来非互換の予告など) まで致命的な
-            // エラー通知に昇格させると、実際にはクラッシュしていないのに
-            // 「An error occurred」ダイアログが出てしまう。警告行はログに残すだけにする。
-            if (isSidecarWarning(line)) {
-                console.warn("stderr (warning, ignored)", line);
-                return;
-            }
-            showNotification_Error(
-                `An error occurred. Please restart VRCT-VOX or contact the developers. The last line:${JSON.stringify(line)}`, { hide_duration: null }
-            );
-            console.error("stderr", line);
-        });
-        const backend_subprocess = await command.spawn();
-        store.backend_subprocess = backend_subprocess;
-    };
-
-    return { asyncStartPython };
-};
-
 const useAsyncFetchFonts = () => {
     const { updateSelectableFontFamilyList } = useStore_SelectableFontFamilyList();
-    const asyncFetchFonts = async () => {
+    const asyncFetchFonts = async (isCurrent) => {
         try {
             let fonts = await invoke("get_font_list");
+            if (!isCurrent()) return;
             fonts = fonts.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
             updateSelectableFontFamilyList(arrayToObject(fonts));
         } catch (error) {
-            console.error("Error fetching fonts:", error);
+            if (isCurrent()) console.error("Error fetching fonts:", error);
         }
     };
     return { asyncFetchFonts };
-};
-
-const startFeedingToWatchDogController = (asyncStdoutToPython) => {
-    return setInterval(() => {
-        asyncStdoutToPython("/run/feed_watchdog");
-    }, 20000); // 20000ミリ秒 = 20秒
 };

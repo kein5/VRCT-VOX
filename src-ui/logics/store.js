@@ -16,9 +16,12 @@ import { keepNewestVrLayout } from "./common/vrPanelTooltip";
 import { requestSettingsNavigation } from "./voice/settingsNavigation";
 
 import { pendingRequestRecovery, restorePendingValue, restoreDownloadPending, staticPendingControls } from "./common/pendingRequestRecovery.js";
+import { updateMeterValue } from "./common/meterValue.js";
 
 export const store = {
     backend_subprocess: null,
+    backend_session: null,
+    backend_session_owner: null,
     setting_box_scroll_container: null,
     scroll_log_to_bottom: null,
     text_area_ref: null,
@@ -95,6 +98,10 @@ export const createAtomWithHook = (initialValue, base_name, options) => {
                 if (base_name === "VrPanelLayout" &&
                     keepNewestVrLayout(currentValue.data, updated_data) === currentValue.data) return currentValue;
 
+                if (base_name === "MicVolume" || base_name === "SpeakerVolume") {
+                    return updateMeterValue(currentValue, updated_data, new_state);
+                }
+
                 return {
                     state: new_state,
                     data: updated_data,
@@ -164,6 +171,7 @@ export const registerMany = (settingsArray = []) => {
 
 // Common
 export const { atomInstance: Atom_IsBackendReady, useHook: useStore_IsBackendReady } = createAtomWithHook(false, "IsBackendReady");
+export const { atomInstance: Atom_BackendStartupState, useHook: useStore_BackendStartupState } = createAtomWithHook("starting", "BackendStartupState");
 export const { atomInstance: Atom_IsVrctAvailable, useHook: useStore_IsVrctAvailable } = createAtomWithHook(true, "IsVrctAvailable");
 export const { atomInstance: Atom_IsOscAvailable, useHook: useStore_IsOscAvailable } = createAtomWithHook(true, "IsOscAvailable");
 export const { atomInstance: Atom_ComputeMode, useHook: useStore_ComputeMode } = createAtomWithHook("cpu", "ComputeMode");

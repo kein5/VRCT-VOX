@@ -123,6 +123,8 @@ common:
     loading: "Loading…"
 
 common_error:
+    backend_startup_failed: "The VRCT-VOX engine could not start. Try again. If this continues, reinstall VRCT-VOX."
+    backend_startup_retry: "Try starting again"
     request_404: "This operation is not available. Restart VRCT-VOX and try again."
     request_423: "The operation could not run because the backend was busy. Wait for the current operation to finish, then try again."
     request_send_failed: "The request could not be sent. Check the displayed value and try again. If this continues, restart VRCT-VOX."
@@ -222,6 +224,7 @@ backend_errors:
     VRC_MIC_MUTE_SYNC_OSC_DISABLED: "VRC mic mute sync cannot be turned on because OSCQuery is unavailable. Check that the OSC address is 127.0.0.1 or localhost."
 
 common_warning:
+    startup_degraded: "Some settings could not be loaded. VRCT-VOX has started with default values for those settings. Check them before use. If this continues, restart VRCT-VOX."
     config_file_unreadable: "config.json could not be read, so VRCT-VOX started with default settings. The old file was kept as {{file}}."
     unable_to_use_osc_query: "The following functions have been automatically disabled due to the OSC IP Address settings preventing OSC data from being received."
 

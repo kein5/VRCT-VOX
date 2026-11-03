@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { pendingRequestRecovery } from "./pendingRequestRecovery.js";
+import { rejectExpectedExit } from "./sidecarExitExpectation.js";
 
 const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
 async function setup() {
     // Exercise the actual transport adapter; only Tauri, hooks and the language
     // owner are stubs. The recovery module is the real relative .js module.
     const dependencies = moduleUrl(`
-        export const store = {backend_subprocess: null};
+        export const store = {backend_subprocess: null, backend_session: {expectedExits: new Map()}};
         export const events = [], notices = [];
         export const encode = value => Buffer.from(value).toString('base64');
         export const emit = async (...args) => events.push(['relay', ...args]);
@@ -27,6 +28,7 @@ async function setup() {
     for (const name of ["@store", "js-base64", "./useNotificationStatus", "@useI18n", "@tauri-apps/api/event", "../main/languageMutations"])
         source = source.replace(JSON.stringify(name), JSON.stringify(dependencies));
     source = source.replace('"./pendingRequestRecovery.js"', JSON.stringify(new URL("./pendingRequestRecovery.js", import.meta.url).href));
+    source = source.replace('"./sidecarExitExpectation.js"', JSON.stringify(new URL("./sidecarExitExpectation.js", import.meta.url).href));
     const { useStdoutToPython } = await import(moduleUrl(source));
     let value = { state: "pending", data: 9000 };
     pendingRequestRecovery.register({ endpoints: ["/set/data/osc_port", "/get/data/osc_port"], read: "/get/data/osc_port",
@@ -93,8 +95,60 @@ test("language preserves uncertain-write versus before-send failure semantics", 
 
 test("failed shutdown does not suppress a subsequent unexpected exit notice", async () => {
     const subject = await setup();
-    subject.store.backend_exit_expected = false;
     subject.store.backend_subprocess = { write: async () => false };
     assert.equal(await subject.send("/run/shutdown"), false);
-    assert.equal(subject.store.backend_exit_expected, false);
+    assert.equal(subject.store.backend_session.expectedExits.size, 0);
+});
+
+for (const endpoint of ["/run/update_software", "/run/update_cuda_software"]) {
+    test(`${endpoint} arms this session before writing and disarms on transport failure`, async context => {
+        context.mock.method(console, "error", () => {});
+        for (const outcome of [true, false, "throw"]) {
+            const subject = await setup(), session = subject.store.backend_session;
+            subject.store.backend_subprocess = { write: async () => {
+                assert.equal(session.expectedExits.has(endpoint), true);
+                if (outcome === "throw") throw Error("write failed");
+                return outcome;
+            } };
+            assert.equal(await subject.send(endpoint), outcome === true);
+            assert.equal(session.expectedExits.has(endpoint), outcome === true);
+        }
+    });
+
+    test(`${endpoint} rejection before write completion cannot re-arm the exit latch`, async () => {
+        const subject = await setup(), session = subject.store.backend_session;
+        subject.store.backend_subprocess = { write: async () => {
+            rejectExpectedExit(session, endpoint);
+            return true;
+        } };
+        assert.equal(await subject.send(endpoint), true);
+        assert.equal(session.expectedExits.size, 0);
+    });
+}
+
+test("an old rejected write cannot change a replacement session or replay the request", async context => {
+    context.mock.method(console, "error", () => {});
+    const subject = await setup();
+    let reject;
+    subject.store.backend_subprocess = { write: () => new Promise((_, no) => { reject = no; }) };
+    const send = subject.send("/run/update_software");
+    const nextSession = { expectedExits: new Map() };
+    subject.store.backend_session = nextSession;
+    subject.store.backend_subprocess = { write: () => assert.fail("must never replay") };
+    reject(Error("late failure"));
+    assert.equal(await send, false);
+    assert.equal(nextSession.expectedExits.size, 0);
+    assert.deepEqual(subject.notices, []);
+});
+
+test("overlapping update writes that both fail leave no expected exit", async () => {
+    const subject = await setup(), completions = [];
+    subject.store.backend_subprocess = { write: () => new Promise(resolve => completions.push(resolve)) };
+    const first = subject.send("/run/update_software"), second = subject.send("/run/update_software");
+    completions[0](false);
+    assert.equal(await first, false);
+    assert.equal(subject.store.backend_session.expectedExits.has("/run/update_software"), true);
+    completions[1](false);
+    assert.equal(await second, false);
+    assert.equal(subject.store.backend_session.expectedExits.size, 0);
 });

@@ -36,6 +36,7 @@ sequenceDiagram
 
 - サイドカーのstderrに警告以外の行が出たら、UIは消えない通知を出す。
 - `/run/enable_ai_models`が偽なら、UIは内蔵モデルがないことを知らせる。
+- spawn失敗と初期化項目の失敗の分岐、再マウントと手動再試行の扱いは[起動と初期化](ipc-protocol.md#起動と初期化)を参照する。
 
 ## 設定の変更
 
