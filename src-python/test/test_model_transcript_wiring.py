@@ -23,6 +23,10 @@ class _FakeAudioTranscriber:
         self._pending += 1
         return True
 
+    def getAudioWaitTimeout(self):
+        # These wiring tests invoke one due round without a capture thread.
+        return 0.0
+
     def hasTranscript(self) -> bool:
         return self._pending > 0
 
