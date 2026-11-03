@@ -196,7 +196,7 @@ def test_controller_timeout_reports_failure_and_reaps_attempt(harness, obs):
     gate = h.add_gate("wait")
     enable = h.controller.setEnableObsBrowserSource if obs else h.controller.setEnableWebSocketServer
     response = enable()
-    expected = ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE if obs else ErrorCode.WEBSOCKET_SERVER_UNAVAILABLE
+    expected = ErrorCode.WEBSOCKET_SERVER_UNAVAILABLE
     assert response["status"] == 400
     assert response["result"]["error_code"] == expected.value
     assert response["result"]["data"] is False

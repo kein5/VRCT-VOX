@@ -215,6 +215,7 @@ backend_errors:
     WEBSOCKET_SERVER_UNAVAILABLE: "WebSocketサーバーを開始できません。ホストとポートがほかのアプリで使われていないか確認してください。"
     OBS_BROWSER_SOURCE_HOST_UNAVAILABLE: "OBSブラウザソースのサーバーにこのホストは使えません。"
     OBS_BROWSER_SOURCE_PORT_UNAVAILABLE: "OBSブラウザソースのポートがほかのアプリで使われています。別のポートを指定してください。"
+    OBS_BROWSER_SOURCE_PORT_INVALID: "OBSブラウザソースのポートは数値で入力してください。"
     OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE: "OBSブラウザソースのサーバーを開始できません。ポートがほかのアプリで使われていないか確認してください。"
     OBS_BROWSER_SOURCE_MAX_MESSAGES_INVALID: "最大メッセージ数は数値で入力してください。"
     OBS_BROWSER_SOURCE_DISPLAY_DURATION_INVALID: "表示時間は数値で入力してください。"

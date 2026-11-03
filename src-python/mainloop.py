@@ -786,6 +786,15 @@ class Main:
         def _canonical_lock_key(endpoint: str) -> str:
             if not isinstance(endpoint, str):
                 return str(endpoint)
+            # OBS depends on WebSocket. Hold one transaction lock through
+            # preflight, startup/rebind, config commit and failure cleanup.
+            if endpoint in {
+                "/set/enable/websocket_server", "/set/disable/websocket_server",
+                "/set/enable/obs_browser_source", "/set/disable/obs_browser_source",
+                "/set/data/websocket_host", "/set/data/websocket_port",
+                "/set/data/obs_browser_source_port",
+            }:
+                return "/lock/obs_websocket_lifecycle"
             if endpoint.startswith("/set/enable/"):
                 return "/lock/set/" + endpoint[len("/set/enable/"):]
             if endpoint.startswith("/set/disable/"):

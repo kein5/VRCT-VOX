@@ -7,7 +7,7 @@
 - 既定メッセージ: サイドカーが返す英語の`message`。UIは多くの場合`locales/`の文言に置き換えて表示する。
 - UIの個別処理: `_useBackendErrorHandling.js`に専用の分岐（値の巻き戻しや翻訳した文言の表示）がある。空欄のコードは、音声やモデル取得など別の経路で処理されるか、汎用の通知になる。
 
-## コード（98件）
+## コード（99件）
 
 | コード | 分類 | 既定メッセージ | 重大度 | 利用者の対処 | UIの個別処理 |
 |---|---|---|---|---|---|
@@ -91,6 +91,7 @@
 | `WEBSOCKET_SERVER_UNAVAILABLE` | websocket | WebSocket server host or port is not available | error | 要 | あり |
 | `OBS_BROWSER_SOURCE_HOST_UNAVAILABLE` | obs_browser_source | OBS Browser Source server host is not available | error | 要 | あり |
 | `OBS_BROWSER_SOURCE_PORT_UNAVAILABLE` | obs_browser_source | OBS Browser Source server port is not available | error | 要 | あり |
+| `OBS_BROWSER_SOURCE_PORT_INVALID` | obs_browser_source | OBS Browser Source port must be a number | warning | 要 | あり |
 | `OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE` | obs_browser_source | OBS Browser Source server is not available | error | 要 | あり |
 | `OBS_BROWSER_SOURCE_FONT_COLOR_INVALID` | obs_browser_source | OBS Browser Source font color is not valid (#RRGGBB) | warning | 要 | あり |
 | `OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR_INVALID` | obs_browser_source | OBS Browser Source outline color is not valid (#RRGGBB) | warning | 要 | あり |

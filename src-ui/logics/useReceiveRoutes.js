@@ -294,6 +294,8 @@ export const useReceiveRoutes = () => {
             updateDownloadError(result?.error_code || "download_failed", endpoint);
             return;
         }
+        // Enabling OBS also starts the WebSocket server it depends on.
+        if (status === 200 && endpoint === "/set/enable/obs_browser_source") asyncStdoutToPython("/get/data/websocket_server");
         // On Linux the Device page Mic choice is the default RVC input (`preferred`).
         if (status === 200 && ["/set/data/selected_mic_host", "/set/data/selected_mic_device",
             "/run/selected_mic_host", "/run/selected_mic_device"].includes(endpoint)) {

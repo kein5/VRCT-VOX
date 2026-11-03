@@ -119,6 +119,19 @@ export const _useBackendErrorHandling = () => {
         // when a translation exists for the code.
         const key = `backend_errors.${error_code}`;
         const localized = typeof error_code === "string" && i18n.exists(key) ? t(key) : message;
+        const settleObsLifecycleError = () => {
+            // The cause can be a dependent service. `data` belongs to the
+            // initiating endpoint, never to a field inferred from that cause.
+            if (endpoint === "/set/data/websocket_host") updateWebsocketHost(data);
+            else if (endpoint === "/set/data/obs_browser_source_port") updateObsBrowserSourcePort(data);
+            else if (endpoint === "/set/enable/obs_browser_source" || endpoint === "/set/disable/obs_browser_source") {
+                updateEnableObsBrowserSource(data);
+            }
+            // Rollback may have disabled a service if its old address was
+            // taken too. Read the dependent switches instead of guessing.
+            asyncStdoutToPython("/get/data/websocket_server");
+            asyncStdoutToPython("/get/data/obs_browser_source");
+        };
         switch (error_code) {
             // ============================================================================
             // デバイス関連エラー (DEVICE_*)
@@ -432,7 +445,8 @@ export const _useBackendErrorHandling = () => {
                 showNotification_Error(localized, { category_id: error_code });
                 return;
             case "WEBSOCKET_SERVER_UNAVAILABLE":
-                updateEnableWebsocket(data);
+                if (endpoint === "/set/enable/obs_browser_source") settleObsLifecycleError();
+                else updateEnableWebsocket(data);
                 showNotification_Error(localized, { category_id: error_code });
                 return;
 
@@ -440,15 +454,10 @@ export const _useBackendErrorHandling = () => {
             // OBS Browser Sourceエラー (OBS_BROWSER_SOURCE_*)
             // ============================================================================
             case "OBS_BROWSER_SOURCE_HOST_UNAVAILABLE":
-                updateWebsocketHost(data);
-                showNotification_Error(localized, { category_id: error_code });
-                return;
+            case "OBS_BROWSER_SOURCE_PORT_INVALID":
             case "OBS_BROWSER_SOURCE_PORT_UNAVAILABLE":
-                updateObsBrowserSourcePort(data);
-                showNotification_Error(localized, { category_id: error_code });
-                return;
             case "OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE":
-                updateEnableObsBrowserSource(data);
+                settleObsLifecycleError();
                 showNotification_Error(localized, { category_id: error_code });
                 return;
             case "OBS_BROWSER_SOURCE_MAX_MESSAGES_INVALID":
