@@ -8,6 +8,8 @@ import { useStore_IsOpenedDropdownMenu } from "@store";
 export const _DropdownMenu = (props) => {
     const { t } = useI18n();
     const { updateIsOpenedDropdownMenu, currentIsOpenedDropdownMenu } = useStore_IsOpenedDropdownMenu();
+    const updateOpenedRef = useRef(updateIsOpenedDropdownMenu);
+    updateOpenedRef.current = updateIsOpenedDropdownMenu;
     const is_opened = currentIsOpenedDropdownMenu.data === props.dropdown_id;
     const [openAbove, setOpenAbove] = useState(false);
 
@@ -99,13 +101,13 @@ export const _DropdownMenu = (props) => {
 
         const handlePointerDown = (event) => {
             if (containerRef.current && !containerRef.current.contains(event.target)) {
-                updateIsOpenedDropdownMenu("");
+                updateOpenedRef.current("");
             }
         };
 
         const handleKeyDown = (event) => {
             if (event.key === "Escape") {
-                updateIsOpenedDropdownMenu("");
+                updateOpenedRef.current("");
             }
         };
 
@@ -115,7 +117,7 @@ export const _DropdownMenu = (props) => {
             document.removeEventListener("pointerdown", handlePointerDown);
             document.removeEventListener("keydown", handleKeyDown);
         };
-    }, [is_opened, updateIsOpenedDropdownMenu]);
+    }, [is_opened]);
 
     const dropdown_content_wrapper_class_name = clsx(styles["dropdown_content_wrapper"], {
         [styles.is_opened]: is_opened,

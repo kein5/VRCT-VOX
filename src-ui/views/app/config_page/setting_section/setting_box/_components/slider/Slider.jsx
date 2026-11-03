@@ -83,10 +83,14 @@ export const Slider = (props) => {
         // Ensure thumb gets focus-like behavior manually, though we rely on drag state
     };
 
+    const dragRef = useRef(null);
+    dragRef.current = { calculateValue, ui_value, onChangeFunction, onChangeCommittedFunction };
+
     useEffect(() => {
         if (!isDragging) return;
 
         const handlePointerMove = (e) => {
+            const { calculateValue, ui_value, onChangeFunction } = dragRef.current;
             const newValue = calculateValue(e.clientX, e.clientY);
             setLocalValue(newValue);
             if (newValue !== ui_value) {
@@ -95,6 +99,7 @@ export const Slider = (props) => {
         };
 
         const handlePointerUp = (e) => {
+            const { calculateValue, onChangeCommittedFunction } = dragRef.current;
             setIsDragging(false);
             const newValue = calculateValue(e.clientX, e.clientY);
             setLocalValue(newValue);
@@ -110,7 +115,7 @@ export const Slider = (props) => {
             window.removeEventListener("pointermove", handlePointerMove);
             window.removeEventListener("pointerup", handlePointerUp);
         };
-    }, [isDragging, calculateValue, onChangeFunction, onChangeCommittedFunction, ui_value]);
+    }, [isDragging]);
 
     // Keyboard: arrows move one step, PageUp/PageDown ten, Home/End to the
     // ends. Each key is a finished change, like releasing the pointer.
