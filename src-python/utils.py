@@ -745,8 +745,8 @@ POLLED_ENDPOINTS = frozenset({
 
 
 def isQuietPoll(endpoint: Any, status: int = 200) -> bool:
-    """A successful answer to a polled state request, which is not logged."""
-    return status == 200 and endpoint in POLLED_ENDPOINTS
+    """A successful answer to a polled state request, or a volume meter sample, which is not logged."""
+    return status == 200 and (endpoint in POLLED_ENDPOINTS or endpoint in _METER_ENDPOINTS)
 
 
 # The volume meters push one value per audio read (sample rate / 1024 a second
@@ -781,21 +781,19 @@ def printResponse(status: int, endpoint: str, result: Any = None) -> None:
         "result": result,
     }
 
-    quiet = isQuietPoll(endpoint, status) or (status == 200 and endpoint in _METER_ENDPOINTS)
-    if endpoint not in _UNLOGGED_ENDPOINTS and not quiet:
-        # エンドポイント自体が機微な場合 (/get/data/openrouter_auth_key 等) は
-        # result 全体を、そうでない場合 (/run/initialization_complete のような
-        # 集約レスポンス) は result 内部を再帰的に走査してマスクする。
-        # エンドポイント名だけを見る判定は集約レスポンスに対して機能しないため。
-        # 書かない応答では、この走査もしない。
-        if _isSensitiveEndpoint(endpoint):
-            logged_result = _maskSensitiveValue(result)
-        else:
-            logged_result = _maskSensitiveData(result)
-        if endpoint in _CONVERSATION_ENDPOINTS:
-            logged_result = _redactConversation(logged_result)
-        # Built from the masked result only, never from `response` (which holds the raw one).
-        process_logger.info({"status": status, "endpoint": endpoint, "result": logged_result})
+    # エンドポイント自体が機微な場合 (/get/data/openrouter_auth_key 等) は
+    # result 全体を、そうでない場合 (/run/initialization_complete のような
+    # 集約レスポンス) は result 内部を再帰的に走査してマスクする。
+    # エンドポイント名だけを見る判定は集約レスポンスに対して機能しないため。
+    if _isSensitiveEndpoint(endpoint):
+        logged_result = _maskSensitiveValue(result)
+    else:
+        logged_result = _maskSensitiveData(result)
+    if endpoint in _CONVERSATION_ENDPOINTS:
+        logged_result = _redactConversation(logged_result)
+    logged_response = {**response, "result": logged_result}
+    if endpoint not in _UNLOGGED_ENDPOINTS and not isQuietPoll(endpoint, status):
+        process_logger.info(logged_response)  # Log the (possibly masked) response, never the raw secret
 
     try:
         serialized_response = json.dumps(response)
