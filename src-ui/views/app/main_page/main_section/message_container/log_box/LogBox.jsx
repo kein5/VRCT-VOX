@@ -1,9 +1,9 @@
-import { memo, useRef, useState, useLayoutEffect, useEffect, useCallback } from "react";
+import { memo, useRef, useState, useLayoutEffect, useEffect, useCallback, useMemo } from "react";
 import { useAtomValue } from "jotai";
 import { Virtualizer } from "virtua";
 import styles from "./LogBox.module.scss";
 import { MessageContainer } from "./message_container/MessageContainer";
-import { useMessageActions, nextLogView } from "@logics_common";
+import { useMessageActions, nextLogView, rowsBetween } from "@logics_common";
 import { useSettingValue } from "@logics_configs";
 import { useI18n } from "@useI18n";
 import { store, Atom_MessageLogs } from "@store";
@@ -24,11 +24,17 @@ export const LogBox = memo(function LogBox() {
     const actions = useMessageActions();
     const logContainerRef = useRef(null);
     const followRef = useRef(true);
+    const anchorRef = useRef(null);
     const [startMargin, setStartMargin] = useState(0);
+    const selection = useSelectedRows();
+    const keepMounted = useMemo(() => rowsBetween(view.rows, selection), [view.rows, selection]);
 
+    // Stay at the end while following; otherwise remember the row being read.
     const follow = useCallback(() => {
         const element = logContainerRef.current;
-        if (element && followRef.current) element.scrollTop = element.scrollHeight;
+        if (!element) return;
+        if (followRef.current) element.scrollTop = element.scrollHeight;
+        else anchorRef.current = readAnchor(element);
     }, []);
 
     useLayoutEffect(() => {
@@ -46,7 +52,11 @@ export const LogBox = memo(function LogBox() {
             if (SCROLL_KEYS.has(event.key) && !event.target.closest?.(EDITABLE)) onInput();
         };
         const onPointerDown = () => { pointerDown = true; };
-        const onPointerUp = () => { pointerDown = false; };
+        // A short drag can be released before its scroll event arrives.
+        const onPointerUp = () => {
+            if (pointerDown) onInput();
+            pointerDown = false;
+        };
         // Only the user (wheel, touch, keys, dragging the scrollbar or a selection)
         // stops the following. Scrolls caused by layout, such as rows being measured
         // or a resize, go back to the end instead.
@@ -54,7 +64,7 @@ export const LogBox = memo(function LogBox() {
             const atEnd = element.scrollHeight - element.scrollTop - element.clientHeight < FOLLOW_THRESHOLD;
             if (pointerDown || performance.now() < userUntil) followRef.current = atEnd;
             else if (atEnd) followRef.current = true;
-            else follow();
+            follow();
         };
         // The padding before the rows is in rem, so it changes with the UI scale.
         const observer = new ResizeObserver(() => {
@@ -73,7 +83,16 @@ export const LogBox = memo(function LogBox() {
         };
     }, [follow]);
 
-    useLayoutEffect(() => follow(), [view, follow]);
+    // virtua sizes rows by their index, so removing a row in the middle (a
+    // discarded caption) moves the rows after it. Put the row being read back.
+    useLayoutEffect(() => {
+        const element = logContainerRef.current, anchor = anchorRef.current;
+        if (element && anchor && !followRef.current) {
+            const row = element.querySelector(`[data-log-row="${CSS.escape(anchor.id)}"]`);
+            if (row) element.scrollTop += row.getBoundingClientRect().top - element.getBoundingClientRect().top - anchor.offset;
+        }
+        follow();
+    }, [view, follow]);
 
     const showResendButton = !!actions && currentShowResendButton.data;
     return (
@@ -83,7 +102,8 @@ export const LogBox = memo(function LogBox() {
             <MessageLogUiSizeController />
             {view.rows.length === 0 && <div className={styles.empty}><h1>{t("studio.empty_title")}</h1><p>{t("studio.empty_description")}</p></div>}
             {/* Rows measured later (new, or after a font size change) call onResize. */}
-            <Virtualizer data={view.rows} shift={view.shift} scrollRef={logContainerRef} startMargin={startMargin} onResize={follow}>
+            <Virtualizer data={view.rows} shift={view.shift} scrollRef={logContainerRef} startMargin={startMargin} onResize={follow}
+                keepMounted={keepMounted}>
                 {message => <MessageContainer key={message.id} {...message} showResendButton={showResendButton}
                     sendMessage={actions?.sendMessage} updateMessageInputValue={actions?.updateMessageInputValue} />}
             </Virtualizer>
@@ -101,6 +121,35 @@ const useLogView = (rows) => {
         if (view.shift) setView({ rows, shift: false });
     }, [view, rows]);
     return next;
+};
+
+// The first row in view and how far its top is from the top of the log.
+const readAnchor = (element) => {
+    const top = element.getBoundingClientRect().top;
+    for (const row of element.querySelectorAll("[data-log-row]")) {
+        const rect = row.getBoundingClientRect();
+        if (rect.bottom > top) return { id: row.dataset.logRow, offset: rect.top - top };
+    }
+    return null;
+};
+
+// The rows at both ends of a text selection in the log. The rows between them
+// stay mounted, so a selection dragged across several screens keeps its start.
+const useSelectedRows = () => {
+    const [ends, setEnds] = useState(null);
+    useEffect(() => {
+        const rowOf = node => (node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement)
+            ?.closest("[data-log-row]")?.dataset.logRow;
+        const onSelectionChange = () => {
+            const selection = document.getSelection();
+            const from = selection && !selection.isCollapsed ? rowOf(selection.anchorNode) : undefined;
+            const to = from && rowOf(selection.focusNode);
+            setEnds(current => !to ? null : current?.from === from && current?.to === to ? current : { from, to });
+        };
+        document.addEventListener("selectionchange", onSelectionChange);
+        return () => document.removeEventListener("selectionchange", onSelectionChange);
+    }, []);
+    return ends;
 };
 
 const MessageLogUiSizeController = memo(function MessageLogUiSizeController() {

@@ -6,7 +6,7 @@ import React from "react";
 import * as jsx from "react/jsx-runtime";
 import clsx from "clsx";
 import * as chatboxLength from "./chatboxLength.js";
-import { nextLogView } from "./messageLogView.js";
+import { nextLogView, rowsBetween } from "./messageLogView.js";
 
 // Exercise the production JSX handlers without a WebView or a new test runtime.
 // Hooks retain state across explicit renders; IPC promises are controlled by tests.
@@ -221,7 +221,7 @@ test("message actions keep the same context value and delegate to the latest exi
     assert.deepEqual(typing, [[1, "start"], [1, "stop"]]);
 });
 
-test("LogBox subscribes only to its log and resend setting; unchanged row props stay stable", async () => {
+test("LogBox subscribes only to its log and resend setting; unchanged row props stay stable", async t => {
     const runtime = hooks(), subscriptions = [];
     const message = { id: "first", messages: { original: { message: "hello" }, translations: [] } };
     let logs = [message];
@@ -232,10 +232,13 @@ test("LogBox subscribes only to its log and resend setting; unchanged row props 
         "./message_container/MessageContainer": { MessageContainer: React.memo(icon) },
         "jotai": { useAtomValue: atom => { assert.equal(atom, "logs"); subscriptions.push(atom); return { data: logs }; } },
         "@store": { store: {}, Atom_MessageLogs: "logs" },
-        "@logics_common": { useMessageActions: () => actions, nextLogView },
+        "@logics_common": { useMessageActions: () => actions, nextLogView, rowsBetween },
         "@logics_configs": { useSettingValue: name => { subscriptions.push(name); return { data: true }; } },
     });
     assert.equal(LogBox.$$typeof, Symbol.for("react.memo"));
+    const listeners = [];
+    globalThis.document = { addEventListener: (...args) => listeners.push(args), removeEventListener() {} };
+    t.after(() => { delete globalThis.document; });
     const list = () => find(runtime.render(LogBox.type), node => node.type === Virtualizer).props;
     // virtua renders only the rows in view; build them all here.
     const rows = () => { const { data, children } = list(); return Array.from(data, children); };
@@ -261,6 +264,8 @@ test("LogBox subscribes only to its log and resend setting; unchanged row props 
     list(); // React commits the drop; its layout effect then asks for the rest
     const appended = list();
     assert.deepEqual([ids(appended), appended.shift], [["second", "third"], false]);
+    assert.equal(appended.keepMounted, undefined);
+    assert.deepEqual(listeners.map(([type]) => type), ["selectionchange"]);
 });
 
 test("composer reads history only on explicit recall and sees the latest retained rows", async () => {

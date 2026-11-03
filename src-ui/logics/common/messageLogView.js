@@ -8,3 +8,13 @@ export const nextLogView = (shown, rows) => {
         ? { rows: shown.slice(dropped), shift: true }
         : { rows, shift: false };
 };
+
+// 選択の両端の行 ({from, to} は id) のあいだにある行の番号。virtua の keepMounted に渡す
+export const rowsBetween = (rows, ends) => {
+    if (!ends) return undefined;
+    const indexOf = id => rows.findIndex(row => String(row.id) === id);
+    const a = indexOf(ends.from), b = indexOf(ends.to);
+    if (a < 0 || b < 0) return undefined;
+    const start = Math.min(a, b);
+    return Array.from({ length: Math.abs(a - b) + 1 }, (_, i) => start + i);
+};

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { nextLogView } from "./messageLogView.js";
+import { nextLogView, rowsBetween } from "./messageLogView.js";
 
 const rows = (...ids) => ids.map(id => ({ id }));
 const ids = view => view.rows.map(row => row.id);
@@ -34,4 +34,13 @@ test("clearing the log or replacing every row is not a shift", () => {
 test("a retired caption at the top counts as a drop from the start", () => {
     const view = nextLogView(rows("caption", 1, 2), rows(1, 2));
     assert.deepEqual([ids(view), view.shift], [[1, 2], true]);
+});
+
+test("a selection keeps the rows between its ends mounted, in either direction", () => {
+    const shown = rows("a", "b", "c", "d");
+    assert.deepEqual(rowsBetween(shown, { from: "d", to: "b" }), [1, 2, 3]);
+    assert.deepEqual(rowsBetween(shown, { from: "a", to: "a" }), [0]);
+    assert.equal(rowsBetween(shown, null), undefined);
+    assert.equal(rowsBetween(shown, { from: "gone", to: "b" }), undefined); // 選択した行が上限で消えた
+    assert.deepEqual(rowsBetween(rows(1, 2), { from: "2", to: "1" }), [0, 1]); // DOM の属性は文字列
 });
