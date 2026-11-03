@@ -91,6 +91,10 @@
     &[data-vr-hover] {
         box-shadow: inset 0 0 0 3px var(--primary_300_color);
     }
+    &:active:not(:disabled):not([aria-disabled="true"]) {
+        background-color: var(--primary_600_color);
+        transition: none;
+    }
     &:disabled, &[aria-disabled="true"] {
         cursor: default;
         &[data-vr-hover] {

@@ -1647,6 +1647,20 @@ class Overlay:
         )
         return _PANEL_CAPTURE_INTERVAL_SEC if is_active else _PANEL_IDLE_CAPTURE_INTERVAL_SEC
 
+    def cancelPanelInput(self, hand: int) -> None:
+        """パネルの外で離し、押したまま戻っても押し直したことにしない。"""
+        pressed, xy = self.panel_input.pop(hand, (False, None))
+        if pressed:
+            self.trigger_blocked.add(hand)
+        if xy is not None and self.panel_hwnd is not None:
+            window_capture.mouseMove(self.panel_hwnd, *_OUTSIDE_XY, pressed=pressed)
+            if pressed:
+                window_capture.mouseUp(self.panel_hwnd, *_OUTSIDE_XY)
+
+    def cancelPanelInputs(self) -> None:
+        for hand in tuple(self.panel_input):
+            self.cancelPanelInput(hand)
+
     def handlePanelInput(self, hand: int, xy: Optional[tuple], state: Optional[Any]) -> None:
         """レーザーが当たっている位置 (撮影画像上のピクセル、外れていれば None) へマウス入力を送る。
 
@@ -1654,6 +1668,7 @@ class Overlay:
         """
         last_pressed, last_xy = self.panel_input.get(hand, (False, None))
         if self.panel_hwnd is None or self.panel_image_size is None or state is None:
+            self.cancelPanelInput(hand)
             return
         pressed = bool(state.ulButtonPressed & _TRIGGER_MASK)
         if hand in self.trigger_blocked:
@@ -1664,13 +1679,7 @@ class Overlay:
         if xy is None:
             # レーザーがパネルから外れた。押したまま外れた場合もパネルの外で離したことにして、
             # 押し始めたボタンのクリックを成立させない (マイクの誤ONを防ぐ)。ホバーも外す
-            if last_xy is not None:
-                window_capture.mouseMove(self.panel_hwnd, *_OUTSIDE_XY, pressed=last_pressed)
-                if last_pressed:
-                    window_capture.mouseUp(self.panel_hwnd, *_OUTSIDE_XY)
-                    # 押したまま戻ってきても押し直したことにしない (長押しが何度も起きないように)
-                    self.trigger_blocked.add(hand)
-            self.panel_input.pop(hand, None)
+            self.cancelPanelInput(hand)
             return
         if xy != last_xy:
             window_capture.mouseMove(self.panel_hwnd, *xy, pressed=pressed)
@@ -2099,6 +2108,16 @@ class Overlay:
         self.updateLauncherReturn(poseOf, now)
         self.updateToolbarFade(now)
 
+        # 掴み・リサイズ中は両手ともパネル入力を処理しない。追跡を失った手も、
+        # 早期 return より前に外で離す (入力のないフレームをトリガーの解放とはみなさない)。
+        for hand in tuple(self.panel_input):
+            if self.resizing is not None or self.grabbing is not None or poseOf(hand) is None:
+                self.cancelPanelInput(hand)
+            else:
+                state = controllerState(hand)
+                if state is None or state.ulButtonPressed & _GRIP_MASK:
+                    self.cancelPanelInput(hand)
+
         if self.resizing is not None:
             self.updateResize(poseOf, rayOf, controllerState, now)
             return
@@ -2214,6 +2233,7 @@ class Overlay:
             grip_corner = corner_before if corner_before is not None else (corner[:2] if corner is not None else None)
             if grip and not self.grip_prev.get(hand, False) and grip_corner is not None:
                 self.grip_prev[hand] = True
+                self.cancelPanelInputs()
                 self.startResize(hand, grip_corner, poseOf)
                 return
             pointing_launcher = pointing_launcher or size == LAUNCHER
@@ -2267,6 +2287,7 @@ class Overlay:
             if overlay_pose is None:
                 continue
             self.wakeOverlay(size)  # フェード済みでもグリップで起こす
+            self.cancelPanelInputs()
             self.grabbing = (size, hand, np.linalg.inv(hand_pose) @ overlay_pose)
             head = poseOf(openvr.k_unTrackedDeviceIndex_Hmd)
             on_sphere = self.settings[size]["tracker"] in (PLAYSPACE, "HMD") and head is not None
