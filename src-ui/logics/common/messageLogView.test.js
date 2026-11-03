@@ -51,6 +51,25 @@ test("a row removed in the middle stays as an empty row until it reaches an end"
     assert.deepEqual(nextLogView(rows("a", "x", "b", "y"), rows("a", "b")).rows.map(row => row.gone ? `(${row.id})` : row.id), ["a", "(x)", "b"]);
 });
 
+test("while following, removed rows go at once and earlier empty rows leave too", () => {
+    const shown = [{ id: "a" }, { id: "old", gone: true }, { id: "caption" }, { id: "b" }];
+    const rows2 = rows("a", "b");
+    assert.deepEqual(nextLogView(shown, rows2, false), { rows: rows2, shift: false });
+    // 先頭が消えるときは追っていても shift のまま
+    assert.equal(nextLogView(shown, rows("b"), false).shift, true);
+});
+
+test("empty rows are capped even while reading", () => {
+    let shown = rows("a"), live = rows("a");
+    for (let i = 0; i < 150; i++) {
+        live = [live[0], { id: `c${i}` }];                // 新しい字幕が来てから、前の字幕が捨てられる
+        shown = nextLogView(shown, [live[0], ...(i ? [{ id: `c${i - 1}` }] : []), live[1]]).rows;
+        shown = nextLogView(shown, live).rows;
+        assert.ok(shown.filter(row => row.gone).length <= 100);
+    }
+    assert.deepEqual(shown.filter(row => !row.gone).map(row => row.id), ["a", "c149"]);
+});
+
 test("a selection keeps the rows between its ends mounted, in either direction", () => {
     const shown = rows("a", "b", "c", "d");
     assert.deepEqual(rowsBetween(shown, { from: "d", to: "b" }), [1, 2, 3]);

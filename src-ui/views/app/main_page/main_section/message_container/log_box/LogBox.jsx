@@ -13,17 +13,16 @@ const FOLLOW_THRESHOLD = 5;
 // A scroll this soon after wheel, touch or key input counts as the user's.
 const USER_SCROLL_MS = 300;
 const SCROLL_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "]);
-const EDITABLE = "input, textarea, select, [contenteditable]";
 
 // Only the rows in view (plus a margin) are in the DOM, so a full log no longer
 // slows down typing, layout or the style recalculation when settings open.
 export const LogBox = memo(function LogBox() {
     const { t } = useI18n();
-    const view = useLogView(useAtomValue(Atom_MessageLogs).data);
+    const followRef = useRef(true);
+    const view = useLogView(useAtomValue(Atom_MessageLogs).data, followRef);
     const currentShowResendButton = useSettingValue("ShowResendButton");
     const actions = useMessageActions();
     const logContainerRef = useRef(null);
-    const followRef = useRef(true);
     const [startMargin, setStartMargin] = useState(0);
     const selection = useSelectedRows();
     const keepMounted = useMemo(() => rowsBetween(view.rows, selection), [view.rows, selection]);
@@ -42,10 +41,12 @@ export const LogBox = memo(function LogBox() {
         };
         let userUntil = 0, pointerDown = false;
         const onInput = () => { userUntil = performance.now() + USER_SCROLL_MS; };
-        // After a click in the log, PageUp and friends scroll it with the focus on
-        // <body>, so listen on the window; keys typed into a field do not scroll it.
+        // After a click in the log, PageUp and friends may scroll it with the focus on
+        // <body>, so listen on the window. Keys another control handled, keys aimed
+        // elsewhere and keys while settings cover the log (inert) are not for it.
         const onKeyDown = (event) => {
-            if (!SCROLL_KEYS.has(event.key) || event.target.closest?.(EDITABLE)) return;
+            if (!SCROLL_KEYS.has(event.key) || event.defaultPrevented || element.closest("[inert]")
+                || !(element.contains(event.target) || event.target === document.body)) return;
             onInput();
             // End scrolls smoothly toward an end that moves while virtua measures
             // the newest rows; go there and follow them as the send button does.
@@ -105,13 +106,15 @@ export const LogBox = memo(function LogBox() {
 
 // The rows handed to virtua (see nextLogView). When the oldest rows leave,
 // virtua has to see that on its own, so that step is committed before the rest.
-const useLogView = (rows) => {
+// Removed rows stay as empty rows only while the user reads above the end.
+const useLogView = (rows, followRef) => {
     const [view, setView] = useState(() => ({ rows, shift: false, source: rows }));
-    const next = view.source === rows || view.shift ? view : { ...nextLogView(view.rows, rows), source: rows };
+    const next = view.source === rows || view.shift ? view
+        : { ...nextLogView(view.rows, rows, !followRef.current), source: rows };
     if (next !== view) setView(next);
     useLayoutEffect(() => {
-        if (view.shift) setView({ ...nextLogView(view.rows, view.source), source: view.source });
-    }, [view]);
+        if (view.shift) setView({ ...nextLogView(view.rows, view.source, !followRef.current), source: view.source });
+    }, [view, followRef]);
     return next;
 };
 

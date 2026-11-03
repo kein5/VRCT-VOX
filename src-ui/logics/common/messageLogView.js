@@ -3,13 +3,18 @@
 // - 先頭の行が消えたこと (上限 MESSAGE_LOG_LIMIT) は件数の差で知る (shift)。1 回の更新で最古の行が
 //   消えて最新の行が足されると件数が変わらないので、先頭が消えた分だけを先に見せ、残りは次の描画で見せる
 // - 途中の行が消えたとき (捨てられた字幕) は、高さのない行 ({id, gone: true}) としてその場に残し、
-//   先頭か末尾に来たら外す。virtua には、その行の高さが変わったようにしか見えない
-export const nextLogView = (shown, rows) => {
+//   先頭か末尾に来たら外す。virtua には、その行の高さが変わったようにしか見えない。
+//   残すのは上へ戻って読んでいる間 (keepGone) だけ。いちばん下を追っている間は位置がずれても
+//   見えないので、そのまま消して、残っていた空の行もまとめて外す。字幕が捨てられ続けると
+//   空の行が増え続けるので、GONE_LIMIT を超えたら読んでいる間でもまとめて外す
+const GONE_LIMIT = 100;
+
+export const nextLogView = (shown, rows, keepGone = true) => {
     if (!rows.length) return { rows, shift: false };
     const dropped = shown.findIndex(row => row.id === rows[0].id);
     if (dropped > 0) return { rows: shown.slice(dropped), shift: true };
     const order = new Map(rows.map((row, index) => [row.id, index]));
-    if (!shown.some(row => order.has(row.id))) return { rows, shift: false }; // 全部入れ替わった
+    if (!keepGone || !shown.some(row => order.has(row.id))) return { rows, shift: false };
     const next = [];
     let taken = 0;
     for (const row of shown) {
@@ -21,6 +26,7 @@ export const nextLogView = (shown, rows) => {
     }
     while (taken < rows.length) next.push(rows[taken++]);
     while (next.at(-1)?.gone) next.pop();
+    if (next.length - rows.length > GONE_LIMIT) return { rows, shift: false };
     return { rows: next.length === rows.length ? rows : next, shift: false };
 };
 
