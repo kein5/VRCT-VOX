@@ -565,6 +565,30 @@ def diagnosticLogPath(filename: str) -> str:
     return os.path.join(logs, filename)
 
 
+# faulthandler writes stack dumps straight to an open file, so the 10 MB cap of
+# the logging handlers does not cover crash_trace.log and freeze_trace.log, and
+# each freeze, crash or resume from sleep appended to them for good. Once over
+# the cap, a trace file keeps only its newest part when the sidecar starts.
+_TRACE_LOG_LIMIT = 10 * 1024 * 1024
+_TRACE_LOG_KEEP = 1024 * 1024
+
+
+def openTraceLog(filename: str, limit: int = _TRACE_LOG_LIMIT, keep: int = _TRACE_LOG_KEEP):
+    """Return the path and an append handle of a faulthandler trace file."""
+    path = diagnosticLogPath(filename)
+    try:
+        if os.path.getsize(path) > limit:
+            with open(path, "rb") as source:
+                source.seek(-keep, os.SEEK_END)
+                tail = source.read()
+            newline = tail.find(b"\n")  # start at a whole line
+            with open(path, "wb") as target:
+                target.write(tail[newline + 1:] if newline >= 0 else tail)
+    except OSError:
+        pass  # missing, or unreadable: appending below still works or fails as before
+    return path, open(path, "a", encoding="utf-8")
+
+
 def removeLog() -> None:
     """Truncate the process log file (process.log) if present."""
     try:
