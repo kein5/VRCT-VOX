@@ -178,18 +178,17 @@ def test_settings_stop_and_restart_ends_toggle_ownership(toggle):
     assert server(c)['state'] == 'ready' and len(made) == 2
 
 
-def test_tts_ending_elsewhere_releases_the_toggle_server(toggle):
+def test_unused_tts_server_ending_keeps_the_toggle_server(toggle):
     c, _, made, _ = toggle
     worker, result = enable_in_background(c)
     until(lambda: made)
     made[0].ready()
     assert finish(worker, result)['status'] == 200
-    # The other TTS server (started from Settings) ends: TTS is off, so the
-    # toggle's server is not left running with nobody to turn it off.
+    # Japanese-only TTS has no dependency on this manually started server.
     run_server(c, 'multilingual')
     c.stopSpeechServer(dict(profile='multilingual'))
-    assert not c.voice_events.status()['tts_enabled']
-    assert server(c)['state'] == 'stopping'
+    assert c.voice_events.status()['tts_enabled']
+    assert server(c)['state'] == 'ready'
 
 
 def test_end_of_the_run_off_stopped_keeps_a_quick_on_valid(toggle):
