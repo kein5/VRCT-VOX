@@ -745,8 +745,25 @@ POLLED_ENDPOINTS = frozenset({
 
 
 def isQuietPoll(endpoint: Any, status: int = 200) -> bool:
-    """A successful answer to a polled state request, which is not logged."""
-    return status == 200 and endpoint in POLLED_ENDPOINTS
+    """A successful answer to a polled state request, or a volume meter sample, which is not logged."""
+    return status == 200 and (endpoint in POLLED_ENDPOINTS or endpoint in _METER_ENDPOINTS)
+
+
+# The volume meters push one value per audio read (sample rate / 1024 a second
+# per meter) while the settings page checks a device: logging each one filled
+# the 10 MB process.log in about 17 minutes with a 48 kHz microphone.
+_METER_ENDPOINTS = frozenset({"/run/check_mic_volume", "/run/check_speaker_volume"})
+
+
+def _shapeOf(value: Any, depth: int = 0) -> Any:
+    """The types in a value, without the values themselves (for diagnostics)."""
+    if depth >= 4:
+        return "..."
+    if isinstance(value, dict):
+        return {str(key): _shapeOf(item, depth + 1) for key, item in list(value.items())[:20]}
+    if isinstance(value, (list, tuple)):
+        return [_shapeOf(item, depth + 1) for item in list(value)[:5]] + ([f"... {len(value)} items"] if len(value) > 5 else [])
+    return type(value).__name__
 
 
 def printResponse(status: int, endpoint: str, result: Any = None) -> None:
@@ -783,7 +800,9 @@ def printResponse(status: int, endpoint: str, result: Any = None) -> None:
     except Exception as e:
         errorLogging()  # Log the full traceback of the exception
         try:
-            process_logger.error(f"Problematic response object before json.dumps: {response}")
+            # Only the shape: the raw object can hold captions or keys that the
+            # normal path above masks or never writes.
+            process_logger.error(f"Response for {endpoint} could not be serialized; shape: {_shapeOf(result)}")
             process_logger.error(f"Exception during json.dumps: {e}")
         except Exception:
             pass
