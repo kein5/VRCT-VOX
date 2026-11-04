@@ -212,8 +212,12 @@ def _processName(pid: int) -> str:
         return ""
 
 
+class X11CaptureError(RuntimeError):
+    """A capture failed; a missing/unmapped window still returns None."""
+
+
 class X11WindowCapture:
-    """Capture an X11/XWayland window by title. capture() never raises."""
+    """Capture an X11/XWayland window; the facade handles failure diagnostics."""
 
     def __init__(self, window_title: str = _VRCHAT_WINDOW_TITLE, display_name: Optional[str] = None) -> None:
         self.window_title = window_title or _VRCHAT_WINDOW_TITLE
@@ -221,7 +225,6 @@ class X11WindowCapture:
         self._display = None
         self._window: Optional[int] = None
         self._atoms = {}
-        self._failure_logged = False
 
     # ---- availability ----------------------------------------------------
     def isAvailable(self) -> bool:
@@ -361,11 +364,10 @@ class X11WindowCapture:
                         rank = 2
                 if rank >= 0 and self._viewable(window) is not None:
                     ranked.append((rank, window))
-        except Exception:
-            errorLogging()
-            return None
+        except Exception as exc:
+            raise X11CaptureError("X11 window lookup failed") from exc
         if self._failed() and not ranked:
-            return None
+            raise X11CaptureError("X11 window lookup failed")
         return min(ranked)[1] if ranked else None
 
     # ---- capture ---------------------------------------------------------
@@ -376,19 +378,22 @@ class X11WindowCapture:
         image = _State.lib.XGetImage(self._display, window, 0, 0, attributes.width, attributes.height,
                                      _ALL_PLANES, _ZPIXMAP)
         if not image:
-            return None
+            raise X11CaptureError("XGetImage failed")
         try:
             ximage = image.contents
             size = ximage.bytes_per_line * ximage.height
             data = ctypes.string_at(ximage.data, size) if ximage.data else b""
-            return frameFromXImage(ximage.width, ximage.height, ximage.bytes_per_line, ximage.bits_per_pixel,
-                                   ximage.red_mask, ximage.blue_mask, ximage.byte_order, data)
+            frame = frameFromXImage(ximage.width, ximage.height, ximage.bytes_per_line, ximage.bits_per_pixel,
+                                    ximage.red_mask, ximage.blue_mask, ximage.byte_order, data)
+            if frame is None or ximage.green_mask != 0xFF00 or ximage.byte_order not in (0, 1):
+                raise X11CaptureError("Unsupported or invalid X11 pixel format")
+            return frame
         finally:
             image.contents.f.destroy_image(image)
 
     def capture(self) -> Optional[np.ndarray]:
         if self._open() is None:
-            return None
+            raise X11CaptureError("X11 display unavailable")
         window = self._window or self.findWindow()
         if window is None:
             return None
@@ -396,18 +401,20 @@ class X11WindowCapture:
         try:
             frame = self._grab(window)
         except Exception:
-            if not self._failure_logged:
-                errorLogging()
-                self._failure_logged = True
-            frame = None
-        if self._failed() or frame is None:
+            self._window = None
+            raise
+        if self._failed():
+            self._window = None
+            if self._display in _State.dead_displays:
+                self.close()
+            raise X11CaptureError("X11 frame capture failed")
+        if frame is None:
             # Gone, unmapped or resized mid-read: look the window up again next tick.
             self._window = None
             if self._display in _State.dead_displays:
                 self.close()
             return None
         self._window = window
-        self._failure_logged = False
         return frame
 
     def close(self) -> None:

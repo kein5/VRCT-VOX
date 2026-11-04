@@ -5,10 +5,7 @@ import styles from "./Ocr.module.scss";
 
 import { useOcr } from "@logics_configs";
 import { useSaveButtonLogic } from "@logics_configs";
-import {
-    detectorStatus,
-    readinessSummary,
-} from "../../../../../../logics/configs/ocrReadiness";
+import { detectorStatus } from "../../../../../../logics/configs/ocrReadiness";
 
 import {
     CheckboxContainer,
@@ -20,7 +17,7 @@ import {
 import { SectionLabelComponent } from "../_components";
 import { OcrRegions } from "./OcrRegions";
 import { OcrModels } from "./OcrModels";
-import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { OcrStatus } from "./OcrStatus";
 
 export const Ocr = () => {
     return (
@@ -35,7 +32,8 @@ export const Ocr = () => {
 
 const Main_Container = () => {
     const { t } = useI18n();
-    const { currentOcrReadiness, getOcrReadiness, currentOcrSourceLanguage, currentOcrWindowTitle } = useOcr();
+    const { currentOcrReadiness, getOcrReadiness,
+        currentOcrSourceLanguage, currentOcrWindowTitle } = useOcr();
     // useOcr() hands out new functions on every render; pin the latest one so
     // refreshing does not itself trigger another refresh.
     const getReadiness = useRef(getOcrReadiness);
@@ -45,14 +43,10 @@ const Main_Container = () => {
     // The models a language needs and whether VRChat is open change with these settings.
     useEffect(() => { refresh(); }, [refresh, language, title]);
     const readiness = currentOcrReadiness.data;
-    const summary = readinessSummary(readiness);
     return (
         <div>
             <SectionLabelComponent label={t("config_page.ocr.section_title")} desc={t("config_page.ocr.section_desc")} />
-            <EnvReadout className={styles.readiness} tone={summary.ok ? "active" : "warning"}
-                actions={<button type="button" onClick={refresh}>{t("config_page.ocr.models.refresh")}</button>}>
-                <p>{t(summary.key, summary.params)}</p>
-            </EnvReadout>
+            <OcrStatus readiness={readiness} onRefresh={refresh} />
             <OcrSourceLanguage_Box />
             {readiness && readiness.required_models.length > 0 &&
                 <OcrModels ids={readiness.required_models} missing={readiness.missing_models} onChanged={refresh}
@@ -77,12 +71,13 @@ const Detection_Container = () => {
 // VRCT-VOX's own chatbox detector: optional download, then a switch (on by default).
 const OcrChatboxDetector_Box = () => {
     const { t } = useI18n();
-    const { currentOcrReadiness, getOcrReadiness, currentOcrUseChatboxDetector, toggleOcrUseChatboxDetector } = useOcr();
+    const { currentOcrReadiness, getOcrReadiness, currentOcrCaptureStatus,
+        currentOcrUseChatboxDetector, toggleOcrUseChatboxDetector } = useOcr();
     const getReadiness = useRef(getOcrReadiness);
     getReadiness.current = getOcrReadiness;
     const refresh = useCallback(() => getReadiness.current(), []);
     const readiness = currentOcrReadiness.data;
-    const status = detectorStatus(readiness, currentOcrUseChatboxDetector.data);
+    const status = detectorStatus(readiness, currentOcrUseChatboxDetector.data, currentOcrCaptureStatus.data ?? readiness?.runtime);
     if (!status) return null;
     return (
         <div className={styles.detector}>
@@ -90,7 +85,7 @@ const OcrChatboxDetector_Box = () => {
                 setting_id="ocr_use_chatbox_detector"
                 label={t("config_page.ocr.detector.label")}
                 desc={t("config_page.ocr.detector.desc")}
-                variable={{ ...currentOcrUseChatboxDetector, data: status.on }}
+                variable={{ ...currentOcrUseChatboxDetector, data: status.installed && status.preferred }}
                 is_available={status.installed}
                 toggleFunction={status.installed ? toggleOcrUseChatboxDetector : undefined}
             />

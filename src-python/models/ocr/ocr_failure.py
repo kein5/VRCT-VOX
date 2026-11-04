@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Callable
+from typing import Callable, Optional
 
 
 FAILURE_SUMMARY_INTERVAL_SEC = 60.0
@@ -27,6 +27,11 @@ class OcrFailureLog:
         self._count = 0
         self._suppressed = 0
         self._last_report = 0.0
+
+    @property
+    def active(self) -> bool:
+        """A failure remains unresolved until the owner observes success."""
+        return self._kind is not None
 
     def failure(self, exc: Exception) -> None:
         now = time.monotonic()
@@ -55,3 +60,28 @@ class OcrFailureLog:
             self._log(f"{self._origin}: recovered after {self._count} failures "
                       f"({self._suppressed} repeats since last summary)")
             self.reset()
+
+
+class OcrRetry:
+    """One stage's retry schedule, independent of recognition's three-strike policy."""
+
+    def __init__(self, log: OcrFailureLog) -> None:
+        self.log = log
+        self.reset()
+
+    def reset(self) -> None:
+        self.delay = 0.0
+        self.retry_at = 0.0
+        self.log.reset()
+
+    def failure(self, exc: Optional[Exception] = None) -> None:
+        # A native capture wrapper may have already logged and suppressed it.
+        if exc is not None:
+            self.log.failure(exc)
+        self.delay = min(30.0, max(1.0, self.delay * 2.0))
+        self.retry_at = time.monotonic() + self.delay
+
+    def success(self) -> None:
+        self.log.success()
+        self.delay = 0.0
+        self.retry_at = 0.0

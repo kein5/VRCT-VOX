@@ -1,31 +1,17 @@
-import { useEffect, useRef } from "react";
 import { useI18n } from "@useI18n";
 import { useOcr } from "@logics_configs";
-import { FULL_REGION, isFullRegion, normalizeRegion, regionPercent, withRegionValue,
-    captureSourceSummary } from "../../../../../../logics/configs/ocrReadiness";
+import { FULL_REGION, isFullRegion, normalizeRegion, regionPercent, withRegionValue } from "../../../../../../logics/configs/ocrReadiness";
 import { SliderContainer } from "../_templates/Templates";
-import { EnvReadout } from "../_components/env_readout/EnvReadout";
 import styles from "./Ocr.module.scss";
 
 export const OcrRegions = () => {
     const { t } = useI18n();
-    const { currentOcrCaptureStatus, getOcrCaptureStatus, currentOcrCaptureRegion, setOcrCaptureRegion,
+    const { currentOcrCaptureStatus, currentOcrCaptureRegion, setOcrCaptureRegion,
         currentOcrVrCaptureRegion, setOcrVrCaptureRegion } = useOcr();
-    const getStatus = useRef(getOcrCaptureStatus);
-    getStatus.current = getOcrCaptureStatus;
-    useEffect(() => {
-        getStatus.current();
-        const timer = setInterval(() => getStatus.current(), 1000);
-        return () => clearInterval(timer);
-    }, []);
     const status = currentOcrCaptureStatus.data;
-    const summary = captureSourceSummary(status);
     const hasVr = status?.available_sources?.includes("vr") === true;
     return (
         <div>
-            <EnvReadout className={styles.readiness} tone={summary.active ? "active" : "neutral"}>
-                <p>{t(summary.key)}</p>
-            </EnvReadout>
             {hasVr && <p className={styles.regionDesc}>{t("config_page.ocr.region.source_switch")}</p>}
             <OcrRegionEditor source="window" variable={currentOcrCaptureRegion} setRegion={setOcrCaptureRegion} />
             {hasVr && <OcrRegionEditor source="vr" variable={currentOcrVrCaptureRegion} setRegion={setOcrVrCaptureRegion} />}

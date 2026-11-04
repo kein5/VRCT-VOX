@@ -55,6 +55,7 @@ def ui(tmp_path):
         catalog = Downloads(tmp_path / "models").catalog()
         peer = SimpleNamespace(sent=[], replies=[], errors=[], sequence=0, jobs={}, catalog=catalog,
                                region={"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}, chatbox=True, detector=True,
+                               runtime=dict(state="stopped", stage=None, error_code=None, detector=None),
                                readiness=dict(engine=True, language="auto", language_supported=True,
                                               required_models=["ppocrv6-small"], missing_models=["ppocrv6-small"],
                                               capture="window_not_found", window_title="VRChat",
@@ -86,6 +87,10 @@ def ui(tmp_path):
                 reply(ep, state())
             elif ep == "/get/data/ocr_readiness":
                 reply(ep, copy.deepcopy(peer.readiness))
+            elif ep == "/get/data/ocr_capture_status":
+                active = peer.runtime["state"] != "stopped"
+                reply(ep, {**copy.deepcopy(peer.runtime), "active": active,
+                           "source": "window" if active else None, "available_sources": ["window"]})
             elif ep == "/set/data/ocr_capture_region":
                 peer.region = data
                 reply(ep, data)
@@ -95,6 +100,8 @@ def ui(tmp_path):
             elif ep in ("/set/enable/ocr_use_chatbox_detector", "/set/disable/ocr_use_chatbox_detector"):
                 peer.detector = ep.startswith("/set/enable")
                 peer.readiness["detector_enabled"] = peer.detector
+                if peer.runtime["state"] != "stopped":
+                    peer.runtime["detector"] = "vrct-vox-chatbox" if peer.detector else "region"
                 reply(ep, peer.detector)
 
         def read():
@@ -181,13 +188,17 @@ def test_chatbox_detector_is_an_optional_consented_download_with_a_switch(ui):
     start.click()
     assert [d for ep, d in peer.sent if ep == "/run/start_model_download"][0]["id"] == "vrct-vox-chatbox-detector"
 
-    # Verified download: readiness reports it installed, and it is in use by default.
+    # A running worker does not adopt a completed download just by querying readiness.
+    peer.runtime.update(state="reading", detector="region")
     peer.jobs["vrct-vox-chatbox-detector"].update(phase="ready")
     peer.readiness.update(detector_installed=True)
     reply("/get/data/model_download_state", state())
-    expect(page.get_by_text("In use: the detector finds each chatbox", exact=False)).to_be_visible()
+    expect(page.get_by_text("Reading without the detector.", exact=False)).to_be_visible()
     expect(switch.locator("input[type=checkbox]")).to_be_checked()
     expect(page.get_by_role("region", name="Chatbox detector")).to_have_count(0)
+    # Only the worker's adopted state may claim that the detector is in use.
+    peer.runtime.update(detector="vrct-vox-chatbox")
+    expect(page.get_by_text("In use: the detector finds each chatbox", exact=False)).to_be_visible()
     switch.locator("label").click()
     for _ in range(60):
         if peer.detector is False:

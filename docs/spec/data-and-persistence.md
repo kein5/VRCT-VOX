@@ -118,7 +118,23 @@ IPCでやり取りする主なデータの形と、ディスクに残すファ�
 
 `/get/data/ocr_capture_region`と`/set/data/ocr_capture_region`は引き続きウィンドウ用の矩形を扱う。VR用は`/get/data/ocr_vr_capture_region`と`/set/data/ocr_vr_capture_region`で同じ形を扱う。
 
-`/get/data/ocr_capture_status`は`{active: bool, source: "window" | "vr" | null, available_sources: ["window", "vr"]}`を返す。Linuxでは`available_sources`は`["window"]`。`source`は直近の取り込み結果の元で、画像がないときや停止中は`null`。設定ページを開いている間は1秒ごとに読み直す。この取得はワーカーの状態を見るだけで、デバイスの検査、画像の取り込み、モデルの読み込みは行わない。状態自体は保存しない。
+`/get/data/ocr_capture_status`は次の状態を200の応答にまとめて返す。`active`は有効化済みで停止していないワーカーがあるかを示す。`source`は直近の取り込み結果の元で、画像がないときや停止中は`null`。Linuxでは`available_sources`は`["window"]`となる。
+
+```json
+{
+  "active": true,
+  "source": "window",
+  "available_sources": ["window", "vr"],
+  "state": "reading",
+  "stage": null,
+  "error_code": null,
+  "detector": "region"
+}
+```
+
+`state`は`stopped`、`waiting`、`reading`、`retrying`のいずれか。`stage`は`activation`、`capture`、`detector`、`recognition`、`tick`、`null`で、待機中や失敗した段階を表す。`error_code`は失敗時の既存の`OCR_DISABLED_*`コード、それ以外は`null`。`detector`はワーカーが実際に採用した検出器で、範囲読みでは`region`、独自検出器では`vrct-vox-chatbox`。取得済みかどうかや使用設定とは別に扱う。停止中は`active: false`となり、`source`、`stage`、`error_code`、`detector`はすべて`null`にする。
+
+設定ページを開いている間だけ、このエンドポイントを1秒ごとに1回問い合わせ、取り込み元と実行状態を同じ欄に表示する。この取得はワーカーの状態を見るだけで、デバイスの検査、画像の取り込み、モデルの読み込みは行わない。正常な応答は診断ログへ書かず、状態自体も保存しない。
 
 ### その他
 

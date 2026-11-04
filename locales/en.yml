@@ -716,11 +716,10 @@ config_page:
             label: "Minimum text length"
             desc: "Bubbles with fewer characters than this are ignored. Default: 2."
         capture_source:
-            checking: "Checking the capture source…"
-            stopped: "Chat reading is off."
-            waiting: "Waiting for a frame from VRChat."
-            window: "Currently reading the desktop window."
-            vr: "Currently reading the SteamVR headset view (left eye)."
+            checking: "Checking chat reading status…"
+            stopped: "Chat reading is off. {{status}}"
+            window: "Desktop window: {{status}}"
+            vr: "SteamVR headset view (left eye): {{status}}"
         detection: "Where to read"
         region:
             window_label: "Desktop window reading area"
@@ -746,6 +745,9 @@ config_page:
             models_title: "Chatbox detector"
             optional: "Optional, recommended"
             status_on: "In use: the detector finds each chatbox, then it is read."
+            status_ready: "Downloaded and selected. It will be used when chat reading starts."
+            status_restart: "Reading without the detector. Turn chat reading off and on to use the downloaded detector."
+            status_paused: "Chat reading uses the detector but is waiting or paused. See the status above."
             status_off: "Downloaded but turned off. Chatboxes are found within the reading area."
             status_missing: "Not downloaded. Chat reading works without it; download it below to miss fewer chatboxes and pick up less world text."
         models:
@@ -755,6 +757,13 @@ config_page:
             missing: "Not downloaded"
             required: "Needed for the current source language"
             refresh: "Check again"
+        runtime:
+            waiting: "Waiting for a usable frame from VRChat."
+            reading: "Chat reading is running."
+            failed_capture: "Window capture failed or the pixel format is unsupported. Reading is paused and will retry automatically."
+            failed_detector: "The chatbox detector failed. Reading is paused and will retry automatically."
+            failed_recognition: "Text recognition failed. Reading is paused and will retry automatically."
+            failed_tick: "Chat reading failed. Reading is paused and will retry automatically."
         readiness:
             ready: "Ready. Turn on Chat Transcribe from the main screen."
             checking: "Checking…"

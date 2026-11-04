@@ -11,6 +11,7 @@ import controller as controller_module
 import model as model_module
 from config import config
 from controller import Controller
+from errors import ErrorCode
 from models.ocr import ocr_capture, ocr_pipeline
 from models.ocr.ocr_detection import FULL_REGION, normalizeRegion
 from models.ocr.ocr_pipeline import OcrPipeline
@@ -249,13 +250,35 @@ def test_status_reports_worker_source_without_probing(subject, monkeypatch):
     monkeypatch.setattr(ocr_capture.sys, "platform", "win32")
     probe = Mock(side_effect=AssertionError("no capture probe"))
     monkeypatch.setattr(ocr_capture, "probeCapture", probe)
-    for source in ("window", "vr", None):
-        backend.ocr_pipeline._capture.source = source
-        assert controller.getOcrCaptureStatus()["result"] == {
-            "active": True, "source": source, "available_sources": ["window", "vr"]}
+    pipeline = backend.ocr_pipeline
+    pipeline._capture.get = Mock(side_effect=AssertionError("no frame capture"))
+    for state, stage, error in (("waiting", "capture", None), ("reading", None, None),
+                                ("retrying", "detector", ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)):
+        pipeline._runtimeState(state, stage, error)
+        for source in ("window", "vr", None):
+            pipeline._capture.source = source
+            assert controller.getOcrCaptureStatus() == {"status": 200, "result": {
+                "active": True, "source": source, "available_sources": ["window", "vr"],
+                "state": state, "stage": stage, "error_code": error.value if error else None,
+                "detector": "region"}}
+    # A pending detector is not yet the detector actually used by the worker.
+    detector = SimpleNamespace(name="vrct-vox-chatbox", isAvailable=lambda: True, loadModel=lambda: None)
+    pipeline.applyConfig({"detector": detector})
+    assert controller.getOcrCaptureStatus()["result"]["detector"] == "region"
+    pipeline._applyPending()
+    pipeline._runtimeState("reading")
+    assert controller.getOcrCaptureStatus()["result"]["detector"] == "vrct-vox-chatbox"
     config.ENABLE_OCR_CAPTURE = False
-    assert controller.getOcrCaptureStatus()["result"]["source"] is None
-    assert controller.getOcrCaptureStatus()["result"]["active"] is False
+    stopped = {"active": False, "source": None, "available_sources": ["window", "vr"],
+               "state": "stopped", "stage": None, "error_code": None, "detector": None}
+    assert controller.getOcrCaptureStatus()["result"] == stopped
+    config.ENABLE_OCR_CAPTURE = True
+    pipeline.requestShutdown()
+    assert controller.getOcrCaptureStatus()["result"] == stopped
+    backend.ocr_pipeline = None
+    monkeypatch.setattr(ocr_capture.sys, "platform", "linux")
+    assert controller.getOcrCaptureStatus()["result"] == {**stopped, "available_sources": ["window"]}
+    pipeline._capture.get.assert_not_called()
     probe.assert_not_called()
 
 

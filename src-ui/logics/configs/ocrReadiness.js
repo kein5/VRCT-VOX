@@ -49,20 +49,37 @@ export const readinessSummary = readiness => {
     return { key: "config_page.ocr.readiness.ready", params: {}, ok: true };
 };
 
-// The optional chatbox detector: whether it is downloaded and in use. Never blocks reading.
-// `enabled` is the switch as the page knows it (it may be newer than the readiness reply).
-export const detectorStatus = (readiness, enabled) => {
-    if (!readiness || typeof readiness.detector_model !== "string") return null;
-    const installed = readiness.detector_installed === true;
-    const on = installed && (enabled ?? readiness.detector_enabled) !== false;
-    const state = !installed ? "missing" : on ? "on" : "off";
-    return { model: readiness.detector_model, installed, on, key: `config_page.ocr.detector.status_${state}` };
+export const runtimeSummary = runtime => {
+    if (!runtime || runtime.state === "stopped") return null;
+    const state = runtime.state === "retrying"
+        ? `failed_${["capture", "detector", "recognition"].includes(runtime.stage) ? runtime.stage : "tick"}`
+        : runtime.state === "reading" ? "reading" : "waiting";
+    const tone = runtime.state === "retrying" ? "failed" : state === "reading" ? "active" : "warning";
+    return { key: `config_page.ocr.runtime.${state}`, params: {}, ok: state === "reading", tone };
 };
 
-// Report the worker's frame source, never infer it from SteamVR or model readiness.
-export const captureSourceSummary = status => {
-    const source = status?.source;
-    const state = !status ? "checking" : !status.active ? "stopped"
-        : source === "window" || source === "vr" ? source : "waiting";
-    return { key: `config_page.ocr.capture_source.${state}`, active: state === "window" || state === "vr" };
+// Installation, preference and the worker's adopted detector are separate facts.
+// `enabled` is the switch as the page knows it (it may be newer than the readiness reply).
+export const detectorStatus = (readiness, enabled, runtime = readiness?.runtime) => {
+    if (!readiness || typeof readiness.detector_model !== "string") return null;
+    const installed = readiness.detector_installed === true;
+    const preferred = (enabled ?? readiness.detector_enabled) !== false;
+    const running = runtime && runtime.state !== "stopped";
+    const adopted = running && runtime.detector === "vrct-vox-chatbox";
+    const on = !!adopted && runtime.state === "reading";
+    const state = adopted ? on ? "on" : "paused"
+        : !installed ? "missing" : !preferred ? "off" : running ? "restart" : "ready";
+    return { model: readiness.detector_model, installed, on, preferred, key: `config_page.ocr.detector.status_${state}` };
+};
+
+// One readout combines the worker's actual source and runtime state. Readiness
+// describes how to start when stopped; it cannot override a running failure.
+export const captureStatusSummary = (status, readiness) => {
+    if (!status) return { key: "config_page.ocr.capture_source.checking", tone: "neutral" };
+    if (!status.active || status.state === "stopped") {
+        const summary = readinessSummary(readiness);
+        return { ...summary, sourceKey: "config_page.ocr.capture_source.stopped", tone: summary.ok ? "neutral" : "warning" };
+    }
+    const sourceKey = ["window", "vr"].includes(status.source) ? `config_page.ocr.capture_source.${status.source}` : null;
+    return { ...runtimeSummary(status), sourceKey };
 };

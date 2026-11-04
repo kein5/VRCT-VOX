@@ -2352,7 +2352,7 @@ class Controller:
             self._processMessage(SPEAKER_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"),
                                  publication_guard=current)
 
-    def ocrMessage(self, result: dict) -> None:
+    def ocrMessage(self, result: dict) -> bool:
         """OCRで読んだチャット吹き出しを、受信メッセージと同じ経路へ流す。
 
         speakerMessage と同じく `_processMessage` に委ねる。OCR固有の差分
@@ -2364,11 +2364,11 @@ class Controller:
         """
         current = self._messagePublicationGuard("ocr")
         if getattr(self, "_ocr_shutting_down", False) or config.ENABLE_OCR_CAPTURE is not True:
-            return
+            return False
 
         message = result.get("text")
         if not isinstance(message, str) or len(message) == 0:
-            return
+            return False
 
         # 読んでいるのは相手の発言なので、翻訳の原文言語もそちら側。空なら
         # getOutputTranslate が SELECTED_TARGET_LANGUAGES へフォールバックする。
@@ -2383,6 +2383,7 @@ class Controller:
             OCR_MESSAGE_SPEC, message, source_language, msg_id=msg_id,
             publication_guard=lambda: current() and not getattr(self, "_ocr_shutting_down", False),
         )
+        return current() and not getattr(self, "_ocr_shutting_down", False)
 
     def _disableTranscriptionAfterPipelineError(self, source: str) -> None:
         """エラー停止後の実状態を config と UI に同期する。"""
@@ -5151,11 +5152,15 @@ class Controller:
         """Read worker state only; never probe devices or load models for polling."""
         pipeline = getattr(model, "ocr_pipeline", None)
         active = bool(config.ENABLE_OCR_CAPTURE and pipeline is not None and pipeline.is_alive)
+        runtime = pipeline.runtimeStatus if active else {
+            "state": "stopped", "stage": None, "error_code": None, "detector": None}
+        active = active and runtime["state"] != "stopped"
         capture = getattr(pipeline, "_capture", None) if active else None
         return {"status": 200, "result": {
             "active": active,
             "source": getattr(capture, "source", None),
             "available_sources": ocr_capture.availableCaptureSources(),
+            **runtime,
         }}
 
     def getOcrReadiness(self, *args, **kwargs) -> dict:
@@ -5188,6 +5193,7 @@ class Controller:
             "detector_model": ocr_chatbox_detector.DETECTOR_MODEL_ID,
             "detector_installed": ocr_chatbox_detector.isDetectorInstalled(root),
             "detector_enabled": config.OCR_USE_CHATBOX_DETECTOR is True,
+            "runtime": model.getOCRRuntime(),
         }}
 
     @staticmethod

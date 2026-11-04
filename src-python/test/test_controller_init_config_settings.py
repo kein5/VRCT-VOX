@@ -42,10 +42,13 @@ class TestInitMappingExcludesNetworkEndpoints(unittest.TestCase):
         self.assertNotIn("/get/data/ocr_readiness", init_mapping)
 
     def test_other_get_data_endpoints_are_still_collected(self) -> None:
-        """除外は available_releases と ocr_readiness だけで、他は従来どおり集められること。"""
+        """除外は available_releases、ocr_readiness、ocr_capture_status だけで、他は従来どおり集められること。
+
+        ocr_capture_status は実行中の状態で、チャット読み取りの設定を開いている間だけ UI が読む。
+        """
         get_data_keys = {k for k in mapping if k.startswith("/get/data/")}
         self.assertEqual(get_data_keys - set(init_mapping),
-                         {"/get/data/available_releases", "/get/data/ocr_readiness"})
+                         {"/get/data/available_releases", "/get/data/ocr_readiness", "/get/data/ocr_capture_status"})
 
 
 class TestUpdateConfigSettingsIsolatesFailures(unittest.TestCase):
