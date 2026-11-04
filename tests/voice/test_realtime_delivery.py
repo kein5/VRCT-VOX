@@ -96,6 +96,8 @@ def test_partials_replace_only_and_final_is_processed_once():
             and result["source"] == "mic"
         )
         assert result["translations"][0]["message"] == "translation"
+        eventually(lambda: any(p["state"] == "outcome" for p in published))
+        assert [p["outcome"] for p in published if p["state"] == "outcome"] == ["delivered"]
         assert not errors
     finally:
         assert delivery.close()
@@ -128,6 +130,9 @@ def test_blocked_translation_cannot_publish_after_stop_or_expiry(stop):
             assert time.monotonic() - began < 0.1
         else:
             now[0] = 103
+        eventually(lambda: any(p["state"] == "outcome" for p in published))
+        result = next(p for p in published if p["state"] == "outcome")
+        assert (result["outcome"], result["reason"]) == ("not_delivered", "revoked" if stop else "expired")
         release.set()
         time.sleep(0.08)
         assert not effects and not any(p["state"] == "translated" for p in published)
@@ -159,6 +164,11 @@ def test_final_queue_overflow_stops_session_and_discards_queued_work():
         release.set()
         assert delivery.close()
         assert processed == ["first"]
+        outcomes = [p for p in published if p["state"] == "outcome"]
+        assert len(outcomes) == 6
+        assert len({p["item_id"] for p in outcomes}) == 6
+        assert sum(p["outcome"] == "failed" and p["reason"] == "queue_full" for p in outcomes) == 1
+        assert sum(p["reason"] == "revoked" for p in outcomes) == 5
     finally:
         release.set()
         delivery.close()
@@ -184,6 +194,8 @@ def test_expired_waiting_final_is_never_sent_to_translator():
         session.emit("second", True)
         eventually(lambda: any(p["item_id"] == "second" for p in published))
         now[0] = 103
+        eventually(lambda: len([p for p in published if p["state"] == "outcome"]) == 2)
+        assert all(p["reason"] == "expired" for p in published if p["state"] == "outcome")
         release.set()
         time.sleep(0.08)
         assert processed == ["first"]
@@ -206,6 +218,8 @@ def test_translation_exception_is_safe_and_does_not_stop_other_captions():
         session.emit("second")
         eventually(lambda: any(p["item_id"] == "second" for p in published))
         assert errors == ["realtime_final_failed"] and session.active
+        assert [(p["outcome"], p["reason"]) for p in published if p["state"] == "outcome"] == [
+            ("failed", "processing_failed")]
         assert "private" not in str(published)
     finally:
         assert delivery.close()
@@ -249,6 +263,7 @@ def test_expiry_in_session_mailbox_does_not_restart_deadline():
         assert processed == []
         assert published[0]["state"] == "discarded"
         assert published[0]["text"] == ""
+        assert not any(p["state"] == "outcome" for p in published)
     finally:
         assert delivery.close()
 
@@ -275,4 +290,45 @@ def test_stop_cleanup_is_owned_by_worker_and_never_blocks_fast_signal():
         assert delivery.close()
     finally:
         release.set()
+        delivery.close()
+
+
+def test_stop_while_final_publication_is_in_progress_still_settles_it_once():
+    session, published, errors = Session(), [], []
+    entered, release = Event(), Event()
+
+    def publish(payload):
+        published.append(payload)
+        if payload["state"] == "final":
+            entered.set()
+            assert release.wait(2)
+
+    delivery = create(session, publish, lambda u, c: pytest.fail("stopped final processed"), errors)
+    try:
+        delivery.start()
+        session.emit(final=True)
+        assert entered.wait(1)
+        delivery.request_stop()
+        release.set()
+        assert delivery.close()
+        assert [p["state"] for p in published] == ["final", "outcome"]
+        assert published[-1]["reason"] == "revoked"
+        assert not errors
+    finally:
+        release.set()
+        delivery.close()
+
+
+@pytest.mark.parametrize("text", ["", "   "])
+def test_empty_final_retires_partial_without_delivery_outcome(text):
+    session, published, errors = Session(), [], []
+    delivery = create(session, published.append, lambda u, c: pytest.fail("empty final processed"), errors)
+    try:
+        delivery.start()
+        session.emit()
+        session.emit(final=True, revision=2, text=text)
+        eventually(lambda: any(p["state"] == "discarded" for p in published))
+        assert delivery.close()
+        assert [p["state"] for p in published] == ["partial", "discarded"]
+    finally:
         delivery.close()

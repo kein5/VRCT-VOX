@@ -2,6 +2,50 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { hooks, loadModule, find } from "../../../../../../../logics/test/hookHarness.js";
+import { applyRealtimeCaption } from "../../../../../../../logics/transcription/realtimeCaptionState.js";
+import { encodeLogUpdate, decodeLogUpdate } from "../../../../../../../logics/common/vrPanelWire.js";
+
+test("realtime outcomes render the same row and labels in desktop and VR log mirrors", async () => {
+    const runtime = hooks(), store = { is_vr_panel: false };
+    const { MessageContainer } = await loadModule(new URL("./MessageContainer.jsx", import.meta.url), runtime, {
+        "@store": { store }, "./message_sub_menu_container/MessageSubMenuContainer": {},
+    });
+    for (const source of ["mic", "speaker"]) {
+        const event = { source, generation: 4, namespace: "session", item_id: "one", revision: 1, state: "final", text: "認識した文" };
+        const owner = { [source]: { generation: 4, namespace: "session", requested: true } };
+        const pending = applyRealtimeCaption({ rows: [], retired: [] }, event, owner);
+        const encoded = encodeLogUpdate(null, { state: "ok", data: pending.rows });
+        const mirror = decodeLogUpdate(null, encoded.message);
+        for (const isVr of [false, true]) {
+            store.is_vr_panel = isVr;
+            const node = runtime.render(MessageContainer.type, (isVr ? mirror.rows : pending.rows)[0]);
+            assert.ok(find(node, n => n.props.children === `main_page.message_log.${source === "mic" ? "sending" : "processing"}`));
+            assert.equal(Boolean(find(node, n => n.props.className === "loader")), !isVr);
+        }
+        for (const [outcome, reason, micLabel, speakerLabel] of [
+            ["delivered", null, "sent", "received"],
+            ["not_delivered", "expired", "not_sent_expired", "processing_stopped"],
+            ["not_delivered", "revoked", "not_sent_revoked", "processing_stopped"],
+            ["not_delivered", "superseded", "not_sent_superseded", "processing_stopped"],
+            ["not_delivered", "filtered", "not_sent_filtered", "processing_stopped"],
+            ["failed", "processing_failed", "send_unconfirmed", "processing_failed"],
+        ]) {
+            const settled = applyRealtimeCaption(pending, { ...event, revision: 3, state: "outcome", outcome, reason }, {});
+            const update = encodeLogUpdate(encoded.sent, { state: "ok", data: settled.rows });
+            const mirrored = decodeLogUpdate(mirror, update.message);
+            assert.deepEqual(mirrored.rows, settled.rows);
+            for (const isVr of [false, true]) {
+                store.is_vr_panel = isVr;
+                const node = runtime.render(MessageContainer.type, (isVr ? mirrored.rows : settled.rows)[0]);
+                const label = find(node, n => n.props.children === `main_page.message_log.${source === "mic" ? micLabel : speakerLabel}`);
+                assert.ok(label);
+                assert.equal(find(node, n => n.props.className === "loader"), null);
+                if (outcome === "failed") assert.match(label.props.className, /failed/);
+                if (outcome === "not_delivered") assert.match(label.props.className, /not_sent/);
+            }
+        }
+    }
+});
 
 test("VR pending label is static; only the desktop renders the animated loader", async () => {
     const runtime = hooks(), store = { is_vr_panel: true };

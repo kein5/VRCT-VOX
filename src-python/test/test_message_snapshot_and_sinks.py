@@ -392,7 +392,8 @@ def test_realtime_overlay_failure_does_not_stop_final_processing(subject):
     wait_for_finals(session, delivery)
     assert subject.m.oscSendMessage.call_count == 1
     assert subject.m.logger.info.call_count == 1
-    assert captions(subject)[-1]['state'] == 'translated'
+    assert captions(subject)[-1]['state'] == 'outcome'
+    assert captions(subject)[-1]['outcome'] == 'delivered'
     assert notices(subject) and subject.c._realtime_errors['mic'] is None
 
 

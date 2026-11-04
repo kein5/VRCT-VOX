@@ -211,12 +211,16 @@ def clear_outputs(app):
     app.c.run.reset_mock()
 
 
-def assert_no_outputs(app):
+def assert_no_outputs(app, *, allow_outcomes=False):
     for name in ("oscSendMessage", "updateOverlayLargeLog", "updateOverlaySmallLog",
                  "websocketSendMessage", "setCopyToClipboardAndPasteFromClipboard", "addTranslationHistory"):
         getattr(app.m, name).assert_not_called()
     app.m.logger.info.assert_not_called()
-    app.c.run.assert_not_called()
+    if allow_outcomes:
+        assert all(call.args[1] == "/run/realtime_caption" and call.args[2]["state"] == "outcome"
+                   and call.args[2]["outcome"] == "not_delivered" for call in app.c.run.call_args_list)
+    else:
+        app.c.run.assert_not_called()
     assert not app.m.caption_overlays
     assert app.c.voice_events.status()["accepted"] == 0
 
@@ -275,7 +279,7 @@ def test_realtime_mute_during_translation_revokes_every_late_output(app, resume)
         release.set()
         assert finished.wait(1)
         wait_for_finals(session, delivery)
-        assert_no_outputs(app)
+        assert_no_outputs(app, allow_outcomes=True)
     finally:
         release.set()
 
@@ -498,14 +502,15 @@ def test_queued_finals_before_and_during_vrc_mute_stay_revoked_after_unmute(app)
         app.mute()
         clear_outputs(app)
         session.emit("queued-while-muted")
-        eventually(lambda: delivery._finals.qsize() == 2)
-        assert_no_outputs(app)
+        eventually(lambda: "queued-while-muted" in delivery._terminal)
+        assert_no_outputs(app, allow_outcomes=True)
         app.mute(False)
         release.set()
         session.emit("new")
         eventually(lambda: any(p["item_id"] == "new" and p["state"] == "translated" for p in captions(app)))
         assert [call.args[0] for call in app.m.getInputTranslate.call_args_list] == ["translating", "new"]
-        assert all(p["item_id"] == "new" for p in captions(app))
+        assert all(p["item_id"] == "new" or (p["state"] == "outcome" and p["reason"] == "revoked")
+                   for p in captions(app))
         assert all(p["item_id"] == "new" for p in app.m.caption_overlays)
         app.m.oscSendMessage.assert_called_once()
         app.m.websocketSendMessage.assert_called_once()

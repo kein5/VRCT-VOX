@@ -251,11 +251,11 @@ def _stdoutDeliveryKeys(status, endpoint, result):
                 and isinstance(result.get("namespace"), str) and 0 < len(result["namespace"]) <= 128
                 and isinstance(result.get("item_id"), str) and 0 < len(result["item_id"]) <= 256
                 and type(result.get("revision")) is int and result["revision"] >= 1
-                and isinstance(result.get("text"), str)):
+                and (isinstance(result.get("text"), str) or result.get("state") == "outcome")):
             key = (endpoint, result["source"], result["generation"], result["namespace"], result["item_id"])
             if result.get("state") == "partial" and result["text"].strip():
                 return key, None  # 同じ字幕行の全文。空文字は UI の retire 操作なので保持。
-            if result.get("state") in ("final", "translated", "discarded"):
+            if result.get("state") in ("final", "translated", "discarded", "outcome"):
                 return None, key
     return None, None
 

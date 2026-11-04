@@ -53,6 +53,35 @@ IPCでやり取りする主なデータの形と、ディスクに残すファ�
 - 各出力の失敗は、別の400通知`/run/message_output_error`でも知らせる。`result.data`は`{id, source, output, error_code}`で、`id`がない入力では`null`。`source`は`chat`・`mic`・`speaker`・`ocr`、`output`は`osc`・`overlay_small`・`overlay_large`・`clipboard`・`ui`・`websocket`・`logger`・`history`・`tts`のいずれか。本文や例外の詳細は入れない。UIへの通常通知の後に失敗する出力もあるため、全入力元の失敗通知をこの経路で扱う。送信行を失敗扱いにせず、出力先ごとに警告を表示する。
 - マイクは`/run/transcription_send_mic_message`、スピーカーは`/run/transcription_receive_speaker_message`、OCRは`/run/transcription_ocr_message`で届く。
 
+### リアルタイム字幕と配送結果
+
+リアルタイム音声認識は200の`/run/realtime_caption`で通知する。行は`source`（`mic`・`speaker`）、`generation`、`namespace`、`item_id`の組で識別する。`revision`は同じ行の更新番号である。
+
+`partial`は認識途中、`final`は認識の確定であり、どちらも配送完了ではない。`text`に認識文、`translations`に訳の配列を持つ。`translated`は原文の読みを含む`original`と`translations`を更新するが、配送の待機は解除しない。`discarded`は空の確定結果や、表示前に期限が切れた字幕を退役させる。
+
+表示した空でない`final`には、次の結果通知を1回発行する。`revision`は`final`より2大きい。本文と訳はこの通知に含めず、同じ行に保持する。
+
+```json
+{"status": 200, "endpoint": "/run/realtime_caption", "result": {
+  "source": "mic", "generation": 4, "namespace": "session", "item_id": "utterance",
+  "revision": 3, "state": "outcome", "outcome": "not_delivered", "reason": "expired"
+}}
+```
+
+| `outcome` | `reason` | 行の状態と意味 |
+|---|---|---|
+| `delivered` | `null` | `status: "ok"`。適用対象の出力処理を終えた。マイクは「送信」、スピーカーは「受信」。VRChatでの受信確認やTTSの再生完了は意味しない |
+| `not_delivered` | `expired`・`revoked`・`superseded`・`filtered` | `status: "not_sent"`。2秒の期限切れ、配送世代やセッションの失効、新しい文を送信済みのためチャットボックスへの送信を省略、ワードフィルターによる省略。処理失敗とは区別する |
+| `failed` | `processing_failed`・`queue_full` | `status: "failed"`。処理自体の例外・VRAM不足、または確定結果の待ち行列が満杯。本文を残す |
+
+出力先だけの例外では`delivered`を維持し、既存の`MESSAGE_OUTPUT_FAILED`警告を使う。行に警告を重ねない。期限切れ・失効、またはチャットボックスの送信省略も起きた場合は、その`not_delivered`を表示する。既に終えた出力は取り消さず、自動で再送しない。
+
+認識が確定した行は`status: "pending"`で始める。デスクトップのマイク行は「送信中…」と待機アイコン、スピーカー行は「処理中…」を使う。VRパネルは同じ行を映し、待機アイコンを動かさず文言で示す。処理失敗のマイク行は既存の「送信を確認できません」、スピーカー行は「処理に失敗しました」と表示する。送信を省略したマイク行は理由を添え、スピーカー行は「処理を中止しました」と表示する。
+
+待ち行列で期限が切れた結果も、停止・ミュート・終了で処理へ進めなかった結果も、表示済みなら結果通知を出す。読取ワーカーが既存の待機周期で期限と配送世代を確認するため、翻訳の終了を待たずに行を確定できる。表示しなかった確定結果には出さない。停止後や新しいセッションの開始後でも、UIに残っている同じIDの確定行だけを更新する。未知・削除済み・認識途中の行には適用せず、一度確定した結果は後続の通知で変えない。
+
+結果を受け取る前にサイドカーとの接続が終了した場合は、UIが未確定の行を`failed`にする。この場合だけはバックエンドの結果通知ではなく、配送を確認できない状態として扱う。認識途中の行は消し、受信済みの結果は変えない。入力欄の送信エラーでリアルタイムの行を変更することはない。
+
 ### WebSocketとOBSへ送るメッセージ
 
 ```json

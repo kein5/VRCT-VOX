@@ -2,7 +2,7 @@
 
 from collections import OrderedDict
 from queue import Empty, Full, Queue
-from threading import Event, Thread, current_thread
+from threading import Event, Lock, Thread, current_thread
 from time import monotonic
 
 from .utterance_diagnostics import utterance_diagnostics
@@ -28,6 +28,8 @@ class RealtimeDelivery:
         self._stop = Event()
         self._finals = Queue(maxsize=4)
         self._terminal = OrderedDict()
+        self._pending = {}
+        self._pending_lock = Lock()
         self._threads = []
 
     def start(self):
@@ -78,9 +80,53 @@ class RealtimeDelivery:
             # A diagnostics consumer cannot restart or strand capture.
             self.request_stop()
 
+    def _reason(self, update, deadline, admitted):
+        if not self._current(update) or not admitted():
+            return "revoked"
+        if self._clock() >= deadline:
+            return "expired"
+        return None
+
+    def _settle(self, update, outcome, reason=None, result=None):
+        # The reader (expiry/stop) and final worker compete for one outcome.
+        # Never hold this lock across publication, rendering or a worker join.
+        with self._pending_lock:
+            pending = self._pending.pop(update.item_id, None)
+        if pending is None:
+            return
+        _, deadline, publish, admitted, shown = pending
+        invalid = self._reason(update, deadline, admitted)
+        if invalid:
+            outcome, reason, result = "not_delivered", invalid, None
+        try:
+            if result is not None:
+                payload = self._payload(update)
+                payload.update(state="translated", revision=update.revision + 1,
+                               original=result["original"], translations=result["translations"])
+                shown = publish(payload) is not False or shown
+        finally:
+            # This only settles a shown row; it must survive revocation and
+            # expiry. It never authorizes another output or a retry.
+            invalid = self._reason(update, deadline, admitted)
+            if invalid:
+                outcome, reason = "not_delivered", invalid
+            if shown:
+                publish(dict(source=update.source, namespace=update.namespace,
+                             item_id=update.item_id, revision=update.revision + 2,
+                             state="outcome", outcome=outcome, reason=reason))
+
+    def _settle_invalid(self):
+        with self._pending_lock:
+            pending = list(self._pending.values())
+        for update, deadline, _, admitted, _ in pending:
+            reason = self._reason(update, deadline, admitted)
+            if reason:
+                self._settle(update, "not_delivered", reason)
+
     def _read(self):
         try:
             while not self._stop.is_set():
+                self._settle_invalid()
                 update = self.session.pop_update(0.05)
                 if update is None:
                     if self.session.health()["state"] in (
@@ -107,16 +153,25 @@ class RealtimeDelivery:
                     if len(self._terminal) > 256:
                         self._terminal.popitem(last=False)
                 # Bind delivery/voice intent before publishing or queueing a final.
-                publish, process = self._admit(update) if self._admit else (self._publish, self._process)
-                publish(payload)
-                if update.is_final and not expired and not empty_final and self._current(update):
+                publish, process, admitted = self._admit(update) if self._admit else (
+                    self._publish, self._process, lambda: True)
+                shown = publish(payload) is not False
+                if update.is_final and not expired and not empty_final:
+                    with self._pending_lock:
+                        self._pending[update.item_id] = (update, deadline, publish, admitted, shown)
+                    reason = self._reason(update, deadline, admitted)
+                    if reason:
+                        self._settle(update, "not_delivered", reason)
+                        continue
                     try:
                         self._finals.put_nowait((update, deadline, publish, process))
                     except Full:
+                        self._settle(update, "failed", "queue_full")
                         self._report("realtime_final_queue_full", terminal=True)
         except Exception:
             self._report("realtime_caption_failed", terminal=True)
         finally:
+            self._settle_invalid()
             if self._on_stopped is not None:
                 try:
                     self._on_stopped()
@@ -140,19 +195,18 @@ class RealtimeDelivery:
                     f"[ASR-queue][{update.source}] realtime wait={queue_ms:.1f}ms",
                 )
                 if not current():
+                    self._settle(update, "not_delivered")
                     continue
                 try:
                     result = process(update, current)
-                    if result is not None and current():
-                        payload = self._payload(update)
-                        payload.update(
-                            state="translated",
-                            revision=update.revision + 1,
-                            original=result["original"],
-                            translations=result["translations"],
-                        )
-                        publish(payload)
+                    if result is None:
+                        self._settle(update, "not_delivered", "filtered")
+                    else:
+                        outcome = result.get("delivery_outcome", "delivered")
+                        self._settle(update, outcome, result.get("delivery_reason"),
+                                     result if outcome != "failed" else None)
                 except Exception:
+                    self._settle(update, "failed", "processing_failed")
                     if current():
                         self._report("realtime_final_failed")
                 finally:

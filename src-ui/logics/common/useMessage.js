@@ -26,8 +26,9 @@ export const useMessage = () => {
 
     const failSentMessageLog = (payload) => {
         // Legacy terminal errors have no request ID. In that case all pending
-        // sends are uncertain; a later successful response can still settle one.
+        // typed sends are uncertain; realtime rows have their own outcomes.
         updateMessageLogs(current => current.data.map(item => item.category === "sent" && item.status === "pending"
+            && !item.realtime
             && (payload?.id === undefined || item.id === payload.id) ? { ...item, status: "failed" } : item));
     };
 
@@ -99,7 +100,7 @@ export const useMessage = () => {
         const owner = active[payload?.source];
         // The first caption can beat the first ready-state poll. It may bind
         // only the already accepted backend generation, never revive a stop.
-        if (owner?.requested && owner.generation === payload.generation && !owner.namespace) {
+        if (payload?.state !== "outcome" && owner?.requested && owner.generation === payload.generation && !owner.namespace) {
             active = { ...active, [payload.source]: { ...owner, namespace: payload.namespace } };
             atoms.set(realtimeStateAtom, active);
         }

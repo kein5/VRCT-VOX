@@ -93,6 +93,7 @@ class StdoutBacklogTests(_StdoutWriterTestCase):
                     (CAPTION, caption(index + 1, state="final"), 200),
                     (CAPTION, caption(index + 1, state="translated"), 200),
                     (CAPTION, caption(index + 1, state="discarded"), 200),
+                    (CAPTION, caption(index + 1, state="outcome", outcome="delivered"), 200),
                     ("/run/transcription_send_mic_message", {"text": str(index)}, 200),
                     ("/run/downloaded_whisper_weight", "tiny", 200),
                     ("/run/initialization_complete", {}, 200),
@@ -139,6 +140,24 @@ class StdoutBacklogTests(_StdoutWriterTestCase):
                 release.set()
             self.assertTrue(_wait_until(lambda: len(written) == 2))
         self.assertEqual(written, [caption(), caption(3, state="final")])
+
+    def test_outcomes_without_text_are_retained_and_retire_late_partials(self):
+        outcome = {key: value for key, value in caption(4, state="outcome", outcome="not_delivered",
+                                                       reason="expired").items() if key != "text"}
+        with patch.object(utils, "_ensureStdoutWriterStarted"):
+            self.notify(CAPTION, caption())
+            self.notify(CAPTION, caption(2, state="final"))
+            self.notify(CAPTION, outcome)
+            self.notify(CAPTION, caption(5))
+            other = {**outcome, "item_id": "other"}
+            self.notify(CAPTION, caption(item_id="other"))
+            self.notify(CAPTION, other)
+            self.notify(CAPTION, caption(5, item_id="other"))
+        self.assertEqual([r["result"] for r in self.drain()], [caption(2, state="final"), outcome, other])
+        with patch.object(utils, "_ensureStdoutWriterStarted"):
+            self.notify(CAPTION, caption(6))
+            self.notify(CAPTION, outcome)  # Retained notification, never coalesced.
+        self.assertEqual([r["result"] for r in self.drain()], [outcome])
 
     def test_queued_finals_are_protected_beyond_the_delivered_history_limit(self):
         with patch.object(utils, "_ensureStdoutWriterStarted"):
