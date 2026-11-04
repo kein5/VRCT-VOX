@@ -1261,6 +1261,8 @@ class Config:
     # The detector switch only matters once its verified download is present.
     # See ocr_detection.py and ocr_chatbox_detector.py.
     OCR_CAPTURE_REGION = ManagedProperty('OCR_CAPTURE_REGION', type_=dict, allowed=_ocr_capture_region_validator)
+    # Keep the original key for the desktop window; VR has independent coordinates.
+    OCR_VR_CAPTURE_REGION = ManagedProperty('OCR_VR_CAPTURE_REGION', type_=dict, allowed=_ocr_capture_region_validator)
     OCR_CHATBOX_FILTER = ManagedProperty('OCR_CHATBOX_FILTER', type_=bool)
     OCR_USE_CHATBOX_DETECTOR = ManagedProperty('OCR_USE_CHATBOX_DETECTOR', type_=bool)
 
@@ -1616,6 +1618,7 @@ class Config:
         self._OCR_BUBBLE_MIN_TEXT_LENGTH = 2
         # Whole window until the user narrows it.
         self._OCR_CAPTURE_REGION = {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
+        self._OCR_VR_CAPTURE_REGION = {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
         self._OCR_CHATBOX_FILTER = True
         # VRCT-VOX's chatbox detector is used whenever its verified download is present,
         # unless turned off here. Without the download this has no effect.
@@ -1653,6 +1656,10 @@ class Config:
                 self._config_data = {}
                 self.UNREADABLE_CONFIG_BACKUP = self._moveUnreadableConfigAside()
             if isinstance(self._config_data, dict):
+                # Old single-region configs already use OCR_CAPTURE_REGION. Retain
+                # that window region and migrate VR to the full view, never a copy.
+                self._config_data.setdefault("OCR_VR_CAPTURE_REGION",
+                                             {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0})
                 self._loading_saved_config = True
                 for key, value in self._config_data.items():
                     # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。

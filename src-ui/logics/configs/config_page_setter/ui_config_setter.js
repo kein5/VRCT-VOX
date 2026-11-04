@@ -818,6 +818,23 @@ export const SETTINGS_ARRAY = [
     },
     {
         Category: "Ocr",
+        Base_Name: "OcrVrCaptureRegion",
+        default_value: { x: 0, y: 0, width: 1, height: 1 },
+        ui_template_id: "custom",
+        logics_template_id: "get_set",
+        base_endpoint_name: "ocr_vr_capture_region",
+    },
+    {
+        // Worker state only: polling this never opens a capture device.
+        Category: "Ocr",
+        Base_Name: "OcrCaptureStatus",
+        default_value: null,
+        ui_template_id: "custom",
+        logics_template_id: "get_only",
+        base_endpoint_name: "ocr_capture_status",
+    },
+    {
+        Category: "Ocr",
         Base_Name: "OcrChatboxFilter",
         default_value: true,
         ui_template_id: "toggle",

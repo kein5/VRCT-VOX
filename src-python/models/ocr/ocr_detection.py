@@ -5,9 +5,9 @@ in VRCT-VOX or be downloaded for its users, and its outputs may not be used to
 train a replacement. VRCT-VOX's own detector (ocr_chatbox_detector.py) is an
 optional download; without it, bubbles are found like this:
 
-1. Region. The user sets a rectangle in relative window coordinates
-   (Config → Chat reading). Only that part of the frame is read; the default
-   is the whole window.
+1. Region. The user sets separate rectangles in relative window and VR-view
+   coordinates (Config → Chat reading). Only that part of each source is read;
+   the default for each is the whole view.
 2. Text lines. PP-OCR's own text detector (DB, run by RapidOCR on the region)
    finds the lines; no extra model is involved.
 3. Bubbles. Lines are grouped into blocks: VRChat centres the lines of one
@@ -106,11 +106,25 @@ class RegionCandidates:
     splits_bubbles = True
 
     def __init__(self, region=FULL_REGION, max_side: int = MAX_READ_SIDE) -> None:
-        self.region = normalizeRegion(region)
+        self._regions = {"window": normalizeRegion(region), "vr": FULL_REGION}
+        self._source = None
         self.max_side = int(max_side)
 
+    @property
+    def region(self) -> Region:
+        # The provider follows the capture's actual frame, including fallback in
+        # get(). Both detector filtering and region cropping use this property.
+        source = self._source() if self._source is not None else "window"
+        return self._regions.get(source, FULL_REGION)
+
     def setRegion(self, region) -> None:
-        self.region = normalizeRegion(region)
+        """Compatibility: a single region always edits the desktop window."""
+        self._regions["window"] = normalizeRegion(region)
+
+    def setSourceRegions(self, regions: dict, source) -> None:
+        self._regions = {key: normalizeRegion(regions.get(key, FULL_REGION))
+                         for key in ("window", "vr")}
+        self._source = source
 
     def isAvailable(self) -> bool:
         return True

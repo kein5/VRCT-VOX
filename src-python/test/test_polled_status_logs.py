@@ -64,10 +64,14 @@ class PolledResponseLogTests(unittest.TestCase):
         self.assertIn("'text': 'str'", errors[0])
 
     def test_every_quiet_endpoint_is_one_the_ui_polls(self):
-        source = (Path(__file__).resolve().parents[2] / "src-ui/logics/useReceiveRoutes.js").read_text(encoding="utf-8")
+        logics = Path(__file__).resolve().parents[2] / "src-ui/logics"
+        source = (logics / "useReceiveRoutes.js").read_text(encoding="utf-8").replace("'", '"')
+        # Settings routes are generated from base_endpoint_name entries.
+        generated = (logics / "configs/config_page_setter/ui_config_setter.js").read_text(encoding="utf-8").replace("'", '"')
         for endpoint in utils.POLLED_ENDPOINTS:
             with self.subTest(endpoint=endpoint):
-                self.assertIn(f'"{endpoint}"', source.replace("'", '"'))
+                base = endpoint.removeprefix("/get/data/")
+                self.assertTrue(f'"{endpoint}"' in source or f'base_endpoint_name: "{base}"' in generated, endpoint)
 
 
 class PolledRequestLogTests(unittest.TestCase):

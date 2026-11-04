@@ -4,7 +4,9 @@
 
 `src-python/config.py`の`Config`クラス（`ManagedProperty`と`ValidatedProperty`）と`init_config()`の既定値から生成した。保存の仕組み（2秒の遅延、置き換えによる書き込み、読み込み時の検証）は[データ形式と保存](../data-and-persistence.md)にある。
 
-## config.jsonに保存するキー（120件）
+チャット読み取りの`OCR_CAPTURE_REGION`はデスクトップウィンドウ用、`OCR_VR_CAPTURE_REGION`はSteamVRの左目側の映像用。旧版の単一範囲はウィンドウ用に保持し、未保存のVR側には全体を補う。[範囲の形と移行](../data-and-persistence.md#チャット読み取りの範囲)を参照。
+
+## config.jsonに保存するキー（121件）
 
 | キー | 型・検証 | 既定値 | 保存 |
 |---|---|---|---|
@@ -126,6 +128,7 @@
 | `OCR_MIN_CONFIDENCE` | (int, float)、許可値 lambda v, inst: 0.1 <= v <= 0.99 | `0.85` | 2秒後にまとめて |
 | `OCR_BUBBLE_MIN_TEXT_LENGTH` | int、許可値 lambda v, inst: 1 <= v <= 50 | `2` | 2秒後にまとめて |
 | `OCR_CAPTURE_REGION` | dict、許可値 _ocr_capture_region_validator | `{'x': 0.0, 'y': 0.0, 'width': 1.0, 'height': 1.0}` | 2秒後にまとめて |
+| `OCR_VR_CAPTURE_REGION` | dict、許可値 _ocr_capture_region_validator | `{'x': 0.0, 'y': 0.0, 'width': 1.0, 'height': 1.0}` | 2秒後にまとめて |
 | `OCR_CHATBOX_FILTER` | bool | `True` | 2秒後にまとめて |
 | `OCR_USE_CHATBOX_DETECTOR` | bool | `True` | 2秒後にまとめて |
 

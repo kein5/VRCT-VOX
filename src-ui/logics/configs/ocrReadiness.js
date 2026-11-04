@@ -58,3 +58,11 @@ export const detectorStatus = (readiness, enabled) => {
     const state = !installed ? "missing" : on ? "on" : "off";
     return { model: readiness.detector_model, installed, on, key: `config_page.ocr.detector.status_${state}` };
 };
+
+// Report the worker's frame source, never infer it from SteamVR or model readiness.
+export const captureSourceSummary = status => {
+    const source = status?.source;
+    const state = !status ? "checking" : !status.active ? "stopped"
+        : source === "window" || source === "vr" ? source : "waiting";
+    return { key: `config_page.ocr.capture_source.${state}`, active: state === "window" || state === "vr" };
+};

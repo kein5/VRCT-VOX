@@ -919,6 +919,7 @@ _UNLOGGED_ENDPOINTS = {"/run/vr_panel_pointer", "/run/realtime_caption", "/run/w
 # even while idle; the file is truncated at 10 MB, so the polls pushed out the
 # startup and error records. Successful polls are not logged; failures are.
 POLLED_ENDPOINTS = frozenset({
+    "/get/data/ocr_capture_status",
     "/get/data/voice_status",
     "/get/data/voice_route",
     "/get/data/direct_voice_state",

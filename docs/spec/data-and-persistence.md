@@ -101,6 +101,25 @@ IPCでやり取りする主なデータの形と、ディスクに残すファ�
 
 起動時の取得では、保存された値と現在のモデル一覧の値が一致するか確認する。版、ファイルの容量・SHA-256、ライセンス、tokenizerの版が変わると再確認が必要になる。古い値はファイルを削除する根拠にはしない。旧版からの移行時は記録なしとして扱い、`AUTO_DOWNLOAD_MODELS=True`や既存のNLLB選択から同意を推測しない。既に取得したファイルとモデルの選択は保持する。
 
+### チャット読み取りの範囲
+
+`OCR_CAPTURE_REGION`はデスクトップのウィンドウ用、`OCR_VR_CAPTURE_REGION`はWindowsのSteamVRヘッドセット映像の左目側用で、どちらも`config.json`に保存する。画面ごとに幅と高さに対する割合で指定する。
+
+```json
+{
+  "OCR_CAPTURE_REGION": {"x": 0.6, "y": 0.1, "width": 0.2, "height": 0.2},
+  "OCR_VR_CAPTURE_REGION": {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
+}
+```
+
+`x`と`y`は左上、`width`と`height`は幅と高さ。有限の数値で画面内に収まり、幅と高さはそれぞれ0.02以上を必要とする。既定値は両方とも全体。IPCのsetterは小数点以下4桁に丸めて同じ検証を行い、不正な範囲を保存・予約せず400を返す。
+
+旧版の単一の範囲は、キー名を変えず`OCR_CAPTURE_REGION`でウィンドウ用として引き継ぐ。`OCR_VR_CAPTURE_REGION`がない保存ファイルには全体の範囲を補い、読み込み後の保存で書き込む。既存のVR用の値は保持する。不正な値はそのキーの既定値へ戻し、片方の範囲をもう片方へコピーしない。Linuxでも両方を保存するが、VR用の範囲は適用せず、設定ページにも編集欄を出さない。
+
+`/get/data/ocr_capture_region`と`/set/data/ocr_capture_region`は引き続きウィンドウ用の矩形を扱う。VR用は`/get/data/ocr_vr_capture_region`と`/set/data/ocr_vr_capture_region`で同じ形を扱う。
+
+`/get/data/ocr_capture_status`は`{active: bool, source: "window" | "vr" | null, available_sources: ["window", "vr"]}`を返す。Linuxでは`available_sources`は`["window"]`。`source`は直近の取り込み結果の元で、画像がないときや停止中は`null`。設定ページを開いている間は1秒ごとに読み直す。この取得はワーカーの状態を見るだけで、デバイスの検査、画像の取り込み、モデルの読み込みは行わない。状態自体は保存しない。
+
 ### その他
 
 | データ | 形 |
