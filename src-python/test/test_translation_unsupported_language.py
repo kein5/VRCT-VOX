@@ -55,8 +55,8 @@ class TestTranslateReturnsNoneForUnsupportedLanguage(unittest.TestCase):
         )
         self.assertIsNone(result)
 
-    @patch("models.translation.translation_translator.errorLogging")
-    def test_translate_returns_false_on_real_backend_failure(self, mock_error_logging: MagicMock) -> None:
+    @patch("models.translation.translation_translator.printLog")
+    def test_translate_returns_false_on_real_backend_failure(self, mock_log: MagicMock) -> None:
         with patch(
             "models.translation.translation_translator.other_web_Translator",
             side_effect=RuntimeError("network down"),
@@ -71,7 +71,9 @@ class TestTranslateReturnsNoneForUnsupportedLanguage(unittest.TestCase):
             )
         self.assertFalse(result)
         self.assertIsNotNone(result)  # False, not None: this must still look like an engine failure
-        mock_error_logging.assert_called_once()
+        mock_log.assert_called_once_with("Translation provider failed", {
+            "engine": "Bing", "error_type": "RuntimeError",
+        })
 
 
 class TestTranslateNeverReportsAnUnreachableEngineAsSuccess(unittest.TestCase):
