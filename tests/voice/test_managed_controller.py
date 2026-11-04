@@ -70,7 +70,7 @@ def test_translated_chat_pending_across_mute_resume_never_speaks(app):
     def translate(*args, **kwargs):
         entered.set()
         release.wait(2)
-        return ['hello', 'hello'], [True, True]
+        return ['hello', 'hello'], [True, True], ['translated', 'translated']
     module.model.getInputTranslate.side_effect = translate
     thread = Thread(target=controller.chatMessage, args=({'id': 'late', 'message': 'hello'},))
     thread.start()

@@ -21,6 +21,7 @@ from models.translation.translation_utils import ctranslate2_weights, isNonComme
 from models.legacy_model_consent import legacyModelCatalog, recordLegacyConsent, consentedLegacyRequest
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
 from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
+from models.message_snapshot import MessageSnapshot, language_payload
 from models.transcription.utterance_diagnostics import SLOW_MS, utterance_diagnostics
 from models.transcription.realtime_settings import (
     normalize_settings as normalize_realtime_settings, session_options, endpoint_dict,
@@ -1124,16 +1125,27 @@ class Controller:
             except Exception:
                 return fail_start("realtime_legacy_stop_failed")
 
-            def publish(payload, admitted):
-                if current() and admitted():
-                    self.run(200, "/run/realtime_caption", {**payload, "generation": generation})
+            def publish(payload, admitted, snapshot):
+                def valid():
+                    return current() and admitted()
+
+                failures = []
+                spec = REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC
+                msg_id = payload["namespace"] + ":" + payload["item_id"]
+                self._runMessageSink("ui", lambda: self.run(
+                    200, "/run/realtime_caption", {**payload, "generation": generation}),
+                    valid, failures, spec, msg_id)
+
+                def overlay():
                     if config.OVERLAY_LARGE_LOG is True and self._is_overlay_available():
                         def valid_overlay():
-                            return (current() and admitted() and session.is_current(payload["namespace"])
+                            return (valid() and config.OVERLAY_LARGE_LOG and session.is_current(payload["namespace"])
                                     and (payload["state"] == "discarded" or time.monotonic_ns() < payload["expires_ns"]))
-                        languages = (config.SELECTED_TARGET_LANGUAGES if source == "mic" else config.SELECTED_YOUR_LANGUAGES)[config.SELECTED_TAB_NO]
-                        model.publishRealtimeCaptionOverlay(payload, language, languages, valid_overlay,
-                            only_translated=config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES)
+                        model.publishRealtimeCaptionOverlay(
+                            payload, snapshot.source_language, language_payload(snapshot.destinations), valid_overlay,
+                            only_translated=snapshot.overlay_only_translated)
+
+                self._runMessageSink("overlay_large", overlay, valid, failures, spec, msg_id)
 
             def clear_overlay():
                 with self._realtime_lock:
@@ -1143,29 +1155,33 @@ class Controller:
                 if namespace and self._is_overlay_available():
                     model.clearRealtimeCaptionOverlay(source, namespace)
 
-            def process(update, valid, admitted, mic_snapshot):
+            def process(update, valid, admitted, mic_snapshot, snapshot, sequence):
                 def guard():
                     return current() and valid() and admitted()
                 if not guard():
                     return None
+                return self._processMessage(
+                    REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC,
+                    update.text, snapshot.source_language, msg_id=update.namespace + ":" + update.item_id,
+                    publication_guard=guard, speech_update=update if source == "mic" else None,
+                    mic_snapshot=mic_snapshot, settings_snapshot=snapshot, chatbox_sequence=sequence)
+
+            def admit(update):
+                admitted = self._messagePublicationGuard(source)
+                spec = REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC
                 spoken = language
                 if detect and getattr(update, "language", ""):
                     try:
                         spoken = self._realtimeLanguage(update.language)
                     except ValueError:
-                        pass  # A code VRCT cannot translate from keeps the fallback.
-                return self._processMessage(
-                    REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC,
-                    update.text, spoken, msg_id=update.namespace + ":" + update.item_id,
-                    publication_guard=guard, speech_update=update if source == "mic" else None,
-                    mic_snapshot=mic_snapshot)
-
-            def admit(update):
-                admitted = self._messagePublicationGuard(source)
-                mic_snapshot = self._snapshotMicVoice() if source == "mic" and update.is_final else None
+                        pass  # Keep the configured fallback for unknown language codes.
+                sequence = model.chatbox_order.admit() if source == "mic" and update.is_final else None
+                with self._voice_settings_lock, getattr(self, "_language_settings_lock", nullcontext()):
+                    snapshot = MessageSnapshot.capture(config, spec, spoken)
+                    mic_snapshot = self._snapshotMicVoiceLocked(snapshot) if source == "mic" and update.is_final else None
                 return (
-                    lambda payload: publish(payload, admitted),
-                    lambda event, valid: process(event, valid, admitted, mic_snapshot),
+                    lambda payload: publish(payload, admitted, snapshot),
+                    lambda event, valid: process(event, valid, admitted, mic_snapshot, snapshot, sequence),
                 )
 
             def error(code):
@@ -1870,17 +1886,39 @@ class Controller:
 
         return current
 
-    def _snapshotMicVoice(self):
+    def _snapshotMicVoiceLocked(self, snapshot):
+        # The realtime admission holds the voice lock through content + generation capture.
         if getattr(self, "voice_events", None) is not None:
-            with self._voice_settings_lock:
-                if self.voice_events.settings.mic_mode == "translated" and config.ENABLE_TRANSLATION:
-                    return (
-                        config.SELECTED_TAB_NO,
-                        copy.deepcopy(config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]),
-                        self.voice_events.settings, self.voice_events.generation(),
-                        self.voice_events.source_generation("mic"),
-                    )
+            if self.voice_events.settings.mic_mode == "translated" and snapshot.translation_enabled:
+                return (self.voice_events.settings, self.voice_events.generation(),
+                        self.voice_events.source_generation("mic"))
         return None
+
+    def _runMessageSink(self, output, action, current, failures, spec, msg_id):
+        if not current():
+            return
+        try:
+            action()
+        except Exception:
+            failure = {"output": output, "error_code": ErrorCode.MESSAGE_OUTPUT_FAILED.value}
+            failures.append(failure)
+            # Diagnostic or notification failure must not escape into an ASR callback.
+            try:
+                errorLogging()
+            except Exception:
+                pass
+            if current():
+                try:
+                    response = VRCTError.create_error_response(
+                        ErrorCode.MESSAGE_OUTPUT_FAILED,
+                        data={"id": msg_id, "source": spec.kind, **failure})
+                    self.run(response["status"], self.run_mapping.get("message_output_error", "/run/message_output_error"),
+                             response["result"])
+                except Exception:
+                    try:
+                        errorLogging()
+                    except Exception:
+                        pass
 
     def _processMessage(
         self,
@@ -1893,6 +1931,8 @@ class Controller:
         publication_guard: Optional[Callable[[], bool]] = None,
         speech_update=None,
         mic_snapshot=None,
+        settings_snapshot=None,
+        chatbox_sequence=None,
     ) -> Optional[dict]:
         """mic/speaker/chatMessage共通のパイプライン(バックエンドレビュー
         フェーズ3項目25、`MessageDirectionSpec`参照)。
@@ -1914,6 +1954,22 @@ class Controller:
         feature_enabled = spec.feature_gate_attr is None or getattr(config, spec.feature_gate_attr) is True
         if not current():
             return None
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            snapshot = settings_snapshot or MessageSnapshot.capture(config, spec, language)
+            voice_snapshot = None
+            if spec.kind == "chat" and getattr(self, "voice_events", None) is not None:
+                if self.voice_events.settings.mode != "off":
+                    voice_snapshot = (
+                        snapshot, self.voice_events.settings,
+                        voice_generation if type(voice_generation) is int else self.voice_events.generation())
+        if chatbox_sequence is None and spec.osc_send_gate_attr is not None:
+            chatbox_sequence = model.chatbox_order.admit()
+        failures = []
+
+        def sink(output, action):
+            self._runMessageSink(output, action, current, failures, spec, msg_id)
+
         if spec.has_word_filter and model.checkKeywords(message):
             if not current():
                 return None
@@ -1934,39 +1990,30 @@ class Controller:
         translate_elapsed_ms = 0
         # Realtime mic intent is stamped before entering its final queue.
         # Typed chat carries the receiver's generation through translation.
-        voice_snapshot = None
         voice_started_ns = time.monotonic_ns()
-        if spec.kind == "chat" and getattr(self, "voice_events", None) is not None:
-            with self._voice_settings_lock:
-                if self.voice_events.settings.mode != "off":
-                    voice_snapshot = (
-                        config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"],
-                        copy.deepcopy(config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]),
-                        list(config.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST),
-                        self.voice_events.settings,
-                        (voice_generation if type(voice_generation) is int
-                         else self.voice_events.generation()),
-                    )
 
         # Original speech has no dependency on the translator or text delivery.
         # The receiver's generation also invalidates chat waiting in Main.queue.
-        if voice_snapshot is not None and voice_snapshot[3].mode == "original":
-            self._publishChatVoice(voice_snapshot, message, [], msg_id, voice_started_ns)
+        if voice_snapshot is not None and voice_snapshot[1].mode == "original":
+            sink("tts", lambda: self._publishChatVoice(
+                voice_snapshot, message, [], [], [], msg_id, voice_started_ns, current))
 
         translation: list = []
         success: list = []
-        if config.ENABLE_TRANSLATION is False:
+        provenance: list = []
+        if snapshot.translation_enabled is False:
             pass
         else:
             translate_started_at = time.perf_counter()
             translation_completed = False
             try:
                 translate = getattr(model, spec.translate_attr)
-                translation, success = translate(message, source_language=language)
+                translation, success, provenance = translate(
+                    message, source_language=snapshot.source_language, snapshot=snapshot, with_provenance=True)
                 if not current():
                     return None
                 if all(success) is not True:
-                    self.changeToCTranslate2Process()
+                    self.changeToCTranslate2Process(snapshot=snapshot)
                     error_response = VRCTError.create_error_response(
                         ErrorCode.TRANSLATION_ENGINE_LIMIT,
                         data=None
@@ -2012,7 +2059,7 @@ class Controller:
                         "original": {"message": message, "transliteration": []},
                         "translations": [
                             {"message": "", "transliteration": []}
-                            for _ in config.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST
+                            for _ in snapshot.target_slots
                         ],
                     }
                 return None
@@ -2030,52 +2077,21 @@ class Controller:
         if not current():
             return None
         transliteration_message: List[Any] = []
-        transliteration_translation: list = []
-        if config.CONVERT_MESSAGE_TO_HIRAGANA is True or config.CONVERT_MESSAGE_TO_ROMAJI is True:
-            if spec.own_transliteration_source == "your_language":
-                own_message_is_japanese = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"] == "Japanese"
-            else:
-                own_message_is_japanese = language == "Japanese"
-            if own_message_is_japanese:
+        transliteration_translation = []
+        if snapshot.hiragana or snapshot.romaji:
+            own_language = (snapshot.your_languages["1"]["language"]
+                            if spec.own_transliteration_source == "your_language"
+                            else snapshot.source_language)
+            if own_language == "Japanese":
                 transliteration_message = model.convertMessageToTransliteration(
-                    message,
-                    hiragana=config.CONVERT_MESSAGE_TO_HIRAGANA,
-                    romaji=config.CONVERT_MESSAGE_TO_ROMAJI
-                )
-
-            if spec.multi_target:
-                for i, no in enumerate(config.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST):
-                    if (config.ENABLE_TRANSLATION is True and
-                        config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO][no]["language"] == "Japanese" and
-                        config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO][no]["enable"] is True
-                        ):
-                        transliteration_translation.append(
-                            model.convertMessageToTransliteration(
-                                translation[i],
-                                hiragana=config.CONVERT_MESSAGE_TO_HIRAGANA,
-                                romaji=config.CONVERT_MESSAGE_TO_ROMAJI
-                            )
-                        )
-                    else:
-                        transliteration_translation.append([])
+                    message, hiragana=snapshot.hiragana, romaji=snapshot.romaji)
+        # Translation results are compacted to enabled slots, not fixed slot indices.
+        for slot, text in zip(snapshot.target_slots, translation):
+            if (snapshot.hiragana or snapshot.romaji) and snapshot.destinations[slot]["language"] == "Japanese":
+                transliteration_translation.append(model.convertMessageToTransliteration(
+                    text, hiragana=snapshot.hiragana, romaji=snapshot.romaji))
             else:
-                if (config.ENABLE_TRANSLATION is True and
-                    config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"] == "Japanese"
-                    ):
-                    transliteration_translation.append(
-                        model.convertMessageToTransliteration(
-                            translation[0],
-                            hiragana=config.CONVERT_MESSAGE_TO_HIRAGANA,
-                            romaji=config.CONVERT_MESSAGE_TO_ROMAJI
-                        )
-                    )
-                else:
-                    transliteration_translation.append([])
-        else:
-            if spec.multi_target:
-                transliteration_translation = [[] for _ in config.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST]
-            else:
-                transliteration_translation = [[]]
+                transliteration_translation.append([])
 
         if not current():
             return None
@@ -2100,115 +2116,91 @@ class Controller:
             payload = {"id": msg_id, **payload}
 
         if feature_enabled:
-            if spec.osc_send_gate_attr is not None and getattr(config, spec.osc_send_gate_attr) is True:
-                if config.SEND_ONLY_TRANSLATED_MESSAGES is True:
-                    if config.ENABLE_TRANSLATION is False:
-                        osc_message = self.messageFormatter(spec.osc_format_type, [], message)
-                    else:
-                        osc_message = self.messageFormatter(spec.osc_format_type, translation, "")
-                else:
-                    osc_message = self.messageFormatter(spec.osc_format_type, translation, message)
-                if not current():
-                    return None
-                model.oscSendMessage(osc_message)
+            def send_osc():
+                if spec.osc_send_gate_attr is None or not getattr(config, spec.osc_send_gate_attr):
+                    return
+                original = "" if snapshot.send_only_translated and snapshot.translation_enabled else message
+                formatted = self.messageFormatter(spec.osc_format_type, translation, original, snapshot.format_parts)
+                sent = model.chatbox_order.send(
+                    chatbox_sequence, lambda: model.oscSendMessage(formatted),
+                    lambda: current() and getattr(config, spec.osc_send_gate_attr))
+                if sent is False:
+                    printLog(f"[message][{spec.kind}] chatbox skipped: newer message already sent sequence={chatbox_sequence}")
 
-            if spec.render_overlay and spec.overlay_small_log and config.OVERLAY_SMALL_LOG is True and self._is_overlay_available():
-                if config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES is True:
-                    if len(translation) > 0:
-                        overlay_image = model.createOverlayImageSmallLog(
-                            None,
-                            None,
-                            translation,
-                            config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO],
-                            transliteration_message,
-                            transliteration_translation
-                        )
-                        if not current():
-                            return None
-                        model.updateOverlaySmallLog(overlay_image)
-                else:
-                    overlay_image = model.createOverlayImageSmallLog(
-                        message,
-                        language,
-                        translation,
-                        config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO],
-                        transliteration_message,
-                        transliteration_translation
-                    )
-                    if not current():
-                        return None
-                    model.updateOverlaySmallLog(overlay_image)
+            sink("osc", send_osc)
 
-            if spec.render_overlay and config.OVERLAY_LARGE_LOG is True and self._is_overlay_available():
-                if spec.overlay_direction == "send":
-                    overlay_own_language = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
-                    overlay_language_list = config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]
-                else:
-                    overlay_own_language = language
-                    overlay_language_list = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]
-                if config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES is True:
-                    if len(translation) > 0:
-                        model.publishMessageOverlayLargeLog(
-                            spec.overlay_direction,
-                            None,
-                            None,
-                            translation,
-                            overlay_language_list,
-                            transliteration_message,
-                            transliteration_translation,
-                            current=current,
-                        )
-                else:
-                    model.publishMessageOverlayLargeLog(
-                        spec.overlay_direction,
-                        message,
-                        overlay_own_language,
-                        translation,
-                        overlay_language_list,
-                        transliteration_message,
-                        transliteration_translation,
-                        current=current,
-                    )
+            def small_overlay():
+                if not (spec.render_overlay and spec.overlay_small_log and config.OVERLAY_SMALL_LOG
+                        and self._is_overlay_available()):
+                    return
+                if snapshot.overlay_only_translated and not translation:
+                    return
+                image = model.createOverlayImageSmallLog(
+                    None if snapshot.overlay_only_translated else message,
+                    None if snapshot.overlay_only_translated else snapshot.source_language,
+                    translation, language_payload(snapshot.destinations),
+                    transliteration_message, transliteration_translation)
+                if current() and config.OVERLAY_SMALL_LOG:
+                    model.updateOverlaySmallLog(image)
 
-            if spec.clipboard and config.ENABLE_CLIPBOARD is True:
-                clipboard_message = self.messageFormatter(spec.osc_format_type, translation, message)
-                if not current():
-                    return None
-                model.setCopyToClipboardAndPasteFromClipboard(clipboard_message)
+            sink("overlay_small", small_overlay)
 
+            def large_overlay():
+                if not (spec.render_overlay and config.OVERLAY_LARGE_LOG and self._is_overlay_available()):
+                    return
+                if snapshot.overlay_only_translated and not translation:
+                    return
+                model.publishMessageOverlayLargeLog(
+                    spec.overlay_direction,
+                    None if snapshot.overlay_only_translated else message,
+                    None if snapshot.overlay_only_translated else snapshot.source_language,
+                    translation, language_payload(snapshot.destinations),
+                    transliteration_message, transliteration_translation,
+                    current=lambda: current() and config.OVERLAY_LARGE_LOG)
+
+            sink("overlay_large", large_overlay)
+
+            def clipboard():
+                if spec.clipboard and config.ENABLE_CLIPBOARD:
+                    formatted = self.messageFormatter(spec.osc_format_type, translation, message, snapshot.format_parts)
+                    if current() and config.ENABLE_CLIPBOARD:
+                        model.setCopyToClipboardAndPasteFromClipboard(formatted)
+
+            sink("clipboard", clipboard)
             if spec.delivery == "push":
-                if not current():
-                    return None
-                self.run(200, self.run_mapping[spec.run_mapping_key], payload)
+                sink("ui", lambda: self.run(200, self.run_mapping[spec.run_mapping_key], payload))
 
-            if model.checkWebSocketServerAlive() is True:
-                if not current():
-                    return None
-                model.websocketSendMessage(
-                    {
+            def websocket():
+                if model.checkWebSocketServerAlive() is True and current():
+                    model.websocketSendMessage({
                         "type": spec.ws_type,
-                        "src_languages": getattr(config, spec.ws_src_languages_attr)[config.SELECTED_TAB_NO],
-                        "dst_languages": getattr(config, spec.ws_dst_languages_attr)[config.SELECTED_TAB_NO],
-                        "message": message,
-                        "translation": translation,
-                        "transliteration": transliteration_translation
-                    }
-                )
+                        "src_languages": language_payload(snapshot.your_languages if spec.multi_target else snapshot.target_languages),
+                        "dst_languages": language_payload(snapshot.destinations),
+                        "message": message, "translation": translation,
+                        "transliteration": transliteration_translation,
+                    })
 
-            if config.LOGGER_FEATURE is True:
-                translation_text = f" ({'/'.join(translation)})" if translation else ""
-                if not current():
-                    return None
-                model.logger.info(f"{spec.logger_prefix} {message}{translation_text}")
+            sink("websocket", websocket)
+
+            def logger():
+                if config.LOGGER_FEATURE:
+                    translation_text = f" ({'/'.join(translation)})" if translation else ""
+                    model.logger.info(f"{spec.logger_prefix} {message}{translation_text}")
+
+            sink("logger", logger)
 
         if not current():
             return None
-        model.addTranslationHistory(spec.kind, message)
+        sink("history", lambda: model.addTranslationHistory(spec.kind, message))
 
-        if voice_snapshot is not None and voice_snapshot[3].mode == "translated":
-            self._publishChatVoice(voice_snapshot, message, translation, msg_id, voice_started_ns)
+        if voice_snapshot is not None and voice_snapshot[1].mode == "translated":
+            sink("tts", lambda: self._publishChatVoice(
+                voice_snapshot, message, translation, success, provenance, msg_id, voice_started_ns, current))
         if mic_snapshot is not None:
-            self._publishMicVoice(mic_snapshot, speech_update, language, translation, success, current)
+            sink("tts", lambda: self._publishMicVoice(
+                mic_snapshot, snapshot, speech_update, translation, success, provenance, current))
+        if failures:
+            payload["output_failures"] = list(failures)
 
         pipeline_elapsed_ms = round((time.perf_counter() - pipeline_started_at) * 1000)
         self._recordMessageLatency(spec, asr_ms, translate_elapsed_ms, pipeline_elapsed_ms)
@@ -2395,35 +2387,34 @@ class Controller:
     def getVoiceSettings(self, *args, **kwargs) -> dict:
         return {"status": 200, "result": config.VOICE_SETTINGS}
 
-    def _publishChatVoice(self, snapshot, message, translations, msg_id, started_ns):
-        source_language, targets, slots, voice_settings, generation = snapshot
-        try:
-            with self._voice_settings_lock:
-                if self.voice_events.settings == voice_settings:
-                    self.voice_events.publish(chat_event(
-                        message, translations, event_id=msg_id, started_ns=started_ns,
-                        source_language=source_language, targets=targets, target_slots=slots,
-                        selected_slot=voice_settings.target_slot,
-                    ), expected_generation=generation)
-        except Exception:
-            # Optional speech must not change legacy OSC/UI/history delivery.
-            printLog("[voice] message enqueue failed")
+    def _publishChatVoice(self, voice_snapshot, message, translations, success, provenance, msg_id, started_ns, current):
+        snapshot, voice_settings, generation = voice_snapshot
+        with self._voice_settings_lock:
+            if current() and self.voice_events.settings == voice_settings:
+                event = chat_event(
+                    message, translations, success=success, provenance=provenance,
+                    event_id=msg_id, started_ns=started_ns, source_language=snapshot.source_language,
+                    targets=snapshot.target_languages, target_slots=snapshot.target_slots,
+                    selected_slot=voice_settings.target_slot)
+                if voice_settings.mode == "original" or event.translated_text is not None:
+                    self.voice_events.publish(event, expected_generation=generation)
 
-    def _publishMicVoice(self, snapshot, update, language, translations, success, current):
-        tab, targets, settings, generation, source_generation = snapshot
-        try:
-            with self._voice_settings_lock:
-                if (not current() or not config.ENABLE_TRANSLATION
-                        or self.voice_events.settings != settings or config.SELECTED_TAB_NO != tab
-                        or config.SELECTED_TARGET_LANGUAGES[tab] != targets):
-                    return
-                event = microphone_event(update, translations, success, source_language=language,
-                                         targets=targets, selected_slot=settings.target_slot)
-                if event is not None:
-                    self.voice_events.publish(event, expected_generation=generation,
-                                              expected_source_generation=source_generation)
-        except Exception:
-            printLog("[voice] microphone enqueue failed")
+    def _publishMicVoice(self, voice_snapshot, snapshot, update, translations, success, provenance, current):
+        settings, generation, source_generation = voice_snapshot
+        with self._voice_settings_lock:
+            if (not current() or self.voice_events.settings != settings
+                    or not config.ENABLE_TRANSLATION or config.SELECTED_TAB_NO != snapshot.tab):
+                return
+            # Text keeps its snapshot; speech also requires the selected target to remain current.
+            if (config.SELECTED_TARGET_LANGUAGES.get(snapshot.tab, {}).get(settings.target_slot)
+                    != snapshot.target_languages.get(settings.target_slot)):
+                return
+            usable = [ok is True and origin == "translated" for ok, origin in zip(success, provenance)]
+            event = microphone_event(update, translations, usable, source_language=snapshot.source_language,
+                                     targets=snapshot.target_languages, selected_slot=settings.target_slot)
+            if event is not None:
+                self.voice_events.publish(event, expected_generation=generation,
+                                          expected_source_generation=source_generation)
 
     def _cancelMicVoice(self):
         bus = getattr(self, "voice_events", None)
@@ -4934,8 +4925,10 @@ class Controller:
         return {"status":200, "result":True}
 
     @staticmethod
-    def messageFormatter(format_type:str, translation:list, message:str) -> str:
-        if format_type == "RECEIVED":
+    def messageFormatter(format_type:str, translation:list, message:str, format_parts=None) -> str:
+        if format_parts is not None:
+            pass
+        elif format_type == "RECEIVED":
             format_parts = config.RECEIVED_MESSAGE_FORMAT_PARTS
         elif format_type == "SEND":
             format_parts = config.SEND_MESSAGE_FORMAT_PARTS
@@ -4957,24 +4950,33 @@ class Controller:
             osc_message = message_part
         return osc_message
 
-    def changeToCTranslate2Process(self) -> None:
-        selected_engines = config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
-        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[selected_engines] = False
-        # SELECTED_TRANSLATION_ENGINES は ValidatedProperty (生参照を返さない) なので
-        # read → 変更 → 再代入する必要がある。以前は config.X[...] = ... の直接代入で
-        # バリデータを一切通さずに内部状態を書き換えていた (P0-3 の生参照バグに依存していた
-        # 唯一の呼び出し箇所)。
-        engines = config.SELECTED_TRANSLATION_ENGINES
-        engines[config.SELECTED_TAB_NO] = "CTranslate2"
-        config.SELECTED_TRANSLATION_ENGINES = engines
-        # Same reasoning as updateTranslationEngineAndEngineList(): if the
-        # CTranslate2 weight can't translate the current languages either,
-        # reset them (with a warning) instead of passing text through
-        # untranslated on every following message.
-        self.fallbackUnsupportedLanguagesForEngine(config.SELECTED_TAB_NO, "CTranslate2")
-        selectable_engines = self.getTranslationEngines()["result"]
-        self.run(200, self.run_mapping["selected_translation_engines"], config.SELECTED_TRANSLATION_ENGINES)
-        self.run(200, self.run_mapping["translation_engines"], selectable_engines)
+    def changeToCTranslate2Process(self, snapshot=None) -> None:
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            if snapshot is not None and (
+                    config.SELECTED_TAB_NO != snapshot.tab
+                    or config.SELECTED_TRANSLATION_ENGINES[snapshot.tab] != snapshot.engine
+                    or config.SELECTED_YOUR_LANGUAGES[snapshot.tab] != snapshot.your_languages
+                    or config.SELECTED_TARGET_LANGUAGES[snapshot.tab] != snapshot.target_languages):
+                # A late failure must not replace a newer language/engine selection.
+                return
+            selected_engines = config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[selected_engines] = False
+            # SELECTED_TRANSLATION_ENGINES は ValidatedProperty (生参照を返さない) なので
+            # read → 変更 → 再代入する必要がある。以前は config.X[...] = ... の直接代入で
+            # バリデータを一切通さずに内部状態を書き換えていた (P0-3 の生参照バグに依存していた
+            # 唯一の呼び出し箇所)。
+            engines = config.SELECTED_TRANSLATION_ENGINES
+            engines[config.SELECTED_TAB_NO] = "CTranslate2"
+            config.SELECTED_TRANSLATION_ENGINES = engines
+            # Same reasoning as updateTranslationEngineAndEngineList(): if the
+            # CTranslate2 weight can't translate the current languages either,
+            # reset them (with a warning) instead of passing text through
+            # untranslated on every following message.
+            self.fallbackUnsupportedLanguagesForEngine(config.SELECTED_TAB_NO, "CTranslate2")
+            selectable_engines = self.getTranslationEngines()["result"]
+            self.run(200, self.run_mapping["selected_translation_engines"], config.SELECTED_TRANSLATION_ENGINES)
+            self.run(200, self.run_mapping["translation_engines"], selectable_engines)
 
     def startTranscriptionSendMessage(self) -> bool:
         with self.mic_lifecycle_lock:

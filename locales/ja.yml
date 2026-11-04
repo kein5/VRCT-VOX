@@ -175,6 +175,7 @@ common_error:
 # Messages for the sidecar's error codes (see docs/spec/reference/error-codes.md).
 backend_errors:
     WEIGHT_DOWNLOAD_CONSENT_REQUIRED: "{{model}} はダウンロードしていません。設定の「翻訳」または「音声認識」でライセンスと容量を確認し、同意してからダウンロードしてください。モデルの版が変わったときは、もう一度確認してください。"
+    MESSAGE_OUTPUT_FAILED: "{{output}}にメッセージを送れませんでした。ほかの出力先には送っています。再送すると、ほかの出力先に同じメッセージが重ねて届くことがあります。"
     TRANSLATION_VRAM_ENABLE: "GPUのメモリーが足りず、AI翻訳を開始できませんでした。設定の「翻訳」で処理デバイスをCPUにするか、ほかのGPUアプリを止めてください。"
     TRANSLATION_DISABLED_VRAM: "GPUのメモリーが足りないため、翻訳をオフにしました。"
     TRANSLATION_MODEL_MISSING: "翻訳モデルまたはトークナイザーがないため、翻訳を開始できませんでした。設定の「翻訳」でモデルをダウンロードするか、メイン画面でほかの翻訳エンジンを選んでください。"
@@ -1333,3 +1334,14 @@ legacy_model_downloads:
     tokenizer_label: "トークナイザー"
     size_with_approx: "{{bytes}}（約 {{size}}）"
     consent_without_extra_files: "提供元・ライセンス・容量を確認しました。ダウンロードに同意します。"
+message_outputs:
+    osc: "VRChatのチャットボックス"
+    overlay_small: "字幕（一行）"
+    overlay_large: "字幕（複数行）"
+    clipboard: "クリップボード"
+    ui: "会話の表示"
+    websocket: "WebSocket・OBS"
+    logger: "会話ログのファイル"
+    history: "翻訳の履歴"
+    tts: "読み上げ"
+    unknown: "一部の出力先"

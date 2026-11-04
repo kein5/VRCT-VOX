@@ -94,7 +94,7 @@ sequenceDiagram
   participant Q as 読み上げの待ち行列
   UI->>UI: ログに「送信中」の行を出す
   UI->>S: /run/send_message_box {id, message}
-  Note over S: 受信時に音声の世代番号を付ける
+  Note over S: 受信時に音声の世代番号を付ける。<br/>処理の受付時に内容設定とチャットボックスの番号を固定する
   opt TTS が原文を読む設定
     S->>Q: 原文を積む
   end
@@ -106,16 +106,21 @@ sequenceDiagram
       S-->>UI: 400 /run/error_translation_engine
     end
   end
-  opt 「VRChatにメッセージを送信する」がオン
+  opt 現在の送信設定がオンで、より新しい番号をOSCへ送っていない
     S->>V: /chatbox/input [書式を当てた文, true, 通知音]
   end
   S->>W: {type: "CHAT", …}
-  opt TTS が訳を読む設定
+  opt TTS が訳を読む設定で、選んだ枠に実際の訳文がある
     S->>Q: 訳を積む（世代が古ければ捨てる）
   end
-  S-->>UI: 200 /run/send_message_box {id, original, translations}
+  opt 出力先の一部で例外
+    S-->>UI: 400 /run/message_output_error（出力先別の警告）
+  end
+  S-->>UI: 200 /run/send_message_box {id, original, translations, output_failures?}
   UI->>UI: 行を訳つきに置き換える
 ```
+
+設定の固定、古いOSC送信の省略、出力先の例外の扱いは[メッセージの受付と出力](cross-cutting.md#メッセージの受付と出力)に従う。各出力の例外はその時点で通知し、後続の処理を続ける。
 
 送信に失敗した場合の行の状態は、[会話メッセージのデータ形式](data-and-persistence.md)を参照。
 

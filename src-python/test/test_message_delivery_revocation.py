@@ -17,7 +17,7 @@ from PIL import Image
 import controller as module
 import model as model_module
 from model import Model
-from models.message_delivery import DeliveryEpochs
+from models.message_delivery import ChatboxOrder, DeliveryEpochs
 from models.ocr.ocr_pipeline import OcrPipeline
 from models.overlay.overlay_image import OverlayImage
 from models.transcription.realtime_events import TranscriptUpdate
@@ -96,6 +96,7 @@ def app(monkeypatch):
 
     backend = object.__new__(Model)
     backend.message_delivery = DeliveryEpochs()
+    backend.chatbox_order = ChatboxOrder()
     backend.ensure_initialized = Mock()
     backend._mic_session = Mock()
     backend._speaker_session = Mock()
@@ -120,7 +121,7 @@ def app(monkeypatch):
     for name in ("checkKeywords", "detectRepeatSendMessage", "detectRepeatReceiveMessage"):
         setattr(backend, name, Mock(return_value=False))
     for name in ("getInputTranslate", "getOutputTranslate"):
-        setattr(backend, name, Mock(return_value=(["translation"], [True])))
+        setattr(backend, name, Mock(return_value=(["translation"], [True], ['translated'])))
     for name in ("oscSendMessage", "updateOverlayLargeLog", "updateOverlaySmallLog",
                  "websocketSendMessage", "setCopyToClipboardAndPasteFromClipboard",
                  "addTranslationHistory", "clearRealtimeCaptionOverlay"):
@@ -228,7 +229,7 @@ def test_legacy_mute_during_translation_revokes_every_output(app, resume):
         app.m._mic_session.pause.assert_not_called()
         if resume:
             app.mute(False)
-        return ["translation"], [True]
+        return ["translation"], [True], ['translated']
 
     app.m.getInputTranslate.side_effect = translate
     app.c.micMessage({"text": "old", "language": "English"})
@@ -252,7 +253,7 @@ def test_realtime_mute_during_translation_revokes_every_late_output(app, resume)
     def translate(*args, **kwargs):
         entered.set()
         assert release.wait(2)
-        return ["translation"], [True]
+        return ["translation"], [True], ['translated']
 
     app.m.getInputTranslate.side_effect = translate
     process = app.c._processMessage
@@ -308,7 +309,7 @@ def test_realtime_muted_captions_and_new_results_after_unmute(app, source):
 def test_mic_mute_does_not_revoke_other_sources(app, source):
     def translate(*args, **kwargs):
         app.mute()
-        return ["translation"], [True]
+        return ["translation"], [True], ['translated']
 
     if source == "speaker":
         app.m.getOutputTranslate.side_effect = translate
@@ -335,7 +336,7 @@ def test_queued_realtime_final_keeps_admission_voice_generation(app, cycle):
         if message == "first":
             entered.set()
             assert release.wait(2)
-        return ["translation"], [True]
+        return ["translation"], [True], ['translated']
 
     app.m.getInputTranslate.side_effect = translate
     try:
@@ -432,7 +433,7 @@ def test_disable_during_translation_drops_all_outputs_but_keeps_typed_chat(app, 
 
     def translate(*args, **kwargs):
         stop()
-        return ["translation"], [True]
+        return ["translation"], [True], ['translated']
 
     translator.side_effect = translate
     getattr(app.c, source + "Message")({"text": "old", "language": "English"})
@@ -486,7 +487,7 @@ def test_queued_finals_before_and_during_vrc_mute_stay_revoked_after_unmute(app)
         if message == "translating":
             entered.set()
             assert release.wait(2)
-        return ["translation"], [True]
+        return ["translation"], [True], ['translated']
 
     app.m.getInputTranslate.side_effect = translate
     try:
@@ -654,7 +655,7 @@ def test_internal_pause_preserves_inflight_legacy_delivery(app, monkeypatch, sou
             start(app, source)
             assert getattr(app.cfg, feature) is False
         assert app.m.message_delivery.current(source, epoch)
-        return ["translation"], [True]
+        return ["translation"], [True], ['translated']
 
     translator.side_effect = translate
     getattr(app.c, source + "Message")({"text": "already spoken", "language": "English"})
@@ -676,7 +677,7 @@ def test_user_off_while_settings_paused_revokes_inflight_delivery(app, source):
     def translate(*args, **kwargs):
         disable({"reason": "settings_pause"})
         disable()  # Already paused, but explicit OFF still revokes admitted work.
-        return ["translation"], [True]
+        return ["translation"], [True], ['translated']
 
     translator.side_effect = translate
     getattr(app.c, source + "Message")({"text": "old", "language": "English"})
@@ -722,7 +723,7 @@ def test_error_disable_revokes_before_cleanup(app, monkeypatch, source, reason):
         assert not current()
         assert getattr(app.cfg, "ENABLE_TRANSCRIPTION_" + direction.upper()) is False
         app.c.run.reset_mock()  # Error/disable notifications are expected.
-        return ["translation"], [True]
+        return ["translation"], [True], ['translated']
 
     translator.side_effect = translate
     getattr(app.c, source + "Message")({"text": "old", "language": "English"})

@@ -175,6 +175,7 @@ common_error:
 # Messages for the sidecar's error codes (see docs/spec/reference/error-codes.md).
 backend_errors:
     WEIGHT_DOWNLOAD_CONSENT_REQUIRED: "{{model}} was not downloaded. Review its license and size in Settings > Translation or Transcription and agree before downloading. If the model version changed, review it again."
+    MESSAGE_OUTPUT_FAILED: "The message could not be sent to {{output}}. It was sent to the other outputs. If you resend it, those outputs may receive it twice."
     TRANSLATION_VRAM_ENABLE: "Not enough GPU memory to start AI translation. Choose CPU as the device under Settings → Translation, or close other GPU apps."
     TRANSLATION_DISABLED_VRAM: "Translation was turned off because GPU memory ran out."
     TRANSLATION_MODEL_MISSING: "Translation could not start because the translation model or its tokenizer files are missing. Download it in Settings > Translation, or choose another translation engine on the main screen."
@@ -1333,3 +1334,14 @@ legacy_model_downloads:
     tokenizer_label: "Tokenizer"
     size_with_approx: "{{bytes}} (about {{size}})"
     consent_without_extra_files: "I have reviewed the provider, license and size information and agree to download."
+message_outputs:
+    osc: "VRChat chatbox"
+    overlay_small: "Subtitles (single line)"
+    overlay_large: "Subtitles (multiple lines)"
+    clipboard: "Clipboard"
+    ui: "Conversation view"
+    websocket: "WebSocket and OBS"
+    logger: "Conversation log file"
+    history: "Translation history"
+    tts: "Speech"
+    unknown: "An output"

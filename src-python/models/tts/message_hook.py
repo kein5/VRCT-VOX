@@ -4,14 +4,17 @@ from uuid import uuid4
 from models.voice_events import SpeechMessageEvent
 
 
-def chat_event(message, translations, *, event_id, started_ns, source_language,
+def chat_event(message, translations, *, success, provenance, event_id, started_ns, source_language,
                targets, target_slots, selected_slot):
     translated_text = None
     target_language = None
     if selected_slot in target_slots:
         index = target_slots.index(selected_slot)
         target = targets[selected_slot]
-        if target.get("enable") is True and index < len(translations):
+        if (target.get("enable") is True and index < len(translations)
+                and index < len(success) and success[index] is True
+                and index < len(provenance) and provenance[index] == "translated"
+                and isinstance(translations[index], str) and translations[index].strip()):
             translated_text = translations[index]
             target_language = target.get("language")
     return SpeechMessageEvent(

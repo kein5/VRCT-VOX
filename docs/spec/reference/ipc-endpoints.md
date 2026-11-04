@@ -400,7 +400,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/run/feed_watchdog` | 実行 | `feedWatchdog` | 可 | （受け取るだけ） |  |
 
 
-## 通知（サイドカーからUIへ、87件）
+## 通知（サイドカーからUIへ、88件）
 
 要求への応答とは別に、サイドカーが自分から送るメッセージ。`controller.run(status, run_mapping[名前], result)`で送る。
 
@@ -425,6 +425,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `check_speaker_volume` | `/run/check_speaker_volume` | useVolume.updateVolumeVariable_Speaker |
 | `error_device` | `/run/error_device` | — |
 | `error_translation_engine` | `/run/error_translation_engine` | — |
+| `message_output_error` | `/run/message_output_error` | — |
 | `error_translation_enable_vram_overflow` | `/run/error_translation_enable_vram_overflow` | — |
 | `error_translation_chat_vram_overflow` | `/run/error_translation_chat_vram_overflow` | — |
 | `error_translation_mic_vram_overflow` | `/run/error_translation_mic_vram_overflow` | — |
@@ -495,7 +496,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `enable_osc_query` | `/run/enable_osc_query` | useHandleOscQuery.handleOscQuery |
 
 
-## UIに受信先がないエンドポイント（17件）
+## UIに受信先がないエンドポイント（18件）
 
 200で届いた場合にUIが`Invalid endpoint`としてコンソールに出すもの。ただし、400で届くエラーの通知（`/run/error_…`など）は`errorHandling_Backend`が処理し、`/run/initialization_complete`は`receiveRoutes`が個別に処理するので、このどちらかに当たるものは実害がない。
 
@@ -515,6 +516,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - `/run/error_translation_speaker_vram_overflow`
 - `/run/error_whisper_weight`
 - `/run/initialization_complete`
+- `/run/message_output_error`
 - `/run/translation_language_unsupported`
 
 

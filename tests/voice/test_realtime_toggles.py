@@ -175,7 +175,7 @@ def test_speaker_auto_translates_from_each_detected_language(app, monkeypatch):
     recognizers(m, monkeypatch, QWEN)
     configure(c, model="Qwen3-ASR-0.6B", speaker={"language": "auto"})
     m.config.ENABLE_TRANSLATION = True
-    m.model.getOutputTranslate.return_value = (["hallo"], [True])
+    m.model.getOutputTranslate.return_value = (["hallo"], [True], ['translated'])
     assert c.setEnableTranscriptionReceive()["result"] is True
     session = made[0]
     assert session.options.language == "auto"

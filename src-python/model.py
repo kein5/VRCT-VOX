@@ -27,7 +27,7 @@ from device_manager import device_manager
 from config import config, DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 
 from models.translation.translation_translator import Translator
-from models.message_delivery import DeliveryEpochs
+from models.message_delivery import ChatboxOrder, DeliveryEpochs
 from models.osc.osc import OSCHandler
 from models.transcription.transcription_recorder import (
     SelectedMicEnergyAndAudioRecorder,
@@ -1026,6 +1026,7 @@ class Model:
     # 停止時に None にせず、メッセージ処理から常に安全に参照できるようにする。
     logger = ConversationLogger()
     message_delivery = DeliveryEpochs()
+    chatbox_order = ChatboxOrder()
     # Model is a singleton. Serialize feature ownership even when start/stop
     # arrive on different IPC handler threads.
     _watchdog_lifecycle_lock = Lock()
@@ -1581,16 +1582,19 @@ class Model:
         self.ensure_initialized()
         self.translation_history = []
 
-    def getTranslate(self, translator_name, source_language, target_language, target_country, message):
+    def getTranslate(self, translator_name, source_language, target_language, target_country, message,
+                     *, weight_type=None, with_provenance=False):
         self.ensure_initialized()
         success_flag = False
+        provenance = "translated"
+        weight_type = weight_type if weight_type is not None else config.CTRANSLATE2_WEIGHT_TYPE
         
         # Get context history for LLM-based translators
         history = self.getTranslationHistory()
         
         translation = self.translator.translate(
                         translator_name=translator_name,
-                        weight_type=config.CTRANSLATE2_WEIGHT_TYPE,
+                        weight_type=weight_type,
                         source_language=source_language,
                         target_language=target_language,
                         target_country=target_country,
@@ -1616,7 +1620,7 @@ class Model:
             for _ in range(max_retries):
                 translation = self.translator.translate(
                                     translator_name="CTranslate2",
-                                    weight_type=config.CTRANSLATE2_WEIGHT_TYPE,
+                                    weight_type=weight_type,
                                     source_language=source_language,
                                     target_language=target_language,
                                     target_country=target_country,
@@ -1648,6 +1652,7 @@ class Model:
                 # どちらのエンジンもこの言語ペアに未対応なだけ。実障害ではない。
                 success_flag = True
                 translation = message
+                provenance = "unsupported"
             elif translation is None:
                 # 選択中のエンジンが実際に失敗し、CTranslate2 も選択中の重みでは
                 # この言語ペアに未対応 (例: M2M100 の Basque/Telugu)。以前は
@@ -1658,7 +1663,7 @@ class Model:
                 success_flag = False
                 printLog(
                     "Translation failed and CTranslate2 cannot translate this language pair",
-                    {"engine": translator_name, "weight_type": config.CTRANSLATE2_WEIGHT_TYPE,
+                    {"engine": translator_name, "weight_type": weight_type,
                      "source": source_language, "target": target_language},
                 )
                 translation = message
@@ -1667,31 +1672,37 @@ class Model:
                 success_flag = False
                 errorLogging()
                 translation = message
+        if not success_flag:
+            provenance = "failed"
+        if with_provenance:
+            return translation, success_flag, provenance
         return translation, success_flag
 
-    def getInputTranslate(self, message, source_language=None):
+    def getInputTranslate(self, message, source_language=None, *, snapshot=None, with_provenance=False):
         self.ensure_initialized()
-        translator_name=config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
-        if source_language is None:
-            source_language=config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
-        target_languages=config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]
-
-        targets = []
-        for value in target_languages.values():
-            if value["enable"] is True:
-                target_language = value["language"]
-                target_country = value["country"]
-                if target_language is not None or target_country is not None:
-                    targets.append((target_language, target_country))
+        if snapshot is not None:
+            translator_name = snapshot.engine
+            source_language = snapshot.source_language
+            target_languages = snapshot.target_languages
+        else:
+            translator_name = config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
+            if source_language is None:
+                source_language = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
+            target_languages = config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]
+        options = {"with_provenance": True} if with_provenance else {}
+        if snapshot is not None:
+            options["weight_type"] = snapshot.weight_type
+        targets = [(value["language"], value["country"]) for value in target_languages.values()
+                   if value["enable"] is True]
 
         if not targets:
-            return [], []
+            return ([], [], []) if with_provenance else ([], [])
 
         if len(targets) == 1:
-            translation, success_flag = self.getTranslate(
-                translator_name, source_language, targets[0][0], targets[0][1], message
+            result = self.getTranslate(
+                translator_name, source_language, targets[0][0], targets[0][1], message, **options
             )
-            return [translation], [success_flag]
+            return tuple([item] for item in result)
 
         # ターゲット言語ごとの翻訳を常設スレッドプールで並列化する。
         # 逐次ループだった頃は3言語有効時に実機で約3.9秒 (1言語あたり
@@ -1714,30 +1725,31 @@ class Model:
         futures = [
             self._translation_executor.submit(
                 self.getTranslate,
-                translator_name, source_language, target_language, target_country, message,
+                translator_name, source_language, target_language, target_country, message, **options,
             )
             for target_language, target_country in targets
         ]
         results = [future.result() for future in futures]
 
-        return [r[0] for r in results], [r[1] for r in results]
+        return tuple([result[i] for result in results] for i in range(3 if with_provenance else 2))
 
-    def getOutputTranslate(self, message, source_language=None):
+    def getOutputTranslate(self, message, source_language=None, *, snapshot=None, with_provenance=False):
         self.ensure_initialized()
-        translator_name=config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
-        if source_language is None:
-            source_language=config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
-        target_language=config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
-        target_country=config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["country"]
-
-        translation, success_flag = self.getTranslate(
-            translator_name,
-            source_language,
-            target_language,
-            target_country,
-            message
-            )
-        return [translation], [success_flag]
+        if snapshot is not None:
+            translator_name = snapshot.engine
+            source_language = snapshot.source_language
+            target = snapshot.your_languages["1"]
+        else:
+            translator_name = config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
+            if source_language is None:
+                source_language = config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
+            target = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]
+        options = {"with_provenance": True} if with_provenance else {}
+        if snapshot is not None:
+            options["weight_type"] = snapshot.weight_type
+        result = self.getTranslate(
+            translator_name, source_language, target["language"], target["country"], message, **options)
+        return tuple([item] for item in result)
 
     def addKeywords(self):
         self.ensure_initialized()
@@ -1779,10 +1791,13 @@ class Model:
         if romaji:
             keys_to_keep.add("hepburn")
 
-        if self.transliterator is None:
-            self.startTransliteration()
+        # An admitted message may still need readings after the live switch is off.
+        # Keep a local owner so stopTransliteration cannot clear it mid-call.
+        transliterator = self.transliterator
+        if transliterator is None:
+            transliterator = Transliterator()
 
-        data_list = self.transliterator.analyze(message, use_macron=False)
+        data_list = transliterator.analyze(message, use_macron=False)
         filtered_list = [
             {key: value for key, value in item.items() if key in keys_to_keep}
             for item in data_list

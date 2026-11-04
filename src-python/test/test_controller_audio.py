@@ -1,10 +1,23 @@
 import unittest
+
+import pytest
 from threading import Lock
 from unittest.mock import MagicMock, patch
 
 import config as config_module
 import controller as controller_module
 from controller import Controller, config
+from models.message_delivery import ChatboxOrder, DeliveryEpochs
+
+
+@pytest.fixture(autouse=True)
+def model_services(monkeypatch):
+    # These are controller tests. History/shutdown must not lazily initialize
+    # actual audio, overlay or OSC services, even when run in isolation.
+    backend = MagicMock()
+    backend.message_delivery = DeliveryEpochs()
+    backend.chatbox_order = ChatboxOrder()
+    monkeypatch.setattr(controller_module, "model", backend)
 
 
 class TestMicTranslationEngineLimitContract(unittest.TestCase):
@@ -14,7 +27,7 @@ class TestMicTranslationEngineLimitContract(unittest.TestCase):
         self.controller = Controller.__new__(Controller)
         self.controller._initRealtimeASR({})
         self.controller.run_mapping = {"error_translation_engine": "error_translation_engine"}
-        self.controller.changeToCTranslate2Process = lambda: None
+        self.controller.changeToCTranslate2Process = lambda **kwargs: None
         self.calls = []
         self.controller.run = lambda status, endpoint, result: self.calls.append((status, endpoint, result))
 
@@ -34,7 +47,7 @@ class TestMicTranslationEngineLimitContract(unittest.TestCase):
     @patch("controller.model.detectRepeatSendMessage", return_value=False)
     @patch("controller.model.checkKeywords", return_value=False)
     @patch("controller.model.telemetryTrackError", lambda *_: None)
-    @patch("controller.model.getInputTranslate", return_value=([], [False]))
+    @patch("controller.model.getInputTranslate", return_value=([], [False], ['failed']))
     def test_mic_translation_limit_includes_error_code(self, *_mocks) -> None:
         self.controller.micMessage({"text": "hello", "language": "English", "is_final": True})
 

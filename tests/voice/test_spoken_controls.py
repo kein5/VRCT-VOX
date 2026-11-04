@@ -14,8 +14,8 @@ from test_scheduler import Sink, until
 
 def configure(c, m, url, **overrides):
     m.config.ENABLE_TRANSLATION = True
-    m.model.getInputTranslate.return_value = (["Hello", "こんにちは"], [True, True])
-    m.model.getOutputTranslate.return_value = (["Hello"], [True])
+    m.model.getInputTranslate.return_value = (["Hello", "こんにちは"], [True, True], ['translated', 'translated'])
+    m.model.getOutputTranslate.return_value = (["Hello"], [True], ['translated'])
     c.changeToCTranslate2Process = MagicMock()
     settings = dict(mic_mode="translated", direct_policy="mix", output_device="cable",
                     multilingual_url=url)
@@ -86,10 +86,10 @@ def test_ineligible_transcript_never_becomes_audio(app, pcm_server, excluded):
     with pcm_server() as (url, requests):
         sink = configure(c, m, url, mic_mode='off' if excluded == 'off' else 'translated')
         if excluded == 'failed':
-            m.model.getInputTranslate.return_value = (['text', 'こんにちは'], [False, True])
+            m.model.getInputTranslate.return_value = (['text', 'こんにちは'], [False, True], ['failed', 'translated'])
         if excluded == 'disabled-target':
             m.config.SELECTED_TARGET_LANGUAGES['1']['1']['enable'] = False
-            m.model.getInputTranslate.return_value = (['こんにちは'], [True])
+            m.model.getInputTranslate.return_value = (['こんにちは'], [True], ['translated'])
         if excluded == 'translation-off':
             m.config.ENABLE_TRANSLATION = False
         start(c, 'speaker' if excluded == 'speaker' else 'mic')
@@ -108,7 +108,7 @@ def test_blocked_translation_cannot_resurrect_mic_speech(app, pcm_server, invali
         entered.set()
         assert release.wait(2)
         returned.set()
-        return ['Hello', 'こんにちは'], [True, True]
+        return ['Hello', 'こんにちは'], [True, True], ['translated', 'translated']
     with pcm_server() as (url, requests):
         configure(c, m, url)
         m.model.getInputTranslate.side_effect = translate
