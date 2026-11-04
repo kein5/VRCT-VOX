@@ -11,7 +11,7 @@ The root is `downloaded_models` next to config.json.
 
 PaddleOCR keeps the recogniser's character list in inference.yml
 (PostProcess.character_dict). RapidOCR wants a plain text file with one
-character per line, so it is derived once into <root>/.ocr-keys/.
+character per line, so it is derived into <root>/.ocr-keys/ and checked on reuse.
 """
 
 from __future__ import annotations
@@ -118,14 +118,21 @@ def _characters(dict_yml: Path) -> List[str]:
 
 def _keysFile(root: Path, dict_yml: Path, sha256: str) -> Path:
     target = root / KEYS_DIRECTORY / f"{sha256[:32]}.txt"
-    if target.is_file() and not target.is_symlink():
-        return target
-    text = "\n".join(_characters(dict_yml)) + "\n"
+    content = ("\n".join(_characters(dict_yml)) + "\n").encode("utf-8")
+    if not target.is_symlink() and target.is_file():
+        try:
+            with target.open("rb") as stream:
+                if stream.read(len(content) + 1) == content:
+                    return target
+        except FileNotFoundError:
+            pass  # Another resolver may have replaced/removed the cache.
     target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(dir=target.parent, prefix=".keys-", suffix=".tmp")
     try:
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
-            stream.write(text)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
         os.replace(temporary, target)
     except BaseException:
         try:

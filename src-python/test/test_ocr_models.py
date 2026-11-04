@@ -1,6 +1,7 @@
 """Explicit PP-OCR model paths from consented downloads; RapidOCR never downloads."""
 
 import hashlib
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -66,6 +67,104 @@ class TestResolve(_Root):
         keys = Path(files.keys)
         self.assertEqual(keys.parent, self.root / ocr_models.KEYS_DIRECTORY)
         self.assertEqual(keys.read_text(encoding="utf-8").split("\n"), ["a", "'", " ", "日", ""])
+
+    def test_corrupt_derived_keys_are_regenerated_from_verified_source(self) -> None:
+        self.install(BASE_MODEL_ID)
+        spec = resolveModelSpec("auto")
+        keys = Path(resolveModelFiles(self.root, spec).keys)
+        expected = keys.read_bytes()
+        for corrupt in (b"", expected[:-1], b"x" * len(expected), expected + b"extra", b"\xff\xfe"):
+            with self.subTest(corrupt=corrupt):
+                keys.write_bytes(corrupt)
+                self.assertEqual(resolveModelFiles(self.root, spec).keys, str(keys))
+                self.assertEqual(keys.read_bytes(), expected)
+                self.assertEqual(list(keys.parent.glob(".keys-*.tmp")), [])
+
+    def test_valid_derived_keys_are_reused_without_writing(self) -> None:
+        self.install(BASE_MODEL_ID)
+        spec = resolveModelSpec("auto")
+        keys = Path(resolveModelFiles(self.root, spec).keys)
+        before = keys.stat()
+        with patch.object(ocr_models.tempfile, "mkstemp", side_effect=AssertionError("rewrote valid keys")), \
+                patch.object(ocr_models.os, "replace", side_effect=AssertionError("replaced valid keys")):
+            self.assertEqual(resolveModelFiles(self.root, spec).keys, str(keys))
+        after = keys.stat()
+        self.assertEqual((after.st_ino, after.st_mtime_ns), (before.st_ino, before.st_mtime_ns))
+
+    def test_derived_keys_are_flushed_and_synced_before_atomic_publication(self) -> None:
+        self.install(BASE_MODEL_ID)
+        spec = resolveModelSpec("auto")
+        sha = hashlib.sha256(YML.encode()).hexdigest()
+        target = self.root / ocr_models.KEYS_DIRECTORY / f"{sha[:32]}.txt"
+        expected = "a\n'\n \n日\n".encode()
+        real_sync, real_replace = os.fsync, os.replace
+        for old in (None, b"truncated"):
+            with self.subTest(old=old):
+                if old is not None:
+                    target.write_bytes(old)
+                synced = []
+
+                def sync(fd):
+                    # A separate reader must see all bytes before fsync/replace.
+                    temporary, = target.parent.glob(".keys-*.tmp")
+                    self.assertEqual(temporary.read_bytes(), expected)
+                    real_sync(fd)
+                    synced.append(True)
+
+                def replace(source, destination):
+                    self.assertEqual(synced, [True])
+                    self.assertEqual(Path(source).parent, target.parent)
+                    self.assertEqual(Path(destination), target)
+                    self.assertEqual(target.read_bytes() if target.exists() else None, old)
+                    self.assertEqual(Path(source).read_bytes(), expected)
+                    real_replace(source, destination)
+
+                with patch.object(ocr_models.os, "fsync", side_effect=sync), \
+                        patch.object(ocr_models.os, "replace", side_effect=replace):
+                    self.assertEqual(resolveModelFiles(self.root, spec).keys, str(target))
+                self.assertEqual(target.read_bytes(), expected)
+                self.assertEqual(list(target.parent.glob(".keys-*.tmp")), [])
+
+    def test_failed_keys_publication_preserves_old_file_and_cleans_temporary(self) -> None:
+        self.install(BASE_MODEL_ID)
+        spec = resolveModelSpec("auto")
+        keys = Path(resolveModelFiles(self.root, spec).keys)
+        for operation in ("fsync", "replace"):
+            with self.subTest(operation=operation):
+                keys.write_bytes(b"old incomplete keys")
+                with patch.object(ocr_models.os, operation, side_effect=OSError("disk failure")):
+                    with self.assertRaises(OSError):
+                        resolveModelFiles(self.root, spec)
+                self.assertEqual(keys.read_bytes(), b"old incomplete keys")
+                self.assertEqual(list(keys.parent.glob(".keys-*.tmp")), [])
+        resolveModelFiles(self.root, spec)
+        self.assertEqual(keys.read_bytes(), "a\n'\n \n日\n".encode())
+
+    def test_symlinked_keys_are_replaced_without_modifying_the_target(self) -> None:
+        self.install(BASE_MODEL_ID)
+        spec = resolveModelSpec("auto")
+        keys = Path(resolveModelFiles(self.root, spec).keys)
+        expected = keys.read_bytes()
+        outside = self.root / "user-keys.txt"
+        outside.write_bytes(b"user data")
+        keys.unlink()
+        keys.symlink_to(outside)
+        resolveModelFiles(self.root, spec)
+        self.assertFalse(keys.is_symlink())
+        self.assertEqual(keys.read_bytes(), expected)
+        self.assertEqual(outside.read_bytes(), b"user data")
+
+    def test_cached_keys_do_not_bypass_source_yaml_hash_verification(self) -> None:
+        directory = self.install(BASE_MODEL_ID)
+        spec = resolveModelSpec("auto")
+        keys = Path(resolveModelFiles(self.root, spec).keys)
+        source = directory / "rec.yml"
+        before = source.stat()
+        source.write_bytes(b"X" * before.st_size)
+        os.utime(source, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000_000))
+        with self.assertRaises(OcrModelsInvalid):
+            resolveModelFiles(self.root, spec)
+        self.assertTrue(keys.is_file())
 
     def test_script_languages_need_the_base_detector_too(self) -> None:
         spec = resolveModelSpec("Korean")
