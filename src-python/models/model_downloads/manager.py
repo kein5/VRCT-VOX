@@ -47,6 +47,8 @@ class Downloads:
         self.entries = {m.id: m for m in catalog}
         self.transport, self.reserve_bytes = transport, reserve_bytes
         self.lock, self.closed = RLock(), False
+        self.closing = Event()
+        self.apply_done = None
         self.jobs, self.thread, self.cancel_event = {}, None, None
         self.response = None
 
@@ -79,7 +81,7 @@ class Downloads:
                 or request['id'] not in self.entries):
             raise ValueError('catalog_changed')
         with self.lock:
-            if self.closed:
+            if self.closed or self.closing.is_set():
                 raise ValueError('downloads_closed')
             if any(job['phase'] in ACTIVE for job in self.jobs.values()):
                 raise ValueError('download_busy')
@@ -107,10 +109,11 @@ class Downloads:
             self.response.abort()
 
     def _checkpoint(self, event):
-        if event.is_set():
+        if event.is_set() or self.closing.is_set():
             raise Cancelled()
 
     def _verify(self, path, artifact, event):
+        self._checkpoint(event)
         if not stat.S_ISREG(path.lstat().st_mode):
             raise ValueError('unsafe_destination')
         fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
@@ -121,6 +124,7 @@ class Downloads:
             while block := stream.read(CHUNK):
                 self._checkpoint(event)
                 digest.update(block)
+            self._checkpoint(event)
             if digest.hexdigest() != artifact.sha256:
                 raise ValueError('hash_mismatch')
 
@@ -209,26 +213,67 @@ class Downloads:
 
     def apply(self, id, job_id, callback):
         with self.lock:
-            if self.closed:
+            if self.closed or self.closing.is_set():
                 raise ValueError('downloads_closed')
             job = self._job(id, job_id)
             if job['phase'] != 'ready':
                 raise ValueError('download_not_ready')
+            if any(j['phase'] in ACTIVE for j in self.jobs.values()):
+                raise ValueError('download_busy')
             entry = self.entries[id]
+            event, done = Event(), Event()
+            self.cancel_event, self.apply_done = event, done
+            job['phase'] = 'verifying'
+        try:
             directory(self.destination(entry))
             for artifact in entry.artifacts:
-                self._verify(self.destination(entry) / artifact.filename, artifact, Event())
-            callback(entry, deepcopy(job['paths']))
-            job.update(phase='applied', error_code=None)
-            return self.state()
+                self._verify(self.destination(entry) / artifact.filename, artifact, event)
+            with self.lock:
+                self._checkpoint(event)
+                if self._job(id, job_id) is not job:
+                    raise ValueError('stale_job')
+                if job['phase'] != 'verifying':
+                    raise ValueError('download_not_ready')
+                # Commit point: the callback rechecks current settings/target
+                # state under their own locks before saving only the paths.
+                callback(entry, deepcopy(job['paths']))
+                job.update(phase='applied', error_code=None)
+                return self.state()
+        except Exception as error:
+            with self.lock:
+                cancelled = event.is_set() or self.closing.is_set()
+                if self.jobs.get(id) is job and job['phase'] in ('verifying', 'cancelling'):
+                    if cancelled:
+                        job.update(phase='cancelled', paths={}, error_code=None)
+                    else:
+                        job['phase'] = 'ready'
+            if cancelled:
+                code = 'downloads_closed' if self.closing.is_set() else 'download_not_ready'
+                raise ValueError(code) from error
+            raise
+        finally:
+            done.set()
 
     def close(self, timeout=2):
-        with self.lock:
+        deadline = time.monotonic() + max(0, timeout)
+        # Signal before waiting for the state lock, including a committing
+        # callback. No new work may enter even if this close times out.
+        self.closing.set()
+        event = self.cancel_event
+        if event is not None:
+            event.set()
+        if not self.lock.acquire(timeout=max(0, deadline - time.monotonic())):
+            return False
+        try:
             self.closed = True
             if self.cancel_event is not None:
                 self.cancel_event.set()
                 self._abort_body()
-            thread = self.thread
+            thread, done = self.thread, self.apply_done
+        finally:
+            self.lock.release()
         if thread is not None:
-            thread.join(timeout)
-        return thread is None or not thread.is_alive()
+            thread.join(max(0, deadline - time.monotonic()))
+        if done is not None:
+            done.wait(max(0, deadline - time.monotonic()))
+        return (thread is None or not thread.is_alive()) and (done is None or done.is_set())

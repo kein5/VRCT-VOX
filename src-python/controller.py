@@ -1283,15 +1283,15 @@ class Controller:
         # Revoke intent before any cleanup can wait on a worker or lock.
         for source in ("mic", "speaker", "ocr", "chat"):
             model.message_delivery.revoke(source)
+        if getattr(self, 'model_downloads', None) is not None:
+            if not self.model_downloads.close():
+                printLog('[models] download/apply shutdown pending')
         with _OCR_CONTROL_LOCK:
             self._ocr_shutting_down = True
             config.ENABLE_OCR_CAPTURE = False
             # Signal without waiting for a concurrent model load/lifecycle lock.
             model.requestOCRShutdown()
         self._stopServiceForShutdown(model.stopOCRCapture, "OCR capture")
-        if getattr(self, 'model_downloads', None) is not None:
-            if not self.model_downloads.close():
-                printLog('[models] download cancellation pending; no model path will be applied')
         if getattr(self, 'model_hardware', None) is not None and not self.model_hardware.close():
             printLog('[models] hardware inspection shutdown pending')
         if not self._closeRealtimeASR():
