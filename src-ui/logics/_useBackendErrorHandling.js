@@ -1,4 +1,5 @@
 import { useTranscriptionConsent } from "./transcription/useTranscriptionConsent";
+import { createElement } from "react";
 import { useI18n } from "@useI18n";
 import { useStdoutToPython } from "@useStdoutToPython";
 
@@ -41,6 +42,19 @@ const OCR_ERROR_KEYS = {
 const CLOUD_TRANSCRIPTION_BASES = Object.fromEntries(CLOUD_TRANSCRIPTION_ENGINES.map(engine => [engine.key, engine.base]));
 
 const UI_OWNED_SETTINGS = new Set(["main_window_geometry", "message_box_ratio"]);
+
+const ENDPOINT_URL_ERRORS = new Set([
+    "CONNECTION_LMSTUDIO_URL_INVALID",
+    "CONNECTION_OPENAI_COMPATIBLE_URL_INVALID",
+    "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID",
+]);
+
+// Saved URL repairs can arrive before the UI applies its saved language.
+// Keep the key in the toast and subscribe to language changes when it renders.
+const EndpointUrlErrorNotice = ({ translationKey, fallback }) => {
+    const { t, i18n } = useI18n();
+    return i18n.exists(translationKey) ? t(translationKey) : fallback;
+};
 
 export const _useBackendErrorHandling = () => {
     const { t, i18n } = useI18n();
@@ -123,7 +137,9 @@ export const _useBackendErrorHandling = () => {
         // The sidecar's `message` is English for the log; show the UI language
         // when a translation exists for the code.
         const key = `backend_errors.${error_code}`;
-        const localized = typeof error_code === "string" && i18n.exists(key) ? t(key) : message;
+        const localized = ENDPOINT_URL_ERRORS.has(error_code)
+            ? createElement(EndpointUrlErrorNotice, { translationKey: key, fallback: message })
+            : typeof error_code === "string" && i18n.exists(key) ? t(key) : message;
         const settleObsLifecycleError = () => {
             // The cause can be a dependent service. `data` belongs to the
             // initiating endpoint, never to a field inferred from that cause.
@@ -403,7 +419,7 @@ export const _useBackendErrorHandling = () => {
             }
             case "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID":
                 transcription.updateCustomWhisperURL(data ?? "");
-                showNotification_Error(t("common_error.transcription_custom_url_invalid"), { category_id: error_code });
+                showNotification_Error(localized, { category_id: error_code });
                 return;
             case "AUTH_OPENAI_COMPATIBLE_INVALID":
             case "AUTH_OPENAI_COMPATIBLE_FAILED":

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { hooks, loadModule, find, stubGlobals } from "../test/hookHarness.js";
 import * as legacyConsent from "../configs/legacyModelConsent.js";
+import * as endpointPrivacy from "./endpointPrivacy.js";
 
 const boxes = new URL("../../views/app/config_page/setting_section/setting_box/", import.meta.url);
 const entry = { id: "reviewed-model", name: "Reviewed model", target: "rvc", total_bytes: 100,
@@ -31,6 +32,7 @@ async function fixture(context, kind, openerState) {
     const imports = {
         "@tauri-apps/api/core": { isTauri: () => false },
         "@tauri-apps/plugin-opener": { openUrl: () => assert.fail("no link activation") },
+        "../../../../../../logics/common/endpointPrivacy": endpointPrivacy,
         "../../../../../../logics/common/useConsentDialog": dialogHooks,
         "../../../../../../../logics/common/useConsentDialog": dialogHooks,
         "../../../../../../logics/voice/useModelDownloads": { useModelDownloads: () => downloads },

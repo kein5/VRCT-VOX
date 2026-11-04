@@ -3,13 +3,14 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import i18next from "i18next";
 import yaml from "js-yaml";
+import { renderToStaticMarkup } from "react-dom/server";
 import { loadBridgeRoutes } from "./test/bridgeHarness.js";
 
 test("compatible URL rejection restores the URL and settles only its pending request", async () => {
     const s = await loadBridgeRoutes();
     const url = s.stores.dynamicStoreRegistry.Atom_OpenAICompatibleURL;
     const key = s.stores.dynamicStoreRegistry.Atom_OpenAICompatibleAuthKey;
-    const previousURL = "http://previous.invalid/v1";
+    const previousURL = "https://previous.invalid/v1";
     const previousKey = { state: "pending", data: "synthetic-saved-key" };
     s.runtime.store.set(url, { state: "pending", data: previousURL });
     s.runtime.store.set(key, previousKey);
@@ -30,7 +31,7 @@ test("compatible key rejection still settles the key without altering the URL", 
     const s = await loadBridgeRoutes();
     const url = s.stores.dynamicStoreRegistry.Atom_OpenAICompatibleURL;
     const key = s.stores.dynamicStoreRegistry.Atom_OpenAICompatibleAuthKey;
-    const previousURL = { state: "pending", data: "http://previous.invalid/v1" };
+    const previousURL = { state: "pending", data: "https://previous.invalid/v1" };
     s.runtime.store.set(url, previousURL);
     s.runtime.store.set(key, { state: "pending", data: "synthetic-saved-key" });
 
@@ -40,6 +41,45 @@ test("compatible key rejection still settles the key without altering the URL", 
 
     assert.deepEqual(s.runtime.store.get(key), { state: "ok", data: "synthetic-saved-key" });
     assert.strictEqual(s.runtime.store.get(url), previousURL);
+});
+
+for (const [field, code] of [
+    ["lmstudio_url", "CONNECTION_LMSTUDIO_URL_INVALID"],
+    ["openai_compatible_url", "CONNECTION_OPENAI_COMPATIBLE_URL_INVALID"],
+    ["transcription_custom_url", "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID"],
+]) test(`${field}: an early startup repair notice renders in the saved UI language`, async () => {
+    const resources = Object.fromEntries(["en", "ja"].map(language => [language, {
+        translation: yaml.load(readFileSync(new URL(`../../locales/${language}.yml`, import.meta.url), "utf8")),
+    }]));
+    const i18n = i18next.createInstance();
+    await i18n.init({ lng: "en", resources });
+    const s = await loadBridgeRoutes(undefined, i18n);
+    s.receiveRoutes({ status: 400, endpoint: `/set/data/${field}`, result: {
+        error_code: code, message: "The saved URL was invalid", data: "",
+    } });
+    const notice = s.notices.at(-1);
+    assert.equal(notice.type, "error");
+    assert.equal(notice.options.category_id, code);
+    assert.equal(renderToStaticMarkup(notice.key), resources.en.translation.backend_errors[code]);
+
+    // Settings finish applying after the IPC notice was already queued.
+    await i18n.changeLanguage("ja");
+    assert.equal(s.notices.length, 1);
+    assert.equal(renderToStaticMarkup(notice.key), resources.ja.translation.backend_errors[code]);
+});
+
+test("other backend notifications still resolve their message when received", async () => {
+    const i18n = i18next.createInstance();
+    await i18n.init({ lng: "en", resources: {
+        en: { translation: { backend_errors: { CONNECTION_LMSTUDIO_FAILED: "Connection failed" } } },
+        ja: { translation: { backend_errors: { CONNECTION_LMSTUDIO_FAILED: "接続できませんでした" } } },
+    } });
+    const s = await loadBridgeRoutes(undefined, i18n);
+    s.receiveRoutes({ status: 400, endpoint: "/run/check_lmstudio_connection", result: {
+        error_code: "CONNECTION_LMSTUDIO_FAILED", message: "Connection failed",
+    } });
+    await i18n.changeLanguage("ja");
+    assert.equal(s.notices.at(-1).key, "Connection failed");
 });
 
 test("output failures have separate warnings per sink and never expose raw errors", async () => {

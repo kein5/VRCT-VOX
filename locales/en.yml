@@ -212,8 +212,9 @@ backend_errors:
     MODEL_OLLAMA_INVALID: "That Ollama model cannot be used."
     CONNECTION_LMSTUDIO_FAILED: "Cannot connect to LM Studio. Check that the LM Studio server is running."
     CONNECTION_OLLAMA_FAILED: "Cannot connect to Ollama. Check that Ollama is running."
-    CONNECTION_LMSTUDIO_URL_INVALID: "The LM Studio URL is not valid."
-    CONNECTION_OPENAI_COMPATIBLE_URL_INVALID: "The OpenAI-compatible endpoint URL is not valid."
+    CONNECTION_LMSTUDIO_URL_INVALID: "The URL is invalid or the server could not be reached. Use HTTPS, or HTTP for localhost or a private LAN IP address. Remove usernames, passwords and secret query parameters. Check and save the URL again."
+    CONNECTION_OPENAI_COMPATIBLE_URL_INVALID: "The URL is invalid or the server could not be reached. Use HTTPS, or HTTP for localhost or a private LAN IP address. Remove usernames, passwords and secret query parameters. Check and save the URL again."
+    CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID: "The URL is invalid or the server could not be reached. Use HTTPS, or HTTP for localhost or a private LAN IP address. Remove usernames, passwords and secret query parameters. Check and save the URL again."
     WEBSOCKET_HOST_INVALID: "That host cannot be used for the WebSocket server."
     WEBSOCKET_PORT_UNAVAILABLE: "Another app is using the WebSocket port. Choose a different port."
     WEBSOCKET_PORT_INVALID: "Enter a WebSocket port from 1 to 65535 using whole numbers."
@@ -1431,3 +1432,6 @@ transcription_consent:
     settings: "Open engine settings"
     selected: "Selected engine: {{engine}}"
     unselected: "Not selected"
+network_privacy:
+    http_warning: "This connection is not encrypted. Text, audio and API keys may be visible to others on the network."
+    save_notice: "The URL is checked only when you save. A saved API key will be sent to this address."

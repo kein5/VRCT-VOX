@@ -61,3 +61,20 @@ def open_public(url, *, timeout=15):
         response.close()
         raise ValueError('download_http_error')
     return PublicResponse(response)
+
+
+class _NoProbeRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValueError('download_probe_redirect')
+
+
+def probe_download_host(*, timeout=3):
+    """No body, credentials, proxies or redirects; the artifact policy is unchanged."""
+    url = validate_url('https://huggingface.co/')
+    opener = build_opener(ProxyHandler({}), _NoProbeRedirect())
+    try:
+        with opener.open(Request(url, method='HEAD', headers={
+                'User-Agent': 'VRCT-VOX-model-download/1'}), timeout=timeout) as response:
+            return response.status == 200
+    except Exception:
+        return False

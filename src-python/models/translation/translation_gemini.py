@@ -1,3 +1,6 @@
+from models.diagnostics import provider_errors
+from utils import errorLogging
+from models.network_policy import without_tracing, discovery, GEMINI_BASE_URL, DISCOVERY_TIMEOUT, own_discovery_client, check_discovery_deadline
 import logging
 from google import genai
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -20,27 +23,22 @@ except Exception:
 logger = logging.getLogger("langchain_google_genai")
 logger.setLevel(logging.ERROR)
 
-class _ModelListing:
-    """models.list() の結果と、それを取った Client をひとまとめにしたもの。
-
-    Client は破棄されると内部の HTTP クライアントを閉じる。`.models` は Client 自身ではなく
-    HTTP クライアントだけを持つので、Client を手元に持たないと、`list()` の最中や、次のページを
-    取るとき ("Client has been closed") に失敗する。以前は `genai.Client(...).models.list()` と
-    つないでいたため、有効なキーでも認証が失敗し、キーが無効扱いになって設定から消えた。
-    """
-
-    def __init__(self, client, pager):
-        self.client = client
-        self.pager = pager
-
-    def __iter__(self):
-        return iter(self.pager)
-
-
+@provider_errors("Gemini")
+@discovery
+@without_tracing
 def _fetch_models(api_key: str):
-    """モデル一覧の最初のページを取得する。成功すればキーは有効 (認証の確認を兼ねる)。失敗は例外。"""
-    client = genai.Client(api_key=api_key)
-    return _ModelListing(client, client.models.list())
+    """Materialize pages within one deadline, then close the discovery client."""
+    client = own_discovery_client(genai.Client(
+        api_key=api_key, vertexai=False,
+        http_options={"base_url": GEMINI_BASE_URL, "timeout": DISCOVERY_TIMEOUT * 1000,
+                      "retry_options": {"attempts": 1},
+                      "client_args": {"follow_redirects": False, "trust_env": True}},
+    ))
+    models = []
+    for item in client.models.list():
+        check_discovery_deadline()
+        models.append(item)
+    return models
 
 def _text_models(res) -> list[str]:
     """Extract only Gemini models suitable for translation and chat applications
@@ -67,10 +65,13 @@ def _text_models(res) -> list[str]:
     allowed_models.sort()
     return allowed_models
 
+@provider_errors("Gemini")
 def _get_available_text_models(api_key: str) -> list[str]:
     return _text_models(_fetch_models(api_key))
 
 class GeminiClient(RecentModelList):
+    provider_name = "Gemini"
+
     def __init__(self, root_path: str = None):
         self.api_key = None
         self.model = None
@@ -92,16 +93,19 @@ class GeminiClient(RecentModelList):
 
         self.gemini_llm = None
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def getModelList(self) -> list[str]:
         return self._remember(self._takeAuthModels() or _get_available_text_models(self.api_key))
 
     def getAuthKey(self) -> str:
         return self.api_key
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def setAuthKey(self, api_key: str) -> bool:
         try:
             res = _fetch_models(api_key)
         except Exception:
+            errorLogging(provider=self.provider_name)
             return False
         self.api_key = api_key
         self._rememberFromAuth(lambda: _text_models(res))
@@ -110,10 +114,15 @@ class GeminiClient(RecentModelList):
     def getModel(self) -> str:
         return self.model
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def updateClient(self) -> None:
         self.gemini_llm = ChatGoogleGenerativeAI(
             model=self.model,
             api_key=self.api_key,
+            base_url=GEMINI_BASE_URL,
+            vertexai=False,
+            client_args={"follow_redirects": False, "trust_env": True},
             # LangChain takes seconds and converts to Google HttpOptions ms.
             timeout=CLOUD_LLM_TIMEOUT_SECONDS,
             max_retries=2,  # Google counts attempts: first call plus one retry.
@@ -129,6 +138,8 @@ class GeminiClient(RecentModelList):
         """
         self._context_history = history_items or []
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def translate(self, text: str, input_lang: str, output_lang: str) -> str:
         system_prompt = self.prompt_template.format(
             supported_languages=self.supported_languages,

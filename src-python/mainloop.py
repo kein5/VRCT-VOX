@@ -2,6 +2,9 @@ import atexit
 import os
 import sys
 
+from models.network_policy import scrub_network_environment
+scrub_network_environment()
+
 from runtime_paths import bootstrap_linux_frozen
 bootstrap_linux_frozen()
 

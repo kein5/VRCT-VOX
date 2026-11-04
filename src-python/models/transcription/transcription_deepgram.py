@@ -11,18 +11,22 @@ Ollama/LMStudio 接続 (`models/translation/translation_ollama.py` 等) と
 録音済み音声に対応するものを取る。
 """
 
+from models.diagnostics import provider_errors
+from utils import errorLogging
+
 from typing import Optional
 
-import requests
+from models.network_policy import api_request, discovery
 
 from models.transcription.transcription_languages import transcription_lang
 
 _BASE_URL = "https://api.deepgram.com/v1"
-# setup.exe ダウンロード等の HTTP 呼び出しで使っている (10, 60) と同じ
-# (connect, read) タイムアウト。
-_HTTP_TIMEOUT = (10, 60)
+# Discovery uses short I/O waits and no retries.
+_HTTP_TIMEOUT = (3, 3)
 
 
+@provider_errors("Deepgram")
+@discovery
 def checkDeepgramApiKey(api_key: str) -> bool:
     """`api_key` が有効かどうかを返す。
 
@@ -32,16 +36,19 @@ def checkDeepgramApiKey(api_key: str) -> bool:
     (無効なキーには 401 を返す)。
     """
     try:
-        response = requests.get(
+        response = api_request("GET",
             f"{_BASE_URL}/auth/token",
             headers={"Authorization": f"Token {api_key}"},
             timeout=_HTTP_TIMEOUT,
         )
         return response.status_code == 200
     except Exception:
+        errorLogging(provider="Deepgram")
         return False
 
 
+@provider_errors("Deepgram")
+@discovery
 def getAvailableDeepgramModelsDetailed(api_key: str) -> list[dict]:
     """疎通できる音声認識(STT)モデルのうち、録音済み音声(バッチ)に対応する
     ものを、モデル名と対応言語コード一覧つきで返す。
@@ -58,7 +65,7 @@ def getAvailableDeepgramModelsDetailed(api_key: str) -> list[dict]:
     モデルは選択肢に出す意味が無い。)
     """
     try:
-        response = requests.get(
+        response = api_request("GET",
             f"{_BASE_URL}/models",
             headers={"Authorization": f"Token {api_key}"},
             timeout=_HTTP_TIMEOUT,
@@ -66,6 +73,7 @@ def getAvailableDeepgramModelsDetailed(api_key: str) -> list[dict]:
         response.raise_for_status()
         stt_models = response.json().get("stt", [])
     except Exception:
+        errorLogging(provider="Deepgram")
         return []
 
     seen = set()

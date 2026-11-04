@@ -1,3 +1,4 @@
+from models.network_policy import validate_api_url, DiscoveryScope, discovery_scope
 from typing import Callable, Any, List, Optional
 from contextlib import nullcontext
 from subprocess import Popen
@@ -355,19 +356,28 @@ def _runEngineChecks(check, engines: list, label: str) -> dict:
 
     `check(engine)` は `(engine, *結果)` を返す。返り値は {engine: 結果のタプル}。
     間に合わなかったエンジンは含めない (呼び出し元が使えない状態にする)。待ちきれなかった
-    確認のスレッドは止められないが、待たずに起動を進める。そのスレッドは config に書かない。
+    確認の通信クライアントを閉じ、遅れた結果を捨てて起動を進める。そのスレッドは config に書かない。
     """
     results = {}
     executor = ThreadPoolExecutor(max_workers=max(1, len(engines)))
-    futures = {executor.submit(check, engine): engine for engine in engines}
+    scopes = {engine: DiscoveryScope(_ENGINE_CHECK_BUDGET_SEC) for engine in engines}
+    def checked(engine):
+        with discovery_scope(scopes[engine]):
+            return check(engine)
+    futures = {executor.submit(checked, engine): engine for engine in engines}
     try:
         for future in as_completed(futures, timeout=_ENGINE_CHECK_BUDGET_SEC):
-            engine, *rest = future.result()
+            try:
+                engine, *rest = future.result()
+            except TimeoutError:
+                continue
             results[engine] = tuple(rest)
     except FuturesTimeout:
         late = [engine for future, engine in futures.items() if not future.done()]
         printLog(f"{label} checks did not finish in {_ENGINE_CHECK_BUDGET_SEC:.0f}s; starting without them", {"engines": late})
     finally:
+        for scope in scopes.values():
+            scope.close()
         executor.shutdown(wait=False, cancel_futures=True)
     return results
 
@@ -3090,7 +3100,7 @@ class Controller:
             if selected_model not in model_list:
                 selected_model = model_list[0]
         except Exception:
-            errorLogging()
+            errorLogging(provider=engine)
             return VRCTError.create_error_response(
                 ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
                 data=config.TRANSCRIPTION_AUTH_KEYS.get(engine),
@@ -3202,6 +3212,11 @@ class Controller:
 
         Auth Key が未設定の場合は URL だけ保存して終わる (次回 Auth Key 入力時に検証される)。
         """
+        try:
+            data = validate_api_url(data.strip() if isinstance(data, str) else data)
+        except ValueError:
+            return VRCTError.create_error_response(
+                ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID, data=config.TRANSCRIPTION_CUSTOM_URL)
         printLog("Set Custom Whisper URL", data)
         engine = "Custom_Whisper"
         try:
@@ -3248,10 +3263,11 @@ class Controller:
                     data=config.TRANSCRIPTION_CUSTOM_URL
                 )
         except Exception as e:
-            errorLogging()
+            errorLogging(provider=engine)
             response = VRCTError.create_exception_error_response(
                 e,
-                data=config.TRANSCRIPTION_CUSTOM_URL
+                data=config.TRANSCRIPTION_CUSTOM_URL,
+                provider=engine,
             )
         return response
 
@@ -3961,7 +3977,7 @@ class Controller:
                 engine_key, data, selected_model=getattr(config, spec.selected_model_attr),
             )
         except Exception:
-            errorLogging()
+            errorLogging(provider=engine_key)
             return VRCTError.create_error_response(
                 spec.error_auth_failed, data=config.AUTH_KEYS.get(engine_key),
             )
@@ -4019,9 +4035,9 @@ class Controller:
                     data=getattr(config, spec.selected_model_attr)
                 )
         except Exception:
-            errorLogging()
+            errorLogging(provider=engine_key)
             # モデル SDK の例外詳細は UI に露出させず、選択失敗として
-            # 現在値を返す。traceback は errorLogging() に残す。
+            # 現在値を返す。診断ログには例外の種類と発生位置だけを残す。
             response = VRCTError.create_error_response(
                 spec.error_model_invalid,
                 data=getattr(config, spec.selected_model_attr),
@@ -4034,8 +4050,8 @@ class Controller:
         (LMStudio: `{"base_url": config.LMSTUDIO_URL}`、Ollama: `{}`)。
 
         接続 SDK の例外や、接続後に利用可能なモデルが無い場合も、UI には
-        `error_connection_failed` を返す。例外の詳細は errorLogging() に
-        記録し、レスポンスには含めない。
+        `error_connection_failed` を返す。診断ログには例外の種類と発生位置を
+        記録し、例外の本文はログにもレスポンスにも含めない。
         """
         spec = CONNECTION_PROVIDER_REGISTRY[engine_key]
         bindings = _ENGINE_MODEL_BINDINGS[engine_key]
@@ -4068,7 +4084,7 @@ class Controller:
                     data=False
                 )
         except Exception:
-            errorLogging()
+            errorLogging(provider=engine_key)
             config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine_key] = False
             setattr(config, spec.selectable_model_list_attr, [])
             setattr(config, spec.selected_model_attr, None)
@@ -4096,7 +4112,7 @@ class Controller:
                 )
             candidate = model.prepareTranslatorCredential(engine, data)
         except Exception:
-            errorLogging()
+            errorLogging(provider=engine)
             return VRCTError.create_error_response(
                 ErrorCode.AUTH_DEEPL_FAILED, data=config.AUTH_KEYS[engine],
             )
@@ -4214,6 +4230,11 @@ class Controller:
 
 
     def setTranslatorLMStudioURL(self, data, *args, **kwargs) -> dict:
+        try:
+            data = validate_api_url(data.strip() if isinstance(data, str) else data)
+        except ValueError:
+            return VRCTError.create_error_response(
+                ErrorCode.CONNECTION_LMSTUDIO_URL_INVALID, data=config.LMSTUDIO_URL)
         printLog("Set Translator LMStudio URL", data)
         translator_name = "LMStudio"
         try:
@@ -4245,7 +4266,7 @@ class Controller:
                     data=config.LMSTUDIO_URL
                 )
         except Exception:
-            errorLogging()
+            errorLogging(provider=translator_name)
             config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
             config.SELECTABLE_LMSTUDIO_MODEL_LIST = []
             config.SELECTED_LMSTUDIO_MODEL = None
@@ -4295,7 +4316,7 @@ class Controller:
                 base_url=base_url,
             )
         except Exception:
-            errorLogging()
+            errorLogging(provider=engine)
             return VRCTError.create_error_response(
                 ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED, data=config.AUTH_KEYS[engine],
             )
@@ -4335,6 +4356,11 @@ class Controller:
 
     def setOpenAICompatibleURL(self, data, *args, **kwargs) -> dict:
         """Keep the previous URL/client unless the candidate is ready to translate."""
+        try:
+            data = validate_api_url(data.strip() if isinstance(data, str) else data)
+        except ValueError:
+            return VRCTError.create_error_response(
+                ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID, data=config.OPENAI_COMPATIBLE_URL)
         printLog("Set OpenAI Compatible URL", data)
         engine = "OpenAI_Compatible"
         try:
@@ -4351,7 +4377,7 @@ class Controller:
                 base_url=data,
             )
         except Exception:
-            errorLogging()
+            errorLogging(provider=engine)
             return VRCTError.create_error_response(
                 ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID,
                 data=config.OPENAI_COMPATIBLE_URL,
@@ -4383,10 +4409,11 @@ class Controller:
                     data=config.SELECTED_OPENAI_COMPATIBLE_MODEL
                 )
         except Exception as e:
-            errorLogging()
+            errorLogging(provider="OpenAI_Compatible")
             response = VRCTError.create_exception_error_response(
                 e,
-                data=config.SELECTED_OPENAI_COMPATIBLE_MODEL
+                data=config.SELECTED_OPENAI_COMPATIBLE_MODEL,
+                provider="OpenAI_Compatible",
             )
         return response
 
@@ -6360,13 +6387,9 @@ class Controller:
         # がフィードを処理できる。よってここで起動しても安全。
         self.startWatchdog()
 
-        # Network check
-        connected_network = isConnectedNetwork()
-        if connected_network is True:
-            self.connectedNetwork()
-        else:
-            self.disconnectedNetwork()
-        printLog(f"Connected Network: {connected_network}")
+        # Unknown until an actual consented download/probe has an outcome.
+        connected_network = None
+        self.run(200, self.run_mapping["connected_network"], None)
 
         self.initializationProgress(1)
 
@@ -6380,16 +6403,20 @@ class Controller:
         whisper_request = None
         # Migration is local and preserves conflicts, including offline startup.
         model.backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir()
-        if connected_network is True and config.AUTO_DOWNLOAD_MODELS is True:
+        if config.AUTO_DOWNLOAD_MODELS is True:
             ctranslate2_pre_available = model.checkTranslatorCTranslate2ModelWeight(config.CTRANSLATE2_WEIGHT_TYPE)
             whisper_pre_available = model.checkTranscriptionWhisperModelWeight(config.WHISPER_WEIGHT_TYPE)
             if ctranslate2_pre_available is False:
                 ctranslate2_request = self._startupLegacyDownloadRequest("ctranslate2", config.CTRANSLATE2_WEIGHT_TYPE)
+            if whisper_pre_available is False:
+                whisper_request = self._startupLegacyDownloadRequest("whisper", config.WHISPER_WEIGHT_TYPE)
+            if ctranslate2_request is not None or whisper_request is not None:
+                connected_network = isConnectedNetwork()
+                self.run(200, self.run_mapping["connected_network"], connected_network)
+            if connected_network is True:
                 if ctranslate2_request is not None:
                     self.downloadCtranslate2Weight(ctranslate2_request, False)
                     ctranslate2_pre_available = None
-            if whisper_pre_available is False:
-                whisper_request = self._startupLegacyDownloadRequest("whisper", config.WHISPER_WEIGHT_TYPE)
                 if whisper_request is not None:
                     self.downloadWhisperWeight(whisper_request, False)
                     whisper_pre_available = None
@@ -6524,7 +6551,7 @@ class Controller:
                             else:
                                 auth_key_invalid = True
                     case "LMStudio":
-                        if config.LMSTUDIO_URL is not None:
+                        if config.LMSTUDIO_URL:
                             if model.authenticationTranslatorLMStudio(base_url=config.LMSTUDIO_URL) is True:
                                 model_list = model.getTranslatorLMStudioModelList()
                                 if len(model_list) > 0:
@@ -6550,10 +6577,9 @@ class Controller:
                                 selected_model = config.SELECTED_OLLAMA_MODEL if config.SELECTED_OLLAMA_MODEL in model_list else model_list[0]
                                 status = True
                     case _:
-                        status = connected_network is True
-            except Exception as e:
-                printLog(f"Error checking engine {engine}: {str(e)}")
-                errorLogging()
+                        status = True  # Availability is established by real requests, not a global probe.
+            except Exception:
+                errorLogging(provider=engine)
                 status = False
 
             if status and model_list is not None and engine in _ENGINE_MODEL_CLIENT_CALLS:
@@ -6565,9 +6591,8 @@ class Controller:
                 try:
                     getattr(model, set_model)(selected_model)
                     getattr(model, update_client)()
-                except Exception as e:
-                    printLog(f"Error preparing engine {engine}: {str(e)}")
-                    errorLogging()
+                except Exception:
+                    errorLogging(provider=engine)
                     status = False
 
             engine_check_elapsed[engine] = time.monotonic() - check_started
@@ -6740,10 +6765,9 @@ class Controller:
                                 auth_key_invalid = True
                     case _:
                         # Google 等、ネットワーク接続のみが条件のエンジン
-                        status = connected_network is True
-            except Exception as e:
-                printLog(f"Error checking transcription engine {engine}: {str(e)}")
-                errorLogging()
+                        status = True  # Availability is established by real requests, not a global probe.
+            except Exception:
+                errorLogging(provider=engine)
                 status = False
 
             transcription_check_elapsed[engine] = time.monotonic() - check_started
@@ -6921,6 +6945,14 @@ class Controller:
         self.updateConfigSettings()
         # After initialization_complete so the UI is ready to show it.
         self.notifyNonCommercialCTranslate2Weight()
+        for key in getattr(config, "INVALID_SAVED_API_URLS", []):
+            endpoint, error_code = {
+                "LMSTUDIO_URL": ("/set/data/lmstudio_url", ErrorCode.CONNECTION_LMSTUDIO_URL_INVALID),
+                "OPENAI_COMPATIBLE_URL": ("/set/data/openai_compatible_url", ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID),
+                "TRANSCRIPTION_CUSTOM_URL": ("/set/data/custom_whisper_url", ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID),
+            }[key]
+            response = VRCTError.create_error_response(error_code, data="")
+            self.run(response["status"], endpoint, response["result"])
         if getattr(config, "UNREADABLE_CONFIG_BACKUP", None):
             self.run(200, self.run_mapping["config_file_unreadable"], {"backup": config.UNREADABLE_CONFIG_BACKUP})
 

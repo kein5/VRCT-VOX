@@ -200,7 +200,7 @@ class CustomWhisperURLEndpointTests(_ConfigSnapshotMixin, unittest.TestCase):
         config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = ["whisper"]
         mock_model.authenticationTranscriptionApiKey.return_value = False
 
-        response = self.controller.setCustomWhisperURL("http://unreachable:9000/v1")
+        response = self.controller.setCustomWhisperURL("https://unreachable.example/v1")
 
         self.assertEqual(response["status"], 400)
         self.assertEqual(config.TRANSCRIPTION_CUSTOM_URL, "http://localhost:8000/v1")

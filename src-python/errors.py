@@ -8,6 +8,7 @@
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, Dict
 from enum import Enum
+from models.diagnostics import exception_provider, redact_diagnostic_text
 
 
 # エラー生成時に通知される optional なフック（テレメトリ等）。
@@ -1003,7 +1004,8 @@ class VRCTError:
     def create_exception_error_response(
         exception: Exception,
         data: Any = None,
-        error_code: ErrorCode = ErrorCode.GENERAL_EXCEPTION
+        error_code: ErrorCode = ErrorCode.GENERAL_EXCEPTION,
+        *, provider: Optional[str] = None
     ) -> Dict[str, Any]:
         """例外からエラーレスポンスを生成
         
@@ -1011,13 +1013,16 @@ class VRCTError:
             exception: 発生した例外
             data: エラー時に戻す値
             error_code: エラーコード
+            provider: プロバイダー呼び出しの失敗ならサービス名を指定する
         
         Returns:
             エラーレスポンス辞書
         """
+        message = (type(exception).__name__ if provider is not None or exception_provider(exception) is not None
+                   else redact_diagnostic_text(str(exception)))
         return VRCTError.create_error_response(
             error_code=error_code,
             data=data,
-            custom_message=f"Error: {str(exception)}",
+            custom_message=f"Error: {message}",
             details={"exception_type": type(exception).__name__}
         )

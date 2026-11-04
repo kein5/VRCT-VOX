@@ -7,7 +7,7 @@ keyword_filter で絞り込む」の2点のみを検証する。
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from models.transcription.transcription_openai_compatible import (
     TRANSCRIPTION_MODEL_KEYWORDS,
@@ -25,7 +25,9 @@ class TestCheckTranscriptionApiKey(unittest.TestCase):
         result = checkTranscriptionApiKey("sk-test", "https://api.groq.com/openai/v1")
 
         self.assertTrue(result)
-        openai_cls.assert_called_once_with(api_key="sk-test", base_url="https://api.groq.com/openai/v1")
+        openai_cls.assert_called_once_with(api_key="sk-test", base_url="https://api.groq.com/openai/v1",
+                                          timeout=3.0, max_retries=0, http_client=ANY)
+        openai_cls.return_value.close.assert_called_once()
 
     @patch("models.transcription.transcription_openai_compatible.OpenAI")
     def test_returns_false_when_models_list_raises(self, openai_cls) -> None:

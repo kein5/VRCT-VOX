@@ -1,3 +1,4 @@
+import { endpointDescription } from "../../../../../../logics/common/endpointPrivacy";
 import { useRef, useState } from "react";
 import { useI18n } from "@useI18n";
 import { isTauri } from "@tauri-apps/api/core";
@@ -647,7 +648,7 @@ const LMStudioURL_Box = () => {
             <EntryWithSaveButtonContainer
                 label="LM Studio URL"
                 // label={t("config_page.translation.lmstudio_url.label")}
-                // desc={t("config_page.translation.lmstudio_url.desc")}
+                desc={endpointDescription(variable, "", t)}
                 variable={variable}
                 saveFunction={saveFunction}
                 onChangeFunction={onChangeFunction}
@@ -754,7 +755,7 @@ const OpenAICompatibleURL_Box = () => {
         <>
             <EntryWithSaveButtonContainer
                 label={t("config_page.translation.openai_compatible_url.label")}
-                desc={t("config_page.translation.openai_compatible_url.desc")}
+                desc={endpointDescription(variable, t("config_page.translation.openai_compatible_url.desc"), t)}
                 variable={variable}
                 saveFunction={saveFunction}
                 onChangeFunction={onChangeFunction}

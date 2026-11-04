@@ -212,8 +212,9 @@ backend_errors:
     MODEL_OLLAMA_INVALID: "そのOllamaのモデルは使えません。"
     CONNECTION_LMSTUDIO_FAILED: "LM Studioに接続できません。LM Studioのサーバーが起動しているか確認してください。"
     CONNECTION_OLLAMA_FAILED: "Ollamaに接続できません。Ollamaが起動しているか確認してください。"
-    CONNECTION_LMSTUDIO_URL_INVALID: "LM StudioのURLが正しくありません。"
-    CONNECTION_OPENAI_COMPATIBLE_URL_INVALID: "OpenAI互換エンドポイントのURLが正しくありません。"
+    CONNECTION_LMSTUDIO_URL_INVALID: "URLが無効か、サーバーに接続できませんでした。HTTPSを使ってください。HTTPはlocalhostまたはローカルネットワークのIPアドレスでのみ使えます。URLからユーザー名・パスワード・キーなどのクエリを除き、確認して保存し直してください。"
+    CONNECTION_OPENAI_COMPATIBLE_URL_INVALID: "URLが無効か、サーバーに接続できませんでした。HTTPSを使ってください。HTTPはlocalhostまたはローカルネットワークのIPアドレスでのみ使えます。URLからユーザー名・パスワード・キーなどのクエリを除き、確認して保存し直してください。"
+    CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID: "URLが無効か、サーバーに接続できませんでした。HTTPSを使ってください。HTTPはlocalhostまたはローカルネットワークのIPアドレスでのみ使えます。URLからユーザー名・パスワード・キーなどのクエリを除き、確認して保存し直してください。"
     WEBSOCKET_HOST_INVALID: "WebSocketサーバーにこのホストは使えません。"
     WEBSOCKET_PORT_UNAVAILABLE: "WebSocketサーバーのポートがほかのアプリで使われています。別のポートを指定してください。"
     WEBSOCKET_PORT_INVALID: "WebSocketのポートは1〜65535の整数で入力してください。"
@@ -1431,3 +1432,6 @@ transcription_consent:
     settings: "エンジンの設定を開く"
     selected: "選択中のエンジン：{{engine}}"
     unselected: "未選択"
+network_privacy:
+    http_warning: "この接続は暗号化されません。文章・音声・APIキーをネットワーク上の第三者に読み取られる可能性があります。"
+    save_notice: "保存すると接続先を確認します。登録済みのAPIキーがある場合は、このURLに送信します。"

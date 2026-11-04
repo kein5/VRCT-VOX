@@ -33,6 +33,7 @@ def app(monkeypatch):
     controller = module.Controller.__new__(module.Controller)
     controller._model = backend
     controller.run_mapping = {f"error_{kind}_weight": f"/run/error_{kind}_weight" for kind in ("whisper", "ctranslate2")}
+    controller.run_mapping["connected_network"] = "/run/connected_network"
     controller.run = MagicMock()
     return controller, config, backend
 
@@ -168,7 +169,7 @@ def test_real_startup_skips_or_fetches_including_retry(app, monkeypatch, auto, r
     backend.downloadCTranslate2ModelTokenizer.assert_not_called()
     assert backend.downloadWhisperModelWeight.call_count == expected
     notices = [call for call in controller.run.call_args_list
-               if call.args[2].get("error_code") == "WEIGHT_DOWNLOAD_CONSENT_REQUIRED"]
+               if isinstance(call.args[2], dict) and call.args[2].get("error_code") == "WEIGHT_DOWNLOAD_CONSENT_REQUIRED"]
     assert len(notices) == (2 if auto and not recorded and not available else 0)
     for notice in notices:
         assert notice.args[2]["error_code"] == "WEIGHT_DOWNLOAD_CONSENT_REQUIRED"

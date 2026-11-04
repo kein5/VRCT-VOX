@@ -29,27 +29,23 @@ class _Sentinel(Exception):
 
 
 class StartWatchdogRunsFirstTests(unittest.TestCase):
-    def test_start_watchdog_runs_before_the_network_check(self) -> None:
+    def test_start_watchdog_runs_before_startup_progress_without_network_probe(self) -> None:
         controller = Controller.__new__(Controller)
-        # Controller.__init__ をバイパスしているため、init() 冒頭の
-        # _bootstrapModel() (フェーズ3項目22) が使う self._model を手動で
-        # 用意する。無いと AttributeError が (_bootstrapModel 内の
-        # try/except で) 黙って握り潰されるだけでこのテスト自体は壊れないが、
-        # 実際に model.init() が呼ばれたことにして意図を明示する。
         controller._model = MagicMock()
+        controller.run = MagicMock()
+        controller.run_mapping = {"connected_network": "/run/connected_network"}
         calls = []
-        controller.startWatchdog = lambda *a, **k: calls.append("startWatchdog")
-
-        def fake_is_connected():
-            calls.append("isConnectedNetwork")
+        controller.startWatchdog = lambda: calls.append("startWatchdog")
+        def progress(_):
+            calls.append("progress")
             raise _Sentinel()
-
-        with patch("controller.isConnectedNetwork", side_effect=fake_is_connected), \
-             patch("controller.removeLog"):
+        controller.initializationProgress = progress
+        with patch("controller.isConnectedNetwork") as probe, patch("controller.removeLog"):
             with self.assertRaises(_Sentinel):
                 controller.init()
-
-        self.assertEqual(calls, ["startWatchdog", "isConnectedNetwork"])
+        self.assertEqual(calls, ["startWatchdog", "progress"])
+        probe.assert_not_called()
+        controller.run.assert_called_once_with(200, "/run/connected_network", None)
 
 
 def test_wait_timeout_cancels_and_joins_before_retry():

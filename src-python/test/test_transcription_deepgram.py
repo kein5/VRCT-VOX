@@ -29,29 +29,29 @@ def _make_response(status_code=200, payload=None):
 
 
 class TestCheckDeepgramApiKey(unittest.TestCase):
-    @patch("models.transcription.transcription_deepgram.requests")
+    @patch("models.transcription.transcription_deepgram.api_request")
     def test_returns_true_on_200(self, mock_requests) -> None:
-        mock_requests.get.return_value = _make_response(200)
+        mock_requests.return_value = _make_response(200)
 
         result = checkDeepgramApiKey("dg-test")
 
         self.assertTrue(result)
-        args, kwargs = mock_requests.get.call_args
+        args, kwargs = mock_requests.call_args
         self.assertEqual(kwargs["headers"]["Authorization"], "Token dg-test")
         # /v1/models answers 200 even for an invalid key, so it cannot check one.
-        self.assertEqual(args[0], "https://api.deepgram.com/v1/auth/token")
+        self.assertEqual(args[:2], ("GET", "https://api.deepgram.com/v1/auth/token"))
 
-    @patch("models.transcription.transcription_deepgram.requests")
+    @patch("models.transcription.transcription_deepgram.api_request")
     def test_returns_false_on_401(self, mock_requests) -> None:
-        mock_requests.get.return_value = _make_response(401)
+        mock_requests.return_value = _make_response(401)
 
         result = checkDeepgramApiKey("dg-bad")
 
         self.assertFalse(result)
 
-    @patch("models.transcription.transcription_deepgram.requests")
+    @patch("models.transcription.transcription_deepgram.api_request")
     def test_returns_false_when_request_raises(self, mock_requests) -> None:
-        mock_requests.get.side_effect = Exception("connection failed")
+        mock_requests.side_effect = Exception("connection failed")
 
         result = checkDeepgramApiKey("dg-test")
 
@@ -59,9 +59,9 @@ class TestCheckDeepgramApiKey(unittest.TestCase):
 
 
 class TestGetAvailableDeepgramModels(unittest.TestCase):
-    @patch("models.transcription.transcription_deepgram.requests")
+    @patch("models.transcription.transcription_deepgram.api_request")
     def test_keeps_only_batch_capable_stt_models(self, mock_requests) -> None:
-        mock_requests.get.return_value = _make_response(200, {
+        mock_requests.return_value = _make_response(200, {
             "stt": [
                 {"name": "nova-3", "batch": True, "streaming": True},
                 {"name": "nova-3-streaming-only", "batch": False, "streaming": True},
@@ -74,9 +74,9 @@ class TestGetAvailableDeepgramModels(unittest.TestCase):
 
         self.assertEqual(result, ["nova-3", "whisper-cloud"])
 
-    @patch("models.transcription.transcription_deepgram.requests")
+    @patch("models.transcription.transcription_deepgram.api_request")
     def test_deduplicates_and_sorts(self, mock_requests) -> None:
-        mock_requests.get.return_value = _make_response(200, {
+        mock_requests.return_value = _make_response(200, {
             "stt": [
                 {"name": "nova-2", "batch": True},
                 {"name": "nova-2", "batch": True},
@@ -88,9 +88,9 @@ class TestGetAvailableDeepgramModels(unittest.TestCase):
 
         self.assertEqual(result, ["base", "nova-2"])
 
-    @patch("models.transcription.transcription_deepgram.requests")
+    @patch("models.transcription.transcription_deepgram.api_request")
     def test_returns_empty_list_on_error(self, mock_requests) -> None:
-        mock_requests.get.return_value = _make_response(500)
+        mock_requests.return_value = _make_response(500)
 
         result = getAvailableDeepgramModels("dg-test")
 
@@ -98,9 +98,9 @@ class TestGetAvailableDeepgramModels(unittest.TestCase):
 
 
 class TestGetAvailableDeepgramModelsDetailed(unittest.TestCase):
-    @patch("models.transcription.transcription_deepgram.requests")
+    @patch("models.transcription.transcription_deepgram.api_request")
     def test_includes_supported_languages_per_model(self, mock_requests) -> None:
-        mock_requests.get.return_value = _make_response(200, {
+        mock_requests.return_value = _make_response(200, {
             "stt": [
                 {"name": "nova-3", "batch": True, "languages": ["en", "en-us"]},
                 {"name": "whisper-cloud", "batch": True, "languages": ["multi"]},
@@ -117,9 +117,9 @@ class TestGetAvailableDeepgramModelsDetailed(unittest.TestCase):
             ],
         )
 
-    @patch("models.transcription.transcription_deepgram.requests")
+    @patch("models.transcription.transcription_deepgram.api_request")
     def test_missing_languages_field_becomes_empty_list(self, mock_requests) -> None:
-        mock_requests.get.return_value = _make_response(200, {
+        mock_requests.return_value = _make_response(200, {
             "stt": [{"name": "base", "batch": True}],
         })
 
@@ -127,9 +127,9 @@ class TestGetAvailableDeepgramModelsDetailed(unittest.TestCase):
 
         self.assertEqual(result, [{"name": "base", "languages": []}])
 
-    @patch("models.transcription.transcription_deepgram.requests")
+    @patch("models.transcription.transcription_deepgram.api_request")
     def test_excludes_streaming_only_models(self, mock_requests) -> None:
-        mock_requests.get.return_value = _make_response(200, {
+        mock_requests.return_value = _make_response(200, {
             "stt": [
                 {"name": "nova-3", "batch": True, "languages": ["en"]},
                 {"name": "nova-3-streaming-only", "batch": False, "languages": ["en"]},
@@ -140,9 +140,9 @@ class TestGetAvailableDeepgramModelsDetailed(unittest.TestCase):
 
         self.assertEqual(result, [{"name": "nova-3", "languages": ["en"]}])
 
-    @patch("models.transcription.transcription_deepgram.requests")
+    @patch("models.transcription.transcription_deepgram.api_request")
     def test_returns_empty_list_on_error(self, mock_requests) -> None:
-        mock_requests.get.return_value = _make_response(500)
+        mock_requests.return_value = _make_response(500)
 
         result = getAvailableDeepgramModelsDetailed("dg-test")
 

@@ -17,6 +17,7 @@ VRCT の既存パイプラインは「フレーズ確定後にまとめて1回�
 """
 
 import math
+from urllib.request import HTTPRedirectHandler, build_opener
 from typing import List, Optional, Protocol, Tuple
 
 import numpy as np
@@ -37,6 +38,8 @@ from models.transcription.transcription_deepgram import resolveDeepgramLanguageC
 from models.transcription.transcription_languages import transcription_lang
 from models.transcription.transcription_openai_compatible import transcriptionResponseFormat
 from utils import errorLogging
+from models.diagnostics import provider_errors
+from models.network_policy import api_http_client, explicit_request_auth
 
 
 # speech_recognition builds the Google Web Speech URL with plain HTTP, which
@@ -53,6 +56,19 @@ def _https_google_request(url, *args, **kwargs):
 
 
 _speech_recognition.Request = _https_google_request
+
+
+class _NoApiRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _speech_urlopen(request, *args, **kwargs):
+    # Preserve system HTTPS proxies, but never replay audio through a redirect.
+    return build_opener(_NoApiRedirect()).open(request, *args, **kwargs)
+
+
+_speech_recognition.urlopen = _speech_urlopen
 
 # setup.exe ダウンロード等の HTTP 呼び出しで使っている (10, 60) と同じ
 # (connect, read) タイムアウト。実機検証の結果次第で調整する。
@@ -103,6 +119,7 @@ class GoogleProvider:
     def __init__(self, recognizer: Recognizer) -> None:
         self._recognizer = recognizer
 
+    @provider_errors("Google")
     def transcribe(
         self,
         audio_data: AudioData,
@@ -213,13 +230,16 @@ class OpenAICompatibleTranscriptionProvider:
     最も広くサポートされている WAV (`AudioData.get_wav_data()`) を使う。
     """
 
+    @provider_errors(lambda self, *args, **kwargs: self.engine_name)
     def __init__(self, api_key: str, base_url: str, model: str, engine_name: str) -> None:
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
         self.engine_name = engine_name
-        self._client = OpenAI(api_key=api_key, base_url=base_url, timeout=_HTTP_TIMEOUT)
+        self._client = OpenAI(api_key=api_key, base_url=base_url, timeout=_HTTP_TIMEOUT,
+                              http_client=api_http_client(base_url, timeout=_HTTP_TIMEOUT))
 
+    @provider_errors(lambda self, *args, **kwargs: self.engine_name)
     def transcribe(
         self,
         audio_data: AudioData,
@@ -244,8 +264,8 @@ class OpenAICompatibleTranscriptionProvider:
             )
         except Exception as exc:
             error_code = _map_openai_exception(exc)
-            errorLogging()
-            raise TranscriptionApiError(error_code) from exc
+            errorLogging(provider=self.engine_name)
+            raise TranscriptionApiError(error_code) from None
 
         segments = getattr(response, "segments", None) or []
         accepted_logprobs: List[float] = []
@@ -319,6 +339,7 @@ class DeepgramProvider:
         self.model = model
         self.model_languages = model_languages or []
 
+    @provider_errors("Deepgram")
     def transcribe(
         self,
         audio_data: AudioData,
@@ -349,16 +370,18 @@ class DeepgramProvider:
                 params=params,
                 data=wav_bytes,
                 timeout=_HTTP_TIMEOUT,
+                allow_redirects=False,
+                auth=explicit_request_auth,
             )
-        except requests.exceptions.Timeout as exc:
-            errorLogging()
-            raise TranscriptionApiError(ErrorCode.TRANSCRIPTION_API_TIMEOUT) from exc
-        except requests.exceptions.RequestException as exc:
-            errorLogging()
-            raise TranscriptionApiError(ErrorCode.TRANSCRIPTION_API_SERVER_ERROR) from exc
+        except requests.exceptions.Timeout:
+            errorLogging(provider="Deepgram")
+            raise TranscriptionApiError(ErrorCode.TRANSCRIPTION_API_TIMEOUT) from None
+        except requests.exceptions.RequestException:
+            errorLogging(provider="Deepgram")
+            raise TranscriptionApiError(ErrorCode.TRANSCRIPTION_API_SERVER_ERROR) from None
 
         if response.status_code != 200:
-            errorLogging()
+            errorLogging(provider="Deepgram", status=response.status_code)
             raise TranscriptionApiError(_map_deepgram_status(response.status_code))
 
         payload = response.json()

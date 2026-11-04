@@ -21,6 +21,7 @@ def app(monkeypatch):
     controller.legacy_downloads = LegacyDownloads()
     controller.run_mapping = {f"{event}_{kind}_weight": f"/run/{event}_{kind}_weight"
         for kind in ("whisper", "ctranslate2") for event in ("downloaded", "error", "download_progress")}
+    controller.run_mapping["connected_network"] = "/run/connected_network"
     controller.run = Mock()
     yield controller, config, backend
     assert controller.legacy_downloads.close()

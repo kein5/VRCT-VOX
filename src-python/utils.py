@@ -15,6 +15,8 @@ from collections import OrderedDict
 from logging.handlers import RotatingFileHandler
 
 import requests
+from models.network_policy import redact_urls
+from models.diagnostics import exception_provider, redact_diagnostic_text
 import ipaddress
 import socket
 
@@ -506,16 +508,10 @@ def validateDictStructure(data: dict, structure: dict) -> bool:
                 return False
     return True
 
-def isConnectedNetwork(url="https://www.google.com", timeout=3) -> bool:
-    """Quick network connectivity check by requesting `url`.
-
-    Returns True when a 200 response is returned within `timeout` seconds.
-    """
-    try:
-        response = requests.get(url, timeout=timeout)
-        return response.status_code == 200
-    except requests.RequestException:
-        return False
+def isConnectedNetwork(timeout=3) -> bool:
+    """Probe only the pinned download origin, when a consented download is due."""
+    from models.model_downloads.transport import probe_download_host
+    return probe_download_host(timeout=timeout)
 
 def isValidPort(port) -> bool:
     """Network settings require an exact integer, never bool or coercion."""
@@ -920,8 +916,8 @@ def printLog(log: str, data: Any = None) -> None:
         logged_data = _redactConversation(logged_data)
     response = {
         "status": 348,
-        "log": log,
-        "data": str(logged_data),
+        "log": redact_urls(log),
+        "data": str(redact_urls(logged_data)),
     }
     process_logger.info(response)
     serialized = json.dumps(response)
@@ -995,7 +991,7 @@ def printResponse(status: int, endpoint: str, result: Any = None, *, notificatio
         logged_result = _maskSensitiveData(result)
     if endpoint in _CONVERSATION_ENDPOINTS:
         logged_result = _redactConversation(logged_result)
-    logged_response = {**response, "result": logged_result}
+    logged_response = {**response, "result": redact_urls(logged_result)}
     if endpoint not in _UNLOGGED_ENDPOINTS and not isQuietPoll(endpoint, status):
         process_logger.info(logged_response)  # Log the (possibly masked) response, never the raw secret
 
@@ -1026,17 +1022,31 @@ def printResponse(status: int, endpoint: str, result: Any = None, *, notificatio
 error_logger: Optional[logging.Logger] = None
 
 
-def errorLogging() -> None:
-    """Log the current exception traceback to the error logger."""
+def errorLogging(*, provider=None, status=None) -> None:
+    """Keep redacted general tracebacks; omit bodies/chains for provider errors."""
     global error_logger
-    if error_logger is None:
-        error_logger = setupLogger("error", "error.log", logging.ERROR)
-
+    exc = sys.exc_info()[1]
+    provider = provider if provider is not None else exception_provider(exc)
+    if provider is None:
+        record = redact_diagnostic_text(traceback.format_exc())
+    else:
+        if exc is not None:
+            exc._vrct_provider = provider
+        code = status if status is not None else getattr(exc, "status_code", None)
+        if code is None:
+            code = getattr(getattr(exc, "response", None), "status_code", None)
+        record = {"error": type(exc).__name__ if exc else "ProviderError", "provider": provider}
+        if type(code) is int:
+            record["status"] = code
+        if exc is not None:
+            record["frames"] = [f"{os.path.basename(frame.filename)}:{frame.lineno}:{frame.name}"
+                                for frame in traceback.extract_tb(exc.__traceback__)]
     try:
-        error_logger.error(traceback.format_exc())
+        if error_logger is None:
+            error_logger = setupLogger("error", "error.log", logging.ERROR)
+        error_logger.error(record)
     except Exception:
-        # As a last resort, print the traceback to stdout
-        print(traceback.format_exc(), flush=True)
+        print(record if isinstance(record, str) else json.dumps(record), flush=True)
 
 if __name__ == "__main__":
     print(getComputeDeviceList())
