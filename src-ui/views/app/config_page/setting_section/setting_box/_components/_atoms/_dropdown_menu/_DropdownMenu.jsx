@@ -148,6 +148,7 @@ export const _DropdownMenu = (props) => {
             <div className={dropdown_toggle_button_class_name} onClick={toggleDropdownMenu} style={props.style}
                 role="combobox" tabIndex={unavailable ? -1 : 0} onKeyDown={handleToggleKeyDown}
                 aria-label={[props.label, props.secondary_label].filter(text => typeof text === "string").join(" ") || undefined}
+                aria-describedby={props["aria-describedby"]}
                 aria-haspopup="listbox" aria-expanded={is_opened} aria-controls={listId}
                 aria-disabled={unavailable || undefined}
                 aria-activedescendant={is_opened && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}>

@@ -37,6 +37,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
         pending: draft => needsSelection(draft) && JSON.stringify(draft) === JSON.stringify(saved) ? [t(variant === "rvc" ? "voice_ui.select_rvc" : "voice.direct_mode")] : [] });
     const { draft, setDraft, saving, dirty } = form;
     const reasonId = useId();
+    const numbersErrorId = useId();
     useEffect(() => {
         setDirectDraftBlocked(dirty || saving);
         return () => setDirectDraftBlocked(false);
@@ -104,12 +105,13 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
         {converted && rvc && [["rvc_pitch", -24, 24, 1], ["rvc_index_rate", 0, 1, 0.05]].map(([name, min, max, step]) =>
             <label key={name}>{t(`voice.vc_${name}`)}
                 <input type="number" min={min} max={max} step={step} disabled={busy}
+                    aria-describedby={!validNumbers(draft) ? numbersErrorId : undefined}
                     aria-invalid={name === "rvc_pitch" ? !Number.isInteger(draft[name]) || Math.abs(draft[name]) > 24 :
                         !Number.isFinite(draft[name]) || draft[name] < 0 || draft[name] > 1}
                     value={Number.isFinite(draft[name]) ? draft[name] : ""}
                     onChange={e => setDraft({ ...draft, [name]: e.target.valueAsNumber })} />
             </label>)}
-        {converted && rvc && !validNumbers(draft) && <p role="alert">{t("voice_ui.invalid_rvc_numbers")}</p>}
+        {converted && rvc && !validNumbers(draft) && <p id={numbersErrorId} role="alert">{t("voice_ui.invalid_rvc_numbers")}</p>}
         {converted && rvc && draft.rvc_index_rate > 0 && !draft.rvc_index && <p role="alert">{t("voice_ui.rvc_index_required")}</p>}
         </fieldset>
         <FormRow label={t("voice.input_source")} description={t("voice.input_selection_hint")}

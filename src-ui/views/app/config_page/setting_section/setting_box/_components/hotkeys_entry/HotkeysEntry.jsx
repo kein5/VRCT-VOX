@@ -132,6 +132,7 @@ export const HotkeysEntry = (props) => {
         <div className={styles.container}>
             {is_pending && <span className={styles.loader}></span>}
             <_Entry
+                aria-describedby={props["aria-describedby"]}
                 aria-label={props.label}
                 ref={entryRef}
                 onFocus={handleFocus}

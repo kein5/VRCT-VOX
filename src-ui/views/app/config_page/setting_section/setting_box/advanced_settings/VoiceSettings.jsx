@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { useI18n } from "@useI18n";
 import { useVoice } from "../../../../../../logics/voice/useVoice";
 import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
@@ -13,6 +13,7 @@ import { FormRow } from "../_components/form_row/FormRow";
 
 export const VoiceSettings = () => {
     const { t } = useI18n();
+    const optionsErrorId = useId();
     const { settings, status, devices, error, send, updateError } = useVoice();
     const label = ([key]) => {
         const role = ["japanese", "multilingual"].find(name => key.startsWith(`${name}_`));
@@ -95,7 +96,7 @@ export const VoiceSettings = () => {
                 {["japanese", "multilingual"].map(role => <fieldset key={role} className={styles.group} aria-label={`${t(`speech_servers.${role}`)} · ${t("voice.title")}`}>
                     <legend>{t(`speech_servers.${role}`)}</legend>
                     {server(role)}{draft[`${role}_server`] !== "bundled" && input(`${role}_url`)}{input(`${role}_voice`)}
-                    <GenerationOptions role={role} draft={draft} field={field} />
+                    <GenerationOptions errorId={optionsErrorId} role={role} draft={draft} field={field} />
                 </fieldset>)}
                 <details><summary>{t("voice.mic_mode")}</summary>
                     <FormRow label={t("voice.mic_mode")} description={t("voice.mic_hint")}>
@@ -110,7 +111,7 @@ export const VoiceSettings = () => {
                 </details>
             </fieldset>
         </form>
-        {!validGenerationOptions(draft) && <p role="alert">{t("voice_ui.invalid_options")}</p>}
+        {!validGenerationOptions(draft) && <p id={optionsErrorId} role="alert">{t("voice_ui.invalid_options")}</p>}
         {form.navigationDialog}
         {(error || status.last_error || devices.error) && <p role="alert">{t("voice.error")}: {error || status.last_error || devices.error}</p>}
     </section>;

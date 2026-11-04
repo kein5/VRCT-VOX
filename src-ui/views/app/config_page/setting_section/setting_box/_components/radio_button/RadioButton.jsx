@@ -11,7 +11,8 @@ export const RadioButton = (props) => {
     });
 
     return (
-        <div className={containerClass}>
+        <div className={containerClass} role="radiogroup" aria-labelledby={props["aria-labelledby"]}
+            aria-label={props["aria-labelledby"] ? undefined : props.label} aria-describedby={props["aria-describedby"]}>
             {props.checked_variable.state === "pending" && <span className={styles.loader}></span>}
             {props.options.map((option) => {
                 const radioWrapperClass = clsx(styles.radio_button_container, {

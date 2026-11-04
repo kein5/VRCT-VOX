@@ -6,6 +6,7 @@ import { useRealtimeASR } from "../../../transcription/useRealtimeASR";
 import { createLanguageNames } from "../../../common/languageNames.js";
 import { ui_configs } from "@ui_configs";
 import i18n from "@root/locales/config.js";
+import { requestSettingsNavigation } from "../../../voice/settingsNavigation";
 
 // 検索の元にする config_page 以下の文言の名前空間
 const VALID_TABS = [
@@ -208,38 +209,62 @@ export const useConfigSearch = () => {
     const clearQuery = useCallback(() => setQuery(""), []);
 
     const navigateToSetting = useCallback((result) => {
-        clearQuery();
-
-        if (currentSelectedConfigTabId.data !== result.tab) {
-            updateSelectedConfigTabId(result.tab);
-        }
-
-        let attempts = 0;
-        const findAndScroll = () => {
-            let target =
-                document.querySelector(`[data-setting-id="${result.setting_id}"]`) ||
-                document.querySelector(`[data-setting-label="${result.label}"]`);
-
-            // 条件付き非表示などでDOMにない場合、親項目へフォールバック
-            if (!target && result.prereq) {
-                target = document.querySelector(`[data-setting-id="${result.prereq.parent_id}"]`);
+        const navigate = () => {
+            clearQuery();
+            if (currentSelectedConfigTabId.data !== result.tab) {
+                updateSelectedConfigTabId(result.tab, { voice_navigation_confirmed: true });
             }
 
-            if (target) {
-                target.scrollIntoView({ behavior: "smooth", block: "center" });
-                target.classList.remove("search_target_highlight");
-                void target.offsetWidth; // trigger reflow
-                target.classList.add("search_target_highlight");
-                setTimeout(() => {
+            let attempts = 0;
+            const findAndScroll = () => {
+                let target =
+                    document.querySelector(`[data-setting-id="${CSS.escape(result.setting_id)}"]`) ||
+                    document.querySelector(`[data-setting-label="${CSS.escape(result.label)}"]`);
+
+                // 条件付き非表示などでDOMにない場合、親項目へフォールバック
+                if (!target && result.prereq) {
+                    target = document.querySelector(`[data-setting-id="${CSS.escape(result.prereq.parent_id)}"]`);
+                }
+
+                if (target) {
+                    // Native details keep their children mounted even when folded.
+                    for (let ancestor = target.parentElement; ancestor; ancestor = ancestor.parentElement) {
+                        if (ancestor.tagName === "DETAILS") ancestor.open = true;
+                    }
+                    const controls = target.querySelectorAll("input:not([type='hidden']), select, textarea, button, a[href], summary, [tabindex]");
+                    const available = Array.from(controls).filter(node => !node.matches(":disabled, [aria-disabled='true'], [tabindex='-1']") &&
+                        !node.closest("[hidden], [inert]") && node.getClientRects().length > 0);
+                    // Help disclosures and documentation links may precede the actual field.
+                    const control = available.find(node => node.matches("input, select, textarea, [role='switch'], [role='combobox'], [role='slider']")) ?? available[0];
+                    if (control) {
+                        control.focus({ preventScroll: true });
+                    } else {
+                        const previousTabIndex = target.getAttribute("tabindex");
+                        target.setAttribute("tabindex", "-1");
+                        target.addEventListener("blur", () => {
+                            if (previousTabIndex === null) target.removeAttribute("tabindex");
+                            else target.setAttribute("tabindex", previousTabIndex);
+                        }, { once: true });
+                        target.focus({ preventScroll: true });
+                    }
+                    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                    target.scrollIntoView({ behavior: reducedMotion ? "instant" : "smooth", block: "center" });
                     target.classList.remove("search_target_highlight");
-                }, 2500);
-            } else if (attempts < 25) {
-                attempts++;
-                setTimeout(findAndScroll, 40);
-            }
-        };
+                    void target.offsetWidth; // trigger reflow
+                    target.classList.add("search_target_highlight");
+                    setTimeout(() => {
+                        target.classList.remove("search_target_highlight");
+                    }, 2500);
+                } else if (attempts < 25) {
+                    attempts++;
+                    setTimeout(findAndScroll, 40);
+                }
+            };
 
-        setTimeout(findAndScroll, 60);
+            setTimeout(findAndScroll, 60);
+        };
+        if (currentSelectedConfigTabId.data !== result.tab) requestSettingsNavigation(navigate);
+        else navigate();
     }, [clearQuery, currentSelectedConfigTabId.data, updateSelectedConfigTabId]);
 
     return { query, setQuery, results, clearQuery, navigateToSetting };

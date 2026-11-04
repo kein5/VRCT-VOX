@@ -14,7 +14,7 @@ export const ConnectionCheckButton = (props) => {
             className={styles.container}
             tone={state === "connected" ? "active" : "neutral"}
             actions={
-                <button type="button" className={styles.button} disabled={pending} onClick={props.checkFunction}>
+                <button aria-describedby={props["aria-describedby"]} type="button" className={styles.button} disabled={pending} onClick={props.checkFunction}>
                     {t("config_page.common.connection_check.button_label")}
                 </button>
             }

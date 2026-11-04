@@ -9,6 +9,7 @@ export const ActionButton = ({
     onclickFunction,
     onErrorFunction,
     label,
+    "aria-describedby": describedBy,
 }) => {
     const [is_clicked, setIsClicked] = useState(false);
     const [is_pending, setIsPending] = useState(false);
@@ -48,6 +49,7 @@ export const ActionButton = ({
         <div className={styles.container}>
             <button type="button" className={clsx(styles.button_wrapper, active_class)} onClick={onClick}
                 aria-disabled={is_pending || is_clicked} aria-busy={is_pending}
+                aria-describedby={describedBy}
                 aria-label={typeof label === "string" ? label : undefined}>
                 <ShownIcon className={clsx(styles.button_svg, active_class, { [styles.is_pending]: is_pending })} aria-hidden="true" />
                 {is_pending && <span className={styles.loader} aria-hidden="true" />}

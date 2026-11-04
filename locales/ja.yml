@@ -315,6 +315,33 @@ update_modal:
 
 config_page:
     about_vrct:
+        image_links:
+            dev_misya_x: "みしゃ（misyaguziya）のX"
+            dev_misya_github: "みしゃ（misyaguziya）のGitHub"
+            dev_shiina_x: "ShiinaのX"
+            project_link_documents: "元のVRCTのドキュメント"
+            project_link_vrct_github: "元のVRCTのGitHubリポジトリ"
+            contributors_done_san_x: "どね（done_san）のX"
+            contributors_iya_x: "IYAのX"
+            contributors_rera_x: "れら（Rera*C）のX"
+            contributors_rera_github: "れら（Rera*C）のGitHub"
+            contributors_poposuke_x: "Poposuke_sigのX"
+            contributors_kumaguma_x: "クマグマ（KUMAGUMA）のX"
+            contributors_riku_x: "RIKU_730のX"
+        credits:
+            dev_section_title: "開発者"
+            dev_misya: "みしゃ（misyaguziya）：バックエンド、メイン開発。「いつになったら寝られるんだろう？」"
+            dev_shiina: "Shiina（Shiina Sakamoto）：フロントエンド、UI/UX。「ええと…倒れたら寝られますよ ;)」"
+            contributors_section_title: "貢献者"
+            contributor_done: "どね（done_san）：ロゴデザイン"
+            contributor_iya: "IYA：広報ポスター・漫画"
+            contributor_rera: "れら（Rera*C）：技術アドバイザー"
+            contributor_poposuke: "Poposuke_sig：3Dモデル"
+            contributor_kumaguma: "クマグマ（KUMAGUMA）：ITインフラ"
+            contributor_riku: "RIKU_730：翻訳"
+            special_thanks_section_title: "スペシャルサンクス"
+            special_thanks_members: "いちや / トサカひよ / あじ / MiuJepang / キャサリン / ちぱ / ちゃかもと / NOEEEEE / HayaTikaze / こねこにゃん / ふながし / よちょたち / みくちゅ / 星さん / 八葉そるち / チャヤカチー / べるすけ / りょうらん / Voyage Voyage / 夜桜 蓮（聾_deaf） / マリオ / faketuna / Ekas / potaya / 空き部屋 / キャリア / nao71332 / ざらざらめ / ことは しろ / みねたけ / ちゅんた / flizeee / Heart-Breezer / ggg123124"
+            special_thanks_message: "様々な形でこのソフトへ支援をしていただいている皆様、本当にありがとうございます。"
         summary: "音声認識（ASR）、読み上げ（TTS）、ボイスチェンジ（RVC）、チャット読み取り（OCR）、翻訳を、VRChat向けに一つにまとめたアプリです。"
         fork_notice: "VRCT-VOXは、kein5が開発しているVRCTの独立したforkで、VRCTの公式版ではありません。不具合や質問は、本家VRCTの開発者ではなくVRCT-VOXのIssuesにお寄せください。"
         links:
@@ -332,6 +359,9 @@ config_page:
         requires: "要: {{name}}"
         no_results: "一致する設定が見つかりませんでした"
     common:
+        open_color_picker: "{{label}}の色を選択"
+        duration_seconds_one: "{{count}}秒"
+        duration_seconds_other: "{{count}}秒"
         version: "バージョン{{version}}"
         model_download_button_label: "ダウンロード"
         save_button_label: "保存"
@@ -521,6 +551,7 @@ config_page:
             label: "マイクの最大待機メッセージ数"
             desc: "文字起こしされたメッセージが送信されるまでに溜められる最大数です。これを超えると、古いものからVRChatに送信されずに破棄されます。"
         mic_word_filter:
+            remove_word: "「{{word}}」を削除"
             label: "ワードフィルター"
             desc: "登録された単語を検出すると、その文章は送信されません。\n「,」カンマで区切ると、まとめて複数の単語を追加できます。\n※重複した単語は登録されません。"
             add_button_label: "追加"

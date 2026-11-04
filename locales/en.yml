@@ -315,6 +315,33 @@ update_modal:
 
 config_page:
     about_vrct:
+        image_links:
+            dev_misya_x: "みしゃ (misyaguziya) on X"
+            dev_misya_github: "みしゃ (misyaguziya) on GitHub"
+            dev_shiina_x: "Shiina on X"
+            project_link_documents: "Original VRCT documentation"
+            project_link_vrct_github: "Original VRCT repository on GitHub"
+            contributors_done_san_x: "どね (done_san) on X"
+            contributors_iya_x: "IYA on X"
+            contributors_rera_x: "れら (Rera*C) on X"
+            contributors_rera_github: "れら (Rera*C) on GitHub"
+            contributors_poposuke_x: "Poposuke_sig on X"
+            contributors_kumaguma_x: "クマグマ (KUMAGUMA) on X"
+            contributors_riku_x: "RIKU_730 on X"
+        credits:
+            dev_section_title: "The developers"
+            dev_misya: "みしゃ (misyaguziya): backend, main development. “When will I ever go to sleep?”"
+            dev_shiina: "Shiina (Shiina Sakamoto): frontend, UI/UX. “Um... You’ll sleep when you pass out, sir ;)”"
+            contributors_section_title: "Contributors"
+            contributor_done: "どね (done_san): logo design"
+            contributor_iya: "IYA: PR poster and manga"
+            contributor_rera: "れら (Rera*C): technical advisor"
+            contributor_poposuke: "Poposuke_sig: 3D model"
+            contributor_kumaguma: "クマグマ (KUMAGUMA): IT infrastructure"
+            contributor_riku: "RIKU_730: translator"
+            special_thanks_section_title: "Special thanks"
+            special_thanks_members: "いちや / トサカひよ / あじ / MiuJepang / キャサリン / ちぱ / ちゃかもと / NOEEEEE / HayaTikaze / こねこにゃん / ふながし / よちょたち / みくちゅ / 星さん / 八葉そるち / チャヤカチー / べるすけ / りょうらん / Voyage Voyage / 夜桜 蓮（聾_deaf） / マリオ / faketuna / Ekas / potaya / 空き部屋 / キャリア / nao71332 / ざらざらめ / ことは しろ / みねたけ / ちゅんた / flizeee / Heart-Breezer / ggg123124"
+            special_thanks_message: "Thank you very much to everyone who is supporting this software in various ways."
         summary: "Speech recognition (ASR), text to speech (TTS), voice conversion (RVC), screen chat reading (OCR) and translation for VRChat, in one app."
         fork_notice: "VRCT-VOX is an independent fork of VRCT developed by kein5. It is not an official VRCT release. Please report problems and questions to VRCT-VOX Issues, not to the original VRCT developers."
         links:
@@ -332,6 +359,9 @@ config_page:
         requires: "Requires: {{name}}"
         no_results: "No matching settings found"
     common:
+        open_color_picker: "Choose color: {{label}}"
+        duration_seconds_one: "{{count}} second"
+        duration_seconds_other: "{{count}} seconds"
         version: "Version {{version}}"
         model_download_button_label: "Download"
         save_button_label: "Save"
@@ -521,6 +551,7 @@ config_page:
             label: "Mic Max Queued Messages"
             desc: "Maximum number of transcribed messages that can pile up before being sent. If more pile up, the oldest ones are discarded without being sent to VRChat."
         mic_word_filter:
+            remove_word: "Remove {{word}}"
             label: "Mic Word Filter"
             desc: "If a registered word is detected, the message will not be sent. To add multiple words at once, separate them with ',' (comma).\n*Duplicate words will not be registered."
             add_button_label: "Add"

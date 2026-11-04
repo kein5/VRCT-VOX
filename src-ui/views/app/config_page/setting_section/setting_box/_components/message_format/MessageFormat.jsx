@@ -29,7 +29,7 @@ export const MessageFormat = (props) => {
     });
 
     return (
-        <div className={message_format_container_class}>
+        <div className={message_format_container_class} role="group" aria-labelledby={props["aria-labelledby"]} aria-describedby={props["aria-describedby"]}>
             <ExampleComponent
                 format={props.variable.data}
                 format_id={props.format_id}
