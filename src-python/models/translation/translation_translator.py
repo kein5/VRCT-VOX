@@ -1,7 +1,9 @@
 from os import path as os_path
+from copy import copy
 from deepl import DeepLClient
 
 try:
+    from .translation_history import TranslationHistory
     from .translation_languages import translation_lang
     from .translation_utils import MissingCTranslate2Tokenizer, resolveCTranslate2Weight, downloadCTranslate2Tokenizer
     from .translation_providers import TRANSLATION_PROVIDER_REGISTRY
@@ -9,6 +11,7 @@ try:
 except Exception:
     import sys
     sys.path.append(os_path.dirname(os_path.dirname(os_path.dirname(os_path.abspath(__file__)))))
+    from translation_history import TranslationHistory
     from translation_languages import translation_lang
     from translation_utils import MissingCTranslate2Tokenizer, resolveCTranslate2Weight, downloadCTranslate2Tokenizer
     from translation_providers import TRANSLATION_PROVIDER_REGISTRY
@@ -587,6 +590,22 @@ class Translator:
             ) from e
         return source_language, target_language
 
+    @staticmethod
+    def _translateLLM(client, message, source_language, target_language, context_history):
+        # Snapshot the adapter and its SDK reference before invoking it. Context
+        # must not persist on a shared adapter or race another target language.
+        # No settings lock is held during the provider request.
+        from config import config
+
+        with config.translation_history_lock:
+            request_client = copy(client)
+            history = context_history or []
+            if (isinstance(history, TranslationHistory)
+                    and history.generation != config.translation_history_generation):
+                history = []
+            request_client.setContextHistory(history)
+        return request_client.translate(message, input_lang=source_language, output_lang=target_language)
+
     def translate(self, translator_name: str, weight_type: str, source_language: str, target_language: str, target_country: str, message: str, context_history: Optional[list[dict]] = None) -> Any:
         """Translate `message` using the named translator backend.
 
@@ -640,46 +659,26 @@ class Translator:
                     if provider_client is None:
                         result = False
                     else:
-                        if context_history:
-                            provider_client.setContextHistory(context_history)
-                        result = provider_client.translate(
-                            message,
-                            input_lang=source_language,
-                            output_lang=target_language,
-                            )
+                        result = self._translateLLM(
+                            provider_client, message, source_language, target_language, context_history)
                 case "OpenAI_Compatible":
                     if self.openai_compatible_client is None:
                         result = False
                     else:
-                        if context_history:
-                            self.openai_compatible_client.setContextHistory(context_history)
-                        result = self.openai_compatible_client.translate(
-                            message,
-                            input_lang=source_language,
-                            output_lang=target_language,
-                        )
+                        result = self._translateLLM(
+                            self.openai_compatible_client, message, source_language, target_language, context_history)
                 case "LMStudio":
                     if self.lmstudio_client is None:
                         result = False
                     else:
-                        if context_history:
-                            self.lmstudio_client.setContextHistory(context_history)
-                        result = self.lmstudio_client.translate(
-                            message,
-                            input_lang=source_language,
-                            output_lang=target_language,
-                        )
+                        result = self._translateLLM(
+                            self.lmstudio_client, message, source_language, target_language, context_history)
                 case "Ollama":
                     if self.ollama_client is None:
                         result = False
                     else:
-                        if context_history:
-                            self.ollama_client.setContextHistory(context_history)
-                        result = self.ollama_client.translate(
-                            message,
-                            input_lang=source_language,
-                            output_lang=target_language,
-                        )
+                        result = self._translateLLM(
+                            self.ollama_client, message, source_language, target_language, context_history)
                 case "Google":
                     if ENABLE_TRANSLATORS is True and other_web_Translator is not None:
                         result = other_web_Translator(

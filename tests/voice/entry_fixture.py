@@ -59,7 +59,7 @@ def main():
         def websocketSendMessage(self, payload):
             journal('websocket_contract', payload=payload)
 
-        def addTranslationHistory(self, source, text):
+        def addTranslationHistory(self, source, text, *, snapshot=None):
             journal('history_contract', source=source, text=text)
 
         def oscSendMessage(self, message):

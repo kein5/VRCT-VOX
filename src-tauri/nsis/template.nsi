@@ -910,7 +910,9 @@ Section Install
   ; probe fails, $dl_total stays "0" and a single stream is used instead.
   StrCpy $dl_total "0"
   ${DisableX64FSRedirection}
-  nsExec::ExecToStack '"$SYSDIR\curl.exe" -sIL --fail --retry 2 -o NUL -w "%header{content-length}" "$cmder_dl"'
+  ; Match the checksum request's 30s completion budget per attempt. Bound
+  ; retry admission too (curl may finish one last attempt after that budget).
+  nsExec::ExecToStack '"$SYSDIR\curl.exe" -sIL --fail --connect-timeout 10 --max-time 30 --retry 2 --retry-max-time 30 -o NUL -w "%header{content-length}" "$cmder_dl"'
   Pop $0
   Pop $1
   ${EnableX64FSRedirection}

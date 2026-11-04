@@ -41,6 +41,7 @@ async function fixture(context, kind, openerState) {
         "../../../../../../logics/configs/ctranslate2License": {},
         "@logics_configs": {}, "../_templates/Templates": {}, "../_components": {},
         "../_components/compute_device/ComputeDevice": {}, "../_components/setup_section/SetupSection": {},
+        "../_components/description/Description": {},
         "../_components/download_models/LegacyModelDownloadDialog": {}, "../shared_items/SharedItems": {},
         "@ui_configs": {}, "@logics_common": {},
     };

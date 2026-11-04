@@ -2206,7 +2206,7 @@ class Controller:
 
         if not current():
             return None
-        sink("history", lambda: model.addTranslationHistory(spec.kind, message))
+        sink("history", lambda: model.addTranslationHistory(spec.kind, message, snapshot=snapshot))
 
         if voice_snapshot is not None and voice_snapshot[1].mode == "translated":
             sink("tts", lambda: self._publishChatVoice(

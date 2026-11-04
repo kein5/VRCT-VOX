@@ -468,6 +468,7 @@ config_page:
         section_label_ai_translation: "AI翻訳（ローカル）"
         section_label_external_api: "外部翻訳API"
         section_label_local_llm: "ローカルLLM・互換サーバー"
+        llm_privacy_desc: "LLMエンジンは、翻訳する本文とプロンプトに加え、チャット・マイク・スピーカーの直近の会話を最大5件、選んだサービスに送ります。SDKはOSの種類、CPUの種類、実行環境やバージョンの情報も送ります。エンジン・接続先・モデルを変えたときや、翻訳をオフにしたときに履歴をリセットします。"
 
         ctranslate2_weight_type:
             label: "{{ctranslate2}}のモデルタイプ"
