@@ -91,6 +91,9 @@ class ErrorCode(str, Enum):
     # または動作中に止まった。details.reason に不足している項目のコードが入る。
     TRANSCRIPTION_SEND_NOT_READY = "TRANSCRIPTION_SEND_NOT_READY"
     TRANSCRIPTION_RECEIVE_NOT_READY = "TRANSCRIPTION_RECEIVE_NOT_READY"
+    TRANSCRIPTION_ENGINE_NOT_SELECTED = "TRANSCRIPTION_ENGINE_NOT_SELECTED"
+    TRANSCRIPTION_MODEL_MISSING = "TRANSCRIPTION_MODEL_MISSING"
+    TRANSCRIPTION_ENGINE_UNAVAILABLE = "TRANSCRIPTION_ENGINE_UNAVAILABLE"
     TRANSCRIPTION_API_AUTH_FAILED = "TRANSCRIPTION_API_AUTH_FAILED"
     TRANSCRIPTION_API_RATE_LIMITED = "TRANSCRIPTION_API_RATE_LIMITED"
     TRANSCRIPTION_API_TIMEOUT = "TRANSCRIPTION_API_TIMEOUT"
@@ -263,6 +266,14 @@ class AudioPipelineError(RuntimeError):
     def __init__(self, failure: AudioPipelineFailure) -> None:
         super().__init__(failure.message)
         self.failure = failure
+
+
+class TranscriptionStartError(RuntimeError):
+    """The selected recognizer cannot start; never select another provider."""
+
+    def __init__(self, error_code: ErrorCode) -> None:
+        super().__init__(error_code.value)
+        self.error_code = error_code
 
 
 class OcrStartError(RuntimeError):
@@ -449,6 +460,24 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
     ErrorCode.TRANSCRIPTION_RECEIVE_NOT_READY: {
         "category": ErrorCategory.TRANSCRIPTION,
         "message": "Realtime speaker recognition is not ready",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSCRIPTION_ENGINE_NOT_SELECTED: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "Choose a speech recognition engine before enabling transcription.",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSCRIPTION_MODEL_MISSING: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "Whisper model files are missing or invalid. Review the model download before trying again.",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSCRIPTION_ENGINE_UNAVAILABLE: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "The selected speech recognition engine could not start. Check its settings.",
         "severity": "error",
         "user_action_required": True,
     },

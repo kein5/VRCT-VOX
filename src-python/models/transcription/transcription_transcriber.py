@@ -48,7 +48,7 @@ _CLOUD_TRANSCRIPTION_ENGINES = _API_TRANSCRIPTION_ENGINES + ("Deepgram",)
 
 import numpy as np
 from pydub import AudioSegment
-from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode
+from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, TranscriptionStartError
 from utils import errorLogging, printLog
 from .utterance_diagnostics import utterance_diagnostics
 
@@ -148,25 +148,30 @@ class AudioTranscriber:
         self.asr_successes = 0
         self.audio_recognizer = Recognizer()
         self.audio_recognizer.operation_timeout = GOOGLE_RECOGNIZE_TIMEOUT_SECONDS
-        self.transcription_engine = "Google"
+        self.transcription_engine = transcription_engine
         self.whisper_model = None
         self.whisper_weight_type = whisper_weight_type
         self._api_provider: Optional[OpenAICompatibleTranscriptionProvider] = None
-        self.audio_sources: Dict[str, Any] = {
-            "sample_rate": source.SAMPLE_RATE,
-            "sample_width": source.SAMPLE_WIDTH,
-            "channels": source.channels,
-            "last_sample": bytes(),
-            "last_spoken": None,
-            "phrase_started_at": None,
-            "process_data_func": self.processSpeakerData if speaker else self.processMicData,
-        }
+        self.audio_sources: Dict[str, Any] = {}
+        if source is not None:
+            self.setAudioSource(source)
 
-        if transcription_engine == "Whisper" and checkWhisperWeight(root, whisper_weight_type) is True:
-            self.whisper_model = getWhisperModel(
-                root, whisper_weight_type, device=device, device_index=device_index, compute_type=compute_type
-            )
-            self.transcription_engine = "Whisper"
+        if transcription_engine is None:
+            raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_ENGINE_NOT_SELECTED)
+        if transcription_engine == "Whisper":
+            try:
+                verified = checkWhisperWeight(root, whisper_weight_type)
+            except Exception:
+                verified = False
+            if verified is not True:
+                raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_MODEL_MISSING)
+            try:
+                self.whisper_model = getWhisperModel(
+                    root, whisper_weight_type, device=device, device_index=device_index, compute_type=compute_type
+                )
+            except FileNotFoundError:
+                # The loader verifies again; files may change after the first check.
+                raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_MODEL_MISSING) from None
         elif transcription_engine in _API_TRANSCRIPTION_ENGINES:
             self.transcription_engine = transcription_engine
             try:
@@ -177,8 +182,7 @@ class AudioTranscriber:
                     engine_name=transcription_engine,
                 )
             except Exception:
-                errorLogging()
-                raise
+                raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_ENGINE_UNAVAILABLE) from None
         elif transcription_engine == "Deepgram":
             self.transcription_engine = transcription_engine
             try:
@@ -188,8 +192,21 @@ class AudioTranscriber:
                     model_languages=api_model_languages,
                 )
             except Exception:
-                errorLogging()
-                raise
+                raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_ENGINE_UNAVAILABLE) from None
+        elif transcription_engine != "Google":
+            raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_ENGINE_UNAVAILABLE)
+
+    def setAudioSource(self, source: Any) -> None:
+        """Bind PCM format after the recognizer is ready, before listening."""
+        self.audio_sources = {
+            "sample_rate": source.SAMPLE_RATE,
+            "sample_width": source.SAMPLE_WIDTH,
+            "channels": source.channels,
+            "last_sample": bytes(),
+            "last_spoken": None,
+            "phrase_started_at": None,
+            "process_data_func": self.processSpeakerData if self.speaker else self.processMicData,
+        }
 
     def _resolve_provider(self):
         """`self.transcription_engine`/`self.whisper_model` の"現在の"値を見て
@@ -204,7 +221,9 @@ class AudioTranscriber:
             return LocalWhisperProvider(self.whisper_model)
         if self.transcription_engine in _CLOUD_TRANSCRIPTION_ENGINES:
             return self._api_provider
-        return GoogleProvider(self.audio_recognizer)
+        if self.transcription_engine == "Google":
+            return GoogleProvider(self.audio_recognizer)
+        raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_ENGINE_UNAVAILABLE)
 
     def getAudioWaitTimeout(self) -> Optional[float]:
         """次の入力なしでもフレーズのリセットが必要になるまでの秒数。"""

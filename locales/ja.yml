@@ -174,6 +174,9 @@ common_error:
 
 # Messages for the sidecar's error codes (see docs/spec/reference/error-codes.md).
 backend_errors:
+    TRANSCRIPTION_ENGINE_NOT_SELECTED: "文字起こしをオンにする前に、音声認識エンジンを選んでください。"
+    TRANSCRIPTION_MODEL_MISSING: "Whisper のモデルが見つからないか、検証に失敗しました。ダウンロード内容を確認し、準備ができてから文字起こしをもう一度オンにしてください。"
+    TRANSCRIPTION_ENGINE_UNAVAILABLE: "選択した音声認識エンジンを起動できませんでした。エンジンの設定を確認してから、文字起こしをもう一度オンにしてください。"
     WEIGHT_DOWNLOAD_CONSENT_REQUIRED: "{{model}} はダウンロードしていません。設定の「翻訳」または「音声認識」でライセンスと容量を確認し、同意してからダウンロードしてください。モデルの版が変わったときは、もう一度確認してください。"
     MESSAGE_OUTPUT_FAILED: "{{output}}にメッセージを送れませんでした。ほかの出力先には送っています。再送すると、ほかの出力先に同じメッセージが重ねて届くことがあります。"
     TRANSLATION_VRAM_ENABLE: "GPUのメモリーが足りず、AI翻訳を開始できませんでした。設定の「翻訳」で処理デバイスをCPUにするか、ほかのGPUアプリを止めてください。"
@@ -574,7 +577,7 @@ config_page:
             desc: "無音区間を検出してから音声を認識処理に送ります。ゲーム音やボイスチャットが連続して流れる際に文字起こしが止まる、または「音声認識のリクエストに失敗しました」と表示される場合は、この設定を無効にしてください。"
         select_transcription_engine:
             label: "音声認識で使用するエンジン"
-            desc: "クラウドのエンジンは、下の「クラウド音声認識」でAPIキーを登録すると選べます。"
+            desc: "Google は API キーなしで使えます。ほかのクラウドエンジンは、下の「クラウド音声認識」で API キーを登録すると選べます。"
             engines:
                 groq_whisper: "Groq Whisper"
                 openai_whisper: "OpenAI Whisper"
@@ -1417,3 +1420,14 @@ message_outputs:
     history: "翻訳の履歴"
     tts: "読み上げ"
     unknown: "一部の出力先"
+
+transcription_consent:
+    title: "音声認識エンジンを選ぶ"
+    google_notice: "Google を使うと、マイクやスピーカーの音声が Google の音声認識サービスに送られます。API キーは不要です。"
+    whisper_notice: "Whisper はこの PC で音声を認識します。モデルのダウンロード内容を確認し、準備ができてから文字起こしをもう一度オンにしてください。"
+    google: "Google で文字起こしを始める"
+    whisper: "ローカルの Whisper を選ぶ"
+    cancel: "キャンセル"
+    settings: "エンジンの設定を開く"
+    selected: "選択中のエンジン：{{engine}}"
+    unselected: "未選択"

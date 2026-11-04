@@ -38,6 +38,9 @@ class _PartiallyInitializedRecorder:
 
 
 class _FakeTranscriber:
+    def setAudioSource(self, source):
+        pass
+
     last_recognition_error = False
 
     def getAudioWaitTimeout(self):
@@ -61,6 +64,12 @@ class _FailingTranscriber(_FakeTranscriber):
 
 
 class TestAudioPipelineFailure(unittest.TestCase):
+    def setUp(self):
+        # Recognizer preparation now precedes device creation.
+        transcriber = patch.object(MicSession, "_create_transcriber", return_value=_FakeTranscriber())
+        transcriber.start()
+        self.addCleanup(transcriber.stop)
+
     def test_recorder_creation_failure_rolls_back_and_notifies(self) -> None:
         received = []
         session = MicSession()
@@ -104,7 +113,7 @@ class TestAudioPipelineFailure(unittest.TestCase):
         session = MicSession()
         session.transcript_fnc = received.append
 
-        with patch.object(session, "_create_recorder", return_value=recorder), patch.object(
+        with patch.object(session, "_create_recorder", return_value=recorder) as open_recorder, patch.object(
             session, "_create_transcriber", side_effect=RuntimeError("model init failed")
         ):
             with self.assertRaises(RuntimeError):
@@ -115,7 +124,8 @@ class TestAudioPipelineFailure(unittest.TestCase):
         self.assertEqual(received[0]["stage"], "asr")
         self.assertEqual(received[0]["source"], "mic")
         self.assertFalse(received[0]["recoverable"])
-        recorder.stop.assert_called_once_with(wait_for_stop=True)
+        open_recorder.assert_not_called()
+        recorder.stop.assert_not_called()
         self.assertEqual(session.features, set())
         self.assertIsNone(session._recorder)
 

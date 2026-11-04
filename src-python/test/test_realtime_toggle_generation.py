@@ -107,6 +107,7 @@ def app(monkeypatch):
 
     monkeypatch.setattr(module.sys, "platform", "linux")
     monkeypatch.setattr(module, "config", SimpleNamespace(
+        SELECTED_TRANSCRIPTION_ENGINE="Google",
         ENABLE_TRANSCRIPTION_SEND=False, ENABLE_TRANSCRIPTION_RECEIVE=False))
     monkeypatch.setattr(module, "model", MagicMock())
     module.model.stopCaptureForRealtime.return_value = True

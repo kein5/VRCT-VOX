@@ -161,6 +161,9 @@ class TestTranscriptionEnableFailureState(unittest.TestCase):
     (tests/voice/test_realtime_toggles.py), so pin the Windows path here."""
 
     def setUp(self) -> None:
+        engine = patch.object(config, "_SELECTED_TRANSCRIPTION_ENGINE", "Google")
+        engine.start()
+        self.addCleanup(engine.stop)
         platform = patch("controller.sys.platform", "win32")
         platform.start()
         self.addCleanup(platform.stop)

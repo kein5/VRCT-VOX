@@ -174,6 +174,9 @@ common_error:
 
 # Messages for the sidecar's error codes (see docs/spec/reference/error-codes.md).
 backend_errors:
+    TRANSCRIPTION_ENGINE_NOT_SELECTED: "Choose a speech recognition engine before turning transcription on."
+    TRANSCRIPTION_MODEL_MISSING: "Whisper model files are missing or could not be verified. Review the model download, then turn transcription on again."
+    TRANSCRIPTION_ENGINE_UNAVAILABLE: "The selected speech recognition engine could not start. Check the engine settings, then turn transcription on again."
     WEIGHT_DOWNLOAD_CONSENT_REQUIRED: "{{model}} was not downloaded. Review its license and size in Settings > Translation or Transcription and agree before downloading. If the model version changed, review it again."
     MESSAGE_OUTPUT_FAILED: "The message could not be sent to {{output}}. It was sent to the other outputs. If you resend it, those outputs may receive it twice."
     TRANSLATION_VRAM_ENABLE: "Not enough GPU memory to start AI translation. Choose CPU as the device under Settings → Translation, or close other GPU apps."
@@ -574,7 +577,7 @@ config_page:
             desc: "Only send audio to recognition after a silence gap is detected. Disable this if speaker transcription stops or shows 'speech recognition request failed' during continuous game/voice audio."
         select_transcription_engine:
             label: "Transcription Engine Used For Speech Recognition"
-            desc: "Cloud engines can be chosen once their API key is registered under \"Cloud speech recognition\" below."
+            desc: "Google needs no API key. For other cloud engines, register a key under \"Cloud speech recognition\" below."
             engines:
                 groq_whisper: "Groq Whisper"
                 openai_whisper: "OpenAI Whisper"
@@ -1417,3 +1420,14 @@ message_outputs:
     history: "Translation history"
     tts: "Speech"
     unknown: "An output"
+
+transcription_consent:
+    title: "Choose speech recognition"
+    google_notice: "Google sends microphone or speaker audio to Google’s speech service. No API key is needed."
+    whisper_notice: "Whisper recognizes audio locally. Review the model download first, then turn transcription on again when the model is ready."
+    google: "Use Google and continue"
+    whisper: "Choose local Whisper"
+    cancel: "Cancel"
+    settings: "Open engine settings"
+    selected: "Selected engine: {{engine}}"
+    unselected: "Not selected"

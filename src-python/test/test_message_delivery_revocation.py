@@ -84,6 +84,7 @@ def app(monkeypatch):
                 "CONVERT_MESSAGE_TO_HIRAGANA", "CONVERT_MESSAGE_TO_ROMAJI",
                 "ENABLE_CHECK_ENERGY_SEND", "ENABLE_CHECK_ENERGY_RECEIVE"):
         setattr(cfg, key, False)
+    cfg.SELECTED_TRANSCRIPTION_ENGINE = "Google"
     cfg.SELECTED_TAB_NO = "1"
     cfg.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST = ["1", "2", "3"]
     cfg.SELECTED_YOUR_LANGUAGES = {"1": {"1": {"language": "English", "enable": True}}}

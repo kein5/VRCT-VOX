@@ -232,7 +232,7 @@ const TranscriptionEngine_Container = () => {
     );
 };
 
-const TranscriptionEngine_Box = () => {
+export const TranscriptionEngine_Box = () => {
     const { t } = useI18n();
     const { currentSelectedTranscriptionEngine, setSelectedTranscriptionEngine, currentSelectableTranscriptionEngines } = useTranscription();
     const available = currentSelectableTranscriptionEngines.data || [];
@@ -248,18 +248,24 @@ const TranscriptionEngine_Box = () => {
     });
 
     return (
-        <RadioButtonContainer
-            label={t("config_page.transcription.select_transcription_engine.label")}
-            desc={t("config_page.transcription.select_transcription_engine.desc")}
-            selectFunction={setSelectedTranscriptionEngine}
-            name="select_transcription_engine"
-            options={[
-                { id: "Google", label: "Google" },
-                { id: "Whisper", label: "Whisper" },
-                ...cloud_options,
-            ]}
-            checked_variable={currentSelectedTranscriptionEngine}
-        />
+        <>
+            <RadioButtonContainer
+                label={t("config_page.transcription.select_transcription_engine.label")}
+                desc={t("config_page.transcription.select_transcription_engine.desc")}
+                selectFunction={setSelectedTranscriptionEngine}
+                name="select_transcription_engine"
+                options={[
+                    { id: "Google", label: "Google" },
+                    { id: "Whisper", label: "Whisper" },
+                    ...cloud_options,
+                ]}
+                checked_variable={currentSelectedTranscriptionEngine}
+            />
+            <p role="status">{t("transcription_consent.selected", {
+                engine: currentSelectedTranscriptionEngine.data || t("transcription_consent.unselected"),
+            })}</p>
+            {currentSelectedTranscriptionEngine.data === "Google" && <p>{t("transcription_consent.google_notice")}</p>}
+        </>
     );
 };
 
@@ -268,7 +274,7 @@ const CloudTranscription_Container = () => {
     const transcription = useTranscription();
     const { getSelectableTranscriptionEngines, getSelectedTranscriptionEngine } = transcription;
     // A saved, rejected or removed key changes which engines the backend can
-    // use, and may move the selection back to Whisper; ask again each time.
+    // use; the saved selection stays unchanged. Ask again each time.
     const watched = CLOUD_TRANSCRIPTION_ENGINES.map(engine => transcription[`current${engine.base}AuthKey`].data);
     watched.push(transcription.currentCustomWhisperURL.data);
     useEffect(() => {

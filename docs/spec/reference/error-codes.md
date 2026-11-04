@@ -7,7 +7,7 @@
 - 既定メッセージ: サイドカーが返す英語の`message`。UIは多くの場合`locales/`の文言に置き換えて表示する。
 - UIの個別処理: `_useBackendErrorHandling.js`に専用の分岐（値の巻き戻しや翻訳した文言の表示）がある。空欄のコードは、音声やモデル取得など別の経路で処理されるか、汎用の通知になる。
 
-## コード（101件）
+## コード（104件）
 
 | コード | 分類 | 既定メッセージ | 重大度 | 利用者の対処 | UIの個別処理 |
 |---|---|---|---|---|---|
@@ -36,6 +36,9 @@
 | `TRANSCRIPTION_RECEIVE_DISABLED_VRAM` | transcription | Transcription receive disabled due to VRAM overflow | critical | 要 | あり |
 | `TRANSCRIPTION_SEND_NOT_READY` | transcription | Realtime microphone recognition is not ready | error | 要 | あり |
 | `TRANSCRIPTION_RECEIVE_NOT_READY` | transcription | Realtime speaker recognition is not ready | error | 要 | あり |
+| `TRANSCRIPTION_ENGINE_NOT_SELECTED` | transcription | Choose a speech recognition engine before enabling transcription. | warning | 要 | あり |
+| `TRANSCRIPTION_MODEL_MISSING` | transcription | Whisper model files are missing or invalid. Review the model download before trying again. | error | 要 | あり |
+| `TRANSCRIPTION_ENGINE_UNAVAILABLE` | transcription | The selected speech recognition engine could not start. Check its settings. | error | 要 | あり |
 | `TRANSCRIPTION_API_AUTH_FAILED` | transcription | Transcription API rejected the configured API key | error | 要 | あり |
 | `TRANSCRIPTION_API_RATE_LIMITED` | transcription | Transcription API rate limit exceeded | warning |  |  |
 | `TRANSCRIPTION_API_TIMEOUT` | transcription | Transcription API request timed out | warning |  |  |

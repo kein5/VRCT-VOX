@@ -1,3 +1,4 @@
+import { useTranscriptionConsent } from "./transcription/useTranscriptionConsent";
 import { useI18n } from "@useI18n";
 import { useStdoutToPython } from "@useStdoutToPython";
 
@@ -49,6 +50,7 @@ export const _useBackendErrorHandling = () => {
 
     const { updateMicThresholdCheckStatus, updateSpeakerThresholdCheckStatus } = useVolume();
     const transcription = useTranscription();
+    const transcriptionConsent = useTranscriptionConsent();
     const {
         updateMicRecordTimeout,
         updateMicPhraseTimeout,
@@ -200,6 +202,17 @@ export const _useBackendErrorHandling = () => {
                 return;
             // Linux: the Mic/Speaker switch drives realtime ASR, which is not
             // configured or has stopped. details.reason names the next step.
+            case "TRANSCRIPTION_ENGINE_NOT_SELECTED":
+            case "TRANSCRIPTION_MODEL_MISSING":
+            case "TRANSCRIPTION_ENGINE_UNAVAILABLE": {
+                if (endpoint === "/set/enable/transcription_send") updateTranscriptionSendStatus(false);
+                if (endpoint === "/set/enable/transcription_receive") updateTranscriptionReceiveStatus(false);
+                const mode = error_code === "TRANSCRIPTION_ENGINE_NOT_SELECTED" ? "choose"
+                    : error_code === "TRANSCRIPTION_MODEL_MISSING" ? "download" : "settings";
+                transcriptionConsent.open(endpoint, mode);
+                if (mode !== "choose") showNotification_Error(localized, { category_id: error_code });
+                return;
+            }
             case "TRANSCRIPTION_SEND_NOT_READY":
             case "TRANSCRIPTION_RECEIVE_NOT_READY": {
                 (error_code === "TRANSCRIPTION_SEND_NOT_READY" ? updateTranscriptionSendStatus : updateTranscriptionReceiveStatus)(false);

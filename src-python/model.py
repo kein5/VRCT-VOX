@@ -67,7 +67,7 @@ from models.ocr.ocr_models import resolveModelFiles, OcrModelsMissing
 from models.ocr import ocr_engine_rapidocr as ocr_engine
 from models.telemetry import Telemetry
 from utils import ConversationLogger, errorLogging, printLog, openTraceLog
-from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, OcrStartError
+from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, OcrStartError, TranscriptionStartError
 
 TRANSCRIPT_STOP_JOIN_TIMEOUT = 15
 
@@ -663,6 +663,15 @@ class _AudioDeviceSession:
 
         start_failure: Optional[AudioPipelineFailure] = None
         try:
+            if "transcript" in self.features:
+                try:
+                    self._transcriber = self._create_transcriber()
+                except TranscriptionStartError:
+                    raise
+                except Exception as error:
+                    start_failure = self._make_pipeline_failure(
+                        ErrorCode.TRANSCRIBER_INIT_ERROR, "asr", error)
+                    raise
             try:
                 candidates = [device]
                 if self._kind == "mic":
@@ -710,19 +719,17 @@ class _AudioDeviceSession:
             recorder.device_error_event = error_event
             if had_error is True:
                 error_event.set()
+            if self._transcriber is not None:
+                self._transcriber.setAudioSource(recorder)
             self._recorder.recordIntoQueue(audio_queue, energy_queue)
             if error_event.is_set():
                 raise OSError("Audio listener failed to start")
-            if "transcript" in self.features:
-                try:
-                    self._transcriber = self._create_transcriber()
-                except Exception as error:  # noqa: BLE001 - initialization failure
-                    start_failure = self._make_pipeline_failure(
-                        ErrorCode.TRANSCRIBER_INIT_ERROR,
-                        "asr",
-                        error,
-                    )
-                    raise
+        except TranscriptionStartError:
+            # No recorder was opened. The controller maps this to the setup UI.
+            if callable(self.terminal_failure_fnc):
+                self.terminal_failure_fnc()
+            self._stop()
+            raise
         except Exception:
             # Recorder open/listener または Transcriber 初期化が失敗した場合も、
             # 開始済みのリソースを同じ停止経路で回収してから UI へ通知する。
@@ -967,7 +974,7 @@ class MicSession(_AudioDeviceSession):
         phrase_timeout = config.MIC_PHRASE_TIMEOUT
         return AudioTranscriber(
             speaker=False,
-            source=self._recorder,
+            source=None,
             phrase_timeout=phrase_timeout,
             max_phrases=config.MIC_MAX_PHRASES,
             transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
@@ -1026,7 +1033,7 @@ class SpeakerSession(_AudioDeviceSession):
         phrase_timeout = config.SPEAKER_PHRASE_TIMEOUT
         return AudioTranscriber(
             speaker=True,
-            source=self._recorder,
+            source=None,
             phrase_timeout=phrase_timeout,
             max_phrases=config.SPEAKER_MAX_PHRASES,
             transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,

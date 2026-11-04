@@ -40,6 +40,7 @@ def controller_module(monkeypatch, tmp_path):
     module.config = SimpleNamespace(
         _PATH_CONFIG=str(tmp_path / 'config.json'),
         VOICE_SETTINGS=VoiceSettings().to_dict(), ENABLE_TRANSLATION=False,
+        SELECTED_TRANSCRIPTION_ENGINE="Google",
         SELECTED_YOUR_LANGUAGES={"1": {"1": {"language": "Japanese", "enable": True}}},
         SELECTED_TARGET_LANGUAGES={"1": {"1": {"language": "English", "enable": True},
                                              "2": {"language": "Japanese", "enable": True}}},

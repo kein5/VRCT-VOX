@@ -15,7 +15,7 @@ from device_manager import device_manager
 from config import config, ConfigValidationError, DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 from model import model, SETUP_LAUNCHED, SETUP_DOWNLOAD_FAILED, SETUP_VERIFY_FAILED
 from utils import removeLog, printLog, errorLogging, isConnectedNetwork, isValidIpAddress, isValidPort, isValidWebSocketHost, isAvailableWebSocketServer
-from errors import ErrorCode, OcrStartError, VRCTError
+from errors import TranscriptionStartError, ErrorCode, OcrStartError, VRCTError
 from models.transcription.transcription_openai_compatible import TRANSCRIPTION_MODEL_KEYWORDS, TRANSCRIPTION_API_ENGINES
 from models.translation.translation_providers import TRANSLATION_PROVIDER_REGISTRY, CONNECTION_PROVIDER_REGISTRY
 from models.translation.translation_utils import ctranslate2_weights, isNonCommercialCTranslate2Weight, MissingCTranslate2Tokenizer
@@ -2994,7 +2994,7 @@ class Controller:
 
     def setSelectedTranscriptionEngine(self, data, *args, **kwargs) -> dict:
         # setSelectedTranslationEngines() -> updateTranslationEngineAndEngineList()
-        # と同じパターン: 希望値をまず渡し、可用性チェック・言語フォールバック・
+        # と同じパターン: 希望値をまず渡し、言語フォールバック・
         # 言語リストのpushは updateTranscriptionEngine() 側に集約する。
         self.updateTranscriptionEngine(requested_engine=str(data))
         return {"status":200, "result":config.SELECTED_TRANSCRIPTION_ENGINE}
@@ -4730,6 +4730,9 @@ class Controller:
         if self._realtimeToggles():
             return self._enableRealtimeToggle("mic", data)
         with self._audioLock("mic"):
+            if config.SELECTED_TRANSCRIPTION_ENGINE is None:
+                return VRCTError.create_error_response(
+                    ErrorCode.TRANSCRIPTION_ENGINE_NOT_SELECTED, data=False)
             if not config.ENABLE_TRANSCRIPTION_SEND:
                 self._audioGeneration("mic", advance=True)
                 config.ENABLE_TRANSCRIPTION_SEND = True
@@ -4756,6 +4759,9 @@ class Controller:
         if self._realtimeToggles():
             return self._enableRealtimeToggle("speaker", data)
         with self._audioLock("speaker"):
+            if config.SELECTED_TRANSCRIPTION_ENGINE is None:
+                return VRCTError.create_error_response(
+                    ErrorCode.TRANSCRIPTION_ENGINE_NOT_SELECTED, data=False)
             if not config.ENABLE_TRANSCRIPTION_RECEIVE:
                 self._audioGeneration("speaker", advance=True)
                 config.ENABLE_TRANSCRIPTION_RECEIVE = True
@@ -5023,6 +5029,12 @@ class Controller:
                 config.ENABLE_TRANSCRIPTION_SEND = False
                 model.message_delivery.revoke("mic")
             return started
+        except TranscriptionStartError as error:
+            config.ENABLE_TRANSCRIPTION_SEND = False
+            model.message_delivery.revoke("mic")
+            response = VRCTError.create_error_response(error.error_code, data=False)
+            self.run(response["status"], "/set/enable/transcription_send", response["result"])
+            return False
         except Exception as e:
             model.message_delivery.revoke("mic")
             # VRAM不足エラーの検出
@@ -5088,6 +5100,12 @@ class Controller:
                 config.ENABLE_TRANSCRIPTION_RECEIVE = False
                 model.message_delivery.revoke("speaker")
             return started
+        except TranscriptionStartError as error:
+            config.ENABLE_TRANSCRIPTION_RECEIVE = False
+            model.message_delivery.revoke("speaker")
+            response = VRCTError.create_error_response(error.error_code, data=False)
+            self.run(response["status"], "/set/enable/transcription_receive", response["result"])
+            return False
         except Exception as e:
             model.message_delivery.revoke("speaker")
             # VRAM不足エラーの検出
@@ -5417,51 +5435,10 @@ class Controller:
             config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[weight_type] = model.checkTranscriptionWhisperModelWeight(weight_type)
 
     def updateTranscriptionEngine(self, requested_engine: Optional[str] = None) -> None:
-        """SELECTED_TRANSCRIPTION_ENGINE を検証・更新する。
-
-        `requested_engine` を渡すと、まずそれを希望値として設定してから
-        検証する (setSelectedTranscriptionEngine からの明示的な変更用。
-        setSelectedTranslationEngines() -> updateTranslationEngineAndEngineList()
-        と同じパターン)。渡さなければ現在の値をそのまま検証する
-        (キー無効化等による自動フォールバック用。controller.init() や
-        setGroqWhisperAuthKey/delDeepgramAuthKey 等、多数の呼び出し元から
-        使われる)。
-
-        エンジンが実際に変化した場合、文字起こしエンジンごとに対応言語が
-        異なりうるため (Deepgram等)、選択中の言語をフォールバックさせ、
-        更新後の言語一覧を毎回 selectable_language_list でUIへpushする。
-        呼び出し元ごとに重複させず、「エンジンが変わる場所」であるここ
-        一箇所に集約することで、どの経路でエンジンが変わっても確実に
-        UIの言語リストが追従するようにする。
-        """
+        """Apply explicit selections only; availability never changes consent."""
         previous_engine = config.SELECTED_TRANSCRIPTION_ENGINE
         if requested_engine is not None:
             config.SELECTED_TRANSCRIPTION_ENGINE = requested_engine
-
-        weight_type = config.WHISPER_WEIGHT_TYPE
-        weight_type_dict = config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT
-        weight_available = bool(weight_type_dict.get(weight_type))
-        current_engine = config.SELECTED_TRANSCRIPTION_ENGINE
-        selected_engines = [key for key, value in config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS.items() if value is True]
-
-        # 選択可能なエンジンがなければ、Whisper に変更
-        if current_engine in {"Whisper", "Google"}:
-            if current_engine not in selected_engines:
-                if weight_available:
-                    alternate = "Google" if current_engine == "Whisper" else "Whisper"
-                    config.SELECTED_TRANSCRIPTION_ENGINE = alternate if alternate in selected_engines else None
-                else:
-                    config.SELECTED_TRANSCRIPTION_ENGINE = "Whisper"
-        elif current_engine in TRANSCRIPTION_API_ENGINES or current_engine == "Deepgram":
-            # Groq/OpenAI/カスタムサーバー/Deepgramはキー無効化等で使えなく
-            # なった場合のみ、ローカル Whisper (オフラインで最も安定) へ
-            # フォールバックする。まだ有効なら維持する (この elif が無いと
-            # 下の else に落ちて、新エンジンを選択した直後にここが呼ばれる
-            # たびに意図せず Whisper へ巻き戻ってしまう)。
-            if current_engine not in selected_engines:
-                config.SELECTED_TRANSCRIPTION_ENGINE = "Whisper"
-        else:
-            config.SELECTED_TRANSCRIPTION_ENGINE = "Whisper"
 
         if config.SELECTED_TRANSCRIPTION_ENGINE != previous_engine:
             self.fallbackUnsupportedLanguagesForTranscriptionEngine(config.SELECTED_TRANSCRIPTION_ENGINE)

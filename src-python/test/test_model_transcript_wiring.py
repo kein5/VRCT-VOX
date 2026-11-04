@@ -10,6 +10,9 @@ class _FakeAudioTranscriber:
     """Stand-in for AudioTranscriber that satisfies the isinstance() checks
     in model.py while letting the test control transcribeAudioQueue/getTranscript."""
 
+    def setAudioSource(self, source):
+        pass
+
     last_recognition_error = True
 
     def __init__(self, *args, **kwargs) -> None:
