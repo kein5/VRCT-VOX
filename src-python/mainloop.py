@@ -14,7 +14,8 @@ if __name__ == '__main__' and sys.argv[1:] == ['--voice-router-worker']:
 import json
 import time
 import faulthandler
-from typing import Any, Tuple
+from dataclasses import dataclass
+from typing import Any
 from threading import Thread, Event, Lock, Timer
 from queue import Queue, Empty
 import logging
@@ -727,13 +728,8 @@ controller.setInitMapping(init_mapping)
 
 DEFAULT_WORKER_COUNT = 3  # 必要なら増やす
 
-# キュー要素は (endpoint, data, attempt) の 3-tuple。attempt は
-# 「同一ロックが処理中」「エンドポイントが初期化未完了 (423)」で再キューされた
-# 回数。無制限に再キューし続けると、応答を一切返さないまま
-# ワーカーを 1 本ずつ専有し、ワーカーが limited (DEFAULT_WORKER_COUNT 本)
-# なので詰まった要求が積み重なると他の全リクエストが処理できなくなる
-# (特に初期化ハングと重なると恒久的な無応答になる)。上限に達したら
-# 423 を応答として返し、再キューを打ち切る。
+# 初期化中の再試行と、同じロックの処理完了を待つ時間には上限を設ける。
+# ロック待ちは再キューせず、期限または処理完了の通知までキュー内で待つ。
 _LOCK_BUSY_RETRY_INTERVAL_SEC = 0.05
 _LOCK_BUSY_MAX_RETRIES = 400  # 0.05s × 400 ≈ 20s (同一ロックの処理完了を待つ上限)
 _ENDPOINT_LOCKED_RETRY_INTERVAL_SEC = 0.1
@@ -768,9 +764,86 @@ def _request_error_result(endpoint: str, data: Any, result: Any, status: int) ->
     return payload
 
 
+@dataclass
+class _PendingRequest:
+    endpoint: str
+    data: Any
+    attempt: int
+    ready_at: float = 0.0
+    busy_until: float | None = None
+
+
+class _EndpointQueue(Queue):
+    """同じロックの先頭だけを取り出し、待機中はワーカーを専有しない。"""
+
+    def __init__(self, canonical_lock_key, endpoint_locks):
+        super().__init__()
+        self._canonical_lock_key = canonical_lock_key
+        self._endpoint_locks = endpoint_locks
+
+    def _put(self, item):
+        self.queue.append(_PendingRequest(*item))
+
+    def _get(self):
+        # 受信キューを直接読む既存の呼び出しでは従来の形式を保つ。
+        request = self.queue.popleft()
+        return request.endpoint, request.data, request.attempt
+
+    def get_ready(self, timeout):
+        deadline = time.monotonic() + timeout
+        with self.not_empty:
+            while True:
+                now = time.monotonic()
+                wake_at = deadline
+                seen_keys = set()
+                for index, request in enumerate(self.queue):
+                    key = self._canonical_lock_key(request.endpoint)
+                    if key in seen_keys:
+                        continue
+                    seen_keys.add(key)
+                    if request.ready_at > now:
+                        wake_at = min(wake_at, request.ready_at)
+                        continue
+                    lock = self._endpoint_locks.get(key)
+                    # 取り出しとロック取得を同じ条件変数の下で行う。
+                    # B を取り出したワーカーが遅れても C は先に実行できない。
+                    if lock is None or lock.acquire(blocking=False):
+                        del self.queue[index]
+                        return request, lock, False
+                    if request.busy_until is None:
+                        request.busy_until = now + max(
+                            0, _LOCK_BUSY_MAX_RETRIES - request.attempt
+                        ) * _LOCK_BUSY_RETRY_INTERVAL_SEC
+                    if now >= request.busy_until:
+                        del self.queue[index]
+                        return request, None, True
+                    wake_at = min(wake_at, request.busy_until)
+
+                remaining = wake_at - time.monotonic()
+                if remaining <= 0:
+                    raise Empty
+                # 完了・受信・期限だけで起こす。ロック待ちの sleep/requeue はしない。
+                self.not_empty.wait(remaining)
+
+    def finish(self, request, lock, retry=False):
+        with self.not_empty:
+            if retry:
+                request.attempt += 1
+                request.ready_at = time.monotonic() + _ENDPOINT_LOCKED_RETRY_INTERVAL_SEC
+                request.busy_until = None
+                # 初期化待ちでも同じロックの後続には追い越させない。
+                self.queue.appendleft(request)
+            if lock is not None:
+                lock.release()
+            if not retry:
+                self.unfinished_tasks -= 1
+                if self.unfinished_tasks == 0:
+                    self.all_tasks_done.notify_all()
+            self.not_empty.notify_all()
+
+
 class Main:
     def __init__(self, controller_instance: Controller, mapping_data: dict, worker_count: int = DEFAULT_WORKER_COUNT) -> None:
-        self.queue: "Queue[Tuple[str, Any, int]]" = Queue()
         self._stop_event: Event = Event()
         self.controller = controller_instance
         self.mapping = mapping_data
@@ -811,6 +884,7 @@ class Main:
 
         # 正規化関数をインスタンスに保存
         self._canonical_lock_key = _canonical_lock_key
+        self.queue = _EndpointQueue(self._canonical_lock_key, self._endpoint_locks)
 
     def receiver(self) -> None:
         """Read lines from stdin, parse JSON and enqueue requests.
@@ -906,57 +980,32 @@ class Main:
     def handler(self) -> None:
         while not self._stop_event.is_set():
             try:
-                endpoint, data, attempt = self.queue.get(timeout=0.5)
+                request, lock, busy = self.queue.get_ready(timeout=0.5)
             except Empty:
                 continue
 
-            # endpoint をロック用の正規化キーに変換してロックを取得
-            lock_key = self._canonical_lock_key(endpoint)
-            lock = self._endpoint_locks.get(lock_key)
-
-            if lock is not None:
-                acquired = lock.acquire(blocking=False)
-                if not acquired:
-                    # 同一機能で既に処理中 -> 少し待って再キュー。
-                    # 上限に達したら「本当にロック解放を待つべきか」を
-                    # 諦め、423 を応答して打ち切る (無応答のままワーカーを
-                    # 専有し続けるのを防ぐ)。
-                    if attempt >= _LOCK_BUSY_MAX_RETRIES:
-                        printLog(
-                            f"{endpoint}: lock busy retry limit "
-                            f"({_LOCK_BUSY_MAX_RETRIES}) exceeded; responding 423"
-                        )
-                        printLog(endpoint, {"status": 423, "send_data": "Locked endpoint (busy)"})
-                        printResponse(423, endpoint, _request_error_result(endpoint, data, "Locked endpoint (busy)", 423))
-                        continue
-                    time.sleep(_LOCK_BUSY_RETRY_INTERVAL_SEC)
-                    self.queue.put((endpoint, data, attempt + 1))
-                    continue
-                try:
+            endpoint, data = request.endpoint, request.data
+            retry = False
+            try:
+                if busy:
+                    result, status = "Locked endpoint (busy)", 423
+                    printLog(f"{endpoint}: lock busy deadline exceeded; responding 423")
+                else:
                     result, status = self._call_handler(endpoint, data)
-                finally:
-                    lock.release()
-            else:
-                result, status = self._call_handler(endpoint, data)
-
-            if status == 423:
-                # エンドポイントがまだ初期化未完了でロックされている。上限まで
-                # 待っても解除されなければ、無応答のまま再キューし続けず
-                # 423 を応答して呼び出し元に判断を委ねる。
-                if attempt >= _ENDPOINT_LOCKED_MAX_RETRIES:
+                if status == 423 and not busy:
+                    if request.attempt < _ENDPOINT_LOCKED_MAX_RETRIES:
+                        retry = True
+                        continue
                     printLog(
                         f"{endpoint}: endpoint-locked retry limit "
                         f"({_ENDPOINT_LOCKED_MAX_RETRIES}) exceeded; responding 423"
                     )
-                    printLog(endpoint, {"status": status, "send_data": result})
-                    printResponse(status, endpoint, _request_error_result(endpoint, data, result, status))
-                    continue
-                time.sleep(_ENDPOINT_LOCKED_RETRY_INTERVAL_SEC)
-                self.queue.put((endpoint, data, attempt + 1))
-            else:
                 if not isQuietPoll(endpoint, status):
                     printLog(endpoint, {"status": status, "send_data": result})
                 printResponse(status, endpoint, _request_error_result(endpoint, data, result, status))
+            finally:
+                # 応答まで終わってから次の同一ロック要求を起こす。
+                self.queue.finish(request, lock, retry)
 
     def startHandler(self) -> None:
         for i in range(max(1, self._worker_count)):
