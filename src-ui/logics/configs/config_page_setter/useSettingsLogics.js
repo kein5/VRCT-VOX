@@ -171,8 +171,8 @@ export const useSettingsLogics = (settingsArray, Category) => {
             result[`updateDownloadProgress${base}`] = (payload) => {
                 update((old_status) => {
                     return old_status.data.map((item) =>
-                        payload.weight_type === item.id
-                            ? { ...item, progress: payload.progress * 100 }
+                        payload.weight_type === item.id && item.is_pending
+                            ? { ...item, job_id: payload.job_id, progress: payload.progress * 100 }
                             : item
                     );
                 });
@@ -189,15 +189,16 @@ export const useSettingsLogics = (settingsArray, Category) => {
                 update((old_status) => {
                     return old_status.data.map((item) =>
                         id === item.id
-                            ? { ...item, is_pending: true }
+                            ? { ...item, is_pending: true, job_id: null }
                             : item
                     );
                 });
             };
-            result[`downloaded${base}`] = (id) => {
+            result[`downloaded${base}`] = (payload) => {
+                const id = typeof payload === "string" ? payload : payload?.weight_type;
                 update((old_status) => {
                     return old_status.data.map((item) =>
-                        id === item.id
+                        id === item.id && (typeof payload === "string" || payload?.downloaded === true)
                             ? { ...item, is_downloaded: true, is_pending: false, progress: null }
                             : item
                     );

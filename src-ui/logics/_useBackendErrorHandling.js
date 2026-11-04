@@ -23,7 +23,7 @@ import {
     useAdvancedSettings,
 } from "@logics_configs";
 import { ui_configs } from "./ui_configs";
-import { clearLegacyConsentPending } from "./configs/legacyModelConsent";
+import { clearLegacyConsentPending, clearLegacyDownloadFailure } from "./configs/legacyModelConsent";
 import { CLOUD_TRANSCRIPTION_ENGINES } from "./configs/cloudTranscription";
 
 const OCR_ERROR_KEYS = {
@@ -238,9 +238,11 @@ export const _useBackendErrorHandling = () => {
                     { model: data?.weight_type }), { category_id: `${error_code}:${data?.kind}:${data?.weight_type}`, hide_duration: null });
                 return;
             case "WEIGHT_CTRANSLATE2_DOWNLOAD":
+                updateCTranslate2WeightTypeStatus(old => clearLegacyDownloadFailure(old.data, data));
                 showNotification_Error(t("common_error.failed_download_weight_ctranslate2"), { category_id: error_code });
                 return;
             case "WEIGHT_WHISPER_DOWNLOAD":
+                transcription.updateWhisperWeightTypeStatus(old => clearLegacyDownloadFailure(old.data, data));
                 showNotification_Error(t("common_error.failed_download_weight_whisper"), { category_id: error_code });
                 return;
             case "WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED":

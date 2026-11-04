@@ -137,21 +137,22 @@ each weight in Config → Translation.
 | `nllb-200-3.3B-ct2-int8` | `OpenNMT/nllb-200-3.3B-ct2-int8` | `facebook/nllb-200-3.3B` | CC-BY-NC-4.0 (non-commercial) |
 
 Every built-in acquisition requires checkbox consent to the exact model and
-manifest, including an already-selected NLLB model and its separately fetched
-tokenizer. The backend refuses download requests without that consent or with
+manifest, including an already-selected NLLB model and its pinned
+tokenizer files. The backend refuses download requests without that consent or with
 an outdated manifest. NLLB-200 review always labels CC-BY-NC-4.0 as
 non-commercial; selecting a different NLLB model also requires license
 confirmation. Keeping an existing selection does not grant download consent. Earlier versions made
 `nllb-200-distilled-600M-ct2-int8` the default. Configurations saved by those
 versions keep it, and the app shows a one-time notice about its license.
 
-CTranslate2 tokenizers come from the upstream model repositories in the table
-and carry the same MIT or CC-BY-NC-4.0 terms. Their commits are pinned in
-`TOKENIZER_REVISIONS`; separate per-file size/SHA-256 pins remain to be added.
-The review shows the exact pinned weight-file total **plus tokenizer files**,
-without claiming an exact size for those separate files. Inference and cache
-checks load tokenizers locally only. Consented acquisition fetches the pinned
-revision. No model files are bundled by this change.
+CTranslate2 tokenizers derive from the upstream models in the table and carry
+the same MIT or CC-BY-NC-4.0 terms. Acquisition now uses the tokenizer files
+already included in the pinned CTranslate2 conversion repositories, with sizes
+and SHA-256 in builtin_model_pins.py. The review total includes these files.
+Inference reads only these verified local files; no separate upstream tokenizer
+acquisition occurs. Existing Hub caches are retained but are not used for admission.
+The changed acquisition manifest requires renewed consent before downloading.
+No model files or new third-party dependencies are bundled by this change.
 
 Consent is saved per model and manifest in `LEGACY_MODEL_DOWNLOAD_CONSENTS`.
 Startup auto-acquisition requires a matching saved consent in addition to the

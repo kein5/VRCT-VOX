@@ -170,3 +170,65 @@ for (const [kind, base] of [["whisper", "Whisper"], ["ctranslate2", "CTranslate2
         assert.equal(subject.notices[1].key, "legacy_model_downloads.startup_skipped");
     });
 }
+
+for (const [kind, base] of [["whisper", "Whisper"], ["ctranslate2", "CTranslate2"]]) {
+    test(`${kind}: asynchronous failure clears only the failed weight and ignores a stale job`, async () => {
+        const subject = await loadBridgeRoutes();
+        const atom = subject.stores.dynamicStoreRegistry[`Atom_${base}WeightTypeStatus`];
+        const original = [
+            { id: "requested", job_id: "current", is_pending: true, is_downloaded: true, progress: 12 },
+            { id: "other", job_id: "another", is_pending: true, is_downloaded: false, progress: 50 },
+        ];
+        subject.runtime.store.set(atom, { state: "ok", data: original });
+        const fail = data => subject.receiveRoutes({
+            status: 400, endpoint: `/run/error_${kind}_weight`,
+            result: { error_code: `WEIGHT_${kind.toUpperCase()}_DOWNLOAD`, data },
+        });
+        fail({ weight_type: "requested", job_id: "previous", downloaded: false });
+        assert.deepEqual(subject.runtime.store.get(atom).data, original);
+        fail({ weight_type: "requested", job_id: "current", downloaded: false });
+        assert.deepEqual(subject.runtime.store.get(atom).data, [
+            { ...original[0], is_pending: false, is_downloaded: false, progress: null },
+            original[1],
+        ]);
+    });
+
+    test(`${kind}: verified completion accepts identified payload and ignores late progress`, async () => {
+        const subject = await loadBridgeRoutes();
+        const atom = subject.stores.dynamicStoreRegistry[`Atom_${base}WeightTypeStatus`];
+        subject.runtime.store.set(atom, { state: "ok", data: [
+            { id: "requested", is_pending: true, is_downloaded: false, progress: 12 },
+            { id: "other", is_pending: true, is_downloaded: false, progress: 50 },
+        ] });
+        const endpoint = `/run/downloaded_${kind}_weight`;
+        subject.receiveRoutes({ status: 200, endpoint,
+            result: { weight_type: "requested", job_id: "job", downloaded: false } });
+        assert.equal(subject.runtime.store.get(atom).data[0].is_downloaded, false);
+        subject.receiveRoutes({ status: 200, endpoint,
+            result: { weight_type: "requested", job_id: "job", downloaded: true } });
+        subject.receiveRoutes({ status: 200, endpoint: `/run/download_progress_${kind}_weight`,
+            result: { weight_type: "requested", job_id: "job", progress: 0.9 } });
+        assert.deepEqual(subject.runtime.store.get(atom).data, [
+            { id: "requested", is_pending: false, is_downloaded: true, progress: null },
+            { id: "other", is_pending: true, is_downloaded: false, progress: 50 },
+        ]);
+    });
+}
+
+test("duplicate refusal keeps its original job pending; cross-process refusal clears the refused row", () => {
+    const rows = [{ id: "base", is_pending: true, is_downloaded: false, progress: null }];
+    const busy = { weight_type: "base", job_id: "rejected", reason: "download_busy" };
+    assert.deepEqual(consentLogic.clearLegacyDownloadFailure(rows, { ...busy, active_job_id: "running" }), rows);
+    assert.equal(consentLogic.clearLegacyDownloadFailure(rows, busy)[0].is_pending, false);
+});
+
+for (const language of ["en", "ja"]) {
+    test(`${language}: bundled tokenizer shows that its bytes are included`, async context => {
+        const reviewed = { ...entry, tokenizer_size_unknown: false,
+            tokenizer: { repo: entry.repo, revision: entry.revision, bundled: true } };
+        const subject = await dialogFixture(context, language, reviewed);
+        const html = renderToStaticMarkup(subject.render());
+        assert.ok(html.includes(subject.t("legacy_model_downloads.included_tokenizer")));
+        assert.ok(!html.includes(subject.t("legacy_model_downloads.plus_tokenizer")));
+    });
+}

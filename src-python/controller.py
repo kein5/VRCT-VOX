@@ -19,6 +19,8 @@ from models.transcription.transcription_openai_compatible import TRANSCRIPTION_M
 from models.translation.translation_providers import TRANSLATION_PROVIDER_REGISTRY, CONNECTION_PROVIDER_REGISTRY
 from models.translation.translation_utils import ctranslate2_weights, isNonCommercialCTranslate2Weight, MissingCTranslate2Tokenizer
 from models.legacy_model_consent import legacyModelCatalog, recordLegacyConsent, consentedLegacyRequest
+from models.legacy_model_downloads import LegacyDownloads
+from uuid import uuid4
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
 from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
 from models.message_snapshot import MessageSnapshot, language_payload
@@ -73,6 +75,7 @@ _VR_WINDOW_SETTINGS_LOCK = Lock()
 
 # Only short OCR intent updates belong here; model loading/joins stay outside.
 _OCR_CONTROL_LOCK = Lock()
+_LEGACY_DOWNLOAD_OWNER_LOCK = Lock()
 
 
 def vrLayoutToJson(layout: dict) -> dict:
@@ -415,6 +418,7 @@ class Controller:
         if not isinstance(config_path, (str, Path)):
             config_path = 'config.json'
         self.model_downloads = Downloads(Path(config_path).absolute().parent / 'downloaded_models')
+        self.legacy_downloads = LegacyDownloads()
         self.model_hardware = HardwareProbe()
         self.direct_voice = DirectVoice(converted_factory=create_converted_process)
         self.voice_route = VoiceRoute(self.voice_events, gate=PipeWireGate(),
@@ -1300,9 +1304,17 @@ class Controller:
         # Revoke intent before any cleanup can wait on a worker or lock.
         for source in ("mic", "speaker", "ocr", "chat"):
             model.message_delivery.revoke(source)
+        # Signal both owners before either close can wait on a worker or lock.
+        for owner in (getattr(self, 'model_downloads', None),
+                      getattr(self, 'legacy_downloads', None)):
+            if owner is not None:
+                owner.request_close()
         if getattr(self, 'model_downloads', None) is not None:
             if not self.model_downloads.close():
                 printLog('[models] download/apply shutdown pending')
+        if getattr(self, 'legacy_downloads', None) is not None:
+            if not self.legacy_downloads.close():
+                printLog('[models] legacy download cancellation pending; publication is disabled')
         with _OCR_CONTROL_LOCK:
             self._ocr_shutting_down = True
             config.ENABLE_OCR_CAPTURE = False
@@ -1800,6 +1812,9 @@ class Controller:
             self.run = run
             self._last_progress = -1.0
             self._last_time = 0.0
+            self.job_id = uuid4().hex
+            self._terminal_lock = Lock()
+            self._terminal_sent = False
 
         def progressBar(self, progress) -> None:
             if not _shouldEmitDownloadProgress(self, progress):
@@ -1808,28 +1823,23 @@ class Controller:
             self.run(
                 200,
                 self.run_mapping["download_progress_ctranslate2_weight"],
-                {"weight_type": self.weight_type, "progress": progress},
+                {"weight_type": self.weight_type, "job_id": self.job_id, "progress": progress},
             )
 
-        def downloaded(self) -> None:
-            if model.checkTranslatorCTranslate2ModelWeight(self.weight_type) is True:
-                config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[self.weight_type] = True
-
-                self.run(
-                    200,
-                    self.run_mapping["downloaded_ctranslate2_weight"],
-                    self.weight_type,
-                )
+        def downloaded(self, ready=False, error=None) -> None:
+            with self._terminal_lock:
+                if self._terminal_sent:
+                    return
+                self._terminal_sent = True
+            config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[self.weight_type] = ready is True
+            data = {"weight_type": self.weight_type, "job_id": self.job_id, "downloaded": ready is True}
+            if ready is True:
+                self.run(200, self.run_mapping["downloaded_ctranslate2_weight"], data)
             else:
                 error_response = VRCTError.create_error_response(
-                    ErrorCode.WEIGHT_CTRANSLATE2_DOWNLOAD,
-                    data=None
+                    ErrorCode.WEIGHT_CTRANSLATE2_DOWNLOAD, data={**data, "reason": error},
                 )
-                self.run(
-                    error_response["status"],
-                    self.run_mapping["error_ctranslate2_weight"],
-                    error_response["result"],
-                )
+                self.run(error_response["status"], self.run_mapping["error_ctranslate2_weight"], error_response["result"])
 
     class DownloadWhisper:
         def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None]) -> None:
@@ -1838,6 +1848,9 @@ class Controller:
             self.run = run
             self._last_progress = -1.0
             self._last_time = 0.0
+            self.job_id = uuid4().hex
+            self._terminal_lock = Lock()
+            self._terminal_sent = False
 
         def progressBar(self, progress) -> None:
             if not _shouldEmitDownloadProgress(self, progress):
@@ -1846,28 +1859,23 @@ class Controller:
             self.run(
                 200,
                 self.run_mapping["download_progress_whisper_weight"],
-                {"weight_type": self.weight_type, "progress": progress},
+                {"weight_type": self.weight_type, "job_id": self.job_id, "progress": progress},
             )
 
-        def downloaded(self) -> None:
-            if model.checkTranscriptionWhisperModelWeight(self.weight_type) is True:
-                config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[self.weight_type] = True
-
-                self.run(
-                    200,
-                    self.run_mapping["downloaded_whisper_weight"],
-                    self.weight_type,
-                )
+        def downloaded(self, ready=False, error=None) -> None:
+            with self._terminal_lock:
+                if self._terminal_sent:
+                    return
+                self._terminal_sent = True
+            config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[self.weight_type] = ready is True
+            data = {"weight_type": self.weight_type, "job_id": self.job_id, "downloaded": ready is True}
+            if ready is True:
+                self.run(200, self.run_mapping["downloaded_whisper_weight"], data)
             else:
                 error_response = VRCTError.create_error_response(
-                    ErrorCode.WEIGHT_WHISPER_DOWNLOAD,
-                    data=None
+                    ErrorCode.WEIGHT_WHISPER_DOWNLOAD, data={**data, "reason": error},
                 )
-                self.run(
-                    error_response["status"],
-                    self.run_mapping["error_whisper_weight"],
-                    error_response["result"],
-                )
+                self.run(error_response["status"], self.run_mapping["error_whisper_weight"], error_response["result"])
 
     def _messagePublicationGuard(self, source, publication_guard=None):
         def muted():
@@ -4882,47 +4890,48 @@ class Controller:
             self.run(response["status"], self.run_mapping[f"error_{kind}_weight"], response["result"])
         return request
 
-    def downloadCtranslate2Weight(self, data:Any, asynchronous:bool=True, *args, **kwargs) -> dict:
-        consent_error = self._legacyDownloadConsentError("ctranslate2", data)
+    def _legacyDownloads(self):
+        # Lazy fallback also supports model-free controller fixtures.
+        with _LEGACY_DOWNLOAD_OWNER_LOCK:
+            if getattr(self, "legacy_downloads", None) is None:
+                self.legacy_downloads = LegacyDownloads()
+            return self.legacy_downloads
+
+    def _downloadLegacyWeight(self, kind, data, asynchronous):
+        consent_error = self._legacyDownloadConsentError(kind, data)
         if consent_error is not None:
             return consent_error
         weight_type = data["weight_type"]
-        download_ctranslate2 = self.DownloadCTranslate2(
-            self.run_mapping,
-            weight_type,
-            self.run
-            )
+        notifier = (self.DownloadWhisper if kind == "whisper" else self.DownloadCTranslate2)(
+            self.run_mapping, weight_type, self.run)
+        owner = self._legacyDownloads()
 
-        model.downloadCTranslate2ModelTokenizer(weight_type)
-        if asynchronous is True:
-            self.startThreadingDownloadCtranslate2Weight(
-                weight_type,
-                download_ctranslate2.progressBar,
-                download_ctranslate2.downloaded,
-                )
-        else:
-            model.downloadCTranslate2ModelWeight(weight_type, download_ctranslate2.progressBar, download_ctranslate2.downloaded)
-        return {"status":200, "result":True}
+        def acquire(control):
+            if kind == "whisper":
+                downloaded = model.downloadWhisperModelWeight(weight_type, notifier.progressBar, control=control)
+                return downloaded is True and model.checkTranscriptionWhisperModelWeight(weight_type) is True
+            downloaded = model.downloadCTranslate2ModelWeight(weight_type, notifier.progressBar, control=control)
+            return downloaded is True and model.checkTranslatorCTranslate2ModelWeight(weight_type) is True
+
+        try:
+            owner.start((kind, weight_type), acquire, notifier.downloaded, job_id=notifier.job_id)
+        except Exception as exc:
+            # Rejected requests have one identified endpoint result, no worker notification.
+            return VRCTError.create_error_response(
+                ErrorCode.WEIGHT_WHISPER_DOWNLOAD if kind == "whisper" else ErrorCode.WEIGHT_CTRANSLATE2_DOWNLOAD,
+                data={"weight_type": weight_type, "job_id": notifier.job_id,
+                      "downloaded": False, "reason": str(exc),
+                      "active_job_id": owner.active_job((kind, weight_type))},
+            )
+        if not asynchronous:
+            owner.wait((kind, weight_type))
+        return {"status": 200, "result": {"weight_type": weight_type, "job_id": notifier.job_id}}
+
+    def downloadCtranslate2Weight(self, data:Any, asynchronous:bool=True, *args, **kwargs) -> dict:
+        return self._downloadLegacyWeight("ctranslate2", data, asynchronous)
 
     def downloadWhisperWeight(self, data:Any, asynchronous:bool=True, *args, **kwargs) -> dict:
-        consent_error = self._legacyDownloadConsentError("whisper", data)
-        if consent_error is not None:
-            return consent_error
-        weight_type = data["weight_type"]
-        download_whisper = self.DownloadWhisper(
-            self.run_mapping,
-            weight_type,
-            self.run
-        )
-        if asynchronous is True:
-            self.startThreadingDownloadWhisperWeight(
-                weight_type,
-                download_whisper.progressBar,
-                download_whisper.downloaded,
-                )
-        else:
-            model.downloadWhisperModelWeight(weight_type, download_whisper.progressBar, download_whisper.downloaded)
-        return {"status":200, "result":True}
+        return self._downloadLegacyWeight("whisper", data, asynchronous)
 
     @staticmethod
     def messageFormatter(format_type:str, translation:list, message:str, format_parts=None) -> str:
@@ -5435,18 +5444,6 @@ class Controller:
     def stopCheckSpeakerEnergy(self) -> None:
         with self.speaker_lifecycle_lock:
             model.stopCheckSpeakerEnergy()
-
-    @staticmethod
-    def startThreadingDownloadCtranslate2Weight(weight_type:str, callback:Callable[[float], None], end_callback:Optional[Callable[..., None]] = None) -> None:
-        th_download = Thread(target=model.downloadCTranslate2ModelWeight, args=(weight_type, callback, end_callback))
-        th_download.daemon = True
-        th_download.start()
-
-    @staticmethod
-    def startThreadingDownloadWhisperWeight(weight_type:str, callback:Callable[[float], None], end_callback:Optional[Callable[..., None]] = None) -> None:
-        th_download = Thread(target=model.downloadWhisperModelWeight, args=(weight_type, callback, end_callback))
-        th_download.daemon = True
-        th_download.start()
 
     @staticmethod
     def startWatchdog(*args, **kwargs) -> dict:
@@ -6300,68 +6297,21 @@ class Controller:
         whisper_pre_available: Optional[bool] = None
         ctranslate2_request = None
         whisper_request = None
-        # Preserve legacy on-disk migration when downloads are disabled,
-        # retaining its existing connected-startup condition.
-        if connected_network is True:
-            model.backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir()
+        # Migration is local and preserves conflicts, including offline startup.
+        model.backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir()
         if connected_network is True and config.AUTO_DOWNLOAD_MODELS is True:
-            printLog("Download CTranslate2 Model Weight")
-
-            weight_type = config.CTRANSLATE2_WEIGHT_TYPE
-            th_download_ctranslate2 = None
-            ctranslate2_pre_available = model.checkTranslatorCTranslate2ModelWeight(weight_type)
+            ctranslate2_pre_available = model.checkTranslatorCTranslate2ModelWeight(config.CTRANSLATE2_WEIGHT_TYPE)
+            whisper_pre_available = model.checkTranscriptionWhisperModelWeight(config.WHISPER_WEIGHT_TYPE)
             if ctranslate2_pre_available is False:
-                ctranslate2_request = self._startupLegacyDownloadRequest("ctranslate2", weight_type)
-            if ctranslate2_request is not None:
-                th_download_ctranslate2 = Thread(target=self.downloadCtranslate2Weight, args=(ctranslate2_request, False))
-                th_download_ctranslate2.daemon = True
-                th_download_ctranslate2.start()
-
-            printLog("Download Whisper Model Weight")
-            weight_type = config.WHISPER_WEIGHT_TYPE
-            th_download_whisper = None
-            whisper_pre_available = model.checkTranscriptionWhisperModelWeight(weight_type)
+                ctranslate2_request = self._startupLegacyDownloadRequest("ctranslate2", config.CTRANSLATE2_WEIGHT_TYPE)
+                if ctranslate2_request is not None:
+                    self.downloadCtranslate2Weight(ctranslate2_request, False)
+                    ctranslate2_pre_available = None
             if whisper_pre_available is False:
-                whisper_request = self._startupLegacyDownloadRequest("whisper", weight_type)
-            if whisper_request is not None:
-                th_download_whisper = Thread(target=self.downloadWhisperWeight, args=(whisper_request, False))
-                th_download_whisper.daemon = True
-                th_download_whisper.start()
-
-            # join() にタイムアウトを設ける: downloadCTranslate2Weight/
-            # downloadWhisperWeight は HTTP タイムアウト+リトライ (最大 3 回
-            # × 最大 70s + バックオフ) を持つため 1 ファイルあたりの worst
-            # case は数分程度で収まるが、重みセットが複数ファイルにまたがる
-            # ため、理論上の合計 worst case はさらに長くなりうる。無制限
-            # join だと万一そのバジェットを超えて本当にハングした場合に
-            # init() (ひいてはアプリの起動) が無期限に固まる。ここでの
-            # タイムアウトは「異常系での最終防波堤」として十分長く
-            # (30 分) 取り、正常系の低速回線でのリトライを誤って
-            # 中断しないようにする。タイムアウトした場合はダウンロード
-            # スレッド (daemon) をバックグラウンドで走らせたまま
-            # 初期化を先へ進める。
-            _WEIGHT_DOWNLOAD_JOIN_TIMEOUT_SEC = 1800
-            if isinstance(th_download_ctranslate2, Thread):
-                th_download_ctranslate2.join(timeout=_WEIGHT_DOWNLOAD_JOIN_TIMEOUT_SEC)
-                if th_download_ctranslate2.is_alive():
-                    printLog(
-                        f"CTranslate2 weight download did not finish within "
-                        f"{_WEIGHT_DOWNLOAD_JOIN_TIMEOUT_SEC}s; continuing "
-                        "initialization without waiting further (download "
-                        "continues in the background)"
-                    )
-                # ダウンロードを行った場合は結果が変わるため再検証が必要
-                ctranslate2_pre_available = None
-            if isinstance(th_download_whisper, Thread):
-                th_download_whisper.join(timeout=_WEIGHT_DOWNLOAD_JOIN_TIMEOUT_SEC)
-                if th_download_whisper.is_alive():
-                    printLog(
-                        f"Whisper weight download did not finish within "
-                        f"{_WEIGHT_DOWNLOAD_JOIN_TIMEOUT_SEC}s; continuing "
-                        "initialization without waiting further (download "
-                        "continues in the background)"
-                    )
-                whisper_pre_available = None
+                whisper_request = self._startupLegacyDownloadRequest("whisper", config.WHISPER_WEIGHT_TYPE)
+                if whisper_request is not None:
+                    self.downloadWhisperWeight(whisper_request, False)
+                    whisper_pre_available = None
 
         # Check and disable/enable AI models (parallel)
         # 上の事前チェックで「ロード検証済みかつダウンロード不要」と分かっている場合は
@@ -6383,17 +6333,16 @@ class Controller:
             ctranslate2_available = future_ctranslate2.result()
             whisper_available = future_whisper.result()
 
-        # 初回ダウンロード後もまだロードできない重みがある場合、ユーザーに
-        # 「AIモデル未検出。VRCTを再起動してください」通知を出して手動再起動を
-        # 促す前に、アプリ自身が最大1回だけ同期的に再ダウンロードを試みる。
-        # (list_repo_files の一時失敗などで初回ダウンロードスレッドが丸ごと
-        #  取りこぼしたケースを吸収する)
+        # 同意済みで、前回のworkerを停止・joinできた重みだけ1回再試行する。
+        # 取消がまだ完了していなければ重ねて取得せず、取得済みとは扱わない。
         if (connected_network is True and config.AUTO_DOWNLOAD_MODELS is True
                 and (not ctranslate2_available or not whisper_available)):
-            if not ctranslate2_available and ctranslate2_request is not None:
+            if (not ctranslate2_available and ctranslate2_request is not None
+                    and self._legacyDownloads().stop(("ctranslate2", config.CTRANSLATE2_WEIGHT_TYPE))):
                 printLog("CTranslate2 weight unavailable after first download; retrying once")
                 self.downloadCtranslate2Weight(ctranslate2_request, False)
-            if not whisper_available and whisper_request is not None:
+            if (not whisper_available and whisper_request is not None
+                    and self._legacyDownloads().stop(("whisper", config.WHISPER_WEIGHT_TYPE))):
                 printLog("Whisper weight unavailable after first download; retrying once")
                 self.downloadWhisperWeight(whisper_request, False)
 

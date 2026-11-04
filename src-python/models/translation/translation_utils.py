@@ -1,56 +1,22 @@
+"""Pinned CTranslate2 admission, conflict-preserving migration and local tokenizers."""
 from os import path as os_path
-from os import makedirs as os_makedirs
-from os import rename as os_rename
-from os import remove as os_remove
-from os import replace as os_replace
-from shutil import rmtree as shutil_rmtree
-from time import sleep
-from requests import get as requests_get
-from requests.exceptions import HTTPError
+from pathlib import Path
+from shutil import copyfile
+from tempfile import TemporaryDirectory
 from typing import Callable
 import yaml
 
-try:
-    from utils import errorLogging, getBestComputeType, isWeightVerifiedCache, writeWeightVerifiedCache, printLog
-except Exception:
-    import sys
-    print(os_path.dirname(os_path.dirname(os_path.dirname(os_path.abspath(__file__)))))
-    sys.path.append(os_path.dirname(os_path.dirname(os_path.dirname(os_path.abspath(__file__)))))
-    from utils import errorLogging, getBestComputeType, isWeightVerifiedCache, writeWeightVerifiedCache, printLog
-from models.builtin_model_pins import MODEL_PINS, TOKENIZER_REVISIONS, verifyPinnedFile
+from models.builtin_model_pins import MODEL_PINS, tokenizerFilePins
+from models.legacy_model_downloads import download_directory, verified_directory
+from models.model_downloads.manager import directory
+from models.model_downloads.staging import RootLease
 
-# 起動時の初回ダウンロードで一時的なネットワーク断が起きても 1 回の取りこぼしで
-# 「AIモデル未検出。VRCTを再起動してください」通知に落ちないよう、タイムアウトと
-# 指数バックオフ付きの再試行を行う。
-_DOWNLOAD_TIMEOUT = (10, 60)  # (connect, read) 秒
-_DOWNLOAD_MAX_ATTEMPTS = 3
-_DOWNLOAD_RETRY_BACKOFF = 2  # 秒。attempt 番号を掛けて待機 (2s, 4s, ...)
-
-# Optional runtime deps; None fallback disables the corresponding features
-# (check/download/tokenizer) when the package is unavailable.
-try:
-    import ctranslate2  # noqa: F401
-except Exception:
-    ctranslate2 = None  # type: ignore
-
-try:
-    from huggingface_hub import hf_hub_url  # noqa: F401
-except Exception:
-    hf_hub_url = None  # type: ignore
-
+# Tokenizer loading is optional; integrity checks do not load native models.
 try:
     import transformers  # noqa: F401
 except Exception:
     transformers = None  # type: ignore
 
-
-"""Utilities for downloading and verifying CTranslate2 weights and tokenizers.
-
-This module provides a small, dependency-light set of helpers used by the
-translation layer. It purposely keeps behavior resilient: network errors are
-logged (via utils.errorLogging) and the functions return/complete without
-raising, which matches the repository's defensive style.
-"""
 
 # License metadata is shown next to each weight in Config -> Translation, and
 # commercial_use=False weights need an explicit opt-in before they can be
@@ -116,143 +82,99 @@ def isNonCommercialCTranslate2Weight(weight_type: str) -> bool:
     weight = ctranslate2_weights.get(weight_type)
     return weight is not None and weight.get("commercial_use") is False
 
-def backwardCompatibleRenameWeightsDir(root: str):
-    # 後方互換のためファイル名を変更する
-    legacy_dirs = {
-        "m2m100_418M": "m2m100_418M-ct2-int8",
-        "m2m100_12b": "m2m100_1.2B-ct2-int8",
-    }
+_LEGACY_DIRECTORIES = {
+    "m2m100_418M-ct2-int8": "m2m100_418M",
+    "m2m100_1.2B-ct2-int8": "m2m100_12b",
+}
 
-    for weight_type_old, weight_type_new in legacy_dirs.items():
-        path = os_path.join(root, "weights", "ctranslate2", weight_type_new)
-        old_path = os_path.join(root, "weights", "ctranslate2", weight_type_old)
-        if not os_path.isdir(old_path):
-            continue
-        if os_path.isdir(path):
-            # 新形式のディレクトリが既に存在する場合、旧形式は不要になったディスク領域なので削除する
-            shutil_rmtree(old_path)
-        else:
-            os_rename(old_path, path)
+
+def resolveCTranslate2Weight(root: str, weight_type: str, control=None):
+    """Prefer the verified current name, retaining and accepting a verified old copy."""
+    weight = ctranslate2_weights[weight_type]
+    repo = weight["hf_repo"]
+    base = Path(root) / "weights" / "ctranslate2"
+    names = [weight["directory_name"]]
+    if weight_type in _LEGACY_DIRECTORIES:
+        names.append(_LEGACY_DIRECTORIES[weight_type])
+    for name in names:
+        path = base / name
+        if verified_directory(path, repo, MODEL_PINS[repo], control):
+            return path
+    return None
+
+
+def backwardCompatibleRenameWeightsDir(root: str):
+    # Conflicts are retained, even when both copies are valid. Cleanup is separate.
+    base = Path(root).absolute() / "weights" / "ctranslate2"
+    if not base.exists():
+        return
+    lease = RootLease(base)
+    try:
+        directory(base)
+        lease.acquire()
+        for current, old in _LEGACY_DIRECTORIES.items():
+            target, source = base / current, base / old
+            if target.exists() or target.is_symlink():
+                continue
+            repo = ctranslate2_weights[current]["hf_repo"]
+            if verified_directory(source, repo, MODEL_PINS[repo]):
+                source.rename(target)
+    except (OSError, ValueError):
+        # A running acquisition owns migration too; availability can use the old name.
+        return
+    finally:
+        lease.close()
+
 
 def hasCTranslate2WeightFile(root: str, weight_type: str = "m2m100_418M-ct2-int8") -> bool:
-    """Whether model.bin is on disk. Unlike checkCTranslate2Weight, this does not load the model."""
-    weight_directory_name = ctranslate2_weights[weight_type]["directory_name"]
-    return os_path.isfile(os_path.join(root, "weights", "ctranslate2", weight_directory_name, "model.bin"))
+    return resolveCTranslate2Weight(root, weight_type) is not None
+
 
 def checkCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8"):
-    weight_directory_name = ctranslate2_weights[weight_type]["directory_name"]
-    path = os_path.join(root, "weights", "ctranslate2", weight_directory_name)
+    return resolveCTranslate2Weight(root, weight_type) is not None
 
-    if isWeightVerifiedCache(path):
-        return True
 
+def downloadCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8",
+                             callback: Callable = None, end_callback: Callable = None, *, control=None) -> bool:
     try:
-        if ctranslate2 is None:
-            return False
-        # モデルロード可能かどうかで判定
-        compute_type = getBestComputeType("cpu", 0)
-        ctranslate2.Translator(path, compute_type=compute_type)
-        writeWeightVerifiedCache(path)
-        return True
-    except Exception:
-        return False
+        if resolveCTranslate2Weight(root, weight_type, control) is not None:
+            return True
+        weight = ctranslate2_weights[weight_type]
+        repo = weight["hf_repo"]
+        return download_directory(Path(root) / "weights" / "ctranslate2", weight["directory_name"],
+                                  repo, MODEL_PINS[repo], control, callback)
+    finally:
+        if end_callback is not None:
+            end_callback()
 
-def downloadCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int8", callback: Callable = None, end_callback: Callable = None) -> bool:
-    if hf_hub_url is None:
-        return False
-    hf_repo = ctranslate2_weights[weight_type]["hf_repo"]
-    path = os_path.join(root, "weights", "ctranslate2", ctranslate2_weights[weight_type]["directory_name"])
-    # 既にロード検証済みなら、ネットワークには触れない
-    if checkCTranslate2Weight(root, weight_type):
-        return True
-
-    # 固定した commit のファイルだけを取り、大きさと SHA-256 を確かめる (models/builtin_model_pins.py)。
-    # 以前はリポジトリの既定のブランチにあるファイルを、確かめずにすべて取っていた
-    pin = MODEL_PINS[hf_repo]
-
-    os_makedirs(path, exist_ok=True)
-    base_dir = os_path.abspath(path)
-
-    def downloadFile(url: str, file_path: str, file_pin: tuple, func: Callable = None) -> bool:
-        part_path = f"{file_path}.part"
-        for attempt in range(1, _DOWNLOAD_MAX_ATTEMPTS + 1):
-            try:
-                res = requests_get(url, stream=True, timeout=_DOWNLOAD_TIMEOUT)
-                res.raise_for_status()
-                file_size = int(res.headers.get('content-length', 0))
-                total_chunk = 0
-                os_makedirs(os_path.dirname(file_path), exist_ok=True)
-                with open(part_path, 'wb') as file:
-                    for chunk in res.iter_content(chunk_size=1024*2000):
-                        file.write(chunk)
-                        if func is not None:
-                            total_chunk += len(chunk)
-                            if file_size > 0:
-                                func(total_chunk/file_size)
-                if not verifyPinnedFile(part_path, *file_pin):
-                    raise ValueError(f"downloaded file does not match its pinned SHA-256: {url}")
-                os_replace(part_path, file_path)
-                return True
-            except Exception as e:
-                errorLogging()
-                try:
-                    if os_path.exists(part_path):
-                        os_remove(part_path)
-                except Exception:
-                    pass
-                status = getattr(getattr(e, "response", None), "status_code", None)
-                if isinstance(e, HTTPError) and status is not None and 400 <= status < 500 and status != 429:
-                    return False
-                if attempt < _DOWNLOAD_MAX_ATTEMPTS:
-                    printLog(f"CTranslate2 file download failed, retrying ({attempt}/{_DOWNLOAD_MAX_ATTEMPTS - 1})", url)
-                    sleep(_DOWNLOAD_RETRY_BACKOFF * attempt)
-        return False
-
-    all_succeeded = True
-    for filename, file_pin in pin["files"].items():
-        # 固定した名前だけを使うが、念のため展開先ディレクトリの外に書かないことを確かめる
-        normalized = os_path.normpath(filename)
-        file_path = os_path.abspath(os_path.join(path, normalized))
-        if not (file_path == base_dir or file_path.startswith(base_dir + os_path.sep)):
-            errorLogging()
-            all_succeeded = False
-            continue
-        url = hf_hub_url(hf_repo, filename, revision=pin["revision"])
-        if not downloadFile(url, file_path, file_pin, func=callback if filename == "model.bin" else None):
-            all_succeeded = False
-
-    if end_callback is not None:
-        end_callback()
-    return all_succeeded
 
 class MissingCTranslate2Tokenizer(FileNotFoundError):
-    """The pinned tokenizer is unavailable locally; direct the user to Downloads."""
+    """The pinned local bundle is unavailable; direct the user to Downloads."""
 
 
 def downloadCTranslate2Tokenizer(path: str, weight_type: str = "m2m100_418M-ct2-int8", *, local_files_only: bool = True):
-    # Network access is reserved for the explicit, consented acquisition path.
-    if transformers is None:
+    # Both families already include their tokenizer assets in the pinned CT2
+    # bundle. Never delegate acquisition to Transformers or trust its hub cache.
+    weight_path = resolveCTranslate2Weight(path, weight_type)
+    if transformers is None or weight_path is None:
         raise MissingCTranslate2Tokenizer(weight_type)
-    directory_name = ctranslate2_weights[weight_type]["directory_name"]
-    tokenizer = ctranslate2_weights[weight_type]["tokenizer"]
-    tokenizer_path = os_path.join(path, "weights", "ctranslate2", directory_name, "tokenizer")
-    # トークナイザーも固定した commit のものを使う (既定のブランチを追わない)
-    revision = TOKENIZER_REVISIONS[tokenizer]
     try:
-        if not local_files_only:
-            os_makedirs(tokenizer_path, exist_ok=True)
-        return transformers.AutoTokenizer.from_pretrained(
-            tokenizer, cache_dir=tokenizer_path, revision=revision, local_files_only=local_files_only)
-    except Exception:
-        errorLogging()
-        tokenizer_path = os_path.join("./weights", "ctranslate2", directory_name, "tokenizer")
-        try:
-            return transformers.AutoTokenizer.from_pretrained(
-                tokenizer, cache_dir=tokenizer_path, revision=revision, local_files_only=local_files_only)
-        except Exception as exc:
-            if local_files_only:
-                raise MissingCTranslate2Tokenizer(weight_type) from exc
-            raise
+        tokenizer_class = (transformers.M2M100Tokenizer if weight_type.startswith("m2m100")
+                           else transformers.NllbTokenizerFast)
+        repo = ctranslate2_weights[weight_type]["hf_repo"]
+        pin = MODEL_PINS[repo]
+        files = tokenizerFilePins(repo)
+        # Transformers also reads optional added_tokens/config files. A private
+        # projection prevents unpinned extras in a user's directory being loaded.
+        with TemporaryDirectory(prefix="vrct-tokenizer-") as temporary:
+            for name in files:
+                copyfile(weight_path / name, Path(temporary) / name)
+            if not verified_directory(temporary, repo, {"revision": pin["revision"], "files": files}):
+                raise MissingCTranslate2Tokenizer(weight_type)
+            return tokenizer_class.from_pretrained(temporary, local_files_only=True)
+    except Exception as exc:
+        raise MissingCTranslate2Tokenizer(weight_type) from exc
+
 
 def loadTranslatePromptConfig(root_path: str | None = None, prompt_filename: str | None = None) -> dict:
     # PyInstaller 展開後

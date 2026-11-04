@@ -17,3 +17,9 @@ export const legacyReviewSize = (entry, t) => {
 
 export const clearLegacyConsentPending = (rows, weight_type) => rows.map(item =>
     item.id === weight_type ? { ...item, is_pending: false, progress: null } : item);
+
+export const clearLegacyDownloadFailure = (rows, data) => rows.map(item =>
+    item.id === data?.weight_type && !data?.active_job_id
+        && (!item.job_id || !data?.job_id || item.job_id === data.job_id)
+        ? { ...item, is_pending: false, is_downloaded: false, progress: null }
+        : item);

@@ -1315,6 +1315,7 @@ studio:
     close: "Close application"
 
 legacy_model_downloads:
+    included_tokenizer: "Tokenizer files are included in the size above and verified with the model."
     provider: "Provider"
     exact_bytes: "{{bytes}} bytes"
     plus_tokenizer: "plus tokenizer files (their size is not included)"

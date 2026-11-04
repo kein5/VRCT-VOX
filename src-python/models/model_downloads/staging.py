@@ -45,7 +45,7 @@ def mark_owned(path, entry):
         json.dump(data, out); out.flush(); os.fsync(out.fileno())
 
 
-def recover_owned(root, entries):
+def recover_owned(root, entries, *, extra_files=()):
     """Caller holds RootLease. Never follow links or remove unrecognized content."""
     for path in root.glob('.partial-*'):
         if not re.fullmatch(r'\.partial-[0-9a-f]{32}', path.name) or not stat.S_ISDIR(path.lstat().st_mode):
@@ -60,7 +60,7 @@ def recover_owned(root, entries):
                     revision=entry.revision, files=[a.filename for a in entry.artifacts], directory=path.name)):
                 continue
             children = list(path.iterdir())
-            allowed = {'owner.json', 'receipt.json', *(a.filename for a in entry.artifacts)}
+            allowed = {'owner.json', 'receipt.json', *extra_files, *(a.filename for a in entry.artifacts)}
             if any(p.name not in allowed or not stat.S_ISREG(p.lstat().st_mode) for p in children):
                 continue
             for child in children: child.unlink()
