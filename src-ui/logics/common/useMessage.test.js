@@ -177,7 +177,8 @@ async function composer(subject, autoClear = false) {
     const field = () => find(render(), node => node.type === "textarea");
     return { render, field, input: () => runtime.store.get(subject.stores.Atom_MessageInputValue).data,
         change: value => { field().props.onChange({ currentTarget: { value } }); render(); },
-        enter: () => field().props.onKeyDown({ keyCode: 13, nativeEvent: {}, preventDefault() {} }),
+        enter: (extra = {}) => field().props.onKeyDown({ key: "Enter", keyCode: 13, nativeEvent: {}, preventDefault() {}, ...extra }),
+        key: key => field().props.onKeyDown({ key, shiftKey: true, nativeEvent: {}, preventDefault() {} }),
     };
 }
 
@@ -234,7 +235,8 @@ for (const success of [true, false]) test(`Quick Chat handoff resets typing and 
             useIsOpenedConfigPage: () => ({ currentIsOpenedConfigPage: { data: false } }),
         },
         "@logics_configs": {
-            useAppearance: () => ({ currentSendMessageButtonType: { data: "show" } }),
+            useAppearance: () => ({ currentSendMessageButtonType: { data: "show" },
+                currentUiScaling: { data: 100 }, currentSelectedFontFamily: { data: "Yu Gothic UI" } }),
             useOthers: () => ({ currentEnableAutoClearMessageInputBox: { data: true } }),
         },
     });
@@ -268,4 +270,77 @@ test("output failure warns without failing or resending a successful message row
     assert.equal(subject.notices[0].options.category_id, "MESSAGE_OUTPUT_FAILED.overlay_large");
     assert.equal(subject.writes.length, 1);
     assert.deepEqual(subject.reads, []);
+});
+
+for (const accepted of [true, false]) test(`holding Enter and duplicate clicks send once until handoff settles (${accepted})`, async context => {
+    context.mock.method(globalThis, "setTimeout", () => 0);
+    const handoff = deferred(), subject = await setup(() => handoff.promise), input = await composer(subject);
+    input.change("同じ下書き");
+    input.enter();
+    input.enter({ repeat: true });
+    input.enter({ repeat: true });
+    input.enter(); // Another non-repeat keydown before the handoff settles.
+    const button = find(input.render(), node => typeof node.props.onSubmitFunction === "function");
+    assert.equal(button.props.pending, true);
+    button.props.onSubmitFunction({ preventDefault() {} });
+    assert.equal(subject.writes.length, 1);
+    handoff.resolve(accepted);
+    await flush();
+    input.enter({ repeat: true }); // Still held after settlement: never resend.
+    assert.equal(subject.writes.length, 1);
+    assert.equal(input.input(), "同じ下書き");
+    assert.equal(find(input.render(), node => typeof node.props.onSubmitFunction === "function").props.pending, false);
+    input.enter(); // A deliberate later message, including identical text, is allowed.
+    await flush();
+    assert.equal(subject.writes.length, 2);
+    assert.notEqual(subject.writes[0][1].id, subject.writes[1][1].id);
+});
+
+test("main input keeps IME and Shift+Enter guards", async () => {
+    const subject = await setup(), input = await composer(subject);
+    input.change("変換中");
+    input.enter({ nativeEvent: { isComposing: true } });
+    input.enter({ keyCode: 229 });
+    input.enter({ shiftKey: true });
+    assert.equal(subject.writes.length, 0);
+});
+
+const sentRow = (id, message) => ({ id, category: "sent", messages: { original: { message } } });
+test("history eviction resets to the saved draft and never puts a non-string in the composer", async () => {
+    const subject = await setup(), input = await composer(subject);
+    const setRows = rows => subject.runtime.store.set(subject.stores.Atom_MessageLogs, { state: "ok", data: rows });
+    let rows = [sentRow("oldest", "古い文"), sentRow("newer", "新しい文"),
+        ...Array.from({ length: 998 }, (_, id) => ({ id: `received-${id}`, category: "received" }))];
+    setRows(rows);
+    input.change("書きかけの文章");
+    input.key("ArrowUp");
+    input.key("ArrowUp");
+    assert.equal(input.input(), "古い文");
+    rows = keepRecentLogs([...rows, { category: "received" }, { category: "received" }]);
+    setRows(rows);
+    input.key("ArrowDown");
+    assert.equal(input.input(), "書きかけの文章");
+    input.key("ArrowDown");
+    input.key("ArrowUp");
+    assert.equal(input.input(), "書きかけの文章");
+    input.render(); // Includes the trim/typing effect that used to throw.
+    assert.equal(subject.writes.length, 0);
+});
+
+test("history follows row identity through appended rows and partial eviction, then restores the draft", async () => {
+    const subject = await setup(), input = await composer(subject);
+    const setRows = rows => subject.runtime.store.set(subject.stores.Atom_MessageLogs, { state: "ok", data: rows });
+    setRows([sentRow("a", "same"), sentRow("b", "same")]);
+    input.change("draft");
+    input.key("ArrowUp");
+    setRows([sentRow("b", "same"), sentRow("c", "new"), sentRow("bad", undefined)]);
+    input.key("ArrowDown");
+    assert.equal(input.input(), "new");
+    input.key("ArrowDown");
+    assert.equal(input.input(), "draft");
+    input.key("ArrowUp");
+    input.change("edited history becomes a draft");
+    input.key("ArrowUp");
+    input.key("ArrowDown");
+    assert.equal(input.input(), "edited history becomes a draft");
 });

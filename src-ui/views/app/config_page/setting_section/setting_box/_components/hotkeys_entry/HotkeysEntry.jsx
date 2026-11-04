@@ -63,6 +63,14 @@ export const HotkeysEntry = (props) => {
     };
 
     const handleKeyDown = (event) => {
+        if (event.key === "Tab" || event.key === "Escape") {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            cancelInput();
+            return;
+        }
         event.preventDefault();
         if (lastKeyRef.current === event.key) return;
 
@@ -71,9 +79,11 @@ export const HotkeysEntry = (props) => {
     };
 
     const handleKeyUp = (event) => {
+        if (event.key === "Tab" || event.key === "Escape") return;
         lastKeyRef.current = null;
 
         const key = processKey(event.key);
+        if (!pressedKeys.current.has(key)) return;
         pressedKeys.current.delete(key);
 
         if (isModifierOnlyRef.current) {
@@ -93,10 +103,17 @@ export const HotkeysEntry = (props) => {
         }
     };
 
+    const cancelInput = () => {
+        pressedKeys.current.clear();
+        keysRef.current = [];
+        lastKeyRef.current = null;
+        isModifierOnlyRef.current = false;
+        setDisplayValue(committedDisplayValueRef.current);
+    };
+
     const handleBlur = () => {
         setIsAcceptingInput(false);
-        pressedKeys.current.clear();
-        if (!displayValue) setDisplayValue(committedDisplayValueRef.current);
+        cancelInput();
     };
 
     const handleFocus = () => {

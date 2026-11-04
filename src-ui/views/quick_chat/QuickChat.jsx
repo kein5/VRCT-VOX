@@ -11,6 +11,14 @@ export const QuickChat = ({ bridge = quickChatBridge }) => {
     const field = useRef(null), composing = useRef(false), sending = useRef(false);
     const lengthWarningId = useId(), overflowLength = chatboxOverflowLength(value);
     const container = useRef(null), warning = useRef(null), grown = useRef(0), isOverflowing = overflowLength !== null;
+    useLayoutEffect(() => {
+        // This document has its own root. Font names stay a single CSS string,
+        // with the local Noto/system fallbacks supplied by root.css.
+        if (context.ui_scaling !== undefined) {
+            document.documentElement.style.setProperty('font-size', `${62.5 * context.ui_scaling / 100}%`);
+            document.documentElement.style.setProperty('--font_family', JSON.stringify(context.font_family));
+        }
+    }, [context.ui_scaling, context.font_family]);
     // The warning gets room below the field: grow the window by its height and
     // shrink back when it goes, so the field itself never gets smaller.
     useLayoutEffect(() => {
@@ -20,22 +28,37 @@ export const QuickChat = ({ bridge = quickChatBridge }) => {
         if (!delta || !bridge.growBy) return;
         grown.current = height;
         bridge.growBy(delta).catch(error => console.warn('Quick chat window could not be resized', error));
-    }, [isOverflowing, bridge]);
+    }, [isOverflowing, bridge, context.ui_scaling, context.font_family]);
     useEffect(() => {
         let disposed = false;
-        const focus = async () => {
+        let revision = 0;
+        let focusRequested = false;
+        const refresh = async (focusInput = false) => {
+            focusRequested ||= focusInput;
+            const current = ++revision;
             try {
                 const next = await bridge.context();
-                if (disposed) return;
+                if (disposed || current !== revision) return;
                 setContext(next);
                 await i18n.changeLanguage(next.language);
-                field.current?.focus();
-            } catch { if (!disposed) setError('quick_chat_not_ready'); }
+                if (focusRequested && !disposed && current === revision) {
+                    focusRequested = false;
+                    field.current?.focus();
+                }
+            } catch { if (!disposed && current === revision) setError('quick_chat_not_ready'); }
         };
-        focus();
+        const focus = () => refresh(true);
         const off = bridge.onOpen(focus);
+        // Notifications carry no context; read it through the validated command.
+        const offContext = bridge.onContextChanged(() => refresh());
+        Promise.all([off, offContext]).then(() => { if (!disposed) focus(); })
+            .catch(() => { if (!disposed) setError('quick_chat_not_ready'); });
         window.addEventListener('focus', focus);
-        return () => { disposed = true; off.then(fn => fn()); window.removeEventListener('focus', focus); };
+        return () => {
+            disposed = true;
+            off.then(fn => fn(), () => {}); offContext.then(fn => fn(), () => {});
+            window.removeEventListener('focus', focus);
+        };
     }, [bridge, i18n]);
     const submit = async () => {
         if (sending.current || composing.current || !value.trim()) return;

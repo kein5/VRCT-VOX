@@ -876,6 +876,10 @@ class Main:
         def _canonical_lock_key(endpoint: str) -> str:
             if not isinstance(endpoint, str):
                 return str(endpoint)
+            # START and STOP are one ordered intent stream. Reserving the lock
+            # at dequeue prevents STOP from overtaking a preempted START worker.
+            if endpoint in {"/run/typing_message_box", "/run/stop_typing_message_box"}:
+                return "/lock/typing_message_box"
             # OBS depends on WebSocket. Hold one transaction lock through
             # preflight, startup/rebind, config commit and failure cleanup.
             if endpoint in {

@@ -20,6 +20,16 @@ pub struct Context {
     language: String,
     enter_to_send: bool,
     clear_on_send: bool,
+    #[serde(default = "default_ui_scaling")]
+    ui_scaling: u16,
+    #[serde(default = "default_font_family")]
+    font_family: String,
+}
+fn default_ui_scaling() -> u16 {
+    100
+}
+fn default_font_family() -> String {
+    "Yu Gothic UI".into()
 }
 impl Default for Context {
     fn default() -> Self {
@@ -28,6 +38,8 @@ impl Default for Context {
             language: "en".into(),
             enter_to_send: true,
             clear_on_send: true,
+            ui_scaling: default_ui_scaling(),
+            font_family: default_font_family(),
         }
     }
 }
@@ -59,6 +71,20 @@ fn validate(label: &str, request: &Request) -> Result<(), String> {
     }
     if request.message.trim().is_empty() {
         return Err("quick_chat_empty".into());
+    }
+    Ok(())
+}
+fn validate_context(label: &str, context: &Context) -> Result<(), String> {
+    sender(label, "main")?;
+    if !["en", "ja", "ko", "zh-Hans", "zh-Hant"].contains(&context.language.as_str()) {
+        return Err("quick_chat_invalid_language".into());
+    }
+    if !(40..=200).contains(&context.ui_scaling)
+        || context.font_family.trim().is_empty()
+        || context.font_family.chars().count() > 256
+        || context.font_family.chars().any(char::is_control)
+    {
+        return Err("quick_chat_invalid_appearance".into());
     }
     Ok(())
 }
@@ -127,16 +153,16 @@ pub fn quick_chat_configure(
     state: State<QuickChatState>,
     context: Context,
 ) -> Result<(), String> {
-    sender(window.label(), "main")?;
-    if !["en", "ja", "ko", "zh-Hans", "zh-Hant"].contains(&context.language.as_str()) {
-        return Err("quick_chat_invalid_language".into());
-    }
+    validate_context(window.label(), &context)?;
     state
         .0
         .lock()
         .map_err(|_| "quick_chat_unavailable")?
         .context = context;
-    Ok(())
+    window
+        .app_handle()
+        .emit_to("quick_chat", "quick-chat-context-changed", ())
+        .map_err(|e| e.to_string())
 }
 #[tauri::command]
 pub fn quick_chat_submit(
@@ -191,7 +217,10 @@ pub fn quick_chat_hide(window: WebviewWindow) -> Result<(), String> {
 }
 
 #[cfg(target_os = "linux")]
-async fn present_chat(chat: &WebviewWindow, activation_token: Option<String>) -> Result<(), String> {
+async fn present_chat(
+    chat: &WebviewWindow,
+    activation_token: Option<String>,
+) -> Result<(), String> {
     use gtk::prelude::*;
 
     let (tx, mut rx) = tauri::async_runtime::channel(1);
@@ -268,7 +297,8 @@ pub async fn quick_chat_show(
     }
     #[cfg(not(target_os = "linux"))]
     {
-        let _ = activation_token; // Only Linux portal shortcuts supply one.
+        // Only Linux portal shortcuts supply an activation token.
+        let _ = activation_token;
         // Focus alone can leave the input behind a fullscreen/topmost game.
         // Apply this on every open, including reused hidden/minimized windows.
         chat.set_always_on_top(true).map_err(|e| e.to_string())?;
@@ -305,6 +335,61 @@ pub fn quick_chat_shortcut_platform(window: WebviewWindow) -> Result<&'static st
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn appearance_context_roundtrip_and_legacy_defaults() {
+        let legacy = serde_json::json!({
+            "ready": true, "language": "ja", "enter_to_send": true, "clear_on_send": false
+        });
+        let mut context: Context = serde_json::from_value(legacy).unwrap();
+        assert_eq!(context.ui_scaling, 100);
+        assert_eq!(context.font_family, "Yu Gothic UI");
+        for scale in [40, 100, 150, 200] {
+            context.ui_scaling = scale;
+            context.font_family = "日本語のローカルフォント \"Quoted\"".into();
+            assert!(validate_context("main", &context).is_ok());
+            let copy: Context =
+                serde_json::from_value(serde_json::to_value(&context).unwrap()).unwrap();
+            assert_eq!(copy.ui_scaling, scale);
+            assert_eq!(copy.font_family, context.font_family);
+            assert!(!copy.clear_on_send);
+        }
+    }
+    #[test]
+    fn appearance_context_rejects_other_senders_and_invalid_values() {
+        let mut context = Context::default();
+        for label in ["quick_chat", "vr_panel", "unknown"] {
+            assert_eq!(
+                validate_context(label, &context),
+                Err("quick_chat_forbidden".into())
+            );
+        }
+        for scale in [0, 39, 201, u16::MAX] {
+            context.ui_scaling = scale;
+            assert_eq!(
+                validate_context("main", &context),
+                Err("quick_chat_invalid_appearance".into())
+            );
+        }
+        context.ui_scaling = 100;
+        for font in [
+            "".into(),
+            "   ".into(),
+            "font\nname".into(),
+            "a".repeat(257),
+        ] {
+            context.font_family = font;
+            assert_eq!(
+                validate_context("main", &context),
+                Err("quick_chat_invalid_appearance".into())
+            );
+        }
+        context.font_family = default_font_family();
+        context.language = "unknown".into();
+        assert_eq!(
+            validate_context("main", &context),
+            Err("quick_chat_invalid_language".into())
+        );
+    }
     fn request() -> Request {
         Request {
             id: "test-1".into(),

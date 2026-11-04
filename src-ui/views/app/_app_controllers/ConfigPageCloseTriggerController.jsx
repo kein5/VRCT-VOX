@@ -9,8 +9,6 @@ import {
     useMainFunction,
 } from "@logics_main";
 
-import { useHotkeys } from "@logics_configs";
-
 import { useStore_MainFunctionsStateMemory } from "@store";
 
 export const ConfigPageCloseTriggerController = () => {
@@ -38,9 +36,6 @@ export const ConfigPageCloseTriggerController = () => {
         volumeCheckStop_Speaker,
     } = useVolume();
 
-    const { registerShortcuts, unregisterAll } = useHotkeys();
-
-
     const memorizeLatestMainFunctionsState = () => {
         updateMainFunctionsStateMemory({
             translation: currentTranslationStatus.data,
@@ -64,12 +59,10 @@ export const ConfigPageCloseTriggerController = () => {
     useEffect(() => {
         if (currentIsOpenedConfigPage.data === true) { // When config page is opened.
             memorizeLatestMainFunctionsState();
-            unregisterAll();
             if (currentTranslationStatus.data === true) setTranslation(false);
             if (currentTranscriptionSendStatus.data === true) setTranscriptionSend(false, { reason: "settings_pause" });
             if (currentTranscriptionReceiveStatus.data === true) setTranscriptionReceive(false, { reason: "settings_pause" });
         } else if (currentIsOpenedConfigPage.data === false) { // When config page is closed.
-            registerShortcuts();
             if (currentMicThresholdCheckStatus.data === true) volumeCheckStop_Mic();
             if (currentSpeakerThresholdCheckStatus.data === true) volumeCheckStop_Speaker();
             restoreMainFunctionState();

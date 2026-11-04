@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { hooks, loadModule } from "../../../test/hookHarness.js";
 
 const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
 const deferred = () => {
@@ -15,16 +16,16 @@ async function setup() {
     // replaced; no plugin, portal, browser or application is started.
     const dependencies = moduleUrl(`
         export const state = { ready: true, settings: false, updating: false, actions: [], notices: [],
-            calls: [], handlers: new Set(), removals: 0, cleanups: [], disposers: [],
+            registered: new Map(), removed: [], writes: [], calls: [], handlers: new Set(), removals: 0, cleanups: [], disposers: [],
             hotkeys: { open_quick_chat: ['Ctrl', 'Q'] } };
         export const hot = { data: {}, dispose: callback => state.disposers.push(callback) };
-        export const useRef = value => ({ current: value });
-        export const useEffect = callback => state.cleanups.push(callback());
+        export const useRef = value => state.runtime ? state.runtime.api.useRef(value) : ({ current: value });
+        export const useEffect = (callback, deps) => state.runtime ? state.runtime.api.useEffect(callback, deps) : state.cleanups.push(callback());
         export const store = { appWindow: {} };
         export const Atom_IsOpenedConfigPage = 'settings', Atom_IsBackendReady = 'ready', Atom_IsSoftwareUpdating = 'updating';
         export const getDefaultStore = () => ({ get: atom => ({ data: state[atom] }) });
-        export const useStore_Hotkeys = () => ({ currentHotkeys: { data: state.hotkeys }, updateHotkeys() {}, pendingHotkeys() {} });
-        export const useStdoutToPython = () => ({ asyncStdoutToPython: async () => true });
+        export const useStore_Hotkeys = () => ({ currentHotkeys: { data: state.hotkeys }, updateHotkeys: value => { state.hotkeys = value; }, pendingHotkeys() {} });
+        export const useStdoutToPython = () => ({ asyncStdoutToPython: async (...args) => { state.writes.push(args); return true; } });
         export const useNotificationStatus = () => ({ showNotification_SaveSuccess() {}, closeNotification() {},
             showNotification_Error: (...args) => state.notices.push(args) });
         export const useI18n = () => ({ t: key => key, i18n: { exists: () => true } });
@@ -41,9 +42,12 @@ async function setup() {
             await state.listenGate;
             return () => { state.handlers.delete(callback); state.removals++; };
         };
-        export const register = async () => {};
-        export const unregister = async () => {};
-        export const unregisterAll = async () => { await state.unregisterGate; };
+        export const register = async (key, callback) => {
+            await state.registerGate;
+            state.registered.set(key, callback);
+        };
+        export const unregister = async key => { state.removed.push(key); state.registered.delete(key); };
+        export const unregisterAll = async () => { await state.unregisterGate; state.removed.push(...state.registered.keys()); state.registered.clear(); };
     `) + `#${crypto.randomUUID()}`;
     const { state, hot } = await import(dependencies);
     let instance = 0;
@@ -52,7 +56,7 @@ async function setup() {
         source = source.replace(/from "[^"]+"/g, `from ${JSON.stringify(dependencies)}`);
         source = `import { hot } from ${JSON.stringify(dependencies)};\n` + source.replaceAll("import.meta.hot", "hot");
         const module = await import(moduleUrl(source) + `#${instance++}`);
-        return module.useHotkeys();
+        return state.runtime ? module.useHotkeys : module.useHotkeys();
     };
     return { state, load, dispose: index => state.disposers[index](hot.data),
         emit: () => { for (const callback of state.handlers) callback({ payload: { id: "open_quick_chat" } }); } };
@@ -186,4 +190,98 @@ test("VR window command checks the injected calling window before any mutation o
     const command = source.slice(source.indexOf("async fn set_vr_panel_window("), source.indexOf("use font_kit"));
     assert.match(command, /window: tauri::WebviewWindow/);
     assert.match(command, /\{\s*if window\.label\(\) != "main" \{\s*return Err\("vr_panel_forbidden"\.into\(\)\);\s*\}\s*let _guard = VR_PANEL_LOCK\.lock\(\)\.await;/);
+});
+
+async function owner(platform = "native") {
+    const subject = await setup(), runtime = hooks();
+    subject.state.runtime = runtime;
+    subject.state.platformGate = platform;
+    const useHotkeys = await subject.load();
+    let latest;
+    const { GlobalHotKeyController } = await loadModule(new URL("../../../../views/app/_app_controllers/GlobalHotKeyController.jsx", import.meta.url), runtime, {
+        "@logics_configs": { useHotkeys: () => { latest = useHotkeys(); return latest; } },
+        "@logics_common": {
+            useIsBackendReady: () => ({ currentIsBackendReady: { data: subject.state.ready } }),
+            useIsSoftwareUpdating: () => ({ currentIsSoftwareUpdating: { data: subject.state.updating } }),
+            useIsOpenedConfigPage: () => ({ currentIsOpenedConfigPage: { data: subject.state.settings } }),
+        },
+    });
+    return { ...subject, runtime, render: async () => { runtime.render(GlobalHotKeyController); await flush(); },
+        hook: () => latest };
+}
+
+for (const [action, oldKeys, newKeys] of [
+    ["open_quick_chat", ["Ctrl", "Q"], ["Ctrl", "W"]],
+    ["toggle_transcription_send", ["Ctrl", "M"], ["Ctrl", "N"]],
+    ["toggle_transcription_send", ["Ctrl", "M"], null],
+]) test(`close before ${action} ${newKeys ? "replacement" : "deletion"} acknowledgement reconciles native bindings`, async () => {
+    const subject = await owner();
+    subject.state.hotkeys = { [action]: oldKeys };
+    await subject.render();
+    const oldShortcut = `Control+${oldKeys[1]}`;
+    assert.deepEqual([...subject.state.registered.keys()], [oldShortcut]);
+    const oldCallback = subject.state.registered.get(oldShortcut);
+    subject.state.settings = true;
+    await subject.render();
+    await subject.hook().setHotkeys({ [action]: newKeys });
+    const acknowledged = subject.state.writes.at(-1)[1];
+    subject.state.settings = false;
+    await subject.render();
+    assert.deepEqual([...subject.state.registered.keys()], [oldShortcut]);
+    subject.hook().setSuccessHotkeys(acknowledged);
+    await subject.render();
+    assert.deepEqual([...subject.state.registered.keys()], newKeys ? [`Control+${newKeys[1]}`] : []);
+    assert.ok(subject.state.removed.includes(oldShortcut));
+    await oldCallback({ state: action === "open_quick_chat" ? "Released" : "Pressed" });
+    assert.deepEqual(subject.state.actions, []);
+    if (newKeys) {
+        await subject.state.registered.get(`Control+${newKeys[1]}`)({ state: action === "open_quick_chat" ? "Released" : "Pressed" });
+        assert.deepEqual(subject.state.actions, [action === "open_quick_chat" ? "quick-chat" : "send"]);
+    }
+    subject.runtime.unmount();
+    await flush();
+    assert.equal(subject.state.registered.size, 0);
+});
+
+test("an old native register completing after a new acknowledgement is released before the new binding", async () => {
+    const subject = await owner(), gate = deferred();
+    subject.state.registerGate = gate.promise;
+    await subject.render();
+    subject.hook().setSuccessHotkeys({ open_quick_chat: ["Ctrl", "W"] });
+    await subject.render();
+    gate.resolve();
+    await flush();
+    assert.deepEqual([...subject.state.registered.keys()], ["Control+W"]);
+    assert.ok(subject.state.removed.includes("Control+Q"));
+    subject.runtime.unmount();
+    await flush();
+});
+
+test("portal reconciliation observes acknowledged content and does not rebind on identical data", async () => {
+    const subject = await owner("wayland");
+    await subject.render();
+    subject.state.settings = true;
+    await subject.render();
+    subject.state.settings = false;
+    await subject.render();
+    subject.hook().setSuccessHotkeys({ open_quick_chat: ["Ctrl", "W"] });
+    await subject.render();
+    const binds = () => subject.state.calls.filter(([name]) => name === "portal_shortcuts_bind");
+    assert.deepEqual(binds().at(-1)[1].shortcuts, { open_quick_chat: ["Ctrl", "W"] });
+    const count = binds().length;
+    subject.hook().setSuccessHotkeys({ open_quick_chat: ["Ctrl", "W"] });
+    await subject.render();
+    assert.equal(binds().length, count);
+    subject.emit();
+    assert.deepEqual(subject.state.actions, ["quick-chat"]);
+    subject.state.settings = true;
+    await subject.render();
+    subject.emit();
+    assert.deepEqual(subject.state.actions, ["quick-chat"]);
+    subject.runtime.unmount();
+});
+
+test("Settings close controller leaves registration to its single owner", async () => {
+    const source = await readFile(new URL("../../../../views/app/_app_controllers/ConfigPageCloseTriggerController.jsx", import.meta.url), "utf8");
+    assert.doesNotMatch(source, /useHotkeys|registerShortcuts|unregisterAll/);
 });
