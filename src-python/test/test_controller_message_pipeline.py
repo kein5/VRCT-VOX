@@ -209,7 +209,7 @@ class TestMicMessage(_MessagePipelineTestBase):
         _, endpoint, result = self.run_calls[-1]
         self.assertEqual(endpoint, "/run/transcription_send_mic_message")
         self.assertEqual(result["translations"], [{"message": "hola", "transliteration": []}])
-        self._model.addTranslationHistory.assert_called_once_with("mic", "hello")
+        self._model.addTranslationHistory.assert_called_once_with("mic", "hello", snapshot=ANY)
 
     def test_translation_engine_limit_falls_back_and_reports_error(self) -> None:
         self._model.getInputTranslate.return_value = ([], [False], ['failed'])
@@ -291,7 +291,7 @@ class TestMicMessage(_MessagePipelineTestBase):
         self._model.oscSendMessage.assert_not_called()
         self._model.websocketSendMessage.assert_not_called()
         # ENABLE_TRANSCRIPTION_SEND に関わらず履歴だけは記録される。
-        self._model.addTranslationHistory.assert_called_once_with("mic", "hello")
+        self._model.addTranslationHistory.assert_called_once_with("mic", "hello", snapshot=ANY)
 
     def test_osc_send_respects_send_message_to_vrc_flag(self) -> None:
         config.SEND_MESSAGE_TO_VRC = False
@@ -407,7 +407,7 @@ class TestSpeakerMessage(_MessagePipelineTestBase):
         _, endpoint, result = self.run_calls[-1]
         self.assertEqual(endpoint, "/run/transcription_receive_speaker_message")
         self.assertEqual(result["translations"], [{"message": "hola", "transliteration": []}])
-        self._model.addTranslationHistory.assert_called_once_with("speaker", "hello")
+        self._model.addTranslationHistory.assert_called_once_with("speaker", "hello", snapshot=ANY)
 
     def test_translation_engine_limit_falls_back_and_reports_error(self) -> None:
         self._model.getOutputTranslate.return_value = ([], [False], ['failed'])
@@ -489,7 +489,7 @@ class TestSpeakerMessage(_MessagePipelineTestBase):
         self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.speakerMessage({"text": "hello", "language": "English"})
         self.assertEqual(self.run_calls, [])
-        self._model.addTranslationHistory.assert_called_once_with("speaker", "hello")
+        self._model.addTranslationHistory.assert_called_once_with("speaker", "hello", snapshot=ANY)
 
     def test_recognition_error_emits_notification(self) -> None:
         self.controller.speakerMessage({
@@ -531,7 +531,7 @@ class TestChatMessage(_MessagePipelineTestBase):
         self.assertEqual(result["result"]["id"], "42")
         self.assertEqual(result["result"]["original"]["message"], "hello")
         self.assertEqual(result["result"]["translations"], [{"message": "hola", "transliteration": []}])
-        self._model.addTranslationHistory.assert_called_once_with("chat", "hello")
+        self._model.addTranslationHistory.assert_called_once_with("chat", "hello", snapshot=ANY)
 
     def test_translation_engine_limit_falls_back_and_reports_error(self) -> None:
         self._model.getInputTranslate.return_value = ([], [False], ['failed'])
@@ -814,4 +814,4 @@ class TestOcrMessage(_MessagePipelineTestBase):
 
     def test_history_is_recorded_as_ocr(self) -> None:
         self.controller.ocrMessage({"text": "こんにちは", "language": "Japanese"})
-        self._model.addTranslationHistory.assert_called_once_with("ocr", "こんにちは")
+        self._model.addTranslationHistory.assert_called_once_with("ocr", "こんにちは", snapshot=ANY)

@@ -28,6 +28,7 @@ from audio_device_identity import capture_key, resolve_device
 from config import config, DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 
 from models.translation.translation_translator import Translator
+from models.translation.translation_history import TranslationHistory
 from models.message_delivery import ChatboxOrder, DeliveryEpochs
 from models.osc.osc import OSCHandler, OSC_STOP_TIMEOUT_SECONDS
 from models.transcription.transcription_recorder import (
@@ -1578,7 +1579,7 @@ class Model:
 
         return compatible_engines
 
-    def addTranslationHistory(self, source: str, text: str) -> None:
+    def addTranslationHistory(self, source: str, text: str, *, snapshot=None) -> None:
         """Add a message to translation context history.
         
         Args:
@@ -1594,40 +1595,63 @@ class Model:
             "text": text.strip(),
             "timestamp": datetime.now().isoformat(),
         }
-        self.translation_history.append(history_item)
-        
-        # 最大件数を超えた場合は古いものを削除
-        if len(self.translation_history) > self.translation_history_max_items:
+        with config.translation_history_lock:
+            self._syncTranslationHistory()
+            if not config.ENABLE_TRANSLATION:
+                return
+            if snapshot is not None and (
+                    not snapshot.translation_enabled
+                    or snapshot.translation_history_generation != config.translation_history_generation):
+                return  # Work admitted before a destination change cannot seed its history.
+            self.translation_history.append(history_item)
             self.translation_history = self.translation_history[-self.translation_history_max_items:]
+
+    def _syncTranslationHistory(self):
+        """Discard the previous generation; switching back never restores it."""
+        generation = config.translation_history_generation
+        if getattr(self, "_translation_history_generation", None) != generation:
+            self.translation_history = []
+            self._translation_history_generation = generation
     
     def getTranslationHistory(self, max_items: int = None) -> list[dict]:
         """Get recent translation context history.
         
         Args:
-            max_items: Maximum number of items to return (newest first)
+            max_items: Maximum number of recent items to return (oldest first)
         
         Returns:
             List of history items
         """
         self.ensure_initialized()
-        if max_items is None or max_items <= 0:
-            return self.translation_history
-        return self.translation_history[-max_items:]
+        with config.translation_history_lock:
+            self._syncTranslationHistory()
+            items = self.translation_history
+            if max_items is not None and max_items > 0:
+                items = items[-max_items:]
+            return TranslationHistory([dict(item) for item in items], self._translation_history_generation)
     
     def clearTranslationHistory(self) -> None:
         """Clear all translation context history."""
         self.ensure_initialized()
-        self.translation_history = []
+        with config.translation_history_lock:
+            self.translation_history = []
+            self._translation_history_generation = config.translation_history_generation
 
     def getTranslate(self, translator_name, source_language, target_language, target_country, message,
-                     *, weight_type=None, with_provenance=False):
+                     *, weight_type=None, with_provenance=False, history_generation=None):
         self.ensure_initialized()
         success_flag = False
         provenance = "translated"
         weight_type = weight_type if weight_type is not None else config.CTRANSLATE2_WEIGHT_TYPE
         
         # Get context history for LLM-based translators
-        history = self.getTranslationHistory()
+        with config.translation_history_lock:
+            history = self.getTranslationHistory()
+            if (not config.ENABLE_TRANSLATION
+                    or translator_name != config.SELECTED_TRANSLATION_ENGINES.get(config.SELECTED_TAB_NO)
+                    or (history_generation is not None
+                        and history_generation != config.translation_history_generation)):
+                history = []
         
         translation = self.translator.translate(
                         translator_name=translator_name,
@@ -1729,6 +1753,7 @@ class Model:
         options = {"with_provenance": True} if with_provenance else {}
         if snapshot is not None:
             options["weight_type"] = snapshot.weight_type
+            options["history_generation"] = snapshot.translation_history_generation
         targets = [(value["language"], value["country"]) for value in target_languages.values()
                    if value["enable"] is True]
 
@@ -1784,6 +1809,7 @@ class Model:
         options = {"with_provenance": True} if with_provenance else {}
         if snapshot is not None:
             options["weight_type"] = snapshot.weight_type
+            options["history_generation"] = snapshot.translation_history_generation
         result = self.getTranslate(
             translator_name, source_language, target["language"], target["country"], message, **options)
         return tuple([item] for item in result)

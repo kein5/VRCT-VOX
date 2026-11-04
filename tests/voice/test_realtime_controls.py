@@ -307,7 +307,7 @@ def test_partial_no_side_effects_and_final_once_with_speaker_never_rebroadcast(
     translator.assert_called_once_with("text", source_language="Japanese", snapshot=ANY, with_provenance=True)
     assert m.model.oscSendMessage.call_count == (1 if source == "mic" else 0)
     c.voice_events.publish.assert_not_called()
-    m.model.addTranslationHistory.assert_called_once_with(source, "text")
+    m.model.addTranslationHistory.assert_called_once_with(source, "text", snapshot=ANY)
     assert (
         m.model.websocketSendMessage.call_args.args[0]["type"]
         == "REALTIME_" + source.upper()

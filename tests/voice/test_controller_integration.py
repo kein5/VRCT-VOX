@@ -7,7 +7,7 @@ import sys
 from threading import Event, Thread
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
@@ -76,7 +76,7 @@ def test_text_to_osc_websocket_history_and_pcm_once(controller_module, pcm_serve
             assert result == {"status": 200, "result": {"id": "chat-1", "original": {
                 "message": "こんにちは", "transliteration": []}, "translations": []}}
             module.model.oscSendMessage.assert_called_once_with("こんにちは")
-            module.model.addTranslationHistory.assert_called_once_with("chat", "こんにちは")
+            module.model.addTranslationHistory.assert_called_once_with("chat", "こんにちは", snapshot=ANY)
             legacy = module.model.websocketSendMessage.call_args.args[0]
             assert set(legacy) == {"type", "src_languages", "dst_languages", "message", "translation", "transliteration"}
             assert legacy["type"] == "CHAT"
@@ -174,7 +174,7 @@ def test_original_speaks_before_translation_but_translated_waits(controller_modu
         assert result[0]["status"] == 200
         until(lambda: controller.voice_events.status()["completed"] == 1)
         assert len(sink.data) == 1
-        module.model.addTranslationHistory.assert_called_once_with("chat", "原文")
+        module.model.addTranslationHistory.assert_called_once_with("chat", "原文", snapshot=ANY)
     finally:
         release.set()
         worker.join(2)
@@ -194,7 +194,7 @@ def test_chat_accepted_before_cancel_cannot_speak_later(controller_module):
                                          "_voice_generation": old_generation})
         assert result["status"] == 200
         assert controller.voice_events.status()["accepted"] == 0
-        module.model.addTranslationHistory.assert_called_once_with("chat", "queued")
+        module.model.addTranslationHistory.assert_called_once_with("chat", "queued", snapshot=ANY)
         assert controller.voice_events._thread is None
     finally:
         controller.voice_events.close()

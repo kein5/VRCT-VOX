@@ -785,6 +785,30 @@ class Config:
     # requests must finish before taking this lock.
     credential_lock = threading.RLock()
 
+    # In-memory privacy boundary, independent of saved config and IPC. Track
+    # committed values (after descriptor validation), including A -> B -> A
+    # changes with no intervening messages. Inactive destination edits also
+    # invalidate history conservatively. Never retain credentials in history.
+    translation_history_lock = threading.RLock()
+    translation_history_generation = 0
+    _TRANSLATION_HISTORY_SETTINGS = frozenset({
+        "_ENABLE_TRANSLATION", "_SELECTED_TAB_NO", "_SELECTED_TRANSLATION_ENGINES",
+        "_CTRANSLATE2_WEIGHT_TYPE", "_AUTH_KEYS",
+        "_LMSTUDIO_URL", "_OPENAI_COMPATIBLE_URL",
+        "_SELECTED_PLAMO_MODEL", "_SELECTED_GEMINI_MODEL", "_SELECTED_OPENAI_MODEL",
+        "_SELECTED_GROQ_MODEL", "_SELECTED_OPENROUTER_MODEL", "_SELECTED_LMSTUDIO_MODEL",
+        "_SELECTED_OPENAI_COMPATIBLE_MODEL", "_SELECTED_OLLAMA_MODEL",
+    })
+
+    def __setattr__(self, name, value):
+        if name in self._TRANSLATION_HISTORY_SETTINGS:
+            with self.translation_history_lock:
+                if getattr(self, name, None) != value:
+                    self.translation_history_generation += 1
+                object.__setattr__(self, name, value)
+        else:
+            object.__setattr__(self, name, value)
+
     def updateCredential(self, map_name: str, engine_key: str, value: Optional[str]) -> None:
         """Merge one credential without overwriting another provider's update.
 

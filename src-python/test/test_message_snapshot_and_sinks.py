@@ -4,7 +4,7 @@ import copy
 import json
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import FrozenInstanceError
-from threading import Event, Thread
+from threading import Event, RLock, Thread
 from unittest.mock import Mock
 
 import pytest
@@ -19,6 +19,8 @@ from test_message_delivery_revocation import app, captions, start, wait_for_fina
 
 @pytest.fixture
 def subject(app, monkeypatch):  # noqa: F811 - imported pytest fixture
+    app.cfg.translation_history_lock = RLock()
+    app.cfg.translation_history_generation = 0
     app.c.changeToCTranslate2Process = Mock()
     app.c.voice_events.publish = Mock(return_value=True)
     app.m.convertMessageToTransliteration = Mock(side_effect=lambda text, **kw: [dict(orig=text, **kw)])
@@ -418,7 +420,7 @@ def test_output_failure_inside_real_legacy_callback_keeps_worker_running(subject
     subject.m.translator.translate.return_value = 'translated'
     subject.m.createOverlayImageLargeLog.side_effect = RuntimeError('overlay')
     received = Event()
-    subject.m.addTranslationHistory.side_effect = lambda *args: received.set()
+    subject.m.addTranslationHistory.side_effect = lambda *args, **kwargs: received.set()
     try:
         session.reconfigure(transcript=True, device=DEVICE)
         for _ in range(2):

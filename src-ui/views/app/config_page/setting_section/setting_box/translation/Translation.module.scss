@@ -3,6 +3,13 @@
     flex-direction: column;
 }
 
+.privacy_description {
+    font-size: 1.3rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    margin: 1rem 0;
+}
+
 // Non-commercial license confirmation (NLLB weights). Same native <dialog>
 // pattern as the model download warning in advanced_settings/ModelDownloads.
 .license_dialog {

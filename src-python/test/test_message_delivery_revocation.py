@@ -548,7 +548,7 @@ def test_realtime_mute_at_history_blocks_tts_and_translated_caption(app):
     session, delivery = start(app)
     processed = Event()
 
-    def revoke(*args):
+    def revoke(*args, **kwargs):
         app.mute()
         app.mute(False)
         processed.set()

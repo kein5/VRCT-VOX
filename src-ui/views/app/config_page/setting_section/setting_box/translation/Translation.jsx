@@ -26,6 +26,7 @@ import {
 } from "../_components";
 
 import { ComputeDevice } from "../_components/compute_device/ComputeDevice";
+import { Description } from "../_components/description/Description";
 import { SetupSection } from "../_components/setup_section/SetupSection";
 import { LegacyModelDownloadDialog } from "../_components/download_models/LegacyModelDownloadDialog";
 import { AutoDownloadModelsContainer } from "../shared_items/SharedItems";
@@ -81,6 +82,7 @@ const ExternalTranslationAPI_Container = () => {
     return (
         <div>
             <SectionLabelComponent label={t("config_page.translation.section_label_external_api")} />
+            <Description text={t("config_page.translation.llm_privacy_desc")} className={styles.privacy_description} />
 
             <DeepLAuthKey_Box />
 
@@ -107,6 +109,7 @@ const LocalLLM_Container = () => {
     return (
         <div>
             <SectionLabelComponent label={t("config_page.translation.section_label_local_llm")} />
+            <Description text={t("config_page.translation.llm_privacy_desc")} className={styles.privacy_description} />
 
             <LMStudioConnectionCheck_Box />
             <LMStudioURL_Box />
