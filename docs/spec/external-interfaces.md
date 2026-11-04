@@ -32,22 +32,37 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 | 項目 | 内容 |
 |---|---|
 | 有効化 | `WEBSOCKET_SERVER`（既定オフ）。OBSブラウザソースをオンにすると一緒にオンになる。待ち受けの開始を最大6秒待ち、時間切れや停止要求では起動を取り消してオンにしない。ホストやポートの変更でbindできなければ、元のアドレスで立て直してエラーを返す |
-| 待ち受け | `WEBSOCKET_HOST`（既定`127.0.0.1`。`0.0.0.0`などのすべてのアドレスは拒否）、`WEBSOCKET_PORT`（既定2231） |
-| 認証 | 接続時に`?token=<WEBSOCKET_AUTH_TOKEN>`を付ける。合わなければ接続前にHTTP 403。トークンは初回起動時に作り、設定画面では伏せて表示する |
-| 受信 | 受け取るが何もしない |
+| 待ち受け | `WEBSOCKET_HOST`（既定`127.0.0.1`。IPv4のみ。`0.0.0.0`、IPv6、ホスト名は拒否）、`WEBSOCKET_PORT`（既定2231、整数の1〜65535） |
+| 認証 | 接続時に`?token=<WEBSOCKET_AUTH_TOKEN>`を付ける。合わなければ接続前にHTTP 403。トークンは初回起動時に作り、設定画面では伏せて表示する。保存値がnull・空白だけ・空文字列・文字列以外なら、新しく生成した既定の秘密値を保存する。空でないトークンがなければサーバーを起動しない |
+| 受信 | 受け取るが何もしない。1メッセージの上限は64 KiB |
 | 送信 | 処理したメッセージごとに[メッセージの形](data-and-persistence.md#websocketとobsへ送るメッセージ)を全クライアントへ送る。OBSの表示設定が変わると`SETTINGS_UPDATED`を送る |
 
+ホストとポートは[ネットワーク設定](data-and-persistence.md#ネットワーク設定)の検証に通ってから保存・再起動する。WebSocketとOBSをIPv4に統一し、bindの事前確認とコピーするURLの形式をそろえる。
+
 起動中はまだ待ち受けず、期限内に準備が終わった場合だけ接続を受け付ける。取り消した起動が遅れて完了しても待ち受けを始めない。ループとソケットはその起動のスレッドで閉じ、終了を最大2秒待つ（起動待ちの6秒とは別枠）。中断できない処理が残った場合は参照を保ち、終了するまで再起動を失敗として返す。起動中の無効化やホスト・ポート変更でも、変更前の起動を取り消す。
+
+### 送信の上限
+
+上限は`websocket_server.py`の定数で定める。会話本文を切り詰めたり、待っているメッセージを黙って捨てたりはしない。
+
+| 対象 | 上限・動作 |
+|---|---|
+| 1メッセージ | UTF-8で256 KiB（`_MAX_OUTGOING_MESSAGE_SIZE`）。超える送信は受付時に`BufferError`で拒否する |
+| 送信受付全体 | 128件（`_MAX_PENDING_MESSAGES`）かつUTF-8で4 MiB（`_MAX_PENDING_BYTES`）。ループで実行を待つコールバック、送信キュー、配信中の1件を含む。`send()`と`broadcast()`は同じ枠を使う。満杯なら待たずに`BufferError`を返し、会話の出力処理は既存の`MESSAGE_OUTPUT_FAILED`でWebSocketへの出力失敗を通知する |
+| 接続ごとの送信バッファ | 1 MiB（`_MAX_CLIENT_BUFFER_BYTES`）。次のメッセージとフレームヘッダーの余裕14バイトを加えて上限を超える接続は、書き込む前にtransportをabortして切断する。圧縮は無効。正常に読み続けるクライアントには、受け付けたメッセージを順番にすべて送る |
+| 生存確認 | 20秒ごとにping（`_PING_INTERVAL`）。ping送信開始からpong受信まで20秒（`_PING_TIMEOUT`）。送信バッファが空くのを待つ時間も含め、時間切れならtransportをabortする。closeフレームの送信完了は待たない |
+
+配信は32接続ごと、および1メッセージごとにループへ制御を返す。遅い接続のdrainを他の接続が待つことはない。上記はアプリケーションのバッファと受付の上限であり、OSのソケットバッファや総接続数の上限ではない。
 
 ## OBSブラウザソース
 
 `src-python/models/obs/obs_browser_source_server.py`。配信画面に字幕を出すHTMLを配る。
 
-- `OBS_BROWSER_SOURCE`（既定オフ）、`OBS_BROWSER_SOURCE_PORT`（既定2232）。待ち受けるアドレスは`WEBSOCKET_HOST`と同じ。
+- `OBS_BROWSER_SOURCE`（既定オフ）、`OBS_BROWSER_SOURCE_PORT`（既定2232、整数の1〜65535）。待ち受けるアドレスは`WEBSOCKET_HOST`と同じ。
 - OBSとWebSocketのオン・オフ、両サーバーのホスト・ポート変更は[同じIPCロック](ipc-protocol.md#並行性とロック)で直列に処理する。WebSocketをオフにするとOBSもオフになる。OBSだけをオフにしてもWebSocketは止めない。
 - OBSの有効化が失敗したら、その試行で新しく起動したWebSocketを停止する。もともと動いていたWebSocketは維持する。有効化中に依存先のWebSocketを起動できなければ`WEBSOCKET_SERVER_UNAVAILABLE`、OBSのポートを確保できなければ`OBS_BROWSER_SOURCE_PORT_UNAVAILABLE`、OBSの起動に失敗すれば`OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE`を返す。
 - WebSocketホストの変更では、有効なOBSも新しいホストで待ち受けを開始してから設定を確定する。OBSの再起動に失敗したら両サーバーを元のホストへ戻し、`OBS_BROWSER_SOURCE_HOST_UNAVAILABLE`を返す。WebSocketの復旧にも失敗したら両方をオフにし、OBSだけ復旧できなければOBSをオフにする。
-- OBSポートの変更で再起動に失敗したら、元のポートで復旧を試み、`OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE`を返す。復旧できなければOBSをオフにする。数値でないポートには`OBS_BROWSER_SOURCE_PORT_INVALID`を返す。失敗した要求の値とUIの待機解除は[エラーの扱い](cross-cutting.md#エラーの扱い)に従う。
+- OBSポートの変更で再起動に失敗したら、元のポートで復旧を試み、`OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE`を返す。復旧できなければOBSをオフにする。整数でないか1〜65535の範囲外のポートには、設定やサービスを変更する前に`OBS_BROWSER_SOURCE_PORT_INVALID`を返す。失敗した要求の値とUIの待機解除は[エラーの扱い](cross-cutting.md#エラーの扱い)に従う。
 - `GET /`と`GET /obs`は`?token=<WEBSOCKET_AUTH_TOKEN>`が必要。`hmac.compare_digest`で照合し、トークンがないか合わなければ403と短い平文だけを返す。認証前にHTMLやトークンを返さない。
 - `GET /health`は認証なしで`ok`だけを返す。それ以外のパスは404。どのパスでも、`Host`がIPアドレスか`localhost`でなければ403（DNSリバインディング対策）。
 - HTMLの応答には`Cache-Control: no-store, max-age=0`と`Referrer-Policy: no-referrer`を付ける。アクセスログは出さず、クエリ文字列を記録しない。

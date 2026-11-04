@@ -14,7 +14,7 @@ from audio_device_identity import capture_key, device_id, device_options, resolv
 from device_manager import device_manager
 from config import config, ConfigValidationError, DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 from model import model, SETUP_LAUNCHED, SETUP_DOWNLOAD_FAILED, SETUP_VERIFY_FAILED
-from utils import removeLog, printLog, errorLogging, isConnectedNetwork, isValidIpAddress, isWildcardBindAddress, isAvailableWebSocketServer
+from utils import removeLog, printLog, errorLogging, isConnectedNetwork, isValidIpAddress, isValidPort, isValidWebSocketHost, isAvailableWebSocketServer
 from errors import ErrorCode, OcrStartError, VRCTError
 from models.transcription.transcription_openai_compatible import TRANSCRIPTION_MODEL_KEYWORDS, TRANSCRIPTION_API_ENGINES
 from models.translation.translation_providers import TRANSLATION_PROVIDER_REGISTRY, CONNECTION_PROVIDER_REGISTRY
@@ -3918,6 +3918,10 @@ class Controller:
 
     @staticmethod
     def setOscPort(data, *args, **kwargs) -> dict:
+        if not isValidPort(data):
+            return VRCTError.create_error_response(
+                ErrorCode.VALIDATION_OSC_PORT_INVALID, data=config.OSC_PORT,
+            )
         try:
             port = int(data)
         except Exception:
@@ -5582,7 +5586,7 @@ class Controller:
         # 到達性まで許してしまう。特定の LAN IP を明示的に選ぶのとは
         # リスクの性質が異なるため、他の IP 検証と分けて拒否する。
         try:
-            if isValidIpAddress(data) is False or isWildcardBindAddress(data) is True:
+            if not isValidWebSocketHost(data):
                 response = VRCTError.create_error_response(
                     ErrorCode.VALIDATION_INVALID_IP,
                     data=config.WEBSOCKET_HOST
@@ -5639,14 +5643,12 @@ class Controller:
 
     @staticmethod
     def setWebSocketPort(data, *args, **kwargs) -> dict:
-        try:
-            port = int(data)
-        except Exception:
+        if not isValidPort(data):
             return VRCTError.create_error_response(
                 ErrorCode.WEBSOCKET_PORT_INVALID,
                 data=config.WEBSOCKET_PORT,
-                custom_message="WebSocket port must be a number",
             )
+        port = data
 
         try:
             if model.checkWebSocketServerAlive() is False:
@@ -5802,13 +5804,12 @@ class Controller:
 
     @staticmethod
     def setObsBrowserSourcePort(data, *args, **kwargs) -> dict:
-        try:
-            port = int(data)
-        except Exception:
+        if not isValidPort(data):
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_PORT_INVALID,
                 data=config.OBS_BROWSER_SOURCE_PORT,
             )
+        port = data
 
         if model.checkObsBrowserSourceServerAlive() is not True:
             config.OBS_BROWSER_SOURCE_PORT = port

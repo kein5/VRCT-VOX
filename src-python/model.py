@@ -3175,6 +3175,10 @@ class Model:
         try:
             message_json = json.dumps(message_dict)
             return self.websocket_server.send(message_json)
+        except BufferError:
+            # Let the existing per-output failure notification report admission
+            # limits without losing the other conversation outputs.
+            raise
         except Exception:
             errorLogging()
             return False

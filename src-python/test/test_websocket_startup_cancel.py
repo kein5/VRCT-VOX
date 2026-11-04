@@ -67,7 +67,7 @@ def test_timeout_cancels_slow_serve_before_it_can_listen(monkeypatch):
         return listener
 
     monkeypatch.setattr("models.websocket.websocket_server.websockets.serve", slow_serve)
-    server = WebSocketServer("127.0.0.1", 0)
+    server = WebSocketServer("127.0.0.1", 0, token="test-token")
     try:
         with pytest.raises(TimeoutError):
             server.start(timeout=0.05)

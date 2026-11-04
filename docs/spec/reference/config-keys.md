@@ -60,7 +60,7 @@
 | `SPEECH_SERVER_SETTINGS` | 検証 lambda value, instance: normalize_speech_server_settings(value) | `normalize_speech_server_settings({})` | 2秒後にまとめて |
 | `WEBSOCKET_SERVER` | bool | `False` | 2秒後にまとめて |
 | `OSC_IP_ADDRESS` | str | `'127.0.0.1'` | 2秒後にまとめて |
-| `OSC_PORT` | int | `9000` | 2秒後にまとめて |
+| `OSC_PORT` | int、許可値 lambda v, inst: isValidPort(v) | `9000` | 2秒後にまとめて |
 | `AUTO_CLEAR_MESSAGE_BOX` | bool | `True` | 2秒後にまとめて |
 | `SEND_ONLY_TRANSLATED_MESSAGES` | bool | `False` | 2秒後にまとめて |
 | `OVERLAY_SMALL_LOG` | bool | `False` | 2秒後にまとめて |
@@ -76,11 +76,11 @@
 | `LOGGER_FEATURE` | bool | `False` | 2秒後にまとめて |
 | `VRC_MIC_MUTE_SYNC` | bool | `False` | 2秒後にまとめて |
 | `NOTIFICATION_VRC_SFX` | bool | `True` | 2秒後にまとめて |
-| `WEBSOCKET_HOST` | str、許可値 lambda v, inst: isValidIpAddress(v) and (not isWildcardBindAddress(v)) | `'127.0.0.1'` | 2秒後にまとめて |
-| `WEBSOCKET_PORT` | int | `2231` | 2秒後にまとめて |
-| `WEBSOCKET_AUTH_TOKEN` | str | `secrets_token_urlsafe(32)` | 2秒後にまとめて |
+| `WEBSOCKET_HOST` | str、許可値 lambda v, inst: isValidWebSocketHost(v) | `'127.0.0.1'` | 2秒後にまとめて |
+| `WEBSOCKET_PORT` | int、許可値 lambda v, inst: isValidPort(v) | `2231` | 2秒後にまとめて |
+| `WEBSOCKET_AUTH_TOKEN` | str、許可値 lambda v, inst: isinstance(v, str) and bool(v.strip()) | `secrets_token_urlsafe(32)` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE` | bool | `False` | 2秒後にまとめて |
-| `OBS_BROWSER_SOURCE_PORT` | int | `2232` | 2秒後にまとめて |
+| `OBS_BROWSER_SOURCE_PORT` | int、許可値 lambda v, inst: isValidPort(v) | `2232` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_MAX_MESSAGES` | int | `14` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_DISPLAY_DURATION` | int | `60` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_FADEOUT_DURATION` | int | `12` | 2秒後にまとめて |

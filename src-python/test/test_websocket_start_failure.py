@@ -42,14 +42,14 @@ class WebSocketServerStartTests(unittest.TestCase):
     def test_start_raises_when_the_port_is_taken(self) -> None:
         sock, port = _occupied_port()
         self.addCleanup(sock.close)
-        server = WebSocketServer(host="127.0.0.1", port=port)
+        server = WebSocketServer(host="127.0.0.1", port=port, token="test-token")
 
         with self.assertRaises(OSError):
             server.start(timeout=5.0)
         self.assertFalse(server.is_running)
 
     def test_start_returns_once_the_server_is_listening(self) -> None:
-        server = WebSocketServer(host="127.0.0.1", port=0)
+        server = WebSocketServer(host="127.0.0.1", port=0, token="test-token")
         self.addCleanup(server.stop)
 
         server.start(timeout=5.0)

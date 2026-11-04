@@ -186,7 +186,7 @@ backend_errors:
     TRANSCRIPTION_RECEIVE_DISABLED_VRAM: "GPUのメモリーが足りないため、聞き取りをオフにしました。"
     VALIDATION_INVALID_IP: "IPアドレスの形式が正しくありません。"
     VALIDATION_CANNOT_SET_IP: "このIPアドレスは使えません。"
-    VALIDATION_OSC_PORT_INVALID: "OSCのポートは数値で入力してください。"
+    VALIDATION_OSC_PORT_INVALID: "OSCのポートは1〜65535の整数で入力してください。"
     AUTH_PLAMO_LENGTH: "Plamo APIキーの長さが正しくありません。"
     AUTH_PLAMO_FAILED: "Plamo APIキーを確認できませんでした。キーが正しいか確認してください。"
     AUTH_GEMINI_LENGTH: "Gemini APIキーの長さが正しくありません。"
@@ -213,11 +213,11 @@ backend_errors:
     CONNECTION_OPENAI_COMPATIBLE_URL_INVALID: "OpenAI互換エンドポイントのURLが正しくありません。"
     WEBSOCKET_HOST_INVALID: "WebSocketサーバーにこのホストは使えません。"
     WEBSOCKET_PORT_UNAVAILABLE: "WebSocketサーバーのポートがほかのアプリで使われています。別のポートを指定してください。"
-    WEBSOCKET_PORT_INVALID: "WebSocketのポートは数値で入力してください。"
+    WEBSOCKET_PORT_INVALID: "WebSocketのポートは1〜65535の整数で入力してください。"
     WEBSOCKET_SERVER_UNAVAILABLE: "WebSocketサーバーを開始できません。ホストとポートがほかのアプリで使われていないか確認してください。"
     OBS_BROWSER_SOURCE_HOST_UNAVAILABLE: "OBSブラウザソースのサーバーにこのホストは使えません。"
     OBS_BROWSER_SOURCE_PORT_UNAVAILABLE: "OBSブラウザソースのポートがほかのアプリで使われています。別のポートを指定してください。"
-    OBS_BROWSER_SOURCE_PORT_INVALID: "OBSブラウザソースのポートは数値で入力してください。"
+    OBS_BROWSER_SOURCE_PORT_INVALID: "OBSブラウザソースのポートは1〜65535の整数で入力してください。"
     OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE: "OBSブラウザソースのサーバーを開始できません。ポートがほかのアプリで使われていないか確認してください。"
     OBS_BROWSER_SOURCE_MAX_MESSAGES_INVALID: "最大メッセージ数は数値で入力してください。"
     OBS_BROWSER_SOURCE_DISPLAY_DURATION_INVALID: "表示時間は数値で入力してください。"
@@ -826,7 +826,7 @@ config_page:
             label: "WebSocketサーバーを有効にする"
             locked_by_obs_browser_source: "OBSブラウザソースを無効にしてから変更してください"
         websocket_host:
-            label: "WebSocketのホスト"
+            label: "WebSocketのホスト（IPv4）"
         websocket_port:
             label: "WebSocketのポート"
         websocket_url:

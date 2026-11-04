@@ -58,6 +58,23 @@ async def cancel(task):
     await asyncio.gather(task, return_exceptions=True)
 
 
+class FakeTransport:
+    def get_write_buffer_size(self):
+        return 0
+
+    def abort(self):
+        raise AssertionError("a healthy client must not be aborted")
+
+
+class FakeClient:
+    def __init__(self):
+        self.transport = FakeTransport()
+
+
+def fake_client():
+    return FakeClient()
+
+
 class Messages:
     def __aiter__(self):
         self.messages = iter(("first", "second"))
@@ -131,21 +148,29 @@ def test_websocket_error_logging_keeps_traceback_off_loop(monkeypatch):
 def test_websocket_backlog_yields_before_draining_every_message(monkeypatch):
     async def run():
         delivered, tick = [], []
-        server = websocket_server.WebSocketServer()
-        queue = asyncio.Queue()
+        server = websocket_server.WebSocketServer(token="test-token")
+        attempt = websocket_server._ServerRun(deadline=0)
+        attempt.send_queue = asyncio.Queue()
         for index in range(100):
-            queue.put_nowait(str(index))
+            message = str(index)
+            attempt.send_queue.put_nowait((message, len(message)))
+            attempt.pending_messages += 1
+            attempt.pending_bytes += len(message)
         async def broadcast(message):
             delivered.append(message)
 
-        monkeypatch.setattr(server, "_broadcast_async", broadcast)
-        task = asyncio.create_task(server._send_loop(SimpleNamespace(send_queue=queue)))
-        asyncio.get_running_loop().call_soon(lambda: tick.append(len(delivered)))
-        try:
+        async def drained():
             while len(delivered) < 100:
                 await asyncio.sleep(0)
+
+        monkeypatch.setattr(server, "_broadcast_async", broadcast)
+        task = asyncio.create_task(server._send_loop(attempt))
+        asyncio.get_running_loop().call_soon(lambda: tick.append(len(delivered)))
+        try:
+            await asyncio.wait_for(drained(), 1)
             assert 0 < tick[0] < 100
             assert delivered == [str(index) for index in range(100)]
+            assert (attempt.pending_messages, attempt.pending_bytes) == (0, 0)
         finally:
             await cancel(task)
 
@@ -189,12 +214,12 @@ def test_telemetry_state_lock_and_persistence_do_not_block_loop(monkeypatch, ope
 
 def test_websocket_cross_thread_send_broadcast_and_stop(monkeypatch):
     async def run():
-        server = websocket_server.WebSocketServer()
+        server = websocket_server.WebSocketServer(token="test-token")
         loop = asyncio.get_running_loop()
         attempt = websocket_server._ServerRun(deadline=0)
         attempt.loop, attempt.send_queue, attempt.running = loop, asyncio.Queue(), True
         server._run = attempt
-        server.clients.add(object())
+        server.clients.add(fake_client())
         delivered = asyncio.Event()
         owner = threading.get_ident()
 
@@ -204,9 +229,13 @@ def test_websocket_cross_thread_send_broadcast_and_stop(monkeypatch):
 
         monkeypatch.setattr(websocket_server, "broadcast", broadcast)
         await asyncio.to_thread(server.send, "send")
-        assert await asyncio.wait_for(attempt.send_queue.get(), 1) == "send"
+        assert await asyncio.wait_for(attempt.send_queue.get(), 1) == ("send", 4)
+        server._release_message(attempt, 4)
+        # broadcast() shares send()'s bounded queue; the owner loop fans it out.
+        sender = asyncio.create_task(server._send_loop(attempt))
         await asyncio.to_thread(server.broadcast, "broadcast")
         await asyncio.wait_for(delivered.wait(), 1)
+        await cancel(sender)
         attempt.task = asyncio.create_task(asyncio.sleep(60))
         await asyncio.to_thread(server._stop_run, attempt)
         with suppress(asyncio.CancelledError):
@@ -218,8 +247,8 @@ def test_websocket_cross_thread_send_broadcast_and_stop(monkeypatch):
 
 def test_websocket_large_fanout_yields_between_client_batches(monkeypatch):
     async def run():
-        server = websocket_server.WebSocketServer()
-        server.clients.update(object() for _ in range(100))
+        server = websocket_server.WebSocketServer(token="test-token")
+        server.clients.update(fake_client() for _ in range(100))
         expected = set(server.clients)
         sent, tick = [], []
 

@@ -517,12 +517,30 @@ def isConnectedNetwork(url="https://www.google.com", timeout=3) -> bool:
     except requests.RequestException:
         return False
 
+def isValidPort(port) -> bool:
+    """Network settings require an exact integer, never bool or coercion."""
+    return type(port) is int and 1 <= port <= 65535
+
+
+def isValidWebSocketHost(host) -> bool:
+    """WebSocket and OBS share an IPv4-only bind and URL contract."""
+    if not isinstance(host, str):
+        return False
+    try:
+        address = ipaddress.IPv4Address(host)
+        return not address.is_unspecified
+    except ValueError:
+        return False
+
+
 def isAvailableWebSocketServer(host: str, port: int) -> bool:
     """Return True if the given host/port appear available for binding.
 
     Note: This attempts to bind a TCP socket to the address. If bind
     succeeds the function returns True (meaning the address was available).
     """
+    if not isValidWebSocketHost(host) or not isValidPort(port):
+        return False
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as chk:
             chk.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
