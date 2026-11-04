@@ -92,7 +92,7 @@
 | `AUTO_DOWNLOAD_MODELS` | bool | `False` | 2秒後にまとめて |
 | `LEGACY_MODEL_DOWNLOAD_CONSENTS` | dict、許可値 lambda v, inst: all((isinstance(k, str) and isinstance(value, str) for k, value in v.items())) | `{}` | 即時 |
 | `SELECTED_TAB_NO` | str、許可値 lambda v, inst: v in inst.SELECTABLE_TAB_NO_LIST | `'1'` | 2秒後にまとめて |
-| `SELECTED_TRANSCRIPTION_ENGINE` | str、許可値 lambda v, inst: v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST | `'Google'` | 2秒後にまとめて |
+| `SELECTED_TRANSCRIPTION_ENGINE` | str、許可値 lambda v, inst: v is None or v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST | `None` | 2秒後にまとめて |
 | `SELECTED_RELEASE_CHANNEL` | str、許可値 lambda v, inst: v in inst.SELECTABLE_RELEASE_CHANNEL_LIST | `'stable'` | 2秒後にまとめて |
 | `CTRANSLATE2_WEIGHT_TYPE` | str、許可値 lambda v, inst: v in inst.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST | `DEFAULT_CTRANSLATE2_WEIGHT_TYPE` | 2秒後にまとめて |
 | `CTRANSLATE2_LICENSE_NOTICE_SHOWN` | bool | `False` | 2秒後にまとめて |

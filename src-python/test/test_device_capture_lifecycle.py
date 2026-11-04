@@ -84,7 +84,7 @@ def rig(request, monkeypatch):
     devices = [a, b]
     config = SimpleNamespace(SELECTED_MIC_HOST='Host', SELECTED_MIC_DEVICE=a['name'],
         SELECTED_MIC_DEVICE_ID=a['id'], SELECTED_SPEAKER_DEVICE=a['name'], SELECTED_SPEAKER_DEVICE_ID=a['id'],
-        AUTO_MIC_SELECT=False, AUTO_SPEAKER_SELECT=False,
+        AUTO_MIC_SELECT=False, AUTO_SPEAKER_SELECT=False, SELECTED_TRANSCRIPTION_ENGINE='Google',
         ENABLE_TRANSCRIPTION_SEND=False, ENABLE_TRANSCRIPTION_RECEIVE=False,
         ENABLE_CHECK_ENERGY_SEND=False, ENABLE_CHECK_ENERGY_RECEIVE=False)
     dm = Mock()
@@ -125,7 +125,7 @@ def rig(request, monkeypatch):
         opened.append(device)
         return Recorder(device)
     session._create_recorder = create
-    session._create_transcriber = lambda: SimpleNamespace()
+    session._create_transcriber = lambda: SimpleNamespace(setAudioSource=Mock())
     energy = 'Check' + kind + 'Threshold'
     transcript = 'Transcription' + ('Send' if source == 'mic' else 'Receive')
     result = SimpleNamespace(c=c, config=config, dm=dm, session=session, opened=opened, calls=calls,
@@ -413,11 +413,11 @@ def test_start_failure_revokes_before_partial_recorder_cleanup(rig):
         recorder = create(device)
         recorder.stop.side_effect = lambda **kwargs: cleanup_delivery.append(
             r.backend.message_delivery.current(r.source, epoch))
+        # Recognizer preparation precedes capture now. Fail listener startup
+        # to retain this test's partially opened recorder cleanup boundary.
+        recorder.recordIntoQueue = Mock(side_effect=RuntimeError('audio listener unavailable'))
         return recorder
-    def fail_transcriber():
-        raise RuntimeError('transcriber unavailable')
     r.session._create_recorder = recording
-    r.session._create_transcriber = fail_transcriber
     assert r.enable('transcript')['result'] is False
     assert cleanup_delivery == [False]
     assert not r.session.features

@@ -1,3 +1,4 @@
+import { TranscriptionConsentController } from "./_app_controllers/TranscriptionConsentController";
 import { useI18n } from "@useI18n";
 
 import {
@@ -78,6 +79,7 @@ const Contents = () => {
                 <ConfigPage />
                 <MainPage />
                 <ModalController />
+                <TranscriptionConsentController />
             </div>
             :
             <UpdatingComponent />

@@ -16,8 +16,15 @@ class FakeAudioSource:
 
 
 class TestVrctTranscriptionIntegration(unittest.TestCase):
-    @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
-    def test_audio_transcriber_drains_vad_segment_and_stores_transcript(self, _) -> None:
+    @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=True)
+    @patch("models.transcription.transcription_transcriber.getWhisperModel")
+    def test_audio_transcriber_drains_vad_segment_and_stores_transcript(self, get_model, _) -> None:
+        get_model.return_value = SimpleNamespace(
+            transcribe=lambda *_args, **_kwargs: (
+                [SimpleNamespace(text="これはVRCTのテストです", avg_logprob=-0.1, no_speech_prob=0.1)],
+                SimpleNamespace(language="ja", language_probability=0.95),
+            )
+        )
         transcriber = AudioTranscriber(
             False,
             FakeAudioSource(),
@@ -25,13 +32,6 @@ class TestVrctTranscriptionIntegration(unittest.TestCase):
             max_phrases=10,
             transcription_engine="Whisper",
             vad_segmented=True,
-        )
-        transcriber.transcription_engine = "Whisper"
-        transcriber.whisper_model = SimpleNamespace(
-            transcribe=lambda *_args, **_kwargs: (
-                [SimpleNamespace(text="これはVRCTのテストです", avg_logprob=-0.1, no_speech_prob=0.1)],
-                SimpleNamespace(language="ja", language_probability=0.95),
-            )
         )
         queue = Queue()
         queue.put((b"\x01\x00" * 1600, datetime.now(), "silence"))
@@ -45,8 +45,15 @@ class TestVrctTranscriptionIntegration(unittest.TestCase):
         self.assertEqual(transcriber.asr_attempts, 1)
         self.assertEqual(transcriber.asr_successes, 1)
 
-    @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
-    def test_audio_transcriber_reports_asr_failure_after_vad_segment(self, _) -> None:
+    @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=True)
+    @patch("models.transcription.transcription_transcriber.getWhisperModel")
+    def test_audio_transcriber_reports_asr_failure_after_vad_segment(self, get_model, _) -> None:
+        get_model.return_value = SimpleNamespace(
+            transcribe=lambda *_args, **_kwargs: (
+                [],
+                SimpleNamespace(language="ja", language_probability=0.0),
+            )
+        )
         transcriber = AudioTranscriber(
             False,
             FakeAudioSource(),
@@ -54,13 +61,6 @@ class TestVrctTranscriptionIntegration(unittest.TestCase):
             max_phrases=10,
             transcription_engine="Whisper",
             vad_segmented=True,
-        )
-        transcriber.transcription_engine = "Whisper"
-        transcriber.whisper_model = SimpleNamespace(
-            transcribe=lambda *_args, **_kwargs: (
-                [],
-                SimpleNamespace(language="ja", language_probability=0.0),
-            )
         )
         queue = Queue()
         queue.put((b"\x01\x00" * 1600, datetime.now(), "flush"))

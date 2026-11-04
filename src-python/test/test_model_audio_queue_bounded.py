@@ -19,6 +19,9 @@ from config import config
 
 
 class _FakeAudioTranscriber:
+    def setAudioSource(self, source):
+        pass
+
     last_recognition_error = True
 
     def __init__(self, *args, **kwargs) -> None:
