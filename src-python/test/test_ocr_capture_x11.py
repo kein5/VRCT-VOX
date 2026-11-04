@@ -117,7 +117,8 @@ class TestFindWindow(unittest.TestCase):
     def test_x_errors_drop_the_frame(self) -> None:
         capture, _ = self._capture({7: {"title": "VRChat"}})
         with patch.object(capture, "_failed", return_value=True):
-            self.assertIsNone(capture.capture())
+            with self.assertRaises(ocr_capture_x11.X11CaptureError):
+                capture.capture()
         self.assertIsNone(capture._window)
 
 

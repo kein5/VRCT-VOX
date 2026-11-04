@@ -2456,6 +2456,7 @@ class Model:
                     region=config.OCR_CAPTURE_REGION,
                     chatbox_filter=config.OCR_CHATBOX_FILTER,
                     detector=detector,
+                    activation_ready=lambda: config.ENABLE_OCR_CAPTURE is True,
                 )
                 # Queue before start: the worker applies both source regions before
                 # its first capture. No window coordinates can leak into VR.
@@ -2472,6 +2473,13 @@ class Model:
             except Exception:
                 self.ocr_pipeline = None
                 raise
+
+    def getOCRRuntime(self) -> dict:
+        """Read worker state without probing capture, loading models or changing settings."""
+        pipeline = getattr(self, "ocr_pipeline", None)
+        if isinstance(pipeline, OcrPipeline) and pipeline.is_alive:
+            return pipeline.runtimeStatus
+        return {"state": "stopped", "stage": None, "error_code": None, "detector": None}
 
     def _ocrChatboxDetector(self):
         """The chatbox detector to read with, or None for detector-free reading.

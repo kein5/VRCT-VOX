@@ -216,11 +216,13 @@ class TestPipelineBackoff(_Harness):
             if self.now < 221:
                 raise ValueError("different failure")
 
-        self._patch(self.pipeline, "_tick", side_effect=tick)
+        tick_call = self._patch(self.pipeline, "_tick", side_effect=tick)
         self.pipeline._run()
         self.assertEqual(len(self.tracebacks), 2)
-        self.assertEqual(len(self._messages("suppressed")), 1)
-        self.assertIn("suppressed 60 repeated failures", self._messages("suppressed")[0])
+        self.assertEqual(len(self._messages("suppressed")), 2)
+        self.assertIn("suppressed 5 repeated failures", self._messages("suppressed")[0])
+        self.assertIn("suppressed 1 repeated failures", self._messages("suppressed")[1])
+        self.assertEqual(tick_call.call_count, 9)  # 1, 2, 4, ... 30s retry schedule.
         self.assertEqual(len(self._messages("recovered")), 1)
         self.capture.close.assert_called_once()
 

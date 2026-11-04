@@ -70,6 +70,10 @@ PAD_COLOR = 114
 SIZE_MULTIPLE = 32
 
 
+class OcrDetectorError(RuntimeError):
+    """Detector inference failed, rather than finding no candidates."""
+
+
 def findModelPath() -> Optional[str]:
     """同梱されたONNXモデルのパス。見つからなければ None。"""
     candidates = []
@@ -190,9 +194,9 @@ class BubbleDetector:
             session = self.loadModel()
             tensor, scale = self._letterbox(frame)
             outputs = session.run(None, {self._input_name: tensor})[0]
-        except Exception:
-            errorLogging()
-            return []
+        except Exception as exc:
+            # The worker owns retries, diagnostics and the visible runtime state.
+            raise OcrDetectorError(f"{type(exc).__name__}: {exc}") from exc
 
         # (1, アンカー数, 6) = cx, cy, w, h, 物体らしさ, クラス(吹き出しの1種類だけ)。
         predictions = np.asarray(outputs).reshape(-1, 6)

@@ -260,14 +260,81 @@ class TestRecognitionReuse(unittest.TestCase):
         self.assertEqual(deliveries[0], ["hello world", "a different message", "hello world"])
         self.assertEqual(deliveries[1], deliveries[0])
 
-    def test_no_candidate_gap_preserves_existing_slow_tick_retention(self):
+    def test_no_candidate_gap_expires_delivery_after_thirty_seconds(self):
         self._prime()
         self.candidates = []
         for _ in range(40):
             self._tick(seconds=1)
         self.candidates = [((0, 0, 64, 24), self.frame)]
         self._tick()
-        # Existing logic extends retention to twice the gap between candidate ticks.
+        # Empty ticks are real cadence samples. An absence is not a slow
+        # recognition tick and must not extend retention to twice that absence.
+        self.assertEqual(len(self.received), 2)
+
+    def test_no_frame_gap_also_expires_delivery(self):
+        self._prime()
+        self.capture.frame = None
+        for _ in range(40):
+            self._tick(seconds=1)
+        self.assertEqual(len(self.pipeline._dedup._items), 0)
+        self.capture.frame = self.frame
+        self._tick()
+        self.assertEqual(len(self.received), 2)
+
+    def test_changing_slow_first_crop_does_not_starve_the_second(self):
+        attempted = []
+
+        def read(crop):
+            attempted.append(int(crop[0, 0, 0]))
+            self.now += 0.7  # More than the 0.6s budget, using a fake clock.
+            text = "second bubble is readable" if attempted[-1] == 99 else "first bubble keeps changing"
+            return SimpleNamespace(txts=[text], scores=[0.9], boxes=None)
+
+        self.reader.side_effect = read
+        for tick in range(12):
+            self.candidates = [((0, 0, 64, 24), np.full_like(self.frame, tick)),
+                               ((80, 0, 64, 24), np.full_like(self.frame, 99))]
+            self._tick()
+        self.assertIn(99, attempted[:2])
+        self.assertTrue(any(payload["text"] == "second bubble is readable" for payload in self.received))
+        self.assertLessEqual(len(attempted), 12)
+
+    def test_activation_gates_first_tick_and_rejected_delivery_is_retried(self):
+        active = False
+        self.pipeline._activation_ready = lambda: active
+        self.pipeline._tick()
+        self.reader.assert_not_called()
+        self.assertFalse(self.pipeline._dedup._items)
+        active = True
+        self.pipeline._callback = Mock(return_value=False)
+        self._tick()
+        self.assertFalse(self.pipeline._dedup._items)
+        self.assertEqual(self.pipeline._counts["emit"], 0)
+        self.pipeline._callback = self.received.append
+        self._tick()
+        self._tick()
+        self.assertEqual(len(self.received), 1)
+        self.assertEqual(self.reader.call_count, 1)  # Recognition reuse still applies.
+
+    def test_callback_exception_does_not_mark_a_delivery(self):
+        self.pipeline._callback = Mock(side_effect=RuntimeError("callback failed"))
+        self.pipeline._tick()
+        self.assertFalse(self.pipeline._dedup._items)
+        self.pipeline._callback = self.received.append
+        self._tick()
+        self.assertEqual(len(self.received), 1)
+
+    def test_deferred_candidate_must_still_be_present_in_current_frame(self):
+        def slow_read(crop):
+            self.now += 0.7
+            return self.result
+
+        self.reader.side_effect = slow_read
+        self.candidates = [self.candidates[0], ((80, 0, 64, 24), np.full_like(self.frame, 99))]
+        self._tick()
+        self.candidates = self.candidates[:1]
+        self._tick()
+        self.assertEqual(self.reader.call_count, 1)  # Only the current, cached first crop.
         self.assertEqual(len(self.received), 1)
 
     def test_cached_near_duplicate_refreshes_the_original_seen_timestamp(self):

@@ -50,6 +50,21 @@ class PolledResponseLogTests(unittest.TestCase):
         self.assertEqual(len(written), 6)
         self.assertEqual(logged, [])
 
+    def test_ocr_status_including_retry_reason_reaches_ui_quietly(self):
+        logged, written = [], []
+        utils.process_logger.info = logged.append
+        endpoint = "/get/data/ocr_capture_status"
+        with patch.object(utils, "_enqueueResponseLine", written.append):
+            for state in ("waiting", "reading", "retrying", "stopped"):
+                utils.printResponse(200, endpoint, {
+                    "active": state != "stopped", "source": "window", "available_sources": ["window"],
+                    "state": state, "stage": "detector" if state == "retrying" else None,
+                    "error_code": "OCR_DISABLED_MODEL_LOAD_FAILED" if state == "retrying" else None,
+                    "detector": "vrct-vox-chatbox"})
+        self.assertEqual([json.loads(line)["result"]["state"] for line in written],
+                         ["waiting", "reading", "retrying", "stopped"])
+        self.assertEqual(logged, [])
+
     def test_a_response_that_cannot_be_serialized_logs_only_its_shape(self):
         errors, written = [], []
         utils.process_logger.info = lambda record: None
@@ -96,6 +111,10 @@ class PolledRequestLogTests(unittest.TestCase):
         responses, logs = self._run(POLL, 200)
         self.assertEqual(responses, [(200, POLL)])
         self.assertEqual(logs, [])
+
+    def test_ocr_capture_status_request_is_quiet(self):
+        endpoint = "/get/data/ocr_capture_status"
+        self.assertEqual(self._run(endpoint, 200), ([(200, endpoint)], []))
 
     def test_a_failed_poll_and_other_requests_are_still_logged(self):
         self.assertEqual(self._run(POLL, 500)[1], [POLL])

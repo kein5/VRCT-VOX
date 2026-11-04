@@ -37,7 +37,7 @@ from .ocr_detection import FULL_REGION, RegionCandidates, blockBounds, groupLine
 from . import ocr_engine_rapidocr as ocr_engine
 from .ocr_languages import OcrModelSpec, resolveModelSpec
 from .ocr_models import OcrModelsInvalid, OcrModelsMissing, resolveModelFiles
-from .ocr_failure import OcrFailureLog
+from .ocr_failure import OcrFailureLog, OcrRetry
 from errors import ErrorCode, OcrStartError
 
 try:
@@ -199,7 +199,7 @@ class _DedupCache:
 class OcrPipeline:
     def __init__(
         self,
-        callback: Callable[[dict], None],
+        callback: Callable[[dict], Optional[bool]],
         source_language: str = "auto",
         window_title: str = "VRChat",
         poll_interval_ms: int = 750,
@@ -210,6 +210,7 @@ class OcrPipeline:
         chatbox_filter: bool = True,
         detector=None,
         capture_probe: Optional[Callable[[str], str]] = None,
+        activation_ready: Optional[Callable[[], bool]] = None,
     ) -> None:
         """detector: a candidate source with isAvailable()/loadModel()/detect().
 
@@ -218,6 +219,8 @@ class OcrPipeline:
         the upstream one must never be passed (see ocr_chatbox_detector.py).
         """
         self._callback = callback
+        self._activation_ready = activation_ready or (lambda: True)
+        self._runtime = {"state": "waiting", "stage": "capture", "error_code": None, "detector": None}
         self._source_language = source_language or "auto"
         self._window_title = window_title or "VRChat"
         self._poll_interval = max(0.1, poll_interval_ms / 1000.0)
@@ -251,14 +254,60 @@ class OcrPipeline:
                         "text": 0, "bubble": 0, "emit": 0}
         self._counts_since = 0.0
         self._last_tick_at = 0.0
+        self._candidate_offset = 0
         self._engine_failures = OcrFailureLog("OCR engine", lambda: errorLogging(), lambda message: printLog(message))
         self._tick_failures = OcrFailureLog("OCR tick", lambda: errorLogging(), lambda message: printLog(message))
+        self._stage_retries = {
+            stage: OcrRetry(OcrFailureLog(f"OCR {stage}", lambda: errorLogging(), lambda message: printLog(message)))
+            for stage in ("capture", "detector")
+        }
+        self._stage_retries["tick"] = OcrRetry(self._tick_failures)
         self._resetFailures()
 
     def _resetFailures(self) -> None:
         self._engine_failures.reset()
         self._tick_failures.reset()
+        for retry in self._stage_retries.values():
+            retry.reset()
         self._resetEngineBackoff()
+
+    @property
+    def runtimeStatus(self) -> dict:
+        if self._stop_event.is_set():
+            return {"state": "stopped", "stage": None, "error_code": None, "detector": None}
+        return {**self._runtime, "detector": self.detectorName}
+
+    def _runtimeState(self, state: str, stage=None, error_code=None) -> None:
+        # Replace the snapshot as a unit for the controller's read-only status query.
+        self._runtime = {
+            "state": state, "stage": stage,
+            "error_code": error_code.value if error_code is not None else None,
+            "detector": self.detectorName,
+        }
+
+    def _stageFailure(self, stage: str, exc=None) -> None:
+        self._resetRecognition()
+        self._stage_retries[stage].failure(exc)
+        code = {"capture": ErrorCode.OCR_DISABLED_CAPTURE_UNAVAILABLE,
+                "detector": ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED,
+                "tick": ErrorCode.OCR_DISABLED_UNKNOWN}[stage]
+        self._runtimeState("retrying", stage, code)
+
+    def _ageDedup(self, now: float) -> None:
+        # Cadence includes empty/no-frame/cooldown ticks, not just candidate ticks.
+        interval = now - self._last_tick_at if self._last_tick_at else 0.0
+        self._last_tick_at = now
+        self._dedup.evictStale(now, max(DEDUP_RETENTION_SEC, interval * 2.0))
+
+    def _captureFailureLogged(self) -> bool:
+        # The unchanged facade and HWND wrapper return None after logging.
+        # Inspect only their failure indicators, never retain exceptions/frames.
+        for owner in (self._capture, getattr(self._capture, "_window", None),
+                      getattr(self._capture, "_openvr", None)):
+            failures = getattr(owner, "_failures", None)
+            if isinstance(failures, OcrFailureLog) and failures.active:
+                return True
+        return False
 
     def _resetEngineBackoff(self) -> None:
         self._engine_failure_count = 0
@@ -327,6 +376,9 @@ class OcrPipeline:
         if self.is_alive:
             return not self._stop_event.is_set()
         self._resetRecognition()
+        self._last_tick_at = 0.0
+        self._candidate_offset = 0
+        self._runtimeState("waiting", "activation")
         if not self.isEngineAvailable():
             printLog("OCR pipeline: engine or opencv unavailable, refusing to start")
             raise OcrStartError(ErrorCode.OCR_DISABLED_ENGINE_UNAVAILABLE)
@@ -531,6 +583,9 @@ class OcrPipeline:
                 source = self._region_source
         if source is not self._detector:
             self._detector = source
+            self._stage_retries["detector"].reset()
+            if self._runtime["stage"] == "detector":
+                self._runtimeState("waiting", "capture")
             printLog(f"OCR pipeline: candidates={self.detectorName}")
 
     def _inRegion(self, candidates, frame):
@@ -554,11 +609,11 @@ class OcrPipeline:
                 kept.append(candidate)
         return kept
 
-    def _emit(self, text: str) -> None:
-        if self._stop_event.is_set():
-            return
+    def _emit(self, text: str) -> bool:
+        if self._stop_event.is_set() or not self._activation_ready():
+            return False
         try:
-            self._callback({
+            accepted = self._callback({
                 "text": text,
                 "language": self._source_language if self._source_language != "auto" else None,
                 "is_final": True,
@@ -566,27 +621,34 @@ class OcrPipeline:
                 "recognition_error": False,
                 "source": "ocr",
             })
+            return accepted is not False
         except Exception:
             errorLogging()
+            return False
 
     def _run(self) -> None:
         # Capture backends hold OS resources tied to the creating thread,
         # so construct on this thread rather than the one that called start().
         if self._stop_event.is_set() or self._shutdown_requested.is_set():
             return
-        self._capture = OcrCapture(window_title=self._window_title)
         lowerCurrentThread()  # OCR を VR UI や VRChat より先に動かさない
         ticks = 0
         try:
             while not self._stop_event.is_set():
                 start_t = time.monotonic()
+                retry = self._stage_retries["tick"]
+                retry.log.report(start_t)
                 try:
                     self._applyPending()
-                    self._tick()
+                    if start_t >= retry.retry_at:
+                        if self._capture is None:
+                            self._capture = OcrCapture(window_title=self._window_title)
+                        self._tick()
+                        retry.success()
+                    else:
+                        self._ageDedup(start_t)
                 except Exception as exc:
-                    self._tick_failures.failure(exc)
-                else:
-                    self._tick_failures.success()
+                    self._stageFailure("tick", exc)
                 ticks += 1
                 if ticks <= 2 and self._background_threads is not None:
                     # 推論を始めてから作られるスレッドもある
@@ -596,6 +658,7 @@ class OcrPipeline:
                 if sleep_for > 0:
                     self._stop_event.wait(sleep_for)
         finally:
+            self._stop_event.set()
             self._resetRecognition()
             try:
                 self._capture.close()
@@ -621,28 +684,48 @@ class OcrPipeline:
         self._counts_since = now
 
     def _tick(self) -> None:
-        if self._stop_event.is_set():
+        if self._stop_event.is_set() or not self._activation_ready():
             return
         self._counts["tick"] += 1
         tick_at = time.monotonic()
+        self._ageDedup(tick_at)
         self._logStatus(tick_at)
         self._engine_failures.report(tick_at)
+        for retry in self._stage_retries.values():
+            retry.log.report(tick_at)
         # Keep polling settings/status and the stop event during cooldown;
         # do not capture, detect or run inference until the next probe is due.
-        if tick_at < self._engine_retry_at:
+        if tick_at < max(self._engine_retry_at, *(r.retry_at for r in self._stage_retries.values())):
             return
         if self._capture is None or self._reader is None:
             return
-        frame = self._capture.get()
+        try:
+            frame = self._capture.get()
+        except Exception as exc:
+            self._stageFailure("capture", exc)
+            return
         if self._stop_event.is_set():
             return
         # get() can select a different backend or fall back from VR to desktop.
         self._syncRecognitionContext()
         if frame is None:
             self._resetRecognition()
+            if self._captureFailureLogged():
+                self._stageFailure("capture")
+            elif self._runtime["state"] != "retrying":
+                self._runtimeState("waiting", "capture")
             return
+        self._stage_retries["capture"].success()
         self._counts["frame"] += 1
-        candidates = self._detector.detect(frame)
+        try:
+            candidates = self._detector.detect(frame)
+        except Exception as exc:
+            # Pause rather than widen the reading scope by switching to region OCR.
+            self._stageFailure("detector", exc)
+            return
+        self._stage_retries["detector"].success()
+        if not self._engine_failure_count:
+            self._runtimeState("reading")
         if candidates and self._detector is not self._region_source:
             candidates = self._inRegion(candidates, frame)
         if not candidates:
@@ -655,24 +738,21 @@ class OcrPipeline:
         # whisper is sharing, so only the most confident few — which the
         # detector already sorted first — get an OCR budget on any single tick.
         candidates = candidates[:MAX_CANDIDATES_PER_TICK]
+        offset = self._candidate_offset % len(candidates)
+        candidates = candidates[offset:] + candidates[:offset]
 
         now = time.monotonic()
-        # 保持時間の下限はtick間隔の2倍。1tickはOCR1件あたり約0.8秒かかるので、
-        # 保持時間の方が短いと、画面に出続けている吹き出しでも見るたびに忘れられて
-        # しまい、同じ文が繰り返し配送される。
-        interval = (now - self._last_tick_at) if self._last_tick_at else 0.0
-        self._last_tick_at = now
-        retention = max(DEDUP_RETENTION_SEC, interval * 2.0)
-        self._dedup.evictStale(now, retention)
         deadline = now + self._tick_budget
 
         splits = getattr(self._detector, "splits_bubbles", False) is True
-        for bbox, crop in candidates:
+        for index, (bbox, crop) in enumerate(candidates):
             if self._stop_event.is_set():
                 return
             read_at = time.monotonic()
             if read_at > deadline:
                 break
+            # Resume with the next current-frame candidate after yielding.
+            self._candidate_offset = (offset + index + 1) % len(candidates)
             key = _cropKey(crop)
             words = self._recognition.get(key, read_at)
             if words is not None:
@@ -688,6 +768,7 @@ class OcrPipeline:
                     # including on the first probe after a cooldown.
                     self._resetRecognition()
                     self._engine_failures.failure(exc)
+                    self._runtimeState("retrying", "recognition", ErrorCode.OCR_DISABLED_ENGINE_UNAVAILABLE)
                     self._engine_failure_count += 1
                     if self._engine_failure_count >= ENGINE_BACKOFF_THRESHOLD:
                         self._engine_backoff = min(
@@ -698,6 +779,7 @@ class OcrPipeline:
                     return
                 self._engine_failures.success()
                 self._resetEngineBackoff()
+                self._runtimeState("reading")
                 self._recognition.record(key, words, read_at)
             if not words:
                 continue
@@ -710,9 +792,9 @@ class OcrPipeline:
                 h = _textHash(merged)
                 if self._dedup.seen(h, merged, now):
                     continue
-                self._dedup.record(h, merged, center, now)
-                self._counts["emit"] += 1
-                self._emit(merged)
+                if self._emit(merged):
+                    self._dedup.record(h, merged, center, now)
+                    self._counts["emit"] += 1
 
     def _bubbles(self, bbox, crop, words: List[dict], splits: bool):
         """候補1つ分のOCR行を吹き出しごとに分ける。[(行のリスト, 中心座標), ...]。
