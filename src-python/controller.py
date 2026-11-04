@@ -1130,13 +1130,19 @@ class Controller:
                 return fail_start("realtime_legacy_stop_failed")
 
             def publish(payload, admitted, snapshot):
+                if payload["state"] == "outcome":
+                    # RealtimeDelivery only emits this for a published final.
+                    # Settling its log row must outlive mute, stop and expiry.
+                    self.run(200, "/run/realtime_caption", {**payload, "generation": generation})
+                    return True
+
                 def valid():
                     return current() and admitted()
 
                 failures = []
                 spec = REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC
                 msg_id = payload["namespace"] + ":" + payload["item_id"]
-                self._runMessageSink("ui", lambda: self.run(
+                shown = self._runMessageSink("ui", lambda: self.run(
                     200, "/run/realtime_caption", {**payload, "generation": generation}),
                     valid, failures, spec, msg_id)
 
@@ -1150,6 +1156,7 @@ class Controller:
                             only_translated=snapshot.overlay_only_translated)
 
                 self._runMessageSink("overlay_large", overlay, valid, failures, spec, msg_id)
+                return shown
 
             def clear_overlay():
                 with self._realtime_lock:
@@ -1186,6 +1193,7 @@ class Controller:
                 return (
                     lambda payload: publish(payload, admitted, snapshot),
                     lambda event, valid: process(event, valid, admitted, mic_snapshot, snapshot, sequence),
+                    admitted,
                 )
 
             def error(code):
@@ -1904,9 +1912,10 @@ class Controller:
 
     def _runMessageSink(self, output, action, current, failures, spec, msg_id):
         if not current():
-            return
+            return False
         try:
             action()
+            return True
         except Exception:
             failure = {"output": output, "error_code": ErrorCode.MESSAGE_OUTPUT_FAILED.value}
             failures.append(failure)
@@ -1927,6 +1936,7 @@ class Controller:
                         errorLogging()
                     except Exception:
                         pass
+            return False
 
     def _processMessage(
         self,
@@ -2063,6 +2073,8 @@ class Controller:
                 if spec.delivery == "return":
                     # エラー時は翻訳なしで返す
                     return {
+                        **({"delivery_outcome": "failed", "delivery_reason": "processing_failed"}
+                           if spec in (REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC) else {}),
                         "id": msg_id,
                         "original": {"message": message, "transliteration": []},
                         "translations": [
@@ -2133,6 +2145,8 @@ class Controller:
                     chatbox_sequence, lambda: model.oscSendMessage(formatted),
                     lambda: current() and getattr(config, spec.osc_send_gate_attr))
                 if sent is False:
+                    if spec is REALTIME_MIC_SPEC:
+                        payload.update(delivery_outcome="not_delivered", delivery_reason="superseded")
                     printLog(f"[message][{spec.kind}] chatbox skipped: newer message already sent sequence={chatbox_sequence}")
 
             sink("osc", send_osc)

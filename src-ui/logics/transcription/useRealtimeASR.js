@@ -29,9 +29,16 @@ export const useRealtimeASR = () => {
     }, [atoms]);
     const backendStopped = useCallback(() => {
         updateError("backend_unavailable");
-        atoms.set(realtimeStateAtom, value => Object.fromEntries(Object.entries(value).map(([source, row]) =>
+        updateState(Object.fromEntries(Object.entries(atoms.get(realtimeStateAtom)).map(([source, row]) =>
             [source, { ...row, requested: false, state: "failed", error_code: "backend_unavailable" }])));
-    }, [atoms, updateError]);
+        // A lost sidecar cannot confirm delivery. Keep recognized text, and
+        // preserve outcomes already received before the connection closed.
+        const logs = atoms.get(Atom_MessageLogs);
+        const rows = logs.data.map(row => row.realtime && !row.realtime.outcome
+            ? { ...row, status: "failed", realtime: { ...row.realtime, outcome: "failed", reason: "backend_unavailable" } }
+            : row);
+        if (rows.some((row, index) => row !== logs.data[index])) atoms.set(Atom_MessageLogs, { ...logs, data: rows });
+    }, [atoms, updateError, updateState]);
     const reset = useCallback(() => {
         atoms.set(realtimeStateAtom, {});
         atoms.set(realtimeRetiredAtom, []);
