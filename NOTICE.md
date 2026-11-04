@@ -112,6 +112,16 @@ MIT at [kein5/vrct-vox-chatbox-detector](https://huggingface.co/kein5/vrct-vox-c
 It is not derived from the upstream model or its outputs. It is not shipped either; it is downloaded only after the
 user agrees in Config → Chat Transcribe (catalog entry `vrct-vox-chatbox-detector`).
 
+## Downloadable Whisper weights
+
+Whisper weights are not bundled. Config → Transcription shows the model,
+provider, MIT license and exact pinned file total before checkbox consent and
+Download. The models derive from [OpenAI Whisper](https://github.com/openai/whisper/blob/main/LICENSE)
+(MIT); the pinned CTranslate2 conversions come from Systran (tiny through
+large-v3), Zoont (large-v3-turbo-int8), and deepdml (large-v3-turbo).
+Repositories, revisions, file sizes and SHA-256 are in
+`src-python/models/builtin_model_pins.py`.
+
 ## Downloadable CTranslate2 translation weights
 
 None of these weights ship with VRCT-VOX. The app downloads the selected one
@@ -126,11 +136,27 @@ each weight in Config → Translation.
 | `nllb-200-distilled-1.3B-ct2-int8` | `OpenNMT/nllb-200-distilled-1.3B-ct2-int8` | `facebook/nllb-200-distilled-1.3B` | CC-BY-NC-4.0 (non-commercial) |
 | `nllb-200-3.3B-ct2-int8` | `OpenNMT/nllb-200-3.3B-ct2-int8` | `facebook/nllb-200-3.3B` | CC-BY-NC-4.0 (non-commercial) |
 
-The NLLB-200 weights are opt-in. The user must confirm the non-commercial
-license before downloading or selecting one, and the backend refuses either
-request without that confirmation. Earlier versions made
+Every built-in acquisition requires checkbox consent to the exact model and
+manifest, including an already-selected NLLB model and its separately fetched
+tokenizer. The backend refuses download requests without that consent or with
+an outdated manifest. NLLB-200 review always labels CC-BY-NC-4.0 as
+non-commercial; selecting a different NLLB model also requires license
+confirmation. Keeping an existing selection does not grant download consent. Earlier versions made
 `nllb-200-distilled-600M-ct2-int8` the default. Configurations saved by those
 versions keep it, and the app shows a one-time notice about its license.
+
+CTranslate2 tokenizers come from the upstream model repositories in the table
+and carry the same MIT or CC-BY-NC-4.0 terms. Their commits are pinned in
+`TOKENIZER_REVISIONS`; separate per-file size/SHA-256 pins remain to be added.
+The review shows the exact pinned weight-file total **plus tokenizer files**,
+without claiming an exact size for those separate files. Inference and cache
+checks load tokenizers locally only. Consented acquisition fetches the pinned
+revision. No model files are bundled by this change.
+
+Consent is saved per model and manifest in `LEGACY_MODEL_DOWNLOAD_CONSENTS`.
+Startup auto-acquisition requires a matching saved consent in addition to the
+auto-download switch; legacy settings have no recorded consent. Existing
+files and saved selections are preserved.
 
 This table and the OCR table above cover **model weights** only. Python package
 dependencies are listed in `pyproject.toml` (resolved in `uv.lock`) and

@@ -100,6 +100,7 @@ class ErrorCode(str, Enum):
     # ============================================================================
     WEIGHT_CTRANSLATE2_DOWNLOAD = "WEIGHT_CTRANSLATE2_DOWNLOAD"
     WEIGHT_WHISPER_DOWNLOAD = "WEIGHT_WHISPER_DOWNLOAD"
+    WEIGHT_DOWNLOAD_CONSENT_REQUIRED = "WEIGHT_DOWNLOAD_CONSENT_REQUIRED"
     # A non-commercial (CC-BY-NC-4.0) CTranslate2 weight was requested
     # without the explicit license opt-in. data = {"weight_type", "selected"}.
     WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED = "WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED"
@@ -480,6 +481,12 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "category": ErrorCategory.WEIGHT,
         "message": "Whisper weight download error",
         "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.WEIGHT_DOWNLOAD_CONSENT_REQUIRED: {
+        "category": ErrorCategory.WEIGHT,
+        "message": "Review the model license and size in Settings and consent to this exact model manifest before downloading",
+        "severity": "warning",
         "user_action_required": True,
     },
     ErrorCode.WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED: {

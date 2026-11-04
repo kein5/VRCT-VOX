@@ -17,7 +17,8 @@ from utils import removeLog, printLog, errorLogging, isConnectedNetwork, isValid
 from errors import ErrorCode, OcrStartError, VRCTError
 from models.transcription.transcription_openai_compatible import TRANSCRIPTION_MODEL_KEYWORDS, TRANSCRIPTION_API_ENGINES
 from models.translation.translation_providers import TRANSLATION_PROVIDER_REGISTRY, CONNECTION_PROVIDER_REGISTRY
-from models.translation.translation_utils import ctranslate2_weights, isNonCommercialCTranslate2Weight
+from models.translation.translation_utils import ctranslate2_weights, isNonCommercialCTranslate2Weight, MissingCTranslate2Tokenizer
+from models.legacy_model_consent import legacyModelCatalog, recordLegacyConsent, consentedLegacyRequest
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
 from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
 from models.transcription.utterance_diagnostics import SLOW_MS, utterance_diagnostics
@@ -447,7 +448,7 @@ class Controller:
         self.speaker_lifecycle_lock: Lock = Lock()
 
     def getModelDownloadCatalog(self, *args, **kwargs):
-        return {'status': 200, 'result': self.model_downloads.catalog()}
+        return {'status': 200, 'result': {**self.model_downloads.catalog(), 'legacy_models': legacyModelCatalog()}}
 
     def getModelDownloadHardware(self, *args, **kwargs):
         return {'status': 200, 'result': self.model_hardware.state()}
@@ -2857,7 +2858,8 @@ class Controller:
                     else:
                         errorLogging()
                         # 理由を返す。False だけを返すと、画面ではスイッチが戻るだけで何も分からない
-                        missing = not model.hasTranslatorCTranslate2ModelWeightFile(config.CTRANSLATE2_WEIGHT_TYPE)
+                        missing = (isinstance(e, MissingCTranslate2Tokenizer) or
+                                   not model.hasTranslatorCTranslate2ModelWeightFile(config.CTRANSLATE2_WEIGHT_TYPE))
                         return VRCTError.create_error_response(
                             ErrorCode.TRANSLATION_MODEL_MISSING if missing else ErrorCode.TRANSLATION_MODEL_LOAD_FAILED,
                             data=False,
@@ -4425,10 +4427,7 @@ class Controller:
 
     @staticmethod
     def _parseCtranslate2WeightRequest(data) -> tuple:
-        """Accept either a bare weight id (the historical payload, still used
-        for MIT weights and by the startup auto-download) or
-        {"weight_type": id, "accept_non_commercial_license": bool}, which the
-        UI sends after the user confirms the CC-BY-NC-4.0 dialog."""
+        """Parse selection consent; acquisition uses the separate manifest consent."""
         if isinstance(data, dict):
             return str(data.get("weight_type")), data.get("accept_non_commercial_license") is True
         return str(data), False
@@ -4438,11 +4437,9 @@ class Controller:
         """Error response when a non-commercial weight is requested without
         the explicit opt-in, else None.
 
-        The weight that is already selected is exempt: it was either
-        confirmed earlier or saved by an older version where NLLB was the
-        default. Saved settings are never changed behind the user's back, so
-        that weight must keep downloading/loading as before (startup
-        auto-download calls downloadCtranslate2Weight with a bare id).
+        Keeping an existing selection is a no-op, including old NLLB defaults.
+        This exemption never authorizes acquisition; downloads use their own
+        model/manifest consent check.
         """
         if accepted or not isNonCommercialCTranslate2Weight(weight_type):
             return None
@@ -4874,17 +4871,38 @@ class Controller:
         th_start_update_cuda_software.start()
         return {"status":200, "result":True}
 
+    @staticmethod
+    def _legacyDownloadConsentError(kind, data):
+        if recordLegacyConsent(config, kind, data):
+            return None
+        weight_type = data.get("weight_type") if isinstance(data, dict) else data
+        return VRCTError.create_error_response(
+            ErrorCode.WEIGHT_DOWNLOAD_CONSENT_REQUIRED,
+            data={"kind": kind, "weight_type": weight_type},
+        )
+
+    def _startupLegacyDownloadRequest(self, kind, weight_type):
+        request = consentedLegacyRequest(config, kind, weight_type)
+        if request is None:
+            response = VRCTError.create_error_response(
+                ErrorCode.WEIGHT_DOWNLOAD_CONSENT_REQUIRED,
+                data={"kind": kind, "weight_type": weight_type, "startup": True},
+            )
+            self.run(response["status"], self.run_mapping[f"error_{kind}_weight"], response["result"])
+        return request
+
     def downloadCtranslate2Weight(self, data:Any, asynchronous:bool=True, *args, **kwargs) -> dict:
-        weight_type, accepted = self._parseCtranslate2WeightRequest(data)
-        consent_error = self._ctranslate2LicenseConsentError(weight_type, accepted)
+        consent_error = self._legacyDownloadConsentError("ctranslate2", data)
         if consent_error is not None:
             return consent_error
+        weight_type = data["weight_type"]
         download_ctranslate2 = self.DownloadCTranslate2(
             self.run_mapping,
             weight_type,
             self.run
             )
 
+        model.downloadCTranslate2ModelTokenizer(weight_type)
         if asynchronous is True:
             self.startThreadingDownloadCtranslate2Weight(
                 weight_type,
@@ -4893,11 +4911,13 @@ class Controller:
                 )
         else:
             model.downloadCTranslate2ModelWeight(weight_type, download_ctranslate2.progressBar, download_ctranslate2.downloaded)
-        model.downloadCTranslate2ModelTokenizer(weight_type)
         return {"status":200, "result":True}
 
-    def downloadWhisperWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
-        weight_type = str(data)
+    def downloadWhisperWeight(self, data:Any, asynchronous:bool=True, *args, **kwargs) -> dict:
+        consent_error = self._legacyDownloadConsentError("whisper", data)
+        if consent_error is not None:
+            return consent_error
+        weight_type = data["weight_type"]
         download_whisper = self.DownloadWhisper(
             self.run_mapping,
             weight_type,
@@ -6276,6 +6296,8 @@ class Controller:
         # availabilityチェックで同じ重みを二重にロードして検証するのを避ける。
         ctranslate2_pre_available: Optional[bool] = None
         whisper_pre_available: Optional[bool] = None
+        ctranslate2_request = None
+        whisper_request = None
         # Preserve legacy on-disk migration when downloads are disabled,
         # retaining its existing connected-startup condition.
         if connected_network is True:
@@ -6287,7 +6309,9 @@ class Controller:
             th_download_ctranslate2 = None
             ctranslate2_pre_available = model.checkTranslatorCTranslate2ModelWeight(weight_type)
             if ctranslate2_pre_available is False:
-                th_download_ctranslate2 = Thread(target=self.downloadCtranslate2Weight, args=(weight_type, False))
+                ctranslate2_request = self._startupLegacyDownloadRequest("ctranslate2", weight_type)
+            if ctranslate2_request is not None:
+                th_download_ctranslate2 = Thread(target=self.downloadCtranslate2Weight, args=(ctranslate2_request, False))
                 th_download_ctranslate2.daemon = True
                 th_download_ctranslate2.start()
 
@@ -6296,7 +6320,9 @@ class Controller:
             th_download_whisper = None
             whisper_pre_available = model.checkTranscriptionWhisperModelWeight(weight_type)
             if whisper_pre_available is False:
-                th_download_whisper = Thread(target=self.downloadWhisperWeight, args=(weight_type, False))
+                whisper_request = self._startupLegacyDownloadRequest("whisper", weight_type)
+            if whisper_request is not None:
+                th_download_whisper = Thread(target=self.downloadWhisperWeight, args=(whisper_request, False))
                 th_download_whisper.daemon = True
                 th_download_whisper.start()
 
@@ -6362,12 +6388,12 @@ class Controller:
         #  取りこぼしたケースを吸収する)
         if (connected_network is True and config.AUTO_DOWNLOAD_MODELS is True
                 and (not ctranslate2_available or not whisper_available)):
-            if not ctranslate2_available:
+            if not ctranslate2_available and ctranslate2_request is not None:
                 printLog("CTranslate2 weight unavailable after first download; retrying once")
-                self.downloadCtranslate2Weight(config.CTRANSLATE2_WEIGHT_TYPE, False)
-            if not whisper_available:
+                self.downloadCtranslate2Weight(ctranslate2_request, False)
+            if not whisper_available and whisper_request is not None:
                 printLog("Whisper weight unavailable after first download; retrying once")
-                self.downloadWhisperWeight(config.WHISPER_WEIGHT_TYPE, False)
+                self.downloadWhisperWeight(whisper_request, False)
 
             with ThreadPoolExecutor(max_workers=2) as executor:
                 future_ctranslate2 = executor.submit(

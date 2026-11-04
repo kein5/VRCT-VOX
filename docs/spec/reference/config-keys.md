@@ -4,7 +4,7 @@
 
 `src-python/config.py`の`Config`クラス（`ManagedProperty`と`ValidatedProperty`）と`init_config()`の既定値から生成した。保存の仕組み（2秒の遅延、置き換えによる書き込み、読み込み時の検証）は[データ形式と保存](../data-and-persistence.md)にある。
 
-## config.jsonに保存するキー（119件）
+## config.jsonに保存するキー（120件）
 
 | キー | 型・検証 | 既定値 | 保存 |
 |---|---|---|---|
@@ -88,6 +88,7 @@
 | `OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR` | str | `'#000000'` | 2秒後にまとめて |
 | `ENABLE_TELEMETRY` | bool | `False` | 2秒後にまとめて |
 | `AUTO_DOWNLOAD_MODELS` | bool | `False` | 2秒後にまとめて |
+| `LEGACY_MODEL_DOWNLOAD_CONSENTS` | dict、許可値 lambda v, inst: all((isinstance(k, str) and isinstance(value, str) for k, value in v.items())) | `{}` | 即時 |
 | `SELECTED_TAB_NO` | str、許可値 lambda v, inst: v in inst.SELECTABLE_TAB_NO_LIST | `'1'` | 2秒後にまとめて |
 | `SELECTED_TRANSCRIPTION_ENGINE` | str、許可値 lambda v, inst: v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST | `'Google'` | 2秒後にまとめて |
 | `SELECTED_RELEASE_CHANNEL` | str、許可値 lambda v, inst: v in inst.SELECTABLE_RELEASE_CHANNEL_LIST | `'stable'` | 2秒後にまとめて |

@@ -3,7 +3,7 @@ import { useI18n } from "@useI18n";
 import styles from "./Transcription.module.scss";
 import { RealtimeASRSettings } from "./RealtimeASRSettings";
 import { genNumObjArray } from "@utils";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import {
     useTranscription,
@@ -29,6 +29,7 @@ import {
 
 import { ComputeDevice } from "../_components/compute_device/ComputeDevice";
 import { Description } from "../_components/description/Description";
+import { LegacyModelDownloadDialog } from "../_components/download_models/LegacyModelDownloadDialog";
 import { AutoDownloadModelsContainer } from "../shared_items/SharedItems";
 
 export const Transcription = () => {
@@ -383,9 +384,11 @@ const WhisperWeightType_Box = () => {
         setSelectedWhisperWeightType(id);
     };
 
-    const downloadStartFunction = (id) => {
-        pendingWhisperWeightTypeStatus(id);
-        downloadWhisperWeightTypeStatus(id);
+    const [downloadReview, setDownloadReview] = useState(null);
+    const downloadStartFunction = (id) => setDownloadReview(id);
+    const download = (request) => {
+        pendingWhisperWeightTypeStatus(request.weight_type);
+        downloadWhisperWeightTypeStatus(request);
     };
 
     const whisper_weight_types = currentWhisperWeightTypeStatus.data.map(item => {
@@ -397,6 +400,8 @@ const WhisperWeightType_Box = () => {
 
     return (
         <>
+            {downloadReview && <LegacyModelDownloadDialog kind="whisper" weightType={downloadReview}
+                onCancel={() => setDownloadReview(null)} onDownload={download} />}
             <DownloadModelsContainer
                 label={t("config_page.transcription.whisper_weight_type.label")}
                 desc={t(

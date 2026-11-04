@@ -1,0 +1,30 @@
+.host { padding: 0; border: 0; }
+.host dialog.dialog {
+    box-sizing: border-box;
+    width: min(46rem, calc(100vw - 2.4rem));
+    max-width: calc(100vw - 2.4rem);
+    max-height: calc(100dvh - 2.4rem);
+    overflow-y: auto;
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+    a { color: var(--primary_200_color, #a9ccff); }
+    .facts {
+        display: grid;
+        gap: 1.2rem;
+        margin: 1.6rem 0;
+        font-size: 1.3rem;
+    }
+    .fact {
+        display: grid;
+        grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr);
+        column-gap: 1.2rem;
+        row-gap: .4rem;
+    }
+    // Labels wrap only between words, never inside a Japanese label.
+    dt { font-weight: 500; color: var(--vox_secondary_text, #adbed6); overflow-wrap: normal; word-break: keep-all; }
+    dd { min-width: 0; margin: 0; font-variant-numeric: tabular-nums; }
+    dd p { margin-top: .8rem; }
+    @media (max-width: 700px) {
+        .fact { grid-template-columns: minmax(0, 1fr); }
+    }
+}

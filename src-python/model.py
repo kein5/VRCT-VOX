@@ -39,7 +39,7 @@ from models.transcription.transcription_transcriber import AudioTranscriber
 from models.transcription.utterance_diagnostics import utterance_diagnostics
 from models.translation.translation_languages import translation_lang
 from models.transcription.transcription_languages import transcription_lang
-from models.translation.translation_utils import checkCTranslate2Weight, hasCTranslate2WeightFile, downloadCTranslate2Weight, downloadCTranslate2Tokenizer, backwardCompatibleRenameWeightsDir
+from models.translation.translation_utils import checkCTranslate2Weight, hasCTranslate2WeightFile, downloadCTranslate2Weight, downloadCTranslate2Tokenizer, backwardCompatibleRenameWeightsDir, MissingCTranslate2Tokenizer
 from models.transcription.transcription_whisper import checkWhisperWeight, downloadWhisperWeight
 from models.transcription.transcription_openai_compatible import checkTranscriptionApiKey, getAvailableTranscriptionModels
 from models.transcription.transcription_deepgram import (
@@ -1178,7 +1178,13 @@ class Model:
         return backwardCompatibleRenameWeightsDir(config.PATH_DATA)
         
     def checkTranslatorCTranslate2ModelWeight(self, weight_type:str):
-        return checkCTranslate2Weight(config.PATH_DATA, weight_type)
+        if not checkCTranslate2Weight(config.PATH_DATA, weight_type):
+            return False
+        try:
+            downloadCTranslate2Tokenizer(config.PATH_DATA, weight_type, local_files_only=True)
+            return True
+        except MissingCTranslate2Tokenizer:
+            return False
 
     def hasTranslatorCTranslate2ModelWeightFile(self, weight_type:str):
         return hasCTranslate2WeightFile(config.PATH_DATA, weight_type)
@@ -1197,7 +1203,7 @@ class Model:
         return downloadCTranslate2Weight(config.PATH_DATA, weight_type, callback, end_callback)
 
     def downloadCTranslate2ModelTokenizer(self, weight_type):
-        return downloadCTranslate2Tokenizer(config.PATH_DATA, weight_type)
+        return downloadCTranslate2Tokenizer(config.PATH_DATA, weight_type, local_files_only=False)
 
     def isLoadedCTranslate2Model(self):
         self.ensure_initialized()

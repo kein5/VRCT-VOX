@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from test_controller_integration import controller_module  # noqa: F401
+from models.legacy_model_consent import recordLegacyConsent, legacyModelReview
 
 
 class ReachedEngineSetup(Exception):
@@ -23,17 +24,22 @@ def test_policy_can_be_read_enabled_and_disabled_without_downloading(controller_
     assert not module.model.mock_calls
 
 
-@pytest.mark.parametrize("consent,available,expected", [
-    (False, False, []),
-    (False, True, []),
-    (True, False, ["translation", "whisper", "translation", "whisper"]),
+@pytest.mark.parametrize("consent,recorded,available,expected", [
+    (False, False, False, []),
+    (False, False, True, []),
+    (True, False, False, []),
+    (True, True, False, ["translation", "whisper", "translation", "whisper"]),
 ])
 def test_startup_download_requires_explicit_consent(controller_module, monkeypatch,
-                                                  consent, available, expected):
+                                                  consent, recorded, available, expected):
     module = controller_module
     monkeypatch.setattr(module, "config", SimpleNamespace(
-        AUTO_DOWNLOAD_MODELS=consent, CTRANSLATE2_WEIGHT_TYPE="test-translation",
-        WHISPER_WEIGHT_TYPE="test-whisper"))
+        AUTO_DOWNLOAD_MODELS=consent, CTRANSLATE2_WEIGHT_TYPE="m2m100_418M-ct2-int8",
+        WHISPER_WEIGHT_TYPE="base", LEGACY_MODEL_DOWNLOAD_CONSENTS={}))
+    if recorded:
+        for kind, weight in [("whisper", "base"), ("ctranslate2", "m2m100_418M-ct2-int8")]:
+            recordLegacyConsent(module.config, kind, {"weight_type": weight, "consent": True,
+                "manifest_version": legacyModelReview(kind, weight)["manifest_version"]})
     external = MagicMock()
     external.checkTranslatorCTranslate2ModelWeight.return_value = available
     external.checkTranscriptionWhisperModelWeight.return_value = available
@@ -42,6 +48,8 @@ def test_startup_download_requires_explicit_consent(controller_module, monkeypat
     monkeypatch.setattr(module, "removeLog", lambda: None)
     controller = module.Controller.__new__(module.Controller)
     controller._model = external
+    controller.run_mapping = {f"error_{kind}_weight": f"/run/error_{kind}_weight" for kind in ("whisper", "ctranslate2")}
+    controller.run = MagicMock()
     controller.startWatchdog = lambda: None
     controller.connectedNetwork = lambda: None
     controller.initializationProgress = lambda progress: None

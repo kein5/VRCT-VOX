@@ -114,3 +114,9 @@ miniaudioの二重ライセンス、静的GCCランタイムのGPLv3＋Runtime L
 この部品の確認をアプリ全体・別VCランタイムの配布監査完了とは扱わない。未公開。
 
 2026-10-31に固定版を0.10.0（commit 06590811a90041f935a470ba0e2b85346d2fc041）へ更新。speech.cpp/cpp-httplib/miniaudio/GGMLのライセンス文は0.9.0と同一で、vendorは無変更、GGMLはsubmodule 700c9d743ed7cc583c0f1b6507afebb6c0e88bc0へ更新。公式Vulkan実行ファイルのGCCは同じUbuntu 11.4.0-1ubuntu1~22.04.3。新規に同梱する第三者コードはない。
+
+## 内蔵Whisper・CTranslate2の取得条件
+
+WhisperはOpenAIのMITモデルを元にしたSystran・Zoont・deepdmlのCTranslate2変換版で、同梱しない。[NOTICE](../../NOTICE.md#downloadable-whisper-weights)に提供元を記載し、取得画面でMITと固定ファイルの正確な合計容量を表示する。CTranslate2翻訳はM2M100とその文章分割ファイルがMIT、NLLBとその文章分割ファイルがCC-BY-NC-4.0（非商用）。[NOTICEの一覧](../../NOTICE.md#downloadable-ctranslate2-translation-weights)を正本とする。非商用モデルは既定にしない。
+
+内蔵モデルの取得は、選択済みのNLLBや別途取得するtokenizerも含め、モデルと固定した一覧への明示的な同意を必要とする。起動時の取得は、その同意の記録がある版だけに限る。別取得のtokenizerにはcommitのみが固定され、ファイルごとの容量・SHA-256は未整備であるため、容量に含まれない追加ファイルとして表示する。この追記で配布許可や完全性の検証完了を主張しない。取得画面と移行の詳細は[モデル取得](model-downloads.md#内蔵whisperctranslate2と文章分割ファイル)を参照する。

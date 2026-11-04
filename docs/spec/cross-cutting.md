@@ -55,7 +55,10 @@
 
 ## 同意と外部への送信
 
-- モデルの取得は、提供元、サイズ、ライセンスを画面に示し、利用者がチェックして開始したときだけ行う。起動時の自動取得（`AUTO_DOWNLOAD_MODELS`）の既定はオフである。カタログは版、サイズ、SHA-256、ライセンスを固定する（`src-python/models/model_downloads/catalog.py`、`docs/voice-stack/model-downloads.md`）。
+- モデルの取得は、名前、提供元、正確な容量、ライセンスを画面に示し、利用者がチェックして開始したときだけ行う。カタログは版、サイズ、SHA-256、ライセンスを固定する（`src-python/models/model_downloads/catalog.py`）。内蔵WhisperとCTranslate2は`builtin_model_pins.py`のファイル容量の合計を示す。別途取得する翻訳用の文章分割ファイル（tokenizer）は版だけが固定され、ファイルごとの容量とSHA-256は未整備なので、表示容量に含まれないことを明記する。
+- 内蔵モデルの取得要求には`consent: true`と、そのモデルの`manifest_version`が必要である。欠けているか現在の一覧と一致しなければ、400の`WEIGHT_DOWNLOAD_CONSENT_REQUIRED`で取得を拒否する。保存済みの選択、NLLBの利用条件への選択時の同意、起動時取得のスイッチだけでは取得に同意したことにならない。NLLBは非商用の制限を必ず表示し、既定にしない。
+- 起動時の自動取得（`AUTO_DOWNLOAD_MODELS`）の既定はオフである。オンでも、そのモデルとファイル一覧・版への同意が`LEGACY_MODEL_DOWNLOAD_CONSENTS`に記録されている場合だけ、不足分の取得と再試行を許可する。同意がなければ取得せず、設定での確認を促す通知を出して起動を続ける。旧設定には同意記録がないものとして扱い、取得済みのファイルや選択は変更しない。[モデル取得](../voice-stack/model-downloads.md)と[保存形式](data-and-persistence.md#内蔵モデルの取得への同意)を参照する。
+- 翻訳の有効化・推論・取得済み判定で使うtokenizerは、代替の保存先も含めて`local_files_only=True`で読む。見つからなければ`TRANSLATION_MODEL_MISSING`として設定の取得画面へ案内する。固定版をネットワークから取得するのは、同意済みの明示的な取得と、記録済み同意を持つ起動時取得に限る。
 - クラウドの翻訳エンジンと音声認識エンジンは、利用者がキーを登録してエンジンを選んだときだけ使う。選んだ時点で、文字や音声がそのサービスに送られることに同意したとみなす（`docs/transcription_stt_api_integration_plan.md`）。
 - 画面の変更によって、マイクの有効化、モデルの取得、メッセージの送信、音声経路の変更が勝手に起きてはならない（[契約](contracts.md)）。
 - テレメトリーは実装されていない（既定オフで、オンにしても送信しない）。更新の確認もしない（`BUILTIN_UPDATER_ENABLED = False`）。

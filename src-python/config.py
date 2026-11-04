@@ -1200,6 +1200,9 @@ class Config:
     # --- Telemetry Settings ---
     ENABLE_TELEMETRY = ManagedProperty('ENABLE_TELEMETRY', type_=bool)
     AUTO_DOWNLOAD_MODELS = ManagedProperty('AUTO_DOWNLOAD_MODELS', type_=bool)
+    LEGACY_MODEL_DOWNLOAD_CONSENTS = ManagedProperty(
+        'LEGACY_MODEL_DOWNLOAD_CONSENTS', type_=dict, immediate_save=True,
+        allowed=lambda v, inst: all(isinstance(k, str) and isinstance(value, str) for k, value in v.items()))
 
     # --- Selection properties with validation (ManagedProperty) ---
     SELECTED_TAB_NO = ManagedProperty('SELECTED_TAB_NO', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TAB_NO_LIST)
@@ -1596,6 +1599,7 @@ class Config:
         self._ENABLE_TELEMETRY = False
         # Existing weights remain usable; network downloads require opt-in.
         self._AUTO_DOWNLOAD_MODELS = False
+        self._LEGACY_MODEL_DOWNLOAD_CONSENTS = {}
 
         # OCR defaults (VRChat chat-bubble text capture)
         # PP-OCRv6 small が日英中＋ラテン文字系を1モデルで読むので "auto" が既定。
