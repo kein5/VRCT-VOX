@@ -17,7 +17,7 @@ export const MultiDropdownMenu = (props) => {
     });
 
     return (
-        <div className={container_class}>
+        <div className={container_class} role="group" aria-labelledby={props["aria-labelledby"]} aria-describedby={props["aria-describedby"]}>
             {(() => {
                 const beforeInserts = [];
                 const afterInserts = [];
@@ -47,7 +47,7 @@ export const MultiDropdownMenu = (props) => {
                                     const InsertComponent = dropdown_props.insert_component;
                                     return <InsertComponent key={item.key} {...dropdown_props.insert_component_props} />;
                                 }
-                                return <DropdownMenu key={item.key} {...dropdown_props} />;
+                                return <DropdownMenu key={item.key} {...dropdown_props} aria-describedby={[props["aria-describedby"], dropdown_props["aria-describedby"]].filter(Boolean).join(" ") || undefined} />;
                             })}
                         </div>
 

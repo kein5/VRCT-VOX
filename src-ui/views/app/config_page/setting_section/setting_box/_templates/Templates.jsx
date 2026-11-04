@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useId } from "react";
 
 import styles from "./Templates.module.scss";
 import { useStore_IsOpenedDropdownMenu, useStore_IsBreakPoint } from "@store";
@@ -24,22 +25,35 @@ import {
 import { Checkbox } from "@common_components";
 import { useI18n } from "@useI18n";
 
+// Keep IDs stable through pending/error updates, including the two-row templates.
+const useTemplateAccessibility = (props) => {
+    const id = useId();
+    const label_id = props.label_id ?? `${id}-label`;
+    const description_id = props.description_id ?? (props.desc ? `${id}-description` : undefined);
+    const warnings_id = props.warnings_id ?? (props.add_warnings?.length ? `${id}-warnings` : undefined);
+    return { label_id, description_id, warnings_id,
+        "aria-labelledby": label_id,
+        "aria-describedby": [...new Set([props["aria-describedby"], description_id, warnings_id].filter(Boolean).flatMap(value => value.split(" ")))].join(" ") || undefined };
+};
+
 export const DropdownMenuContainer = (props) => {
+    const accessibility = useTemplateAccessibility(props);
     return (
         <TemplatesContainerWrapper {...props}>
-            <LabelComponent label={props.label} desc={props.desc} />
-            <DropdownMenu {...props} />
+            <LabelComponent {...props} {...accessibility} />
+            <DropdownMenu {...props} {...accessibility} />
         </TemplatesContainerWrapper>
     );
 };
 
 export const MultiDropdownMenuContainer = (props) => {
+    const accessibility = useTemplateAccessibility(props);
     const { currentIsBreakPoint } = useStore_IsBreakPoint();
 
     return (
         <TemplatesContainerWrapper {...props}>
-            <LabelComponent label={props.label} desc={props.desc} />
-            <MultiDropdownMenu dropdown_settings={props.dropdown_settings} is_break_point={currentIsBreakPoint.data} />
+            <LabelComponent {...props} {...accessibility} />
+            <MultiDropdownMenu {...accessibility} dropdown_settings={props.dropdown_settings} is_break_point={currentIsBreakPoint.data} />
         </TemplatesContainerWrapper>
     );
 };
@@ -86,6 +100,7 @@ const CommonContainer = ({
 }) => {
     const { currentIsBreakPoint } = useStore_IsBreakPoint();
 
+    const accessibility = useTemplateAccessibility(props);
     const target_setting_id = setting_id ?? props.setting_id ?? props.hotkey_id ?? props.dropdown_id ?? props.name ?? props.id;
 
     const container_wrapper_props = {
@@ -99,20 +114,20 @@ const CommonContainer = ({
     if (label_type === "label_component") {
         return (
             <TemplatesContainerWrapper {...container_wrapper_props}>
-                <LabelComponent {...props} />
-                <Component {...props} is_break_point={currentIsBreakPoint.data} />
+                <LabelComponent {...props} {...accessibility} />
+                <Component {...props} {...accessibility} is_break_point={currentIsBreakPoint.data} />
             </TemplatesContainerWrapper>
         );
     } else if (label_type === "no_label") {
         return (
             <TemplatesContainerWrapper {...container_wrapper_props}>
-                <Component {...props} is_break_point={currentIsBreakPoint.data} />
+                <Component {...props} {...accessibility} is_break_point={currentIsBreakPoint.data} />
             </TemplatesContainerWrapper>
         );
     } else if (label_type === "label_only") {
         return (
             <TemplatesContainerWrapper {...container_wrapper_props}>
-                <LabelComponent {...props} />
+                <LabelComponent {...props} {...accessibility} />
             </TemplatesContainerWrapper>
         );
     }
@@ -169,17 +184,20 @@ export const ActionButtonContainer = (props) => (
 
 
 export const WordFilterContainer = (props) => {
+    const accessibility = useTemplateAccessibility(props);
     return (
         <div data-setting-id={props.setting_id || "mic_word_filter"}>
             <CommonContainer
                 Component={WordFilterListToggleComponent}
                 remove_border_bottom={true}
                 {...props}
+                {...accessibility}
             />
             <CommonContainer
                 Component={WordFilter}
                 label_type="no_label"
                 {...props}
+                {...accessibility}
             />
         </div>
     );
@@ -194,17 +212,20 @@ export const ConnectionCheckButtonContainer = (props) => (
 );
 
 export const MessageFormatContainer = (props) => {
+    const accessibility = useTemplateAccessibility(props);
     return (
         <div data-setting-id={props.setting_id}>
             <CommonContainer
                 remove_border_bottom={true}
                 label_type="label_only"
                 {...props}
+                {...accessibility}
             />
             <CommonContainer
                 Component={MessageFormat}
                 label_type="no_label"
                 {...props}
+                {...accessibility}
             />
         </div>
     );

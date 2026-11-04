@@ -221,6 +221,7 @@ export const Slider = (props) => {
                     role="slider"
                     tabIndex={0}
                     aria-label={accessibleName}
+                    aria-describedby={props["aria-describedby"]}
                     aria-valuemin={min}
                     aria-valuemax={max}
                     aria-valuenow={localValue}

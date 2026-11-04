@@ -12,6 +12,9 @@ export const DownloadModels = (props) => {
     return (
         <>
             <RadioButton
+                label={props.label}
+                aria-labelledby={props["aria-labelledby"]}
+                aria-describedby={props["aria-describedby"]}
                 selectFunction={props.selectFunction}
                 name={props.name}
                 options={options}

@@ -14,7 +14,7 @@ export const FormRow = ({ label, description, children, actions = null, group = 
     const control = group
         ? <div role="group" aria-labelledby={labelId} aria-describedby={descriptionId} className={styles.group}>{children}</div>
         : isValidElement(children)
-            ? cloneElement(children, { id: children.props.id ?? id, "aria-describedby": descriptionId })
+            ? cloneElement(children, { id: children.props.id ?? id, "aria-describedby": [children.props["aria-describedby"], descriptionId].filter(Boolean).join(" ") || undefined })
             : children;
     return <div className={clsx(styles.row, className)} data-setting-label={typeof label === "string" ? label : undefined}>
         <div className={styles.text}>

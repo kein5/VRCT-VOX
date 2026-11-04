@@ -84,13 +84,11 @@ export const SearchBar = () => {
 
     const handleSelect = useCallback((item) => {
         setIsFocused(false);
-        if (inputRef.current) {
-            inputRef.current.blur();
-        }
         navigateToSetting(item);
     }, [navigateToSetting]);
 
     const handleKeyDown = (e) => {
+        if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
         if (!isOpen) return;
 
         if (e.key === "ArrowDown") {
@@ -108,10 +106,8 @@ export const SearchBar = () => {
             }
         } else if (e.key === "Escape") {
             e.preventDefault();
+            e.stopPropagation();
             setIsFocused(false);
-            if (inputRef.current) {
-                inputRef.current.blur();
-            }
         }
     };
 
@@ -148,7 +144,7 @@ export const SearchBar = () => {
                     aria-activedescendant={isOpen && selectedIndex >= 0 && results[selectedIndex] ? `${listId}-${selectedIndex}` : undefined}
                     placeholder={t("config_page.search.placeholder")}
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => { setQuery(e.target.value); setIsFocused(true); }}
                     onFocus={() => setIsFocused(true)}
                     onKeyDown={handleKeyDown}
                 />

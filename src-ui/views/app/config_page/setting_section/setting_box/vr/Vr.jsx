@@ -525,7 +525,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     className={clsx(styles.other_controls_slider, styles.display_duration_slider)}
                     no_padding={true}
                     variable={settings.display_duration}
-                    valueLabelFormat="value second(s)"
+                    valueLabelFormat={value => t("config_page.common.duration_seconds", { count: value })}
                     step={1}
                     min={1}
                     max={60}
@@ -540,7 +540,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     className={clsx(styles.other_controls_slider, styles.fadeout_duration_slider)}
                     no_padding={true}
                     variable={settings.fadeout_duration}
-                    valueLabelFormat="value second(s)"
+                    valueLabelFormat={value => t("config_page.common.duration_seconds", { count: value })}
                     step={1}
                     min={0}
                     max={5}

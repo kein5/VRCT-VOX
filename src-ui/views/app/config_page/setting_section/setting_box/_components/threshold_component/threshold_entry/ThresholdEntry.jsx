@@ -118,14 +118,14 @@ const ThresholdEntryInput = (props) => {
         commitValue(inputValue);
     };
 
-    const handleEnterPressed = (e) => {
-        commitValue(inputValue);
-        e.target.blur();
+    const handleEnterPressed = () => {
+        if (!props.is_disable && !props.is_disabled) commitValue(inputValue);
     };
 
     return (
         <_Entry
             aria-label={props["aria-label"]}
+            aria-describedby={props["aria-describedby"]}
             width="6rem"
             type="text"
             inputMode="numeric"
