@@ -1,11 +1,17 @@
 """Actual Model/renderer publication, with an in-memory overlay destination."""
 
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
+from config import config
 from PIL import Image
 import pytest
 
 from model import Model
 from models.overlay.overlay_image import OverlayImage
+
+
+@pytest.fixture(autouse=True)
+def enabled_large_overlay(monkeypatch):
+    monkeypatch.setattr(config, "OVERLAY_LARGE_LOG", True)
 
 
 def model_fixture():
@@ -16,6 +22,7 @@ def model_fixture():
         "RGBA", (100, 20), "white"
     )
     instance.overlay = MagicMock()
+    instance.overlay.updateImage.return_value = True
     return instance
 
 
@@ -29,7 +36,7 @@ def test_outdated_render_cannot_overwrite_newer_overlay_but_external_preview_can
     )
     instance.updateOverlayLargeLog(second)
     instance.updateOverlayLargeLog(first)
-    instance.overlay.updateImage.assert_called_once_with(second, "large")
+    instance.overlay.updateImage.assert_called_once_with(second, "large", current=ANY)
     other = OverlayImage()
     other.createTextboxLargeLog = instance.overlay_image.createTextboxLargeLog
     preview = other.createOverlayImageLargeLog("send", "preview", "English")

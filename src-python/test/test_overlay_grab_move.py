@@ -545,19 +545,21 @@ class PanelRecoveryTest(unittest.TestCase):
     def _overlay(self):
         overlay = Overlay({PANEL: {}, LAUNCHER: {}})
         overlay.handle = {PANEL: 10, LAUNCHER: 11}
+        overlay.owned_handles = [10, 11]
         overlay.overlay = MagicMock()
         overlay.gl = {"GL": MagicMock(), "glfw": MagicMock(), "window": 5, "texture": 1, "vr_texture": MagicMock(), "size": None}
         return overlay
 
-    def test_textures_are_cleared_before_the_gl_context_is_destroyed(self):
+    def test_overlays_are_destroyed_before_gl_textures_and_context(self):
         """テクスチャを渡したまま OpenGL の環境を消すと、SteamVR との接続を閉じるときに落ちる。"""
         overlay = self._overlay()
         order = MagicMock()
-        order.attach_mock(overlay.overlay.clearOverlayTexture, "clear")
+        order.attach_mock(overlay.overlay.destroyOverlay, "overlay")
+        order.attach_mock(overlay.gl["GL"].glDeleteTextures, "textures")
         order.attach_mock(overlay.gl["glfw"].destroy_window, "destroy")
-        overlay.shutdownPanelTexture()
+        overlay.teardown()
         names = [c[0] for c in order.mock_calls]
-        self.assertEqual(names, ["clear", "clear", "destroy"])
+        self.assertEqual(names, ["overlay", "overlay", "textures", "destroy"])
         self.assertIsNone(overlay.gl)
 
     def test_error_left_by_steamvr_is_discarded_before_drawing(self):
@@ -611,7 +613,7 @@ class PanelRecoveryTest(unittest.TestCase):
         overlay.system = MagicMock(spec=openvr.IVRSystem)
         with patch("models.overlay.overlay.openvr_session") as session, patch("models.overlay.overlay.errorLogging"):
             session.release.side_effect = OSError("access violation")
-            overlay.shutdownOverlay()
+            overlay.teardown()  # The owner handles cleanup, even if shutdown was requested elsewhere.
         self.assertFalse(overlay.initialized)
         self.assertIsNone(overlay.system)
 
@@ -1518,7 +1520,8 @@ class CaptureJobTest(unittest.TestCase):
         self.overlay = Overlay({PANEL: {}, LAUNCHER: {}})
         self.overlay.handle = {PANEL: 10, LAUNCHER: 11}
         self.overlay.overlay = MagicMock()
-        self.overlay.gl = {"GL": MagicMock(), "texture": 1, "vr_texture": MagicMock(), "size": None}
+        self.overlay.gl = {"GL": MagicMock(), "glfw": MagicMock(), "window": 5,
+                           "texture": 1, "vr_texture": MagicMock(), "size": None}
         self.overlay.panel_hwnd = 123
         self.overlay.layout_rendered = self.overlay.layout["regions"][PANEL][2:]
         patcher = patch("models.overlay.overlay.window_capture")  # patch.stopall はモジュールの差し替えまで止める
@@ -1640,15 +1643,19 @@ class CaptureJobTest(unittest.TestCase):
                     self._wait_done()
         self.assertTrue(self.overlay.panel_stopped)
 
-    def test_turning_off_drops_the_pending_capture(self):
+    def test_turning_off_retains_pending_capture_until_completion(self):
         self.overlay.updatePanel()
         self.assertTrue(self.started.wait(2))
+        pending = self.overlay.capture_job
         opengl = MagicMock()
         with patch.object(overlay_module, "os", SimpleNamespace(name="nt")), \
              patch.dict("sys.modules", {"glfw": MagicMock(), "OpenGL": opengl, "OpenGL.GL": opengl.GL}):
             self.overlay.initPanelTexture()  # OFF→ON で作り直した
-        self.assertIsNone(self.overlay.capture_job)
+        self.assertIs(self.overlay.capture_job, pending)
+        self.assertNotEqual(pending.generation, self.overlay.capture_generation)
         self.release.set()
+        self._wait_done()
+        self.assertIsNone(self.overlay.collectCapture(time.monotonic()))
 
 
 class WindowStreamTakeTest(unittest.TestCase):
@@ -1703,7 +1710,8 @@ class PanelStreamTest(unittest.TestCase):
         self.overlay = Overlay({PANEL: {}, LAUNCHER: {}})
         self.overlay.handle = {PANEL: 10, LAUNCHER: 11}
         self.overlay.overlay = MagicMock()
-        self.overlay.gl = {"GL": MagicMock(), "texture": 1, "vr_texture": MagicMock(), "size": None}
+        self.overlay.gl = {"GL": MagicMock(), "glfw": MagicMock(), "window": 5,
+                           "texture": 1, "vr_texture": MagicMock(), "size": None}
         # The fixture already owns fake GL resources. Retrying capture must not
         # initialize native GL (or tear them down on Linux's native guard).
         self.overlay.vr_resources_tried = True

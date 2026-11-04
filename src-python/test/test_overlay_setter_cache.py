@@ -114,7 +114,7 @@ def test_caption_fade_submits_each_step_then_stops_and_wakes():
     assert overlay.overlay.count("setOverlayAlpha") == 6
     overlay.fadeRatio[LAUNCHER] = 0
     overlay.updateOpacity(0.8, LAUNCHER, with_fade=True)
-    assert overlay.overlay.calls[-1][1][1] == 0
+    assert overlay.overlay.calls[-1][1][1] == 0.8  # Fresh age overrides the expired cached ratio.
 
 
 def test_launcher_fade_and_motion_preserve_every_changing_frame():
@@ -495,6 +495,8 @@ def test_quit_mainloop_reconnect_resubmits_with_reused_native_handles():
     def grab():
         overlay.applyVrWindows(lambda index: np.eye(4))
         overlay.showPointer(None, (1, 1, 1))
+        system.quit = True
+        overlay.run_stop.set()  # No real frame wait; next connection gets its own event.
         if len(apis) == 2:
             overlay.loop = False
 

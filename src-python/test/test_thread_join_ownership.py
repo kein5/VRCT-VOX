@@ -136,7 +136,7 @@ def test_overlay_timeout_retains_handles_and_refuses_new_owner():
         owner.shutdownOverlay()
         owner.startOverlay()
         assert owner.thread_overlay is old
-        assert owner.initialized is True
+        assert owner.initialized is False  # OFF revokes readiness while the owner is retained.
         spawn.assert_not_called()
         destroy.assert_not_called()
         release.assert_not_called()

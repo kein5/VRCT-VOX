@@ -2160,13 +2160,14 @@ class Controller:
                     return
                 if snapshot.overlay_only_translated and not translation:
                     return
+                overlay_current = model.overlayPublicationGuard("small", current)
                 image = model.createOverlayImageSmallLog(
                     None if snapshot.overlay_only_translated else message,
                     None if snapshot.overlay_only_translated else snapshot.source_language,
                     translation, language_payload(snapshot.destinations),
                     transliteration_message, transliteration_translation)
                 if current() and config.OVERLAY_SMALL_LOG:
-                    model.updateOverlaySmallLog(image)
+                    model.updateOverlaySmallLog(image, current=overlay_current)
 
             sink("overlay_small", small_overlay)
 
@@ -4539,28 +4540,31 @@ class Controller:
 
 
     @staticmethod
-    def syncOverlayRunning() -> None:
+    def syncOverlayRunning() -> bool:
         """字幕 (一行 / 複数行) と VR UI のどれかがONならオーバーレイを動かし、全部OFFなら止める。"""
         model.setVrPanelEnabled(config.OVERLAY_VR_PANEL)
         model.setVrPanelLocked(config.OVERLAY_VR_PANEL_LOCKED)
         model.setVrLauncherAutoHide(config.OVERLAY_VR_LAUNCHER_AUTO_HIDE)
         if config.OVERLAY_SMALL_LOG or config.OVERLAY_LARGE_LOG or config.OVERLAY_VR_PANEL:
-            model.startOverlay()
+            return model.startOverlay()
         else:
             model.shutdownOverlay()
+        return True
 
     @staticmethod
     def setEnableOverlaySmallLog(*args, **kwargs) -> dict:
         if config.OVERLAY_SMALL_LOG is False:
             config.OVERLAY_SMALL_LOG = True
-            Controller.syncOverlayRunning()
+            if Controller.syncOverlayRunning() is False or not config.OVERLAY_SMALL_LOG:
+                config.OVERLAY_SMALL_LOG = False
+                return VRCTError.create_error_response(ErrorCode.OVERLAY_RUNTIME_FAILED, data=False)
         return {"status":200, "result":config.OVERLAY_SMALL_LOG}
 
     @staticmethod
     def setDisableOverlaySmallLog(*args, **kwargs) -> dict:
         if config.OVERLAY_SMALL_LOG is True:
-            model.clearOverlayImageSmallLog()
             config.OVERLAY_SMALL_LOG = False
+            model.clearOverlayImageSmallLog()
             Controller.syncOverlayRunning()
         return {"status":200, "result":config.OVERLAY_SMALL_LOG}
 
@@ -4576,14 +4580,16 @@ class Controller:
     def setEnableOverlayLargeLog(*args, **kwargs) -> dict:
         if config.OVERLAY_LARGE_LOG is False:
             config.OVERLAY_LARGE_LOG = True
-            Controller.syncOverlayRunning()
+            if Controller.syncOverlayRunning() is False or not config.OVERLAY_LARGE_LOG:
+                config.OVERLAY_LARGE_LOG = False
+                return VRCTError.create_error_response(ErrorCode.OVERLAY_RUNTIME_FAILED, data=False)
         return {"status":200, "result":config.OVERLAY_LARGE_LOG}
 
     @staticmethod
     def setDisableOverlayLargeLog(*args, **kwargs) -> dict:
         if config.OVERLAY_LARGE_LOG is True:
-            model.clearOverlayImageLargeLog()
             config.OVERLAY_LARGE_LOG = False
+            model.clearOverlayImageLargeLog()
             Controller.syncOverlayRunning()
         return {"status":200, "result":config.OVERLAY_LARGE_LOG}
 
@@ -4591,7 +4597,9 @@ class Controller:
     def setEnableOverlayVrPanel(*args, **kwargs) -> dict:
         if config.OVERLAY_VR_PANEL is False:
             config.OVERLAY_VR_PANEL = True
-            Controller.syncOverlayRunning()
+            if Controller.syncOverlayRunning() is False or not config.OVERLAY_VR_PANEL:
+                config.OVERLAY_VR_PANEL = False
+                return VRCTError.create_error_response(ErrorCode.OVERLAY_RUNTIME_FAILED, data=False)
         return {"status":200, "result":config.OVERLAY_VR_PANEL}
 
     @staticmethod
@@ -4839,13 +4847,17 @@ class Controller:
     def sendTextOverlay(data, *args, **kwargs) -> dict:
         if config.OVERLAY_SMALL_LOG is True:
             if model.overlay.initialized is True:
+                current = model.overlayPublicationGuard("small")
                 overlay_image = model.createOverlayImageSmallMessage(data)
-                model.updateOverlaySmallLog(overlay_image)
+                if config.OVERLAY_SMALL_LOG and current():
+                    model.updateOverlaySmallLog(overlay_image, current=current)
 
         if config.OVERLAY_LARGE_LOG is True:
             if model.overlay.initialized is True:
+                current = model.overlayPublicationGuard("large")
                 overlay_image = model.createOverlayImageLargeMessage(data)
-                model.updateOverlayLargeLog(overlay_image)
+                if config.OVERLAY_LARGE_LOG and current():
+                    model.updateOverlayLargeLog(overlay_image, current=current)
         return {"status":200, "result":data}
 
 
@@ -6164,6 +6176,7 @@ class Controller:
         except Exception:
             errorLogging()
         try:
+            self._model.setOverlayFailureCallback(self._onOverlayFailure)
             self._model.setOverlayPositionChangedCallback(self._onOverlayPositionChanged)
             self._model.setOverlayPointerCallback(self._onVrPanelPointer)
             self._model.setOverlayPanelOutOfViewCallback(self._onVrPanelLogOutOfView)
@@ -6171,6 +6184,18 @@ class Controller:
             self._model.setOverlayLayoutCallback(self._onVrPanelLayout)
         except Exception:
             errorLogging()
+
+    def _onOverlayFailure(self, reason):
+        """Report asynchronous owner/capture failure through the existing error route."""
+        if reason == "runtime":
+            config.OVERLAY_SMALL_LOG = False
+            config.OVERLAY_LARGE_LOG = False
+        config.OVERLAY_VR_PANEL = False
+        self._model.setVrPanelEnabled(False)
+        response = VRCTError.create_error_response(ErrorCode.OVERLAY_RUNTIME_FAILED,
+                                                  data={"reason": reason})
+        self.run(response["status"], self.run_mapping.get("message_output_error", "/run/message_output_error"),
+                 response["result"])
 
     @staticmethod
     def setVrPanelWindows(data, *args, **kwargs) -> dict:

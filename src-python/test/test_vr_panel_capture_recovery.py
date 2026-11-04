@@ -15,7 +15,9 @@ class VrPanelCaptureRecoveryTest(unittest.TestCase):
         self.overlay = Overlay({"small": {}, PANEL: {}, LAUNCHER: {}})
         self.overlay.initialized = True
         self.overlay.loop = True
-        self.overlay.thread_overlay = sentinel.overlay_thread
+        self.owner = MagicMock()
+        self.owner.is_alive.return_value = True
+        self.overlay.thread_overlay = self.owner
         self.overlay.gl = sentinel.gl
         self.overlay.handle = {"small": 1, PANEL: 2, LAUNCHER: 3}
         self.overlay.panel_hwnd = 123
@@ -62,6 +64,7 @@ class VrPanelCaptureRecoveryTest(unittest.TestCase):
     def _tick(self, in_thread=False):
         # オーバーレイループを1周だけ実行。描画・追跡・watchdog は実機に触れない。
         errors = []
+        self.overlay.run_stop = threading.Event()
 
         def run():
             try:
@@ -74,7 +77,7 @@ class VrPanelCaptureRecoveryTest(unittest.TestCase):
                 patch.object(self.overlay, "updateGrab"), \
                 patch.object(self.overlay, "teardown"), \
                 patch("models.overlay.overlay.Thread"), \
-                patch("models.overlay.overlay.time.sleep"):
+                patch.object(self.overlay.run_stop, "wait", return_value=False):
             if in_thread:
                 thread = threading.Thread(target=run)
                 thread.start()
@@ -90,7 +93,9 @@ class VrPanelCaptureRecoveryTest(unittest.TestCase):
         for _ in range(_PANEL_ERROR_LIMIT):
             self.overlay.onPanelError(RuntimeError("capture failed"))
         self.assertTrue(self.overlay.panel_stopped)
-        old_job = SimpleNamespace(done=False, result=None)
+        old_job = SimpleNamespace(done=False, result=None, error=None, reported=False,
+                                  started=__import__("time").monotonic(), layout=self.overlay.layout,
+                                  generation=self.overlay.capture_generation)
         self.overlay.capture_job = old_job
         handles = self.overlay.handle
 
@@ -102,18 +107,22 @@ class VrPanelCaptureRecoveryTest(unittest.TestCase):
         self.assertFalse(self.overlay.panel_stopped)
         self.assertEqual(self.overlay.panel_errors, 0)
         self.assertIsNone(self.overlay.panel_error)
-        self.assertEqual(self.overlay.panel_hwnd, 456)
-        self.overlay.transferCapture.assert_called_once_with(self.capture, ANY)
+        self.assertIsNone(self.overlay.panel_hwnd)
+        self.assertIs(self.overlay.capture_job, old_job)
+        self.overlay.transferCapture.assert_not_called()
+        self.wc.WindowStream.assert_not_called()
         self.assertIs(self.overlay.gl, sentinel.gl)
         self.assertIs(self.overlay.handle, handles)
-        self.assertIs(self.overlay.thread_overlay, sentinel.overlay_thread)
+        self.assertIs(self.overlay.thread_overlay, self.owner)
         self.assertTrue(self.overlay.loop)
 
         # 切り替え前の撮影が後から戻っても、その結果を使わない。
         old_job.result, old_job.done = (b"old", None, (0, 0) + VR_ATLAS_SIZE), True
         self.overlay.panel_last_capture = 0
+        self._tick()  # Discard the completed stale job before starting its replacement.
+        self.overlay.transferCapture.assert_not_called()
         self._tick()
-        self.assertTrue(all(call.args[0] == self.capture for call in self.overlay.transferCapture.call_args_list))
+        self.overlay.transferCapture.assert_called_once_with(self.capture, ANY)
 
     def test_failed_stream_is_retried_through_controller_off_on(self):
         self.wc.WindowStream.side_effect = [OSError("GraphicsCaptureItem"), self.stream]

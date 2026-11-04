@@ -2758,9 +2758,16 @@ class Model:
         self.ensure_initialized()
         self.overlay.clearImage("small")
 
-    def updateOverlaySmallLog(self, img):
+    def overlayPublicationGuard(self, size, current=lambda: True):
         self.ensure_initialized()
-        self.overlay.updateImage(img, "small")
+        generation = self.overlay.publicationToken(size)
+        enabled = "OVERLAY_SMALL_LOG" if size == "small" else "OVERLAY_LARGE_LOG"
+        return lambda: (current() and getattr(config, enabled)
+                        and self.overlay.publicationCurrent(size, generation, lambda: True))
+
+    def updateOverlaySmallLog(self, img, *, current=lambda: True):
+        self.ensure_initialized()
+        return self.overlay.updateImage(img, "small", current=self.overlayPublicationGuard("small", current))
 
     def updateOverlaySmallLogSettings(self):
         self.ensure_initialized()
@@ -2822,14 +2829,16 @@ class Model:
         self.ensure_initialized()
         self.overlay.clearImage("large")
 
-    def updateOverlayLargeLog(self, img):
+    def updateOverlayLargeLog(self, img, *, current=lambda: True):
         self.ensure_initialized()
         with self.overlay_image.log_lock:
             if self.overlay_image.isCurrentLargeLog(img):
-                self.overlay.updateImage(img, "large")
+                return self.overlay.updateImage(img, "large", current=self.overlayPublicationGuard("large", current))
+        return False
 
     def publishMessageOverlayLargeLog(self, *args, current):
         """Keep a revoked render out of history used by later publications."""
+        current = self.overlayPublicationGuard("large", current)
         if not current():
             return
         self.ensure_initialized()
@@ -2841,14 +2850,14 @@ class Model:
             try:
                 image = self.createOverlayImageLargeLog(*args)
                 if current():
-                    self.updateOverlayLargeLog(image)
-                    committed = True
+                    committed = self.updateOverlayLargeLog(image, current=current) is True
             finally:
                 if not committed:
                     self.overlay_image.restoreCaptionState(checkpoint)
 
     def publishRealtimeCaptionOverlay(self, payload, language, target_languages, current, *, only_translated=False):
         """Serialize history/render/publication; caller runs outside the WS loop."""
+        current = self.overlayPublicationGuard("large", current)
         if not current():
             return
         self.ensure_initialized()
@@ -2873,8 +2882,7 @@ class Model:
                 if image is None:
                     committed = True  # An old/terminal revision changed nothing.
                 elif current():
-                    self.updateOverlayLargeLog(image)
-                    committed = True
+                    committed = self.updateOverlayLargeLog(image, current=current) is True
             finally:
                 if not committed:
                     self.overlay_image.rejectCaptionUpdate(checkpoint, identity, payload["revision"])
@@ -2882,8 +2890,10 @@ class Model:
     def clearRealtimeCaptionOverlay(self, source, namespace):
         self.ensure_initialized()
         with self.overlay_image.log_lock:
+            current = self.overlayPublicationGuard("large")
             image = self.overlay_image.discardCaptionNamespace(source, namespace)
-            self.updateOverlayLargeLog(image)
+            if current():
+                self.updateOverlayLargeLog(image, current=current)
 
     def updateOverlayLargeLogSettings(self):
         self.ensure_initialized()
@@ -2911,7 +2921,7 @@ class Model:
             self.overlay.updateFadeoutDuration(config.OVERLAY_LARGE_LOG_SETTINGS["fadeout_duration"], size)
         if (self.overlay.settings[size]["opacity"] != config.OVERLAY_LARGE_LOG_SETTINGS["opacity"]):
             self.overlay.updateOpacity(config.OVERLAY_LARGE_LOG_SETTINGS["opacity"], size, True)
-        if (self.overlay.settings[size]["ui_scaling"] != config.OVERLAY_LARGE_LOG_SETTINGS["ui_scaling"]):
+        if (self.overlay.settings[size]["ui_scaling"] != config.OVERLAY_LARGE_LOG_SETTINGS["ui_scaling"] * 0.25):
             self.overlay.updateUiScaling(config.OVERLAY_LARGE_LOG_SETTINGS["ui_scaling"] * 0.25, size)
 
     def setVrPanelWindows(self, log: bool, popup: bool) -> None:
@@ -3006,9 +3016,13 @@ class Model:
         self.ensure_initialized()
         self.overlay.position_changed_callback = fn
 
+    def setOverlayFailureCallback(self, fn):
+        self.ensure_initialized()
+        self.overlay.failure_callback = fn
+
     def startOverlay(self):
         self.ensure_initialized()
-        self.overlay.startOverlay()
+        return self.overlay.startOverlay()
 
     def shutdownOverlay(self):
         self.ensure_initialized()
