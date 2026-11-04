@@ -114,7 +114,6 @@ class TranslateCTranslate2LockTests(unittest.TestCase):
         order = []
         release_change = threading.Event()
 
-        original_from_pretrained = None
         import models.translation.translation_translator as tt_module
 
         class _SlowTokenizer(_FakeTokenizer):
@@ -138,13 +137,12 @@ class TranslateCTranslate2LockTests(unittest.TestCase):
 
         original_ctranslate2 = tt_module.ctranslate2
         original_transformers = tt_module.transformers
-        original_weights = tt_module.ctranslate2_weights.get("nllb-200-distilled-600M-ct2-int8")
+        original_resolve = tt_module.resolveCTranslate2Weight
+        original_tokenizer = tt_module.downloadCTranslate2Tokenizer
         tt_module.ctranslate2 = _FakeCTranslate2Module()
         tt_module.transformers = _FakeTransformers()
-        tt_module.ctranslate2_weights["nllb-200-distilled-600M-ct2-int8"] = {
-            "directory_name": "nllb-200-distilled-600M-ct2-int8",
-            "tokenizer": "facebook/nllb-200-distilled-600M",
-        }
+        tt_module.resolveCTranslate2Weight = lambda *_: "verified-fake-path"
+        tt_module.downloadCTranslate2Tokenizer = _FakeAutoTokenizer.from_pretrained
 
         def run_change():
             self.translator.changeCTranslate2Model(
@@ -175,8 +173,8 @@ class TranslateCTranslate2LockTests(unittest.TestCase):
         def _restore():
             tt_module.ctranslate2 = original_ctranslate2
             tt_module.transformers = original_transformers
-            if original_weights is not None:
-                tt_module.ctranslate2_weights["nllb-200-distilled-600M-ct2-int8"] = original_weights
+            tt_module.resolveCTranslate2Weight = original_resolve
+            tt_module.downloadCTranslate2Tokenizer = original_tokenizer
 
         # addCleanup は LIFO で実行されるため、実行させたい順序 (release →
         # 各 join → 復元) の逆順で登録する。

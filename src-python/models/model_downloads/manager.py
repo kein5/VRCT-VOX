@@ -16,6 +16,7 @@ from .catalog import CATALOG, CATALOG_VERSION, artifact_url, validate_catalog
 from .guidance import model_guidance
 from .transport import open_public
 from .staging import RootLease, mark_owned, recover_owned
+from .verification import verify_file
 
 CHUNK = 1024 * 1024
 ACTIVE = ('queued', 'downloading', 'verifying', 'cancelling')
@@ -113,20 +114,7 @@ class Downloads:
             raise Cancelled()
 
     def _verify(self, path, artifact, event):
-        self._checkpoint(event)
-        if not stat.S_ISREG(path.lstat().st_mode):
-            raise ValueError('unsafe_destination')
-        fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
-        with os.fdopen(fd, 'rb') as stream:
-            if os.fstat(stream.fileno()).st_size != artifact.size:
-                raise ValueError('size_mismatch')
-            digest = hashlib.sha256()
-            while block := stream.read(CHUNK):
-                self._checkpoint(event)
-                digest.update(block)
-            self._checkpoint(event)
-            if digest.hexdigest() != artifact.sha256:
-                raise ValueError('hash_mismatch')
+        verify_file(path, artifact, lambda: self._checkpoint(event), chunk_size=CHUNK)
 
     def _download(self, entry, event, previous=None):
         # A finished job is reported before its worker releases the root lease.
@@ -254,14 +242,18 @@ class Downloads:
         finally:
             done.set()
 
-    def close(self, timeout=2):
-        deadline = time.monotonic() + max(0, timeout)
+    def request_close(self):
+        """Signal cancellation without waiting for the state lock or workers."""
         # Signal before waiting for the state lock, including a committing
         # callback. No new work may enter even if this close times out.
         self.closing.set()
         event = self.cancel_event
         if event is not None:
             event.set()
+
+    def close(self, timeout=2):
+        deadline = time.monotonic() + max(0, timeout)
+        self.request_close()
         if not self.lock.acquire(timeout=max(0, deadline - time.monotonic())):
             return False
         try:

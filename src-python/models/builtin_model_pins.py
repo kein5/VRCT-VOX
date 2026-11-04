@@ -3,7 +3,8 @@
 The built-in weights used to be fetched from each repository's default branch with no
 check of what arrived, so a changed or compromised upstream repository changed what the
 app loads. Downloads now use these commits, and every file is checked against its size
-and SHA-256 before the model is used. The tokenizers are fetched by commit.
+and SHA-256 before the model is used. Tokenizers use the pinned files already
+included in the CTranslate2 repository, never a separate unverified hub fetch.
 
 To move a model to a newer upstream commit, update its revision and file list here
 (sizes and SHA-256 from https://huggingface.co/api/models/<repo>/revision/<commit>?blobs=true;
@@ -169,7 +170,8 @@ MODEL_PINS = {
     },
 }
 
-# Tokenizer repositories used with the CTranslate2 weights -> pinned commit.
+# Historical tokenizer cache revisions. Kept as provenance; acquisition and
+# inference now use the tokenizer files pinned in the CTranslate2 bundles above.
 TOKENIZER_REVISIONS = {
     "facebook/m2m100_1.2B": "7b36184180524c1a1bbfa37f120a608046250b98",
     "facebook/m2m100_418M": "55c2e61bbf05dfb8d7abccdc3fae6fc8512fd636",
@@ -177,6 +179,13 @@ TOKENIZER_REVISIONS = {
     "facebook/nllb-200-distilled-1.3B": "7be3e24664b38ce1cac29b8aeed6911aa0cf0576",
     "facebook/nllb-200-distilled-600M": "f8d333a098d19b4fd9a8b18f94170487ad3f821d",
 }
+
+
+def tokenizerFilePins(repo: str) -> dict:
+    """The tokenizer projection contains only these pinned bundle files."""
+    names = ("tokenizer.json", "tokenizer_config.json", "special_tokens_map.json",
+             "sentencepiece.bpe.model", "vocab.json")
+    return {name: pin for name, pin in MODEL_PINS[repo]["files"].items() if name in names}
 
 
 def verifyPinnedFile(file_path: str, size: int, sha256: str) -> bool:

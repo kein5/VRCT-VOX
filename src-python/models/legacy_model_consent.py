@@ -1,13 +1,13 @@
 """Model-specific review and consent for the built-in download handlers.
 
-The fingerprint covers all pinned files, the separate tokenizer revision and
+The fingerprint covers all pinned files, the bundled tokenizer source and
 the displayed license. A saved selection or the startup switch is not consent.
 """
 import hashlib
 import json
 from threading import Lock
 
-from models.builtin_model_pins import MODEL_PINS, TOKENIZER_REVISIONS
+from models.builtin_model_pins import MODEL_PINS, tokenizerFilePins
 from models.transcription.transcription_whisper import _MODELS
 from models.translation.translation_utils import ctranslate2_weights
 
@@ -24,14 +24,10 @@ def legacyModelReview(kind: str, weight_type: str) -> dict:
         repo = weight["hf_repo"]
         license_name = weight["license"]
         restricted = weight["commercial_use"] is False
-        tokenizer_repo = weight["tokenizer"]
-        tokenizer_pin = MODEL_PINS.get(tokenizer_repo)
-        if tokenizer_pin and tokenizer_pin["revision"] != TOKENIZER_REVISIONS[tokenizer_repo]:
-            tokenizer_pin = None
+        pin = MODEL_PINS[repo]
         tokenizer = {
-            "repo": tokenizer_repo,
-            "revision": TOKENIZER_REVISIONS[tokenizer_repo],
-            "files": tokenizer_pin["files"] if tokenizer_pin else None,
+            "repo": repo, "revision": pin["revision"], "bundled": True,
+            "files": tokenizerFilePins(repo),
         }
         name = f"CTranslate2 {weight_type}"
     else:
@@ -47,9 +43,7 @@ def legacyModelReview(kind: str, weight_type: str) -> dict:
         json.dumps(entry, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     entry["total_bytes"] = sum(size for size, _ in pin["files"].values())
-    if tokenizer and tokenizer["files"]:
-        entry["total_bytes"] += sum(size for size, _ in tokenizer["files"].values())
-    entry["tokenizer_size_unknown"] = tokenizer is not None and tokenizer["files"] is None
+    entry["tokenizer_size_unknown"] = False
     return entry
 
 

@@ -1200,11 +1200,11 @@ class Model:
             compute_type=config.SELECTED_TRANSLATION_COMPUTE_TYPE
             )
 
-    def downloadCTranslate2ModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadCTranslate2Weight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadCTranslate2ModelWeight(self, weight_type, callback=None, end_callback=None, *, control=None):
+        return downloadCTranslate2Weight(config.PATH_DATA, weight_type, callback, end_callback, control=control)
 
     def downloadCTranslate2ModelTokenizer(self, weight_type):
-        return downloadCTranslate2Tokenizer(config.PATH_DATA, weight_type, local_files_only=False)
+        return downloadCTranslate2Tokenizer(config.PATH_DATA, weight_type, local_files_only=True)
 
     def isLoadedCTranslate2Model(self):
         self.ensure_initialized()
@@ -1221,8 +1221,8 @@ class Model:
     def checkTranscriptionWhisperModelWeight(self, weight_type:str):
         return checkWhisperWeight(config.PATH_DATA, weight_type)
 
-    def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None, *, control=None):
+        return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback, control=control)
 
     def authenticationTranscriptionApiKey(self, api_key: str, base_url: str) -> bool:
         return checkTranscriptionApiKey(api_key, base_url)

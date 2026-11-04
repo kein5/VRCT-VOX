@@ -59,6 +59,7 @@ export const LegacyModelDownloadDialog = ({ kind, weightType, onCancel, onDownlo
                         <dd>{t("legacy_model_downloads.tokenizer_label")}: <a href={modelCard(entry.tokenizer)}
                             onClick={event => openLink(event, modelCard(entry.tokenizer))} target="_blank" rel="noreferrer">{entry.tokenizer.repo}</a>
                             {" ("}{t("legacy_model_downloads.revision_label")} {revision(entry.tokenizer.revision)}{")"}
+                            {entry.tokenizer.bundled && <p>{t("legacy_model_downloads.included_tokenizer")}</p>}
                             {entry.tokenizer_size_unknown && <p>{t("legacy_model_downloads.plus_tokenizer")}</p>}
                         </dd>
                     </div>}

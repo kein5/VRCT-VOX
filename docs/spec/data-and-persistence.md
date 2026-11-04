@@ -66,9 +66,9 @@ IPCでやり取りする主なデータの形と、ディスクに残すファ�
 
 ### 内蔵モデルの取得への同意
 
-`config.json`の`LEGACY_MODEL_DOWNLOAD_CONSENTS`は、モデルIDから確認済みの一覧を表すSHA-256文字列への辞書で、既定は`{}`。IDは`whisper:base`、`ctranslate2:m2m100_418M-ct2-int8`などである。値は`models/legacy_model_consent.py`がモデル名・提供元・ライセンス・重みのリポジトリと固定版・全ファイルの容量とSHA-256・別途取得するtokenizerのリポジトリと固定版をJSONにして計算する。ファイルのハッシュそのものではなく、確認した内容を識別する値である。
+`config.json`の`LEGACY_MODEL_DOWNLOAD_CONSENTS`は、モデルIDから確認済みの一覧を表すSHA-256文字列への辞書で、既定は`{}`。IDは`whisper:base`、`ctranslate2:m2m100_418M-ct2-int8`などである。値は`models/legacy_model_consent.py`がモデル名・提供元・ライセンス・重みのリポジトリと固定版・全ファイルの容量とSHA-256・同じ一式に含まれるtokenizerのリポジトリ・固定版・ファイル一覧をJSONにして計算する。ファイルのハッシュそのものではなく、確認した内容を識別する値である。
 
-`/get/data/model_download_catalog`の`legacy_models`に、確認画面用の名前、提供元、ライセンス、非商用の制限、正確な`total_bytes`、`tokenizer_size_unknown`、`manifest_version`を返す。`/run/download_whisper_weight`と`/run/download_ctranslate2_weight`には`{weight_type, consent: true, manifest_version}`を送る。現在の一覧と一致する明示的な同意を受け取ったときだけ記録し、取得前に即時保存を試みる。保存失敗は通常の設定保存と同じ通知・再試行で扱う。
+`/get/data/model_download_catalog`の`legacy_models`に、確認画面用の名前、提供元、ライセンス、非商用の制限、正確な`total_bytes`、`tokenizer_size_unknown`、`manifest_version`を返す。CTranslate2のtokenizerには同じ取得元と固定版、ファイルの容量・SHA-256、bundled: trueが入る。tokenizer_size_unknownはfalse、容量は重複して足さない。`/run/download_whisper_weight`と`/run/download_ctranslate2_weight`には`{weight_type, consent: true, manifest_version}`を送る。現在の一覧と一致する明示的な同意を受け取ったときだけ記録し、取得前に即時保存を試みる。保存失敗は通常の設定保存と同じ通知・再試行で扱う。
 
 起動時の取得では、保存された値と現在のモデル一覧の値が一致するか確認する。版、ファイルの容量・SHA-256、ライセンス、tokenizerの版が変わると再確認が必要になる。古い値はファイルを削除する根拠にはしない。旧版からの移行時は記録なしとして扱い、`AUTO_DOWNLOAD_MODELS=True`や既存のNLLB選択から同意を推測しない。既に取得したファイルとモデルの選択は保持する。
 
@@ -78,7 +78,7 @@ IPCでやり取りする主なデータの形と、ディスクに残すファ�
 |---|---|
 | ワードフィルター | 文字列の配列。重複は順を保って除く。一致すると`/run/word_filter`に`{"message": "Detected by word filter: …"}` |
 | ホットキー | `{open_quick_chat, toggle_vrct_visibility, toggle_translation, toggle_transcription_send, toggle_transcription_receive}`の各値が`["Ctrl","Shift","Q"]`のようなキーの配列か`null`。知らないキーを含むと全体を拒否する |
-| 重みの取得状態 | `{種類: 取得済みか}`。進み具合は`{weight_type, progress}`、完了は種類の文字列 |
+| 重みの取得状態 | 一覧は {種類: 取得済みか}。受付は {weight_type, job_id}。進捗は {weight_type, job_id, progress}、成功通知は {weight_type, job_id, downloaded: true}。失敗通知はエラー本体のdataに {weight_type, job_id, downloaded: false, reason} を入れる。進行中の同じ重みへの重複要求を拒否する場合はactive_job_idも付ける |
 | エンジンの状態 | `{エンジン名: 使えるか}`。使えるエンジンの一覧は`selectable_*_engines`で配列として返す |
 | エラー | [IPCプロトコル](ipc-protocol.md#エラーの本体) |
 
@@ -100,7 +100,7 @@ IPCでやり取りする主なデータの形と、ディスクに残すファ�
 | `startup.log` | 同上（Tauri側） | ウィンドウの起動記録 |
 | 会話ログ `YYYY-MM-DD_HH-MM-SS.log` | `PATH_LOGS` | 「会話ログを自動的に保存する」がオンのときだけ。行頭は`[SENT]`、`[RECEIVED]`、`[OCR]`、`[CHAT]`。画面は新しい1,000件しか残さないが、ファイルには古いものも残る |
 | `downloaded_models/<id>/<版>/`と`receipt.json` | `config.json`と同じフォルダ | 取得したモデル。取得中は`.partial-<16進>/` |
-| `weights/whisper/…`、`weights/ctranslate2/…` | `PATH_DATA` | 内蔵の翻訳・文字起こしモデルと、検証用の`.weight_verified.json`。取得は`src-python/models/builtin_model_pins.py`で固定したcommitから行い、各ファイルの大きさとSHA-256が合わなければ捨てる。トークナイザーも固定したcommitを読む |
+| weights/whisper/…、weights/ctranslate2/… | PATH_DATA | 内蔵モデルと検証記録。取得も既存ファイルの利用もbuiltin_model_pins.pyの全容量・SHA-256を照合する。tokenizerも同じ一式に含む。検証記録はschema=2、repo・revision・全ファイルpinのSHA-256識別値、各ファイルのsize・mtime_ns・ctime_ns・device・inode。古い記録は無効。不一致の既存ファイルは残し、同意済みの再取得に成功した場合だけ既存一式を`.preserved-<weight>-<uuid>`へ移してから新しい一式を公開する |
 | `voice_mute_state.json` | `config.json`と同じフォルダ | `{"version": 1, "muted": 真偽}`。すぐに書き、原子的に置き換える |
 | `telemetry_state.json` | `PATH_DATA` | 送信しないテレメトリーの状態 |
 | `io.github.kein5.vrct-vox.desktop` | `$XDG_DATA_HOME/applications/` | Waylandでショートカットを登録するためのデスクトップファイル |

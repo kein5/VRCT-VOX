@@ -1315,6 +1315,7 @@ studio:
     close: "アプリを閉じる"
 
 legacy_model_downloads:
+    included_tokenizer: "文章を単語に区切るためのファイルも、上の容量に含まれます。モデルと一緒に検証します。"
     provider: "提供元"
     exact_bytes: "{{bytes}} バイト"
     plus_tokenizer: "このほか、トークナイザー（文章を単語に区切るためのファイル）も取得します。その容量は上の数に含まれていません。"

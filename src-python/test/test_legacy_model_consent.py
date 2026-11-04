@@ -8,7 +8,7 @@ import pytest
 
 import controller as module
 from config import Config
-from models.builtin_model_pins import MODEL_PINS, TOKENIZER_REVISIONS
+from models.builtin_model_pins import MODEL_PINS
 from models.legacy_model_consent import (
     legacyModelReview, legacyModelCatalog, recordLegacyConsent, consentedLegacyRequest,
 )
@@ -25,7 +25,8 @@ def request(kind, weight):
 @pytest.fixture
 def app(monkeypatch):
     config = SimpleNamespace(LEGACY_MODEL_DOWNLOAD_CONSENTS={},
-        CTRANSLATE2_WEIGHT_TYPE=MODELS[2][1], WHISPER_WEIGHT_TYPE="base", AUTO_DOWNLOAD_MODELS=True)
+        CTRANSLATE2_WEIGHT_TYPE=MODELS[2][1], WHISPER_WEIGHT_TYPE="base", AUTO_DOWNLOAD_MODELS=True,
+        SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT={}, SELECTABLE_WHISPER_WEIGHT_TYPE_DICT={})
     monkeypatch.setattr(module, "config", config)
     backend = MagicMock()
     monkeypatch.setattr(module, "model", backend)
@@ -33,8 +34,6 @@ def app(monkeypatch):
     controller._model = backend
     controller.run_mapping = {f"error_{kind}_weight": f"/run/error_{kind}_weight" for kind in ("whisper", "ctranslate2")}
     controller.run = MagicMock()
-    controller.startThreadingDownloadWhisperWeight = MagicMock()
-    controller.startThreadingDownloadCtranslate2Weight = MagicMock()
     return controller, config, backend
 
 
@@ -56,8 +55,7 @@ def test_rejects_before_any_acquisition_or_recording(app, kind, weight, invalid)
     assert response["result"]["error_code"] == "WEIGHT_DOWNLOAD_CONSENT_REQUIRED"
     assert response["result"]["data"] == {"kind": kind, "weight_type": weight}
     assert backend.mock_calls == []
-    controller.startThreadingDownloadWhisperWeight.assert_not_called()
-    controller.startThreadingDownloadCtranslate2Weight.assert_not_called()
+    assert not hasattr(controller, "legacy_downloads")
     assert config.LEGACY_MODEL_DOWNLOAD_CONSENTS == {}
 
 
@@ -67,11 +65,14 @@ def test_exact_manifest_consent_starts_and_records_without_selecting(app, kind, 
     controller, config, backend = app
     selected = config.CTRANSLATE2_WEIGHT_TYPE
     method = controller.downloadWhisperWeight if kind == "whisper" else controller.downloadCtranslate2Weight
-    assert method(request(kind, weight), asynchronous=asynchronous) == {"status": 200, "result": True}
-    worker = (controller.startThreadingDownloadWhisperWeight if asynchronous else backend.downloadWhisperModelWeight) if kind == "whisper" else (
-        controller.startThreadingDownloadCtranslate2Weight if asynchronous else backend.downloadCTranslate2ModelWeight)
+    response = method(request(kind, weight), asynchronous=asynchronous)
+    assert response["status"] == 200 and response["result"]["weight_type"] == weight
+    assert response["result"]["job_id"]
+    assert controller._legacyDownloads().wait((kind, weight), timeout=1)
+    worker = backend.downloadWhisperModelWeight if kind == "whisper" else backend.downloadCTranslate2ModelWeight
     assert worker.call_args.args[0] == weight
-    if kind == "ctranslate2": backend.downloadCTranslate2ModelTokenizer.assert_called_once_with(weight)
+    assert worker.call_args.kwargs["control"] is not None
+    backend.downloadCTranslate2ModelTokenizer.assert_not_called()
     assert consentedLegacyRequest(config, kind, weight) == request(kind, weight)
     assert config.CTRANSLATE2_WEIGHT_TYPE == selected
     # Recorded consent authorizes startup, never an unconsented IPC request.
@@ -82,25 +83,22 @@ def test_review_totals_and_restrictions_match_manifest():
     for entry in legacyModelCatalog():
         assert entry["total_bytes"] == sum(size for size, _ in MODEL_PINS[entry["repo"]]["files"].values())
         assert entry["provider"] == entry["repo"].split("/")[0]
-        assert entry["tokenizer_size_unknown"] is (entry["kind"] == "ctranslate2")
+        assert entry["tokenizer_size_unknown"] is False
         if "nllb" in entry["weight_type"]:
             assert entry["non_commercial"] is True
             assert entry["license"] == "CC-BY-NC-4.0"
     assert legacyModelReview(*MODELS[1])["total_bytes"] == 499602144
 
 
-@pytest.mark.parametrize("matching_revision", [True, False])
-def test_tokenizer_bytes_are_included_only_for_the_matching_pinned_revision(monkeypatch, matching_revision):
-    # Synthetic metadata only; these are not proposed production file pins.
+def test_tokenizer_files_are_in_the_reviewed_bundle_without_double_counting():
     entry = legacyModelReview(*MODELS[1])
     tokenizer = entry["tokenizer"]
-    monkeypatch.setitem(MODEL_PINS, tokenizer["repo"], {
-        "revision": tokenizer["revision"] if matching_revision else "old-revision",
-        "files": {"fake-tokenizer.json": (3, "0" * 64)},
-    })
-    reviewed = legacyModelReview(*MODELS[1])
-    assert reviewed["total_bytes"] == entry["total_bytes"] + (3 if matching_revision else 0)
-    assert reviewed["tokenizer_size_unknown"] is not matching_revision
+    assert tokenizer["repo"] == entry["repo"]
+    assert tokenizer["revision"] == entry["revision"]
+    assert tokenizer["bundled"] is True
+    for name, pin in tokenizer["files"].items():
+        assert entry["files"][name] == pin
+    assert {"vocab.json", "sentencepiece.bpe.model"} <= tokenizer["files"].keys()
 
 
 def isolated_config(path):
@@ -137,7 +135,9 @@ def test_tokenizer_revision_and_file_pins_invalidate_consent(monkeypatch):
     kind, weight = MODELS[1]
     assert recordLegacyConsent(config, kind, request(kind, weight))
     entry = legacyModelReview(kind, weight)
-    monkeypatch.setitem(TOKENIZER_REVISIONS, entry["tokenizer"]["repo"], "1" * 40)
+    changed = copy.deepcopy(MODEL_PINS[entry["repo"]])
+    changed["files"]["vocab.json"] = (1, "1" * 64)
+    monkeypatch.setitem(MODEL_PINS, entry["repo"], changed)
     assert consentedLegacyRequest(config, kind, weight) is None
     assert recordLegacyConsent(config, kind, request(kind, weight))
     changed = copy.deepcopy(MODEL_PINS[entry["repo"]])
@@ -165,9 +165,10 @@ def test_real_startup_skips_or_fetches_including_retry(app, monkeypatch, auto, r
     with pytest.raises(ReachedAvailability): controller.init()
     expected = 2 if auto and recorded and not available else 0
     assert backend.downloadCTranslate2ModelWeight.call_count == expected
-    assert backend.downloadCTranslate2ModelTokenizer.call_count == expected
+    backend.downloadCTranslate2ModelTokenizer.assert_not_called()
     assert backend.downloadWhisperModelWeight.call_count == expected
-    notices = controller.run.call_args_list
+    notices = [call for call in controller.run.call_args_list
+               if call.args[2].get("error_code") == "WEIGHT_DOWNLOAD_CONSENT_REQUIRED"]
     assert len(notices) == (2 if auto and not recorded and not available else 0)
     for notice in notices:
         assert notice.args[2]["error_code"] == "WEIGHT_DOWNLOAD_CONSENT_REQUIRED"

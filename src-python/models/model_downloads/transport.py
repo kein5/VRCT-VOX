@@ -52,11 +52,11 @@ class PublicResponse:
         self.response.close()
 
 
-def open_public(url):
+def open_public(url, *, timeout=15):
     validate_url(url)
     opener = build_opener(ProxyHandler({}), PublicRedirect())
     response = opener.open(Request(url, headers={'User-Agent': 'VRCT-VOX-model-download/1',
-                                                'Accept-Encoding': 'identity'}), timeout=15)
+                                                'Accept-Encoding': 'identity'}), timeout=timeout)
     if response.status != 200:
         response.close()
         raise ValueError('download_http_error')

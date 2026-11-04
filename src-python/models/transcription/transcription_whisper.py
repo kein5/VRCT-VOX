@@ -1,7 +1,6 @@
 """Helpers for downloading and loading Whisper (faster-whisper) models.
 
 This module exposes small utilities used by the transcription subsystem:
-- downloadFile: stream-download a file with optional progress callback
 - checkWhisperWeight: quick local availability check
 - downloadWhisperWeight: download model artifacts from HF hub
 - getWhisperModel: construct and return a WhisperModel instance
@@ -9,33 +8,18 @@ This module exposes small utilities used by the transcription subsystem:
 The functions are defensive: failures are caught and reported by the caller.
 """
 
-from os import path as os_path, makedirs as os_makedirs, remove as os_remove, replace as os_replace
-from time import sleep
-from requests import get as requests_get
-from requests.exceptions import HTTPError
+from os import path as os_path
 from typing import Callable, Optional
 import logging
-from utils import getBestComputeType, isWeightVerifiedCache, writeWeightVerifiedCache, errorLogging, printLog
-from models.builtin_model_pins import MODEL_PINS, verifyPinnedFile
+from utils import getBestComputeType
+from models.builtin_model_pins import MODEL_PINS
+from models.legacy_model_downloads import download_directory, verified_directory
 
-# 起動時の初回ダウンロードで一時的なネットワーク断 (接続リセット・HF Hub の
-# 429/503 等) が起きても、1 回の取りこぼしで「AIモデル未検出。VRCTを再起動して
-# ください」通知に落ちないよう、タイムアウトと指数バックオフ付きの再試行を行う。
-_DOWNLOAD_TIMEOUT = (10, 60)  # (connect, read) 秒
-_DOWNLOAD_MAX_ATTEMPTS = 3
-_DOWNLOAD_RETRY_BACKOFF = 2  # 秒。attempt 番号を掛けて待機 (2s, 4s, ...)
-
-# Optional deps; None fallback lets checkWhisperWeight etc. return False
-# gracefully when the package is missing.
+# Model loading is optional; integrity checks do not load native models.
 try:
     from faster_whisper import WhisperModel  # noqa: F401
 except Exception:
     WhisperModel = None  # type: ignore
-
-try:
-    import huggingface_hub  # noqa: F401
-except Exception:
-    huggingface_hub = None  # type: ignore
 
 logger = logging.getLogger('faster_whisper')
 logger.setLevel(logging.CRITICAL)
@@ -52,116 +36,28 @@ _MODELS = {
     "large-v3-turbo": "deepdml/faster-whisper-large-v3-turbo-ct2", #1.58GB
 }
 
-def downloadFile(url: str, path: str, func: Optional[Callable[[float], None]] = None,
-                 pin: Optional[tuple] = None) -> bool:
-    """Download a file from `url` to `path`.
-
-    Args:
-        url: remote URL to download from
-        path: local filepath to write
-        func: optional callback(progress: float) called with a 0.0-1.0 progress
-        pin: optional (size, sha256); the file is kept only when it matches
-
-    Returns:
-        True on success, False if every attempt failed. Transient network
-        errors are retried with a short backoff before giving up so a single
-        connection reset during the first-run model download doesn't leave the
-        app permanently reporting "AI models have not been detected".
-    """
-    part_path = f"{path}.part"
-    for attempt in range(1, _DOWNLOAD_MAX_ATTEMPTS + 1):
-        try:
-            res = requests_get(url, stream=True, timeout=_DOWNLOAD_TIMEOUT)
-            res.raise_for_status()
-            file_size = int(res.headers.get('content-length', 0))
-            total_chunk = 0
-            with open(part_path, 'wb') as file:
-                for chunk in res.iter_content(chunk_size=1024 * 2000):
-                    file.write(chunk)
-                    if callable(func) and file_size:
-                        total_chunk += len(chunk)
-                        func(total_chunk / file_size)
-            # 固定した大きさと SHA-256 に合わなければ使わない (取り違えや改ざん)
-            if pin is not None and not verifyPinnedFile(part_path, *pin):
-                raise ValueError(f"downloaded file does not match its pinned SHA-256: {url}")
-            os_replace(part_path, path)
-            return True
-        except Exception as e:
-            errorLogging()
-            # Remove any partial/corrupt file so the retry below, or the
-            # post-download WhisperModel verification in checkWhisperWeight,
-            # doesn't see stale truncated bytes from the failed attempt.
-            try:
-                if os_path.exists(part_path):
-                    os_remove(part_path)
-            except Exception:
-                pass
-            # 404 等の恒久エラー (そのリポジトリに存在しないファイル) は
-            # 再試行しても無駄なので即座に打ち切る。429/5xx や接続エラーのみ再試行。
-            status = getattr(getattr(e, "response", None), "status_code", None)
-            if isinstance(e, HTTPError) and status is not None and 400 <= status < 500 and status != 429:
-                return False
-            if attempt < _DOWNLOAD_MAX_ATTEMPTS:
-                printLog(f"Whisper file download failed, retrying ({attempt}/{_DOWNLOAD_MAX_ATTEMPTS - 1})", url)
-                sleep(_DOWNLOAD_RETRY_BACKOFF * attempt)
-    return False
-
 def checkWhisperWeight(root: str, weight_type: str) -> bool:
-    """Return True if a Whisper model for `weight_type` is loadable from disk.
+    """Admit only the complete pinned artifact set; old load-only caches do not count."""
+    repo = _MODELS[weight_type]
+    return verified_directory(os_path.join(root, "weights", "whisper", weight_type), repo, MODEL_PINS[repo])
 
-    This attempts to construct a local `WhisperModel` with local_files_only=True
-    to verify required files exist and are compatible.
-    """
-    path = os_path.join(root, "weights", "whisper", weight_type)
-
-    if isWeightVerifiedCache(path):
-        return True
-
-    if WhisperModel is None:
-        return False
-    try:
-        WhisperModel(
-            path,
-            device="cpu",
-            device_index=0,
-            compute_type="int8",
-            cpu_threads=4,
-            num_workers=1,
-            local_files_only=True,
-        )
-        writeWeightVerifiedCache(path)
-        return True
-    except Exception:
-        return False
 
 def downloadWhisperWeight(
     root: str,
     weight_type: str,
     callback: Optional[Callable[[float], None]] = None,
     end_callback: Optional[Callable[[], None]] = None,
-) -> None:
-    """Ensure Whisper weight files are present locally; download them if missing.
+    *,
+    control=None,
+) -> bool:
+    try:
+        repo = _MODELS[weight_type]
+        return download_directory(os_path.join(root, "weights", "whisper"), weight_type,
+                                  repo, MODEL_PINS[repo], control, callback)
+    finally:
+        if callable(end_callback):
+            end_callback()
 
-    Args:
-        root: project root where `weights/whisper` lives
-        weight_type: key from `_MODELS` (eg. "tiny", "base")
-        callback: progress callback for the main model file
-        end_callback: called when download completes
-    """
-    path = os_path.join(root, "weights", "whisper", weight_type)
-    os_makedirs(path, exist_ok=True)
-    if not checkWhisperWeight(root, weight_type):
-        repo_id = _MODELS[weight_type]
-        # 固定した commit のファイルだけを取り、大きさと SHA-256 を確かめる
-        # (models/builtin_model_pins.py)。ファイルの構成はリポジトリごとに違う
-        # (Systran 系は vocabulary.txt、Zoont/deepdml 系は preprocessor_config.json と vocabulary.json)。
-        pin = MODEL_PINS[repo_id]
-        for filename, file_pin in pin["files"].items():
-            file_path = os_path.join(path, filename)
-            url = huggingface_hub.hf_hub_url(repo_id, filename, revision=pin["revision"])
-            downloadFile(url, file_path, func=callback if filename == "model.bin" else None, pin=file_pin)
-    if callable(end_callback):
-        end_callback()
 
 def getWhisperModel(
     root: str,
@@ -179,6 +75,8 @@ def getWhisperModel(
     if WhisperModel is None:
         raise RuntimeError("faster_whisper is not installed")
     path = os_path.join(root, "weights", "whisper", weight_type)
+    if not checkWhisperWeight(root, weight_type):
+        raise FileNotFoundError("Whisper weights need a verified download")
     if compute_type == "auto":
         compute_type = getBestComputeType(device, device_index)
     try:

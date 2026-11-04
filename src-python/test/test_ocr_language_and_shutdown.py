@@ -26,7 +26,7 @@ def subject(monkeypatch, tmp_path):
     backend._ocrDetectorChange = Mock(return_value={})
     backend._ocrChatboxDetector = Mock(return_value=None)
     controller = Controller.__new__(Controller)
-    controller.model_downloads = SimpleNamespace(root=tmp_path, close=lambda: True)
+    controller.model_downloads = SimpleNamespace(root=tmp_path, request_close=lambda: None, close=lambda: True)
     controller.run = Mock()
     controller.run_mapping = {"enable_ocr_capture": "/run/enable_ocr_capture"}
     monkeypatch.setattr(controller_module, "model", backend)

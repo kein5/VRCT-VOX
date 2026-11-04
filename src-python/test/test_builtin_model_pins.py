@@ -1,13 +1,14 @@
 """The built-in models are fetched from pinned commits and checked against pinned hashes."""
 
 import hashlib
+import io
 import re
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from models.builtin_model_pins import MODEL_PINS, TOKENIZER_REVISIONS, verifyPinnedFile
+from models.builtin_model_pins import MODEL_PINS, tokenizerFilePins, verifyPinnedFile
 from models.transcription import transcription_whisper
 from models.translation import translation_utils
 
@@ -28,7 +29,11 @@ class PinTableTests(unittest.TestCase):
                     self.assertGreater(size, 0)
                     self.assertRegex(sha256, _SHA256)
         for weight in translation_utils.ctranslate2_weights.values():
-            self.assertRegex(TOKENIZER_REVISIONS[weight["tokenizer"]], _COMMIT)
+            files = tokenizerFilePins(weight["hf_repo"])
+            self.assertIn("tokenizer_config.json", files)
+            self.assertIn("special_tokens_map.json", files)
+            self.assertTrue("tokenizer.json" in files or
+                            {"vocab.json", "sentencepiece.bpe.model"} <= files.keys())
 
     def test_verify_checks_size_and_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -52,26 +57,16 @@ class CTranslate2DownloadTests(unittest.TestCase):
         bodies = {"config.json": good, "model.bin": b"fake"}
 
         def fake_get(url, **kwargs):
-            res = MagicMock()
-            body = bodies[url.rsplit("/", 1)[-1]]
-            res.headers = {"content-length": str(len(body))}
-            res.iter_content.return_value = [body]
-            return res
+            return io.BytesIO(bodies[url.rsplit("/", 1)[-1]])
 
         with tempfile.TemporaryDirectory() as tmp, \
              patch.dict(translation_utils.MODEL_PINS, {repo: pin}), \
-             patch.object(translation_utils, "checkCTranslate2Weight", return_value=False), \
-             patch.object(translation_utils, "hf_hub_url",
-                          side_effect=lambda r, f, revision=None: f"https://hf.example/{r}/resolve/{revision}/{f}"), \
-             patch.object(translation_utils, "requests_get", side_effect=fake_get) as get, \
-             patch.object(translation_utils, "errorLogging"), patch.object(translation_utils, "sleep"), \
-             patch.object(translation_utils, "printLog"):
-            ok = translation_utils.downloadCTranslate2Weight(tmp, "m2m100_418M-ct2-int8")
+             patch("models.legacy_model_downloads.open_public", side_effect=fake_get) as get:
+            with self.assertRaisesRegex(ValueError, "hash_mismatch"):
+                translation_utils.downloadCTranslate2Weight(tmp, "m2m100_418M-ct2-int8")
             folder = Path(tmp) / "weights" / "ctranslate2" / "m2m100_418M-ct2-int8"
-            kept = sorted(p.name for p in folder.iterdir())
-
-        self.assertFalse(ok)
-        self.assertEqual(kept, ["config.json"])  # the changed model.bin is not kept
+            self.assertFalse(folder.exists())  # No partial bundle is published.
+            self.assertFalse(list(folder.parent.glob(".partial-*")))
         self.assertTrue(all(f"/resolve/{'a' * 40}/" in c.args[0] for c in get.call_args_list))
 
 

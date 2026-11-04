@@ -228,9 +228,10 @@ class DownloadWeightRequiresOptInTests(_ControllerTestBase):
         response = self.controller.downloadCtranslate2Weight(
             {"weight_type": NLLB_600M, "consent": True,
              "manifest_version": legacyModelReview("ctranslate2", NLLB_600M)["manifest_version"]}, asynchronous=False)
-        self.assertEqual(response, {"status": 200, "result": True})
+        self.assertEqual(response["status"], 200)
+        self.assertTrue(response["result"]["job_id"])
         self.assertEqual(self.downloadCTranslate2ModelWeight.call_args.args[0], NLLB_600M)
-        self.downloadCTranslate2ModelTokenizer.assert_called_once_with(NLLB_600M)
+        self.downloadCTranslate2ModelTokenizer.assert_not_called()
         # Downloading alone does not select it.
         self.assertEqual(config.CTRANSLATE2_WEIGHT_TYPE, M2M100)
 

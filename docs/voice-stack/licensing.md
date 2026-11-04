@@ -119,4 +119,4 @@ miniaudioの二重ライセンス、静的GCCランタイムのGPLv3＋Runtime L
 
 WhisperはOpenAIのMITモデルを元にしたSystran・Zoont・deepdmlのCTranslate2変換版で、同梱しない。[NOTICE](../../NOTICE.md#downloadable-whisper-weights)に提供元を記載し、取得画面でMITと固定ファイルの正確な合計容量を表示する。CTranslate2翻訳はM2M100とその文章分割ファイルがMIT、NLLBとその文章分割ファイルがCC-BY-NC-4.0（非商用）。[NOTICEの一覧](../../NOTICE.md#downloadable-ctranslate2-translation-weights)を正本とする。非商用モデルは既定にしない。
 
-内蔵モデルの取得は、選択済みのNLLBや別途取得するtokenizerも含め、モデルと固定した一覧への明示的な同意を必要とする。起動時の取得は、その同意の記録がある版だけに限る。別取得のtokenizerにはcommitのみが固定され、ファイルごとの容量・SHA-256は未整備であるため、容量に含まれない追加ファイルとして表示する。この追記で配布許可や完全性の検証完了を主張しない。取得画面と移行の詳細は[モデル取得](model-downloads.md#内蔵whisperctranslate2と文章分割ファイル)を参照する。
+内蔵モデルの取得は、選択済みのNLLBや同じ一式に含まれるtokenizerも含め、モデルと固定した一覧への明示的な同意を必要とする。起動時の取得は、その同意の記録がある版だけに限る。tokenizerはCTranslate2変換リポジトリ内の固定済みファイルを使い、容量・SHA-256を検証する。確認画面の合計容量に含め、取得元の変更によりmanifestの再同意が必要になる。ライセンスの条件は変えない。この追記で配布許可や完全性の検証完了を主張しない。取得画面と移行の詳細は[モデル取得](model-downloads.md#内蔵whisperctranslate2と文章分割ファイル)を参照する。
