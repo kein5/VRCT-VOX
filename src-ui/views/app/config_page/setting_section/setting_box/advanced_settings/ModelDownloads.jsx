@@ -6,6 +6,7 @@ import { useModelDownloads } from "../../../../../../logics/voice/useModelDownlo
 import { modelAdvice } from "../../../../../../logics/voice/modelHardwareAdvice";
 import styles from "./VoiceSettings.module.scss";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { useConsentDialog } from "../../../../../../logics/common/useConsentDialog";
 
 const activePhases = ["queued", "downloading", "verifying", "cancelling"];
 const bytes = value => `${Number(value).toLocaleString("en-US")} bytes (${(value / 1073741824).toFixed(2)} GiB)`;
@@ -62,7 +63,8 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
     const [, setNow] = useState(Date.now());
     const ttsTargets = targets.filter(target => ['japanese', 'multilingual'].includes(target));
     const hasTTS = ttsTargets.length > 0;
-    const dialog = useRef(null);
+    const section = useRef(null);
+    const { dialog, close: closeDialog } = useConsentDialog(!!selected, section);
     useEffect(() => {
         send("/get/data/model_download_catalog"); send("/get/data/model_download_state");
     }, [send]);
@@ -72,9 +74,8 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
         const timer = setInterval(() => setNow(Date.now()), 5000);
         return () => clearInterval(timer);
     }, [hasTTS]);
-    useEffect(() => { if (selected) dialog.current?.showModal(); }, [selected]);
     const busy = !!pending || Object.values(state.jobs).some(job => activePhases.includes(job.phase));
-    const close = () => { setSelected(null); setConsent(false); setLinkError(null); };
+    const close = () => { closeDialog(); setSelected(null); setConsent(false); setLinkError(null); };
     const openLink = async (event, url) => {
         if (!isTauri()) return;
         event.preventDefault();
@@ -89,7 +90,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
     const choice = target => matching.find(entry => entry.target === target && entry.id === choices[target])?.id
         ?? advice[target].recommended ?? matching.find(entry => entry.target === target)?.id;
     const memory = value => Number.isFinite(value) ? `${(value / 1024 ** 3).toFixed(2)} GiB` : t('model_downloads.hardware_unknown');
-    return <section className={styles.container} aria-label={t("model_downloads.title")}>
+    return <section ref={section} tabIndex={-1} className={styles.container} aria-label={t("model_downloads.title")}>
         <h3>{t("model_downloads.title")}</h3>
         <p>{t("model_downloads.help")}</p>
         {!catalog && <p aria-busy="true">{t("model_downloads.loading")}</p>}
@@ -124,7 +125,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
         {/* TTS variants are one choice per target; ASR and VAD entries are different models, so list them all. */}
         {matching.filter(entry => !ttsTargets.includes(entry.target) || entry.id === choice(entry.target) || activePhases.includes(state.jobs[entry.id]?.phase) || state.jobs[entry.id]?.phase === 'ready').map(entry => {
             const job = state.jobs[entry.id], active = activePhases.includes(job?.phase);
-            return <div key={entry.id} className={styles.download_entry}>
+            return <div key={entry.id} data-model-download tabIndex={-1} role="group" aria-label={entry.name} className={styles.download_entry}>
                 <strong>{entry.name}</strong>
                 <p>{entry.provider} · {gib(entry.total_bytes)} · {entry.license}</p>
                 {entry.guidance?.reference_memory_bytes && <details className={styles.more}><summary>{t('model_downloads.guidance_summary')}</summary>
@@ -153,7 +154,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
                 {job?.phase === "ready" && blocked && <p>{t(blocked === "edited" ? "model_downloads.blocked_edited" : "model_downloads.blocked")}</p>}
             </div>;
         })}
-        {selected && <dialog ref={dialog} aria-label={t("model_downloads.warning_title")} onCancel={close}>
+        {selected && <dialog ref={dialog} aria-label={t("model_downloads.warning_title")} onCancel={event => { event.preventDefault(); close(); }}>
             <h3>{t("model_downloads.warning_title")}</h3>
             <p>{selected.name} · {selected.provider}</p>
             <p>{bytes(selected.total_bytes)} · {selected.license}</p>
@@ -172,6 +173,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
             <div className={styles.actions}>
                 <button type="button" autoFocus onClick={close}>{t("model_downloads.back")}</button>
                 <button type="button" disabled={!consent || busy} onClick={() => {
+                    if (!consent || busy) return;
                     send("/run/start_model_download", { id: selected.id, consent: true, catalog_version: selected.catalog_version }); close();
                 }}>{t("model_downloads.start")}</button>
             </div>

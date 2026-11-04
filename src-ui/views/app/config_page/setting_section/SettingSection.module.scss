@@ -1,5 +1,5 @@
 .scroll_container { width: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
-.container { max-width: 112rem; margin: 0 auto 4rem; padding: .8rem 3.2rem 4rem; }
+.container { container-type: inline-size; min-width: 0; max-width: 112rem; margin: 0 auto 4rem; padding: .8rem 3.2rem 4rem; }
 @media (max-width: 800px) { .container { padding: .4rem 1.6rem 3.2rem; } }
 // The UI-size-aware breakpoint (useWindow.js) also selects the narrow layout.
 :global(html[data-narrow]) .container { padding: .4rem 1.6rem 3.2rem; }

@@ -6,6 +6,7 @@ import { useModelDownloads } from "../../../../../../logics/voice/useModelDownlo
 import voiceStyles from "../advanced_settings/VoiceSettings.module.scss";
 import styles from "./Ocr.module.scss";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { useConsentDialog } from "../../../../../../logics/common/useConsentDialog";
 
 const activePhases = ["queued", "downloading", "verifying", "cancelling"];
 const megabytes = value => `${(Number(value) / 1048576).toFixed(1)} MB`;
@@ -19,21 +20,21 @@ export const OcrModels = ({ ids, missing, onChanged, title, desc, note }) => {
     const { catalog, state, error, pending, send } = useModelDownloads();
     const [selected, setSelected] = useState(null), [consent, setConsent] = useState(false);
     const [linkError, setLinkError] = useState(null);
-    const dialog = useRef(null);
+    const section = useRef(null);
+    const { dialog, close: closeDialog } = useConsentDialog(!!selected, section);
     const hasCatalog = !!catalog;
 
     useEffect(() => {
         if (!hasCatalog) send("/get/data/model_download_catalog");
         send("/get/data/model_download_state");
     }, [hasCatalog, send]);
-    useEffect(() => { if (selected) dialog.current?.showModal(); }, [selected]);
 
     const entries = (catalog?.models ?? []).filter(entry => entry.target === "ocr" && ids.includes(entry.id));
     const readyIds = entries.filter(entry => state.jobs[entry.id]?.phase === "ready").map(entry => entry.id).join(",");
     useEffect(() => { if (readyIds) onChanged(); }, [readyIds, onChanged]);
 
     const busy = !!pending || Object.values(state.jobs).some(job => activePhases.includes(job.phase));
-    const close = () => { setSelected(null); setConsent(false); setLinkError(null); };
+    const close = () => { closeDialog(); setSelected(null); setConsent(false); setLinkError(null); };
     const failure = code => t(`model_downloads.errors.${code}`, { defaultValue: t("model_downloads.errors.download_failed") });
     const openLink = async (event, url) => {
         if (!isTauri()) return;
@@ -42,14 +43,14 @@ export const OcrModels = ({ ids, missing, onChanged, title, desc, note }) => {
         catch { setLinkError(url); }
     };
 
-    return <section className={`${voiceStyles.container} ${styles.models}`} aria-label={title}>
+    return <section ref={section} tabIndex={-1} className={`${voiceStyles.container} ${styles.models}`} aria-label={title}>
         <h3>{title}</h3>
         {desc && <p>{desc}</p>}
         {!catalog && <p aria-busy="true">{t("model_downloads.loading")}</p>}
         {entries.map(entry => {
             const job = state.jobs[entry.id], active = activePhases.includes(job?.phase);
             const installed = !missing.includes(entry.id) || job?.phase === "ready";
-            return <div key={entry.id} className={styles.modelRow}>
+            return <div key={entry.id} data-model-download tabIndex={-1} role="group" aria-label={entry.name} className={styles.modelRow}>
                 <strong>{entry.name}</strong>
                 <p>{entry.provider} · {megabytes(entry.total_bytes)} · {entry.license} · {note}</p>
                 <EnvReadout tone={installed ? "active" : job?.phase === "failed" ? "failed" : "warning"}>
@@ -64,7 +65,7 @@ export const OcrModels = ({ ids, missing, onChanged, title, desc, note }) => {
                     {t("model_downloads.review")}</button>}
             </div>;
         })}
-        {selected && <dialog ref={dialog} aria-label={t("model_downloads.warning_title")} onCancel={close}>
+        {selected && <dialog ref={dialog} aria-label={t("model_downloads.warning_title")} onCancel={event => { event.preventDefault(); close(); }}>
             <h3>{t("model_downloads.warning_title")}</h3>
             <p>{selected.name} · {selected.provider}</p>
             <p>{Number(selected.total_bytes).toLocaleString("en-US")} bytes · {selected.license}</p>
@@ -81,6 +82,7 @@ export const OcrModels = ({ ids, missing, onChanged, title, desc, note }) => {
             <div className={voiceStyles.actions}>
                 <button type="button" autoFocus onClick={close}>{t("model_downloads.back")}</button>
                 <button type="button" disabled={!consent || busy} onClick={() => {
+                    if (!consent || busy) return;
                     send("/run/start_model_download", { id: selected.id, consent: true, catalog_version: selected.catalog_version }); close();
                 }}>{t("model_downloads.start")}</button>
             </div>

@@ -1,30 +1,31 @@
-.container { container: topbar / inline-size; position: absolute; top: 1.6rem; left: 2.4rem; right: 2.4rem; display: flex; justify-content: flex-end; align-items: center; gap: 1.2rem; pointer-events: none; }
+.container { display: contents; }
 .container > * { pointer-events: auto; }
-.back { display: flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .8rem 1.6rem; border-radius: var(--vox_radius); color: var(--dark_200_color); background: var(--dark_850_color); font-size: 1.4rem; cursor: pointer; flex-shrink: 0; }
+.back { grid-area: back; justify-self: end; align-self: start; margin: 1.6rem 1.6rem 1.6rem 0; display: flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .8rem 1.6rem; border-radius: var(--vox_radius); color: var(--dark_200_color); background: var(--dark_850_color); font-size: 1.4rem; cursor: pointer; }
 .back svg { width: 1.8rem; height: 1.8rem; }
 .back:hover { background: var(--dark_800_color); }
 .back:active { background: var(--dark_900_color); }
 
-.save_bar { flex: 1; min-width: min-content; display: flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .4rem .4rem .4rem 1.4rem; border-radius: var(--vox_radius); background: var(--dark_900_color); border: .1rem solid var(--dark_800_color); }
+.save_bar { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; min-height: 4rem; padding: .4rem .4rem .4rem 1.4rem; border-radius: var(--vox_radius); background: var(--dark_900_color); border: .1rem solid var(--dark_800_color); }
 .save_bar.is_dirty { border-color: var(--primary_500_color); }
-// The state word never truncates; the list of changed fields gives way first.
-.summary { flex: 1; display: flex; align-items: center; gap: 1rem; }
-.state { flex-shrink: 0; white-space: nowrap; font-size: 1.3rem; color: var(--dark_400_color); }
+// Wrap the state/count before squeezing the actions. The grid reserves the
+// resulting height, including long translations and large unsaved counts.
+.summary { flex: 1 1 10rem; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+.state { max-width: 100%; overflow-wrap: anywhere; font-size: 1.3rem; color: var(--dark_400_color); }
 .is_dirty .state { color: var(--primary_200_color); }
-.state.is_failed { color: var(--error_bc_color); }
-.count { flex-shrink: 0; white-space: nowrap; padding: .1rem .7rem; border-radius: .4rem; font-size: 1.2rem; font-variant-numeric: tabular-nums; color: var(--dark_50_color, #fff); background: var(--primary_600_color); }
+.state.is_failed { color: var(--vox_state_failed); }
+.count { flex-shrink: 0; max-width: 100%; overflow-wrap: anywhere; padding: .1rem .7rem; border-radius: .4rem; font-size: 1.2rem; font-variant-numeric: tabular-nums; color: var(--dark_50_color, #fff); background: var(--primary_600_color); }
 // The changed names never fit the bar in every language; they stay readable
 // for screen readers, and the page marks the rows themselves.
 .changes { position: absolute; width: .1rem; height: .1rem; margin: -.1rem; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; list-style: none; }
-.discard, .save { flex-shrink: 0; min-height: 3.2rem; padding: .4rem 1.4rem; border-radius: var(--vox_radius); font-size: 1.4rem; cursor: pointer; }
+.discard, .save { flex-shrink: 0; max-width: 100%; overflow-wrap: anywhere; min-height: 3.2rem; padding: .4rem 1.4rem; border-radius: var(--vox_radius); font-size: 1.4rem; cursor: pointer; }
 .discard { color: var(--dark_200_color); background: var(--dark_850_color); }
 .discard:hover:not(:disabled) { background: var(--dark_800_color); }
 .save { color: var(--dark_50_color, #fff); background: var(--primary_600_color); }
 .save:hover:not(:disabled) { background: var(--primary_550_color); }
 .discard:disabled, .save:disabled { opacity: .45; cursor: default; }
 
-.stop_actions { display: flex; align-items: center; gap: .8rem; flex-shrink: 0; }
-.stop { display: inline-flex; align-items: center; gap: .8rem; min-height: 4rem; padding: .8rem 1.2rem; border-radius: var(--vox_radius); font-size: 1.4rem; color: var(--dark_200_color); background: var(--dark_900_color); border: .1rem solid var(--dark_800_color); cursor: pointer; white-space: nowrap; transition: background-color .12s ease, border-color .12s ease, color .12s ease; }
+.stop_actions { grid-area: stop; align-self: start; margin: 1.6rem .8rem 1.6rem 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; }
+.stop { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .8rem; max-width: 100%; min-width: 0; min-height: 4rem; padding: .8rem 1.2rem; border-radius: var(--vox_radius); font-size: 1.4rem; color: var(--dark_200_color); background: var(--dark_900_color); border: .1rem solid var(--dark_800_color); cursor: pointer; white-space: normal; overflow-wrap: anywhere; transition: background-color .12s ease, border-color .12s ease, color .12s ease; }
 .stop:hover { background: var(--dark_850_color); }
 .stop:focus-visible, .back:focus-visible, .discard:focus-visible, .save:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }
 // Amber only while something is being spoken or waits in the queue.
@@ -36,36 +37,27 @@
     .discard, .save { font-size: 0; }
     .discard::after, .save::after { content: attr(data-short); font-size: 1.4rem; }
 }
-// Narrow windows: stop actions keep the first row on the right, clear of the
-// sidebar search; the save bar and back button take the second row.
-@media (max-width: 800px) {
-    .container { flex-wrap: wrap; row-gap: .8rem; }
-    // Wrap rather than overflow to the left under the search when the rail
-    // is expanded at a large UI size.
-    .stop_actions { flex-basis: 100%; justify-content: flex-end; flex-wrap: wrap; }
-}
-// The same narrow layout when a large UI size makes the window narrow (useWindow.js).
-:global(html[data-narrow]) {
+// ConfigPage's grid places search beside stop/mute, then save/back below.
+// These margins leave .8rem between rows without assuming their heights.
+@mixin narrow_header {
     .stop .long { display: none; }
     .stop .short { display: inline; }
     .discard, .save { font-size: 0; }
     .discard::after, .save::after { content: attr(data-short); font-size: 1.4rem; }
-    .container { flex-wrap: wrap; row-gap: .8rem; }
-    .stop_actions { flex-basis: 100%; justify-content: flex-end; flex-wrap: wrap; }
+    .back_label { display: none; }
+    // A queue count and the muted badge may wrap, leaving search usable.
+    .stop_actions { margin: 1.6rem 1.6rem .8rem 0; max-width: 24rem; justify-self: end; }
+    .save_slot { margin: 0 .8rem 1.6rem 1.6rem; }
+    .back { margin: 0 1.6rem 1.6rem 0; }
 }
-// Never narrower than its contents: the back button wraps instead of the
-// buttons drawing over each other.
-.save_slot { flex: 1; min-width: min-content; display: flex; }
+.save_slot { grid-area: save; align-self: start; margin: 1.6rem .8rem 1.6rem 0; min-width: 0; display: flex; }
+@media (max-width: 800px) { @include narrow_header; }
+:global(html[data-narrow]) { @include narrow_header; }
 .stop { font-variant-numeric: tabular-nums; }
 // Muted is a reported state worth seeing from every page; the text says it too.
 .stop.is_pressed { color: var(--vox_state_warning); border-color: var(--vox_state_warning); background: var(--dark_900_color); }
 .stop:disabled { opacity: .6; cursor: not-allowed; }
 .muted_badge { padding: .1rem .6rem; border-radius: .4rem; font-size: 1.2rem; color: var(--dark_1000_color); background: var(--vox_state_warning); }
-// When the save bar and the labelled back button do not fit one row, the arrow
-// alone keeps them together; the button keeps its name (aria-label).
-@container topbar (max-width: 38rem) {
-    .back_label { display: none; }
-}
 .leave_dialog { max-width: min(46rem, 85vw); padding: 2.4rem; border: .1rem solid var(--dark_600_color); border-radius: 1.2rem; background: var(--dark_875_color); color: var(--dark_200_color); font-size: 1.4rem; }
 .leave_dialog::backdrop { background: #0009; }
 .leave_actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1.6rem; }

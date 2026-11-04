@@ -1,11 +1,15 @@
 @import "@scss_mixins";
 
+.status { position: absolute; width: .1rem; height: .1rem; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
 .download_container {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 8rem;
-    min-width: 8rem;
+    // Six Japanese characters at 1.2rem + 2 * .8rem padding = 8.8rem.
+    width: 9rem;
+    min-width: 0;
+    max-width: 100%;
     flex-shrink: 0;
 }
 
@@ -28,7 +32,9 @@
 }
 .download_button_label {
     font-size: 1.2rem;
-    white-space: nowrap;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .progress_wrapper {

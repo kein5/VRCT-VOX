@@ -22,18 +22,22 @@ export const CircularProgress = ({
 
     // For determinate: dash array is 2 * PI * r = 2 * 3.14159 * 20.2 ≈ 126.92
     const CIRCUMFERENCE = 126.92;
-    const determinateOffset = CIRCUMFERENCE - (value / 100) * CIRCUMFERENCE;
+    const progress = Math.max(0, Math.min(100, value));
+    const determinateOffset = CIRCUMFERENCE - (progress / 100) * CIRCUMFERENCE;
 
-    const isDeterminate = variant === "determinate";
+    const isDeterminate = variant === "determinate" && Number.isFinite(value);
 
     return (
         <span
             className={clsx(styles.root, { [styles.determinate]: isDeterminate }, className)}
             style={rootStyle}
             role="progressbar"
+            aria-valuenow={isDeterminate ? progress : undefined}
+            aria-valuemin={isDeterminate ? 0 : undefined}
+            aria-valuemax={isDeterminate ? 100 : undefined}
             {...props}
         >
-            <svg className={styles.svg} viewBox="22 22 44 44">
+            <svg className={styles.svg} viewBox="22 22 44 44" aria-hidden="true">
                 <circle
                     className={clsx(styles.circle, { [styles.circleDeterminate]: isDeterminate })}
                     cx="44"

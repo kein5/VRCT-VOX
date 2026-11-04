@@ -1,11 +1,12 @@
 // Same columns as the label rows on the voice pages, so both read as one grammar.
 .row {
     display: grid;
-    grid-template-columns: minmax(16rem, 1fr) minmax(18rem, 1.6fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
     gap: 1.6rem;
     align-items: start;
     padding: .4rem 0;
     min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .text { display: grid; gap: .4rem; min-width: 0; padding-top: .9rem; }
@@ -29,7 +30,12 @@
 
 .group { display: flex; flex-wrap: wrap; gap: .8rem; }
 
+// 16rem label + 18rem control + 1.6rem gap at the current UI scale.
+@container (max-width: 35.6rem) {
+    .row { grid-template-columns: minmax(0, 1fr); gap: .8rem; }
+    .text { padding-top: 0; }
+}
 @media (max-width: 700px) {
-    .row { grid-template-columns: 1fr; gap: .8rem; }
+    .row { grid-template-columns: minmax(0, 1fr); gap: .8rem; }
     .text { padding-top: 0; }
 }
