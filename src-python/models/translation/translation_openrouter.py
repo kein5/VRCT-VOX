@@ -7,6 +7,7 @@ try:
     from .translation_languages import translation_lang
     from .translation_utils import loadTranslatePromptConfig
     from .translation_model_list import RecentModelList
+    from .translation_timeouts import CLOUD_LLM_TIMEOUT
 except Exception:
     import sys
     from os import path as os_path
@@ -14,6 +15,7 @@ except Exception:
     from translation_languages import translation_lang, loadTranslationLanguages
     from translation_utils import loadTranslatePromptConfig
     from translation_model_list import RecentModelList
+    from translation_timeouts import CLOUD_LLM_TIMEOUT
     translation_lang = loadTranslationLanguages(path=".", force=True)
 
 def _authentication_check(api_key: str) -> bool:
@@ -110,6 +112,8 @@ class OpenRouterClient(RecentModelList):
             model=self.model,
             api_key=SecretStr(self.api_key),
             streaming=False,
+            timeout=CLOUD_LLM_TIMEOUT,
+            max_retries=1,
         )
 
     def setContextHistory(self, history_items: list[dict]) -> None:

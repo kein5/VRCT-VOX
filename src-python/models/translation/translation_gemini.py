@@ -6,6 +6,7 @@ try:
     from .translation_languages import translation_lang
     from .translation_utils import loadTranslatePromptConfig
     from .translation_model_list import RecentModelList
+    from .translation_timeouts import CLOUD_LLM_TIMEOUT_SECONDS
 except Exception:
     import sys
     from os import path as os_path
@@ -14,6 +15,7 @@ except Exception:
     from translation_languages import translation_lang
     from translation_utils import loadTranslatePromptConfig
     from translation_model_list import RecentModelList
+    from translation_timeouts import CLOUD_LLM_TIMEOUT_SECONDS
 
 logger = logging.getLogger("langchain_google_genai")
 logger.setLevel(logging.ERROR)
@@ -112,6 +114,9 @@ class GeminiClient(RecentModelList):
         self.gemini_llm = ChatGoogleGenerativeAI(
             model=self.model,
             api_key=self.api_key,
+            # LangChain takes seconds and converts to Google HttpOptions ms.
+            timeout=CLOUD_LLM_TIMEOUT_SECONDS,
+            max_retries=2,  # Google counts attempts: first call plus one retry.
         )
 
     def setContextHistory(self, history_items: list[dict]) -> None:

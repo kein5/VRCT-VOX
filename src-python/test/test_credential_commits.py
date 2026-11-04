@@ -36,6 +36,7 @@ class FakeClient:
         self.auth_key = args[0] if args else None  # DeepL constructor
         self.base_url = kwargs.get("base_url")
         self.ready = False
+        self._client = Mock()  # DeepL probe transport, replaced after success.
 
     def setAuthKey(self, key):
         self.auth_key = key

@@ -6,6 +6,7 @@ try:
     from .translation_languages import translation_lang
     from .translation_utils import loadTranslatePromptConfig
     from .translation_model_list import RecentModelList
+    from .translation_timeouts import LOCAL_LLM_TIMEOUT
 except Exception:
     import sys
     from os import path as os_path
@@ -13,6 +14,7 @@ except Exception:
     from translation_languages import translation_lang, loadTranslationLanguages
     from translation_utils import loadTranslatePromptConfig
     from translation_model_list import RecentModelList
+    from translation_timeouts import LOCAL_LLM_TIMEOUT
     translation_lang = loadTranslationLanguages(path=".", force=True)
 
 def _authentication_check(base_url: str | None = None) -> bool:
@@ -89,6 +91,8 @@ class LMStudioClient(RecentModelList):
             model=self.model,
             api_key=SecretStr(self.api_key),
             streaming=False,
+            timeout=LOCAL_LLM_TIMEOUT,
+            max_retries=0,
         )
 
     def setContextHistory(self, history_items: list[dict]) -> None:
