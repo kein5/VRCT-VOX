@@ -59,6 +59,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 2.4rem;
+    flex-wrap: wrap;
 }
 
 .regionLabel {
@@ -104,4 +105,9 @@
     border-radius: var(--vox_radius, .8rem);
     &:hover:enabled { background: var(--dark_600_color, #555d69); }
     &:disabled { opacity: .6; cursor: not-allowed; }
+}
+
+.resetButton:focus-visible {
+    outline: .2rem solid var(--vox_focus, #a9ccff);
+    outline-offset: .2rem;
 }

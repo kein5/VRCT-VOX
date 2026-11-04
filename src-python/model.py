@@ -2457,6 +2457,12 @@ class Model:
                     chatbox_filter=config.OCR_CHATBOX_FILTER,
                     detector=detector,
                 )
+                # Queue before start: the worker applies both source regions before
+                # its first capture. No window coordinates can leak into VR.
+                self.ocr_pipeline.applyConfig({"regions": {
+                    "window": config.OCR_CAPTURE_REGION,
+                    "vr": config.OCR_VR_CAPTURE_REGION,
+                }})
                 self._ocr_detector_path = getattr(detector, "model_path", None)
                 # Shutdown may have raced construction before publication.
                 if self._ocr_shutdown_requested:
@@ -2520,21 +2526,28 @@ class Model:
 
         OFF→ONを挟まずにしきい値などを切り替える。言語は専用のsetterで扱う。
         """
-        pipeline = self.ocr_pipeline
-        if self._ocr_shutdown_requested or not isinstance(pipeline, OcrPipeline):
-            return
-        try:
-            pipeline.applyConfig({
-                "window_title": config.OCR_WINDOW_TITLE,
-                "poll_interval_ms": config.OCR_POLL_INTERVAL_MS,
-                "min_confidence": config.OCR_MIN_CONFIDENCE,
-                "min_text_length": config.OCR_BUBBLE_MIN_TEXT_LENGTH,
-                "region": config.OCR_CAPTURE_REGION,
-                "chatbox_filter": config.OCR_CHATBOX_FILTER,
-                **self._ocrDetectorChange(),
-            })
-        except Exception:
-            errorLogging()
+        # Endpoint locks are separate. Keep snapshot, detector selection (including
+        # its remembered path), and enqueue ordered together across all endpoints
+        # and start/stop. A later request must never queue an older region last.
+        with self._ocr_lifecycle_lock:
+            pipeline = self.ocr_pipeline
+            if self._ocr_shutdown_requested or not isinstance(pipeline, OcrPipeline):
+                return
+            try:
+                pipeline.applyConfig({
+                    "window_title": config.OCR_WINDOW_TITLE,
+                    "poll_interval_ms": config.OCR_POLL_INTERVAL_MS,
+                    "min_confidence": config.OCR_MIN_CONFIDENCE,
+                    "min_text_length": config.OCR_BUBBLE_MIN_TEXT_LENGTH,
+                    "regions": {
+                        "window": config.OCR_CAPTURE_REGION,
+                        "vr": config.OCR_VR_CAPTURE_REGION,
+                    },
+                    "chatbox_filter": config.OCR_CHATBOX_FILTER,
+                    **self._ocrDetectorChange(),
+                })
+            except Exception:
+                errorLogging()
 
     def _ocrDetectorChange(self) -> dict:
         """{"detector": ...} when the detector to use differs from the running one."""

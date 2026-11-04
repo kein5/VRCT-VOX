@@ -477,6 +477,9 @@ class OcrPipeline:
                 errorLogging()
         if "region" in pending:
             self._region_source.setRegion(pending["region"])
+        if "regions" in pending:
+            self._region_source.setSourceRegions(
+                pending["regions"], lambda: getattr(self._capture, "source", None))
         if "chatbox_filter" in pending:
             self._chatbox_filter = bool(pending["chatbox_filter"])
         if "detector" in pending:

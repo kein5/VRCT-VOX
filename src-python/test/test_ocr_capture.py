@@ -18,6 +18,12 @@ def _frame() -> np.ndarray:
 
 
 class TestFallbackToDesktopWindow(unittest.TestCase):
+    def setUp(self):
+        # This suite exercises the Windows mirror path using fake backends.
+        platform = patch("models.ocr.ocr_capture.sys.platform", "win32")
+        platform.start()
+        self.addCleanup(platform.stop)
+
     def _make(self, vr_frame):
         capture = OcrCapture()
         capture._openvr = MagicMock()

@@ -10,7 +10,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - UIの受信先: 200の応答を処理するUIのフック（`useReceiveRoutes.js`の静的ルートと`ui_config_setter.js`の定義から生成）。「—」は受信先がない。
 - ログで伏せる: `process.log`で値を`***MASKED***`に置き換える（`SENSITIVE_ENDPOINT_MARKERS`）。stdoutのIPCそのものは伏せない。
 
-## 要求（384件: 削除 11、取得 169、実行 35、有効化 38、無効化 38、設定 93）
+## 要求（387件: 削除 11、取得 171、実行 35、有効化 38、無効化 38、設定 94）
 
 | エンドポイント | 種別 | 処理（controller） | 初期化前 | UIの受信先 | 備考 |
 |---|---|---|---|---|---|
@@ -382,6 +382,9 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/set/data/ocr_bubble_min_text_length` | 設定 | `setOcrBubbleMinTextLength` | 可 | useOcr.setSuccessOcrBubbleMinTextLength |  |
 | `/get/data/ocr_capture_region` | 取得 | `getOcrCaptureRegion` | 可 | useOcr.updateFromBackendOcrCaptureRegion |  |
 | `/set/data/ocr_capture_region` | 設定 | `setOcrCaptureRegion` | 可 | useOcr.setSuccessOcrCaptureRegion |  |
+| `/get/data/ocr_vr_capture_region` | 取得 | `getOcrVrCaptureRegion` | 可 | useOcr.updateFromBackendOcrVrCaptureRegion |  |
+| `/set/data/ocr_vr_capture_region` | 設定 | `setOcrVrCaptureRegion` | 可 | useOcr.setSuccessOcrVrCaptureRegion |  |
+| `/get/data/ocr_capture_status` | 取得 | `getOcrCaptureStatus` | 可 | useOcr.updateFromBackendOcrCaptureStatus |  |
 | `/get/data/ocr_chatbox_filter` | 取得 | `getOcrChatboxFilter` | 可 | useOcr.updateFromBackendOcrChatboxFilter |  |
 | `/set/enable/ocr_chatbox_filter` | 有効化 | `setEnableOcrChatboxFilter` | 可 | useOcr.setSuccessOcrChatboxFilter |  |
 | `/set/disable/ocr_chatbox_filter` | 無効化 | `setDisableOcrChatboxFilter` | 可 | useOcr.setSuccessOcrChatboxFilter |  |

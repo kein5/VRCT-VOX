@@ -47,6 +47,16 @@ VRChatの画面上に浮かぶチャット吹き出し（他プレイヤーの�
 - ログ `OCR capture backend -> ...` は、実際にフレームが取れた経路が変わったときだけ出す
 - 切り替えの理由: VR プレイヤーは負荷軽減のため VRChat のデスクトップミラーウィンドウを最小化することが多く、その場合 HWND では黒フレームしか取れないため
 
+### 取り込み元ごとの読み取り範囲
+
+WindowsのデスクトップウィンドウとSteamVRのヘッドセット映像では、同じ割合の矩形でも指す場所が異なる。そのため`OCR_CAPTURE_REGION`をウィンドウ用として維持し、`OCR_VR_CAPTURE_REGION`をVRの左目側の映像用に追加した。旧設定はウィンドウ側に残し、VR側が未保存なら全体を補う。LinuxはX11/XWaylandのウィンドウだけを読む。保存形式と検証は[データ形式と保存](../../../docs/spec/data-and-persistence.md#チャット読み取りの範囲)を参照。
+
+`OcrCapture.source`は`get()`が返した画像の元を`window`か`vr`で示す。画像がない場合は`None`。VRで取得できず同じ呼び出しの中でウィンドウへ戻った場合も、返した画像に合わせて更新する。`RegionCandidates.region`はこの値から範囲を選ぶ。範囲の切り取りと検出器の中心点による絞り込みは同じプロパティを使い、設定時点の取り込み元に固定しない。画像の再利用にも選択後の範囲が含まれる。取り込み元が不明な場合は、別の画面で指定した部分範囲を適用しない。
+
+`Model.startOCRCapture()`は両方の範囲を`regions: {window, vr}`として開始前に予約し、ワーカーが最初のtickより前に適用する。設定変更は`Model.updateOCRCaptureSettings()`で開始・停止と共通のロックを取り、保存値の読み出しから検出器の選択、`applyConfig()`への予約までを直列化する。エンドポイントごとのロックだけでは、先に作った広い範囲のスナップショットが後から予約されるためである。ワーカーは`_applyPending()`で範囲をまとめて更新する。旧形式の`region`だけの内部更新も、ウィンドウ用として扱う。
+
+設定ページは`/get/data/ocr_capture_status`を1秒ごとに取得し、現在の取り込み元、画像待ち、停止中を表示する。取得は状態の読み出しだけで、キャプチャを開始しない。Windowsでは両方の範囲をスライダーと模式図で編集でき、Linuxではウィンドウ側だけを表示する。編集によって取り込み元を切り替えたり、OCRをオンにしたりはしない。
+
 ### ocr_bubble_detector.py — 吹き出し検出（YOLOX-Tiny / ONNX）
 - 収集したVRChatのスクリーンショットで学習した検出モデルで、吹き出しの矩形を直接得る
 - 推論は onnxruntime のみ（faster-whisper が Silero VAD 用に既に依存しているので追加依存なし）。
@@ -356,6 +366,8 @@ UIは言語の待機を解除してその値へ戻し、稼働スイッチと既
 | `OCR_POLL_INTERVAL_MS` | int | 750 | キャプチャ間隔（100〜5000） |
 | `OCR_MIN_CONFIDENCE` | float | 0.85 | OCR 信頼度の下限（0.1〜0.99）。PP-OCRは誤読時もスコアが高く、実測では 0.55 で誤りを1件も落とせず、0.85 なら正解を失わずに誤りの34%を落とせた |
 | `OCR_BUBBLE_MIN_TEXT_LENGTH` | int | 2 | 最小テキスト長（1〜50） |
+| `OCR_CAPTURE_REGION` | dict | `{x: 0, y: 0, width: 1, height: 1}` | デスクトップウィンドウ内の範囲。旧版の単一範囲を引き継ぐ |
+| `OCR_VR_CAPTURE_REGION` | dict | `{x: 0, y: 0, width: 1, height: 1}` | SteamVRの左目側の映像内の範囲。未保存なら映像全体 |
 
 値域・選択肢は config のディスクリプタ（`allowed=`）で検証する。setter は他の設定と同じく
 `@_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)` を付け、不正値は

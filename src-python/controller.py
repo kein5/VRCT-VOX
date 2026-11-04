@@ -330,6 +330,7 @@ _SIMPLE_CONFIG_GETTERS = {
     "getOcrMinConfidence": "OCR_MIN_CONFIDENCE",
     "getOcrBubbleMinTextLength": "OCR_BUBBLE_MIN_TEXT_LENGTH",
     "getOcrCaptureRegion": "OCR_CAPTURE_REGION",
+    "getOcrVrCaptureRegion": "OCR_VR_CAPTURE_REGION",
     "getOcrChatboxFilter": "OCR_CHATBOX_FILTER",
     "getOcrUseChatboxDetector": "OCR_USE_CHATBOX_DETECTOR",
 }
@@ -5145,6 +5146,18 @@ class Controller:
         downloads = getattr(self, "model_downloads", None)
         return getattr(downloads, "root", None)
 
+    @staticmethod
+    def getOcrCaptureStatus(*args, **kwargs) -> dict:
+        """Read worker state only; never probe devices or load models for polling."""
+        pipeline = getattr(model, "ocr_pipeline", None)
+        active = bool(config.ENABLE_OCR_CAPTURE and pipeline is not None and pipeline.is_alive)
+        capture = getattr(pipeline, "_capture", None) if active else None
+        return {"status": 200, "result": {
+            "active": active,
+            "source": getattr(capture, "source", None),
+            "available_sources": ocr_capture.availableCaptureSources(),
+        }}
+
     def getOcrReadiness(self, *args, **kwargs) -> dict:
         """What chat reading still needs before it can start (models, window).
 
@@ -5970,6 +5983,15 @@ class Controller:
         config.OCR_CAPTURE_REGION = data
         model.updateOCRCaptureSettings()
         return {"status":200, "result":config.OCR_CAPTURE_REGION}
+
+    @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
+    def setOcrVrCaptureRegion(data, *args, **kwargs) -> dict:
+        if isinstance(data, dict):
+            data = {k: round(v, 4) if isinstance(v, float) else v for k, v in data.items()}
+        config.OCR_VR_CAPTURE_REGION = data
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_VR_CAPTURE_REGION}
 
     @staticmethod
     def setEnableOcrChatboxFilter(*args, **kwargs) -> dict:

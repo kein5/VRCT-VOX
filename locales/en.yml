@@ -715,8 +715,20 @@ config_page:
         bubble_min_text_length:
             label: "Minimum text length"
             desc: "Bubbles with fewer characters than this are ignored. Default: 2."
+        capture_source:
+            checking: "Checking the capture source…"
+            stopped: "Chat reading is off."
+            waiting: "Waiting for a frame from VRChat."
+            window: "Currently reading the desktop window."
+            vr: "Currently reading the SteamVR headset view (left eye)."
         detection: "Where to read"
         region:
+            window_label: "Desktop window reading area"
+            vr_label: "SteamVR headset reading area"
+            source_switch: "Windows switches automatically between the desktop window and the headset view. Each uses its own reading area. Editing an area does not switch the capture source."
+            vr_desc: "Set the area as a percentage of the headset's left-eye view. It is separate from the desktop window area and starts as the whole view."
+            vr_reset: "Use the whole headset view"
+            vr_preview_label: "Reading area within the SteamVR headset view"
             label: "Reading area"
             desc: "Part of the VRChat window to read, in percent of its width and height. Chat bubbles float above avatars, so an area that covers only where they appear is faster and picks up less world text. Default: the whole window."
             x: "Left (%)"

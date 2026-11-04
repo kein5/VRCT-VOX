@@ -272,6 +272,9 @@ def render_config() -> str:
     out = [HEADER, "# 設定キー一覧\n",
            "`src-python/config.py`の`Config`クラス（`ManagedProperty`と`ValidatedProperty`）と`init_config()`の既定値から生成した。"
            "保存の仕組み（2秒の遅延、置き換えによる書き込み、読み込み時の検証）は[データ形式と保存](../data-and-persistence.md)にある。\n",
+           "チャット読み取りの`OCR_CAPTURE_REGION`はデスクトップウィンドウ用、`OCR_VR_CAPTURE_REGION`はSteamVRの左目側の映像用。"
+           "旧版の単一範囲はウィンドウ用に保持し、未保存のVR側には全体を補う。"
+           "[範囲の形と移行](../data-and-persistence.md#チャット読み取りの範囲)を参照。\n",
            f"## config.jsonに保存するキー（{len(persisted)}件）\n",
            table(["キー", "型・検証", "既定値", "保存"], persisted),
            f"\n## 保存しないキー（{len(runtime)}件）\n",

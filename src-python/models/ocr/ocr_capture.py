@@ -45,6 +45,10 @@ CAPTURE_WINDOW_NOT_FOUND = "window_not_found"
 CAPTURE_UNAVAILABLE = "capture_unavailable"
 
 
+def availableCaptureSources() -> list[str]:
+    return ["window", "vr"] if sys.platform == "win32" else ["window"]
+
+
 def _isSteamvrRunning() -> bool:
     return isProcessRunning("vrmonitor.exe" if os.name == "nt" else "vrmonitor")
 
@@ -94,6 +98,7 @@ class OcrCapture:
         # 実際にフレームが取れた経路。VRとデスクトップを5秒ごとに試し直すので、
         # 試した経路ではなく取れた経路が変わったときだけログに出す。
         self._source = self.BACKEND_NONE
+        self._frame_source = None
         self._last_check = 0.0
         self._failures = OcrFailureLog("OCR capture", lambda: errorLogging(), lambda message: printLog(message))
 
@@ -103,7 +108,8 @@ class OcrCapture:
             return self._backend
         self._last_check = now
 
-        want_openvr = _isSteamvrRunning()
+        # The D3D11 mirror is a Windows source; Linux only reads X11 windows.
+        want_openvr = sys.platform == "win32" and _isSteamvrRunning()
         if want_openvr:
             if self._openvr is None:
                 candidate = OpenVRMirrorCapture()
@@ -123,6 +129,7 @@ class OcrCapture:
         return self._backend
 
     def _noteSource(self, backend: str) -> None:
+        self._frame_source = "vr" if backend == self.BACKEND_OPENVR else "window"
         if self._source != backend:
             printLog(f"OCR capture backend -> {backend}")
             self._source = backend
@@ -130,6 +137,11 @@ class OcrCapture:
     @property
     def backend(self) -> str:
         return self._backend
+
+    @property
+    def source(self) -> Optional[str]:
+        """Surface of the latest get() result, or None when no frame was read."""
+        return self._frame_source
 
     def get(self) -> Optional[np.ndarray]:
         self._failures.report(time.monotonic())
@@ -144,6 +156,7 @@ class OcrCapture:
                     # surface. Only reject a truly uniform frame.
                     # Exact and cheap (12 ms at 2575x1455; np.var on the whole frame took 170 ms).
                     if frame.min() == frame.max():
+                        self._frame_source = None
                         return None
                     self._noteSource(self.BACKEND_OPENVR)
                     self._failures.success()
@@ -158,12 +171,14 @@ class OcrCapture:
                 # A minimized or occluded window keeps returning a stale black
                 # buffer, so the stricter thresholds earn their keep here.
                 if isFrameBlank(frame):
+                    self._frame_source = None
                     return None
                 self._noteSource(self._window_backend)
                 self._failures.success()
                 return frame
         except Exception as exc:
             self._failures.failure(exc)
+        self._frame_source = None
         return None
 
     def close(self) -> None:
@@ -180,3 +195,4 @@ class OcrCapture:
             self._openvr = None
         self._backend = self.BACKEND_NONE
         self._source = self.BACKEND_NONE
+        self._frame_source = None
