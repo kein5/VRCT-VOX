@@ -50,7 +50,7 @@ try:
 except Exception:  # pragma: no cover - optional runtime
     ocr_selectable_languages = ()  # type: ignore
 
-from utils import errorLogging, printLog, validateDictStructure, getComputeDeviceList, isValidIpAddress, isWildcardBindAddress
+from utils import errorLogging, printLog, validateDictStructure, getComputeDeviceList, isValidPort, isValidWebSocketHost
 
 # NOTE: MIC_VAD_FILTER/SPEAKER_VAD_FILTER/MIC_VAD_PARAMETERS/SPEAKER_VAD_PARAMETERS と
 # 対応する migration ヘルパは ADR-0004 でストリーミング/VAD 独自実装を撤退した際に
@@ -1144,7 +1144,7 @@ class Config:
     SPEECH_SERVER_SETTINGS = ValidatedProperty('SPEECH_SERVER_SETTINGS', lambda value, instance: normalize_speech_server_settings(value))
     WEBSOCKET_SERVER = ManagedProperty('WEBSOCKET_SERVER', type_=bool)
     OSC_IP_ADDRESS = ManagedProperty('OSC_IP_ADDRESS', type_=str)
-    OSC_PORT = ManagedProperty('OSC_PORT', type_=int)
+    OSC_PORT = ManagedProperty('OSC_PORT', type_=int, allowed=lambda v, inst: isValidPort(v))
     AUTO_CLEAR_MESSAGE_BOX = ManagedProperty('AUTO_CLEAR_MESSAGE_BOX', type_=bool)
     SEND_ONLY_TRANSLATED_MESSAGES = ManagedProperty('SEND_ONLY_TRANSLATED_MESSAGES', type_=bool)
     OVERLAY_SMALL_LOG = ManagedProperty('OVERLAY_SMALL_LOG', type_=bool)
@@ -1169,13 +1169,12 @@ class Config:
     # 入力検証だけでは、config.json に (過去バージョンや手動編集で)
     # 0.0.0.0 が既に保存されているケースを防げない。load_config() の
     # setattr() はディスクリプタ経由なのでこの allowed もそこで効き、
-    # 起動時に無認証の WebSocket サーバーを全インターフェースへ
-    # bind してしまう経路を塞ぐ。
+    # 全インターフェースへのbindを防ぐ。OBSと事前確認に合わせてIPv4に限る。
     WEBSOCKET_HOST = ManagedProperty(
         'WEBSOCKET_HOST', type_=str,
-        allowed=lambda v, inst: isValidIpAddress(v) and not isWildcardBindAddress(v),
+        allowed=lambda v, inst: isValidWebSocketHost(v),
     )
-    WEBSOCKET_PORT = ManagedProperty('WEBSOCKET_PORT', type_=int)
+    WEBSOCKET_PORT = ManagedProperty('WEBSOCKET_PORT', type_=int, allowed=lambda v, inst: isValidPort(v))
     # WebSocket サーバーへの接続トークン。127.0.0.1 バインドや Origin
     # ヘッダーだけでは「同じ PC 上で開いた任意の Web ページの JS が直接
     # ws://127.0.0.1:PORT に接続してマイク/スピーカーの文字起こしを
@@ -1184,11 +1183,14 @@ class Config:
     # 使う。初回起動時に 1 回だけ生成し、以降は config.json に永続化する
     # (プロセス起動ごとに変えると、OBS Browser Source や外部連携ツール
     # (例: VRCT-TTS) が再起動のたびに接続できなくなってしまうため)。
-    WEBSOCKET_AUTH_TOKEN = ManagedProperty('WEBSOCKET_AUTH_TOKEN', type_=str)
+    WEBSOCKET_AUTH_TOKEN = ManagedProperty(
+        'WEBSOCKET_AUTH_TOKEN', type_=str,
+        allowed=lambda v, inst: isinstance(v, str) and bool(v.strip()),
+    )
 
     # --- OBS Browser Source (overlay for OBS) ---
     OBS_BROWSER_SOURCE = ManagedProperty('OBS_BROWSER_SOURCE', type_=bool)
-    OBS_BROWSER_SOURCE_PORT = ManagedProperty('OBS_BROWSER_SOURCE_PORT', type_=int)
+    OBS_BROWSER_SOURCE_PORT = ManagedProperty('OBS_BROWSER_SOURCE_PORT', type_=int, allowed=lambda v, inst: isValidPort(v))
     OBS_BROWSER_SOURCE_MAX_MESSAGES = ManagedProperty('OBS_BROWSER_SOURCE_MAX_MESSAGES', type_=int)
     OBS_BROWSER_SOURCE_DISPLAY_DURATION = ManagedProperty('OBS_BROWSER_SOURCE_DISPLAY_DURATION', type_=int)
     OBS_BROWSER_SOURCE_FADEOUT_DURATION = ManagedProperty('OBS_BROWSER_SOURCE_FADEOUT_DURATION', type_=int)

@@ -3,6 +3,7 @@ import styles from "./AdvancedSettings.module.scss";
 import { DirectVoiceSettings } from "./DirectVoiceSettings";
 import { AutoExportMessageLogsContainer } from "../shared_items/SharedItems";
 import { Description } from "../_components/description/Description";
+import { parsePortInput, PORT_INPUT_LIMITS } from "../../../../../../logics/configs/networkPortInput";
 import { buildObsBrowserSourceUrl } from "../../../../../../logics/configs/obsBrowserSourceUrl";
 
 import { useCopyToClipboard, useOpenFolder } from "@logics_common";
@@ -77,12 +78,12 @@ export const OscPortContainer = () => {
     const { variable, onChangeFunction: rawOnChange, saveFunction } = useSaveButtonLogic({
         variable: currentOscPort.data,
         state: currentOscPort.state,
-        setFunction: setOscPort,
+        setFunction: (value) => setOscPort(parsePortInput(value)),
         label: t("config_page.advanced_settings.osc_port.label"),
     });
 
     const onChangeFunction = (value) => {
-        rawOnChange(value.replace(/[^0-9]/g, ""));
+        if (value === "" || parsePortInput(value) !== null) rawOnChange(value);
     };
 
     return (
@@ -94,6 +95,7 @@ export const OscPortContainer = () => {
             state={currentOscPort.state}
             width="10rem"
             type="number"
+            {...PORT_INPUT_LIMITS}
         />
     );
 };
@@ -178,12 +180,12 @@ const WebsocketPortContainer = () => {
     const { variable, onChangeFunction: rawOnChange, saveFunction } = useSaveButtonLogic({
         variable: currentWebsocketPort.data,
         state: currentWebsocketPort.state,
-        setFunction: setWebsocketPort,
+        setFunction: (value) => setWebsocketPort(parsePortInput(value)),
         label: t("config_page.advanced_settings.websocket_port.label"),
     });
 
     const onChangeFunction = (value) => {
-        rawOnChange(value.replace(/[^0-9]/g, ""));
+        if (value === "" || parsePortInput(value) !== null) rawOnChange(value);
     };
 
     return (
@@ -195,6 +197,7 @@ const WebsocketPortContainer = () => {
             state={currentWebsocketPort.state}
             width="10rem"
             type="number"
+            {...PORT_INPUT_LIMITS}
         />
     );
 };
@@ -293,12 +296,12 @@ const ObsBrowserSourcePortContainer = () => {
     const { variable, onChangeFunction: rawOnChange, saveFunction } = useSaveButtonLogic({
         variable: currentObsBrowserSourcePort.data,
         state: currentObsBrowserSourcePort.state,
-        setFunction: setObsBrowserSourcePort,
+        setFunction: (value) => setObsBrowserSourcePort(parsePortInput(value)),
         label: t("config_page.advanced_settings.obs_browser_source_port.label"),
     });
 
     const onChangeFunction = (value) => {
-        rawOnChange(value.replace(/[^0-9]/g, ""));
+        if (value === "" || parsePortInput(value) !== null) rawOnChange(value);
     };
 
     return (
@@ -310,6 +313,7 @@ const ObsBrowserSourcePortContainer = () => {
             state={currentObsBrowserSourcePort.state}
             width="10rem"
             type="number"
+            {...PORT_INPUT_LIMITS}
         />
     );
 };

@@ -30,7 +30,7 @@ def _free_port() -> int:
 
 @pytest.fixture
 def server():
-    instance = WebSocketServer(host="127.0.0.1", port=_free_port())
+    instance = WebSocketServer(host="127.0.0.1", port=_free_port(), token="test-token")
     instance.start(timeout=5.0)
     yield instance
     instance.stop()
@@ -49,7 +49,7 @@ def _client_that_never_reads(port: int) -> socket.socket:
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
     sock.connect(("127.0.0.1", port))
     key = base64.b64encode(os.urandom(16)).decode()
-    sock.sendall((f"GET / HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nUpgrade: websocket\r\n"
+    sock.sendall((f"GET /?token=test-token HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nUpgrade: websocket\r\n"
                   f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").encode())
     response = b""
     while b"\r\n\r\n" not in response:
@@ -61,23 +61,23 @@ def _client_that_never_reads(port: int) -> socket.socket:
 def test_a_client_that_stops_reading_does_not_stall_the_others(server):
     slow = _client_that_never_reads(server.port)
     try:
-        with connect(f"ws://127.0.0.1:{server.port}/") as fast:
+        with connect(f"ws://127.0.0.1:{server.port}/?token=test-token") as fast:
             _wait_for_clients(server, 2)
             payload = "x" * 60_000
             total = 600  # about 36 MB: far more than the slow client's socket buffers hold
-            for index in range(total):
-                server.send(f"{index}:{payload}")
             received = []
-            deadline = time.monotonic() + 10
-            while len(received) < total and time.monotonic() < deadline:
-                received.append(fast.recv(timeout=deadline - time.monotonic()).split(":", 1)[0])
+            for index in range(total):
+                # Keep the healthy peer reading while output is produced.
+                # An unbounded producer burst now correctly rejects admission.
+                server.send(f"{index}:{payload}")
+                received.append(fast.recv(timeout=5).split(":", 1)[0])
             assert received == [str(index) for index in range(total)]
     finally:
         slow.close()
 
 
 def test_incoming_messages_over_the_limit_close_the_connection(server):
-    with connect(f"ws://127.0.0.1:{server.port}/") as client:
+    with connect(f"ws://127.0.0.1:{server.port}/?token=test-token") as client:
         _wait_for_clients(server, 1)
         client.send("y" * (_MAX_INCOMING_MESSAGE_SIZE + 1))
         with pytest.raises(Exception):

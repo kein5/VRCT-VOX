@@ -186,7 +186,7 @@ backend_errors:
     TRANSCRIPTION_RECEIVE_DISABLED_VRAM: "Listening was turned off because GPU memory ran out."
     VALIDATION_INVALID_IP: "That IP address is not in a valid format."
     VALIDATION_CANNOT_SET_IP: "That IP address cannot be used."
-    VALIDATION_OSC_PORT_INVALID: "Enter the OSC port as a number."
+    VALIDATION_OSC_PORT_INVALID: "Enter an OSC port from 1 to 65535 using whole numbers."
     AUTH_PLAMO_LENGTH: "The Plamo API key has the wrong length."
     AUTH_PLAMO_FAILED: "The Plamo API key could not be verified. Check that the key is correct."
     AUTH_GEMINI_LENGTH: "The Gemini API key has the wrong length."
@@ -213,11 +213,11 @@ backend_errors:
     CONNECTION_OPENAI_COMPATIBLE_URL_INVALID: "The OpenAI-compatible endpoint URL is not valid."
     WEBSOCKET_HOST_INVALID: "That host cannot be used for the WebSocket server."
     WEBSOCKET_PORT_UNAVAILABLE: "Another app is using the WebSocket port. Choose a different port."
-    WEBSOCKET_PORT_INVALID: "Enter the WebSocket port as a number."
+    WEBSOCKET_PORT_INVALID: "Enter a WebSocket port from 1 to 65535 using whole numbers."
     WEBSOCKET_SERVER_UNAVAILABLE: "The WebSocket server cannot start. Check that no other app is using its host and port."
     OBS_BROWSER_SOURCE_HOST_UNAVAILABLE: "That host cannot be used for the OBS browser source server."
     OBS_BROWSER_SOURCE_PORT_UNAVAILABLE: "Another app is using the OBS browser source port. Choose a different port."
-    OBS_BROWSER_SOURCE_PORT_INVALID: "Enter a number for the OBS browser source port."
+    OBS_BROWSER_SOURCE_PORT_INVALID: "Enter an OBS browser source port from 1 to 65535 using whole numbers."
     OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE: "The OBS browser source server cannot start. Check that no other app is using its port."
     OBS_BROWSER_SOURCE_MAX_MESSAGES_INVALID: "Enter the maximum number of messages as a number."
     OBS_BROWSER_SOURCE_DISPLAY_DURATION_INVALID: "Enter the display time as a number."
@@ -826,7 +826,7 @@ config_page:
             label: "Enable WebSocket Server"
             locked_by_obs_browser_source: "Disable OBS Browser Source to change this"
         websocket_host:
-            label: "WebSocket Host"
+            label: "WebSocket Host (IPv4)"
         websocket_port:
             label: "WebSocket Port"
         websocket_url:

@@ -75,7 +75,7 @@
 
 ## 秘密情報
 
-- APIキーとWebSocketのトークンは`config.json`に平文で保存する。ファイルの権限は0600である。
+- APIキーとWebSocketのトークンは`config.json`に平文で保存する。ファイルの権限は0600である。WebSocketのトークンが不正な保存値なら新しい秘密値で修復し、空のトークンでサーバーを起動しない（[ネットワーク設定](data-and-persistence.md#ネットワーク設定)）。
 - ログでは、名前に`auth_key`、`api_key`、`password`、`token`、`secret`、`voice_settings`、`instructions`を含む項目の値を`***MASKED***`にする。会話の本文は診断ログに書かない。
 - VRパネルからの要求は、APIキー、トークン、モデル取得、ファイルを開く操作、終了、更新を通さない（`src-ui/logics/common/vrPanelWire.js`）。
 - 設定画面のAPIキー欄は、保存済みのキーを「編集」の覆いで隠し、スペルチェックと自動補完を切る。

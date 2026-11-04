@@ -42,6 +42,9 @@ const _Entry = forwardRef((props, ref) => {
                     aria-label={props["aria-label"] ?? (typeof props.label === "string" ? props.label : undefined)}
                     type={props.type || "text"}
                     inputMode={props.inputMode}
+                    min={props.min}
+                    max={props.max}
+                    step={props.step}
                     ref={inputRef}
                     placeholder={props.placeholder ? props.placeholder : ""}
                     className={input_class_names}
