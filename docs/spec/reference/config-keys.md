@@ -43,10 +43,10 @@
 | `MIC_ENABLE_VAD` | bool | `False` | 2秒後にまとめて |
 | `SPEAKER_ENABLE_VAD` | bool | `False` | 2秒後にまとめて |
 | `AUTH_KEYS` | 検証 lambda val, inst: {k: val[k] if k in val and isinstance(val[k], (str, type(None))) else inst.AUTH_KEYS.get(k) for k in inst.AUTH_KEYS.keys()} if isinstance(val, dict) else None | `{'DeepL_API': None, 'Plamo_API': None, 'Gemini_API': None, 'OpenAI_API': None, 'OpenAI_…` | 2秒後にまとめて |
-| `LMSTUDIO_URL` | str | `'http://127.0.0.1:1234/v1'` | 2秒後にまとめて |
-| `OPENAI_COMPATIBLE_URL` | str | `'https://api.openai.com/v1'` | 2秒後にまとめて |
+| `LMSTUDIO_URL` | str、許可値 lambda value, inst: valid_saved_api_url(value) | `'http://127.0.0.1:1234/v1'` | 2秒後にまとめて |
+| `OPENAI_COMPATIBLE_URL` | str、許可値 lambda value, inst: valid_saved_api_url(value) | `'https://api.openai.com/v1'` | 2秒後にまとめて |
 | `TRANSCRIPTION_AUTH_KEYS` | 検証 lambda val, inst: {k: val[k] if k in val and isinstance(val[k], (str, type(None))) else inst.TRANSCRIPTION_AUTH_KEYS.get(k) for k in inst.TRANSCRIPTION_AUTH_KEYS.keys()} if isinstance(val, dict) else None | `{'Groq_Whisper': None, 'OpenAI_Whisper': None, 'Custom_Whisper': None, 'Deepgram': None}` | 2秒後にまとめて |
-| `TRANSCRIPTION_CUSTOM_URL` | str | `''` | 2秒後にまとめて |
+| `TRANSCRIPTION_CUSTOM_URL` | str、許可値 lambda value, inst: valid_saved_api_url(value) | `''` | 2秒後にまとめて |
 | `SELECTED_TRANSCRIPTION_COMPUTE_TYPE` | 検証 _selected_transcription_compute_type_validator | `'auto'` | 2秒後にまとめて |
 | `OVERLAY_SMALL_LOG_SETTINGS` | 検証 _overlay_small_validator | `{'x_pos': 0.0, 'y_pos': 0.0, 'z_pos': 0.0, 'x_rotation': 0.0, 'y_rotation': 0.0, 'z_rot…` | 2秒後にまとめて |
 | `OVERLAY_LARGE_LOG_SETTINGS` | 検証 _overlay_large_validator | `{'x_pos': 0.0, 'y_pos': 0.0, 'z_pos': 0.0, 'x_rotation': 0.0, 'y_rotation': 0.0, 'z_rot…` | 2秒後にまとめて |

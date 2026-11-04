@@ -1,3 +1,6 @@
+from models.diagnostics import provider_errors
+from utils import errorLogging
+from models.network_policy import without_tracing, chat_http_clients, fetch_openai_models
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
@@ -19,9 +22,10 @@ except Exception:
 
 BASE_URL = "https://api.platform.preferredai.jp/v1"
 
+@provider_errors("Plamo")
 def _fetch_models(api_key: str):
     """モデル一覧を取得する。成功すればキーは有効 (認証の確認を兼ねる)。失敗は例外。"""
-    return OpenAI(api_key=api_key, base_url=BASE_URL).models.list()
+    return fetch_openai_models(OpenAI, api_key, BASE_URL)
 
 def _text_models(res) -> list[str]:
     """Extract all available models from the PLAMO API
@@ -34,10 +38,13 @@ def _text_models(res) -> list[str]:
     allowed_models.sort()
     return allowed_models
 
+@provider_errors("Plamo")
 def _get_available_text_models(api_key: str) -> list[str]:
     return _text_models(_fetch_models(api_key))
 
 class PlamoClient(RecentModelList):
+    provider_name = "Plamo"
+
     def __init__(self, root_path: str = None):
         self.api_key = None
         self.base_url = BASE_URL
@@ -59,6 +66,7 @@ class PlamoClient(RecentModelList):
 
         self.plamo_llm = None
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def getModelList(self) -> list[str]:
         if not self.api_key:
             return []
@@ -67,10 +75,12 @@ class PlamoClient(RecentModelList):
     def getAuthKey(self) -> str:
         return self.api_key
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def setAuthKey(self, api_key: str) -> bool:
         try:
             res = _fetch_models(api_key)
         except Exception:
+            errorLogging(provider=self.provider_name)
             return False
         self.api_key = api_key
         self._rememberFromAuth(lambda: _text_models(res))
@@ -79,11 +89,14 @@ class PlamoClient(RecentModelList):
     def getModel(self) -> str:
         return self.model
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def updateClient(self) -> None:
         self.plamo_llm = ChatOpenAI(
             base_url=self.base_url,
             model=self.model,
             streaming=False,
+            **chat_http_clients(BASE_URL, CLOUD_LLM_TIMEOUT),
             timeout=CLOUD_LLM_TIMEOUT,
             max_retries=1,
             api_key=SecretStr(self.api_key),
@@ -99,6 +112,8 @@ class PlamoClient(RecentModelList):
         """
         self._context_history = history_items or []
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def translate(self, text: str, input_lang: str, output_lang: str) -> str:
         system_prompt = self.prompt_template.format(
             supported_languages=self.supported_languages,

@@ -1,3 +1,4 @@
+import { endpointDescription } from "../../../../../../logics/common/endpointPrivacy";
 import { SpeechServers } from "../advanced_settings/SpeechServers";
 import { useI18n } from "@useI18n";
 import styles from "./Transcription.module.scss";
@@ -248,24 +249,24 @@ export const TranscriptionEngine_Box = () => {
     });
 
     return (
-        <>
-            <RadioButtonContainer
-                label={t("config_page.transcription.select_transcription_engine.label")}
-                desc={t("config_page.transcription.select_transcription_engine.desc")}
-                selectFunction={setSelectedTranscriptionEngine}
-                name="select_transcription_engine"
-                options={[
-                    { id: "Google", label: "Google" },
-                    { id: "Whisper", label: "Whisper" },
-                    ...cloud_options,
-                ]}
-                checked_variable={currentSelectedTranscriptionEngine}
-            />
-            <p role="status">{t("transcription_consent.selected", {
-                engine: currentSelectedTranscriptionEngine.data || t("transcription_consent.unselected"),
-            })}</p>
-            {currentSelectedTranscriptionEngine.data === "Google" && <p>{t("transcription_consent.google_notice")}</p>}
-        </>
+        <RadioButtonContainer
+            label={t("config_page.transcription.select_transcription_engine.label")}
+            desc={<span className={styles.engine_help}>
+                <span>{t("config_page.transcription.select_transcription_engine.desc")}</span>
+                <span role="status">{t("transcription_consent.selected", {
+                    engine: currentSelectedTranscriptionEngine.data || t("transcription_consent.unselected"),
+                })}</span>
+                {currentSelectedTranscriptionEngine.data === "Google" && <span>{t("transcription_consent.google_notice")}</span>}
+            </span>}
+            selectFunction={setSelectedTranscriptionEngine}
+            name="select_transcription_engine"
+            options={[
+                { id: "Google", label: "Google" },
+                { id: "Whisper", label: "Whisper" },
+                ...cloud_options,
+            ]}
+            checked_variable={currentSelectedTranscriptionEngine}
+        />
     );
 };
 
@@ -313,7 +314,7 @@ const CloudURL_Box = ({ engine }) => {
     return (
         <EntryWithSaveButtonContainer
             label={label}
-            desc={t(`config_page.transcription.${engine.key}_url.desc`)}
+            desc={endpointDescription(variable, t(`config_page.transcription.${engine.key}_url.desc`), t)}
             variable={variable}
             saveFunction={saveFunction}
             onChangeFunction={onChangeFunction}

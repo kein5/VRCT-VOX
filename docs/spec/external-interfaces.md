@@ -79,10 +79,10 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 
 | サービス | 接続先 | 認証 | 使う時 |
 |---|---|---|---|
-| DeepL | DeepLのSDKの既定 | APIキー | キーの確認と翻訳 |
+| DeepL | `https://api.deepl.com`（Freeキーは`https://api-free.deepl.com`） | APIキー | キーの確認と翻訳 |
 | Plamo | `https://api.platform.preferredai.jp/v1` | APIキー | キーの確認、モデル一覧、翻訳 |
-| Gemini | google-genaiのSDK | APIキー | 同上 |
-| OpenAI | OpenAIのSDKの既定 | APIキー | 同上 |
+| Gemini | `https://generativelanguage.googleapis.com`（Developer API） | APIキー | 同上 |
+| OpenAI | `https://api.openai.com/v1` | APIキー | 同上 |
 | Groq（翻訳） | `https://api.groq.com/openai/v1` | APIキー | 同上 |
 | OpenRouter | `https://openrouter.ai/api/v1` | APIキー | 同上 |
 | OpenAI互換（翻訳） | `OPENAI_COMPATIBLE_URL` | APIキー | 同上 |
@@ -94,9 +94,12 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 | カスタムWhisperサーバー | `TRANSCRIPTION_CUSTOM_URL` | APIキー（不要なサーバーでも任意の文字列） | 同上 |
 | Deepgram | `https://api.deepgram.com/v1` | `Authorization: Token <キー>` | キーの確認（`/auth/token`）、モデル一覧（`/models`）、発話ごとの`/listen` |
 | Hugging Face | `https://huggingface.co/{repo}/resolve/{rev}/{path}` | なし | 利用者が同意したモデルの取得。接続先はhuggingface.coとそのCDNに限る |
-| 接続の確認 | `https://www.google.com` | なし | 起動時に1回（3秒） |
+| 接続の確認 | `https://huggingface.co/`へのHEAD | なし | 起動時の自動取得がオンで、固定版への保存済み同意があり、ファイルが不足している場合だけ1回（3秒）。プロキシ・リダイレクトは使わない |
 
 - クラウドの音声認識の仕様への準拠は`docs/transcription_stt_api_integration_plan.md`と各サービスの公式文書で確かめる。
+- 自動取得を予定していない起動では接続確認を送らない。`/run/connected_network`の`null`は未確認、真偽値は取得ホストへの確認結果を表す。UIは`false`のときだけ接続エラーを表示する。この値だけでGoogle音声認識などを使えない状態にはせず、各要求の成否で判定する。
+- 公式APIの接続先はコードで固定する。環境変数によるOpenAI・GeminiのURL変更、LangSmith gateway、OllamaのAPIキーは使わない。クラウドHTTPSではシステムのプロキシを使える。Requestsの認証は登録済みヘッダーを保ち、netrcの認証情報へ置き換えない。localhostとローカルIPアドレスへのAPI接続ではプロキシを使わない。APIのリダイレクトは追わず、モデル取得だけは既存のHTTPSホスト許可リストに従う。
+- カスタムURLの許可範囲と保存時の扱いは[ネットワーク設定](data-and-persistence.md#ネットワーク設定)を参照する。
 - 更新の確認とテレメトリーは送信しない（[横断的な振る舞い](cross-cutting.md#同意と外部への送信)）。
 
 ### LLMでの翻訳

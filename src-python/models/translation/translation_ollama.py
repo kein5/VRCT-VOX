@@ -1,4 +1,6 @@
-import requests
+from models.diagnostics import provider_errors
+from utils import errorLogging
+from models.network_policy import without_tracing, api_request, discovery
 from langchain_ollama import ChatOllama
 
 try:
@@ -16,26 +18,32 @@ except Exception:
     from translation_timeouts import LOCAL_LLM_TIMEOUT
     translation_lang = loadTranslationLanguages(path=".", force=True)
 
+@provider_errors("Ollama")
+@discovery
 def _authentication_check(base_url: str | None = None) -> bool:
     """Check authentication for Ollama API.
     """
     try:
-        response = requests.get(f"{base_url}", timeout=0.2)
+        response = api_request("GET", f"{base_url}", timeout=0.2)
         if response.status_code == 200:
             return True
         else:
             return False
     except Exception:
+        errorLogging(provider="Ollama")
         return False
 
+@provider_errors("Ollama")
+@discovery
 def _get_available_text_models(base_url: str | None = None) -> list[str]:
     """Extract available text models from Ollama.
     """
     try:
         # 起動時の確認はこの応答を待つ。応答が止まったサーバーで起動が終わらなくならないよう、時間を区切る
-        response = requests.get(f"{base_url}/api/tags", timeout=2)
+        response = api_request("GET", f"{base_url}/api/tags", timeout=2)
         models = response.json()["models"]
     except Exception:
+        errorLogging(provider="Ollama")
         models = []
 
     allowed_models = []
@@ -49,6 +57,8 @@ class OllamaClient(RecentModelList):
     """Ollama Translation simple wrapper.
     prompt/translation_ollama.yml から system_prompt / supported_languages を読み込む。
     """
+    provider_name = "Ollama"
+
     def __init__(self, root_path: str = None):
         self.model = None
         self.base_url = "http://localhost:11434"
@@ -72,6 +82,7 @@ class OllamaClient(RecentModelList):
     def authenticationCheck(self) -> bool:
         return _authentication_check(self.base_url)
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def getModelList(self) -> list[str]:
         if self.authenticationCheck():
             return self._remember(_get_available_text_models(self.base_url))
@@ -80,12 +91,14 @@ class OllamaClient(RecentModelList):
     def getModel(self) -> str:
         return self.model
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def updateClient(self) -> None:
         self.openai_llm = ChatOllama(
             base_url=self.base_url,
             model=self.model,
             streaming=False,
-            client_kwargs={"timeout": LOCAL_LLM_TIMEOUT},
+            client_kwargs={"timeout": LOCAL_LLM_TIMEOUT, "trust_env": False, "follow_redirects": False},
         )
 
     def setContextHistory(self, history_items: list[dict]) -> None:
@@ -98,6 +111,8 @@ class OllamaClient(RecentModelList):
         """
         self._context_history = history_items or []
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def translate(self, text: str, input_lang: str, output_lang: str) -> str:
         system_prompt = self.prompt_template.format(
             supported_languages=self.supported_languages,

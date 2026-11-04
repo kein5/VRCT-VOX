@@ -7,7 +7,7 @@ try:
     from .translation_languages import translation_lang
     from .translation_utils import MissingCTranslate2Tokenizer, resolveCTranslate2Weight, downloadCTranslate2Tokenizer
     from .translation_providers import TRANSLATION_PROVIDER_REGISTRY
-    from .translation_deepl import configureDeepLRuntimeTimeout
+    from .translation_deepl import authenticateDeepL
 except Exception:
     import sys
     sys.path.append(os_path.dirname(os_path.dirname(os_path.dirname(os_path.abspath(__file__)))))
@@ -15,9 +15,9 @@ except Exception:
     from translation_languages import translation_lang
     from translation_utils import MissingCTranslate2Tokenizer, resolveCTranslate2Weight, downloadCTranslate2Tokenizer
     from translation_providers import TRANSLATION_PROVIDER_REGISTRY
-    from translation_deepl import configureDeepLRuntimeTimeout
+    from translation_deepl import authenticateDeepL
 
-from utils import errorLogging, getBestComputeType, printLog
+from utils import errorLogging, getBestComputeType
 
 try:
     # Upstream VRCT bundles translator_engines (Google/Bing/Papago web
@@ -159,9 +159,7 @@ class Translator:
         SDK client construction must all succeed before the caller commits.
         """
         if engine_key == "DeepL_API":
-            client = DeepLClient(auth_key)
-            client.translate_text(" ", target_lang="EN-US")
-            configureDeepLRuntimeTimeout(client)
+            client = authenticateDeepL(DeepLClient, auth_key)
             return client, [], None
         if engine_key == "OpenAI_Compatible":
             client = OpenAICompatibleClient(base_url=base_url, root_path=root_path)
@@ -200,12 +198,9 @@ class Translator:
         # 失敗したときは、前のキーのクライアントを残す。保存したキーは消さないので、
         # 新しいキーを試して失敗しても、前のキーで翻訳を続けられる
         try:
-            client = DeepLClient(auth_key)
-            # quick smoke test
-            client.translate_text(" ", target_lang="EN-US")
-            configureDeepLRuntimeTimeout(client)
+            client = authenticateDeepL(DeepLClient, auth_key)
         except Exception:
-            errorLogging()
+            errorLogging(provider="DeepL")
             return False
         self.deepl_client = client
         return True
@@ -715,15 +710,11 @@ class Translator:
                         )
         except UnsupportedLanguageError:
             result = None
-        except Exception as exc:
+        except Exception:
             if translator_name == "CTranslate2":
                 errorLogging()
             else:
-                # SDK exceptions can embed credentials, URLs and request text.
-                # Keep only the engine and exception class in diagnostics.
-                printLog("Translation provider failed", {
-                    "engine": translator_name, "error_type": type(exc).__name__,
-                })
+                errorLogging(provider=translator_name)
             result = False
         return result
 

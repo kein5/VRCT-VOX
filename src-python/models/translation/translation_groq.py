@@ -1,3 +1,6 @@
+from models.diagnostics import provider_errors
+from utils import errorLogging
+from models.network_policy import without_tracing, chat_http_clients, fetch_openai_models
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
@@ -17,12 +20,10 @@ except Exception:
     from translation_timeouts import CLOUD_LLM_TIMEOUT
     translation_lang = loadTranslationLanguages(path=".", force=True)
 
+@provider_errors("Groq")
 def _fetch_models(api_key: str):
     """モデル一覧を取得する。成功すればキーは有効 (認証の確認を兼ねる)。失敗は例外。"""
-    return OpenAI(
-        api_key=api_key,
-        base_url="https://api.groq.com/openai/v1",
-    ).models.list()
+    return fetch_openai_models(OpenAI, api_key, "https://api.groq.com/openai/v1")
 
 def _text_models(res) -> list[str]:
     """Extract only Groq models suitable for translation and chat applications.
@@ -55,6 +56,7 @@ def _text_models(res) -> list[str]:
     allowed_models.sort()
     return allowed_models
 
+@provider_errors("Groq")
 def _get_available_text_models(api_key: str) -> list[str]:
     return _text_models(_fetch_models(api_key))
 
@@ -64,6 +66,8 @@ class GroqClient(RecentModelList):
     Groq provides a fast LLM inference platform with an OpenAI-compatible API.
     The API endpoint: https://api.groq.com/openai/v1
     """
+    provider_name = "Groq"
+
     def __init__(self, root_path: str = None):
         self.api_key = None
         self.model = None
@@ -85,6 +89,7 @@ class GroqClient(RecentModelList):
 
         self.groq_llm = None
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def getModelList(self) -> list[str]:
         if not self.api_key:
             return []
@@ -93,10 +98,12 @@ class GroqClient(RecentModelList):
     def getAuthKey(self) -> str:
         return self.api_key
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def setAuthKey(self, api_key: str) -> bool:
         try:
             res = _fetch_models(api_key)
         except Exception:
+            errorLogging(provider=self.provider_name)
             return False
         self.api_key = api_key
         self._rememberFromAuth(lambda: _text_models(res))
@@ -105,12 +112,15 @@ class GroqClient(RecentModelList):
     def getModel(self) -> str:
         return self.model
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def updateClient(self) -> None:
         self.groq_llm = ChatOpenAI(
             base_url=self.base_url,
             model=self.model,
             api_key=SecretStr(self.api_key),
             streaming=False,
+            **chat_http_clients("https://api.groq.com/openai/v1", CLOUD_LLM_TIMEOUT),
             timeout=CLOUD_LLM_TIMEOUT,
             max_retries=1,
         )
@@ -125,6 +135,8 @@ class GroqClient(RecentModelList):
         """
         self._context_history = history_items or []
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def translate(self, text: str, input_lang: str, output_lang: str) -> str:
         system_prompt = self.prompt_template.format(
             supported_languages=self.supported_languages,

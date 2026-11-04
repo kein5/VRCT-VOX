@@ -1,3 +1,6 @@
+from models.diagnostics import provider_errors
+from utils import errorLogging
+from models.network_policy import without_tracing, chat_http_clients, fetch_openai_models, OPENAI_BASE_URL, validate_api_url
 from openai import OpenAI
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
@@ -17,9 +20,10 @@ except Exception:
     from translation_timeouts import CLOUD_LLM_TIMEOUT
     translation_lang = loadTranslationLanguages(path=".", force=True)
 
+@provider_errors("OpenAI")
 def _fetch_models(api_key: str, base_url: str | None = None):
     """モデル一覧を取得する。成功すればキーは有効 (認証の確認を兼ねる)。失敗は例外。"""
-    return OpenAI(api_key=api_key, base_url=base_url).models.list()
+    return fetch_openai_models(OpenAI, api_key, base_url if base_url is not None else OPENAI_BASE_URL)
 
 def _text_models(res) -> list[str]:
     """Extract only GPT models suitable for translation and chat applications (plus those with fine-tuning)
@@ -56,6 +60,7 @@ def _text_models(res) -> list[str]:
     allowed_models.sort()
     return allowed_models
 
+@provider_errors("OpenAI")
 def _get_available_text_models(api_key: str, base_url: str | None = None) -> list[str]:
     return _text_models(_fetch_models(api_key, base_url))
 
@@ -63,10 +68,13 @@ class OpenAIClient(RecentModelList):
     """OpenAI Translation simple wrapper.
     prompt/translation_openai.yml から system_prompt / supported_languages を読み込む。
     """
+    provider_name = "OpenAI"
+
+    @without_tracing
     def __init__(self, base_url: str | None = None, root_path: str = None):
         self.api_key = None
         self.model = None
-        self.base_url = base_url  # None の場合は公式エンドポイント
+        self.base_url = validate_api_url(base_url if base_url is not None else OPENAI_BASE_URL)
 
         prompt_config = loadTranslatePromptConfig(root_path, "translation_openai.yml")
         self.supported_languages = list(translation_lang["OpenAI_API"]["source"].keys())
@@ -84,6 +92,7 @@ class OpenAIClient(RecentModelList):
 
         self.openai_llm = None
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def getModelList(self) -> list[str]:
         if not self.api_key:
             return []
@@ -92,10 +101,12 @@ class OpenAIClient(RecentModelList):
     def getAuthKey(self) -> str:
         return self.api_key
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def setAuthKey(self, api_key: str) -> bool:
         try:
             res = _fetch_models(api_key, self.base_url)
         except Exception:
+            errorLogging(provider=self.provider_name)
             return False
         self.api_key = api_key
         self._rememberFromAuth(lambda: _text_models(res))
@@ -104,12 +115,15 @@ class OpenAIClient(RecentModelList):
     def getModel(self) -> str:
         return self.model
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def updateClient(self) -> None:
         self.openai_llm = ChatOpenAI(
             base_url=self.base_url,
             model=self.model,
             api_key=SecretStr(self.api_key),
             streaming=False,
+            **chat_http_clients(self.base_url, CLOUD_LLM_TIMEOUT),
             timeout=CLOUD_LLM_TIMEOUT,
             max_retries=1,
         )
@@ -124,6 +138,8 @@ class OpenAIClient(RecentModelList):
         """
         self._context_history = history_items or []
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def translate(self, text: str, input_lang: str, output_lang: str) -> str:
         system_prompt = self.prompt_template.format(
             supported_languages=self.supported_languages,

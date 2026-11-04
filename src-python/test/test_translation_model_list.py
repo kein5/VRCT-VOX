@@ -232,13 +232,16 @@ class _FakeGenaiClient:
     キーが無効扱いになり、設定から消えた)。次のページを取るときも同じ。
     """
 
-    def __init__(self, api_key):
+    def __init__(self, api_key, **kwargs):
         http = SimpleNamespace(closed=False)
         self._http = http
         self.models = _FakeGenaiModels(http)
 
-    def __del__(self):
+    def close(self):
         self._http.closed = True
+
+    def __del__(self):
+        self.close()
 
 
 class _FakeGenaiModels:

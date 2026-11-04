@@ -66,8 +66,8 @@ def subject(monkeypatch):
     cfg._TRANSCRIPTION_AUTH_KEYS = {engine: "synthetic-old-key" for engine, _ in TRANSCRIPTION}
     cfg.SELECTABLE_TRANSLATION_ENGINE_STATUS = {engine: True for engine, _, _ in TRANSLATION}
     cfg.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS = {engine: True for engine, _ in TRANSCRIPTION}
-    cfg._OPENAI_COMPATIBLE_URL = "http://previous.invalid/v1"
-    cfg._TRANSCRIPTION_CUSTOM_URL = "http://transcription.invalid/v1"
+    cfg._OPENAI_COMPATIBLE_URL = "https://previous.invalid/v1"
+    cfg._TRANSCRIPTION_CUSTOM_URL = "https://transcription.invalid/v1"
     cfg._PATH_LOCAL = "."
     for prefix in ["PLAMO", "GEMINI", "OPENAI", "GROQ", "OPENROUTER", "OPENAI_COMPATIBLE",
                    "GROQ_WHISPER", "OPENAI_WHISPER", "CUSTOM_WHISPER", "DEEPGRAM"]:
@@ -227,10 +227,11 @@ def test_url_failure_restores_url_without_replacing_client(subject, monkeypatch,
         "client": ("updateClient", Mock(side_effect=RuntimeError("synthetic failure"))),
     }[failure]
     monkeypatch.setattr(FakeClient, method, replacement)
-    result = subject.controller.setOpenAICompatibleURL("http://candidate.invalid/v1")
+    result = subject.controller.setOpenAICompatibleURL("https://candidate.invalid/v1")
+    replacement.assert_called_once()
     assert result["status"] == 400
     assert result["result"]["error_code"] == "CONNECTION_OPENAI_COMPATIBLE_URL_INVALID"
-    assert result["result"]["data"] == subject.config.OPENAI_COMPATIBLE_URL == "http://previous.invalid/v1"
+    assert result["result"]["data"] == subject.config.OPENAI_COMPATIBLE_URL == "https://previous.invalid/v1"
     assert subject.config.AUTH_KEYS["OpenAI_Compatible"] == "synthetic-old-key"
     assert live_client(subject, "OpenAI_Compatible") is subject.previous
     assert subject.config.SELECTABLE_TRANSLATION_ENGINE_STATUS["OpenAI_Compatible"] is True
@@ -239,8 +240,8 @@ def test_url_failure_restores_url_without_replacing_client(subject, monkeypatch,
 
 
 def test_url_success_commits_prepared_client(subject):
-    result = subject.controller.setOpenAICompatibleURL("http://candidate.invalid/v1")
-    assert result == {"status": 200, "result": "http://candidate.invalid/v1"}
+    result = subject.controller.setOpenAICompatibleURL("https://candidate.invalid/v1")
+    assert result == {"status": 200, "result": "https://candidate.invalid/v1"}
     assert subject.config.OPENAI_COMPATIBLE_URL == result["result"]
     client = live_client(subject, "OpenAI_Compatible")
     assert client.ready and client.base_url == result["result"]
@@ -250,8 +251,8 @@ def test_url_success_commits_prepared_client(subject):
 def test_url_without_a_key_only_saves_url(subject):
     subject.config.updateCredential("AUTH_KEYS", "OpenAI_Compatible", None)
     subject.model.prepareTranslatorCredential = Mock(side_effect=AssertionError("Must not authenticate"))
-    result = subject.controller.setOpenAICompatibleURL("http://candidate.invalid/v1")
-    assert result == {"status": 200, "result": "http://candidate.invalid/v1"}
+    result = subject.controller.setOpenAICompatibleURL("https://candidate.invalid/v1")
+    assert result == {"status": 200, "result": "https://candidate.invalid/v1"}
     subject.model.prepareTranslatorCredential.assert_not_called()
     assert live_client(subject, "OpenAI_Compatible") is subject.previous
 
@@ -288,19 +289,19 @@ def test_compatible_candidate_rejected_if_other_setting_changes_during_check(sub
             if changing_url:
                 s.config.updateCredential("AUTH_KEYS", "OpenAI_Compatible", "synthetic-other-key")
             else:
-                s.config.OPENAI_COMPATIBLE_URL = "http://other.invalid/v1"
+                s.config.OPENAI_COMPATIBLE_URL = "https://other.invalid/v1"
         return candidate
     s.model.prepareTranslatorCredential = prepare
     if changing_url:
-        result = s.controller.setOpenAICompatibleURL("http://candidate.invalid/v1")
+        result = s.controller.setOpenAICompatibleURL("https://candidate.invalid/v1")
         assert result["result"]["error_code"] == "CONNECTION_OPENAI_COMPATIBLE_URL_INVALID"
-        assert result["result"]["data"] == s.config.OPENAI_COMPATIBLE_URL == "http://previous.invalid/v1"
+        assert result["result"]["data"] == s.config.OPENAI_COMPATIBLE_URL == "https://previous.invalid/v1"
         assert s.config.AUTH_KEYS["OpenAI_Compatible"] == "synthetic-other-key"
     else:
         result = s.controller.setOpenAICompatibleAuthKey("synthetic-candidate-key")
         assert result["result"]["error_code"] == "AUTH_OPENAI_COMPATIBLE_FAILED"
         assert result["result"]["data"] == s.config.AUTH_KEYS["OpenAI_Compatible"] == "synthetic-old-key"
-        assert s.config.OPENAI_COMPATIBLE_URL == "http://other.invalid/v1"
+        assert s.config.OPENAI_COMPATIBLE_URL == "https://other.invalid/v1"
     assert result["status"] == 400
     assert live_client(s, "OpenAI_Compatible") is s.previous
     s.controller.run.assert_not_called()

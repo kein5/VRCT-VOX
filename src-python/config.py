@@ -1,3 +1,4 @@
+from models.network_policy import CUSTOM_URL_KEYS, valid_saved_api_url
 import sys
 import copy
 import errno
@@ -1129,8 +1130,8 @@ class Config:
             if isinstance(val, dict) else None
         )
     )
-    LMSTUDIO_URL = ManagedProperty('LMSTUDIO_URL', type_=str)
-    OPENAI_COMPATIBLE_URL = ManagedProperty('OPENAI_COMPATIBLE_URL', type_=str)
+    LMSTUDIO_URL = ManagedProperty('LMSTUDIO_URL', type_=str, allowed=lambda value, inst: valid_saved_api_url(value))
+    OPENAI_COMPATIBLE_URL = ManagedProperty('OPENAI_COMPATIBLE_URL', type_=str, allowed=lambda value, inst: valid_saved_api_url(value))
 
     # --- 文字起こし用 API キー・URL (翻訳用の AUTH_KEYS/OPENAI_COMPATIBLE_URL とは
     # 意図的に別管理にしている。レート制限/クォータの共有を避け、翻訳と
@@ -1144,7 +1145,7 @@ class Config:
             if isinstance(val, dict) else None
         )
     )
-    TRANSCRIPTION_CUSTOM_URL = ManagedProperty('TRANSCRIPTION_CUSTOM_URL', type_=str)
+    TRANSCRIPTION_CUSTOM_URL = ManagedProperty('TRANSCRIPTION_CUSTOM_URL', type_=str, allowed=lambda value, inst: valid_saved_api_url(value))
 
     # --- Transcription settings ---
     SELECTED_TRANSCRIPTION_COMPUTE_TYPE = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_TYPE', _selected_transcription_compute_type_validator)
@@ -1690,8 +1691,14 @@ class Config:
                 # that window region and migrate VR to the full view, never a copy.
                 self._config_data.setdefault("OCR_VR_CAPTURE_REGION",
                                              {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0})
+                self.INVALID_SAVED_API_URLS = []
                 self._loading_saved_config = True
                 for key, value in self._config_data.items():
+                    if key in CUSTOM_URL_KEYS and not valid_saved_api_url(value):
+                        # Empty disables discovery; never move a saved key to a fallback host.
+                        setattr(self, "_" + key, "")
+                        self.INVALID_SAVED_API_URLS.append(key)
+                        continue
                     # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。
                     # 未知キー（Descriptorなし）は無視して注入を防止。
                     try:

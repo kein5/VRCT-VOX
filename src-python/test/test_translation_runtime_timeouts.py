@@ -150,7 +150,7 @@ def test_installed_sdk_timeout_and_retry_policy_reaches_fallback(row, failure, r
     monkeypatch.setattr(translator, "translateCTranslate2", ct2)
     model = make_model(translator)
     log = Mock()
-    monkeypatch.setattr(translator_module, "printLog", log)
+    monkeypatch.setattr(translator_module, "errorLogging", log)
     monkeypatch.setattr("model.errorLogging", Mock())
     with patch.object(threading.Thread, "__init__", side_effect=AssertionError("Per-call worker")):
         result = model.getTranslate(engine, "English", "Japanese", "Japan", "hello")
@@ -177,13 +177,11 @@ def test_installed_sdk_timeout_and_retry_policy_reaches_fallback(row, failure, r
         assert result == ("hello", False)
         ct2.assert_called_once()
         log.assert_called_once()
-        if failure == "timeout":
-            error_type = "ReadTimeout" if engine in ("Gemini_API", "Ollama") else "OpenAITimeoutError"
-            assert log.call_args.args[1] == {"engine": engine, "error_type": error_type}
+        log.assert_called_once_with(provider=engine)
 
 
 @pytest.mark.parametrize("credential_path", ["prepare", "startup"])
-def test_deepl_probe_keeps_defaults_and_runtime_uses_explicit_limits(credential_path, monkeypatch):
+def test_deepl_probe_and_runtime_use_separate_explicit_limits(credential_path, monkeypatch):
     received = []
 
     def send(session, request, **kwargs):
@@ -201,11 +199,11 @@ def test_deepl_probe_keeps_defaults_and_runtime_uses_explicit_limits(credential_
         translator.commitCredential("DeepL_API", candidate)
     else:
         assert translator.authenticationDeepLAuthKey("synthetic-test-key") is True
-    assert received == [10.0]  # existing authentication request, unchanged
+    assert received == [(3.0, 3.0)]  # short discovery limits
     with patch.object(threading.Thread, "__init__", side_effect=AssertionError("Per-call worker")):
         for _ in range(3):
             assert translator.translate("DeepL_API", "", "English", "Japanese", "Japan", "hello") == "translation"
-    assert received == [10.0, (5.0, 10.0), (5.0, 10.0), (5.0, 10.0)]
+    assert received == [(3.0, 3.0), (5.0, 10.0), (5.0, 10.0), (5.0, 10.0)]
     translator.deepl_client.close()
 
 
@@ -268,7 +266,7 @@ def test_deepl_retry_policy_reaches_fallback(failure, recovers, monkeypatch):
     translator.is_enable_translators = True
     translator.deepl_client = client
     monkeypatch.setattr(translator, "translateCTranslate2", ct2)
-    monkeypatch.setattr(translator_module, "printLog", Mock())
+    monkeypatch.setattr(translator_module, "errorLogging", Mock())
     monkeypatch.setattr("model.errorLogging", Mock())
     model = make_model(translator)
     try:
@@ -318,7 +316,7 @@ def failing_provider(request, monkeypatch):
         install_client(translator, engine, client)
     model = make_model(translator)
     log = Mock()
-    monkeypatch.setattr(translator_module, "printLog", log)
+    monkeypatch.setattr(translator_module, "errorLogging", log)
     monkeypatch.setattr("model.errorLogging", Mock())
     monkeypatch.setattr("model.printLog", Mock())
     return SimpleNamespace(engine=engine, model=model, translator=translator, invoke=invoke, log=log)
@@ -338,9 +336,7 @@ def test_timeout_follows_existing_fallback_and_redacts_provider_exception(failin
     assert result == ((fallback, True) if fallback else ("hello", False))
     ct2.assert_called_once()
     subject.invoke.assert_called_once()
-    subject.log.assert_called_once_with("Translation provider failed", {
-        "engine": subject.engine, "error_type": "ReadTimeout",
-    })
+    subject.log.assert_called_once_with(provider=subject.engine)
     assert "synthetic-api-key-must-not-be-logged" not in repr(subject.log.call_args)
     if subject.engine in WEB_ENGINES:
         assert subject.invoke.call_args.kwargs["timeout"] == 10

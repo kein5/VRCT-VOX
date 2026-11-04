@@ -19,6 +19,7 @@ from unittest.mock import Mock
 import pytest
 
 from errors import ErrorCode, VRCTError
+from models.network_policy import redact_urls
 
 
 SOURCE = Path(__file__).resolve().parents[1]
@@ -75,7 +76,7 @@ def definitions(filename, namespace, *, class_methods=None):
     else:
         tree.body = [node for node in tree.body if
                      isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.Import)) or
-                     isinstance(node, ast.ImportFrom) and node.module in {"os", "json", "secrets", "typing"} or
+                     isinstance(node, ast.ImportFrom) and node.module in {"os", "json", "secrets", "typing", "models.network_policy"} or
                      isinstance(node, ast.Assign) and not any(
                          isinstance(target, ast.Name) and target.id == "config" for target in node.targets)]
     exec(compile(tree, str(path), "exec"), namespace)
@@ -188,7 +189,7 @@ def test_ipc_nonfinite_result_uses_parseable_500_fallback(value):
     tree = ast.parse(path.read_text())
     tree.body = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in {"printResponse", "_shapeOf"}]
     lines = []
-    ns = dict(Any=object, json=json, process_logger=Mock(), errorLogging=Mock(),
+    ns = dict(Any=object, json=json, redact_urls=redact_urls, process_logger=Mock(), errorLogging=Mock(),
               _isSensitiveEndpoint=lambda _: False, _maskSensitiveData=lambda result: result,
               _CONVERSATION_ENDPOINTS=set(), _UNLOGGED_ENDPOINTS=set(),
               isQuietPoll=lambda *args: False, _enqueueResponseLine=lines.append)
