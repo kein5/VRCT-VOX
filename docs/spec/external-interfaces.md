@@ -138,6 +138,8 @@ TTSのスイッチをオフにしたときは、そのスイッチが起動し�
 | `quick_chat_context`、`quick_chat_submit`、`quick_chat_hide` | `quick_chat` | 設定を読む、送信を頼む、隠す |
 | `portal_shortcuts_bind` | `main` | Waylandでホットキーを登録する（180秒で打ち切り） |
 
+Quick Chatのコンテキストは、`ready`、`language`、`enter_to_send`、`clear_on_send`に加え、保存済みの`ui_scaling`（整数、40〜200%）と`font_family`（空白だけではなく、制御文字を含まない256文字以内のローカルフォント名）を持つ。Rustは呼び出し元と値を検証してから置き換える。新しい2項目を省略した要求は100%と`Yu Gothic UI`を使う。小窓はフォント名をCSSの文字列として扱い、既存のNoto／システムフォントへのフォールバックを保つ。設定ファイルのキーやPython側のIPC形式は変更しない。
+
 VRパネルの要求は`main`が中継する。中継しないのは、アプリの終了と更新、ファイルを開く操作、モデルの取得、認証キーとトークン、接続先（`*_url`、WebSocket・OBS・OSCのホストとポート）、音声の設定（読み上げ、直接の音声、音声サーバー、リアルタイム音声認識）である（`src-ui/logics/common/vrPanelWire.js`）。VRパネルへ写す状態にも、認証キーとトークンは入れない。
 
 ### ウィンドウ間の連携
@@ -147,6 +149,7 @@ VRパネルの要求は`main`が中継する。中継しないのは、アプリ
 | `quick-chat-requested` | Rust → `main` | 小窓から送信の要求が来た。`main`は`quick_chat_take`で受け取り、`/run/send_message_box`で送る |
 | `quick-chat-result` | Rust → `quick_chat` | `{id, accepted}`。同じIDの再送には前の結果を返す |
 | `quick-chat-opened` | Rust → `quick_chat` | 入力欄にフォーカスを戻す |
+| `quick-chat-context-changed` | Rust → `quick_chat` | 設定が更新された。ペイロードは使わず、`quick_chat_context`で検証済みの設定を読み直す。フォーカスは移動しない |
 | `portal-shortcut` | Rust → `main` | Waylandでホットキーが押された |
 | `vr-panel-state` | `main` → 全体 | 画面の状態をVRパネルへ写す。会話ログだけは前に送ったログとの差分で、通し番号が合わなければVRパネルが`vr-panel-ready`で全件を頼み直す |
 | `vr-panel-ready` | `vr_panel` → `main` | VRパネルの準備ができた。`main`は状態を送り直す |

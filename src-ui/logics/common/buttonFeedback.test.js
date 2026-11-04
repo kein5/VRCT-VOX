@@ -323,9 +323,9 @@ test("LogBox subscribes only to its log and resend setting; unchanged row props 
 test("composer reads history only on explicit recall and sees the latest retained rows", async () => {
     const runtime = hooks(), edited = [], sent = [], typing = [], settingReads = [];
     let reads = 0, input = "", composing = false;
-    let logs = [{ category: "sent", messages: { original: { message: "older" } } },
+    let logs = [{ id: "older", category: "sent", messages: { original: { message: "older" } } },
         { category: "received", messages: { original: { message: "incoming" } } },
-        { category: "sent", messages: { original: { message: "newest" } } }];
+        { id: "newest", category: "sent", messages: { original: { message: "newest" } } }];
     const actions = { sendMessage: text => sent.push(text),
         startTyping: () => typing.push("start"), stopTyping: () => typing.push("stop") };
     const { MessageInputBox } = await load("app/main_page/main_section/message_container/message_input_box/MessageInputBox.jsx", runtime, {
@@ -359,9 +359,9 @@ test("composer reads history only on explicit recall and sees the latest retaine
     key("ArrowDown", true);
     assert.equal(input, "newest");
     key("ArrowDown", true);
-    assert.equal(input, "");
+    assert.equal(input, "a");
     // Retention/clear and incoming captions need no composer subscription.
-    logs = [{ category: "sent", messages: { original: { message: "after cap/clear" } } }];
+    logs = [{ id: "after", category: "sent", messages: { original: { message: "after cap/clear" } } }];
     key("ArrowUp", true);
     assert.equal(input, "after cap/clear");
     const readsBeforeIme = reads;

@@ -12,7 +12,9 @@ import { CHATBOX_LENGTH_WARNING_ID } from "./ChatboxLengthWarning";
 
 export const MessageInputBox = memo(function MessageInputBox() {
     const { t } = useI18n();
-    const [history_index, setHistoryIndex] = useState(-1);
+    const history = useRef(null);
+    const sending = useRef(false);
+    const [pending, setPending] = useState(false);
     const atoms = useStore();
     const { currentMessageInputValue, updateMessageInputValue } = useStore_MessageInputValue();
     const { sendMessage, startTyping, stopTyping } = useMessageActions();
@@ -33,24 +35,37 @@ export const MessageInputBox = memo(function MessageInputBox() {
         if (!currentMessageInputValue.data.trim()) stopTyping();
     }, [currentMessageInputValue.data, stopTyping]);
 
-    const onSubmitFunction = (e) => {
+    const onSubmitFunction = async (e) => {
         e.preventDefault();
+        if (e.repeat || sending.current) return;
 
-        sendMessage(currentMessageInputValue.data);
+        const message = currentMessageInputValue.data;
+        if (!message.trim()) {
+            stopTyping();
+            updateMessageInputValue("");
+            return;
+        }
 
-        if (!currentMessageInputValue.data.trim()) return updateMessageInputValue("");
-
+        sending.current = true;
+        setPending(true);
+        history.current = null;
         if (currentEnableAutoClearMessageInputBox.data) updateMessageInputValue("");
 
         setTimeout(() => {
             scrollToBottom();
         }, 10);
 
-        setHistoryIndex(-1);
+        try {
+            await sendMessage(message);
+        } finally {
+            sending.current = false;
+            setPending(false);
+        }
     };
 
     const onChangeFunction = (e) => {
         const value = e.currentTarget.value;
+        history.current = null;
         updateMessageInputValue(value);
         value.trim() ? startTyping() : stopTyping();
     };
@@ -60,32 +75,27 @@ export const MessageInputBox = memo(function MessageInputBox() {
         // History is only needed for explicit recall. Incoming captions and
         // translation responses must not subscribe/re-render the composer or
         // rebuild a second copy of the entire sent log after each update.
-        const message_history = e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown")
-            ? atoms.get(Atom_MessageLogs).data.filter(log => log.category === "sent")
-                .map(log => log.messages.original.message)
-            : [];
-        if (e.key === "ArrowUp" && e.shiftKey) {
+        if (e.shiftKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
             e.preventDefault();
-
-            if (history_index + 1 < message_history.length) {
-                const new_index = history_index + 1;
-                setHistoryIndex(new_index);
-                updateMessageInputValue(message_history[message_history.length - 1 - new_index]);
+            const rows = atoms.get(Atom_MessageLogs).data.filter(log => log.category === "sent"
+                && typeof log.messages?.original?.message === "string");
+            const selection = history.current;
+            const index = selection ? rows.findIndex(row => row.id === selection.id) : rows.length;
+            // Retention or clearing may remove the selected row between keypresses.
+            if (selection && index === -1) {
+                updateMessageInputValue(selection.draft);
+                history.current = null;
+                return;
             }
-        }
-
-        if (e.key === "ArrowDown" && e.shiftKey) {
-            e.preventDefault();
-
-            if (history_index > -1) {
-                const new_index = history_index - 1;
-                setHistoryIndex(new_index);
-                updateMessageInputValue(
-                    new_index >= 0
-                        ? message_history[message_history.length - 1 - new_index]
-                        : ""
-                );
+            const next = index + (e.key === "ArrowUp" ? -1 : 1);
+            if (next >= 0 && next < rows.length) {
+                history.current = { id: rows[next].id, draft: selection?.draft ?? currentMessageInputValue.data };
+                updateMessageInputValue(rows[next].messages.original.message);
+            } else if (selection && next >= rows.length) {
+                updateMessageInputValue(selection.draft);
+                history.current = null;
             }
+            return;
         }
 
         if (currentSendMessageButtonType.data === "show_and_disable_enter_key") return;
@@ -112,19 +122,21 @@ export const MessageInputBox = memo(function MessageInputBox() {
                 />
             </div>
             {currentSendMessageButtonType.data !== "hide" && (
-                <SendMessageButton onSubmitFunction={onSubmitFunction} />
+                <SendMessageButton onSubmitFunction={onSubmitFunction} pending={pending} />
             )}
         </div>
     );
 });
 
-const SendMessageButton = ({ onSubmitFunction }) => {
+const SendMessageButton = ({ onSubmitFunction, pending }) => {
     const { t } = useI18n();
     return (
         <button
             className={styles.message_send_button}
             aria-label={t("studio.send_message")}
             type="button"
+            disabled={pending}
+            aria-busy={pending}
             onClick={onSubmitFunction}
         >
             <SendMessageSvg aria-hidden="true" className={styles.message_send_icon} />
