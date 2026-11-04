@@ -252,3 +252,20 @@ for (const success of [true, false]) test(`Quick Chat handoff resets typing and 
     }
     runtime.unmount();
 });
+
+test("output failure warns without failing or resending a successful message row", async () => {
+    const subject = await setup();
+    await subject.message.sendMessage("Original", "partial");
+    subject.receiveRoutes({ status: 400, endpoint: "/run/message_output_error", result: {
+        error_code: "MESSAGE_OUTPUT_FAILED", data: { id: "partial", source: "chat", output: "overlay_large" },
+    } });
+    assert.equal(subject.rows()[0].status, "pending");
+    const original = { message: "Original", transliteration: [{ orig: "Original", hira: "reading" }] };
+    subject.receive(200, { id: "partial", original, translations: [], output_failures: [{ output: "overlay_large" }] });
+    assert.equal(subject.rows()[0].status, "ok");
+    assert.deepEqual(subject.rows()[0].messages.original, original);
+    assert.equal(subject.notices[0].type, "warning");
+    assert.equal(subject.notices[0].options.category_id, "MESSAGE_OUTPUT_FAILED.overlay_large");
+    assert.equal(subject.writes.length, 1);
+    assert.deepEqual(subject.reads, []);
+});

@@ -102,6 +102,7 @@ run_mapping = {
 
     "error_device":"/run/error_device",
     "error_translation_engine":"/run/error_translation_engine",
+    "message_output_error":"/run/message_output_error",
 
     "error_translation_enable_vram_overflow":"/run/error_translation_enable_vram_overflow",
     "error_translation_chat_vram_overflow":"/run/error_translation_chat_vram_overflow",

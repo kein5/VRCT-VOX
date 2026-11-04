@@ -4,7 +4,7 @@ import copy
 from queue import Queue
 from threading import Event, Thread
 import time
-from unittest.mock import MagicMock, call
+from unittest.mock import ANY, MagicMock, call
 from uuid import uuid4
 
 import pytest
@@ -260,8 +260,8 @@ def test_partial_no_side_effects_and_final_once_with_speaker_never_rebroadcast(
     c, m, made = app
     m.config.ENABLE_TRANSLATION = True
     m.config.SEND_RECEIVED_MESSAGE_TO_VRC = True
-    m.model.getInputTranslate.return_value = (["hello"], [True])
-    m.model.getOutputTranslate.return_value = (["hello"], [True])
+    m.model.getInputTranslate.return_value = (["hello"], [True], ['translated'])
+    m.model.getOutputTranslate.return_value = (["hello"], [True], ['translated'])
     c.voice_events.publish = MagicMock()
     start(c, source)
     session = made[0]
@@ -278,7 +278,7 @@ def test_partial_no_side_effects_and_final_once_with_speaker_never_rebroadcast(
     translator = (
         m.model.getInputTranslate if source == "mic" else m.model.getOutputTranslate
     )
-    translator.assert_called_once_with("text", source_language="Japanese")
+    translator.assert_called_once_with("text", source_language="Japanese", snapshot=ANY, with_provenance=True)
     assert m.model.oscSendMessage.call_count == (1 if source == "mic" else 0)
     c.voice_events.publish.assert_not_called()
     m.model.addTranslationHistory.assert_called_once_with(source, "text")
@@ -299,7 +299,7 @@ def test_stop_during_translation_discards_all_late_pipeline_effects(app, failure
         release.wait(2)
         if failure == "vram":
             raise RuntimeError("private provider message")
-        return ["translation"], [failure == "success"]
+        return ["translation"], [failure == "success"], ["translated" if failure == "success" else "failed"]
 
     m.model.getInputTranslate.side_effect = translate
     c.changeToCTranslate2Process = MagicMock()

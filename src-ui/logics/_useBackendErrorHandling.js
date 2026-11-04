@@ -134,6 +134,13 @@ export const _useBackendErrorHandling = () => {
             asyncStdoutToPython("/get/data/obs_browser_source");
         };
         switch (error_code) {
+            case "MESSAGE_OUTPUT_FAILED": {
+                const outputs = ["osc", "overlay_small", "overlay_large", "clipboard", "ui", "websocket", "logger", "history", "tts"];
+                const output = outputs.includes(data?.output) ? data.output : "unknown";
+                showNotification_Warning(t(key, { output: t(`message_outputs.${output}`) }),
+                    { category_id: `${error_code}.${output}` });
+                break;
+            }
             // ============================================================================
             // デバイス関連エラー (DEVICE_*)
             // ============================================================================

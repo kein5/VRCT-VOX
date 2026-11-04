@@ -365,8 +365,10 @@ def test_timeout_reaches_controller_existing_error_code(failing_provider, fallba
     harness = _MessagePipelineTestBase()
     harness.setUp()
     try:
-        def get_input(message, source_language=None):
+        def get_input(message, source_language=None, *, snapshot=None, with_provenance=False):
             text, success = translate(subject)
+            if with_provenance:
+                return [text], [success], ["translated" if success else "failed"]
             return [text], [success]
 
         harness._model.getInputTranslate.side_effect = get_input

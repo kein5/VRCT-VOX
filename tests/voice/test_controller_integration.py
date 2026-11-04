@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from models.audio_routing.audio_router import AudioRouter
+from models.message_delivery import ChatboxOrder
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
 from models.voice_events import AudioFrame
@@ -48,6 +49,14 @@ def controller_module(monkeypatch, tmp_path):
         OVERLAY_LARGE_LOG=False, OVERLAY_SMALL_LOG=False, ENABLE_CLIPBOARD=False,
         LOGGER_FEATURE=False, ENABLE_TRANSCRIPTION_RECEIVE=True, SEND_RECEIVED_MESSAGE_TO_VRC=False,
     )
+    module.config.SELECTED_TRANSLATION_ENGINES = {"1": "CTranslate2"}
+    module.config.CTRANSLATE2_WEIGHT_TYPE = "fake"
+    module.config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES = False
+    module.config.SEND_MESSAGE_FORMAT_PARTS = module.config.RECEIVED_MESSAGE_FORMAT_PARTS = {
+        "message": {"prefix": "", "suffix": ""},
+        "translation": {"prefix": "", "suffix": "", "separator": "/"},
+        "translation_first": False, "separator": "\n"}
+    module.model.chatbox_order = ChatboxOrder()
     module.model.checkWebSocketServerAlive.return_value = True
     module.model.checkKeywords.return_value = False
     module.model.detectRepeatReceiveMessage.return_value = False
@@ -100,14 +109,14 @@ def test_translated_slot_and_cancellation_during_translation(controller_module):
     controller.voice_events.configure(VoiceSettings(mode="translated", target_slot="2", output_device="cable"))
     publish = MagicMock(return_value=True)
     controller.voice_events.publish = publish
-    module.model.getInputTranslate.return_value = (["hello", "こんにちは"], [True, True])
+    module.model.getInputTranslate.return_value = (["hello", "こんにちは"], [True, True], ['translated', 'translated'])
     controller.chatMessage({"id": "1", "message": "original"})
     event = publish.call_args.args[0]
     assert (event.translated_text, event.target_language) == ("こんにちは", "Japanese")
     generation = controller.voice_events.generation()
     def translate(*args, **kwargs):
         controller.stopVoice()
-        return ["hello", "こんにちは"], [True, True]
+        return ["hello", "こんにちは"], [True, True], ['translated', 'translated']
     module.model.getInputTranslate.side_effect = translate
     controller.chatMessage({"id": "2", "message": "original"})
     assert publish.call_args.kwargs["expected_generation"] == generation
@@ -145,7 +154,7 @@ def test_original_speaks_before_translation_but_translated_waits(controller_modu
     def translate(*args, **kwargs):
         entered.set()
         assert release.wait(2), "test translation not released"
-        return ["hello", "こんにちは"], [True, True]
+        return ["hello", "こんにちは"], [True, True], ['translated', 'translated']
 
     module.model.getInputTranslate.side_effect = translate
     controller = module.Controller()
@@ -208,7 +217,7 @@ def test_blocked_translation_never_revives_old_speech_and_new_chat_still_works(c
     def translate(*args, **kwargs):
         entered.set()
         assert release.wait(2)
-        return ['hello', 'こんにちは'], [True, True]
+        return ['hello', 'こんにちは'], [True, True], ['translated', 'translated']
 
     module.model.getInputTranslate.side_effect = translate
     controller = module.Controller()

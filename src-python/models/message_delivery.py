@@ -20,3 +20,28 @@ class DeliveryEpochs:
         # Never hold this lock across rendering, publication or worker joins.
         with self._lock:
             self._epochs[source] += 1
+
+
+class ChatboxOrder:
+    """Only successful sends advance the shared chatbox watermark."""
+
+    def __init__(self):
+        self._lock = Lock()
+        self._sequence = 0
+        self._sent = 0
+
+    def admit(self):
+        with self._lock:
+            self._sequence += 1
+            return self._sequence
+
+    def send(self, sequence, publish, current):
+        # Serialize the comparison and OSC call, not translation or other sinks.
+        with self._lock:
+            if not current():
+                return
+            if sequence < self._sent:
+                return False
+            publish()
+            self._sent = sequence
+            return True

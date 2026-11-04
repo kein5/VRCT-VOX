@@ -312,7 +312,7 @@ def test_ocr_translation_finishing_after_shutdown_cannot_publish(subject, monkey
     def translate(*args, **kwargs):
         entered.set()
         assert release.wait(3)
-        return ["translation"], [True]
+        return ["translation"], [True], ["translated"]
 
     services.getOutputTranslate.side_effect = translate
     worker = Thread(target=lambda: controller.ocrMessage({"text": "hello", "language": "English"}), daemon=True)

@@ -213,7 +213,7 @@ def test_asr_server_ending_invalidates_late_delivery_but_keeps_direct_voice(app,
     def translate(*args, **kwargs):
         entered.set()
         release.wait(2)
-        return ['translation'], [True]
+        return ['translation'], [True], ['translated']
 
     m.config.ENABLE_TRANSLATION = True
     m.model.getInputTranslate.side_effect = translate

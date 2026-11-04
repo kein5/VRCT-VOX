@@ -51,6 +51,7 @@ class ErrorCode(str, Enum):
     # ============================================================================
     DEVICE_NO_MIC = "DEVICE_NO_MIC"
     DEVICE_NO_SPEAKER = "DEVICE_NO_SPEAKER"
+    MESSAGE_OUTPUT_FAILED = "MESSAGE_OUTPUT_FAILED"
 
     # 音声入力から文字起こしまでの実行時エラー。これらは通常の
     # request/response エラーではなく、既存の
@@ -295,6 +296,12 @@ class ErrorCategory(str, Enum):
 
 # エラーコードのメタデータ定義
 ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
+    ErrorCode.MESSAGE_OUTPUT_FAILED: {
+        "category": ErrorCategory.GENERAL,
+        "message": "One message output failed; other outputs continued. Resending may duplicate delivery.",
+        "severity": "warning",
+        "user_action_required": False,
+    },
     # デバイスエラー
     ErrorCode.DEVICE_NO_MIC: {
         "category": ErrorCategory.DEVICE,
