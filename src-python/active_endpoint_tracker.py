@@ -136,6 +136,7 @@ class ActiveEndpointTracker:
         # 待ってから tracker を再起動する。
         self._stopped_event: Event = Event()
         self._stopped_event.set()
+        self._on_change_id_cb = None
         self._on_change_cb: Optional[Callable[[Optional[str]], None]] = None
 
         # 「現在アクティブと判定されているエンドポイント」の FriendlyName
@@ -159,9 +160,13 @@ class ActiveEndpointTracker:
     def set_on_change_callback(self, cb: Optional[Callable[[Optional[str]], None]]) -> None:
         self._on_change_cb = cb
 
+    def set_on_change_id_callback(self, cb):
+        self._on_change_id_cb = cb
+
     def get_active_endpoint_name(self) -> Optional[str]:
         with self._lock:
-            return self._current_endpoint_name
+            entry = self._meter_cache.get(self._current_endpoint_name)
+            return entry.name if entry is not None else self._current_endpoint_name
 
     def is_running(self) -> bool:
         """tracker の監視スレッドがまだ生存しているかを返す。"""
@@ -293,9 +298,13 @@ class ActiveEndpointTracker:
 
         if changed and self._on_change_cb is not None:
             try:
-                self._on_change_cb(new_selected)
+                self._on_change_cb(self.get_active_endpoint_name())
             except Exception:
                 errorLogging()
+
+        if changed and self._on_change_id_cb is not None:
+            entry = self._meter_cache.get(new_selected)
+            self._on_change_id_cb({"id": new_selected, "name": entry.name if entry else new_selected})
 
     def _collect_peaks(self) -> dict[str, float]:
         """全アクティブエンドポイントの現ピーク値を {name: peak} で返す。
@@ -349,7 +358,7 @@ class ActiveEndpointTracker:
                     continue
 
             try:
-                peaks[entry.name] = float(entry.meter.GetPeakValue())
+                peaks[endpoint_id] = float(entry.meter.GetPeakValue())
             except Exception:
                 # 取得失敗 → cache を無効化して次回再取得
                 self._meter_cache.pop(endpoint_id, None)

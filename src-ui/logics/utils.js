@@ -1,3 +1,11 @@
+export const deviceOptionsToObject = (devices) => {
+    const counts = new Map();
+    for (const device of devices) counts.set(device.label, (counts.get(device.label) ?? 0) + 1);
+    return Object.fromEntries(devices.map(({ id, label }) => [id,
+        counts.get(label) > 1 ? `${label} (${id})` : label,
+    ]));
+};
+
 export const arrayToObject = (array) => {
     return array.reduce((obj, item) => {
         obj[item] = item;

@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 import sys
+from uuid import uuid4
+from audio_device_identity import capture_key, device_id
 from typing import Callable, Dict, List, Optional, Any
-from time import sleep
+from time import monotonic, sleep
 from threading import Thread, Lock, Event
 
 # Optional, Windows-specific dependencies. Guard imports so module can be imported on non-Windows systems.
@@ -76,24 +78,31 @@ class Client(MMNotificationClient):
     でも wait は解ける (`Event.wait` は set 済みならすぐ True を返す)。
     """
 
-    def __init__(self, notify_event: Event) -> None:
+    def __init__(self, notify_event: Event, invalidate=None) -> None:
         # If MMNotificationClient is the placeholder object (non-windows), avoid calling super
         try:
             super().__init__()
         except Exception:
             pass
         self._notify_event = notify_event
+        self._invalidate = invalidate
 
     def on_default_device_changed(self, *args: Any, **kwargs: Any) -> None:
         self._notify_event.set()
 
     def on_device_added(self, *args: Any, **kwargs: Any) -> None:
+        if self._invalidate is not None:
+            self._invalidate()
         self._notify_event.set()
 
     def on_device_removed(self, *args: Any, **kwargs: Any) -> None:
+        if self._invalidate is not None:
+            self._invalidate()
         self._notify_event.set()
 
     def on_device_state_changed(self, *args: Any, **kwargs: Any) -> None:
+        if self._invalidate is not None:
+            self._invalidate()
         self._notify_event.set()
 
     # on_property_value_changed は登録しない: default endpoint 変更は
@@ -103,11 +112,12 @@ class Client(MMNotificationClient):
 class DeviceManager:
     _instance = None
 
-    # monitoring() が通知待ちに使う最長タイムアウト。COM が万一通知を
-    # 落とした場合の保険、および COM 未登録時 (非 Windows / 登録失敗) の
-    # ポーリング間隔として機能する。テストで小さい値に差し替えられるよう
-    # クラス定数にしている。
+    # Keep stop checks and polling without COM at the existing two-second pace.
     _MONITOR_WAIT_TIMEOUT_SEC: float = 2.0
+    # COM notifications refresh immediately. One idle reconciliation per minute
+    # bounds missed-notification recovery while avoiding 30 full enumerations
+    # per minute contending with capture opening for the shared PyAudio lock.
+    _COM_RECONCILE_INTERVAL_SEC: float = 60.0
 
     def __new__(cls):
         if cls._instance is None:
@@ -140,7 +150,7 @@ class DeviceManager:
         if getattr(self, "_initialized", False):
             return
 
-        self._device_snapshot = _DeviceSnapshot(
+        self._device_snapshot = self._identifiedSnapshot(
             mic_devices={"NoHost": [{"index": -1, "name": "NoDevice"}]},
             default_mic_device={"host": {"index": -1, "name": "NoHost"}, "device": {"index": -1, "name": "NoDevice"}},
             speaker_devices=[{"index": -1, "name": "NoDevice"}],
@@ -216,6 +226,7 @@ class DeviceManager:
         # 必要だったが、DeviceManager にフラグを持たせることで撤去できる。
         self._mic_auto_active: bool = False
         self._speaker_auto_active: bool = False
+        self._tracked_speaker_endpoint = None
 
         # 「実使用中エンドポイント」を追跡する tracker。Auto Speaker Select が
         # アクティブなときのみ起動する (マイク側は起動しない。理由は
@@ -232,6 +243,8 @@ class DeviceManager:
         # apartment 終了を待ってから再起動するための回収スレッド。
         self._speaker_endpoint_tracker_reaper: Optional[Thread] = None
 
+        self._identity_namespace = uuid4().hex
+        self._topology_generation = 0
         self._initialized = True
 
         # Best-effort single update: if PyAudio is available, attempt to populate
@@ -288,6 +301,9 @@ class DeviceManager:
         return {PIPEWIRE_MIC_HOST: devices}, {"host": host, "device": default}
 
     def update(self):
+        # A topology event during enumeration belongs to the next snapshot.
+        # Tagging the old snapshot with that event would hide a reused slot.
+        generation = self._topology_generation
         buffer_mic_devices: Dict[str, List[Dict[str, Any]]] = {}
         buffer_default_mic_device: Dict[str, Any] = {"host": {"index": -1, "name": "NoHost"}, "device": {"index": -1, "name": "NoDevice"}}
         buffer_speaker_devices: List[Dict[str, Any]] = []
@@ -298,7 +314,8 @@ class DeviceManager:
             # the Mic list comes from PipeWire instead; elsewhere keep defaults.
             if sys.platform.startswith("linux"):
                 buffer_mic_devices, buffer_default_mic_device = self._linuxMicDevices()
-            self._device_snapshot = _DeviceSnapshot(
+            self._device_snapshot = self._identifiedSnapshot(
+                generation=generation,
                 mic_devices=buffer_mic_devices or {"NoHost": [{"index": -1, "name": "NoDevice"}]},
                 default_mic_device=buffer_default_mic_device,
                 speaker_devices=buffer_speaker_devices or [{"index": -1, "name": "NoDevice"}],
@@ -336,65 +353,117 @@ class DeviceManager:
                         continue
                     break
 
-                # collect speaker loopback devices (requires WASAPI)
-                speaker_devices: List[Dict[str, Any]] = []
+                # Loopbacks are already enumerated by PortAudio. Matching each
+                # render device by a name substring duplicates or conflates them.
                 if paWASAPI is not None:
                     try:
+                        buffer_speaker_devices = sorted(
+                            [dict(d) for d in p.get_loopback_device_info_generator()],
+                            key=lambda d: d.get("index", -1))
                         wasapi_info = p.get_host_api_info_by_type(paWASAPI)
-                        wasapi_name = wasapi_info.get("name")
-                        for host_index in range(p.get_host_api_count()):
-                            host = p.get_host_api_info_by_index(host_index)
-                            if host.get("name") == wasapi_name:
-                                device_count = host.get('deviceCount', 0)
-                                for device_index in range(device_count):
-                                    device = p.get_device_info_by_host_api_device_index(host_index, device_index)
-                                    if not device.get("isLoopbackDevice", True):
-                                        for loopback in p.get_loopback_device_info_generator():
-                                            # match by name inclusion
-                                            if device.get("name") in loopback.get("name", ""):
-                                                speaker_devices.append(loopback)
+                        output_index = wasapi_info.get("defaultOutputDevice", -1)
+                        output = p.get_device_info_by_index(output_index)
+                        native_id = output.get("endpoint_id")
+                        matches = [d for d in buffer_speaker_devices
+                                   if (d.get("endpoint_id") == native_id if native_id else
+                                       d.get("name", "").strip() == output.get("name", "").strip() + " [Loopback]")]
+                        if len(matches) == 1:
+                            buffer_default_speaker_device = {"device": matches[0]}
                     except Exception:
-                        # WASAPI not available or failed; ignore and continue
                         pass
-
-                # deduplicate and sort
-                speaker_devices = [dict(t) for t in {tuple(d.items()) for d in speaker_devices}] or [{"index": -1, "name": "NoDevice"}]
-                buffer_speaker_devices = sorted(speaker_devices, key=lambda d: d.get('index', -1))
-
-                # default speaker
-                if paWASAPI is not None:
-                    try:
-                        wasapi_info = p.get_host_api_info_by_type(paWASAPI)
-                        default_speaker_device_index = wasapi_info.get("defaultOutputDevice", -1)
-                        for host_index in range(p.get_host_api_count()):
-                            host_info = p.get_host_api_info_by_index(host_index)
-                            device_count = host_info.get('deviceCount', 0)
-                            for device_index in range(0, device_count):
-                                device = p.get_device_info_by_host_api_device_index(host_index, device_index)
-                                if device.get("index") == default_speaker_device_index:
-                                    default_speakers = device
-                                    if not default_speakers.get("isLoopbackDevice", True):
-                                        for loopback in p.get_loopback_device_info_generator():
-                                            if default_speakers.get("name") in loopback.get("name", ""):
-                                                buffer_default_speaker_device = {"device": loopback}
-                                                break
-                                    break
-
-                            if buffer_default_speaker_device["device"].get("name") != "NoDevice":
-                                break
-                    except Exception:
-                        # best-effort; ignore failures
-                        pass
+                buffer_speaker_devices = buffer_speaker_devices or [{"index": -1, "name": "NoDevice"}]
 
         except Exception:
             errorLogging()
 
-        self._device_snapshot = _DeviceSnapshot(
+        self._device_snapshot = self._identifiedSnapshot(
+            generation=generation,
             mic_devices=buffer_mic_devices,
             default_mic_device=buffer_default_mic_device,
             speaker_devices=buffer_speaker_devices,
             default_speaker_device=buffer_default_speaker_device,
         )
+
+    def _invalidateDeviceIncarnations(self):
+        # COM callbacks never take the PyAudio lock. A topology event invalidates
+        # slot-only identities, including same-name, same-format replacements.
+        self._topology_generation += 1
+
+    @staticmethod
+    def _windowsEndpointIds():
+        if sys.platform != "win32" or AudioUtilities is None or comtypes is None:
+            return {}
+        comtypes.CoInitialize()
+        try:
+            result = {}
+            with pyaudio_op_lock:
+                endpoints, endpoint = [], None
+                try:
+                    endpoints = AudioUtilities.GetAllDevices()
+                    for endpoint in endpoints:
+                        result.setdefault(endpoint.FriendlyName, []).append(endpoint.id)
+                finally:
+                    # COM references must die in this apartment, before uninit.
+                    endpoint = None
+                    endpoints = []
+            return result
+        except Exception:
+            errorLogging()
+            return {}
+        finally:
+            comtypes.CoUninitialize()
+
+    def _identifiedSnapshot(self, *, mic_devices, default_mic_device,
+                            speaker_devices, default_speaker_device, generation=None):
+        namespace = getattr(self, "_identity_namespace", "initial")
+        if generation is None:
+            generation = getattr(self, "_topology_generation", 0)
+        endpoints = self._windowsEndpointIds() if mic_devices or speaker_devices else {}
+        counts = {}
+        for host, devices in mic_devices.items():
+            for d in devices:
+                counts[("mic", host, d.get("name"))] = counts.get(("mic", host, d.get("name")), 0) + 1
+        for d in speaker_devices:
+            key = ("speaker", d.get("hostApi", "WASAPI"), d.get("name"))
+            counts[key] = counts.get(key, 0) + 1
+
+        def identify(device, host, source):
+            device = dict(device)
+            if device.get("name") == "NoDevice":
+                return device
+            native = next((device.get(key) for key in
+                           ("endpoint_id", "deviceUID", "uid") if device.get(key)), None)
+            label = device.get("name", "").removesuffix(" [Loopback]")
+            mapped = endpoints.get(label, [])
+            if not native and len(mapped) == 1 and counts.get((source, host, device.get("name"))) == 1:
+                native = mapped[0]
+                device["endpoint_id"] = native
+            if native:
+                identity = f"{source}:{host}:{native}"
+            elif device.get("node_name"):
+                identity = f"pipewire:{device['node_name']}"
+            else:
+                # PortAudio builds without an endpoint ID expose only slots.
+                # Never persistently equate a reused slot with the old endpoint.
+                identity = f"pa:{namespace}:{generation}:{source}:{host}:{device.get('index')}"
+            device["id"] = identity
+            device["incarnation"] = (generation, device.get("object_serial"))
+            return device
+
+        mics = {host: [identify(d, host, "mic") for d in devices]
+                for host, devices in mic_devices.items()}
+        speakers = [identify(d, d.get("hostApi", "WASAPI"), "speaker") for d in speaker_devices]
+        mic_default = dict(default_mic_device)
+        host = mic_default.get("host", {}).get("name", "NoHost")
+        mic_default["device"] = identify(mic_default["device"], host, "mic")
+        speaker_default = dict(default_speaker_device)
+        d = speaker_default["device"]
+        speaker_default["device"] = identify(d, d.get("hostApi", "WASAPI"), "speaker")
+        if getattr(self, "_speaker_auto_active", False):
+            tracked = self._trackedSpeakerDevice(speakers)
+            if tracked is not None:
+                speaker_default = {"device": tracked}
+        return _DeviceSnapshot(mics, mic_default, speakers, speaker_default)
 
     def _applyDeviceDiffs(self) -> None:
         """update() 後の一覧と prev_* を比較して update_flag_* を立て、
@@ -404,19 +473,19 @@ class DeviceManager:
         意図せず上書きされ、次回の差分検知が不正確になる。以前は
         `checkUpdate` という副作用の無さそうな名前だったため rename した。
         """
-        if self.prev_default_mic_device["device"]["name"] != self.default_mic_device["device"]["name"]:
+        if capture_key(self.prev_default_mic_device["device"]) != capture_key(self.default_mic_device["device"]):
             self.update_flag_default_mic_device = True
             self.prev_default_mic_device = self.default_mic_device
-        if self.prev_default_speaker_device["device"]["name"] != self.default_speaker_device["device"]["name"]:
+        if capture_key(self.prev_default_speaker_device["device"]) != capture_key(self.default_speaker_device["device"]):
             self.update_flag_default_speaker_device = True
             self.prev_default_speaker_device = self.default_speaker_device
         if self.prev_mic_host != [host for host in self.mic_devices]:
             self.update_flag_host_list = True
             self.prev_mic_host = [host for host in self.mic_devices]
-        if {key: [device['name'] for device in devices] for key, devices in self.prev_mic_devices.items()} != {key: [device['name'] for device in devices] for key, devices in self.mic_devices.items()}:
+        if {key: [capture_key(device) for device in devices] for key, devices in self.prev_mic_devices.items()} != {key: [capture_key(device) for device in devices] for key, devices in self.mic_devices.items()}:
             self.update_flag_mic_device_list = True
             self.prev_mic_devices = self.mic_devices
-        if [device['name'] for device in self.prev_speaker_devices] != [device['name'] for device in self.speaker_devices]:
+        if [capture_key(device) for device in self.prev_speaker_devices] != [capture_key(device) for device in self.speaker_devices]:
             self.update_flag_speaker_device_list = True
             self.prev_speaker_devices = self.speaker_devices
 
@@ -453,7 +522,7 @@ class DeviceManager:
             try:
                 comtypes.CoInitialize()
                 com_initialized = True
-                cb = Client(self._notify_event)
+                cb = Client(self._notify_event, self._invalidateDeviceIncarnations)
                 enumerator = AudioUtilities.GetDeviceEnumerator()
                 enumerator.RegisterEndpointNotificationCallback(cb)
                 com_registered = True
@@ -467,22 +536,22 @@ class DeviceManager:
                         pass
                     com_initialized = False
 
+        next_reconcile = monotonic() + self._COM_RECONCILE_INTERVAL_SEC
         try:
             while not self._stop_event.is_set():
                 try:
-                    self._notify_event.clear()
-                    # 通知 or stop のいずれかで即抜ける。COM 登録済みなら
-                    # 通知は Client の on_* コールバックが直接 set する。
-                    # 最長 2s のタイムアウトは COM が万一通知を落とした場合の
-                    # 保険 (com_registered が False の場合はこれ自体が
-                    # ポーリング間隔として機能する)。
+                    # Notifications and normal stop wake this wait immediately;
+                    # a stop flag alone is still checked at most two seconds later.
                     notified = self._notify_event.wait(timeout=self._MONITOR_WAIT_TIMEOUT_SEC)
                     if self._stop_event.is_set():
                         break
-                    if not notified and com_registered:
-                        # COM 登録済みなのに単なるタイムアウト (通知は来て
-                        # いない) → 何もせず次の wait に戻る。
+                    if com_registered and not notified and monotonic() < next_reconcile:
                         continue
+                    # Consume before enumeration. A notification arriving during
+                    # update remains set for the next iteration. Without COM,
+                    # every timeout still polls (including the Linux path).
+                    self._notify_event.clear()
+                    next_reconcile = monotonic() + self._COM_RECONCILE_INTERVAL_SEC
 
                     # 通知を受けた直後 (または COM 未登録時の定期ポーリング)
                     # のデバイス一覧再構築フェーズ。Before/After callback は
@@ -586,6 +655,8 @@ class DeviceManager:
         詳細は setMicAutoActive のコメント参照。"""
         with self._lifecycle_lock:
             self._speaker_auto_active = active
+            if not active:
+                self._tracked_speaker_endpoint = None
             if active:
                 self._startSpeakerEndpointTrackerLocked()
             else:
@@ -635,7 +706,10 @@ class DeviceManager:
             # timeout 後に保持していた tracker の COM cleanup が完了済み。
             self._speaker_endpoint_tracker = None
         tracker = ActiveEndpointTracker("render", com_lock=pyaudio_op_lock)
-        tracker.set_on_change_callback(self._onActiveSpeakerEndpointChanged)
+        if callable(getattr(tracker, "set_on_change_id_callback", None)):
+            tracker.set_on_change_id_callback(self._onActiveSpeakerEndpointChanged)
+        else:
+            tracker.set_on_change_callback(self._onActiveSpeakerEndpointChanged)
         tracker.start()
         self._speaker_endpoint_tracker = tracker
 
@@ -734,60 +808,38 @@ class DeviceManager:
         if tracker is not None:
             tracker.resume()
 
-    def _onActiveSpeakerEndpointChanged(self, endpoint_name: Optional[str]) -> None:
-        """Tracker (render) からのコールバック (別スレッド)。
+    def _trackedSpeakerDevice(self, devices):
+        endpoint = getattr(self, "_tracked_speaker_endpoint", None)
+        if endpoint is None:
+            return None
+        if isinstance(endpoint, dict):
+            matches = [d for d in devices if d.get("endpoint_id") == endpoint.get("id")]
+            if not matches:
+                matches = [d for d in devices if not d.get("endpoint_id")
+                           and d.get("name") == endpoint.get("name", "") + " [Loopback]"]
+        else:
+            matches = [d for d in devices if d.get("name", "").strip() == endpoint.strip() + " [Loopback]"]
+        return matches[0] if len(matches) == 1 else None
 
-        アクティブな render エンドポイント名 (FriendlyName) を受け取り、
-        speaker_devices からマッチする loopback デバイス
-        (末尾 " [Loopback]") を検索し、以下の 2 段で反映する:
-          1. callback_default_speaker_device: config 更新 + UI 通知
-          2. callback_endpoint_reconfigured_speaker: Session の Recorder を新デバイスに差し替え
-        マッチが無い場合は何もしない (Multimedia default 追跡が生きる)。
-
-        マイク側に対応する _onActiveMicEndpointChanged は廃止した
-        (setMicAutoActive の docstring 参照: capture 側 peak 追従は
-        WASAPI の仕様上、仮想ケーブルへの誤張り替えしか生まないため)。
-        """
-        if endpoint_name is None:
+    def _onActiveSpeakerEndpointChanged(self, endpoint) -> None:
+        if endpoint is None or not self._speaker_auto_active:
             return
-        try:
-            device_name = self._findSpeakerDeviceByName(endpoint_name)
-        except Exception:
-            errorLogging()
+        self._tracked_speaker_endpoint = endpoint
+        selected = self._trackedSpeakerDevice(self.speaker_devices)
+        if selected is None:
             return
-        if device_name is None:
-            return
-        if isinstance(self.callback_default_speaker_device, Callable):
-            try:
-                self.callback_default_speaker_device(device_name)
-            except Exception:
-                errorLogging()
-        if isinstance(self.callback_endpoint_reconfigured_speaker, Callable):
-            try:
-                self.callback_endpoint_reconfigured_speaker()
-            except Exception:
-                errorLogging()
+        # One snapshot target, one reconciliation callback. No selection is
+        # published until the controller has switched the active recorder.
+        old = self._device_snapshot
+        self._device_snapshot = _DeviceSnapshot(old.mic_devices, old.default_mic_device,
+                                               old.speaker_devices, {"device": selected})
+        if callable(self.callback_default_speaker_device):
+            self.callback_default_speaker_device(selected["name"])
 
     def _findSpeakerDeviceByName(self, endpoint_name: str) -> Optional[str]:
-        """FriendlyName に一致するスピーカー (loopback) デバイス名を返す。
-
-        pyaudiowpatch のスピーカーデバイス名は "<friendly> [Loopback]" 形式。
-        pycaw の FriendlyName に " [Loopback]" を付けた候補が
-        speaker_devices に存在するかを確認する。比較は両サイドとも
-        strip() 済みで行う (Realtek 系ドライバなどが device 名に trailing
-        space を含む事例があるため)。
-        """
-        target = endpoint_name.strip()
-        loopback_target = f"{target} [Loopback]"
-        for d in self.speaker_devices:
-            if (d.get("name") or "").strip() == loopback_target:
-                return d["name"]
-        # 前方一致救済
-        for d in self.speaker_devices:
-            name = (d.get("name") or "").strip()
-            if name and name.startswith(target):
-                return d["name"]
-        return None
+        matches = [d for d in self.speaker_devices
+                   if d.get("name", "").strip() == endpoint_name.strip() + " [Loopback]"]
+        return matches[0]["name"] if len(matches) == 1 else None
 
     def _syncMonitoringLifecycleLocked(self) -> None:
         """一覧監視または Auto Select の active フラグに応じて monitoring を起動/停止。

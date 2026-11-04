@@ -2,13 +2,15 @@ import { useState, useEffect, useCallback, useMemo, useRef, useId } from "react"
 import * as stores from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useNotificationStatus } from "@logics_common";
-import { arrayToObject, arrayToIdLabel, transformToIndexedArray } from "@utils";
+import { deviceOptionsToObject, arrayToObject, arrayToIdLabel, transformToIndexedArray } from "@utils";
 import { setSaveBarEntry } from "../../voice/saveBar";
 
 const transformResponse = (transformName, payload) => {
     if (!transformName) return payload;
 
     switch (transformName) {
+        case "deviceOptionsToObject":
+            return deviceOptionsToObject(payload);
         case "arrayToObject":
             return arrayToObject(payload);
         case "arrayToIdLabel":

@@ -3,6 +3,7 @@ import { useStdoutToPython } from "@useStdoutToPython";
 
 import {
     useNotificationStatus,
+    useVolume,
     useLLMConnection,
     useIsSoftwareUpdating,
 } from "@logics_common";
@@ -46,6 +47,7 @@ export const _useBackendErrorHandling = () => {
     const { asyncStdoutToPython } = useStdoutToPython();
     const { updateIsSoftwareUpdating } = useIsSoftwareUpdating();
 
+    const { updateMicThresholdCheckStatus, updateSpeakerThresholdCheckStatus } = useVolume();
     const transcription = useTranscription();
     const {
         updateMicRecordTimeout,
@@ -145,9 +147,11 @@ export const _useBackendErrorHandling = () => {
             // デバイス関連エラー (DEVICE_*)
             // ============================================================================
             case "DEVICE_NO_MIC":
+                updateMicThresholdCheckStatus(false);
                 showNotification_Error(t("common_error.no_device_mic"), { category_id: error_code });
                 return;
             case "DEVICE_NO_SPEAKER":
+                updateSpeakerThresholdCheckStatus(false);
                 showNotification_Error(t("common_error.no_device_speaker"), { category_id: error_code });
                 return;
 

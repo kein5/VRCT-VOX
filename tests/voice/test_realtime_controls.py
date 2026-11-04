@@ -56,6 +56,11 @@ def app(controller_module, monkeypatch):  # noqa: F811
     m.config.ENABLE_CHECK_ENERGY_SEND = m.config.ENABLE_CHECK_ENERGY_RECEIVE = True
     m.config.VRC_MIC_MUTE_SYNC = False
     m.model.stopCaptureForRealtime.return_value = True
+    # The model boundary reports actual start success, not a truthy Mock.
+    # These tests exercise controller ownership with fake model services.
+    for method in ("startMicTranscript", "startSpeakerTranscript",
+                   "startCheckMicEnergy", "startCheckSpeakerEnergy"):
+        getattr(m.model, method).return_value = True
     c = m.Controller()
     c.run = MagicMock()
     c.messageFormatter = MagicMock(return_value="formatted")
@@ -125,23 +130,33 @@ def test_settings_restore_choices_but_never_capture_and_validate_before_mutation
         other.voice_events.close()
 
 
-def test_sources_independent_and_legacy_capture_mutually_exclusive(app):
+def test_sources_independent_and_legacy_capture_mutually_exclusive(app, monkeypatch):
     c, m, made = app
     start(c)
     start(c, "speaker")
     assert all(session.active for session in made)
     assert m.model.stopCaptureForRealtime.call_args_list == [call("mic"), call("speaker")]
-    c.startCheckMicEnergy()
-    c.startCheckSpeakerEnergy()
+    assert c.setEnableCheckMicThreshold()["result"] is False
+    assert c.setEnableCheckSpeakerThreshold()["result"] is False
     m.model.startCheckMicEnergy.assert_not_called()
     m.model.startCheckSpeakerEnergy.assert_not_called()
     assert (
         not m.config.ENABLE_TRANSCRIPTION_SEND
         and not m.config.ENABLE_TRANSCRIPTION_RECEIVE
     )
-    assert c.startTranscriptionSendMessage()
+    # Realtime cleared legacy intent. Select the legacy user-action route while
+    # retaining the fake realtime owners; a raw restart must still refuse OFF.
+    assert c.startTranscriptionSendMessage() is False
+    m.model.startMicTranscript.assert_not_called()
+    monkeypatch.setattr(c, "_realtimeToggles", lambda: False)
+    def start_legacy(callback):
+        assert c._realtime_owners["mic"] is None
+        assert not made[0].active and made[1].active
+        return True
+    m.model.startMicTranscript.side_effect = start_legacy
+    assert c.setEnableTranscriptionSend()["result"] is True
     assert not made[0].active and made[1].active
-    m.model.startMicTranscript.assert_called_once()
+    m.model.startMicTranscript.assert_called_once_with(c.micMessage)
 
 
 def test_settings_invalidate_affected_source_and_shared_changes_stop_both(app):
@@ -183,13 +198,15 @@ def test_fast_stop_invalidates_start_waiting_for_legacy_cleanup(app):
         thread.join(2)
 
 
-def test_busy_previous_owner_blocks_restart_and_legacy_capture(app):
+def test_busy_previous_owner_blocks_restart_and_legacy_capture(app, monkeypatch):
     c, m, made = app
     start(c)
     made[0].busy = True
     c.stopRealtimeASR({"source": "mic"})
     assert c.startRealtimeASR(request(c))["status"] == 409
-    assert not c.startTranscriptionSendMessage()
+    monkeypatch.setattr(c, "_realtimeToggles", lambda: False)
+    assert c.setEnableTranscriptionSend()["result"] is False
+    assert c._realtime_owners["mic"][0] is made[0]
     m.model.startMicTranscript.assert_not_called()
     assert len(made) == 1
 
@@ -218,10 +235,19 @@ def test_legacy_meter_can_resume_only_after_stopped_owner_drains(app, source, ca
     start(c, source)
     made[0].busy = True
     c.stopRealtimeASR({"source": source})
-    assert getattr(c, "startCheck" + cap + "Energy")() is False
+    enable = getattr(c, "setEnableCheck" + cap + "Threshold")
+    model_start = getattr(m.model, "startCheck" + cap + "Energy")
+    assert enable()["result"] is False
+    model_start.assert_not_called()
+    assert c._realtime_owners[source][0] is made[0]
     made[0].busy = False
-    assert getattr(c, "startCheck" + cap + "Energy")() is True
-    getattr(m.model, "startCheck" + cap + "Energy").assert_called_once()
+    def start_meter(callback):
+        assert c._realtime_owners[source] is None
+        assert not made[0].active
+        return True
+    model_start.side_effect = start_meter
+    assert enable()["result"] is True
+    model_start.assert_called_once_with(getattr(c, "progressBar" + cap + "Energy"))
 
 
 @pytest.mark.parametrize("source", ["mic", "speaker"])

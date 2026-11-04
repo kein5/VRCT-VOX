@@ -128,7 +128,6 @@ class TestAudioPipelineFailure(unittest.TestCase):
             "OSError",
         )
         recorder = _FakeRecorder(failure=failure)
-        recorder.device_error_event.set()
         received = []
         session = MicSession()
         session.transcript_fnc = received.append
@@ -137,6 +136,7 @@ class TestAudioPipelineFailure(unittest.TestCase):
             session, "_create_transcriber", return_value=_FakeTranscriber()
         ):
             session.reconfigure(transcript=True, device=DEVICE)
+            recorder.device_error_event.set()
 
         self.assertTrue(self._wait_for(lambda: len(received) == 1))
         self.assertEqual(received[0]["error_code"], ErrorCode.AUDIO_READ_ERROR.value)
@@ -178,7 +178,6 @@ class TestAudioPipelineFailure(unittest.TestCase):
             "OSError",
         )
         recorder = _FakeRecorder(failure=failure, stop_fn=blocked_stop)
-        recorder.device_error_event.set()
         received = []
         session = MicSession()
         session.transcript_fnc = received.append
@@ -188,6 +187,7 @@ class TestAudioPipelineFailure(unittest.TestCase):
                 session, "_create_recorder", return_value=recorder
             ), patch.object(session, "_create_transcriber", return_value=_FakeTranscriber()):
                 session.reconfigure(transcript=True, device=DEVICE)
+                recorder.device_error_event.set()
                 self.assertTrue(self._wait_for(lambda: len(received) == 1))
                 self.assertEqual(received[0]["error_code"], ErrorCode.CLEANUP_TIMEOUT.value)
                 self.assertEqual(received[0]["stage"], "cleanup")

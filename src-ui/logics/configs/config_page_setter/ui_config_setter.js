@@ -16,6 +16,44 @@ import {
 
 
 export const SETTINGS_ARRAY = [
+    {
+        Category: "Device",
+        Base_Name: "SpeakerDeviceOptions",
+        default_value: [],
+        ui_template_id: "list",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selectable_speaker_device_options",
+        response_transform: "deviceOptionsToObject",
+    },
+    {
+        Category: "Device",
+        Base_Name: "SelectedSpeakerDeviceId",
+        default_value: "",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selected_speaker_device_id",
+    },
+    {
+        Category: "Device",
+        Base_Name: "MicDeviceOptions",
+        default_value: [],
+        ui_template_id: "list",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selectable_mic_device_options",
+        response_transform: "deviceOptionsToObject",
+    },
+    {
+        Category: "Device",
+        Base_Name: "SelectedMicDeviceId",
+        default_value: "",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selected_mic_device_id",
+    },
     // Device
     {
         Category: "Device",

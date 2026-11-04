@@ -272,8 +272,8 @@ class PipelineDiagnosticsTests(unittest.TestCase):
         self.diagnostics.record("speaker", "message", {"translate_ms": 200})
         controller = controller_module.Controller.__new__(controller_module.Controller)
         controller._initRealtimeASR({})
-        controller.mic_lifecycle_lock = threading.Lock()
-        controller.speaker_lifecycle_lock = threading.Lock()
+        controller.mic_lifecycle_lock = threading.RLock()
+        controller.speaker_lifecycle_lock = threading.RLock()
         with patch.object(controller_module, "model"), patch.object(controller_module, "device_manager"), \
                 patch.object(controller_module, "config"):
             self.assertEqual(controller.shutdown()["status"], 200)

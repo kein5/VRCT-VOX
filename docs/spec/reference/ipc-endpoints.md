@@ -10,7 +10,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - UIの受信先: 200の応答を処理するUIのフック（`useReceiveRoutes.js`の静的ルートと`ui_config_setter.js`の定義から生成）。「—」は受信先がない。
 - ログで伏せる: `process.log`で値を`***MASKED***`に置き換える（`SENSITIVE_ENDPOINT_MARKERS`）。stdoutのIPCそのものは伏せない。
 
-## 要求（387件: 削除 11、取得 171、実行 35、有効化 38、無効化 38、設定 94）
+## 要求（393件: 削除 11、取得 175、実行 35、有効化 38、無効化 38、設定 96）
 
 | エンドポイント | 種別 | 処理（controller） | 初期化前 | UIの受信先 | 備考 |
 |---|---|---|---|---|---|
@@ -185,6 +185,9 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/set/disable/auto_mic_select` | 無効化 | `setDisableAutoMicSelect` | 可 | useDevice.setSuccessEnableAutoMicSelect |  |
 | `/get/data/selected_mic_host` | 取得 | `getSelectedMicHost` | 可 | useDevice.updateFromBackendSelectedMicHost |  |
 | `/set/data/selected_mic_host` | 設定 | `setSelectedMicHost` | 可 | useDevice.setSuccessSelectedMicHost |  |
+| `/get/data/selected_mic_device_id` | 取得 | `getSelectedMicDeviceId` | 可 | useDevice.updateFromBackendSelectedMicDeviceId |  |
+| `/set/data/selected_mic_device_id` | 設定 | `setSelectedMicDeviceId` | 可 | useDevice.setSuccessSelectedMicDeviceId |  |
+| `/get/data/selectable_mic_device_options` | 取得 | `getMicDeviceOptions` | 可 | useDevice.updateFromBackendMicDeviceOptions |  |
 | `/get/data/selected_mic_device` | 取得 | `getSelectedMicDevice` | 可 | useDevice.updateFromBackendSelectedMicDevice |  |
 | `/set/data/selected_mic_device` | 設定 | `setSelectedMicDevice` | 可 | useDevice.setSuccessSelectedMicDevice |  |
 | `/get/data/mic_threshold` | 取得 | `getMicThreshold` | 可 | useDevice.updateFromBackendMicThreshold |  |
@@ -214,6 +217,9 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/get/data/auto_speaker_select` | 取得 | `getAutoSpeakerSelect` | 可 | useDevice.updateFromBackendEnableAutoSpeakerSelect |  |
 | `/set/enable/auto_speaker_select` | 有効化 | `setEnableAutoSpeakerSelect` | 可 | useDevice.setSuccessEnableAutoSpeakerSelect |  |
 | `/set/disable/auto_speaker_select` | 無効化 | `setDisableAutoSpeakerSelect` | 可 | useDevice.setSuccessEnableAutoSpeakerSelect |  |
+| `/get/data/selected_speaker_device_id` | 取得 | `getSelectedSpeakerDeviceId` | 可 | useDevice.updateFromBackendSelectedSpeakerDeviceId |  |
+| `/set/data/selected_speaker_device_id` | 設定 | `setSelectedSpeakerDeviceId` | 可 | useDevice.setSuccessSelectedSpeakerDeviceId |  |
+| `/get/data/selectable_speaker_device_options` | 取得 | `getSpeakerDeviceOptions` | 可 | useDevice.updateFromBackendSpeakerDeviceOptions |  |
 | `/get/data/selected_speaker_device` | 取得 | `getSelectedSpeakerDevice` | 可 | useDevice.updateFromBackendSelectedSpeakerDevice |  |
 | `/set/data/selected_speaker_device` | 設定 | `setSelectedSpeakerDevice` | 可 | useDevice.setSuccessSelectedSpeakerDevice |  |
 | `/get/data/speaker_threshold` | 取得 | `getSpeakerThreshold` | 可 | useDevice.updateFromBackendSpeakerThreshold |  |
@@ -403,7 +409,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/run/feed_watchdog` | 実行 | `feedWatchdog` | 可 | （受け取るだけ） |  |
 
 
-## 通知（サイドカーからUIへ、88件）
+## 通知（サイドカーからUIへ、93件）
 
 要求への応答とは別に、サイドカーが自分から送るメッセージ。`controller.run(status, run_mapping[名前], result)`で送る。
 
@@ -426,6 +432,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `enable_ocr_capture` | `/run/enable_ocr_capture` | — |
 | `check_mic_volume` | `/run/check_mic_volume` | useVolume.updateVolumeVariable_Mic |
 | `check_speaker_volume` | `/run/check_speaker_volume` | useVolume.updateVolumeVariable_Speaker |
+| `audio_device_switched` | `/run/audio_device_switched` | （受け取るだけ） |
 | `error_device` | `/run/error_device` | — |
 | `error_translation_engine` | `/run/error_translation_engine` | — |
 | `message_output_error` | `/run/message_output_error` | — |
@@ -446,7 +453,11 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `downloaded_whisper_weight` | `/run/downloaded_whisper_weight` | useTranscription.downloadedWhisperWeightTypeStatus |
 | `error_whisper_weight` | `/run/error_whisper_weight` | — |
 | `selected_mic_host` | `/run/selected_mic_host` | useDevice.updateFromBackendSelectedMicHost |
+| `selected_mic_device_id` | `/run/selected_mic_device_id` | useDevice.updateFromBackendSelectedMicDeviceId |
+| `selectable_mic_device_options` | `/run/selectable_mic_device_options` | useDevice.updateFromBackendMicDeviceOptions |
 | `selected_mic_device` | `/run/selected_mic_device` | useDevice.updateFromBackendSelectedMicDevice |
+| `selected_speaker_device_id` | `/run/selected_speaker_device_id` | useDevice.updateFromBackendSelectedSpeakerDeviceId |
+| `selectable_speaker_device_options` | `/run/selectable_speaker_device_options` | useDevice.updateFromBackendSpeakerDeviceOptions |
 | `selected_speaker_device` | `/run/selected_speaker_device` | useDevice.updateFromBackendSelectedSpeakerDevice |
 | `selected_translation_engines` | `/run/selected_translation_engines` | useLanguageSettings.updateSelectedTranslationEngines |
 | `translation_engines` | `/run/translation_engines` | useLanguageSettings.updateTranslatorAvailability |
@@ -523,7 +534,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - `/run/translation_language_unsupported`
 
 
-## UIだけにあるルート（57件）
+## UIだけにあるルート（59件）
 
 UIに受信先が定義されているが、サイドカーの`mapping`と`run_mapping`にはないもの。多くは`ui_config_setter.js`の定義が機械的に作るルートで、使われない。
 
@@ -563,6 +574,7 @@ UIに受信先が定義されているが、サイドカーの`mapping`と`run_m
 - `/set/data/selectable_groq_whisper_model_list`
 - `/set/data/selectable_lmstudio_model_list`
 - `/set/data/selectable_mic_device_list`
+- `/set/data/selectable_mic_device_options`
 - `/set/data/selectable_mic_host_list`
 - `/set/data/selectable_ocr_source_languages`
 - `/set/data/selectable_ollama_model_list`
@@ -572,6 +584,7 @@ UIに受信先が定義されているが、サイドカーの`mapping`と`run_m
 - `/set/data/selectable_openrouter_model_list`
 - `/set/data/selectable_plamo_model_list`
 - `/set/data/selectable_speaker_device_list`
+- `/set/data/selectable_speaker_device_options`
 - `/set/data/selectable_transcription_compute_device_list`
 - `/set/data/selectable_translation_compute_device_list`
 - `/set/data/send_message_to_vrc`

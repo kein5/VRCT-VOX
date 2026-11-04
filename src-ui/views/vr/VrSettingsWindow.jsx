@@ -165,7 +165,7 @@ const DeviceSettings = ({ t, openPicker }) => {
             <ToggleRow label={t("config_page.device.label_auto_select")}
                 variable={d.currentEnableAutoMicSelect} onToggle={d.toggleEnableAutoMicSelect} />
             {deviceRow(t("config_page.device.label_host"), d.currentMicHostList, d.currentSelectedMicHost, d.setSelectedMicHost, d.currentEnableAutoMicSelect)}
-            {deviceRow(t("config_page.device.label_device"), d.currentMicDeviceList, d.currentSelectedMicDevice, d.setSelectedMicDevice, d.currentEnableAutoMicSelect)}
+            {deviceRow(t("config_page.device.label_device"), d.currentMicDeviceOptions, d.currentSelectedMicDeviceId, d.setSelectedMicDeviceId, d.currentEnableAutoMicSelect)}
             <ThresholdRow
                 label={t("vr_panel.mic_threshold")} automatic_label={t("vr_panel.automatic")} CheckIcon={MicSvg}
                 threshold={d.currentMicThreshold} setThreshold={d.setMicThreshold}
@@ -178,7 +178,7 @@ const DeviceSettings = ({ t, openPicker }) => {
             <SectionLabel label={t("config_page.device.speaker_device.label")} />
             <ToggleRow label={t("config_page.device.label_auto_select")}
                 variable={d.currentEnableAutoSpeakerSelect} onToggle={d.toggleEnableAutoSpeakerSelect} />
-            {deviceRow(t("config_page.device.label_device"), d.currentSpeakerDeviceList, d.currentSelectedSpeakerDevice, d.setSelectedSpeakerDevice, d.currentEnableAutoSpeakerSelect)}
+            {deviceRow(t("config_page.device.label_device"), d.currentSpeakerDeviceOptions, d.currentSelectedSpeakerDeviceId, d.setSelectedSpeakerDeviceId, d.currentEnableAutoSpeakerSelect)}
             <ThresholdRow
                 label={t("vr_panel.speaker_threshold")} automatic_label={t("vr_panel.automatic")} CheckIcon={HeadphonesSvg}
                 threshold={d.currentSpeakerThreshold} setThreshold={d.setSpeakerThreshold}

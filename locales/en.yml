@@ -227,6 +227,9 @@ backend_errors:
     VRC_MIC_MUTE_SYNC_OSC_DISABLED: "VRC mic mute sync cannot be turned on because OSCQuery is unavailable. Check that the OSC address is 127.0.0.1 or localhost."
 
 common_warning:
+    audio_device_switched:
+        mic: 'Microphone switched from “{{old}}” to “{{new}}”. Capture is continuing.'
+        speaker: 'Speaker capture switched from “{{old}}” to “{{new}}”. Capture is continuing.'
     startup_degraded: "Some settings could not be loaded. VRCT-VOX has started with default values for those settings. Check them before use. If this continues, restart VRCT-VOX."
     config_file_unreadable: "config.json could not be read, so VRCT-VOX started with default settings. The old file was kept as {{file}}."
     unable_to_use_osc_query: "The following functions have been automatically disabled due to the OSC IP Address settings preventing OSC data from being received."
