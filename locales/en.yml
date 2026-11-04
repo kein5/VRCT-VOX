@@ -4,7 +4,7 @@
 # =================================
 
 runtime:
-    local_models_unavailable: "Built-in translation or transcription models are unavailable. Text chat and external voice engines remain available. To download built-in models, turn on \"Download translation and transcription models at startup\" under Settings → Translation or Speech Recognition and restart."
+    local_models_unavailable: "Built-in translation or transcription models are unavailable. Text chat and external voice engines remain available. To use built-in models, review their license and size and download them under Settings → Translation or Speech Recognition."
 
 voice:
     direct_mode: "Direct voice mode"
