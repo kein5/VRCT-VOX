@@ -102,7 +102,7 @@ ctranslate2_weights = {
 }
 
 # Weight used for configurations that have no saved CTRANSLATE2_WEIGHT_TYPE.
-# Must be a commercial-use weight: a fresh install downloads it without asking.
+# Must allow commercial use. Acquisition still requires model-specific consent.
 DEFAULT_CTRANSLATE2_WEIGHT_TYPE = "m2m100_418M-ct2-int8"
 
 
@@ -225,21 +225,34 @@ def downloadCTranslate2Weight(root: str, weight_type: str = "m2m100_418M-ct2-int
         end_callback()
     return all_succeeded
 
-def downloadCTranslate2Tokenizer(path: str, weight_type: str = "m2m100_418M-ct2-int8"):
+class MissingCTranslate2Tokenizer(FileNotFoundError):
+    """The pinned tokenizer is unavailable locally; direct the user to Downloads."""
+
+
+def downloadCTranslate2Tokenizer(path: str, weight_type: str = "m2m100_418M-ct2-int8", *, local_files_only: bool = True):
+    # Network access is reserved for the explicit, consented acquisition path.
     if transformers is None:
-        return
+        raise MissingCTranslate2Tokenizer(weight_type)
     directory_name = ctranslate2_weights[weight_type]["directory_name"]
     tokenizer = ctranslate2_weights[weight_type]["tokenizer"]
     tokenizer_path = os_path.join(path, "weights", "ctranslate2", directory_name, "tokenizer")
     # トークナイザーも固定した commit のものを使う (既定のブランチを追わない)
     revision = TOKENIZER_REVISIONS[tokenizer]
     try:
-        os_makedirs(tokenizer_path, exist_ok=True)
-        transformers.AutoTokenizer.from_pretrained(tokenizer, cache_dir=tokenizer_path, revision=revision)
+        if not local_files_only:
+            os_makedirs(tokenizer_path, exist_ok=True)
+        return transformers.AutoTokenizer.from_pretrained(
+            tokenizer, cache_dir=tokenizer_path, revision=revision, local_files_only=local_files_only)
     except Exception:
         errorLogging()
         tokenizer_path = os_path.join("./weights", "ctranslate2", directory_name, "tokenizer")
-        transformers.AutoTokenizer.from_pretrained(tokenizer, cache_dir=tokenizer_path, revision=revision)
+        try:
+            return transformers.AutoTokenizer.from_pretrained(
+                tokenizer, cache_dir=tokenizer_path, revision=revision, local_files_only=local_files_only)
+        except Exception as exc:
+            if local_files_only:
+                raise MissingCTranslate2Tokenizer(weight_type) from exc
+            raise
 
 def loadTranslatePromptConfig(root_path: str | None = None, prompt_filename: str | None = None) -> dict:
     # PyInstaller 展開後

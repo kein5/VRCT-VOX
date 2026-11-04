@@ -3,14 +3,14 @@ from deepl import DeepLClient
 
 try:
     from .translation_languages import translation_lang
-    from .translation_utils import ctranslate2_weights, TOKENIZER_REVISIONS
+    from .translation_utils import ctranslate2_weights, TOKENIZER_REVISIONS, MissingCTranslate2Tokenizer
     from .translation_providers import TRANSLATION_PROVIDER_REGISTRY
     from .translation_deepl import configureDeepLRuntimeTimeout
 except Exception:
     import sys
     sys.path.append(os_path.dirname(os_path.dirname(os_path.dirname(os_path.abspath(__file__)))))
     from translation_languages import translation_lang
-    from translation_utils import ctranslate2_weights, TOKENIZER_REVISIONS
+    from translation_utils import ctranslate2_weights, TOKENIZER_REVISIONS, MissingCTranslate2Tokenizer
     from translation_providers import TRANSLATION_PROVIDER_REGISTRY
     from translation_deepl import configureDeepLRuntimeTimeout
 
@@ -515,15 +515,18 @@ class Translator:
                 intra_threads=4,
             )
             # 取得したときと同じ固定の commit を読む (既定のブランチを見に行って新しいファイルを取らない)
-            revision = TOKENIZER_REVISIONS.get(tokenizer)
+            revision = TOKENIZER_REVISIONS[tokenizer]
             try:
                 self.ctranslate2_tokenizer = transformers.AutoTokenizer.from_pretrained(
-                    tokenizer, cache_dir=tokenizer_path, revision=revision)
+                    tokenizer, cache_dir=tokenizer_path, revision=revision, local_files_only=True)
             except Exception:
                 errorLogging()
                 tokenizer_path = os_path.join("./weights", "ctranslate2", directory_name, "tokenizer")
-                self.ctranslate2_tokenizer = transformers.AutoTokenizer.from_pretrained(
-                    tokenizer, cache_dir=tokenizer_path, revision=revision)
+                try:
+                    self.ctranslate2_tokenizer = transformers.AutoTokenizer.from_pretrained(
+                        tokenizer, cache_dir=tokenizer_path, revision=revision, local_files_only=True)
+                except Exception as exc:
+                    raise MissingCTranslate2Tokenizer(model_type) from exc
             self.is_loaded_ctranslate2_model = True
 
     def isLoadedCTranslate2Model(self) -> bool:

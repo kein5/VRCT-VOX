@@ -6,12 +6,12 @@ export const isNonCommercialWeight = (weight) => weight?.non_commercial === true
 
 // The weight that is already selected never asks again: it was either
 // confirmed before or saved by an older version, and the backend accepts it
-// without the opt-in flag too.
+// without the opt-in flag too. This never grants download consent.
 export const needsLicenseConfirmation = (weight, selected_id) =>
     isNonCommercialWeight(weight) && weight.id !== selected_id;
 
-// Payload for /set/data/selected_ctranslate2_weight_type and
-// /run/download_ctranslate2_weight. A bare id keeps the old payload for
+// Payload for /set/data/selected_ctranslate2_weight_type only.
+// Acquisitions use legacyDownloadRequest. A bare id keeps the payload for
 // everything that doesn't need the opt-in.
 export const weightRequest = (id, accepted = false) =>
     accepted ? { weight_type: id, accept_non_commercial_license: true } : id;

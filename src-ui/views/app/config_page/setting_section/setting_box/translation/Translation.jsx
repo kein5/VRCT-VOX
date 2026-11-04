@@ -26,6 +26,7 @@ import {
 
 import { ComputeDevice } from "../_components/compute_device/ComputeDevice";
 import { SetupSection } from "../_components/setup_section/SetupSection";
+import { LegacyModelDownloadDialog } from "../_components/download_models/LegacyModelDownloadDialog";
 import { AutoDownloadModelsContainer } from "../shared_items/SharedItems";
 
 import {
@@ -120,8 +121,7 @@ const LocalLLM_Container = () => {
     );
 };
 
-// Weights whose license the user confirmed since the app started, so that
-// "download" followed by "select" of the same NLLB weight asks only once.
+// Selection consent lasts for this session. Download consent is always reviewed.
 const license_confirmed_weights = new Set();
 
 const CTranslate2WeightType_Box = () => {
@@ -135,15 +135,17 @@ const CTranslate2WeightType_Box = () => {
         setSelectedCTranslate2WeightType,
     } = useTranslation();
     const [confirming, setConfirming] = useState(null);
+    const [downloadReview, setDownloadReview] = useState(null);
 
     const findWeight = (id) => currentCTranslate2WeightTypeStatus.data.find(item => item.id === id);
     const isConfirmed = (weight) => license_confirmed_weights.has(weight?.id);
     const askFirst = (weight) => needsLicenseConfirmation(weight, currentSelectedCTranslate2WeightType.data) && !isConfirmed(weight);
 
     const select = (id) => setSelectedCTranslate2WeightType(weightRequest(id, isConfirmed(findWeight(id))));
-    const download = (id) => {
-        pendingCTranslate2WeightTypeStatus(id);
-        downloadCTranslate2WeightTypeStatus(weightRequest(id, isConfirmed(findWeight(id))));
+    const download = (request) => {
+        if (isNonCommercialWeight(findWeight(request.weight_type))) license_confirmed_weights.add(request.weight_type);
+        pendingCTranslate2WeightTypeStatus(request.weight_type);
+        downloadCTranslate2WeightTypeStatus(request);
     };
 
     const selectFunction = (id) => {
@@ -152,18 +154,13 @@ const CTranslate2WeightType_Box = () => {
         select(id);
     };
 
-    const downloadStartFunction = (id) => {
-        const weight = findWeight(id);
-        if (askFirst(weight)) return setConfirming({ weight, action: "download" });
-        download(id);
-    };
+    const downloadStartFunction = (id) => setDownloadReview(id);
 
     const confirmLicense = () => {
-        const { weight, action } = confirming;
+        const { weight } = confirming;
         license_confirmed_weights.add(weight.id);
         setConfirming(null);
-        if (action === "select") select(weight.id);
-        else download(weight.id);
+        select(weight.id);
     };
 
 
@@ -185,6 +182,8 @@ const CTranslate2WeightType_Box = () => {
 
     return (
         <>
+            {downloadReview && <LegacyModelDownloadDialog kind="ctranslate2" weightType={downloadReview}
+                onCancel={() => setDownloadReview(null)} onDownload={download} />}
             {confirming && (
                 <CTranslate2LicenseDialog
                     weight={confirming.weight}

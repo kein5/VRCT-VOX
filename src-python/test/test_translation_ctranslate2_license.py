@@ -16,6 +16,7 @@ import yaml
 from config import Config, config
 from controller import Controller
 from model import model
+from models.legacy_model_consent import legacyModelReview
 from models.translation.translation_translator import Translator, UnsupportedLanguageError
 from models.translation.translation_utils import (
     DEFAULT_CTRANSLATE2_WEIGHT_TYPE,
@@ -150,7 +151,7 @@ class _ControllerTestBase(unittest.TestCase):
         self.controller.run = lambda status, endpoint, result: self.pushes.append((status, endpoint, result))
 
         saved = {name: getattr(config, name) for name in (
-            "CTRANSLATE2_WEIGHT_TYPE", "CTRANSLATE2_LICENSE_NOTICE_SHOWN", "SELECTED_TAB_NO",
+            "CTRANSLATE2_WEIGHT_TYPE", "CTRANSLATE2_LICENSE_NOTICE_SHOWN", "SELECTED_TAB_NO", "LEGACY_MODEL_DOWNLOAD_CONSENTS",
             "SELECTED_TRANSLATION_ENGINES", "SELECTED_YOUR_LANGUAGES", "SELECTED_TARGET_LANGUAGES",
         )}
         saved["SELECTABLE_TRANSLATION_ENGINE_STATUS"] = dict(config.SELECTABLE_TRANSLATION_ENGINE_STATUS)
@@ -219,29 +220,31 @@ class DownloadWeightRequiresOptInTests(_ControllerTestBase):
     def test_nllb_download_without_opt_in_is_refused(self) -> None:
         response = self.controller.downloadCtranslate2Weight(NLLB_600M, asynchronous=False)
         self.assertEqual(response["status"], 400)
-        self.assertEqual(response["result"]["error_code"], "WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED")
+        self.assertEqual(response["result"]["error_code"], "WEIGHT_DOWNLOAD_CONSENT_REQUIRED")
         self.downloadCTranslate2ModelWeight.assert_not_called()
         self.downloadCTranslate2ModelTokenizer.assert_not_called()
 
     def test_nllb_download_with_opt_in_starts(self) -> None:
         response = self.controller.downloadCtranslate2Weight(
-            {"weight_type": NLLB_600M, "accept_non_commercial_license": True}, asynchronous=False)
+            {"weight_type": NLLB_600M, "consent": True,
+             "manifest_version": legacyModelReview("ctranslate2", NLLB_600M)["manifest_version"]}, asynchronous=False)
         self.assertEqual(response, {"status": 200, "result": True})
         self.assertEqual(self.downloadCTranslate2ModelWeight.call_args.args[0], NLLB_600M)
         self.downloadCTranslate2ModelTokenizer.assert_called_once_with(NLLB_600M)
         # Downloading alone does not select it.
         self.assertEqual(config.CTRANSLATE2_WEIGHT_TYPE, M2M100)
 
-    def test_saved_nllb_weight_still_auto_downloads(self) -> None:
-        # Startup auto-download passes the saved weight as a bare id.
+    def test_saved_nllb_weight_requires_model_consent(self) -> None:
+        # Keeping a saved selection is not consent to acquire missing files.
         config.CTRANSLATE2_WEIGHT_TYPE = NLLB_600M
         response = self.controller.downloadCtranslate2Weight(NLLB_600M, asynchronous=False)
-        self.assertEqual(response, {"status": 200, "result": True})
-        self.downloadCTranslate2ModelWeight.assert_called_once()
+        self.assertEqual(response["status"], 400)
+        self.downloadCTranslate2ModelWeight.assert_not_called()
 
-    def test_default_weight_downloads_without_opt_in(self) -> None:
+    def test_default_weight_requires_model_consent(self) -> None:
         response = self.controller.downloadCtranslate2Weight(M2M100, asynchronous=False)
-        self.assertEqual(response, {"status": 200, "result": True})
+        self.assertEqual(response["status"], 400)
+        self.downloadCTranslate2ModelWeight.assert_not_called()
 
 
 class NonCommercialNoticeTests(_ControllerTestBase):

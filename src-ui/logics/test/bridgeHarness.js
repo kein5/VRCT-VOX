@@ -1,3 +1,4 @@
+import * as legacyModelConsent from "../configs/legacyModelConsent.js";
 import { atom } from "jotai/vanilla";
 import { hooks, loadModule } from "./hookHarness.js";
 import * as recovery from "../common/pendingRequestRecovery.js";
@@ -69,6 +70,7 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
         "@useI18n": { useI18n: () => i18n ? { t: i18n.t.bind(i18n), i18n } : { t: key => key, i18n: { exists: () => false } } },
         "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython: send }) },
         "./ui_configs": { ui_configs: {} }, "./configs/cloudTranscription": { CLOUD_TRANSCRIPTION_ENGINES: [] },
+        "./configs/legacyModelConsent": legacyModelConsent,
     });
     const feature = values => stubApi({ send, reset: noop, backendStopped: noop, ...values });
     const voice = { useVoice: () => feature({ settings: null, status: {} }) };

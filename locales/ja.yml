@@ -174,9 +174,10 @@ common_error:
 
 # Messages for the sidecar's error codes (see docs/spec/reference/error-codes.md).
 backend_errors:
+    WEIGHT_DOWNLOAD_CONSENT_REQUIRED: "{{model}} はダウンロードしていません。設定の「翻訳」または「音声認識」でライセンスと容量を確認し、同意してからダウンロードしてください。モデルの版が変わったときは、もう一度確認してください。"
     TRANSLATION_VRAM_ENABLE: "GPUのメモリーが足りず、AI翻訳を開始できませんでした。設定の「翻訳」で処理デバイスをCPUにするか、ほかのGPUアプリを止めてください。"
     TRANSLATION_DISABLED_VRAM: "GPUのメモリーが足りないため、翻訳をオフにしました。"
-    TRANSLATION_MODEL_MISSING: "翻訳モデルがダウンロードされていないため、翻訳を開始できませんでした。設定の「翻訳」でモデルをダウンロードするか、メイン画面でほかの翻訳エンジンを選んでください。"
+    TRANSLATION_MODEL_MISSING: "翻訳モデルまたはトークナイザーがないため、翻訳を開始できませんでした。設定の「翻訳」でモデルをダウンロードするか、メイン画面でほかの翻訳エンジンを選んでください。"
     TRANSLATION_MODEL_LOAD_FAILED: "翻訳モデルを読み込めないため、翻訳を開始できませんでした。設定の「翻訳」でモデルをダウンロードし直すか、処理デバイスを変えてください。"
     TRANSCRIPTION_VRAM_MIC: "GPUのメモリーが足りず、マイクの音声認識を続けられませんでした。設定の「音声認識」で処理デバイスをCPUにするか、ほかのGPUアプリを止めてください。"
     TRANSCRIPTION_VRAM_SPEAKER: "GPUのメモリーが足りず、スピーカーの音声認識を続けられませんでした。設定の「音声認識」で処理デバイスをCPUにするか、ほかのGPUアプリを止めてください。"
@@ -677,7 +678,7 @@ config_page:
             label: "ひらがなを表示"
         auto_download_models:
             label: "起動時に翻訳・文字起こしモデルをダウンロード"
-            desc: "有効にすると、次回起動時に未取得の内蔵モデルをダウンロードします。無効でも取得済みモデルは使えます。外部音声エンジンのモデルは別途管理します。"
+            desc: "オンにすると、ダウンロードの画面で同意したモデルと版に限り、足りないファイルを起動時にダウンロードします。このスイッチだけでは、ダウンロードに同意したことになりません。オフでも、取得済みのモデルは使えます。外部の音声エンジンのモデルは別に管理します。"
 
     vrchat:
         section_label_chatbox: "チャットボックスへの送信"
@@ -1311,3 +1312,24 @@ studio:
     minimize: "ウィンドウを最小化"
     maximize: "ウィンドウを最大化・元に戻す"
     close: "アプリを閉じる"
+
+legacy_model_downloads:
+    provider: "提供元"
+    exact_bytes: "{{bytes}} バイト"
+    plus_tokenizer: "このほか、トークナイザー（文章を単語に区切るためのファイル）も取得します。その容量は上の数に含まれていません。"
+    tokenizer: "トークナイザーの提供元とモデル"
+    non_commercial: "非商用の利用に限られます（CC-BY-NC-4.0）。トークナイザーにも同じ制限があります。"
+    revision: "モデルの版"
+    review_unavailable: "モデルの情報を読み込めませんでした。この画面を閉じて、もう一度お試しください。"
+    startup_skipped: "{{model}} のこの版にはまだ同意していないため、起動時にはダウンロードしませんでした。設定の「翻訳」または「音声認識」でライセンスと容量を確認してから、ダウンロードしてください。"
+    consent: "提供元・ライセンス・容量を確認しました。表示された追加のファイルも含めて、ダウンロードに同意します。"
+    no_start: "ダウンロードしても、モデルの選択や、翻訳・マイクのオン／オフは変わりません。"
+    model: "モデル"
+    license: "ライセンス"
+    size: "容量"
+    additional_files: "追加のファイル"
+    revision_label: "版"
+    terms: "利用条件"
+    tokenizer_label: "トークナイザー"
+    size_with_approx: "{{bytes}}（約 {{size}}）"
+    consent_without_extra_files: "提供元・ライセンス・容量を確認しました。ダウンロードに同意します。"

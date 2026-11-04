@@ -143,7 +143,7 @@ class TranslateCTranslate2LockTests(unittest.TestCase):
         tt_module.transformers = _FakeTransformers()
         tt_module.ctranslate2_weights["nllb-200-distilled-600M-ct2-int8"] = {
             "directory_name": "nllb-200-distilled-600M-ct2-int8",
-            "tokenizer": "dummy",
+            "tokenizer": "facebook/nllb-200-distilled-600M",
         }
 
         def run_change():

@@ -174,9 +174,10 @@ common_error:
 
 # Messages for the sidecar's error codes (see docs/spec/reference/error-codes.md).
 backend_errors:
+    WEIGHT_DOWNLOAD_CONSENT_REQUIRED: "{{model}} was not downloaded. Review its license and size in Settings > Translation or Transcription and agree before downloading. If the model version changed, review it again."
     TRANSLATION_VRAM_ENABLE: "Not enough GPU memory to start AI translation. Choose CPU as the device under Settings → Translation, or close other GPU apps."
     TRANSLATION_DISABLED_VRAM: "Translation was turned off because GPU memory ran out."
-    TRANSLATION_MODEL_MISSING: "Translation could not start because the translation model is not downloaded. Download it in Settings > Translation, or choose another translation engine on the main screen."
+    TRANSLATION_MODEL_MISSING: "Translation could not start because the translation model or its tokenizer files are missing. Download it in Settings > Translation, or choose another translation engine on the main screen."
     TRANSLATION_MODEL_LOAD_FAILED: "Translation could not start because the translation model could not be loaded. Download it again in Settings > Translation, or change the compute device."
     TRANSCRIPTION_VRAM_MIC: "Not enough GPU memory to keep recognising the microphone. Choose CPU as the device under Settings → Speech Recognition, or close other GPU apps."
     TRANSCRIPTION_VRAM_SPEAKER: "Not enough GPU memory to keep recognising the speaker. Choose CPU as the device under Settings → Speech Recognition, or close other GPU apps."
@@ -677,7 +678,7 @@ config_page:
             label: "Show Hiragana"
         auto_download_models:
             label: "Download translation and transcription models at startup"
-            desc: "When enabled, missing built-in models are downloaded on the next start. Existing models remain usable when disabled. External speech models are managed separately."
+            desc: "When enabled, startup downloads missing built-in models only if you already agreed to that model and version in its download dialog. This switch alone does not grant consent. Existing files remain usable when disabled."
 
     vrchat:
         section_label_chatbox: "Chatbox"
@@ -1311,3 +1312,24 @@ studio:
     minimize: "Minimize window"
     maximize: "Maximize or restore window"
     close: "Close application"
+
+legacy_model_downloads:
+    provider: "Provider"
+    exact_bytes: "{{bytes}} bytes"
+    plus_tokenizer: "plus tokenizer files (their size is not included)"
+    tokenizer: "Tokenizer provider and model"
+    non_commercial: "Non-commercial use only (CC-BY-NC-4.0). This restriction also applies to the tokenizer."
+    revision: "Model revision"
+    review_unavailable: "Model details could not be loaded. Close this dialog and try again."
+    startup_skipped: "{{model}} was not downloaded at startup because consent for this model version is missing. Review its license and size in Settings > Translation or Transcription to download it."
+    consent: "I have reviewed the provider, license and size information and agree to download, including the additional files shown."
+    no_start: "Downloading does not change the selected model or turn on translation or the microphone."
+    model: "Model"
+    license: "License"
+    size: "Size"
+    additional_files: "Additional files"
+    revision_label: "Revision"
+    terms: "Terms of use"
+    tokenizer_label: "Tokenizer"
+    size_with_approx: "{{bytes}} (about {{size}})"
+    consent_without_extra_files: "I have reviewed the provider, license and size information and agree to download."

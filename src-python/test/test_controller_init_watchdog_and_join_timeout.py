@@ -80,6 +80,8 @@ class WeightDownloadJoinTimeoutTests(unittest.TestCase):
         self.controller.connectedNetwork = lambda: None
         self.controller.disconnectedNetwork = lambda: None
         self.controller.initializationProgress = lambda *a, **k: None
+        # This test covers the existing join limit after startup consent succeeds.
+        self.controller._startupLegacyDownloadRequest = lambda kind, weight: {"weight_type": weight}
         self.controller.downloadCtranslate2Weight = lambda *a, **k: None
         self.controller.downloadWhisperWeight = lambda *a, **k: None
 

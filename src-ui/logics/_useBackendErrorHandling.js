@@ -23,6 +23,7 @@ import {
     useAdvancedSettings,
 } from "@logics_configs";
 import { ui_configs } from "./ui_configs";
+import { clearLegacyConsentPending } from "./configs/legacyModelConsent";
 import { CLOUD_TRANSCRIPTION_ENGINES } from "./configs/cloudTranscription";
 
 const OCR_ERROR_KEYS = {
@@ -220,6 +221,15 @@ export const _useBackendErrorHandling = () => {
             // ============================================================================
             // ウェイトダウンロード関連エラー (WEIGHT_*)
             // ============================================================================
+            case "WEIGHT_DOWNLOAD_CONSENT_REQUIRED":
+                if (endpoint === "/run/download_whisper_weight") {
+                    transcription.updateWhisperWeightTypeStatus(old => clearLegacyConsentPending(old.data, data?.weight_type));
+                } else if (endpoint === "/run/download_ctranslate2_weight") {
+                    updateCTranslate2WeightTypeStatus(old => clearLegacyConsentPending(old.data, data?.weight_type));
+                }
+                showNotification_Warning(t(data?.startup ? "legacy_model_downloads.startup_skipped" : "backend_errors.WEIGHT_DOWNLOAD_CONSENT_REQUIRED",
+                    { model: data?.weight_type }), { category_id: `${error_code}:${data?.kind}:${data?.weight_type}`, hide_duration: null });
+                return;
             case "WEIGHT_CTRANSLATE2_DOWNLOAD":
                 showNotification_Error(t("common_error.failed_download_weight_ctranslate2"), { category_id: error_code });
                 return;
