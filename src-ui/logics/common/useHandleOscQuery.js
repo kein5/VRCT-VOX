@@ -13,11 +13,11 @@ export const useHandleOscQuery = () => {
         const is_osc_query_enabled = payload.data;
         const disabled_functions = payload.disabled_functions;
 
-        // OSC無効になるのは、OSC IP Addressが127.0.0.1、localhost以外の場合で発生。
+        // 受信とOSCQuery広告の準備ができた場合だけ有効にする。
         if (is_osc_query_enabled) {
             updateIsOscAvailable(true);
 
-        } else { // OSC自体は無効だが、無効になった機能がない場合。
+        } else {
             updateIsOscAvailable(false);
 
             if (disabled_functions.length > 0) { // 無効になった機能がある場合は通知。

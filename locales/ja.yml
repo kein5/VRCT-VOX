@@ -224,7 +224,7 @@ backend_errors:
     OBS_BROWSER_SOURCE_FADEOUT_DURATION_INVALID: "フェードアウト時間は数値で入力してください。"
     OBS_BROWSER_SOURCE_FONT_SIZE_INVALID: "フォントサイズは数値で入力してください。"
     OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS_INVALID: "縁取りの太さは数値で入力してください。"
-    VRC_MIC_MUTE_SYNC_OSC_DISABLED: "OSCQueryが使えないため、VRCマイクミュート同期をオンにできません。OSCの送信先が127.0.0.1かlocalhostか確認してください。"
+    VRC_MIC_MUTE_SYNC_OSC_DISABLED: "OSC受信またはOSCQueryの公開を開始できていないため、VRCマイクミュート同期は使えません。OSCの送信先が127.0.0.1かlocalhostになっていることを確認し、OSC設定を保存し直してください。"
 
 common_warning:
     audio_device_switched:
@@ -232,7 +232,7 @@ common_warning:
         speaker: 'スピーカーの録音元を「{{old}}」から「{{new}}」に切り替え、録音を続けています。'
     startup_degraded: "一部の設定を読み込めなかったため、その項目を初期値にして起動しました。使う前に設定を確認してください。繰り返し起きる場合は、VRCT-VOXを再起動してください。"
     config_file_unreadable: "設定ファイル（config.json）を読み込めなかったため、既定の設定で起動しました。元のファイルは{{file}}として残しています。"
-    unable_to_use_osc_query: "OSCの送信先IPアドレスの設定によりOSCデータの受信ができないため、以下の機能が自動的に無効になっています。"
+    unable_to_use_osc_query: "OSC受信またはOSCQueryの公開を開始できないため、以下の機能を無効にしました。マイクミュート同期がオンだった場合は、マイク入力も停止しています。ローカルのOSC設定を確認して保存し直してから、マイク入力をオンにしてください。"
 
 main_page:
     translation: "翻訳"
@@ -352,7 +352,7 @@ config_page:
             type_template_low: "{{type_name}}（精度が悪く、処理は早い）"
             type_template_high: "{{type_name}}（精度が良く、処理は遅い）"
         warning_labels:
-            unable_to_use_osc_query: "OSCの送信先IPアドレスの設定によりOSCデータの受信ができないため、現在この機能は使用できません。"
+            unable_to_use_osc_query: "OSC受信またはOSCQueryの公開を開始できていません。ローカルのOSC設定を確認し、保存し直してください。"
 
     side_menu_labels:
         vrchat: "VRChat"

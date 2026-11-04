@@ -22,7 +22,7 @@ class StopReceiveOscTests(unittest.TestCase):
         # Model はプロセス全体で共有されるシングルトン。他のテストが既に
         # init() 済みかもしれないので、実属性を保存してから上書きし、
         # tearDown で必ず元に戻す。
-        self.model = Model.__new__(Model)
+        self.model = object.__new__(Model)
         self._had_inited = hasattr(self.model, "_inited")
         self._original_inited = getattr(self.model, "_inited", None)
         self._had_osc_handler = hasattr(self.model, "osc_handler")

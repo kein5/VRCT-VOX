@@ -25,7 +25,7 @@
 - OpenAIの`gpt-4o-transcribe`系に、対応していない`verbose_json`を要求していた。
 - 設定値が拒否されたとき（`VALIDATION_CONFIG_VALUE_INVALID`）、UIに分岐がなく「開発者に連絡」の通知になっていた。
 - 使われていないTauriのコマンド`download_zip_asset`が任意のURLを取得できた（OI-02）。コマンドと、そのためだけの依存（reqwest、base64）を外した。
-- VRCマイクミュート同期がOSCの`false`だけで文字起こしを再開していた（OI-14、SEC-05）。VRChatのOSCQueryで解除を確認し、確認できない間はミュートを保つようにした。
+- VRCマイクミュート同期がOSCの`false`だけで文字起こしを再開していた（OI-14、SEC-05）。ローカルのVRChatのOSCQueryで解除を確認し、起動時を含め確認できない間はミュートを保つようにした。探索先のloopback・名前・送信先との対応も確認する。OSCのライフサイクルの直列化、bundle時刻の待機廃止、問い合わせの集約と停止、Zeroconf・HTTPの後始末、実際の準備結果に基づくcapabilityについても[OSCの契約](external-interfaces.md#vrchatへのosc)に記載した。
 - 起動時のAPIキーの確認に失敗すると、キーを消していた。オフラインで起動するだけで保存したキーがすべて消えた。キーを入れ直して確認に失敗したときも、保存してあったキーを消していた。
 - 起動時のOllamaのモデル一覧の取得に時間の上限がなく、応答が止まると起動が終わらなかった。
 - LLMが空の訳を返すと成功として扱い、訳だけを送る設定では何も送らなかった。

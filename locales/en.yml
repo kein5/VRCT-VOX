@@ -224,7 +224,7 @@ backend_errors:
     OBS_BROWSER_SOURCE_FADEOUT_DURATION_INVALID: "Enter the fade-out time as a number."
     OBS_BROWSER_SOURCE_FONT_SIZE_INVALID: "Enter the font size as a number."
     OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS_INVALID: "Enter the outline thickness as a number."
-    VRC_MIC_MUTE_SYNC_OSC_DISABLED: "VRC mic mute sync cannot be turned on because OSCQuery is unavailable. Check that the OSC address is 127.0.0.1 or localhost."
+    VRC_MIC_MUTE_SYNC_OSC_DISABLED: "VRC mic mute sync is unavailable because OSC reception or OSCQuery advertisement is not ready. Check that the OSC destination is 127.0.0.1 or localhost, then save the OSC settings again."
 
 common_warning:
     audio_device_switched:
@@ -232,7 +232,7 @@ common_warning:
         speaker: 'Speaker capture switched from “{{old}}” to “{{new}}”. Capture is continuing.'
     startup_degraded: "Some settings could not be loaded. VRCT-VOX has started with default values for those settings. Check them before use. If this continues, restart VRCT-VOX."
     config_file_unreadable: "config.json could not be read, so VRCT-VOX started with default settings. The old file was kept as {{file}}."
-    unable_to_use_osc_query: "The following functions have been automatically disabled due to the OSC IP Address settings preventing OSC data from being received."
+    unable_to_use_osc_query: "OSC reception or OSCQuery advertisement is unavailable. The functions below are disabled. If mic mute sync was on, microphone input has also been stopped. Check the local OSC settings and save them again before turning microphone input back on."
 
 main_page:
     translation: "Translation"
@@ -352,7 +352,7 @@ config_page:
             type_template_low: "{{type_name}} (Lower accuracy, faster processing)"
             type_template_high: "{{type_name}} (Higher accuracy, slower processing)"
         warning_labels:
-            unable_to_use_osc_query: "Due to the OSC IP Address settings, OSC data cannot be received, so this feature is currently unavailable."
+            unable_to_use_osc_query: "OSC reception or OSCQuery advertisement is not ready. Check the local OSC settings and save them again."
 
     side_menu_labels:
         vrchat: "VRChat"

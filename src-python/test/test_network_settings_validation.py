@@ -50,6 +50,16 @@ def settings(tmp_path, monkeypatch):
     return instance
 
 
+def call_setter(setter, value):
+    target = Controller
+    if setter == "setOscPort":
+        # The OSC setter publishes OSCQuery readiness through the instance;
+        # that path has its own tests.
+        target = object.__new__(Controller)
+        target._publishOscQueryReadiness = lambda: None
+    return getattr(target, setter)(value)
+
+
 def load(settings, values):
     with open(settings.PATH_CONFIG, "w", encoding="utf-8") as stream:
         json.dump(values, stream)
@@ -77,7 +87,7 @@ def test_port_setters_validate_before_any_service_or_save(settings, value, runni
     services.checkObsBrowserSourceServerAlive.return_value = running
     services.startWebSocketServer.return_value = True
     services.startObsBrowserSourceServer.return_value = True
-    response = getattr(Controller, setter)(value)
+    response = call_setter(setter, value)
     accepted = isValidPort(value)
     assert response["status"] == (200 if accepted else 400)
     assert getattr(settings, key) == (value if accepted else default)

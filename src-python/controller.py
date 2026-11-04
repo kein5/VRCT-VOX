@@ -76,6 +76,7 @@ _VR_WINDOW_SETTINGS_LOCK = Lock()
 
 # Only short OCR intent updates belong here; model loading/joins stay outside.
 _OCR_CONTROL_LOCK = Lock()
+_OSC_CONTROL_LOCK = RLock()
 _LEGACY_DOWNLOAD_OWNER_LOCK = Lock()
 
 
@@ -1311,6 +1312,7 @@ class Controller:
         Returns:
             dict with status 200 and result True on success.
         """
+        model.requestOSCShutdown()
         # Revoke intent before any cleanup can wait on a worker or lock.
         for source in ("mic", "speaker", "ocr", "chat"):
             model.message_delivery.revoke(source)
@@ -1879,7 +1881,7 @@ class Controller:
     def _messagePublicationGuard(self, source, publication_guard=None):
         def muted():
             return (source == "mic" and config.VRC_MIC_MUTE_SYNC is True
-                    and model.mic_mute_status is True)
+                    and model.mic_mute_status is not False)
 
         # A result refused at admission must stay refused after unmute.
         if muted():
@@ -3533,14 +3535,8 @@ class Controller:
         self._reconcileAudio("mic", follow_default=False)
 
     def _changeMicTranscriptStatusLocked(self) -> None:
-        # OSC ミュート同期 (Model.changeHandlerMute) からのみ呼ばれる
-        # (model.setMicMuteStatusChangeCallback 経由で __init__ が登録)。
-        # 任意の OSC 受信スレッドで走るため、他の mic_lifecycle_lock
-        # 保持経路 (start/stop 系, Auto Select のデバイス切替) と
-        # 直列化されていなかった (壊れた Recorder への pause()/resume()
-        # で TypeError になったり、resume() が新しい _audio_queue を drain
-        # して録音済み音声を取りこぼす原因になっていた)。
-        with self.mic_lifecycle_lock:
+        # All mute-sync transitions share the mic start/stop/reconfigure lock.
+        with self._audioLock("mic"):
             model.changeMicTranscriptStatus()
 
 
@@ -3888,51 +3884,35 @@ class Controller:
 
 
     def setOscIpAddress(self, data, *args, **kwargs) -> dict:
-        if isValidIpAddress(data) is False:
-            response = VRCTError.create_error_response(
-                ErrorCode.VALIDATION_INVALID_IP,
-                data=config.OSC_IP_ADDRESS
-            )
-        else:
+        with _OSC_CONTROL_LOCK:
+            if isValidIpAddress(data) is False:
+                return VRCTError.create_error_response(
+                    ErrorCode.VALIDATION_INVALID_IP, data=config.OSC_IP_ADDRESS)
             try:
                 model.setOscIpAddress(data)
                 config.OSC_IP_ADDRESS = data
-                if model.getIsOscQueryEnabled() is True:
-                    self.enableOscQuery()
-                else:
-                    mute_sync_info_flag = False
-                    if config.VRC_MIC_MUTE_SYNC is True:
-                        self.setDisableVrcMicMuteSync()
-                        mute_sync_info_flag = True
-                    self.disableOscQuery(mute_sync_info=mute_sync_info_flag)
-
-                response = {"status":200, "result":config.OSC_IP_ADDRESS}
+                return {"status": 200, "result": config.OSC_IP_ADDRESS}
             except Exception:
-                model.setOscIpAddress(config.OSC_IP_ADDRESS)
-                response = VRCTError.create_error_response(
-                    ErrorCode.VALIDATION_CANNOT_SET_IP,
-                    data=config.OSC_IP_ADDRESS
-                )
-        return response
+                # The handler already attempted rollback under its lifecycle lock.
+                return VRCTError.create_error_response(
+                    ErrorCode.VALIDATION_CANNOT_SET_IP, data=config.OSC_IP_ADDRESS)
+            finally:
+                self._publishOscQueryReadiness()
 
 
-    @staticmethod
-    def setOscPort(data, *args, **kwargs) -> dict:
+    def setOscPort(self, data, *args, **kwargs) -> dict:
         if not isValidPort(data):
             return VRCTError.create_error_response(
                 ErrorCode.VALIDATION_OSC_PORT_INVALID, data=config.OSC_PORT,
             )
-        try:
-            port = int(data)
-        except Exception:
-            return VRCTError.create_error_response(
-                ErrorCode.VALIDATION_OSC_PORT_INVALID,
-                data=config.OSC_PORT,
-                custom_message="OSC port must be a number",
-            )
-        config.OSC_PORT = port
-        model.setOscPort(config.OSC_PORT)
-        return {"status":200, "result":config.OSC_PORT}
+        port = data
+        with _OSC_CONTROL_LOCK:
+            try:
+                model.setOscPort(port)
+                config.OSC_PORT = port
+                return {"status":200, "result":config.OSC_PORT}
+            finally:
+                self._publishOscQueryReadiness()
 
 
     @staticmethod
@@ -4671,29 +4651,30 @@ class Controller:
         return {"status":200, "result":config.LOGGER_FEATURE}
 
 
-    @staticmethod
-    def setEnableVrcMicMuteSync(*args, **kwargs) -> dict:
-        if config.VRC_MIC_MUTE_SYNC is False:
-            if model.getIsOscQueryEnabled() is True:
+    def setEnableVrcMicMuteSync(self, *args, **kwargs) -> dict:
+        with _OSC_CONTROL_LOCK:
+            # Receiver setup may wait on networking. Never hold the mic lock here.
+            ready = model.getIsOscQueryEnabled() is True
+            with self._audioLock("mic"):
+                if not ready:
+                    return VRCTError.create_error_response(
+                        ErrorCode.VRC_MIC_MUTE_SYNC_OSC_DISABLED, data=config.VRC_MIC_MUTE_SYNC)
+                if config.VRC_MIC_MUTE_SYNC is True:
+                    return {"status": 200, "result": True}
                 config.VRC_MIC_MUTE_SYNC = True
-                model.setMuteSelfStatus()
+                generation = model.invalidateMuteSelfStatus()
                 model.changeMicTranscriptStatus()
-                response = {"status":200, "result":config.VRC_MIC_MUTE_SYNC}
-            else:
-                response = VRCTError.create_error_response(
-                    ErrorCode.VRC_MIC_MUTE_SYNC_OSC_DISABLED,
-                    data=config.VRC_MIC_MUTE_SYNC
-                )
-        else:
-            response = {"status":200, "result":config.VRC_MIC_MUTE_SYNC}
-        return response
+        if model.setMuteSelfStatus(generation) is True:
+            self._changeMicTranscriptStatusLocked()
+        return {"status": 200, "result": config.VRC_MIC_MUTE_SYNC}
 
-    @staticmethod
-    def setDisableVrcMicMuteSync(*args, **kwargs) -> dict:
-        if config.VRC_MIC_MUTE_SYNC is True:
-            config.VRC_MIC_MUTE_SYNC = False
-            model.changeMicTranscriptStatus()
-        return {"status":200, "result":config.VRC_MIC_MUTE_SYNC}
+    def setDisableVrcMicMuteSync(self, *args, **kwargs) -> dict:
+        with self._audioLock("mic"):
+            if config.VRC_MIC_MUTE_SYNC is True:
+                config.VRC_MIC_MUTE_SYNC = False
+                model.invalidateMuteSelfStatus()
+                model.changeMicTranscriptStatus()
+            return {"status": 200, "result": config.VRC_MIC_MUTE_SYNC}
 
     def setEnableCheckSpeakerThreshold(self, data=None, *args, **kwargs) -> dict:
         with self._audioLock("speaker"):
@@ -6096,17 +6077,47 @@ class Controller:
             "disabled_functions": disabled_functions
         })
 
-    def _initVrcMicMuteSync(self) -> None:
-        """VRC_MIC_MUTE_SYNC が有効な場合の、起動時のミュート状態初期同期。
+    def _publishOscQueryReadiness(self):
+        # A cancelled background startup must not rewrite saved user intent.
+        if getattr(model, "_osc_shutdown", False) is True:
+            return
+        if model.getIsOscQueryEnabled() is True:
+            self.enableOscQuery()
+            return
+        try:
+            with self._audioLock("mic"):
+                if config.VRC_MIC_MUTE_SYNC is True:
+                    # Losing sync must not resume a private microphone. Turn input off
+                    # before disabling sync; restarting input remains a user action.
+                    model.invalidateMuteSelfStatus()
+                    model.changeMicTranscriptStatus()
+                    self.setDisableTranscriptionSend()
+                    self.run(200, "/set/disable/transcription_send", False)
+                    config.VRC_MIC_MUTE_SYNC = False
+                    model.invalidateMuteSelfStatus()
+                    self.run(200, "/set/disable/vrc_mic_mute_sync", False)
+        finally:
+            self.disableOscQuery(mute_sync_info=True)
 
-        VRChat が先に起動していれば、ここで MuteSelf を読んで同期する。VRCT が先に起動していると
-        読めず (`model.mic_mute_status` は `None`)、VRChat がアバターを読み込んだときに届く
-        `/avatar/change` で読み直して同期する (model.py の startReceiveOSC)。VRChat の OSCQuery が
-        mDNS に現れた瞬間はアバター読み込み前で MuteSelf が 404 になるため、そこでは問い合わせない。
-        """
-        model.setMuteSelfStatus()
-        if model.mic_mute_status is not None:
+    def _initVrcMicMuteSync(self) -> None:
+        with self._audioLock("mic"):
+            if config.VRC_MIC_MUTE_SYNC is not True:
+                return
+            generation = model.invalidateMuteSelfStatus()
             model.changeMicTranscriptStatus()
+        if model.setMuteSelfStatus(generation) is True:
+            self._changeMicTranscriptStatusLocked()
+
+    def _initOscReceive(self):
+        with _OSC_CONTROL_LOCK:
+            try:
+                model.startReceiveOSC()
+            except Exception:
+                printLog("OSC: receive/advertisement setup failed")
+            finally:
+                self._publishOscQueryReadiness()
+        if model.getIsOscQueryEnabled() is True:
+            self._initVrcMicMuteSync()
 
     def _bootstrapModel(self) -> None:
         """`model.init()` + ミュート同期コールバック登録 (フェーズ3項目22)。
@@ -6867,28 +6878,7 @@ class Controller:
         # Init OSC Receive (Background)
         printLog("Init OSC Receive (Background)")
 
-        def init_osc_receive_background():
-            """OSC Receiveの初期化をバックグラウンドで実行"""
-            try:
-                model.startReceiveOSC()
-                osc_query_enabled = model.getIsOscQueryEnabled()
-                if osc_query_enabled is True:
-                    self.enableOscQuery()
-                    if config.VRC_MIC_MUTE_SYNC is True:
-                        self._initVrcMicMuteSync()
-                else:
-                    # OSC Query is disabled, so disable VRC some features
-                    mute_sync_info_flag = False
-                    if config.VRC_MIC_MUTE_SYNC is True:
-                        self.setDisableVrcMicMuteSync()
-                        mute_sync_info_flag = True
-                    self.disableOscQuery(mute_sync_info=mute_sync_info_flag)
-                printLog("[Background] OSC Receive initialization completed")
-            except Exception:
-                errorLogging()
-                printLog("[Background] OSC Receive initialization failed")
-
-        bg_thread = Thread(target=init_osc_receive_background)
+        bg_thread = Thread(target=self._initOscReceive)
         bg_thread.daemon = True
         bg_thread.start()
 
