@@ -24,6 +24,7 @@
      フォールバックする (Model が Controller を知らないままでも壊れない)。
 """
 
+from concurrent.futures import ThreadPoolExecutor
 import threading
 import unittest
 from unittest.mock import MagicMock, patch
@@ -32,6 +33,7 @@ import config as config_module
 from controller import Controller
 from model import Model
 from models.osc.osc import OSCHandler
+from osc_fakes import prepare_query
 
 
 class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
@@ -39,7 +41,7 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         # Model はプロセス全体で共有されるシングルトン。他のテストが既に
         # init() 済みかもしれないので、実属性を保存してから上書きし、
         # tearDown で必ず元に戻す。
-        self.model = Model.__new__(Model)
+        self.model = object.__new__(Model)
         self._had_inited = hasattr(self.model, "_inited")
         self._original_inited = getattr(self.model, "_inited", None)
         self._had_mute_status = hasattr(self.model, "mic_mute_status")
@@ -53,7 +55,10 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         self._had_mute_callback = hasattr(self.model, "mic_mute_status_change_callback")
         self._original_mute_callback = getattr(self.model, "mic_mute_status_change_callback", None)
         self._mute_state_patch = patch.multiple(
-            self.model, _mute_status_generation=0, _mute_verification_pending=None
+            self.model, _mute_status_generation=0, _mute_verification_pending=None,
+            _osc_shutdown=False, _osc_query_admission=True,
+            _mute_query_pending=None, _mute_query_future=None,
+            _avatar_query_executor=ThreadPoolExecutor(max_workers=1)
         )
         self._mute_state_patch.start()
 
@@ -75,6 +80,7 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self._wait_for_queries()
+        self.model._avatar_query_executor.shutdown(wait=True, cancel_futures=True)
         self._mute_state_patch.stop()
         config_module.config.VRC_MIC_MUTE_SYNC = self._original_mute_sync
         for attr, had, original in (
@@ -99,7 +105,11 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         return dict_filter_and_target[self.model.osc_handler.osc_parameter_muteself]
 
     def _wait_for_queries(self):
-        self.model._avatar_query_executor.submit(lambda: None).result(timeout=5)
+        if self.model._osc_shutdown:
+            self.model._avatar_query_executor.shutdown(wait=True)
+        else:
+            self.model._avatar_query_executor.submit(lambda: None).result(timeout=5)
+            self.model._avatar_query_executor.submit(lambda: None).result(timeout=5)
 
     def test_mute_true_enqueues_instead_of_calling_pause_inline(self) -> None:
         callback = self._get_registered_mute_callback()
@@ -310,6 +320,7 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         with (patch("models.osc.osc.OSCQueryClient") as client,
               patch("models.osc.osc.OSC_QUERY_TIMEOUT_SECONDS", 0.05),
               patch("models.osc.osc.printLog") as log):
+            prepare_query(handler, client)
             client.return_value.query_node.side_effect = query
             try:
                 callback("/x", False)
@@ -397,7 +408,7 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
 
         def call_and_wait(*args):
             callback(*args)
-            Model._avatar_query_executor.submit(lambda: None).result(timeout=5)  # 問い合わせのスレッドを待つ
+            self.model._avatar_query_executor.submit(lambda: None).result(timeout=5)  # 問い合わせのスレッドを待つ
         return call_and_wait
 
     def test_avatar_load_settles_an_unknown_state_and_syncs(self) -> None:
@@ -416,8 +427,8 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
     def test_avatar_load_without_a_readable_value_keeps_the_state(self) -> None:
         self.model.mic_mute_status = None
         self._avatar_callback(None)("/avatar/change", "avtr_x")
-        self.assertIsNone(self.model.mic_mute_status)
-        self.assertEqual(self.enqueued, [])
+        self.assertIs(self.model.mic_mute_status, True)
+        self.assertEqual(len(self.enqueued), 1)
 
     def test_avatar_load_is_ignored_while_sync_is_off(self) -> None:
         config_module.config.VRC_MIC_MUTE_SYNC = False
@@ -438,7 +449,7 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         threading.Thread(target=lambda: (callback("/avatar/change", "avtr_x"), started.set())).start()
         self.assertTrue(started.wait(1))  # returned while the query is still waiting
         release.set()
-        Model._avatar_query_executor.submit(lambda: None).result(timeout=5)
+        self.model._avatar_query_executor.submit(lambda: None).result(timeout=5)
         self.assertIs(self.model.mic_mute_status, True)
         self.assertEqual(len(self.enqueued), 1)
 

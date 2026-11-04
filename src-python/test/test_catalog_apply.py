@@ -357,8 +357,11 @@ def test_shutdown_closes_manager_before_waiting_for_other_services(ready, contro
             pass
 
     controller_methods["_OCR_CONTROL_LOCK"] = OcrLock()
-    # shutdown() first revokes message delivery (PR #118); nothing else is needed here.
-    controller_methods["model"] = SimpleNamespace(message_delivery=SimpleNamespace(revoke=lambda source: None))
+    # shutdown() first closes OSC admission and revokes message delivery (PR #118).
+    controller_methods["model"] = SimpleNamespace(
+        requestOSCShutdown=lambda: None,
+        message_delivery=SimpleNamespace(revoke=lambda source: None),
+    )
     controller = controller_methods["Controller"]()
     controller.model_downloads = manager
     with pytest.raises(ReachedOcrLock):
