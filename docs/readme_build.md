@@ -72,6 +72,55 @@ WindowsのZIPには`vrct-vox.exe`、`vrct-vox-sidecar.exe`、依存ファイル�
 
 `VRCT_PYINSTALLER_CLEAN=1`はPyInstallerの解析キャッシュを破棄します。`VRCT_PYINSTALLER_UPX=1`はUPX圧縮を有効にする設定で、初期設定は無効です。
 
+## 配布ビルドでのCSP検証
+
+CSPの定義と許可理由は[外部インターフェース](spec/external-interfaces.md#webviewのcontent-security-policycsp)にある。Viteの開発サーバーや`tauri dev`は`devCsp`を使うため、配布用CSPの確認にはならない。
+
+まず静的検査とフロントエンドのビルドを実行する。最後の単独テストで、そのビルドのJS/CSS/HTMLと依存のstylesheet hashを検査する。以前の`dist/`を検査した結果と混同しない。
+
+```sh
+python tools/dev.py check --scope ui
+node --test src-ui/logics/common/contentSecurityPolicy.test.js
+```
+
+次に、対象OSの配布手順でproductionフロントエンドを埋め込んだrelease binaryを作る。sidecarと配布資源を準備済みなら`npm run tauri build -- --no-bundle`で本体をビルドできる。`cargo check`は設定のparse確認であり、埋め込まれたCSPやWebviewの動作確認ではない。
+
+WindowsのWebView2とLinuxのWebKitGTKで、それぞれ次を実施する。Linuxの実機操作は`tools/display_power_guard.py`の下で行う。OS、Webviewの版、コミット、ビルド設定、操作したウィンドウ、Console/Networkの記録を残す。
+
+1. `main`、`quick_chat`、`vr_panel`それぞれにInspectorを接続する。現在のCargo設定には`devtools`機能があるが、releaseでは自動でInspectorを開かない。必要なら検証専用のローカル変更でmainの`devtools: true`と動的ウィンドウbuilderの`.devtools(true)`を指定し、作成後にRustの`open_devtools()`を呼ぶ。CSPの変更や`tauri dev`への切り替えはしない。VRパネルは画面外にあるため、mainだけを検査して済ませない。この検証用変更は配布しない。
+2. Consoleの全レベルとログ保持を有効にして各ページを再読み込みする。NetworkでHTML応答の`Content-Security-Policy`を確認する。設定したdirectiveに加え、Tauriが生成したnonce/hashがある場合も正常。`frame-ancestors`はmetaタグでは効かないため、HTMLにmetaを追加するだけで検証を代替しない。
+3. 下表の操作を実施する。`Refused to …`、`Content Security Policy`、`blocked:csp`、`securitypolicyviolation`を探す。動作中の記録には以下のlistenerも使える。listenerをConsoleから登録した場合、それ以前の違反や再読み込み後の違反はこの配列には入らないので、Consoleのブラウザー自身のエラーと併せて確認する。
+4. 記録を保存した後、検証用のinline scriptをDOMへ追加すると拒否されることも確かめる。例えば`const s = document.createElement('script'); s.textContent = 'window.__cspProbeExecuted = true'; document.head.append(s)`をInspectorで実行する。`__cspProbeExecuted`が設定されず、`script-src`違反が記録されることを確認する。この意図した違反は通常操作の結果と分けて記録する。
+
+```js
+window.__cspViolations = [];
+window.addEventListener("securitypolicyviolation", event => {
+    const entry = {
+        directive: event.effectiveDirective,
+        blocked: event.blockedURI,
+        source: event.sourceFile,
+        line: event.lineNumber,
+    };
+    window.__cspViolations.push(entry);
+    console.error("CSP violation", entry);
+});
+```
+
+| ウィンドウ/画面 | 操作と確認する資源 |
+|---|---|
+| mainの起動 | splash、初期化進捗、ダウンロード状態、アプリアイコン、会話ログ、通知。共有JS/CSSと画像が描画される |
+| mainの設定 | 全タブ、検索、開閉、保存、通知。言語5種、OSのローカルフォント、倍率、ログ文字サイズ、狭い幅、ドロップダウンとスクロールを確認する |
+| About | 全言語のロゴ、開発者/貢献者/謝辞の全画像、リンクボタンの画像。外部リンクはWebview内の資源として読まれない |
+| 色選択 | OBSの文字色と縁取り色のpickerを初回に開く。ドラッグ、キー操作、直接入力、保存を確認する。react-colorfulのstyle hashとdata SVG、CSSOMの更新を検査する |
+| モデル取得 | TTS/RVC/ASR/OCR、翻訳・文字起こし用の取得確認、ライセンス・容量表示、キャンセル、同意後の進捗と失敗通知。許諾のあるモデルだけで取得を試す。ネットワーク処理はPython側である |
+| OCR | window/VRそれぞれの領域スライダー、矩形プレビュー、リセット、モデル準備の案内。画像URLを取得するプレビューではない |
+| ログと音声 | 自動ログ保存とフォルダーを開く操作、チャット送信、TTS/RVCと停止/ミュート、音声サーバーの状態表示。blobダウンロードやHTML mediaを必要としない |
+| OBS/WebSocket設定 | 設定の保存、オン/オフ、認証URLのコピー。UIからOBSページやWebSocketへ接続しない |
+| Quick Chat | mainのボタン/ホットキーで開く、入力、送信、失敗表示、閉じる/再表示、言語・フォント・倍率の追従。専用chunkと共有CSS/JS、IPCを確認する |
+| VRパネル | オン/オフと再作成、introのアイコン/背景、launcher、ログ開閉とスクロール、言語/フォントpicker、全設定popup、tooltip、ポインタ/押下表示、透過度/文字サイズ。virtuaの配置とCSSOM、ウィンドウ間IPCを確認する |
+
+通常操作ではCSP違反がなく、画像・通知・色選択のstyleが欠けず、全ウィンドウでIPCが動くことを合格条件とする。Consoleに違反がないだけで、隠れている画面も確認済みとは扱わない。静的検査はブラウザー実装の差やすべての動的な資源読み込みを検証するものではない。依存の更新時も同じ実機確認を繰り返す。
+
 ## バージョン管理
 
 バージョンは`package.json`で管理し、次のコマンドで`src-tauri/tauri.conf.json`、`src-python/config.py`、`pyproject.toml`へ同期します。`pyproject.toml`の版が変わったときは`uv lock`も実行して`uv.lock`を更新します。通常のビルドコマンドでも同期処理を実行します。

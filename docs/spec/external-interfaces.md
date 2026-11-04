@@ -141,6 +141,32 @@ TTSのスイッチをオフにしたときは、そのスイッチが起動し�
 
 設定画面は別ウィンドウではなく、`main`の中のページである。
 
+### WebviewのContent Security Policy（CSP）
+
+`src-tauri/tauri.conf.json`の`app.security.csp`を、上記3ウィンドウの配布用HTMLに共通で適用する。Tauri CLI 2.12.4の`node_modules/@tauri-apps/cli/config.schema.json`にあるdirective map形式を使う（Rust側はTauri 2.12.5）。ブラウザーから読み込む資源の許可であり、Rust/Pythonの通信やTauri capabilityの代わりではない。
+
+| Directive | 許可するsource | 根拠 |
+|---|---|---|
+| `default-src`、`script-src` | `'self'` | Viteが生成する同一オリジンのJS、共有chunk、modulepreload。i18nextとjs-yamlは同梱された翻訳データを処理する。eval、Functionコンストラクター、Wasmは使わない |
+| `style-src` | `'self'`と下記2つのSHA-256 | CSS Modules/SCSSから生成したCSSと、依存が実行時に挿入する固定の`<style>`だけ |
+| `style-src-attr` | `'none'` | HTMLのstyle属性や`setAttribute("style", …)`は許可しない。Reactの`style` prop、virtua、色選択、倍率・フォント・OCR領域の更新はCSSOMのプロパティ代入を使う |
+| `img-src` | `'self' data:` | 同梱PNG/SVG、Viteがインライン化した小画像、選択欄とreact-colorfulのdata SVG。SVGの`?react` importはJS内の要素になる |
+| `font-src` | `'self'` | OSにある選択フォントとNoto/systemのフォールバック。現在はフォントファイルの取得も`@font-face`もない。リモートフォントは使わない |
+| `connect-src` | `'self' ipc: http://ipc.localhost https://ipc.localhost` | 同一オリジンのmodulepreloadのfetchとTauri IPC。WindowsのHTTP/HTTPS形式も含む。pluginコマンドも同じIPCを通る |
+| `media-src`、`worker-src`、`frame-src`、`object-src` | `'none'` | UIに音声・動画プレイヤー、Worker、iframe、objectはない |
+| `base-uri` | `'self'` | 別オリジンへの基準URLの変更を禁止 |
+| `frame-ancestors`、`form-action` | `'none'` | 埋め込みとHTMLフォームによる送信を禁止 |
+
+`style-src`に加える固定値は、react-colorful 5.6.1の`'sha256-I2px+fnpbN4E5+Djrj7aoTIyq9yyREkuVl19f4Sye9A='`と、react-toastify 11.0.5の`'sha256-Xo8/tnRnpUxMw05nUf764oT49W2GEbQN9LaX8Wqxuwg='`。依存が実際に挿入するCSS文字列のUTF-8バイトから計算する。配布用に`'unsafe-inline'`、`'unsafe-eval'`、`'wasm-unsafe-eval'`を許可しない。依存を更新して文字列が変わったら、挿入方法とCSS内のURLを確認したうえでハッシュを更新する。
+
+`dangerousDisableAssetCspModification`は既定の`false`を保つ。TauriによるHTMLのnonce/hash挿入を無効化しない。`script-src-elem`を別に指定してTauriの`script-src`への追加を無効にすることもしない。`freezePrototype`は別のprototype汚染対策であり、CSPを有効にする条件ではない。今回は既定の`false`を保つ。
+
+Python sidecarはshell pluginのstdin/stdoutでつなぐ。UIはPythonのHTTPサーバー、OBS、会話配信用WebSocket、音声サーバーに直接接続しないため、それらのホストやポートを`connect-src`に加えない。OBS用URLはコピーする文字列であり、Tauri内でページを表示しない。モデル取得は同意後にPython側で実行する。モデルカード、ライセンス、Aboutの外部リンクはopenerまたは既存のPython側の処理へ渡す。ログの保存もPython側で行う。OCR領域のプレビューはCSSの矩形であり、画面キャプチャ画像を読み込まない。`blob:`、`asset:`、`http://asset.localhost`の許可は不要で、asset protocolも無効のままとする。
+
+`devCsp`だけはViteのReact Refresh用inline script、HMR用style、および`ws://localhost:1420`、`ws://127.0.0.1:1420`、`ws://localhost:1421`、`ws://127.0.0.1:1421`を許す。通常のdev URLは`http://localhost:1420`。`TAURI_DEV_HOST`に別のホストを指定する場合は、開発用のローカルTauri設定で`devCsp.connect-src`にそのホストのHMR URL（ポート1421）を明記する。配布用CSPを広げない。
+
+静的検査は`src-ui/logics/common/contentSecurityPolicy.test.js`にある。設定、ソースの危険な呼び出しと資源の読み込み、依存のCSSハッシュを検査する。`dist/`があれば、生成JSにeval/Wasm/Workerがないこと、生成CSS/HTMLが同梱資源だけを参照すること、生成JS内のCSSも同じハッシュになることを追加で確かめる。`dist/`がない場合は生成物の検査だけをスキップするため、Viteビルド後にも単独で実行する。静的検査は任意の動的URLのデータフローやWebview実装の挙動までは証明しない。[配布ビルドでのCSP検証](../readme_build.md#配布ビルドでのcsp検証)を別途実行する。
+
 ### Tauriのコマンド
 
 | コマンド | 呼べるウィンドウ | 働き |
