@@ -16,6 +16,7 @@ VRCT-VOXの機能、API、データ、振る舞いの約束をまとめた文書
 | [ユースケース](use-cases.md) | 利用者がすること15件と、関係する画面・エンドポイント | シナリオ | 手書き |
 | [シーケンス](sequences.md) | 起動、設定の変更、チャットの送信、文字起こし、読み上げと停止、APIキーの登録 | シナリオ | 手書き |
 | [契約](contracts.md) | 変えてはいけない約束と、確かめているテスト | 決まり | 手書き |
+| [SteamVR subtitle images](overlay-subtitle-rendering.md) | Subtitle wrapping, raster budgets and local font fallback | 決まり | 手書き |
 | [未決事項](open-issues.md) | 調べて見つかった食い違いと、決まっていないこと | 記録 | 手書き |
 | [用語集](glossary.md) | 画面の言葉とコードの名前の対応 | 参照 | 手書き |
 | [IPCエンドポイント一覧](reference/ipc-endpoints.md) | 全エンドポイント、処理する関数、初期化前の扱い、UIの受信先 | 参照 | 生成 |
