@@ -1062,6 +1062,7 @@ realtime:
   vocabulary_remove_short: "Remove"
 
 realtime_toggle:
+  save_unconfirmed: "The save could not be confirmed. Check the settings and try saving again."
   generic: "Realtime recognition could not start or has stopped ({{reason}}). Check Settings → Transcription → Realtime captions."
   realtime_endpoint_required: "No input is selected. In Settings → Transcription → Realtime captions, choose a device or the system default, save, and turn this on again."
   realtime_default_endpoint_missing: "The system default device was not found. Connect a device, or choose one in Settings → Transcription → Realtime captions, then turn this on again."
@@ -1378,6 +1379,12 @@ studio:
     close: "Close application"
 
 legacy_model_downloads:
+    progress_name: "{{model}} download"
+    progress_pending: "Preparing to download {{model}}."
+    progress_downloading: "Downloading {{model}}: {{progress}}%."
+    progress_finalizing: "Finishing the download of {{model}}."
+    progress_complete: "{{model}} download complete."
+    progress_stopped: "{{model}} download stopped."
     included_tokenizer: "Tokenizer files are included in the size above and verified with the model."
     provider: "Provider"
     exact_bytes: "{{bytes}} bytes"

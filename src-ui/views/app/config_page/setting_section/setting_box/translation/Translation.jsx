@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useI18n } from "@useI18n";
 import { isTauri } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { isNonCommercialWeight, needsLicenseConfirmation, weightRequest } from "../../../../../../logics/configs/ctranslate2License";
+import { useConsentDialog } from "../../../../../../logics/common/useConsentDialog";
 
 import {
     useTranslation,
@@ -136,6 +137,7 @@ const CTranslate2WeightType_Box = () => {
     } = useTranslation();
     const [confirming, setConfirming] = useState(null);
     const [downloadReview, setDownloadReview] = useState(null);
+    const selection = useRef(null);
 
     const findWeight = (id) => currentCTranslate2WeightTypeStatus.data.find(item => item.id === id);
     const isConfirmed = (weight) => license_confirmed_weights.has(weight?.id);
@@ -181,11 +183,12 @@ const CTranslate2WeightType_Box = () => {
 
 
     return (
-        <>
+        <div ref={selection} tabIndex={-1} role="group" aria-label={t("config_page.translation.ctranslate2_weight_type.label", { ctranslate2: "CTranslate2" })}>
             {downloadReview && <LegacyModelDownloadDialog kind="ctranslate2" weightType={downloadReview}
                 onCancel={() => setDownloadReview(null)} onDownload={download} />}
             {confirming && (
                 <CTranslate2LicenseDialog
+                    fallback={selection}
                     weight={confirming.weight}
                     action={confirming.action}
                     onCancel={() => setConfirming(null)}
@@ -207,15 +210,16 @@ const CTranslate2WeightType_Box = () => {
                 selectFunction={selectFunction}
                 downloadStartFunction={downloadStartFunction}
             />
-        </>
+        </div>
     );
 };
 
-const CTranslate2LicenseDialog = ({ weight, action, onCancel, onConfirm }) => {
+export const CTranslate2LicenseDialog = ({ weight, action, onCancel, onConfirm, fallback }) => {
     const { t } = useI18n();
-    const dialog = useRef(null);
+    const { dialog, close } = useConsentDialog(true, fallback);
     const [checked, setChecked] = useState(false);
-    useEffect(() => { dialog.current?.showModal(); }, []);
+    const cancel = () => { close(); onCancel(); };
+    const confirm = () => { if (!checked) return; close(); onConfirm(); };
 
     const openLink = async (event, url) => {
         if (!isTauri()) return;
@@ -226,7 +230,7 @@ const CTranslate2LicenseDialog = ({ weight, action, onCancel, onConfirm }) => {
     const key = (name) => `config_page.translation.ctranslate2_weight_type.${name}`;
 
     return (
-        <dialog ref={dialog} className={styles.license_dialog} aria-label={t(key("confirm_title"))} onCancel={onCancel}>
+        <dialog ref={dialog} className={styles.license_dialog} aria-label={t(key("confirm_title"))} onCancel={event => { event.preventDefault(); cancel(); }}>
             <h3>{t(key("confirm_title"))}</h3>
             <p>{t(key("confirm_body"), { weight_type: weight.id, license: weight.license })}</p>
             <p>
@@ -239,8 +243,8 @@ const CTranslate2LicenseDialog = ({ weight, action, onCancel, onConfirm }) => {
                 {t(key("confirm_check"))}
             </label>
             <div className={styles.license_actions}>
-                <button type="button" autoFocus onClick={onCancel}>{t(key("confirm_cancel"))}</button>
-                <button type="button" className={styles.confirm_button} disabled={!checked} onClick={onConfirm}>
+                <button type="button" autoFocus onClick={cancel}>{t(key("confirm_cancel"))}</button>
+                <button type="button" className={styles.confirm_button} disabled={!checked} onClick={confirm}>
                     {t(key(action === "download" ? "confirm_download" : "confirm_select"))}
                 </button>
             </div>

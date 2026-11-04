@@ -1,4 +1,6 @@
 .container {
+    grid-area: sidebar;
+    min-height: 0;
     width: var(--config_page_sidebar_width);
     flex-shrink: 0;
     padding: 0;
@@ -35,7 +37,8 @@
     height: 100%;
     width: 100%;
     background-color: var(--vox_rail);
-    padding-top: var(--config_page_content_padding_top);
+    // The page grid reserves the header's actual height above the rail.
+    padding-top: 0;
     padding-bottom: 0.8rem;
     overflow: hidden;
 }

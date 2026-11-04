@@ -26,8 +26,10 @@ async function dialogFixture(context, language, reviewedEntry) {
     const resource = yaml.load(readFileSync(new URL(`../../../locales/${language}.yml`, import.meta.url), "utf8"));
     await translations.init({ lng: language, resources: { [language]: { translation: resource } } });
     const events = { focused: 0, opened: 0, closed: 0 };
-    stubGlobals(context, { document: { activeElement: { isConnected: true, focus: () => events.focused++ } } });
+    stubGlobals(context, { document: { activeElement: { isConnected: true, getAttribute: () => null,
+        closest: () => null, focus: () => events.focused++ } } });
     const runtime = hooks(), requests = [], reads = [];
+    const dialogHooks = await loadModule(new URL("../common/useConsentDialog.js", import.meta.url), runtime);
     const downloads = { catalog: { legacy_models: [reviewedEntry] }, send: (...args) => reads.push(args) };
     const { LegacyModelDownloadDialog } = await loadModule(componentURL, runtime, {
         "@useI18n": { useI18n: () => ({ t: translations.t.bind(translations) }) },
@@ -35,11 +37,13 @@ async function dialogFixture(context, language, reviewedEntry) {
         "@tauri-apps/plugin-opener": { openUrl: () => { throw new Error("No links should open in this test"); } },
         "../../../../../../../logics/voice/useModelDownloads": { useModelDownloads: () => downloads },
         "../../../../../../../logics/configs/legacyModelConsent": consentLogic,
+        "../../../../../../../logics/common/useConsentDialog": dialogHooks,
     });
     const props = { kind: reviewedEntry.kind, weightType: reviewedEntry.weight_type,
         onCancel: () => events.closed++, onDownload: data => requests.push(data) };
+    const modal = { open: false, showModal() { this.open = true; events.opened++; }, close() { this.open = false; } };
     const render = () => runtime.render(LegacyModelDownloadDialog, props, tree => {
-        find(tree, node => node.type === "dialog").ref.current = { showModal: () => events.opened++ };
+        find(tree, node => node.type === "dialog").ref.current = modal;
     });
     context.after(() => runtime.unmount());
     render();
@@ -106,6 +110,7 @@ for (const language of ["en", "ja"]) {
                 manifest_version: reviewedEntry.manifest_version }]);
             assert.equal(s.events.closed, 1);
             s.runtime.unmount();
+            await Promise.resolve();
             assert.equal(s.events.focused, 1);
         });
     }
@@ -114,8 +119,9 @@ for (const language of ["en", "ja"]) {
         let tree = s.render();
         find(tree, node => node.type === "input").props.onChange({ target: { checked: true } });
         tree = s.render();
-        find(tree, node => node.type === "dialog").props.onCancel();
+        find(tree, node => node.type === "dialog").props.onCancel({ preventDefault() {} });
         s.runtime.unmount();
+        await Promise.resolve();
         assert.equal(s.events.closed, 1);
         assert.equal(s.events.focused, 1);
         assert.deepEqual(s.requests, []);

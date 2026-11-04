@@ -1,30 +1,34 @@
 import { useI18n } from "@useI18n";
 import { CircularProgress } from "@common_components";
 import styles from "./_DownloadButton.module.scss";
+import { legacyDownloadPhase, useLegacyDownloadStatus } from "../../../../../../../../logics/common/useLegacyDownloadStatus";
 
 export const _DownloadButton = ({option, ...props}) => {
     const { t } = useI18n();
+    const model = `${props.name === "ctranslate2_weight_type" ? "CTranslate2" : "Whisper"} ${option.label ?? option.id}`;
+    const progressName = t("legacy_model_downloads.progress_name", { model });
+    const status = useLegacyDownloadStatus(option, model, t);
+    const phase = legacyDownloadPhase(option);
 
     const renderContent = () => {
-        const circular_progress = Math.floor(option.progress / 10) * 10;
-
         switch (true) {
-            case option.progress !== null:
+            case Number.isFinite(option.progress):
                 return (
                     <div className={styles.progress_wrapper}>
                         <CircularProgress
-                            variant={(option.progress === 100) ? "indeterminate" : "determinate"}
-                            value={circular_progress}
+                            aria-label={progressName}
+                            variant={phase === "finalizing" ? "indeterminate" : "determinate"}
+                            value={option.progress}
                             size="3rem"
                             sx={{ color: "var(--primary_300_color)" }}
                         />
-                        <p className={styles.progress_label}>{`${Math.round(option.progress)}%`}</p>
+                        <p className={styles.progress_label} aria-hidden="true">{`${Math.round(option.progress)}%`}</p>
                     </div>
                 );
             case option.is_pending:
                 return (
                     <div className={styles.progress_wrapper}>
-                        <CircularProgress size="3rem" sx={{ color: "var(--dark_600_color)" }}/>
+                        <CircularProgress aria-label={progressName} size="3rem" sx={{ color: "var(--dark_600_color)" }}/>
                     </div>
                 );
             case !option.is_downloaded:
@@ -56,5 +60,8 @@ export const _DownloadButton = ({option, ...props}) => {
         }
     };
 
-    return <div className={styles.download_container}>{renderContent()}</div>;
+    return <div className={styles.download_container}>
+        {renderContent()}
+        <span className={styles.status} role="status" aria-live="polite" aria-atomic="true">{status}</span>
+    </div>;
 };

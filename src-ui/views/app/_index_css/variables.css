@@ -78,6 +78,8 @@
     --vox_state_active: #80acff;
     --vox_state_warning: #cb944f;
     --vox_state_failed: #f08a85;
+    /* Secondary action hover: readable with both body and secondary text. */
+    --vox_secondary_hover: var(--dark_800_color);
     --vox_readout_rule: #5b92ff;
     /* Overlays (menus, popovers) float above the page; routine forms stay flat. */
     --vox_shadow_overlay: 0 .8rem 2.4rem #0009;

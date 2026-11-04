@@ -1,26 +1,16 @@
-// ============================================================
-// 検索バーの位置・サイズ調整用変数（ここを変更して簡単に調節可能）
-// ============================================================
-$search_bar_top: 1.6rem;             // 上からの位置 (設定画面上部・サイドメニュー上の位置)
-$search_bar_left: 1.6rem;              // 左からの位置 (サイドバー左端からの余白)
-$search_bar_height: 4rem;          // 検索バーの高さ
-$search_bar_width_normal: 17.6rem;     // 通常時の幅 (サイドバー12remの2倍)
-$search_bar_width_compact: 17.6rem;    // コンパクト時の幅 (その半分)
-// ============================================================
-
 .search_wrapper {
-    position: absolute;
-    top: $search_bar_top;
-    left: $search_bar_left;
-    width: $search_bar_width_normal;
-    height: $search_bar_height;
-    transition: width 0.2s ease;
+    grid-area: search;
+    position: relative;
+    align-self: start;
+    min-width: 0;
+    height: 4rem;
+    margin: 1.6rem;
     // Above the rail, which lies over the page while expanded (SidebarSection).
     z-index: 6;
 
-    &.is_small {
-        width: $search_bar_width_compact;
-    }
+    &.is_small { margin-bottom: .8rem; }
+    @media (max-width: 800px) { margin-bottom: .8rem; }
+    :global(html[data-narrow]) & { margin-bottom: .8rem; }
 }
 
 .search_input_container {
@@ -103,7 +93,7 @@ $search_bar_width_compact: 17.6rem;    // コンパクト時の幅 (その半分
     top: calc(100% + 0.6rem);
     left: 0;
     width: max(100%, 34rem);
-    max-width: 44rem;
+    max-width: min(44rem, calc(100vw - 3.2rem));
     max-height: 38rem;
     overflow-y: auto;
     background-color: var(--dark_900_color);

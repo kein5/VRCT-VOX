@@ -17,7 +17,7 @@
         background: var(--dark_850_color, #25364f);
         border: .1rem solid transparent;
         border-radius: var(--vox_radius, .8rem);
-        &:hover { background: var(--dark_600_color, #555d69); }
+        &:hover { background: var(--vox_secondary_hover); }
     }
 }
 
@@ -103,7 +103,7 @@
     background: var(--dark_850_color, #25364f);
     border: .1rem solid transparent;
     border-radius: var(--vox_radius, .8rem);
-    &:hover:enabled { background: var(--dark_600_color, #555d69); }
+    &:hover:enabled { background: var(--vox_secondary_hover); }
     &:disabled { opacity: .6; cursor: not-allowed; }
 }
 

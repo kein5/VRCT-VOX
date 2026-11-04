@@ -20,27 +20,42 @@
 .container {
     width: 100%;
     height: 100%;
-    display: flex;
-    flex-direction: row;
+    // Search and the top-bar controls share tracks. Their intrinsic sizes can
+    // no longer overlap independently positioned elements.
+    display: grid;
+    grid-template-columns: var(--config_page_sidebar_width) auto minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+        "search stop save back"
+        "sidebar main main main";
     background-color: var(--vox_canvas);
     overflow: hidden;
     position: relative;
+    @media (max-width: 800px) {
+        grid-template-columns: 5.6rem minmax(0, 1fr) auto auto;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        grid-template-areas:
+            "search search stop stop"
+            ". save save back"
+            "sidebar main main main";
+    }
+    :global(html[data-narrow]) & {
+        grid-template-columns: 5.6rem minmax(0, 1fr) auto auto;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        grid-template-areas:
+            "search search stop stop"
+            ". save save back"
+            "sidebar main main main";
+    }
 }
 
 .content_wrapper {
-    flex: 1;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    position: relative;
+    display: contents;
 }
 
 .main_container {
-    width: 100%;
-    height: 100%;
+    grid-area: main;
+    min-width: 0;
+    min-height: 0;
     display: flex;
-    padding-top: var(--config_page_content_padding_top);
-    // The top bar wraps to a second row in narrow windows (Topbar.module.scss).
-    @media (max-width: 800px) { padding-top: calc(var(--config_page_content_padding_top) + 4.8rem); }
-    :global(html[data-narrow]) & { padding-top: calc(var(--config_page_content_padding_top) + 4.8rem); }
 }

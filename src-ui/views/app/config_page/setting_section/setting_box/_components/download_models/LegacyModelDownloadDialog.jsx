@@ -6,6 +6,7 @@ import { useModelDownloads } from "../../../../../../../logics/voice/useModelDow
 import { legacyDownloadRequest, legacyReviewSize } from "../../../../../../../logics/configs/legacyModelConsent";
 import styles from "../../advanced_settings/VoiceSettings.module.scss";
 import dialogStyles from "./LegacyModelDownloadDialog.module.scss";
+import { useConsentDialog } from "../../../../../../../logics/common/useConsentDialog";
 
 // Native modal scope, initial focus on Back and the shared catalog form styles.
 // A snapshot remains on screen until closed, even if the catalog is refreshed.
@@ -14,12 +15,11 @@ export const LegacyModelDownloadDialog = ({ kind, weightType, onCancel, onDownlo
     const { catalog, error, send } = useModelDownloads();
     const [entry, setEntry] = useState(null), [consent, setConsent] = useState(false);
     const [linkError, setLinkError] = useState(null);
-    const dialog = useRef(null), submitted = useRef(false);
+    const { dialog, close } = useConsentDialog(true);
+    const submitted = useRef(false);
+    const cancel = () => { close(); onCancel(); };
     useEffect(() => {
-        const trigger = document.activeElement;
-        dialog.current?.showModal();
         send("/get/data/model_download_catalog");
-        return () => { if (trigger?.isConnected) trigger.focus(); };
     }, [send]);
     useEffect(() => {
         const reviewed = catalog?.legacy_models?.find(item => item.kind === kind && item.weight_type === weightType);
@@ -35,7 +35,7 @@ export const LegacyModelDownloadDialog = ({ kind, weightType, onCancel, onDownlo
     const revision = value => <code title={value} aria-description={value}>{value.slice(0, 12)}</code>;
     const request = legacyDownloadRequest(entry, consent);
     return <div className={`${styles.container} ${dialogStyles.host}`}>
-        <dialog ref={dialog} className={dialogStyles.dialog} aria-label={t("model_downloads.warning_title")} onCancel={onCancel}>
+        <dialog ref={dialog} className={dialogStyles.dialog} aria-label={t("model_downloads.warning_title")} onCancel={event => { event.preventDefault(); cancel(); }}>
             <h3>{t("model_downloads.warning_title")}</h3>
             {entry ? <>
                 <dl className={dialogStyles.facts}>
@@ -79,11 +79,11 @@ export const LegacyModelDownloadDialog = ({ kind, weightType, onCancel, onDownlo
                         ? "legacy_model_downloads.consent" : "legacy_model_downloads.consent_without_extra_files")}</label>
             </> : <p role="status">{t(error ? "legacy_model_downloads.review_unavailable" : "model_downloads.loading")}</p>}
             <div className={styles.actions}>
-                <button type="button" autoFocus onClick={onCancel}>{t("model_downloads.back")}</button>
+                <button type="button" autoFocus onClick={cancel}>{t("model_downloads.back")}</button>
                 <button type="button" disabled={!request} onClick={() => {
                     if (!request || submitted.current) return;
                     submitted.current = true;
-                    onDownload(request); onCancel();
+                    close(); onDownload(request); onCancel();
                 }}>{t("model_downloads.start")}</button>
             </div>
         </dialog>

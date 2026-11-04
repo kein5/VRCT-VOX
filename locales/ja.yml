@@ -1062,6 +1062,7 @@ realtime:
   vocabulary_remove_short: "削除"
 
 realtime_toggle:
+  save_unconfirmed: "設定の保存を確認できませんでした。内容を確認して、もう一度保存してください。"
   generic: "リアルタイム認識を開始できないか、停止しました（{{reason}}）。設定 → 音声認識 → リアルタイム字幕を確認してください。"
   realtime_endpoint_required: "入力が選ばれていません。設定 → 音声認識 → リアルタイム字幕でデバイスかシステムの既定を選んで保存し、もう一度オンにしてください。"
   realtime_default_endpoint_missing: "システムの既定のデバイスが見つかりません。デバイスを接続するか、設定 → 音声認識 → リアルタイム字幕でデバイスを選んでから、もう一度オンにしてください。"
@@ -1378,6 +1379,12 @@ studio:
     close: "アプリを閉じる"
 
 legacy_model_downloads:
+    progress_name: "{{model}} のダウンロード"
+    progress_pending: "{{model}} のダウンロードを準備しています。"
+    progress_downloading: "{{model}} をダウンロード中です（{{progress}}%）。"
+    progress_finalizing: "{{model}} のダウンロード完了を待っています。"
+    progress_complete: "{{model}} のダウンロードが完了しました。"
+    progress_stopped: "{{model}} のダウンロードが停止しました。"
     included_tokenizer: "文章を単語に区切るためのファイルも、上の容量に含まれます。モデルと一緒に検証します。"
     provider: "提供元"
     exact_bytes: "{{bytes}} バイト"

@@ -1,5 +1,7 @@
 .entry_container {
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .entry_wrapper {
@@ -14,6 +16,7 @@
 
 .entry_input_area {
     width: 100%;
+    min-width: 0;
     height: 100%;
     // The padding belongs to the input, so a click anywhere in the box reaches it.
     padding: 0.6rem;

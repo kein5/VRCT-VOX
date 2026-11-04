@@ -6,7 +6,7 @@
     // one or two characters per line.
     min-width: min(16rem, 100%);
     max-width: 38rem;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
 }
 
 // Item label role: 1.4rem / 500. Long Japanese labels wrap instead of pushing the control out.
@@ -24,7 +24,7 @@
     font-weight: 400;
     line-height: 1.6;
     color: var(--vox_description_text);
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
     text-wrap: pretty;
 }
 
@@ -42,7 +42,7 @@
 .warning_label {
     font-size: 1.2rem;
     color: var(--warning_color);
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
 }
 
 .warning_svg {
