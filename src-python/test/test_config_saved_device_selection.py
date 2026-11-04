@@ -78,3 +78,15 @@ class SavedDeviceSelectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_saved_endpoint_ids_are_preserved_until_devices_are_listed():
+    case = SavedDeviceSelectionTests()
+    try:
+        with patch.dict(_SAVED, {'SELECTED_MIC_DEVICE_ID': 'mic:endpoint-a',
+                                'SELECTED_SPEAKER_DEVICE_ID': 'speaker:endpoint-b'}):
+            instance = case._load(_NOT_LISTED_YET)
+        assert instance.SELECTED_MIC_DEVICE_ID == 'mic:endpoint-a'
+        assert instance.SELECTED_SPEAKER_DEVICE_ID == 'speaker:endpoint-b'
+    finally:
+        case.doCleanups()

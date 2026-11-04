@@ -1241,6 +1241,8 @@ class Config:
     AUTO_SPEAKER_SELECT = ManagedProperty('AUTO_SPEAKER_SELECT', type_=bool)
     SELECTED_MIC_HOST = ValidatedProperty('SELECTED_MIC_HOST', _mic_host_validator)
     SELECTED_MIC_DEVICE = ValidatedProperty('SELECTED_MIC_DEVICE', _mic_device_validator)
+    SELECTED_MIC_DEVICE_ID = ValidatedProperty('SELECTED_MIC_DEVICE_ID', lambda v, _: v if isinstance(v, str) else None)
+    SELECTED_SPEAKER_DEVICE_ID = ValidatedProperty('SELECTED_SPEAKER_DEVICE_ID', lambda v, _: v if isinstance(v, str) else None)
     SELECTED_SPEAKER_DEVICE = ValidatedProperty('SELECTED_SPEAKER_DEVICE', _speaker_device_validator)
     SELECTED_TRANSLATION_COMPUTE_DEVICE = ValidatedProperty('SELECTED_TRANSLATION_COMPUTE_DEVICE', _compute_device_validator)
     SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_DEVICE', _compute_device_validator)
@@ -1267,6 +1269,8 @@ class Config:
     OCR_USE_CHATBOX_DETECTOR = ManagedProperty('OCR_USE_CHATBOX_DETECTOR', type_=bool)
 
     def init_config(self):
+        self._SELECTED_MIC_DEVICE_ID = ''
+        self._SELECTED_SPEAKER_DEVICE_ID = ''
         # Read Only
         self._VERSION = "0.1.0-beta.4"
         if getattr(sys, 'frozen', False):

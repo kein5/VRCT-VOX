@@ -136,7 +136,7 @@ class TestMeterCacheManagement(unittest.TestCase):
             self.assertEqual(dev_a.Activate.call_count, 1)
             dev_a.Activate.assert_called_once_with("test-meter-iid", 23, None)
             dev_a._activated_for_test.QueryInterface.assert_called_once_with(self.platform.IAudioMeterInformation)
-            self.assertEqual(tracker._collect_peaks_locked(), {"Speaker A": 0.5})
+            self.assertEqual(tracker._collect_peaks_locked(), {"id_A": 0.5})
             self.assertIn("id_A", tracker._meter_cache)
 
             tracker._collect_peaks_locked()

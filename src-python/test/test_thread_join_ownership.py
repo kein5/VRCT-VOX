@@ -165,7 +165,7 @@ def test_audio_reconfigure_waits_for_all_old_delivery_workers(worker_attr):
         log.assert_called_once()
         old.alive = False
         session.reconfigure(transcript=True)
-        start.assert_called_once_with(device=device)
+        start.assert_called_once_with(device=device, previous_device=None)
 
 
 def test_audio_reconfigure_waits_for_recorder_cleanup():
@@ -185,7 +185,7 @@ def test_audio_reconfigure_waits_for_recorder_cleanup():
         log.assert_called_once()
         old.alive = False
         session.reconfigure(transcript=True)
-        start.assert_called_once_with(device=device)
+        start.assert_called_once_with(device=device, previous_device=None)
 
 
 def telemetry_owner():
@@ -407,5 +407,5 @@ def test_recorder_stop_failure_allows_normal_restart_but_blocks_exclusive_handof
     with patch.object(session, '_resolve_device', return_value=device), \
             patch.object(session, '_start') as start:
         session.reconfigure(transcript=True)
-        start.assert_called_once_with(device=device)
+        start.assert_called_once_with(device=device, previous_device=None)
         assert session.stop_for_handoff() is False

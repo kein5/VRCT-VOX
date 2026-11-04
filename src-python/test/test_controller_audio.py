@@ -1,7 +1,7 @@
 import unittest
 
 import pytest
-from threading import Lock
+from threading import RLock
 from unittest.mock import MagicMock, patch
 
 import config as config_module
@@ -166,8 +166,8 @@ class TestTranscriptionEnableFailureState(unittest.TestCase):
         self.addCleanup(platform.stop)
         self.controller = Controller.__new__(Controller)
         self.controller._initRealtimeASR({})
-        self.controller.mic_lifecycle_lock = Lock()
-        self.controller.speaker_lifecycle_lock = Lock()
+        self.controller.mic_lifecycle_lock = RLock()
+        self.controller.speaker_lifecycle_lock = RLock()
         self._original_send = config.ENABLE_TRANSCRIPTION_SEND
         self._original_receive = config.ENABLE_TRANSCRIPTION_RECEIVE
         config.ENABLE_TRANSCRIPTION_SEND = False
@@ -200,8 +200,8 @@ class TestTranscriptionVramStartFailureState(unittest.TestCase):
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
         self.controller._initRealtimeASR({})
-        self.controller.mic_lifecycle_lock = Lock()
-        self.controller.speaker_lifecycle_lock = Lock()
+        self.controller.mic_lifecycle_lock = RLock()
+        self.controller.speaker_lifecycle_lock = RLock()
         self.controller.run_mapping = {
             "error_transcription_mic_vram_overflow": "/run/error_transcription_mic_vram_overflow",
             "error_transcription_speaker_vram_overflow": "/run/error_transcription_speaker_vram_overflow",
@@ -259,8 +259,8 @@ class TestDeviceSelectionRecovery(unittest.TestCase):
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
         self.controller._initRealtimeASR({})
-        self.controller.mic_lifecycle_lock = Lock()
-        self.controller.speaker_lifecycle_lock = Lock()
+        self.controller.mic_lifecycle_lock = RLock()
+        self.controller.speaker_lifecycle_lock = RLock()
         self.controller.run_mapping = {
             "selected_mic_host": "/run/selected_mic_host",
             "selected_mic_device": "/run/selected_mic_device",
@@ -288,7 +288,22 @@ class TestDeviceSelectionRecovery(unittest.TestCase):
             "speaker_energy": config.ENABLE_CHECK_ENERGY_RECEIVE,
         }
 
+        self._ids = (config.SELECTED_MIC_DEVICE_ID, config.SELECTED_SPEAKER_DEVICE_ID)
+        config.SELECTED_MIC_DEVICE_ID = ""
+        config.SELECTED_SPEAKER_DEVICE_ID = ""
+        config.ENABLE_TRANSCRIPTION_SEND = False
+        config.ENABLE_TRANSCRIPTION_RECEIVE = False
+        config.ENABLE_CHECK_ENERGY_SEND = False
+        config.ENABLE_CHECK_ENERGY_RECEIVE = False
+        for source in ("mic", "speaker"):
+            session = getattr(controller_module.model, "_" + source + "_session")
+            def reconfigure(*, device, transcript, energy, session=session):
+                session._active_device = device
+                session.features = {"transcript"} if transcript else {"energy"} if energy else set()
+            session.reconfigure.side_effect = reconfigure
+
     def tearDown(self) -> None:
+        config.SELECTED_MIC_DEVICE_ID, config.SELECTED_SPEAKER_DEVICE_ID = self._ids
         config._SELECTED_MIC_HOST = self._original["mic_host"]
         config._SELECTED_MIC_DEVICE = self._original["mic_device"]
         config._SELECTED_SPEAKER_DEVICE = self._original["speaker_device"]
@@ -366,6 +381,7 @@ class TestDeviceSelectionRecovery(unittest.TestCase):
              patch.object(controller_module.model, "mic_lifecycle_worker", mock_worker, create=True), \
              patch.object(controller_module.model, "getListMicDevice", return_value=["MicB"]):
             self.controller.updateMicDeviceList()
+            mock_worker.enqueue.call_args.args[0]()
 
         self.assertEqual(config.SELECTED_MIC_HOST, "HostB")
         self.assertEqual(config.SELECTED_MIC_DEVICE, "MicB")
@@ -433,6 +449,7 @@ class TestDeviceSelectionRecovery(unittest.TestCase):
              patch.object(controller_module.model, "speaker_lifecycle_worker", mock_worker, create=True), \
              patch.object(controller_module.model, "getListSpeakerDevice", return_value=["SpeakerB"]):
             self.controller.updateSpeakerDeviceList()
+            mock_worker.enqueue.call_args.args[0]()
 
         self.assertEqual(config.SELECTED_SPEAKER_DEVICE, "SpeakerB")
         self.assertTrue(config.ENABLE_TRANSCRIPTION_RECEIVE)
@@ -444,24 +461,24 @@ class TestAudioDeviceAccessLock(unittest.TestCase):
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
         self.controller._initRealtimeASR({})
-        self.controller.mic_lifecycle_lock = Lock()
-        self.controller.speaker_lifecycle_lock = Lock()
+        self.controller.mic_lifecycle_lock = RLock()
+        self.controller.speaker_lifecycle_lock = RLock()
         self.controller.progressBarMicEnergy = lambda _: None
         self.controller.progressBarSpeakerEnergy = lambda _: None
 
     @patch("controller.model.startCheckMicEnergy", side_effect=OSError("mic failed"))
     def test_releases_device_access_when_mic_energy_check_fails(self, _) -> None:
-        with self.assertRaisesRegex(OSError, "mic failed"):
+        with patch.object(config, "_ENABLE_CHECK_ENERGY_SEND", True), self.assertRaisesRegex(OSError, "mic failed"):
             self.controller.startCheckMicEnergy()
 
-        self.assertFalse(self.controller.mic_lifecycle_lock.locked())
+        self.assertFalse(self.controller.mic_lifecycle_lock._is_owned())
 
     @patch("controller.model.startCheckSpeakerEnergy", side_effect=OSError("speaker failed"))
     def test_releases_device_access_when_speaker_energy_check_fails(self, _) -> None:
-        with self.assertRaisesRegex(OSError, "speaker failed"):
+        with patch.object(config, "_ENABLE_CHECK_ENERGY_RECEIVE", True), self.assertRaisesRegex(OSError, "speaker failed"):
             self.controller.startCheckSpeakerEnergy()
 
-        self.assertFalse(self.controller.speaker_lifecycle_lock.locked())
+        self.assertFalse(self.controller.speaker_lifecycle_lock._is_owned())
 
 
 class TestShutdownStopsAutoSelectTrackers(unittest.TestCase):
@@ -479,8 +496,8 @@ class TestShutdownStopsAutoSelectTrackers(unittest.TestCase):
         # shutdown() は mic/speaker_lifecycle_lock を取得してから
         # 停止関数を呼ぶ (ロードマップ項目 5)。__init__ をバイパスしている
         # ためここで明示的にシードする。
-        self.controller.mic_lifecycle_lock = Lock()
-        self.controller.speaker_lifecycle_lock = Lock()
+        self.controller.mic_lifecycle_lock = RLock()
+        self.controller.speaker_lifecycle_lock = RLock()
 
     @patch("controller.model.telemetryShutdown", return_value=None)
     @patch("controller.config.saveConfigToFile", return_value=None)

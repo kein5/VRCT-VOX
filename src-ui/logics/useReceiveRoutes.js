@@ -17,7 +17,7 @@ import { applyInitializationFields } from "./common/initializationFields.js";
 import { isBackendUpdate, rejectExpectedExit } from "./common/sidecarExitExpectation.js";
 
 const INIT_ARRAY_FIELDS = new Set(SETTINGS_ARRAY
-    .filter(setting => ["arrayToObject", "arrayToIdLabel", "transformToIndexedArray"].includes(setting.response_transform))
+    .filter(setting => ["arrayToObject", "arrayToIdLabel", "transformToIndexedArray", "deviceOptionsToObject"].includes(setting.response_transform))
     .map(setting => `/get/data/${setting.base_endpoint_name}`));
 
 export const STATIC_ROUTE_META_LIST = [
@@ -64,6 +64,7 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/compute_mode", ns: common, hook_name: "useComputeMode", method_name: "updateComputeMode" },
 
     { endpoint: "/run/update_software", ns: null, hook_name: null, method_name: null },
+    { endpoint: "/run/audio_device_switched", ns: null, hook_name: null, method_name: null },
     { endpoint: "/run/config_file_unreadable", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
     { endpoint: "/run/config_save_failed", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
     // Fire-and-forget actions from the VR settings (sample text, sent repeatedly while
@@ -366,6 +367,17 @@ export const useReceiveRoutes = () => {
 
         // config.json could not be read: the app runs on defaults and the old
         // file was kept beside it.
+        if (status === 200 && endpoint === "/run/audio_device_switched") {
+            if (["mic", "speaker"].includes(result?.source)
+                && typeof result?.old_device?.name === "string" && typeof result?.new_device?.name === "string") {
+                const sameName = result.old_device.name === result.new_device.name;
+                const label = device => sameName && device.id ? `${device.name} (${device.id})` : device.name;
+                showNotification_Warning(t(`common_warning.audio_device_switched.${result.source}`, {
+                    old: label(result.old_device), new: label(result.new_device),
+                }), { category_id: `audio_device_switched.${result.source}` });
+            }
+            return;
+        }
         if (endpoint === "/run/config_save_failed") {
             // The change stays applied in memory; the sidecar keeps retrying the write.
             const reason = ["disk_full", "permission_denied", "read_only"].includes(result?.reason) ? result.reason : "write_failed";

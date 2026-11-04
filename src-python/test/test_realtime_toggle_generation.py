@@ -367,7 +367,7 @@ def test_cancelled_enable_preserves_a_server_used_elsewhere(app, dispatch, monke
 def test_legacy_enable_ignores_realtime_stamp(app, dispatch, monkeypatch, source, direction):
     monkeypatch.setattr(module.sys, "platform", "win32")
     start = MagicMock(return_value=True)
-    monkeypatch.setattr(app.c, "startTranscription" + direction + "Message", start)
+    monkeypatch.setattr(app.c, "_startTranscription" + direction + "MessageLocked", start)
     request = queued_enable(dispatch, source)
     stop(dispatch, source)
     assert dispatch.main._call_handler(*request) == (True, 200)

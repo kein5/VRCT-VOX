@@ -10,6 +10,7 @@ import re
 import time
 import sys
 from pathlib import Path
+from audio_device_identity import capture_key, device_id, device_options, resolve_device
 from device_manager import device_manager
 from config import config, ConfigValidationError, DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 from model import model, SETUP_LAUNCHED, SETUP_DOWNLOAD_FAILED, SETUP_VERIFY_FAILED
@@ -450,8 +451,8 @@ class Controller:
         # _stopTranscriptionSendMessageLocked のようなロック不要の内部版を
         # 呼ぶことで再入を避けている (公開の stop*Message は自前でロックを
         # 取るため、start*Message の中から呼ぶとデッドロックする)。
-        self.mic_lifecycle_lock: Lock = Lock()
-        self.speaker_lifecycle_lock: Lock = Lock()
+        self.mic_lifecycle_lock = RLock()
+        self.speaker_lifecycle_lock = RLock()
 
     def getModelDownloadCatalog(self, *args, **kwargs):
         return {'status': 200, 'result': {**self.model_downloads.catalog(), 'legacy_models': legacyModelCatalog()}}
@@ -1479,246 +1480,239 @@ class Controller:
             model.getListMicHost(),
         )
 
+    def _audioLock(self, source):
+        name = source + "_lifecycle_lock"
+        lock = getattr(self, name, None)
+        if lock is None:
+            lock = RLock()
+            setattr(self, name, lock)
+        return lock
+
+    def _audioGeneration(self, source, *, advance=False):
+        name = "_" + source + "_intent_generation"
+        generation = getattr(self, name, 0) + int(advance)
+        setattr(self, name, generation)
+        return generation
+
+    @staticmethod
+    def _audioFlags(source):
+        suffix = "SEND" if source == "mic" else "RECEIVE"
+        return "ENABLE_TRANSCRIPTION_" + suffix, "ENABLE_CHECK_ENERGY_" + suffix
+
+    def _audioDevices(self, source):
+        if source == "mic":
+            return [(host, d) for host, devices in device_manager.getMicDevices().items() for d in devices]
+        return [(None, d) for d in device_manager.getSpeakerDevices()]
+
+    def _selectedAudioDevice(self, source):
+        devices = [d for host, d in self._audioDevices(source)
+                   if source != "mic" or host == config.SELECTED_MIC_HOST]
+        return resolve_device(devices, getattr(config, "SELECTED_" + source.upper() + "_DEVICE_ID"),
+                              getattr(config, "SELECTED_" + source.upper() + "_DEVICE"))
+
+    def _audioTarget(self, source, *, follow_default=True):
+        selected = self._selectedAudioDevice(source)
+        auto = getattr(config, "AUTO_" + source.upper() + "_SELECT")
+        if selected is not None and not (auto and follow_default):
+            return selected
+        available = [d for _, d in self._audioDevices(source) if d.get("name") != "NoDevice"]
+        # Do not guess which of two identically named devices an old setting meant.
+        name = getattr(config, "SELECTED_" + source.upper() + "_DEVICE")
+        endpoint_id = getattr(config, "SELECTED_" + source.upper() + "_DEVICE_ID")
+        if not auto and not endpoint_id and len([d for d in available if d.get("name") == name]) > 1:
+            return None
+        default = (device_manager.getDefaultMicDevice() if source == "mic"
+                   else device_manager.getDefaultSpeakerDevice()).get("device", {})
+        matched = resolve_device(available, device_id(default), default.get("name"))
+        return matched or (available[0] if available else None)
+
+    def _publishAudioDeviceLocked(self, source, device, previous=None):
+        prefix = "SELECTED_" + source.upper() + "_DEVICE"
+        name = device.get("name", "NoDevice") if device else "NoDevice"
+        identity = device_id(device)
+        old_name = getattr(config, prefix)
+        ambiguous = (not device and not getattr(config, prefix + "_ID")
+                     and len([d for _, d in self._audioDevices(source) if d.get("name") == old_name]) > 1)
+        if source == "mic" and not ambiguous:
+            host = next((host for host, item in self._audioDevices(source)
+                         if capture_key(item) == capture_key(device)), "NoHost") if device else "NoHost"
+            config.SELECTED_MIC_HOST = host
+            self.run(200, "/run/selectable_mic_host_list", list(device_manager.getMicDevices()))
+            self.run(200, self.run_mapping.get("selected_mic_host", "/run/selected_mic_host"), host)
+        if not ambiguous:
+            setattr(config, prefix, name)
+        setattr(config, prefix + "_ID", identity)
+        # Publish options first, so a newly opened fallback has a visible label.
+        self.run(200, "/run/selectable_" + source + "_device_options", self._audioDeviceOptionsLocked(source))
+        self.run(200, self.run_mapping.get("selected_" + source + "_device", "/run/selected_" + source + "_device"), name)
+        self.run(200, "/run/selected_" + source + "_device_id", identity)
+        if previous and device and (device_id(previous), previous.get("name")) != (identity, name):
+            self.run(200, "/run/audio_device_switched", {
+                "source": source,
+                "old_device": {"id": device_id(previous), "name": previous.get("name", "")},
+                "new_device": {"id": identity, "name": name},
+            })
+
+    def _audioDeviceOptions(self, source):
+        with self._audioLock(source):
+            return self._audioDeviceOptionsLocked(source)
+
+    def _audioDeviceOptionsLocked(self, source):
+        devices = [d for host, d in self._audioDevices(source)
+                   if source != "mic" or host == config.SELECTED_MIC_HOST]
+        session = getattr(model, "_" + source + "_session", None)
+        active = getattr(session, "_active_device", None)
+        if active and device_id(active):
+            # A refresh may precede the queued switch. Keep the current
+            # capture's label available until its owner has actually stopped.
+            devices = [active if device_id(d) == device_id(active) else d for d in devices]
+            if not any(device_id(d) == device_id(active) for d in devices):
+                devices.append(active)
+        return device_options(devices)
+
+    def _publishDeviceOptions(self, source):
+        self.run(200, "/run/selectable_" + source + "_device_options", self._audioDeviceOptions(source))
+
+    def _wireAudioSessionLocked(self, source):
+        model.ensure_initialized()
+        session = getattr(model, "_" + source + "_session")
+        generation = self._audioGeneration(source)
+        session.device_fnc = lambda device, previous: self._publishAudioDeviceLocked(source, device, previous)
+        # Start/rollback callbacks run under the caller's source lock. Recorder
+        # errors arrive on another thread and must enter through the lock boundary.
+        session.error_fnc = lambda failure: self._audioPipelineFailedLocked(source, generation, failure)
+        session.runtime_error_fnc = lambda failure: self._audioPipelineFailed(source, generation, failure)
+        session.terminal_failure_fnc = lambda: self._audioTerminalFailureLocked(source, generation)
+        return session
+
+    def _audioTerminalFailureLocked(self, source, generation):
+        if generation == self._audioGeneration(source):
+            if any(getattr(config, flag) for flag in self._audioFlags(source)):
+                self._disableTranscriptionAfterPipelineErrorLocked(source)
+
+    def _audioPipelineFailed(self, source, generation, failure):
+        with self._audioLock(source):
+            self._audioPipelineFailedLocked(source, generation, failure, cleanup=True)
+
+    def _audioPipelineFailedLocked(self, source, generation, failure, *, cleanup=False):
+        if generation != self._audioGeneration(source):
+            return
+        failed_device = failure.get("failed_device")
+        public_failure = {key: value for key, value in failure.items() if key != "failed_device"}
+        if failed_device and failure.get("error_code") == "AUDIO_READ_ERROR":
+            # A read error can precede the device-list notification. Reconcile
+            # one fresh snapshot before declaring the user's capture ended.
+            worker = getattr(model, source + "_lifecycle_worker", None)
+            if worker is not None and worker.enqueue(
+                    lambda: self._recoverAudioDeviceLoss(source, generation, failed_device, public_failure),
+                    coalesce_key=f"{source}_read_error_{generation}") is not False:
+                return
+        if cleanup:
+            public_failure = self._disableAudioAfterDeviceLossLocked(source) or public_failure
+        else:
+            self._audioTerminalFailureLocked(source, generation)
+        self.run(200, self.run_mapping.get("transcription_recognition_error", "/run/transcription_recognition_error"), public_failure)
+
+    def _recoverAudioDeviceLoss(self, source, generation, failed_device, failure):
+        with self._audioLock(source):
+            if generation != self._audioGeneration(source):
+                return
+        refresh_failed = False
+        try:
+            device_manager.update()
+        except Exception:
+            refresh_failed = True
+            errorLogging()
+        with self._audioLock(source):
+            if generation != self._audioGeneration(source):
+                return
+            available = [d for _, d in self._audioDevices(source)]
+            if not refresh_failed and not any(capture_key(d) == capture_key(failed_device) for d in available):
+                self._reconcileAudioLocked(source, generation, previous_device=failed_device)
+                return
+            failure = self._disableAudioAfterDeviceLossLocked(source) or failure
+            self.run(200, self.run_mapping.get("transcription_recognition_error", "/run/transcription_recognition_error"), failure)
+
+    def _queueAudioReconciliation(self, source):
+        with self._audioLock(source):
+            generation = self._audioGeneration(source)
+            flags = self._audioFlags(source)
+            if not any(getattr(config, flag) for flag in flags):
+                self._publishAudioDeviceLocked(source, self._audioTarget(source))
+                return
+        worker = getattr(model, source + "_lifecycle_worker", None)
+        job = lambda: self._reconcileAudio(source, generation)
+        if worker is not None:
+            worker.enqueue(job, coalesce_key=f"{source}_device_reconcile_{generation}")
+        else:
+            job()
+
+    def _reconcileAudio(self, source, generation=None, *, follow_default=True, device=None, previous_device=None):
+        with self._audioLock(source):
+            return self._reconcileAudioLocked(source, generation, follow_default=follow_default, device=device, previous_device=previous_device)
+
+    def _reconcileAudioLocked(self, source, generation=None, *, follow_default=True, device=None, previous_device=None):
+        if generation is not None and generation != self._audioGeneration(source):
+            return
+        transcript_flag, energy_flag = self._audioFlags(source)
+        transcript, energy = getattr(config, transcript_flag), getattr(config, energy_flag)
+        target = device if device is not None else self._audioTarget(source, follow_default=follow_default)
+        if not transcript and not energy:
+            self._publishAudioDeviceLocked(source, target)
+            return
+        if not target or target.get("name") == "NoDevice":
+            self._disableAudioAfterDeviceLossLocked(source)
+            self._publishAudioDeviceLocked(source, None)
+            return
+        session = self._wireAudioSessionLocked(source)
+        pause = getattr(device_manager, "pause" + source.capitalize() + "EndpointTracker")
+        resume = getattr(device_manager, "resume" + source.capitalize() + "EndpointTracker")
+        pause()
+        try:
+            # Flags and generation are checked under the same lock used by OFF.
+            previous = {"previous_device": previous_device} if previous_device else {}
+            session.reconfigure(transcript=transcript, energy=energy,
+                                device=target or {"name": "NoDevice"}, **previous)
+            if not session.features:
+                self._audioTerminalFailureLocked(source, self._audioGeneration(source))
+                self._publishAudioDeviceLocked(source, None)
+            elif session._active_device is not None:
+                self._publishAudioDeviceLocked(source, session._active_device)
+        except Exception:
+            errorLogging()
+            self._audioTerminalFailureLocked(source, self._audioGeneration(source))
+        finally:
+            resume()
+
     def updateMicDeviceList(self) -> None:
-        self._synchronizeMicSelectionAfterDeviceUpdate()
-        self.run(
-            200,
-            self.run_mapping["selectable_mic_device_list"],
-            model.getListMicDevice(),
-        )
+        self._queueAudioReconciliation("mic")
+        self.run(200, self.run_mapping["selectable_mic_device_list"], model.getListMicDevice())
+        self._publishDeviceOptions("mic")
 
     def updateSpeakerDeviceList(self) -> None:
-        self._synchronizeSpeakerSelectionAfterDeviceUpdate()
-        self.run(
-            200,
-            self.run_mapping["selectable_speaker_device_list"],
-            model.getListSpeakerDevice(),
-        )
+        self._queueAudioReconciliation("speaker")
+        self.run(200, self.run_mapping["selectable_speaker_device_list"], model.getListSpeakerDevice())
+        self._publishDeviceOptions("speaker")
 
-    @staticmethod
-    def _isMicSelectionAvailable(host: str, device: str) -> bool:
-        if host == "NoHost" or device == "NoDevice":
-            return False
-        try:
-            return any(
-                item.get("name") == device
-                for item in device_manager.getMicDevices().get(host, [])
-            )
-        except Exception:
-            errorLogging()
-            return False
+    def _synchronizeMicSelectionAfterDeviceUpdate(self):
+        self._queueAudioReconciliation("mic")
 
-    @staticmethod
-    def _getAvailableDefaultMicSelection() -> Optional[tuple[str, str]]:
-        try:
-            default = device_manager.getDefaultMicDevice()
-            host = default.get("host", {}).get("name", "NoHost")
-            device = default.get("device", {}).get("name", "NoDevice")
-            if Controller._isMicSelectionAvailable(host, device):
-                return host, device
-        except Exception:
-            errorLogging()
-        # デバイス抜去直後は、OS の既定デバイス情報だけが一時的に
-        # NoDevice になることがある。一覧に実デバイスが残っていれば、
-        # Auto Select ON ではその先頭を fallback として使う。
-        try:
-            for host, devices in device_manager.getMicDevices().items():
-                if host == "NoHost":
-                    continue
-                for item in devices:
-                    device = item.get("name")
-                    if device != "NoDevice" and isinstance(device, str):
-                        return host, device
-        except Exception:
-            errorLogging()
-        return None
+    def _synchronizeSpeakerSelectionAfterDeviceUpdate(self):
+        self._queueAudioReconciliation("speaker")
 
-    @staticmethod
-    def _isSpeakerSelectionAvailable(device: str) -> bool:
-        if device == "NoDevice":
-            return False
-        try:
-            return any(
-                item.get("name") == device
-                for item in device_manager.getSpeakerDevices()
-            )
-        except Exception:
-            errorLogging()
-            return False
+    def _disableAudioAfterDeviceLoss(self, source):
+        with self._audioLock(source):
+            self._disableAudioAfterDeviceLossLocked(source)
 
-    @staticmethod
-    def _getAvailableDefaultSpeakerSelection() -> Optional[str]:
-        try:
-            default = device_manager.getDefaultSpeakerDevice()
-            device = default.get("device", {}).get("name", "NoDevice")
-            if Controller._isSpeakerSelectionAvailable(device):
-                return device
-        except Exception:
-            errorLogging()
-        # Mic と同様、抜去直後に OS の既定値が NoDevice でも、検出済みの
-        # loopback デバイスが残っていれば Auto Select で継続できる。
-        try:
-            for item in device_manager.getSpeakerDevices():
-                device = item.get("name")
-                if device != "NoDevice" and isinstance(device, str):
-                    return device
-        except Exception:
-            errorLogging()
-        return None
-
-    def _setNoMicDeviceSelection(self) -> None:
-        config.SELECTED_MIC_HOST = "NoHost"
-        config.SELECTED_MIC_DEVICE = "NoDevice"
-        self.run(200, self.run_mapping["selected_mic_host"], config.SELECTED_MIC_HOST)
-        self.run(200, self.run_mapping["selected_mic_device"], config.SELECTED_MIC_DEVICE)
-
-    def _setNoSpeakerDeviceSelection(self) -> None:
-        config.SELECTED_SPEAKER_DEVICE = "NoDevice"
-        self.run(
-            200,
-            self.run_mapping["selected_speaker_device"],
-            config.SELECTED_SPEAKER_DEVICE,
-        )
-
-    def _stopMicAudioAfterDeviceLoss(self) -> None:
-        """選択デバイス消失時に mic の Session を強制停止する。"""
-        with self.mic_lifecycle_lock:
-            for stop_fn in (model.stopMicTranscript, model.stopCheckMicEnergy):
-                try:
-                    stop_fn()
-                except Exception:
-                    errorLogging()
-
-    def _stopSpeakerAudioAfterDeviceLoss(self) -> None:
-        """選択デバイス消失時に speaker の Session を強制停止する。"""
-        with self.speaker_lifecycle_lock:
-            for stop_fn in (model.stopSpeakerTranscript, model.stopCheckSpeakerEnergy):
-                try:
-                    stop_fn()
-                except Exception:
-                    errorLogging()
-
-    def _reconfigureMicAfterDeviceFallback(self) -> None:
-        """fallback 先へ切り替えた稼働中の mic Session を再構成する。"""
-        if not (
-            config.ENABLE_TRANSCRIPTION_SEND is True
-            or config.ENABLE_CHECK_ENERGY_SEND is True
-        ):
-            return
-        worker = getattr(model, "mic_lifecycle_worker", None)
-        if worker is not None:
-            worker.enqueue(
-                self._reopenMicAudioOnDeviceChange,
-                coalesce_key="mic_device_fallback",
-            )
-        else:
-            self._reopenMicAudioOnDeviceChange()
-
-    def _reconfigureSpeakerAfterDeviceFallback(self) -> None:
-        """fallback 先へ切り替えた稼働中の speaker Session を再構成する。"""
-        if not (
-            config.ENABLE_TRANSCRIPTION_RECEIVE is True
-            or config.ENABLE_CHECK_ENERGY_RECEIVE is True
-        ):
-            return
-        worker = getattr(model, "speaker_lifecycle_worker", None)
-        if worker is not None:
-            worker.enqueue(
-                self._reopenSpeakerAudioOnDeviceChange,
-                coalesce_key="speaker_device_fallback",
-            )
-        else:
-            self._reopenSpeakerAudioOnDeviceChange()
-
-    def _disableAudioAfterDeviceLoss(self, source: str) -> None:
-        """選択デバイス消失時に録音機能と UI 状態を停止する。"""
-        if source == "mic":
-            transcription_was_enabled = config.ENABLE_TRANSCRIPTION_SEND is True
-            energy_was_enabled = config.ENABLE_CHECK_ENERGY_SEND is True
-            config.ENABLE_TRANSCRIPTION_SEND = False
-            config.ENABLE_CHECK_ENERGY_SEND = False
-            worker = getattr(model, "mic_lifecycle_worker", None)
-            stop_fn = self._stopMicAudioAfterDeviceLoss
-            transcription_endpoint = self.run_mapping.get(
-                "disable_transcription_send", "/set/disable/transcription_send"
-            )
-            energy_endpoint = self.run_mapping.get(
-                "disable_check_mic_threshold", "/set/disable/check_mic_threshold"
-            )
-        elif source == "speaker":
-            transcription_was_enabled = config.ENABLE_TRANSCRIPTION_RECEIVE is True
-            energy_was_enabled = config.ENABLE_CHECK_ENERGY_RECEIVE is True
-            config.ENABLE_TRANSCRIPTION_RECEIVE = False
-            config.ENABLE_CHECK_ENERGY_RECEIVE = False
-            worker = getattr(model, "speaker_lifecycle_worker", None)
-            stop_fn = self._stopSpeakerAudioAfterDeviceLoss
-            transcription_endpoint = self.run_mapping.get(
-                "disable_transcription_receive", "/set/disable/transcription_receive"
-            )
-            energy_endpoint = self.run_mapping.get(
-                "disable_check_speaker_threshold", "/set/disable/check_speaker_threshold"
-            )
-        else:
-            return
-
-        if transcription_was_enabled:
-            model.message_delivery.revoke(source)
-            self.run(200, transcription_endpoint, False)
-        if energy_was_enabled:
-            self.run(200, energy_endpoint, False)
-        if transcription_was_enabled or energy_was_enabled:
-            if worker is not None:
-                worker.enqueue(stop_fn, coalesce_key=f"{source}_device_loss_stop")
-            else:
-                stop_fn()
-
-    def _synchronizeMicSelectionAfterDeviceUpdate(self) -> None:
-        """一覧更新後に、消失した mic 選択値を現在の状態へ同期する。"""
-        selected_host = config.SELECTED_MIC_HOST
-        selected_device = config.SELECTED_MIC_DEVICE
-        if self._isMicSelectionAvailable(selected_host, selected_device):
-            return
-
-        fallback = self._getAvailableDefaultMicSelection()
-        if fallback is not None:
-            self.updateSelectedMicDevice(*fallback)
-            # Auto ON は既存の Before/After callback が stop→restart を
-            # 担当する。Auto OFF ではここで選択だけ更新すると既存の
-            # Session が抜去済みデバイスを保持するため、worker 経由で
-            # 現在の features を維持したまま再構成する。
-            if config.AUTO_MIC_SELECT is False:
-                self._reconfigureMicAfterDeviceFallback()
-            return
-
-        # 検出済みデバイスが一台もない場合だけ NoDevice にする。
-        if selected_host != "NoHost" or selected_device != "NoDevice":
-            self._setNoMicDeviceSelection()
-        if (
-            config.ENABLE_TRANSCRIPTION_SEND is True
-            or config.ENABLE_CHECK_ENERGY_SEND is True
-        ):
-            self._disableAudioAfterDeviceLoss("mic")
-
-    def _synchronizeSpeakerSelectionAfterDeviceUpdate(self) -> None:
-        """一覧更新後に、消失した speaker 選択値を現在の状態へ同期する。"""
-        selected_device = config.SELECTED_SPEAKER_DEVICE
-        if self._isSpeakerSelectionAvailable(selected_device):
-            return
-
-        fallback = self._getAvailableDefaultSpeakerSelection()
-        if fallback is not None:
-            self.updateSelectedSpeakerDevice(fallback)
-            if config.AUTO_SPEAKER_SELECT is False:
-                self._reconfigureSpeakerAfterDeviceFallback()
-            return
-
-        if selected_device != "NoDevice":
-            self._setNoSpeakerDeviceSelection()
-        if (
-            config.ENABLE_TRANSCRIPTION_RECEIVE is True
-            or config.ENABLE_CHECK_ENERGY_RECEIVE is True
-        ):
-            self._disableAudioAfterDeviceLoss("speaker")
+    def _disableAudioAfterDeviceLossLocked(self, source):
+        self._audioGeneration(source, advance=True)
+        # Revocation is a terminal intent change, never an internal switch.
+        # It must precede joins/cleanup so admitted output cannot escape meanwhile.
+        self._disableTranscriptionAfterPipelineErrorLocked(source)
+        session = self._wireAudioSessionLocked(source)
+        session.reconfigure(transcript=False, energy=False)
+        if session._cleanup_workers:
+            return session._make_pipeline_failure(ErrorCode.CLEANUP_TIMEOUT, "cleanup").to_notification()
 
     def updateConfigSettings(self) -> None:
         settings = {}
@@ -1740,29 +1734,19 @@ class Controller:
             settings,
         )
 
-    def restartAccessMicDevices(self) -> None:
-        if config.ENABLE_TRANSCRIPTION_SEND is True:
-            self.startTranscriptionSendMessage()
-        if config.ENABLE_CHECK_ENERGY_SEND is True:
-            self.startCheckMicEnergy()
+    def restartAccessMicDevices(self, generation=None) -> None:
+        self._reconcileAudio("mic", generation)
 
-    def restartAccessSpeakerDevices(self) -> None:
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            self.startTranscriptionReceiveMessage()
-        if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
-            self.startCheckSpeakerEnergy()
+    def restartAccessSpeakerDevices(self, generation=None) -> None:
+        self._reconcileAudio("speaker", generation)
 
     def stopAccessMicDevices(self) -> None:
-        if config.ENABLE_TRANSCRIPTION_SEND is True:
-            self.stopTranscriptionSendMessage()
-        if config.ENABLE_CHECK_ENERGY_SEND is True:
-            self.stopCheckMicEnergy()
+        with self._audioLock("mic"):
+            model.stopCaptureForRealtime("mic")
 
     def stopAccessSpeakerDevices(self) -> None:
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            self.stopTranscriptionReceiveMessage()
-        if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
-            self.stopCheckSpeakerEnergy()
+        with self._audioLock("speaker"):
+            model.stopCaptureForRealtime("speaker")
 
     def updateSelectedMicDevice(self, host, device) -> None:
         config.SELECTED_MIC_HOST = host
@@ -1780,6 +1764,9 @@ class Controller:
 
     def progressBarMicEnergy(self, energy) -> None:
         if energy is False:
+            config.ENABLE_CHECK_ENERGY_SEND = False
+            self.run(200, "/set/disable/check_mic_threshold", False)
+            self.run(200, "/run/check_mic_volume", 0)
             error_response = VRCTError.create_error_response(
                 ErrorCode.DEVICE_NO_MIC,
                 data=None
@@ -1798,6 +1785,9 @@ class Controller:
 
     def progressBarSpeakerEnergy(self, energy) -> None:
         if energy is False:
+            config.ENABLE_CHECK_ENERGY_RECEIVE = False
+            self.run(200, "/set/disable/check_speaker_threshold", False)
+            self.run(200, "/run/check_speaker_volume", 0)
             error_response = VRCTError.create_error_response(
                 ErrorCode.DEVICE_NO_SPEAKER,
                 data=None
@@ -2386,22 +2376,25 @@ class Controller:
         return current() and not getattr(self, "_ocr_shutting_down", False)
 
     def _disableTranscriptionAfterPipelineError(self, source: str) -> None:
-        """エラー停止後の実状態を config と UI に同期する。"""
-        if source == "mic":
-            config.ENABLE_TRANSCRIPTION_SEND = False
-            endpoint = self.run_mapping.get(
-                "disable_transcription_send", "/set/disable/transcription_send"
-            )
-        elif source == "speaker":
-            config.ENABLE_TRANSCRIPTION_RECEIVE = False
-            endpoint = self.run_mapping.get(
-                "disable_transcription_receive", "/set/disable/transcription_receive"
-            )
-        else:
+        if source not in ("mic", "speaker"):
             return
-        model.message_delivery.revoke(source)
-        # UI は既存の disable endpoint の run 通知を状態更新として処理する。
-        self.run(200, endpoint, False)
+        with self._audioLock(source):
+            self._disableTranscriptionAfterPipelineErrorLocked(source)
+
+    def _disableTranscriptionAfterPipelineErrorLocked(self, source: str) -> None:
+        transcript_flag, energy_flag = self._audioFlags(source)
+        transcript_enabled = getattr(config, transcript_flag)
+        energy_enabled = getattr(config, energy_flag)
+        setattr(config, transcript_flag, False)
+        setattr(config, energy_flag, False)
+        if transcript_enabled:
+            model.message_delivery.revoke(source)
+        direction = "send" if source == "mic" else "receive"
+        self.run(200, self.run_mapping.get("disable_transcription_" + direction,
+                                         "/set/disable/transcription_" + direction), False)
+        if energy_enabled:
+            self.run(200, "/set/disable/check_" + source + "_threshold", False)
+            self.run(200, "/run/check_" + source + "_volume", 0)
 
     @staticmethod
     def _voiceMonitorFailed(code):
@@ -3464,94 +3457,80 @@ class Controller:
 
 
     def applyAutoMicSelect(self) -> None:
-        # stopAccessMicDevices/restartAccessMicDevices は mic_lifecycle_lock
-        # を取得しつつ recorder の stop や PyAudio open を行う重い処理。
-        # device_manager.monitoring() 自身のスレッドで直接実行すると、その間
-        # monitoring が次の COM デバイス通知を取りこぼす。
-        # model.mic_lifecycle_worker 経由で専用スレッドに投げることで
-        # monitoring は即座に呼び出しから戻れる。Before/After は同じ worker の
-        # FIFO キューで順序が保たれる。speaker 側とはワーカーを分けており
-        # (フェーズ3項目21)、mic の重い処理が無関係な speaker 側の操作を
-        # 足止めしない。
-        device_manager.setCallbackProcessBeforeUpdateMicDevices(
-            lambda: model.mic_lifecycle_worker.enqueue(self.stopAccessMicDevices)
-        )
-        device_manager.setCallbackDefaultMicDevice(self.updateSelectedMicDevice)
-        device_manager.setCallbackProcessAfterUpdateMicDevices(
-            lambda: model.mic_lifecycle_worker.enqueue(self.restartAccessMicDevices)
-        )
-        # マイクの Auto Select は OS 既定デバイス追従のみ。speaker と違い
-        # ActiveEndpointTracker (peak 追従) は使わないため、endpoint 切替
-        # 起点の Recorder 差し替え callback は登録しない
-        # (device_manager.setMicAutoActive の docstring 参照。develop側の
-        # 6596c629で撤去された経緯があり、フェーズ3項目21のcoalesce_key
-        # 拡張はspeaker側の_reconfigureSpeakerDeviceLockedにのみ適用する)。
-        device_manager.forceUpdateAndSetMicDevices()
-        # monitoring スレッドの起動判断は DeviceManager 側に集約
-        # (speaker 側の状態を controller で気にする必要はもう無い)
-        device_manager.setMicAutoActive(True)
+        with self._audioLock("mic"):
+            if not config.AUTO_MIC_SELECT:
+                return
+            generation = self._audioGeneration("mic")
+            device_manager.clearCallbackProcessBeforeUpdateMicDevices()
+            device_manager.clearCallbackProcessAfterUpdateMicDevices()
+            device_manager.setCallbackDefaultMicDevice(lambda *args: self._queueAudioReconciliation("mic"))
+            device_manager.setMicAutoActive(True)
+        # Forced enumeration does not dispatch the old split callbacks. Apply
+        # its snapshot once, then publish the compatible name list as well.
+        device_manager.update()
+        self._reconcileAudio("mic", generation)
+        self.run(200, self.run_mapping.get("selectable_mic_device_list", "/run/selectable_mic_device_list"), model.getListMicDevice())
 
     def setEnableAutoMicSelect(self, *args, **kwargs) -> dict:
-        if config.AUTO_MIC_SELECT is False:
-            self.applyAutoMicSelect()
+        with self._audioLock("mic"):
             config.AUTO_MIC_SELECT = True
-        return {"status":200, "result":config.AUTO_MIC_SELECT}
+            self._audioGeneration("mic", advance=True)
+        self.applyAutoMicSelect()
+        return {"status": 200, "result": config.AUTO_MIC_SELECT}
 
-    @staticmethod
-    def setDisableAutoMicSelect(*args, **kwargs) -> dict:
-        if config.AUTO_MIC_SELECT is True:
-            device_manager.clearCallbackProcessBeforeUpdateMicDevices()
-            device_manager.clearCallbackDefaultMicDevice()
-            device_manager.clearCallbackProcessAfterUpdateMicDevices()
-            # monitoring の停止判断は DeviceManager 側に委譲。
-            # speaker 側が active なら monitoring は継続、両方 inactive で
-            # 初めて thread が停止する。以前ここで AUTO_SPEAKER_SELECT を
-            # 見てから stopMonitoring を叩いていた相互参照は不要になった。
-            device_manager.setMicAutoActive(False)
+    def setDisableAutoMicSelect(self, *args, **kwargs) -> dict:
+        with self._audioLock("mic"):
             config.AUTO_MIC_SELECT = False
-        return {"status":200, "result":config.AUTO_MIC_SELECT}
+            generation = self._audioGeneration("mic", advance=True)
+            device_manager.clearCallbackDefaultMicDevice()
+            device_manager.setMicAutoActive(False)
+        self._reconcileAudio("mic", generation, follow_default=False)
+        return {"status": 200, "result": config.AUTO_MIC_SELECT}
 
 
     def setSelectedMicHost(self, data, *args, **kwargs) -> dict:
-        previously_selected_device = config.SELECTED_MIC_DEVICE
-        config.SELECTED_MIC_HOST = data
-        # Keep using the same physical device if it is also exposed under the
-        # newly selected host (device names are often duplicated across host
-        # APIs). Only fall back to the host's first device when the
-        # previously selected one isn't available there, so switching hosts
-        # doesn't silently swap the currently used device for an unrelated
-        # "Default Device" entry.
-        if previously_selected_device in model.getListMicDevice():
-            config.SELECTED_MIC_DEVICE = previously_selected_device
-        else:
-            config.SELECTED_MIC_DEVICE = model.getMicDefaultDevice()
-        self._reopenMicAudioOnDeviceChange()
-        # host が切り替わると新ホストの selectable_mic_device_list を
-        # UI に push しないと、ドロップダウンが旧ホストのデバイス名一覧の
-        # ままになり、そこから選ばれた名前は新ホストの
-        # _mic_device_validator で弾かれて config が更新されない
-        # (setSelectedMicDevice が事実上 no-op になる)。selected_mic_device
-        # と一緒に必ずリストも再送する。
-        self.run(200, self.run_mapping["selectable_mic_device_list"], model.getListMicDevice())
-        self.run(200, self.run_mapping["selected_mic_device"], config.SELECTED_MIC_DEVICE)
-        return {"status":200, "result":config.SELECTED_MIC_HOST}
-
+        with self._audioLock("mic"):
+            devices = device_manager.getMicDevices().get(data)
+            if devices is None:
+                return VRCTError.create_error_response(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=config.SELECTED_MIC_HOST)
+            self._audioGeneration("mic", advance=True)
+            selected = resolve_device(devices, name=config.SELECTED_MIC_DEVICE)
+            if selected is None:
+                selected = next((d for d in devices if d.get("name") != "NoDevice"), None)
+            self._reconcileAudioLocked("mic", follow_default=False, device=selected or {"name": "NoDevice"})
+            self.run(200, self.run_mapping["selectable_mic_device_list"], model.getListMicDevice())
+            return {"status": 200, "result": config.SELECTED_MIC_HOST}
 
     def setSelectedMicDevice(self, data, *args, **kwargs) -> dict:
-        config.SELECTED_MIC_DEVICE = data
-        self._reopenMicAudioOnDeviceChange()
-        return {"status":200, "result": config.SELECTED_MIC_DEVICE}
+        with self._audioLock("mic"):
+            devices = [d for host, d in self._audioDevices("mic")
+                       if host == config.SELECTED_MIC_HOST]
+            device = resolve_device(devices, name=data)
+            if device is None:
+                return VRCTError.create_error_response(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=config.SELECTED_MIC_DEVICE)
+            self._audioGeneration("mic", advance=True)
+            self._reconcileAudioLocked("mic", follow_default=False, device=device)
+            return {"status": 200, "result": config.SELECTED_MIC_DEVICE}
+
+    def getSelectedMicDeviceId(self, *args, **kwargs):
+        return {"status": 200, "result": config.SELECTED_MIC_DEVICE_ID}
+
+    def getMicDeviceOptions(self, *args, **kwargs):
+        return {"status": 200, "result": self._audioDeviceOptions("mic")}
+
+    def setSelectedMicDeviceId(self, data, *args, **kwargs):
+        with self._audioLock("mic"):
+            devices = [d for host, d in self._audioDevices("mic")
+                       if host == config.SELECTED_MIC_HOST]
+            device = resolve_device(devices, endpoint_id=data) if data else None
+            if device is None:
+                return VRCTError.create_error_response(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=config.SELECTED_MIC_DEVICE_ID)
+            self._audioGeneration("mic", advance=True)
+            self._reconcileAudioLocked("mic", follow_default=False, device=device)
+            return {"status": 200, "result": config.SELECTED_MIC_DEVICE_ID}
 
     def _reopenMicAudioOnDeviceChange(self) -> None:
-        # デバイス切替時、稼働中のマイク Session を Session.reconfigure 経由で
-        # 新デバイスに差し替える。旧実装は feature 単位で stop→start を 2 段
-        # (transcription + energy) 呼んでいたため、両方 ON のときは Recorder が
-        # 2 回 close/open されていた。Session に device 差分検知を入れた今は
-        # 1 呼び出しで済み、config 上のデバイスと現在開いているデバイスが
-        # 同じなら no-op になる。
-        # config は呼び出し元 (setSelectedMicHost/Device) が既に書き換え済み。
-        with self.mic_lifecycle_lock:
-            model.reconfigureMicDevice()
+        self._reconcileAudio("mic", follow_default=False)
 
     def _changeMicTranscriptStatusLocked(self) -> None:
         # OSC ミュート同期 (Model.changeHandlerMute) からのみ呼ばれる
@@ -3707,64 +3686,68 @@ class Controller:
 
 
     def applyAutoSpeakerSelect(self) -> None:
-        # 詳細は applyAutoMicSelect のコメント参照:
-        # monitoring スレッドをブロックしないよう worker 経由で実行する。
-        # mic とはワーカーを分けている (フェーズ3項目21)。
-        device_manager.setCallbackProcessBeforeUpdateSpeakerDevices(
-            lambda: model.speaker_lifecycle_worker.enqueue(self.stopAccessSpeakerDevices)
-        )
-        device_manager.setCallbackDefaultSpeakerDevice(self.updateSelectedSpeakerDevice)
-        device_manager.setCallbackProcessAfterUpdateSpeakerDevices(
-            lambda: model.speaker_lifecycle_worker.enqueue(self.restartAccessSpeakerDevices)
-        )
-        # 詳細は applyAutoMicSelect のコメント参照 (ActiveEndpointTracker 連携・coalesce_key)
-        device_manager.setCallbackEndpointReconfiguredSpeaker(
-            lambda: model.speaker_lifecycle_worker.enqueue(
-                self._reconfigureSpeakerDeviceLocked, coalesce_key="speaker_reconfigure"
-            )
-        )
-        device_manager.forceUpdateAndSetSpeakerDevices()
-        device_manager.setSpeakerAutoActive(True)
+        with self._audioLock("speaker"):
+            if not config.AUTO_SPEAKER_SELECT:
+                return
+            generation = self._audioGeneration("speaker")
+            device_manager.clearCallbackProcessBeforeUpdateSpeakerDevices()
+            device_manager.clearCallbackProcessAfterUpdateSpeakerDevices()
+            device_manager.setCallbackDefaultSpeakerDevice(lambda *args: self._queueAudioReconciliation("speaker"))
+            device_manager.setSpeakerAutoActive(True)
+        # Forced enumeration does not dispatch the old split callbacks. Apply
+        # its snapshot once, then publish the compatible name list as well.
+        device_manager.update()
+        self._reconcileAudio("speaker", generation)
+        self.run(200, self.run_mapping.get("selectable_speaker_device_list", "/run/selectable_speaker_device_list"), model.getListSpeakerDevice())
 
     def setEnableAutoSpeakerSelect(self, *args, **kwargs) -> dict:
-        if config.AUTO_SPEAKER_SELECT is False:
-            self.applyAutoSpeakerSelect()
+        with self._audioLock("speaker"):
             config.AUTO_SPEAKER_SELECT = True
-        return {"status":200, "result":config.AUTO_SPEAKER_SELECT}
+            self._audioGeneration("speaker", advance=True)
+        self.applyAutoSpeakerSelect()
+        return {"status": 200, "result": config.AUTO_SPEAKER_SELECT}
 
-    @staticmethod
-    def setDisableAutoSpeakerSelect(*args, **kwargs) -> dict:
-        if config.AUTO_SPEAKER_SELECT is True:
-            device_manager.clearCallbackProcessBeforeUpdateSpeakerDevices()
-            device_manager.clearCallbackDefaultSpeakerDevice()
-            device_manager.clearCallbackProcessAfterUpdateSpeakerDevices()
-            device_manager.clearCallbackEndpointReconfiguredSpeaker()
-            # 詳細は setDisableAutoMicSelect のコメント参照:
-            # monitoring の停止判断は DeviceManager 側に委譲。
-            device_manager.setSpeakerAutoActive(False)
+    def setDisableAutoSpeakerSelect(self, *args, **kwargs) -> dict:
+        with self._audioLock("speaker"):
             config.AUTO_SPEAKER_SELECT = False
-        return {"status":200, "result":config.AUTO_SPEAKER_SELECT}
+            generation = self._audioGeneration("speaker", advance=True)
+            device_manager.clearCallbackDefaultSpeakerDevice()
+            device_manager.setSpeakerAutoActive(False)
+        self._reconcileAudio("speaker", generation, follow_default=False)
+        return {"status": 200, "result": config.AUTO_SPEAKER_SELECT}
 
 
     def setSelectedSpeakerDevice(self, data, *args, **kwargs) -> dict:
-        config.SELECTED_SPEAKER_DEVICE = data
-        self._reopenSpeakerAudioOnDeviceChange()
-        return {"status":200, "result":config.SELECTED_SPEAKER_DEVICE}
+        with self._audioLock("speaker"):
+            devices = [d for _, d in self._audioDevices("speaker")]
+            device = resolve_device(devices, name=data)
+            if device is None:
+                return VRCTError.create_error_response(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=config.SELECTED_SPEAKER_DEVICE)
+            self._audioGeneration("speaker", advance=True)
+            self._reconcileAudioLocked("speaker", follow_default=False, device=device)
+            return {"status": 200, "result": config.SELECTED_SPEAKER_DEVICE}
+
+    def getSelectedSpeakerDeviceId(self, *args, **kwargs):
+        return {"status": 200, "result": config.SELECTED_SPEAKER_DEVICE_ID}
+
+    def getSpeakerDeviceOptions(self, *args, **kwargs):
+        return {"status": 200, "result": self._audioDeviceOptions("speaker")}
+
+    def setSelectedSpeakerDeviceId(self, data, *args, **kwargs):
+        with self._audioLock("speaker"):
+            devices = [d for _, d in self._audioDevices("speaker")]
+            device = resolve_device(devices, endpoint_id=data) if data else None
+            if device is None:
+                return VRCTError.create_error_response(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=config.SELECTED_SPEAKER_DEVICE_ID)
+            self._audioGeneration("speaker", advance=True)
+            self._reconcileAudioLocked("speaker", follow_default=False, device=device)
+            return {"status": 200, "result": config.SELECTED_SPEAKER_DEVICE_ID}
 
     def _reopenSpeakerAudioOnDeviceChange(self) -> None:
-        # マイクと同様、Session.reconfigure 1 回に縮退。詳細は
-        # _reopenMicAudioOnDeviceChange のコメント参照。
-        with self.speaker_lifecycle_lock:
-            model.reconfigureSpeakerDevice()
+        self._reconcileAudio("speaker", follow_default=False)
 
     def _reconfigureSpeakerDeviceLocked(self) -> None:
-        # ActiveEndpointTracker (render) からの通知
-        # (setCallbackEndpointReconfiguredSpeaker) は他の speaker_lifecycle_lock
-        # 保持経路 (start/stop 系) と直列化されていないため、ここで明示的に
-        # ロックを取る。
-        with self.speaker_lifecycle_lock:
-            model.reconfigureSpeakerDevice()
-
+        self._reconcileAudio("speaker")
 
     @staticmethod
     def setSpeakerThreshold(data, *args, **kwargs) -> dict:
@@ -4708,27 +4691,45 @@ class Controller:
             model.changeMicTranscriptStatus()
         return {"status":200, "result":config.VRC_MIC_MUTE_SYNC}
 
-    def setEnableCheckSpeakerThreshold(self, *args, **kwargs) -> dict:
-        if config.ENABLE_CHECK_ENERGY_RECEIVE is False:
-            config.ENABLE_CHECK_ENERGY_RECEIVE = self.startCheckSpeakerEnergy()
-        return {"status":200, "result":config.ENABLE_CHECK_ENERGY_RECEIVE}
+    def setEnableCheckSpeakerThreshold(self, data=None, *args, **kwargs) -> dict:
+        with self._audioLock("speaker"):
+            if not config.ENABLE_CHECK_ENERGY_RECEIVE:
+                self._audioGeneration("speaker", advance=True)
+                config.ENABLE_CHECK_ENERGY_RECEIVE = True
+                try:
+                    config.ENABLE_CHECK_ENERGY_RECEIVE = self._startCheckSpeakerEnergyLocked()
+                except Exception:
+                    self._disableTranscriptionAfterPipelineErrorLocked("speaker")
+                    errorLogging()
+            return {"status": 200, "result": config.ENABLE_CHECK_ENERGY_RECEIVE}
 
-    def setDisableCheckSpeakerThreshold(self, *args, **kwargs) -> dict:
-        if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
-            self.stopCheckSpeakerEnergy()
+    def setDisableCheckSpeakerThreshold(self, data=None, *args, **kwargs) -> dict:
+        with self._audioLock("speaker"):
+            self._audioGeneration("speaker", advance=True)
             config.ENABLE_CHECK_ENERGY_RECEIVE = False
-        return {"status":200, "result":config.ENABLE_CHECK_ENERGY_RECEIVE}
+            self._stopCheckSpeakerEnergyLocked()
+            return {"status": 200, "result": False}
 
-    def setEnableCheckMicThreshold(self, *args, **kwargs) -> dict:
-        if config.ENABLE_CHECK_ENERGY_SEND is False:
-            config.ENABLE_CHECK_ENERGY_SEND = self.startCheckMicEnergy()
-        return {"status":200, "result":config.ENABLE_CHECK_ENERGY_SEND}
 
-    def setDisableCheckMicThreshold(self, *args, **kwargs) -> dict:
-        if config.ENABLE_CHECK_ENERGY_SEND is True:
-            self.stopCheckMicEnergy()
+    def setEnableCheckMicThreshold(self, data=None, *args, **kwargs) -> dict:
+        with self._audioLock("mic"):
+            if not config.ENABLE_CHECK_ENERGY_SEND:
+                self._audioGeneration("mic", advance=True)
+                config.ENABLE_CHECK_ENERGY_SEND = True
+                try:
+                    config.ENABLE_CHECK_ENERGY_SEND = self._startCheckMicEnergyLocked()
+                except Exception:
+                    self._disableTranscriptionAfterPipelineErrorLocked("mic")
+                    errorLogging()
+            return {"status": 200, "result": config.ENABLE_CHECK_ENERGY_SEND}
+
+    def setDisableCheckMicThreshold(self, data=None, *args, **kwargs) -> dict:
+        with self._audioLock("mic"):
+            self._audioGeneration("mic", advance=True)
             config.ENABLE_CHECK_ENERGY_SEND = False
-        return {"status":200, "result":config.ENABLE_CHECK_ENERGY_SEND}
+            self._stopCheckMicEnergyLocked()
+            return {"status": 200, "result": False}
+
 
     @staticmethod
     def openFilepathLogs(*args, **kwargs) -> dict:
@@ -4743,37 +4744,54 @@ class Controller:
     def setEnableTranscriptionSend(self, data=None, *args, **kwargs) -> dict:
         if self._realtimeToggles():
             return self._enableRealtimeToggle("mic", data)
-        if config.ENABLE_TRANSCRIPTION_SEND is False:
-            config.ENABLE_TRANSCRIPTION_SEND = self.startTranscriptionSendMessage()
-        return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
+        with self._audioLock("mic"):
+            if not config.ENABLE_TRANSCRIPTION_SEND:
+                self._audioGeneration("mic", advance=True)
+                config.ENABLE_TRANSCRIPTION_SEND = True
+                try:
+                    config.ENABLE_TRANSCRIPTION_SEND = self._startTranscriptionSendMessageLocked()
+                except Exception:
+                    self._disableTranscriptionAfterPipelineErrorLocked("mic")
+                    errorLogging()
+            return {"status": 200, "result": config.ENABLE_TRANSCRIPTION_SEND}
 
     def setDisableTranscriptionSend(self, data=None, *args, **kwargs) -> dict:
-        # Settings pauses capture through this endpoint, then restores ON.
         if not (isinstance(data, dict) and data.get("reason") == "settings_pause"):
             model.message_delivery.revoke("mic")
         if self._realtimeToggles():
             return self._disableRealtimeToggle("mic")
-        if config.ENABLE_TRANSCRIPTION_SEND is True:
+        with self._audioLock("mic"):
+            self._audioGeneration("mic", advance=True)
             config.ENABLE_TRANSCRIPTION_SEND = False
-            self.stopTranscriptionSendMessage()
-        return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
+            self._stopTranscriptionSendMessageLocked()
+            return {"status": 200, "result": False}
+
 
     def setEnableTranscriptionReceive(self, data=None, *args, **kwargs) -> dict:
         if self._realtimeToggles():
             return self._enableRealtimeToggle("speaker", data)
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is False:
-            config.ENABLE_TRANSCRIPTION_RECEIVE = self.startTranscriptionReceiveMessage()
-        return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}
+        with self._audioLock("speaker"):
+            if not config.ENABLE_TRANSCRIPTION_RECEIVE:
+                self._audioGeneration("speaker", advance=True)
+                config.ENABLE_TRANSCRIPTION_RECEIVE = True
+                try:
+                    config.ENABLE_TRANSCRIPTION_RECEIVE = self._startTranscriptionReceiveMessageLocked()
+                except Exception:
+                    self._disableTranscriptionAfterPipelineErrorLocked("speaker")
+                    errorLogging()
+            return {"status": 200, "result": config.ENABLE_TRANSCRIPTION_RECEIVE}
 
     def setDisableTranscriptionReceive(self, data=None, *args, **kwargs) -> dict:
         if not (isinstance(data, dict) and data.get("reason") == "settings_pause"):
             model.message_delivery.revoke("speaker")
         if self._realtimeToggles():
             return self._disableRealtimeToggle("speaker")
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
+        with self._audioLock("speaker"):
+            self._audioGeneration("speaker", advance=True)
             config.ENABLE_TRANSCRIPTION_RECEIVE = False
-            self.stopTranscriptionReceiveMessage()
-        return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}
+            self._stopTranscriptionReceiveMessageLocked()
+            return {"status": 200, "result": False}
+
 
     def sendMessageBox(self, data, *args, **kwargs) -> dict:
         response = self.chatMessage(data)
@@ -5005,56 +5023,63 @@ class Controller:
 
     def startTranscriptionSendMessage(self) -> bool:
         with self.mic_lifecycle_lock:
-            self.stopRealtimeASR({"source": "mic"})
-            if not self._drainRealtimeASR("mic"):
-                return False
-            try:
-                started = model.startMicTranscript(self.micMessage)
-                if not started:
-                    config.ENABLE_TRANSCRIPTION_SEND = False
-                    model.message_delivery.revoke("mic")
-                return started
-            except Exception as e:
+            return self._startTranscriptionSendMessageLocked()
+
+    def _startTranscriptionSendMessageLocked(self) -> bool:
+        if not config.ENABLE_TRANSCRIPTION_SEND:
+            return False
+        self._wireAudioSessionLocked("mic")
+        self.stopRealtimeASR({"source": "mic"})
+        if not self._drainRealtimeASR("mic"):
+            return False
+        try:
+            started = model.startMicTranscript(self.micMessage)
+            if not started:
+                config.ENABLE_TRANSCRIPTION_SEND = False
                 model.message_delivery.revoke("mic")
-                # VRAM不足エラーの検出
-                is_vram_error, error_message = model.detectVRAMError(e)
-                if is_vram_error:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_VRAM_MIC,
-                        data=error_message
-                    )
+            return started
+        except Exception as e:
+            model.message_delivery.revoke("mic")
+            # VRAM不足エラーの検出
+            is_vram_error, error_message = model.detectVRAMError(e)
+            if is_vram_error:
+                response = VRCTError.create_error_response(
+                    ErrorCode.TRANSCRIPTION_VRAM_MIC,
+                    data=error_message
+                )
+                self.run(
+                    response["status"],
+                    self.run_mapping["error_transcription_mic_vram_overflow"],
+                    response["result"],
+                )
+                # ここでマイクの音声認識を停止。mic_lifecycle_lock を既に
+                # 保持しているため、ロックを取り直す公開版
+                # (stopTranscriptionSendMessage) ではなく内部版を呼ぶ。
+                self._stopTranscriptionSendMessageLocked()
+                # UI の状態同期は enable 通知ではなく、状態更新用の
+                # disable endpoint へ送る。_start() が先に構造化 pipeline
+                # error を通知していた場合は、micMessage() が既に config
+                # を False にしているため重複通知しない。
+                if config.ENABLE_TRANSCRIPTION_SEND is True:
                     self.run(
-                        response["status"],
-                        self.run_mapping["error_transcription_mic_vram_overflow"],
-                        response["result"],
+                        200,
+                        self.run_mapping.get(
+                            "disable_transcription_send",
+                            "/set/disable/transcription_send",
+                        ),
+                        False,
                     )
-                    # ここでマイクの音声認識を停止。mic_lifecycle_lock を既に
-                    # 保持しているため、ロックを取り直す公開版
-                    # (stopTranscriptionSendMessage) ではなく内部版を呼ぶ。
-                    self._stopTranscriptionSendMessageLocked()
-                    # UI の状態同期は enable 通知ではなく、状態更新用の
-                    # disable endpoint へ送る。_start() が先に構造化 pipeline
-                    # error を通知していた場合は、micMessage() が既に config
-                    # を False にしているため重複通知しない。
-                    if config.ENABLE_TRANSCRIPTION_SEND is True:
-                        self.run(
-                            200,
-                            self.run_mapping.get(
-                                "disable_transcription_send",
-                                "/set/disable/transcription_send",
-                            ),
-                            False,
-                        )
-                    config.ENABLE_TRANSCRIPTION_SEND = False
-                    return False
-                else:
-                    # その他のエラーは通常通り処理
-                    errorLogging()
-                    config.ENABLE_TRANSCRIPTION_SEND = False
-                    return False
+                config.ENABLE_TRANSCRIPTION_SEND = False
+                return False
+            else:
+                # その他のエラーは通常通り処理
+                errorLogging()
+                config.ENABLE_TRANSCRIPTION_SEND = False
+                return False
 
     def _stopTranscriptionSendMessageLocked(self) -> None:
         """mic_lifecycle_lock を既に保持している呼び出し元専用。"""
+        self._wireAudioSessionLocked("mic")
         model.stopMicTranscript()
 
     def stopTranscriptionSendMessage(self) -> None:
@@ -5063,53 +5088,60 @@ class Controller:
 
     def startTranscriptionReceiveMessage(self) -> bool:
         with self.speaker_lifecycle_lock:
-            self.stopRealtimeASR({"source": "speaker"})
-            if not self._drainRealtimeASR("speaker"):
-                return False
-            try:
-                started = model.startSpeakerTranscript(self.speakerMessage)
-                if not started:
-                    config.ENABLE_TRANSCRIPTION_RECEIVE = False
-                    model.message_delivery.revoke("speaker")
-                return started
-            except Exception as e:
+            return self._startTranscriptionReceiveMessageLocked()
+
+    def _startTranscriptionReceiveMessageLocked(self) -> bool:
+        if not config.ENABLE_TRANSCRIPTION_RECEIVE:
+            return False
+        self._wireAudioSessionLocked("speaker")
+        self.stopRealtimeASR({"source": "speaker"})
+        if not self._drainRealtimeASR("speaker"):
+            return False
+        try:
+            started = model.startSpeakerTranscript(self.speakerMessage)
+            if not started:
+                config.ENABLE_TRANSCRIPTION_RECEIVE = False
                 model.message_delivery.revoke("speaker")
-                # VRAM不足エラーの検出
-                is_vram_error, error_message = model.detectVRAMError(e)
-                if is_vram_error:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_VRAM_SPEAKER,
-                        data=error_message
-                    )
+            return started
+        except Exception as e:
+            model.message_delivery.revoke("speaker")
+            # VRAM不足エラーの検出
+            is_vram_error, error_message = model.detectVRAMError(e)
+            if is_vram_error:
+                response = VRCTError.create_error_response(
+                    ErrorCode.TRANSCRIPTION_VRAM_SPEAKER,
+                    data=error_message
+                )
+                self.run(
+                    response["status"],
+                    self.run_mapping["error_transcription_speaker_vram_overflow"],
+                    response["result"],
+                )
+                # ここでスピーカーの音声認識を停止 (内部版、詳細は
+                # startTranscriptionSendMessage 側のコメント参照)
+                self._stopTranscriptionReceiveMessageLocked()
+                # Mic と同様、UI の状態同期は disable endpoint に送る。
+                # pipeline error 経由で既に同期済みなら重複通知しない。
+                if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
                     self.run(
-                        response["status"],
-                        self.run_mapping["error_transcription_speaker_vram_overflow"],
-                        response["result"],
+                        200,
+                        self.run_mapping.get(
+                            "disable_transcription_receive",
+                            "/set/disable/transcription_receive",
+                        ),
+                        False,
                     )
-                    # ここでスピーカーの音声認識を停止 (内部版、詳細は
-                    # startTranscriptionSendMessage 側のコメント参照)
-                    self._stopTranscriptionReceiveMessageLocked()
-                    # Mic と同様、UI の状態同期は disable endpoint に送る。
-                    # pipeline error 経由で既に同期済みなら重複通知しない。
-                    if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-                        self.run(
-                            200,
-                            self.run_mapping.get(
-                                "disable_transcription_receive",
-                                "/set/disable/transcription_receive",
-                            ),
-                            False,
-                        )
-                    config.ENABLE_TRANSCRIPTION_RECEIVE = False
-                    return False
-                else:
-                    # その他のエラーは通常通り処理
-                    errorLogging()
-                    config.ENABLE_TRANSCRIPTION_RECEIVE = False
-                    return False
+                config.ENABLE_TRANSCRIPTION_RECEIVE = False
+                return False
+            else:
+                # その他のエラーは通常通り処理
+                errorLogging()
+                config.ENABLE_TRANSCRIPTION_RECEIVE = False
+                return False
 
     def _stopTranscriptionReceiveMessageLocked(self) -> None:
         """speaker_lifecycle_lock を既に保持している呼び出し元専用。"""
+        self._wireAudioSessionLocked("speaker")
         model.stopSpeakerTranscript()
 
     def stopTranscriptionReceiveMessage(self) -> None:
@@ -5452,31 +5484,49 @@ class Controller:
 
     def startCheckMicEnergy(self) -> bool:
         with self.mic_lifecycle_lock:
-            with self._realtime_lock:
-                if self._realtime_requested["mic"]:
-                    return False
-            if not self._drainRealtimeASR("mic"):
+            return self._startCheckMicEnergyLocked()
+
+    def _startCheckMicEnergyLocked(self) -> bool:
+        if not config.ENABLE_CHECK_ENERGY_SEND:
+            return False
+        self._wireAudioSessionLocked("mic")
+        with self._realtime_lock:
+            if self._realtime_requested["mic"]:
                 return False
-            model.startCheckMicEnergy(self.progressBarMicEnergy)
-            return True
+        if not self._drainRealtimeASR("mic"):
+            return False
+        return model.startCheckMicEnergy(self.progressBarMicEnergy)
 
     def stopCheckMicEnergy(self) -> None:
         with self.mic_lifecycle_lock:
-            model.stopCheckMicEnergy()
+            return self._stopCheckMicEnergyLocked()
+
+    def _stopCheckMicEnergyLocked(self) -> None:
+        self._wireAudioSessionLocked("mic")
+        model.stopCheckMicEnergy()
 
     def startCheckSpeakerEnergy(self) -> bool:
         with self.speaker_lifecycle_lock:
-            with self._realtime_lock:
-                if self._realtime_requested["speaker"]:
-                    return False
-            if not self._drainRealtimeASR("speaker"):
+            return self._startCheckSpeakerEnergyLocked()
+
+    def _startCheckSpeakerEnergyLocked(self) -> bool:
+        if not config.ENABLE_CHECK_ENERGY_RECEIVE:
+            return False
+        self._wireAudioSessionLocked("speaker")
+        with self._realtime_lock:
+            if self._realtime_requested["speaker"]:
                 return False
-            model.startCheckSpeakerEnergy(self.progressBarSpeakerEnergy)
-            return True
+        if not self._drainRealtimeASR("speaker"):
+            return False
+        return model.startCheckSpeakerEnergy(self.progressBarSpeakerEnergy)
 
     def stopCheckSpeakerEnergy(self) -> None:
         with self.speaker_lifecycle_lock:
-            model.stopCheckSpeakerEnergy()
+            return self._stopCheckSpeakerEnergyLocked()
+
+    def _stopCheckSpeakerEnergyLocked(self) -> None:
+        self._wireAudioSessionLocked("speaker")
+        model.stopCheckSpeakerEnergy()
 
     @staticmethod
     def startWatchdog(*args, **kwargs) -> dict:

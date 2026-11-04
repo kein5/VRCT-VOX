@@ -6,7 +6,7 @@
 
 チャット読み取りの`OCR_CAPTURE_REGION`はデスクトップウィンドウ用、`OCR_VR_CAPTURE_REGION`はSteamVRの左目側の映像用。旧版の単一範囲はウィンドウ用に保持し、未保存のVR側には全体を補う。[範囲の形と移行](../data-and-persistence.md#チャット読み取りの範囲)を参照。
 
-## config.jsonに保存するキー（121件）
+## config.jsonに保存するキー（123件）
 
 | キー | 型・検証 | 既定値 | 保存 |
 |---|---|---|---|
@@ -118,6 +118,8 @@
 | `AUTO_SPEAKER_SELECT` | bool | `True` | 2秒後にまとめて |
 | `SELECTED_MIC_HOST` | 検証 _mic_host_validator | `dm_def.get('host', {}).get('name', 'NoHost')` | 2秒後にまとめて |
 | `SELECTED_MIC_DEVICE` | 検証 _mic_device_validator | `dm_def.get('device', {}).get('name', 'NoDevice')` | 2秒後にまとめて |
+| `SELECTED_MIC_DEVICE_ID` | 検証 lambda v, _: v if isinstance(v, str) else None | `''` | 2秒後にまとめて |
+| `SELECTED_SPEAKER_DEVICE_ID` | 検証 lambda v, _: v if isinstance(v, str) else None | `''` | 2秒後にまとめて |
 | `SELECTED_SPEAKER_DEVICE` | 検証 _speaker_device_validator | `sp_def.get('device', {}).get('name', 'NoDevice')` | 2秒後にまとめて |
 | `SELECTED_TRANSLATION_COMPUTE_DEVICE` | 検証 _compute_device_validator | `copy.deepcopy(self.SELECTABLE_COMPUTE_DEVICE_LIST[0])` | 2秒後にまとめて |
 | `SELECTED_TRANSCRIPTION_COMPUTE_DEVICE` | 検証 _compute_device_validator | `copy.deepcopy(self.SELECTABLE_COMPUTE_DEVICE_LIST[0])` | 2秒後にまとめて |

@@ -37,13 +37,13 @@ const MicContainer = () => {
     const {
         currentEnableAutoMicSelect,
         toggleEnableAutoMicSelect,
-        currentMicDeviceList,
+        currentMicDeviceOptions,
         currentMicHostList,
 
         currentSelectedMicHost,
         setSelectedMicHost,
-        currentSelectedMicDevice,
-        setSelectedMicDevice,
+        currentSelectedMicDeviceId,
+        setSelectedMicDeviceId,
 
         currentMicVadFilter,
         toggleMicVadFilter,
@@ -56,7 +56,7 @@ const MicContainer = () => {
     };
 
     const selectFunction_device = (selected_data) => {
-        setSelectedMicDevice(selected_data.selected_id);
+        setSelectedMicDeviceId(selected_data.selected_id);
     };
 
     const is_disabled_selector = currentEnableAutoMicSelect.data === true || currentEnableAutoMicSelect.state === "pending";
@@ -114,10 +114,10 @@ const MicContainer = () => {
                     {
                         dropdown_id: "mic_device",
                         secondary_label: t("config_page.device.label_device"),
-                        selected_id: currentSelectedMicDevice.data,
-                        list: currentMicDeviceList.data,
+                        selected_id: currentSelectedMicDeviceId.data,
+                        list: currentMicDeviceOptions.data,
                         selectFunction: selectFunction_device,
-                        state: currentSelectedMicDevice.state,
+                        state: currentSelectedMicDeviceId.state,
                         is_disabled: is_disabled_selector,
                     }
                 ]}
@@ -168,9 +168,9 @@ const SpeakerContainer = () => {
     const {
         currentEnableAutoSpeakerSelect,
         toggleEnableAutoSpeakerSelect,
-        currentSpeakerDeviceList,
-        currentSelectedSpeakerDevice,
-        setSelectedSpeakerDevice,
+        currentSpeakerDeviceOptions,
+        currentSelectedSpeakerDeviceId,
+        setSelectedSpeakerDeviceId,
         currentSpeakerVadFilter,
         toggleSpeakerVadFilter,
         currentEnableAutomaticSpeakerThreshold,
@@ -178,7 +178,7 @@ const SpeakerContainer = () => {
     } = useDevice();
 
     const selectFunction = (selected_data) => {
-        setSelectedSpeakerDevice(selected_data.selected_id);
+        setSelectedSpeakerDeviceId(selected_data.selected_id);
     };
 
     const is_disabled_selector = currentEnableAutoSpeakerSelect.data === true || currentEnableAutoSpeakerSelect.state === "pending";
@@ -226,10 +226,10 @@ const SpeakerContainer = () => {
                         dropdown_id="speaker_device"
                         secondary_label={t("config_page.device.label_device")}
                         label={t("config_page.device.speaker_device.label")}
-                        selected_id={currentSelectedSpeakerDevice.data}
-                        list={currentSpeakerDeviceList.data}
+                        selected_id={currentSelectedSpeakerDeviceId.data}
+                        list={currentSpeakerDeviceOptions.data}
                         selectFunction={selectFunction}
-                        state={currentSelectedSpeakerDevice.state}
+                        state={currentSelectedSpeakerDeviceId.state}
                         is_disabled={is_disabled_selector}
                     />
                 </div>

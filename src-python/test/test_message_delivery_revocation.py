@@ -6,7 +6,7 @@ The real voice bus is used through enqueue; its worker is never started.
 
 import copy
 from queue import Empty, Queue
-from threading import Event, Lock, Thread
+from threading import Event, Lock, Thread, RLock
 from types import SimpleNamespace
 from unittest.mock import Mock
 import time
@@ -154,8 +154,8 @@ def app(monkeypatch):
     c._config = cfg
     c._is_overlay_available = lambda: True
     c._realtimeToggles = lambda: False
-    c.mic_lifecycle_lock = Lock()
-    c.speaker_lifecycle_lock = Lock()
+    c.mic_lifecycle_lock = RLock()
+    c.speaker_lifecycle_lock = RLock()
     c._voice_settings_lock = Lock()
     c.voice_events = VoiceEventBus(VoiceSettings(mode="translated", mic_mode="translated"), router=Mock())
     c.voice_events._thread = Mock()  # Exercise real enqueue checks without synthesis/playback.
@@ -631,6 +631,34 @@ def test_revoked_large_overlay_history_cannot_leak_in_a_later_typed_render(app, 
     assert drawn == ["published", "new"]
 
 
+def configure_device_reconciliation(app, monkeypatch, source, *, available):
+    """Exercise controller reconciliation with explicit devices and a fake session."""
+    old = dict(id="old", name="Old device", index=1)
+    new = dict(id="new", name="New device", index=2)
+    devices = [new] if available else []
+    app.cfg.SELECTED_MIC_HOST = "Host"
+    setattr(app.cfg, "AUTO_" + source.upper() + "_SELECT", False)
+    setattr(app.cfg, "SELECTED_" + source.upper() + "_DEVICE", old["name"])
+    setattr(app.cfg, "SELECTED_" + source.upper() + "_DEVICE_ID", old["id"])
+    manager = Mock()
+    manager.getMicDevices.return_value = {"Host": devices}
+    manager.getSpeakerDevices.return_value = devices
+    manager.getDefaultMicDevice.return_value = {"device": new if available else {"name": "NoDevice"}}
+    manager.getDefaultSpeakerDevice.return_value = manager.getDefaultMicDevice.return_value
+    monkeypatch.setattr(module, "device_manager", manager)
+    setattr(app.m, "getList" + source.capitalize() + "Device", Mock(return_value=[d["name"] for d in devices]))
+    app.c.run_mapping["selectable_" + source + "_device_list"] = "/run/selectable_" + source + "_device_list"
+    session = getattr(app.m, "_" + source + "_session")
+    session._active_device = old
+    def reconfigure(**kwargs):
+        session.features = {name for name in ("transcript", "energy") if kwargs.get(name)}
+        session._active_device = kwargs.get("device") if session.features else None
+    session.reconfigure.side_effect = reconfigure
+    worker = getattr(app.m, source + "_lifecycle_worker")
+    worker.enqueue.side_effect = lambda fn, **kwargs: fn()
+    return session
+
+
 @pytest.mark.parametrize("source", ["mic", "speaker"])
 @pytest.mark.parametrize("pause", ["device_update", "settings", "handoff"])
 def test_internal_pause_preserves_inflight_legacy_delivery(app, monkeypatch, source, pause):
@@ -639,18 +667,22 @@ def test_internal_pause_preserves_inflight_legacy_delivery(app, monkeypatch, sou
     feature = "ENABLE_TRANSCRIPTION_" + direction.upper()
     translator = app.m.getInputTranslate if source == "mic" else app.m.getOutputTranslate
     epoch = app.m.message_delivery.snapshot(source)
-    manager = Mock()
-    monkeypatch.setattr(module, "device_manager", manager)
-    worker = getattr(app.m, source + "_lifecycle_worker")
-    # Execute the production before/after callbacks through a fake FIFO worker.
-    worker.enqueue.side_effect = lambda fn, **kwargs: fn()
+    if pause == "device_update":
+        session = configure_device_reconciliation(app, monkeypatch, source, available=True)
+        reconfigure = session.reconfigure.side_effect
+        def switch(**kwargs):
+            assert app.m.message_delivery.current(source, epoch)
+            reconfigure(**kwargs)
+            assert app.m.message_delivery.current(source, epoch)
+        session.reconfigure.side_effect = switch
 
     def translate(*args, **kwargs):
         if pause == "device_update":
-            getattr(app.c, "applyAuto" + title + "Select")()
-            getattr(manager, "setCallbackProcessBeforeUpdate" + title + "Devices").call_args.args[0]()
-            getattr(manager, "setCallbackProcessAfterUpdate" + title + "Devices").call_args.args[0]()
+            getattr(app.c, "update" + title + "DeviceList")()
+            session.reconfigure.assert_called_once()
+            assert session._active_device["id"] == "new"
             assert getattr(app.cfg, feature) is True
+            app.c.run.reset_mock()  # Selection updates are independent of message output.
         elif pause == "settings":
             # ConfigPageCloseTriggerController uses the same endpoint with
             # explicit pause intent, and restores ON when Settings closes.
@@ -700,23 +732,28 @@ def test_error_disable_revokes_before_cleanup(app, monkeypatch, source, reason):
     monkeypatch.setattr(module, "errorLogging", Mock())
     app.c.run_mapping["error_transcription_" + source + "_vram_overflow"] = "/run/vram"
 
+    if reason == "device_loss":
+        session = configure_device_reconciliation(app, monkeypatch, source, available=False)
+
     def cleanup(**kwargs):
         if kwargs.get("transcript") is False:
             assert not current()
+            session.features = set()
+            session._active_device = None
 
     session.reconfigure.side_effect = cleanup
     worker = getattr(app.m, source + "_lifecycle_worker")
 
     def enqueue(fn, **kwargs):
-        assert not current()
-        fn()
+        fn()  # Revocation must precede cleanup, not admission of reconciliation.
 
     worker.enqueue.side_effect = enqueue
 
     def translate(*args, **kwargs):
         if reason == "device_loss":
-            app.c._disableAudioAfterDeviceLoss(source)
+            getattr(app.c, "update" + title + "DeviceList")()
             worker.enqueue.assert_called_once()
+            session.reconfigure.assert_called_once_with(transcript=False, energy=False)
         elif reason == "pipeline_error":
             app.c._disableTranscriptionAfterPipelineError(source)
         else:
@@ -736,14 +773,22 @@ def test_error_disable_revokes_before_cleanup(app, monkeypatch, source, reason):
 
 
 @pytest.mark.parametrize("source", ["mic", "speaker"])
-def test_device_loss_of_energy_meter_alone_does_not_revoke_delivery(app, source):
+def test_device_loss_of_energy_meter_alone_does_not_revoke_delivery(app, monkeypatch, source):
     direction = "SEND" if source == "mic" else "RECEIVE"
     setattr(app.cfg, "ENABLE_TRANSCRIPTION_" + direction, False)
     setattr(app.cfg, "ENABLE_CHECK_ENERGY_" + direction, True)
     current = app.c._messagePublicationGuard(source)
-    worker = getattr(app.m, source + "_lifecycle_worker")
-    worker.enqueue.side_effect = lambda fn, **kwargs: fn()
-    app.c._disableAudioAfterDeviceLoss(source)
+    session = configure_device_reconciliation(app, monkeypatch, source, available=False)
+    session.features = {"energy"}
+    cleanup = session.reconfigure.side_effect
+    def stop_meter(**kwargs):
+        assert current()
+        cleanup(**kwargs)
+        assert current()
+    session.reconfigure.side_effect = stop_meter
+    getattr(app.c, "update" + source.capitalize() + "DeviceList")()
+    session.reconfigure.assert_called_once_with(transcript=False, energy=False)
+    assert not getattr(app.cfg, "ENABLE_CHECK_ENERGY_" + direction)
     assert current()
 
 

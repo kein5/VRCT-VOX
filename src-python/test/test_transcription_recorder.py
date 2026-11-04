@@ -36,6 +36,8 @@ from device_manager import pyaudio_op_lock
 
 class FakeAudioSource:
     def __init__(self, opens: bool) -> None:
+        self.audio = MagicMock()
+        self.audio.get_device_info_by_index.return_value = {}
         self.opens = opens
         self.stream = None
         self.exit_called = False
@@ -67,13 +69,15 @@ class TestCreateMicrophone(unittest.TestCase):
             "models.transcription.transcription_recorder.Microphone",
             side_effect=[selected_source, default_source],
         ):
-            source = _create_microphone({}, device_index=10)
+            source = _create_microphone({"device_index": 11}, device_index=10)
 
         # _create_microphone は生の source を _LockedAudioSource でラップして
         # 返す (open/close を pyaudio_op_lock で直列化するため、詳細は
         # TestLockedAudioSource 参照)。中身の同一性で検証する。
         self.assertIs(source._source, default_source)
         self.assertFalse(selected_source.exit_called)
+        self.assertFalse(default_source.exit_called)
+        source.close()
         self.assertTrue(default_source.exit_called)
 
     def test_raises_clear_error_when_no_device_opens(self) -> None:
@@ -84,7 +88,7 @@ class TestCreateMicrophone(unittest.TestCase):
             "models.transcription.transcription_recorder.Microphone",
             side_effect=[selected_source, default_source],
         ):
-            with self.assertRaisesRegex(OSError, "audio devices could not be opened"):
+            with self.assertRaisesRegex(OSError, "Audio device could not be opened"):
                 _create_microphone({}, device_index=10)
 
         self.assertFalse(selected_source.exit_called)

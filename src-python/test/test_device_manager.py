@@ -342,40 +342,36 @@ class MonitoringComRegistrationTests(unittest.TestCase):
         mock_enumerator.UnregisterEndpointNotificationCallback.assert_called_once()
         mock_comtypes.CoUninitialize.assert_called_once()
 
-    def test_bare_timeout_does_not_trigger_update_when_com_is_registered(self) -> None:
-        # com_registered=True の状態でタイムアウトしても (=通知が来て
-        # いない)、update() は呼ばれてはいけない。テストを高速化するため
-        # ポーリング間隔を短縮する。
-        self.dm._MONITOR_WAIT_TIMEOUT_SEC = 0.05
-
+    def test_registered_com_skips_short_timeouts_until_safety_net_deadline(self) -> None:
         mock_comtypes = MagicMock()
         mock_enumerator = MagicMock()
         mock_audio_utilities = MagicMock()
         mock_audio_utilities.GetDeviceEnumerator.return_value = mock_enumerator
 
         update_calls = []
+        now = [0.0]
+        def fake_wait(timeout):
+            now[0] += timeout
+            if now[0] > 6.0:
+                self.dm._stop_event.set()
+            return False
 
         with patch.object(device_manager_module, "comtypes", mock_comtypes), \
              patch.object(device_manager_module, "AudioUtilities", mock_audio_utilities), \
              patch.object(device_manager_module, "Client", MagicMock()), \
-             patch.object(self.dm, "update", side_effect=lambda: update_calls.append(1)), \
+             patch.object(device_manager_module, "monotonic", side_effect=lambda: now[0]), \
+             patch.object(self.dm, "_MONITOR_WAIT_TIMEOUT_SEC", 2.0), \
+             patch.object(self.dm, "_COM_RECONCILE_INTERVAL_SEC", 6.0), \
+             patch.object(self.dm._notify_event, "wait", side_effect=fake_wait), \
+             patch.object(self.dm, "update", side_effect=lambda: update_calls.append(now[0])), \
              patch.object(self.dm, "_applyDeviceDiffs"), \
              patch.object(self.dm, "noticeUpdateDevices"):
 
             self.dm._stop_event.clear()
             self.dm._notify_event.clear()
-            t = threading.Thread(target=self.dm.monitoring, daemon=True)
-            t.start()
+            self.dm.monitoring()
 
-            # ポーリング間隔の 4 倍待っても、一度も通知していないので
-            # update() は呼ばれないはず。
-            time.sleep(self.dm._MONITOR_WAIT_TIMEOUT_SEC * 4)
-
-            self.dm._stop_event.set()
-            self.dm._notify_event.set()
-            t.join(timeout=2)
-
-        self.assertEqual(update_calls, [])
+        self.assertEqual(update_calls, [6.0])
 
     def test_com_unavailable_falls_back_to_polling_every_timeout(self) -> None:
         # comtypes/AudioUtilities が None (非 Windows 等) のときは、

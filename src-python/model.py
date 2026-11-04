@@ -24,12 +24,15 @@ from dataclasses import dataclass
 from flashtext import KeywordProcessor
 
 from device_manager import device_manager
+from audio_device_identity import capture_key, resolve_device
 from config import config, DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 
 from models.translation.translation_translator import Translator
 from models.message_delivery import ChatboxOrder, DeliveryEpochs
 from models.osc.osc import OSCHandler
 from models.transcription.transcription_recorder import (
+    AudioOpenBusy,
+    audioOpenOutstanding,
     SelectedMicEnergyAndAudioRecorder,
     SelectedSpeakerEnergyAndAudioRecorder,
     SelectedMicVadRecorder,
@@ -186,11 +189,14 @@ class _AudioQueueEvent(Event):
     def __init__(self, queue) -> None:
         super().__init__()
         self._queue = queue
+        self.on_error = None
 
     def set(self) -> None:
         with self._queue.not_empty:
             super().set()
             self._queue.not_empty.notify_all()
+        if self.on_error is not None:
+            self.on_error()
 
 
 class _AudioQueue(Queue):
@@ -277,45 +283,12 @@ class threadFnc(Thread):
 
 
 class AudioLifecycleWorker:
-    """デバイス変化に伴う recorder の stop/start を専用スレッドで直列実行する。
+    """Serialize each source's device reconciliation away from enumeration.
 
-    device_manager.monitoring() は Before/After コールバック
-    (Controller.stopAccess*Devices / restartAccess*Devices) を自分の
-    スレッド上で同期的に呼んでいた。これらは mic/speaker の
-    stop (最大 TRANSCRIPT_STOP_JOIN_TIMEOUT 秒の join) や PyAudio open を
-    含む重い処理のため、monitoring スレッドがその間ブロックされ、次の
-    COM デバイス通知を取りこぼす窓ができていた。
-    ここに enqueue することで monitoring スレッドは即座に呼び出しから
-    戻れる。関数は FIFO で 1 つずつ実行されるため、
-    Before → (デバイス列挙) → After の順序自体は保たれる。
-
-    フェーズ3項目21: 以前は mic/speaker が同じ1インスタンスを共有して
-    おり、片方の重い処理 (最大 TRANSCRIPT_STOP_JOIN_TIMEOUT +
-    _MIC_OPEN_TIMEOUT_SEC 秒) の間、無関係なもう片方の操作まで
-    無駄に足止めされていた (mic/speaker_lifecycle_lock を分けた意味が
-    薄れる)。呼び出し側 (model.py) で mic 用・speaker 用にそれぞれ
-    別インスタンスを持つことでこれを解消する。なお実際の PortAudio
-    呼び出し自体は pyaudio_op_lock で元々プロセス全体で直列化されて
-    いるため、この分離はドライバ競合対策ではなく、待つ必要のない
-    処理を無駄に待たせないための変更。
-
-    coalesce_key を指定すると、同じ key でまだ実行開始していない項目が
-    既にキューにある間は新規投入をスキップする。ActiveEndpointTracker
-    (250ms周期) からの reconfigure 要求のように、常に「現在の状態」を
-    読むだけの冪等な処理が実行速度を上回るペースで積み上がり、既に
-    古くなった内容を何度も無駄に実行し続ける (1回あたり最大20秒超)
-    のを防ぐ。実行が始まった項目の key は直ちにキューから外すため、
-    実行中に新しい要求が来れば改めて1件だけキューされる。
-    coalesce_key に渡す関数は、この「まだ実行開始していない重複は
-    捨てられる」性質上、引数を持たず常にその時点の「現在の状態」を
-    読むだけの冪等な処理である必要がある (呼び出し時点の特定の値を
-    クロージャで捕まえた関数を渡すと、後続の重複投入で握り潰される
-    可能性がある)。
-
-    enqueue()/stop() は同じロックで保護しており、「stop() 済みなのに
-    enqueue() がキューに積んでしまい、専用スレッドは既に終了していて
-    誰も処理しない」という取りこぼしが起きないようにしている
-    (コードレビュー指摘)。
+    Pending work with the same coalesce_key is skipped. Callers carrying an
+    intent generation include it in that key, so a newer request cannot be
+    swallowed by a pending job that OFF has invalidated. The job checks its
+    generation again under the source lifecycle lock before touching capture.
     """
 
     _STOP_SENTINEL = object()
@@ -398,8 +371,11 @@ class _AudioDeviceSession:
     Recorder クラス・AudioTranscriber の speaker フラグ) はサブクラスで
     _config / _recorder_cls 等として与える。
 
-    呼び出し元 (Model) が Controller.mic/speaker_lifecycle_lock で
-    直列化している前提とし、このクラス自体はロックを持たない。
+    Controller serializes entry points with the source lifecycle lock; this
+    session also owns _stop_lock for cleanup. Synchronous start callbacks run
+    under the caller's lock. Runtime error callbacks enter the controller on a
+    separate thread without holding _stop_lock, so it can decide whether to
+    continue capture or revoke delivery before cleanup.
     """
 
     _kind: str = ""  # "mic" / "speaker" — ログ・エラーメッセージ用
@@ -414,6 +390,10 @@ class _AudioDeviceSession:
         self._energy_progressbar: Optional[threadFnc] = None
         self.transcript_fnc: Optional[Callable[[dict], None]] = None
         self.energy_fnc: Callable[[float], None] = lambda v: None
+        self.error_fnc = None
+        self.runtime_error_fnc = None
+        self.terminal_failure_fnc = None
+        self.device_fnc = None
         self._stop_lock = RLock()
         self._cleanup_workers = []
         self._cleanup_failed = Event()
@@ -427,15 +407,7 @@ class _AudioDeviceSession:
 
     @staticmethod
     def _device_key(device: Optional[dict]) -> Optional[tuple]:
-        """デバイスの同一性判定に使う key。
-
-        pyaudio が返す dict は不安定なフィールド (defaultLowInputLatency 等) を
-        含むため生 dict 比較は使えない。ホスト内で一意な (name, index) の
-        タプルで判定する。
-        """
-        if device is None:
-            return None
-        return (device.get("name"), device.get("index"))
+        return capture_key(device)
 
     # --- サブクラスが実装するフック -------------------------------------
 
@@ -498,6 +470,7 @@ class _AudioDeviceSession:
         transcript: Optional[bool] = None,
         energy: Optional[bool] = None,
         device: Optional[dict] = None,
+        previous_device: Optional[dict] = None,
     ) -> None:
         """transcript/energy を True で有効化、False で無効化、None で現状維持。
 
@@ -533,10 +506,14 @@ class _AudioDeviceSession:
             # 実際に走っているか" という本来知りたい条件をそのまま書いておく。
             already_running = (not new_features) or (
                 self._recorder is not None and self._recorder.stop is not None
+                and not self._pipeline_error_started
             )
             if same_features and same_device and already_running:
                 return
 
+            previous_device = self._active_device or previous_device
+            if new_features and resolved_device is None and callable(self.terminal_failure_fnc):
+                self.terminal_failure_fnc()
             self._stop()
             # A bounded join is not permission to reopen the device. Keep all old
             # workers reachable, including recorder cleanup, until they have exited.
@@ -544,10 +521,17 @@ class _AudioDeviceSession:
             # handoff, as before; it never clears, so it must not lock out an
             # ordinary restart for the rest of the session.
             if self._cleanup_workers:
+                if new_features and callable(self.terminal_failure_fnc):
+                    self.terminal_failure_fnc()
                 return
             self.features = new_features
             if self.features:
-                self._start(device=resolved_device)
+                try:
+                    self._start(device=resolved_device, previous_device=previous_device)
+                except Exception:
+                    if self._recorder is not None or self.features:
+                        self._stop()
+                    raise
 
     def pause(self) -> None:
         if self._recorder is not None and callable(self._recorder.pause):
@@ -593,14 +577,15 @@ class _AudioDeviceSession:
             exception_type=type(error).__name__ if error is not None else None,
         )
 
-    def _notify_pipeline_error(self, failure: AudioPipelineFailure) -> None:
+    def _notify_pipeline_error(self, failure: AudioPipelineFailure, callback=None) -> None:
         with self._pipeline_error_lock:
             if self._pipeline_error_notified:
                 return
             self._pipeline_error_notified = True
-        if callable(self.transcript_fnc):
+        callback = callback or self.error_fnc or self.transcript_fnc
+        if callable(callback):
             try:
-                self.transcript_fnc(failure.to_notification())
+                callback(failure.to_notification())
             except Exception:
                 errorLogging()
 
@@ -619,7 +604,18 @@ class _AudioDeviceSession:
         if worker is not None and worker is current_thread():
             worker.stop()
 
+        error_callback = self.error_fnc or self.transcript_fnc
+        failed_device = self._active_device
+        runtime_callback = self.runtime_error_fnc
+
         def cleanup_and_notify() -> None:
+            if callable(runtime_callback):
+                # The controller decides continuation vs terminal failure under
+                # its source lock, then owns cleanup. Do not hold the session
+                # lock while crossing that boundary or stop before revocation.
+                self._notify_pipeline_error(failure, lambda data: runtime_callback(
+                    {**data, "failed_device": failed_device}))
+                return
             with self._stop_lock:
                 if recorder is not None and self._recorder is not recorder:
                     return
@@ -630,7 +626,11 @@ class _AudioDeviceSession:
                     )
                 else:
                     failure_to_notify = failure
-                self._notify_pipeline_error(failure_to_notify)
+            if self.error_fnc is not None and error_callback is not None:
+                callback = lambda data: error_callback({**data, "failed_device": failed_device})
+            else:
+                callback = error_callback
+            self._notify_pipeline_error(failure_to_notify, callback)
 
         Thread(
             target=cleanup_and_notify,
@@ -640,7 +640,7 @@ class _AudioDeviceSession:
 
     # --- 内部実装 ---------------------------------------------------------
 
-    def _start(self, *, device: Optional[dict]) -> None:
+    def _start(self, *, device: Optional[dict], previous_device=None) -> None:
         # 呼び出し元 (reconfigure) が _resolve_device で解決済みの
         # デバイスを渡す。None は「使用可能なデバイス無し」を意味し、
         # ここで再解決はしない (再解決すると reconfigure の意図した
@@ -654,8 +654,7 @@ class _AudioDeviceSession:
             self._active_device = None
             return
 
-        # 現在開いているデバイスを記録 (reconfigure での差分検知に使用)
-        self._active_device = device
+        requested_device = device
 
         with self._pipeline_error_lock:
             self._pipeline_error_started = False
@@ -664,7 +663,28 @@ class _AudioDeviceSession:
         start_failure: Optional[AudioPipelineFailure] = None
         try:
             try:
-                self._recorder = self._create_recorder(device)
+                candidates = [device]
+                if self._kind == "mic":
+                    default = device_manager.getDefaultMicDevice().get("device")
+                    available = [d for devices in device_manager.getMicDevices().values() for d in devices]
+                else:
+                    default = device_manager.getDefaultSpeakerDevice().get("device")
+                    available = device_manager.getSpeakerDevices()
+                for candidate in [default, *available]:
+                    if (candidate and candidate.get("name") != "NoDevice"
+                            and "node_name" not in candidate
+                            and capture_key(candidate) not in [capture_key(d) for d in candidates]):
+                        candidates.append(candidate)
+                for candidate in candidates:
+                    try:
+                        self._recorder = self._create_recorder(candidate)
+                        device = candidate
+                        break
+                    except AudioOpenBusy:
+                        raise
+                    except OSError:
+                        if candidate is candidates[-1]:
+                            raise
             except Exception as error:  # noqa: BLE001 - convert to safe UI error
                 start_failure = self._make_pipeline_failure(
                     ErrorCode.AUDIO_OPEN_ERROR,
@@ -680,13 +700,18 @@ class _AudioDeviceSession:
             energy_queue = _EnergyQueue() if "energy" in self.features else None
             self._audio_queue = audio_queue
             self._energy_queue = energy_queue
-            if "transcript" in self.features:
-                # listener を起動する前に通知付き Event にする。録音側の
-                # set/is_set/clear 契約と、既に発生していたエラーを保つ。
-                if self._recorder.device_error_event.is_set():
-                    audio_queue.device_error_event.set()
-                self._recorder.device_error_event = audio_queue.device_error_event
+            recorder = self._recorder
+            error_event = audio_queue.device_error_event if isinstance(audio_queue, _AudioQueue) else _AudioQueueEvent(audio_queue)
+            error_event.on_error = lambda: self._handle_pipeline_error(
+                getattr(recorder, "device_error_info", None)
+                or self._make_pipeline_failure(ErrorCode.AUDIO_READ_ERROR, "recording"), recorder)
+            had_error = recorder.device_error_event.is_set()
+            recorder.device_error_event = error_event
+            if had_error is True:
+                error_event.set()
             self._recorder.recordIntoQueue(audio_queue, energy_queue)
+            if error_event.is_set():
+                raise OSError("Audio listener failed to start")
             if "transcript" in self.features:
                 try:
                     self._transcriber = self._create_transcriber()
@@ -707,12 +732,18 @@ class _AudioDeviceSession:
                     ErrorCode.AUDIO_READ_ERROR,
                     "recording",
                 )
+            if callable(self.terminal_failure_fnc):
+                self.terminal_failure_fnc()
             cleanup_timed_out = self._stop()
             if cleanup_timed_out:
                 start_failure = self._make_pipeline_failure(ErrorCode.CLEANUP_TIMEOUT, "cleanup")
             if start_failure is not None:
                 self._notify_pipeline_error(start_failure)
             raise
+
+        self._active_device = dict(device)
+        if callable(self.device_fnc):
+            self.device_fnc(self._active_device, previous_device or requested_device)
 
         if "transcript" in self.features:
             transcriber = self._transcriber
@@ -725,7 +756,6 @@ class _AudioDeviceSession:
                     return
                 if recorder.device_error_event.is_set():
                     failure = getattr(recorder, "device_error_info", None)
-                    recorder.device_error_event.clear()
                     if failure is None:
                         failure = self._make_pipeline_failure(
                             ErrorCode.AUDIO_READ_ERROR,
@@ -787,7 +817,8 @@ class _AudioDeviceSession:
             energy_recorder = self._recorder
             def sendEnergy() -> None:
                 energy = energy_queue.getUntilStopped()
-                if energy is None or self._recorder is not energy_recorder:
+                if (energy is None or self._recorder is not energy_recorder
+                        or energy_recorder.device_error_event.is_set()):
                     return
                 try:
                     self.energy_fnc(energy)
@@ -804,6 +835,10 @@ class _AudioDeviceSession:
         with self._stop_lock:
             self._cleanup_workers = [worker for worker in self._cleanup_workers if worker.is_alive()]
             cleanup_timed_out = bool(self._cleanup_workers)
+            source = getattr(self._recorder, "source", None)
+            cancel = getattr(source, "cancel", None)
+            if callable(cancel):
+                cancel()
             transcript_thread = self._print_transcript
             if isinstance(transcript_thread, threadFnc):
                 transcript_thread.stop()
@@ -846,10 +881,13 @@ class _AudioDeviceSession:
                 except Exception:
                     errorLogging()
 
-                if callable(recorder.stop):
+                if callable(recorder.stop) or callable(getattr(source, "close", None)):
                     def stop_recorder():
                         try:
-                            recorder.stop(wait_for_stop=True)
+                            if callable(recorder.stop):
+                                recorder.stop(wait_for_stop=True)
+                            elif callable(getattr(source, "close", None)):
+                                source.close()
                         except Exception:
                             # A dead cleanup thread is not proof that the device
                             # was released. Keep handoff blocked until restart.
@@ -888,7 +926,8 @@ class _AudioDeviceSession:
         self._stop()
         with self._stop_lock:
             self._cleanup_workers = [worker for worker in self._cleanup_workers if worker.is_alive()]
-            return not self._cleanup_workers and not self._cleanup_failed.is_set()
+            return (not self._cleanup_workers and not self._cleanup_failed.is_set()
+                    and not audioOpenOutstanding(self._kind))
 
 
 class MicSession(_AudioDeviceSession):
@@ -903,14 +942,10 @@ class MicSession(_AudioDeviceSession):
         mic_host_name = config.SELECTED_MIC_HOST
         mic_device_name = config.SELECTED_MIC_DEVICE
         mic_device_list = device_manager.getMicDevices().get(mic_host_name, [{"name": "NoDevice"}])
-        selected_mic_device = [d for d in mic_device_list if d["name"] == mic_device_name]
-        if not selected_mic_device or mic_device_name == "NoDevice":
+        device = resolve_device(mic_device_list, config.SELECTED_MIC_DEVICE_ID, mic_device_name)
+        if device is None or "node_name" in device:
             return None
-        # Linux PipeWire entries select the RVC input; the PyAudio recorders
-        # cannot open them, so legacy capture stays without a device as before.
-        if "node_name" in selected_mic_device[0]:
-            return None
-        return selected_mic_device[0]
+        return device
 
     def _create_recorder(self, device: dict):
         record_timeout = config.MIC_RECORD_TIMEOUT
@@ -969,10 +1004,7 @@ class SpeakerSession(_AudioDeviceSession):
             return override
         speaker_device_name = config.SELECTED_SPEAKER_DEVICE
         speaker_device_list = device_manager.getSpeakerDevices()
-        selected_speaker_device = [d for d in speaker_device_list if d["name"] == speaker_device_name]
-        if not selected_speaker_device or speaker_device_name == "NoDevice":
-            return None
-        return selected_speaker_device[0]
+        return resolve_device(speaker_device_list, config.SELECTED_SPEAKER_DEVICE_ID, speaker_device_name)
 
     def _create_recorder(self, device: dict):
         record_timeout = config.SPEAKER_RECORD_TIMEOUT
@@ -2388,12 +2420,13 @@ class Model:
             raise ValueError("realtime_source_invalid")
         return getattr(self, "_" + source + "_session").stop_for_handoff()
 
-    def startCheckMicEnergy(self, fnc:Optional[Callable[[float], None]]=None) -> None:
+    def startCheckMicEnergy(self, fnc:Optional[Callable[[float], None]]=None) -> bool:
         self.ensure_initialized()
         # fnc may be None or a callable. Use cast after checking for None to satisfy type checker.
         if fnc is not None:
             self._mic_session.energy_fnc = cast(Callable[[float], None], fnc)
         self._mic_session.reconfigure(energy=True)
+        return "energy" in self._mic_session.features and self._mic_session._recorder is not None
 
     def stopCheckMicEnergy(self):
         self.ensure_initialized()
@@ -2591,12 +2624,13 @@ class Model:
             # NameError になって stopOcrCapture スレッドが毎回落ちていた
             # (2026-09-18 実機のstderrで発覚)。
 
-    def startCheckSpeakerEnergy(self, fnc:Optional[Callable[[float], None]]=None) -> None:
+    def startCheckSpeakerEnergy(self, fnc:Optional[Callable[[float], None]]=None) -> bool:
         self.ensure_initialized()
         # Accept None as default and assign safely with cast after None-check
         if fnc is not None:
             self._speaker_session.energy_fnc = cast(Callable[[float], None], fnc)
         self._speaker_session.reconfigure(energy=True)
+        return "energy" in self._speaker_session.features and self._speaker_session._recorder is not None
 
     def stopCheckSpeakerEnergy(self):
         self.ensure_initialized()

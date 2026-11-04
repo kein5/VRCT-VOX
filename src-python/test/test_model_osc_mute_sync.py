@@ -506,16 +506,29 @@ class ControllerRegistersLockedMuteCallbackTests(unittest.TestCase):
 
     def test_locked_wrapper_acquires_the_lock_around_change_mic_transcript_status(self) -> None:
         controller = Controller.__new__(Controller)
-        controller.mic_lifecycle_lock = threading.Lock()
+        controller.mic_lifecycle_lock = threading.RLock()
         lock = controller.mic_lifecycle_lock
         observed_locked = []
 
+        def locked_from_another_thread():
+            acquired = []
+            def probe():
+                held = lock.acquire(blocking=False)
+                acquired.append(held)
+                if held:
+                    lock.release()
+            thread = threading.Thread(target=probe)
+            thread.start()
+            thread.join(timeout=1)
+            self.assertFalse(thread.is_alive())
+            return acquired == [False]
+
         with patch("controller.model") as mock_model:
-            mock_model.changeMicTranscriptStatus.side_effect = lambda: observed_locked.append(lock.locked())
+            mock_model.changeMicTranscriptStatus.side_effect = lambda: observed_locked.append(locked_from_another_thread())
             controller._changeMicTranscriptStatusLocked()
 
         self.assertEqual(observed_locked, [True])
-        self.assertFalse(lock.locked())
+        self.assertFalse(locked_from_another_thread())
 
 
 if __name__ == "__main__":

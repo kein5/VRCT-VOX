@@ -1,6 +1,6 @@
 """OCR handler regressions with fake readers/capture and isolated model state."""
 
-from threading import Event, Lock, Thread, current_thread
+from threading import Event, Lock, Thread, current_thread, RLock
 from types import SimpleNamespace
 from unittest.mock import Mock
 import time
@@ -165,8 +165,8 @@ def shutdown_services(controller, backend, monkeypatch):
     monkeypatch.setattr(controller_module, "model", services)
     monkeypatch.setattr(controller_module, "device_manager", Mock())
     controller._closeRealtimeASR = Mock(return_value=True)
-    controller.mic_lifecycle_lock = Lock()
-    controller.speaker_lifecycle_lock = Lock()
+    controller.mic_lifecycle_lock = RLock()
+    controller.speaker_lifecycle_lock = RLock()
     return services
 
 

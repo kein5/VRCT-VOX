@@ -100,6 +100,7 @@ run_mapping = {
     "check_mic_volume":"/run/check_mic_volume",
     "check_speaker_volume":"/run/check_speaker_volume",
 
+    "audio_device_switched":"/run/audio_device_switched",
     "error_device":"/run/error_device",
     "error_translation_engine":"/run/error_translation_engine",
     "message_output_error":"/run/message_output_error",
@@ -124,7 +125,11 @@ run_mapping = {
     "error_whisper_weight":"/run/error_whisper_weight",
 
     "selected_mic_host":"/run/selected_mic_host",
+    "selected_mic_device_id":"/run/selected_mic_device_id",
+    "selectable_mic_device_options":"/run/selectable_mic_device_options",
     "selected_mic_device":"/run/selected_mic_device",
+    "selected_speaker_device_id":"/run/selected_speaker_device_id",
+    "selectable_speaker_device_options":"/run/selectable_speaker_device_options",
     "selected_speaker_device":"/run/selected_speaker_device",
 
     "selected_translation_engines":"/run/selected_translation_engines",
@@ -426,6 +431,9 @@ mapping = {
     "/get/data/selected_mic_host": {"status": True, "variable":controller.getSelectedMicHost},
     "/set/data/selected_mic_host": {"status": True, "variable":controller.setSelectedMicHost},
 
+    "/get/data/selected_mic_device_id": {"status": True, "variable":controller.getSelectedMicDeviceId},
+    "/set/data/selected_mic_device_id": {"status": True, "variable":controller.setSelectedMicDeviceId},
+    "/get/data/selectable_mic_device_options": {"status": True, "variable":controller.getMicDeviceOptions},
     "/get/data/selected_mic_device": {"status": True, "variable":controller.getSelectedMicDevice},
     "/set/data/selected_mic_device": {"status": True, "variable":controller.setSelectedMicDevice},
 
@@ -469,6 +477,9 @@ mapping = {
     "/set/enable/auto_speaker_select": {"status": True, "variable":controller.setEnableAutoSpeakerSelect},
     "/set/disable/auto_speaker_select": {"status": True, "variable":controller.setDisableAutoSpeakerSelect},
 
+    "/get/data/selected_speaker_device_id": {"status": True, "variable":controller.getSelectedSpeakerDeviceId},
+    "/set/data/selected_speaker_device_id": {"status": True, "variable":controller.setSelectedSpeakerDeviceId},
+    "/get/data/selectable_speaker_device_options": {"status": True, "variable":controller.getSpeakerDeviceOptions},
     "/get/data/selected_speaker_device": {"status": True, "variable":controller.getSelectedSpeakerDevice},
     "/set/data/selected_speaker_device": {"status": True, "variable":controller.setSelectedSpeakerDevice},
 
