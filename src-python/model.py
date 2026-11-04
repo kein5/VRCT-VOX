@@ -27,6 +27,7 @@ from device_manager import device_manager
 from config import config, DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 
 from models.translation.translation_translator import Translator
+from models.message_delivery import DeliveryEpochs
 from models.osc.osc import OSCHandler
 from models.transcription.transcription_recorder import (
     SelectedMicEnergyAndAudioRecorder,
@@ -1024,6 +1025,7 @@ class Model:
     _instance = None
     # 停止時に None にせず、メッセージ処理から常に安全に参照できるようにする。
     logger = ConversationLogger()
+    message_delivery = DeliveryEpochs()
     # Model is a singleton. Serialize feature ownership even when start/stop
     # arrive on different IPC handler threads.
     _watchdog_lifecycle_lock = Lock()
@@ -1810,6 +1812,8 @@ class Model:
         with self._mute_status_lock:
             if generation == self._mute_status_generation and type(mute) is bool:
                 self.mic_mute_status = mute
+                if mute and config.VRC_MIC_MUTE_SYNC is True:
+                    self.message_delivery.revoke("mic")
 
     def setMicMuteStatusChangeCallback(self, fn: Optional[Callable[[], None]]) -> None:
         """OSC ミュート同期が pause()/resume() を実行する際に呼ぶ関数を登録する。
@@ -1848,6 +1852,8 @@ class Model:
                         self._mute_status_generation += 1
                         if self.mic_mute_status is not True:
                             self.mic_mute_status = True
+                            # Revoke delivery now; pause may wait in the lifecycle queue.
+                            self.message_delivery.revoke("mic")
                             self.mic_lifecycle_worker.enqueue(
                                 self.mic_mute_status_change_callback or self.changeMicTranscriptStatus
                             )
@@ -1913,6 +1919,8 @@ class Model:
                         return
                     self._mute_status_generation += 1
                     self.mic_mute_status = mute
+                    if mute:
+                        self.message_delivery.revoke("mic")
                     self.mic_lifecycle_worker.enqueue(
                         self.mic_mute_status_change_callback or self.changeMicTranscriptStatus
                     )
@@ -2697,6 +2705,25 @@ class Model:
         with self.overlay_image.log_lock:
             if self.overlay_image.isCurrentLargeLog(img):
                 self.overlay.updateImage(img, "large")
+
+    def publishMessageOverlayLargeLog(self, *args, current):
+        """Keep a revoked render out of history used by later publications."""
+        if not current():
+            return
+        self.ensure_initialized()
+        with self.overlay_image.log_lock:
+            if not current():
+                return
+            checkpoint = self.overlay_image.checkpointCaptionState()
+            committed = False
+            try:
+                image = self.createOverlayImageLargeLog(*args)
+                if current():
+                    self.updateOverlayLargeLog(image)
+                    committed = True
+            finally:
+                if not committed:
+                    self.overlay_image.restoreCaptionState(checkpoint)
 
     def publishRealtimeCaptionOverlay(self, payload, language, target_languages, current, *, only_translated=False):
         """Serialize history/render/publication; caller runs outside the WS loop."""

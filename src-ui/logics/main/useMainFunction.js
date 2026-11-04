@@ -41,12 +41,12 @@ export const useMainFunction = () => {
     const { asyncStdoutToPython } = useStdoutToPython();
 
     const createTogglePair = (pendingFn, updateFn, endpointName) => {
-        const setFn = (to_enable) => {
+        const setFn = (to_enable, disableIntent) => {
             pendingFn();
             if (to_enable) {
                 asyncStdoutToPython(`/set/enable/${endpointName}`);
             } else {
-                asyncStdoutToPython(`/set/disable/${endpointName}`);
+                asyncStdoutToPython(`/set/disable/${endpointName}`, disableIntent);
             }
         };
         const toggleFn = () => {

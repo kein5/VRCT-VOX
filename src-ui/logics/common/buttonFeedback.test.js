@@ -73,6 +73,58 @@ function find(tree, predicate) {
 const button = tree => find(tree, node => node.type === "button");
 const switchNode = tree => find(tree, node => node.props?.role === "switch");
 const actionPath = "app/config_page/setting_section/setting_box/_components/action_button/ActionButton.jsx";
+
+test("Settings pauses transcription with intent and restores it; user OFF has no pause intent", async () => {
+    const runtime = hooks(), requests = [];
+    let open = true, memory;
+    const state = {};
+    const stores = { store: {} };
+    for (const name of ["TranslationStatus", "TranscriptionSendStatus", "TranscriptionReceiveStatus", "OcrCaptureStatus", "ForegroundStatus"]) {
+        state[name] = { data: true, state: "ok" };
+        stores[`useStore_${name}`] = () => ({
+            [`current${name}`]: state[name],
+            [`pending${name}`]: () => {},
+            [`update${name}`]: () => {},
+        });
+    }
+    const { useMainFunction } = await load("../logics/main/useMainFunction.js", runtime, {
+        "@store": stores,
+        "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython: (endpoint, data) => requests.push([endpoint, data]) }) },
+    });
+    const { ConfigPageCloseTriggerController } = await load("app/_app_controllers/ConfigPageCloseTriggerController.jsx", runtime, {
+        "@store": { useStore_MainFunctionsStateMemory: () => ({
+            currentMainFunctionsStateMemory: { data: memory },
+            updateMainFunctionsStateMemory: value => { memory = value; },
+        }) },
+        "@logics_main": { useMainFunction },
+        "@logics_common": {
+            useIsOpenedConfigPage: () => ({ currentIsOpenedConfigPage: { data: open } }),
+            useVolume: () => ({ currentMicThresholdCheckStatus: { data: false }, currentSpeakerThresholdCheckStatus: { data: false } }),
+        },
+        "@logics_configs": { useHotkeys: () => ({ registerShortcuts() {}, unregisterAll() {} }) },
+    });
+    runtime.render(ConfigPageCloseTriggerController);
+    assert.deepEqual(requests, [
+        ["/set/disable/translation", undefined],
+        ["/set/disable/transcription_send", { reason: "settings_pause" }],
+        ["/set/disable/transcription_receive", { reason: "settings_pause" }],
+    ]);
+    requests.length = 0;
+    open = false;
+    runtime.render(ConfigPageCloseTriggerController);
+    assert.deepEqual(requests, [
+        ["/set/enable/translation", undefined],
+        ["/set/enable/transcription_send", undefined],
+        ["/set/enable/transcription_receive", undefined],
+    ]);
+    requests.length = 0;
+    useMainFunction().setTranscriptionSend(false);
+    useMainFunction().setTranscriptionReceive(false);
+    assert.deepEqual(requests, [
+        ["/set/disable/transcription_send", undefined],
+        ["/set/disable/transcription_receive", undefined],
+    ]);
+});
 const deferred = () => {
     let resolve, reject;
     const promise = new Promise((yes, no) => { resolve = yes; reject = no; });

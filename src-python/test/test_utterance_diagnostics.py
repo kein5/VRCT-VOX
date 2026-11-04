@@ -329,7 +329,7 @@ class PipelineDiagnosticsTests(unittest.TestCase):
 
         delivery = module.RealtimeDelivery(session, published.append, process, errors.append, clock=lambda: self.now)
         update = TranscriptUpdate("speaker", "owned", "u", 1, "PRIVATE", True, "final", received_ns=100_000_000_000)
-        delivery._finals.put_nowait((update, 102))
+        delivery._finals.put_nowait((update, 102, published.append, process))
         with patch.object(module, "Thread", side_effect=AssertionError("new thread")):
             delivery._translate()
             self.assertTrue(delivery.close())

@@ -868,6 +868,8 @@ class Controller:
             return
         with self._realtime_lock:
             wanted = self._realtime_generation[source] == generation and self._realtime_requested[source]
+            if wanted:
+                model.message_delivery.revoke(source)
             owner = self._realtime_owners[source]
             code = self._realtime_errors[source] or (owner[0].health().get("error_code") if owner else None)
         self._publishRealtimeToggle(source, (code or "realtime_session_failed") if wanted else None)
@@ -1100,6 +1102,7 @@ class Controller:
             def fail_start(code):
                 with self._realtime_lock:
                     if self._realtime_generation[source] == generation:
+                        model.message_delivery.revoke(source)
                         self._invalidateRealtimeLocked(source)
                         self._realtime_errors[source] = code
                 return failure(code)
@@ -1120,12 +1123,12 @@ class Controller:
             except Exception:
                 return fail_start("realtime_legacy_stop_failed")
 
-            def publish(payload):
-                if current():
+            def publish(payload, admitted):
+                if current() and admitted():
                     self.run(200, "/run/realtime_caption", {**payload, "generation": generation})
                     if config.OVERLAY_LARGE_LOG is True and self._is_overlay_available():
                         def valid_overlay():
-                            return (current() and session.is_current(payload["namespace"])
+                            return (current() and admitted() and session.is_current(payload["namespace"])
                                     and (payload["state"] == "discarded" or time.monotonic_ns() < payload["expires_ns"]))
                         languages = (config.SELECTED_TARGET_LANGUAGES if source == "mic" else config.SELECTED_YOUR_LANGUAGES)[config.SELECTED_TAB_NO]
                         model.publishRealtimeCaptionOverlay(payload, language, languages, valid_overlay,
@@ -1139,10 +1142,10 @@ class Controller:
                 if namespace and self._is_overlay_available():
                     model.clearRealtimeCaptionOverlay(source, namespace)
 
-            def process(update, valid):
+            def process(update, valid, admitted, mic_snapshot):
                 def guard():
-                    return current() and valid()
-                if source == "mic" and getattr(config, "VRC_MIC_MUTE_SYNC", False) and model.mic_mute_status is True:
+                    return current() and valid() and admitted()
+                if not guard():
                     return None
                 spoken = language
                 if detect and getattr(update, "language", ""):
@@ -1153,7 +1156,16 @@ class Controller:
                 return self._processMessage(
                     REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC,
                     update.text, spoken, msg_id=update.namespace + ":" + update.item_id,
-                    publication_guard=guard, speech_update=update if source == "mic" else None)
+                    publication_guard=guard, speech_update=update if source == "mic" else None,
+                    mic_snapshot=mic_snapshot)
+
+            def admit(update):
+                admitted = self._messagePublicationGuard(source)
+                mic_snapshot = self._snapshotMicVoice() if source == "mic" and update.is_final else None
+                return (
+                    lambda payload: publish(payload, admitted),
+                    lambda event, valid: process(event, valid, admitted, mic_snapshot),
+                )
 
             def error(code):
                 with self._realtime_lock:
@@ -1170,12 +1182,13 @@ class Controller:
                             clear_overlay()
                         finally:
                             self._realtimeEnded(source, generation)
-                    delivery = RealtimeDelivery(session, publish, process, error, on_stopped=stopped)
+                    delivery = RealtimeDelivery(session, publish, process, error, on_stopped=stopped, admit=admit)
                     self._realtime_owners[source] = (session, delivery)
                     # These only launch workers; neither waits for capture/network.
                     session.start()
                     delivery.start()
                 except Exception:
+                    model.message_delivery.revoke(source)
                     self._invalidateRealtimeLocked(source)
                     self._realtime_errors[source] = "realtime_start_failed"
                     return failure("realtime_start_failed")
@@ -1267,6 +1280,9 @@ class Controller:
         Returns:
             dict with status 200 and result True on success.
         """
+        # Revoke intent before any cleanup can wait on a worker or lock.
+        for source in ("mic", "speaker", "ocr", "chat"):
+            model.message_delivery.revoke(source)
         with _OCR_CONTROL_LOCK:
             self._ocr_shutting_down = True
             config.ENABLE_OCR_CAPTURE = False
@@ -1608,6 +1624,7 @@ class Controller:
             return
 
         if transcription_was_enabled:
+            model.message_delivery.revoke(source)
             self.run(200, transcription_endpoint, False)
         if energy_was_enabled:
             self.run(200, energy_endpoint, False)
@@ -1835,6 +1852,35 @@ class Controller:
                     error_response["result"],
                 )
 
+    def _messagePublicationGuard(self, source, publication_guard=None):
+        def muted():
+            return (source == "mic" and config.VRC_MIC_MUTE_SYNC is True
+                    and model.mic_mute_status is True)
+
+        # A result refused at admission must stay refused after unmute.
+        if muted():
+            return lambda: False
+        delivery = model.message_delivery
+        epoch = delivery.snapshot(source)
+
+        def current():
+            return (delivery.current(source, epoch) and not muted()
+                    and (publication_guard is None or publication_guard()))
+
+        return current
+
+    def _snapshotMicVoice(self):
+        if getattr(self, "voice_events", None) is not None:
+            with self._voice_settings_lock:
+                if self.voice_events.settings.mic_mode == "translated" and config.ENABLE_TRANSLATION:
+                    return (
+                        config.SELECTED_TAB_NO,
+                        copy.deepcopy(config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]),
+                        self.voice_events.settings, self.voice_events.generation(),
+                        self.voice_events.source_generation("mic"),
+                    )
+        return None
+
     def _processMessage(
         self,
         spec: MessageDirectionSpec,
@@ -1845,6 +1891,7 @@ class Controller:
         voice_generation: Optional[int] = None,
         publication_guard: Optional[Callable[[], bool]] = None,
         speech_update=None,
+        mic_snapshot=None,
     ) -> Optional[dict]:
         """mic/speaker/chatMessage共通のパイプライン(バックエンドレビュー
         フェーズ3項目25、`MessageDirectionSpec`参照)。
@@ -1860,7 +1907,10 @@ class Controller:
         ワードフィルタ・繰り返し検出・VRAMエラーで早期returnした場合は
         `model.addTranslationHistory`を呼ばない(旧実装の挙動を踏襲)。
         """
-        current = publication_guard or (lambda: True)
+        current = self._messagePublicationGuard(spec.kind, publication_guard)
+        # Internal capture pauses/handoffs keep admitted work. Explicit OFF
+        # revokes its epoch instead of relying on a later live feature check.
+        feature_enabled = spec.feature_gate_attr is None or getattr(config, spec.feature_gate_attr) is True
         if not current():
             return None
         if spec.has_word_filter and model.checkKeywords(message):
@@ -1881,10 +1931,9 @@ class Controller:
         # した場合は出力自体が無いので測らない。
         pipeline_started_at = time.perf_counter()
         translate_elapsed_ms = 0
-        # Snapshot before translation can block; only the trusted realtime mic
-        # callback supplies a speech update. Other receive paths cannot speak.
+        # Realtime mic intent is stamped before entering its final queue.
+        # Typed chat carries the receiver's generation through translation.
         voice_snapshot = None
-        mic_snapshot = None
         voice_started_ns = time.monotonic_ns()
         if spec.kind == "chat" and getattr(self, "voice_events", None) is not None:
             with self._voice_settings_lock:
@@ -1896,17 +1945,6 @@ class Controller:
                         self.voice_events.settings,
                         (voice_generation if type(voice_generation) is int
                          else self.voice_events.generation()),
-                    )
-
-        if (spec is REALTIME_MIC_SPEC and speech_update is not None
-                and getattr(self, "voice_events", None) is not None):
-            with self._voice_settings_lock:
-                if self.voice_events.settings.mic_mode == "translated" and config.ENABLE_TRANSLATION:
-                    mic_snapshot = (
-                        config.SELECTED_TAB_NO,
-                        copy.deepcopy(config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]),
-                        self.voice_events.settings, self.voice_events.generation(),
-                        self.voice_events.source_generation("mic"),
                     )
 
         # Original speech has no dependency on the translator or text delivery.
@@ -2060,7 +2098,7 @@ class Controller:
         if msg_id is not None:
             payload = {"id": msg_id, **payload}
 
-        if spec.feature_gate_attr is None or getattr(config, spec.feature_gate_attr) is True:
+        if feature_enabled:
             if spec.osc_send_gate_attr is not None and getattr(config, spec.osc_send_gate_attr) is True:
                 if config.SEND_ONLY_TRANSLATED_MESSAGES is True:
                     if config.ENABLE_TRANSLATION is False:
@@ -2109,31 +2147,27 @@ class Controller:
                     overlay_language_list = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]
                 if config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES is True:
                     if len(translation) > 0:
-                        overlay_image = model.createOverlayImageLargeLog(
+                        model.publishMessageOverlayLargeLog(
                             spec.overlay_direction,
                             None,
                             None,
                             translation,
                             overlay_language_list,
                             transliteration_message,
-                            transliteration_translation
+                            transliteration_translation,
+                            current=current,
                         )
-                        if not current():
-                            return None
-                        model.updateOverlayLargeLog(overlay_image)
                 else:
-                    overlay_image = model.createOverlayImageLargeLog(
+                    model.publishMessageOverlayLargeLog(
                         spec.overlay_direction,
                         message,
                         overlay_own_language,
                         translation,
                         overlay_language_list,
                         transliteration_message,
-                        transliteration_translation
+                        transliteration_translation,
+                        current=current,
                     )
-                    if not current():
-                        return None
-                    model.updateOverlayLargeLog(overlay_image)
 
             if spec.clipboard and config.ENABLE_CLIPBOARD is True:
                 clipboard_message = self.messageFormatter(spec.osc_format_type, translation, message)
@@ -2211,10 +2245,10 @@ class Controller:
         )
 
     def micMessage(self, result: dict) -> None:
+        current = self._messagePublicationGuard("mic")
         if (
             result.get("recognition_error") is not True
-            and config.VRC_MIC_MUTE_SYNC is True
-            and model.mic_mute_status is True
+            and not current()
         ):
             return
 
@@ -2257,9 +2291,11 @@ class Controller:
                 error_response["result"],
             )
         elif isinstance(message, str) and len(message) > 0:
-            self._processMessage(MIC_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"))
+            self._processMessage(MIC_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"),
+                                 publication_guard=current)
 
     def speakerMessage(self, result:dict) -> None:
+        current = self._messagePublicationGuard("speaker")
         if result.get("recognition_error") is True:
             is_pipeline_error = all(
                 key in result for key in ("error_code", "stage", "source", "message", "recoverable")
@@ -2297,7 +2333,8 @@ class Controller:
                 error_response["result"],
             )
         elif isinstance(message, str) and len(message) > 0:
-            self._processMessage(SPEAKER_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"))
+            self._processMessage(SPEAKER_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"),
+                                 publication_guard=current)
 
     def ocrMessage(self, result: dict) -> None:
         """OCRで読んだチャット吹き出しを、受信メッセージと同じ経路へ流す。
@@ -2309,6 +2346,7 @@ class Controller:
         OSCチャットボックスへは送らない。他人の発言を自分のチャットボックスへ
         流し返すことになり、スパムに当たるため (設定ではなく仕様で封じている)。
         """
+        current = self._messagePublicationGuard("ocr")
         if getattr(self, "_ocr_shutting_down", False) or config.ENABLE_OCR_CAPTURE is not True:
             return
 
@@ -2327,7 +2365,7 @@ class Controller:
         msg_id = f"transcription-ocr-{segment_id}" if segment_id is not None else None
         self._processMessage(
             OCR_MESSAGE_SPEC, message, source_language, msg_id=msg_id,
-            publication_guard=lambda: not getattr(self, "_ocr_shutting_down", False),
+            publication_guard=lambda: current() and not getattr(self, "_ocr_shutting_down", False),
         )
 
     def _disableTranscriptionAfterPipelineError(self, source: str) -> None:
@@ -2344,6 +2382,7 @@ class Controller:
             )
         else:
             return
+        model.message_delivery.revoke(source)
         # UI は既存の disable endpoint の run 通知を状態更新として処理する。
         self.run(200, endpoint, False)
 
@@ -4696,12 +4735,15 @@ class Controller:
             config.ENABLE_TRANSCRIPTION_SEND = self.startTranscriptionSendMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
 
-    def setDisableTranscriptionSend(self, *args, **kwargs) -> dict:
+    def setDisableTranscriptionSend(self, data=None, *args, **kwargs) -> dict:
+        # Settings pauses capture through this endpoint, then restores ON.
+        if not (isinstance(data, dict) and data.get("reason") == "settings_pause"):
+            model.message_delivery.revoke("mic")
         if self._realtimeToggles():
             return self._disableRealtimeToggle("mic")
         if config.ENABLE_TRANSCRIPTION_SEND is True:
-            self.stopTranscriptionSendMessage()
             config.ENABLE_TRANSCRIPTION_SEND = False
+            self.stopTranscriptionSendMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
 
     def setEnableTranscriptionReceive(self, data=None, *args, **kwargs) -> dict:
@@ -4711,12 +4753,14 @@ class Controller:
             config.ENABLE_TRANSCRIPTION_RECEIVE = self.startTranscriptionReceiveMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}
 
-    def setDisableTranscriptionReceive(self, *args, **kwargs) -> dict:
+    def setDisableTranscriptionReceive(self, data=None, *args, **kwargs) -> dict:
+        if not (isinstance(data, dict) and data.get("reason") == "settings_pause"):
+            model.message_delivery.revoke("speaker")
         if self._realtimeToggles():
             return self._disableRealtimeToggle("speaker")
         if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            self.stopTranscriptionReceiveMessage()
             config.ENABLE_TRANSCRIPTION_RECEIVE = False
+            self.stopTranscriptionReceiveMessage()
         return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}
 
     def sendMessageBox(self, data, *args, **kwargs) -> dict:
@@ -4921,8 +4965,10 @@ class Controller:
                 started = model.startMicTranscript(self.micMessage)
                 if not started:
                     config.ENABLE_TRANSCRIPTION_SEND = False
+                    model.message_delivery.revoke("mic")
                 return started
             except Exception as e:
+                model.message_delivery.revoke("mic")
                 # VRAM不足エラーの検出
                 is_vram_error, error_message = model.detectVRAMError(e)
                 if is_vram_error:
@@ -4977,8 +5023,10 @@ class Controller:
                 started = model.startSpeakerTranscript(self.speakerMessage)
                 if not started:
                     config.ENABLE_TRANSCRIPTION_RECEIVE = False
+                    model.message_delivery.revoke("speaker")
                 return started
             except Exception as e:
+                model.message_delivery.revoke("speaker")
                 # VRAM不足エラーの検出
                 is_vram_error, error_message = model.detectVRAMError(e)
                 if is_vram_error:
@@ -5830,9 +5878,10 @@ class Controller:
         return {"status": 200, "result": config.ENABLE_OCR_CAPTURE}
 
     def setDisableOcrCapture(self, *args, **kwargs) -> dict:
+        model.message_delivery.revoke("ocr")
         if config.ENABLE_OCR_CAPTURE is True:
-            self.stopOcrCapture()
             config.ENABLE_OCR_CAPTURE = False
+            self.stopOcrCapture()
         return {"status": 200, "result": config.ENABLE_OCR_CAPTURE}
 
     @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
