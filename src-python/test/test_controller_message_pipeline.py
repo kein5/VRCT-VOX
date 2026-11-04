@@ -15,7 +15,7 @@ WebSocket送信・ロガー・エラーハンドリング)を固定化するた�
 """
 
 import unittest
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import ANY, ANY, MagicMock, patch
 
 from controller import Controller, config
 from models.message_delivery import ChatboxOrder, DeliveryEpochs
@@ -120,6 +120,7 @@ class _MessagePipelineTestBase(unittest.TestCase):
                     self._model.updateOverlayLargeLog(image)
 
         for name, value in (
+            ("overlayPublicationGuard", MagicMock(side_effect=lambda size, current=lambda: True: current)),
             ("checkKeywords", MagicMock(return_value=False)),
             ("detectRepeatSendMessage", MagicMock(return_value=False)),
             ("detectRepeatReceiveMessage", MagicMock(return_value=False)),
@@ -442,7 +443,7 @@ class TestSpeakerMessage(_MessagePipelineTestBase):
         self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.speakerMessage({"text": "hello", "language": "English"})
         self._model.createOverlayImageSmallLog.assert_called_once()
-        self._model.updateOverlaySmallLog.assert_called_once_with("SMALL_IMG")
+        self._model.updateOverlaySmallLog.assert_called_once_with("SMALL_IMG", current=ANY)
 
     def test_small_log_overlay_skipped_when_unavailable(self) -> None:
         config.OVERLAY_SMALL_LOG = True

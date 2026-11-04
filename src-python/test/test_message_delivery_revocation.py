@@ -99,6 +99,7 @@ def app(monkeypatch):
     backend.message_delivery = DeliveryEpochs()
     backend.chatbox_order = ChatboxOrder()
     backend.ensure_initialized = Mock()
+    backend.overlayPublicationGuard = Mock(side_effect=lambda size, current=lambda: True: current)
     backend._mic_session = Mock()
     backend._speaker_session = Mock()
     backend._mic_session.features = {"transcript"}
@@ -603,6 +604,7 @@ def test_revoked_large_overlay_history_cannot_leak_in_a_later_typed_render(app, 
     # fixture's fake renderer. No fonts, GUI or OpenVR destination is opened.
     app.m.overlay_image = OverlayImage()
     app.m.overlay = Mock()
+    app.m.overlay.updateImage.return_value = True
     for name in ("createOverlayImageLargeLog", "updateOverlayLargeLog", "publishMessageOverlayLargeLog"):
         setattr(app.m, name, getattr(Model, name).__get__(app.m))
     app.m.overlay_image.createTextboxLargeLog = lambda *a, **kw: Image.new("RGBA", (100, 20), "white")

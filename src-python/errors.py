@@ -53,6 +53,7 @@ class ErrorCode(str, Enum):
     DEVICE_NO_MIC = "DEVICE_NO_MIC"
     DEVICE_NO_SPEAKER = "DEVICE_NO_SPEAKER"
     MESSAGE_OUTPUT_FAILED = "MESSAGE_OUTPUT_FAILED"
+    OVERLAY_RUNTIME_FAILED = "OVERLAY_RUNTIME_FAILED"
 
     # 音声入力から文字起こしまでの実行時エラー。これらは通常の
     # request/response エラーではなく、既存の
@@ -308,6 +309,12 @@ class ErrorCategory(str, Enum):
 
 # エラーコードのメタデータ定義
 ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
+    ErrorCode.OVERLAY_RUNTIME_FAILED: {
+        "category": ErrorCategory.GENERAL,
+        "message": "The VR overlay stopped after a rendering or capture failure. Check SteamVR and the VR window, then enable it again.",
+        "severity": "error",
+        "user_action_required": True,
+    },
     ErrorCode.MESSAGE_OUTPUT_FAILED: {
         "category": ErrorCategory.GENERAL,
         "message": "One message output failed; other outputs continued. Resending may duplicate delivery.",

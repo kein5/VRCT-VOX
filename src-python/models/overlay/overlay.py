@@ -7,7 +7,7 @@ import time
 import traceback
 from models.process_check import isProcessRunning
 from queue import Empty, Queue
-from threading import Lock, Thread, get_ident
+from threading import Event, Lock, RLock, Thread, current_thread, get_ident
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, Optional, Sequence
 
@@ -678,11 +678,20 @@ class Overlay:
         self.thread_overlay: Optional[Thread] = None
         # SteamVR の起動を待っている間 (または作っている間) に止められた。起動しない
         # (以前は待っている間に OFF にしても、SteamVR が起動するとオーバーレイが出てきた)。
-        # start_cancelled と init_process の読み書きは start_lock で直列にする
         self.start_cancelled = False
-        self.start_lock = Lock()
+        self.stop_requested = Event()
         self._lifecycle_lock = Lock()
         self._stop_timed_out = False
+        self.publication_lock = RLock()
+        self.publication_generation = 0
+        self.output_generations = {}
+        self.run_stop = Event()
+        self.reconnect_requested = False
+        self._constructing = False
+        self.owner_thread_id = None
+        self.owned_handles = []
+        self.failure = None
+        self.failure_callback = None
 
         self.settings: Dict[str, Dict[str, Any]] = {}
         self.lastUpdate: Dict[str, float] = {}
@@ -769,6 +778,7 @@ class Overlay:
         self.tip_offsets: Dict[int, tuple] = {}
         # 撮影を頼んだ使い捨てのスレッドの結果 (startCaptureJob)。同時に頼むのは1つだけ
         self.capture_job: Optional[SimpleNamespace] = None
+        self.capture_generation = 0
         # VR画面を撮り続ける画面キャプチャ (window_capture.WindowStream)。使えなければ PrintWindow で撮る
         self.panel_stream: Optional[Any] = None
         # stream_missing は windows-capture が無い (起動し直すまで戻らない)。stream_unavailable は始められない・
@@ -871,6 +881,7 @@ class Overlay:
 
     def createOverlay(self, key: str, name: str) -> int:
         handle = self.overlay.createOverlay(key, name)
+        self.owned_handles.append(handle)
         self.invalidateOverlayState(handle)  # SteamVR は破棄した番号を再利用することがある
         return handle
 
@@ -902,6 +913,7 @@ class Overlay:
             state[key] = value
 
     def init(self) -> None:
+        self.owner_thread_id = get_ident()
         self.invalidateOverlayState()
         try:
             # Go through the shared, reference-counted OpenVR session
@@ -941,7 +953,7 @@ class Overlay:
                     self.vr_windows_hidden.add(size)
                 else:
                     self.submitOverlay("showOverlay", self.handle[size])
-            self.initialized = True
+            self._constructing = True
             for kind, img in createPointerImages().items():
                 handle = self.createOverlay(f"VRCT_pointer_{kind}", f"VRCT_pointer_{kind}")
                 self.overlay.setOverlaySortOrder(handle, 100)
@@ -975,11 +987,11 @@ class Overlay:
                 )
                 self.updateDisplayDuration(self.settings[size]["display_duration"], size)
                 self.updateFadeoutDuration(self.settings[size]["fadeout_duration"], size)
+            self.initialized = not self.start_cancelled
             printLog("overlay: 起動しました", {"vr_panel": self.gl is not None})
-        except Exception:
-            errorLogging()
         finally:
             # 途中で失敗しても「作っている途中」のままにしない (以後 OFF/ON できなくなる)
+            self._constructing = False
             self.init_process = False
 
     def initVrResources(self) -> None:
@@ -1002,46 +1014,58 @@ class Overlay:
             self.overlay.setOverlaySortOrder(self.tooltip_handle, 70)
             self.submitOverlay("hideOverlay", self.tooltip_handle)
         if any(size in self.settings for size in VR_REGIONS):
-            try:
-                self.initPanelTexture()
-            except Exception:
-                self.shutdownPanelTexture()
-                errorLogging()
+            self.initPanelTexture()
 
-    def updateImage(self, img: Image.Image, size: str) -> None:
-        if self.initialized is True:
-            previous = self.images.get(size)
-            if previous is None or previous.size != img.size:
-                self.invalidateOverlayState(self.handle[size])
-            self.images[size] = img
-            width, height = img.size
-            img = img.tobytes()
-            img = (ctypes.c_char * len(img)).from_buffer_copy(img)
+    def publicationCurrent(self, size: str, generation: tuple, current: Callable[[], bool]) -> bool:
+        return (not self.start_cancelled and generation == self.publicationToken(size) and current())
 
-            try:
-                self.overlay.setOverlayRaw(self.handle[size], img, width, height, 4)
-            except Exception:
-                self.reStartOverlay()
-                deadline = time.monotonic() + _REINIT_WAIT_TIMEOUT_SEC
-                while self.initialized is False and time.monotonic() < deadline:
-                    time.sleep(_REINIT_WAIT_POLL_INTERVAL_SEC)
-                if self.initialized is True:
-                    try:
-                        self.overlay.setOverlayRaw(self.handle[size], img, width, height, 4)
-                    except Exception:
-                        errorLogging()
-                else:
-                    # SteamVR/オーバーレイの再初期化が_REINIT_WAIT_TIMEOUT_SEC秒
-                    # 以内に終わらなかった(例: SteamVRが落ちたまま)。呼び出し元
-                    # (mainloopワーカースレッド)を無期限にブロックしないよう、
-                    # この更新は諦める。
-                    printLog(
-                        f"overlay: {size}の再初期化が{_REINIT_WAIT_TIMEOUT_SEC}s"
-                        "でタイムアウトしたため、この画像更新は諦めます"
-                    )
+    def publicationToken(self, size: str) -> tuple:
+        return self.publication_generation, self.output_generations.get(size, 0)
 
-            self.updateOpacity(self.settings[size]["opacity"], size)
-            self.lastUpdate[size] = time.monotonic()
+    def updateImage(self, img: Image.Image, size: str, *, current: Callable[[], bool] = lambda: True) -> bool:
+        """Return True only for an accepted upload. Never carry revoked bytes through reconnect."""
+        generation = self.publicationToken(size)
+        valid = lambda: self.publicationCurrent(size, generation, current)
+        if not valid() or not (self.initialized or (self._constructing and self.owner_thread_id == get_ident())):
+            return False
+        width, height = img.size
+        raw = img.tobytes()
+        raw = (ctypes.c_char * len(raw)).from_buffer_copy(raw)
+        for attempt in range(2):
+            with self.publication_lock:
+                if not valid() or not (self.initialized or (self._constructing and self.owner_thread_id == get_ident())):
+                    return False
+                try:
+                    self.overlay.setOverlayRaw(self.handle[size], raw, width, height, 4)
+                    if not valid():
+                        return False
+                    previous = self.images.get(size)
+                    if previous is None or previous.size != img.size:
+                        self.invalidateOverlayState(self.handle[size])
+                    self.images[size] = img
+                    self.lastUpdate[size] = time.monotonic()
+                    self.fadeRatio[size] = 1.0
+                    self.updateOpacity(self.settings[size]["opacity"], size, True)
+                    return valid()
+                except Exception:
+                    if self._constructing:
+                        raise
+                    if attempt or not valid():
+                        if valid():
+                            errorLogging()
+                        return False
+            # The owner tears down and reconnects; do not hold the upload lock while waiting.
+            if not self.reStartOverlay(current=valid):
+                return False
+            deadline = time.monotonic() + _REINIT_WAIT_TIMEOUT_SEC
+            while not self.initialized and valid() and time.monotonic() < deadline:
+                time.sleep(_REINIT_WAIT_POLL_INTERVAL_SEC)
+            if not valid():
+                return False
+            if not self.initialized:
+                printLog(f"overlay: {size} reinitialization timed out after {_REINIT_WAIT_TIMEOUT_SEC}s")
+                return False
+        return False
 
     def initPanelTexture(self) -> None:
         """VRパネル用のOpenGLコンテキストとテクスチャを作る (オーバーレイのスレッドで呼ぶこと)。"""
@@ -1052,13 +1076,16 @@ class Overlay:
 
         if not glfw.init():
             raise RuntimeError("glfw.init() failed")
+        self.gl = {"glfw": glfw, "GL": GL, "window": None, "texture": None,
+                   "ghost_texture": None, "old_textures": [], "size": None}
         glfw.window_hint(glfw.VISIBLE, False)
         window = glfw.create_window(16, 16, "VRCT overlay GL", None, None)
+        self.gl["window"] = window
         if not window:
-            glfw.terminate()
             raise RuntimeError("glfw.create_window() failed")
         glfw.make_context_current(window)
         texture = GL.glGenTextures(1)
+        self.gl["texture"] = texture
         GL.glBindTexture(GL.GL_TEXTURE_2D, texture)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
@@ -1067,6 +1094,7 @@ class Overlay:
         vr_texture.eType = openvr.TextureType_OpenGL
         vr_texture.eColorSpace = openvr.ColorSpace_Auto
         ghost_texture = GL.glGenTextures(1)
+        self.gl["ghost_texture"] = ghost_texture
         GL.glBindTexture(GL.GL_TEXTURE_2D, ghost_texture)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
@@ -1090,7 +1118,7 @@ class Overlay:
         self.layout_requested_at = time.monotonic()
         self.layout_retried = False
         self.layout_logged = set()  # 作り直したら、大きさを合わせる各段階をもう一度ログに出す
-        self.capture_job = None  # 止める前に頼んだ撮影の結果は使わない
+        self.capture_generation += 1  # Keep ownership until an outstanding native call returns.
         self.closePanelStream()
         self.stream_unavailable = False
 
@@ -1336,25 +1364,22 @@ class Overlay:
         return GL
 
     def shutdownPanelTexture(self) -> None:
-        if self.gl is None:
+        gl, self.gl = self.gl, None
+        if gl is None:
             return
-        # SteamVR にテクスチャを渡したまま OpenGL の環境を消すと、後で SteamVR との接続を閉じるときに
-        # 落ちる (実機で access violation)。先にオーバーレイからテクスチャを外す
-        if self.overlay is not None:
+        # Called by the owner after overlays/session release, including partial construction.
+        textures = [t for t in (gl.get("texture"), gl.get("ghost_texture"), *gl.get("old_textures", [])) if t is not None]
+        operations = []
+        if textures:
+            operations.append(lambda: gl["GL"].glDeleteTextures(textures))
+        if gl.get("window") is not None:
+            operations.append(lambda: gl["glfw"].destroy_window(gl["window"]))
+        operations.append(gl["glfw"].terminate)
+        for operation in operations:
             try:
-                handles = [*self.vrRegionHandles().values(), *([self.ghost_handle] if self.ghost_handle is not None else [])]
-                for handle in handles:
-                    self.overlay.clearOverlayTexture(handle)
+                operation()
             except Exception:
                 errorLogging()
-        try:
-            if self.gl.get("old_textures"):
-                self.gl["GL"].glDeleteTextures(self.gl["old_textures"])
-            self.gl["glfw"].destroy_window(self.gl["window"])
-            self.gl["glfw"].terminate()
-        except Exception:
-            errorLogging()
-        self.gl = None
 
     def setVrPanelEnabled(self, enabled: bool) -> None:
         """VR UI の有効状態を要求する。短い OFF/ON も所有スレッドで順番に反映する。"""
@@ -1371,6 +1396,7 @@ class Overlay:
             if enabled and not self.vr_panel_enabled:
                 restart_capture = True
             if enabled != self.vr_panel_enabled:
+                self.capture_generation += 1
                 self.resetTooltipEpoch()
                 self.setLauncherIntro("pending" if enabled else "idle")
             self.vr_panel_enabled = enabled
@@ -1382,7 +1408,8 @@ class Overlay:
         # 字幕が ON の間は Overlay 全体を再初期化しないため、撮影の停止/失敗状態をここで解除する。
         # GL テクスチャと SteamVR のハンドルは維持し、古い WebView の撮影結果は使わない。
         self.closePanelStream()
-        self.capture_job = None
+        if self.capture_job is not None and not self.capture_job.done:
+            self.capture_job.reported = False  # A new ON must report that the same capture is still stuck.
         self.panel_hwnd = None
         self.panel_last_find = 0.0
         self.panel_last_capture = 0.0
@@ -1415,11 +1442,10 @@ class Overlay:
         capture = self.collectCapture(now)
         if capture is None:
             return
-        self.transferCapture(capture, now)
-        # 撮れた結果を最後まで処理できた (撮影を別スレッドにしたので、撮っている途中の周では数え直さない)
-        self.panel_errors = 0
+        if self.transferCapture(capture, now):
+            self.panel_errors = 0
 
-    def transferCapture(self, capture: tuple, now: float) -> None:
+    def transferCapture(self, capture: tuple, now: float) -> bool:
         """撮影した結果を確かめ、変わっていればテクスチャに書いてオーバーレイへ渡す。"""
         # 大きさを変えている途中 (ウィンドウがまだ新しい大きさでない、または VR画面がまだ古い並びで描いている)
         # のフレームは使わない。やり直し・元に戻すのはウィンドウの大きさが合わないときだけ
@@ -1437,8 +1463,9 @@ class Overlay:
             return
         # 前回と同じなら、変換・転送をすべて省く (オーバーレイは前回のテクスチャを表示し続ける)
         if capture[0] == self.panel_last_raw:
-            return
-        self.panel_last_raw = capture[0]
+            return True
+        # A failed transfer/layout must retry even if the next frame is identical.
+        self.panel_last_raw = None
         self.panel_last_change = now
         self.markStep("panel:convert")
         pixels = window_capture.bgraFromCapture(capture)
@@ -1483,9 +1510,15 @@ class Overlay:
         self.panel_image_size = size
         # 表示範囲はテクスチャの中の撮影画像の大きさで決まるので、並びか撮影の大きさが変わったら当て直す
         if self.layout_applied is not self.layout or image_size_changed:
-            self.applyLayout()
+            try:
+                self.applyLayout()
+            except Exception:
+                self.layout_applied = None
+                raise
         self.tooltip_ready = tooltip_matches
         self.safeUpdateTooltip()
+        self.panel_last_raw = capture[0]
+        return True
 
     def collectCapture(self, now: float) -> Optional[tuple]:
         """撮影を使い捨てのスレッドに頼み、撮れていればその結果 (captureWindowRaw) を返す。まだなら None。
@@ -1504,6 +1537,7 @@ class Overlay:
         elif not job.done:
             if not job.reported and now - job.started >= _STALL_REPORT_SEC:
                 job.reported = True
+                self.reportFailure("capture_stalled")
                 printLog("overlay: VR画面の撮影に時間がかかっています (VRCT の画面が応答していない可能性)", {"sec": round(now - job.started, 1)})
             return None
         self.capture_job = None
@@ -1513,6 +1547,8 @@ class Overlay:
             # 大きさを合わせる待ち時間は、戻ったときから数え直す (固まっている間に大きさを変えても、
             # 戻った直後に元の大きさへ戻さないように)。もう繰り返さない印 (now + 3600) は残す
             self.layout_requested_at = max(self.layout_requested_at, returned)
+        if job.generation != self.capture_generation:
+            return None
         if job.error is not None:
             raise job.error
         if not started_now:
@@ -1525,6 +1561,8 @@ class Overlay:
 
     def startCapture(self, now: float) -> None:
         """撮影の間隔が過ぎていれば、ウィンドウを探して大きさを合わせ、撮影を頼む。"""
+        if self.capture_job is not None:
+            return  # A blocked PrintWindow retains the single capture slot across OFF/ON.
         if now - self.panel_last_capture < self.panelCaptureInterval(now):
             return
         self.panel_last_capture = now
@@ -1551,13 +1589,13 @@ class Overlay:
             # 画面キャプチャは撮り続けているので、届いている最新の画像を受け取るだけ (待たない)
             result = stream.take()
             if result is not None:
-                self.capture_job = SimpleNamespace(hwnd=self.panel_hwnd, layout=self.layout, started=now,
+                self.capture_job = SimpleNamespace(hwnd=self.panel_hwnd, layout=self.layout, started=now, generation=self.capture_generation,
                                                    done=True, result=result, error=None, reported=False)
                 return
             if not stream.stale:
                 return  # まだ1枚も届いていない
             # 大きさを変えた後の画像がまだ届かない: 届くまでは PrintWindow で撮る
-        self.capture_job = SimpleNamespace(hwnd=self.panel_hwnd, layout=self.layout, started=now,
+        self.capture_job = SimpleNamespace(hwnd=self.panel_hwnd, layout=self.layout, started=now, generation=self.capture_generation,
                                            done=False, result=None, error=None, reported=False)
         self.startCaptureJob(self.capture_job)
 
@@ -1599,7 +1637,7 @@ class Overlay:
                 errorLogging()
 
     def startCaptureJob(self, job: SimpleNamespace) -> None:
-        # ponytail: 1回ごとにスレッドを作る (撮影は最大20回/秒)。固まったまま OFF/ON すると1つずつ残るが、戻れば終わる
+        # The owner retains this job until done, including during OFF/ON and reconnect.
         Thread(target=self.runCaptureJob, args=(job,), daemon=True).start()
 
     @staticmethod
@@ -1625,8 +1663,9 @@ class Overlay:
         if self.gl["size"] is not None:
             printLog("overlay: VR画面のテクスチャを大きくします (表示が見切れたら VR UI を OFF/ON してください)", {"from": self.gl["size"], "to": size})
             # 古いテクスチャは SteamVR が持っているかもしれないので、接続を閉じた後に消す
-            self.gl.setdefault("old_textures", []).append(self.gl["texture"])
             texture = GL.glGenTextures(1)
+            self.gl.setdefault("old_textures", []).append(self.gl["texture"])
+            self.gl["texture"] = texture
             GL.glBindTexture(GL.GL_TEXTURE_2D, texture)
             GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
             GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
@@ -1693,14 +1732,23 @@ class Overlay:
         self.panel_input[hand] = (pressed, xy)
 
     def clearImage(self, size: str) -> None:
-        if self.initialized is True:
-            self.updateImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0)), size)
+        # Revoke before waiting for a native upload; the final operation is always clear.
+        self.output_generations[size] = self.output_generations.get(size, 0) + 1
+        with self.publication_lock:
+            self.images.pop(size, None)
+            if self.initialized:
+                try:
+                    self.overlay.setOverlayRaw(self.handle[size], (ctypes.c_char * 4)(), 1, 1, 4)
+                except Exception:
+                    errorLogging()
+                    # Failed clear must not leave disabled content visible indefinitely.
+                    self.reportFailure("runtime")
 
     def updateColor(self, col, size):
         """
         col is a 3-tuple representing (r, g, b)
         """
-        if self.initialized is True:
+        if self.initialized or (self._constructing and self.owner_thread_id == get_ident()):
             r, g, b = col
             self.overlay.setOverlayColor(self.handle[size], r, g, b)
 
@@ -1709,9 +1757,9 @@ class Overlay:
             self.invalidateOverlayState()
         self.settings[size]["opacity"] = opacity
 
-        if self.initialized is True:
+        if self.initialized or (self._constructing and self.owner_thread_id == get_ident()):
             if with_fade is True:
-                self.submitOverlay("setOverlayAlpha", self.handle[size], self.fadeRatio[size] * self.settings[size]["opacity"])
+                self.evaluateOpacityFade(size)
             else:
                 self.submitOverlay("setOverlayAlpha", self.handle[size], self.settings[size]["opacity"])
 
@@ -1719,7 +1767,7 @@ class Overlay:
         if self.settings[size].get("ui_scaling") != ui_scaling:
             self.invalidateOverlayState()
         self.settings[size]["ui_scaling"] = ui_scaling
-        if self.initialized is True:
+        if self.initialized or (self._constructing and self.owner_thread_id == get_ident()):
             self.submitOverlay("setOverlayWidthInMeters", self.handle[size], self.settings[size]["ui_scaling"])
 
     def updatePosition(self, x_pos: float, y_pos: float, z_pos: float, x_rotation: float, y_rotation: float, z_rotation: float, tracker: str, size: str) -> None:
@@ -1740,7 +1788,7 @@ class Overlay:
         self.settings[size]["z_rotation"] = z_rotation
         self.settings[size]["tracker"] = tracker
 
-        if self.initialized is True:
+        if self.initialized or (self._constructing and self.owner_thread_id == get_ident()):
             base_matrix, trackerIndex = self.getTracker(tracker)
             translation = (self.settings[size]["x_pos"], self.settings[size]["y_pos"], - self.settings[size]["z_pos"])
             rotation = (self.settings[size]["x_rotation"], self.settings[size]["y_rotation"], self.settings[size]["z_rotation"])
@@ -2900,12 +2948,10 @@ class Overlay:
             return False
 
     def evaluateOpacityFade(self, size: str) -> None:
-        currentTime = time.monotonic()
-        if (currentTime - self.lastUpdate[size]) > self.settings[size]["display_duration"]:
-            timeThroughInterval = currentTime - self.lastUpdate[size] - self.settings[size]["display_duration"]
-            self.fadeRatio[size] = 1 - timeThroughInterval / self.settings[size]["fadeout_duration"]
-            if self.fadeRatio[size] < 0:
-                self.fadeRatio[size] = 0
+        with self.publication_lock:
+            elapsed = max(0.0, time.monotonic() - self.lastUpdate[size] - self.settings[size]["display_duration"])
+            duration = self.settings[size]["fadeout_duration"]
+            self.fadeRatio[size] = max(0.0, 1.0 - elapsed / duration) if duration else 1.0
             self.submitOverlay("setOverlayAlpha", self.handle[size], self.fadeRatio[size] * self.settings[size]["opacity"])
 
     def update(self, size: str) -> None:
@@ -2921,46 +2967,48 @@ class Overlay:
     def mainloop(self) -> None:
         self.loop = True
         raiseThreadPriority()
-        Thread(target=self.watchStall, args=(sys._current_frames, get_ident()), daemon=True).start()
-        while self.checkActive() is True and self.loop is True and not self.start_cancelled:
-            startTime = time.monotonic()
-            self.applyVrPanelEnabled()
-            self.markStep("update")
-            for size in self.settings.keys():
-                self.update(size)
-            try:
-                self.retryPendingPositions()
-            except Exception:
-                errorLogging()
-            # 先にレーザー (ポインタ・ホバー) を処理してから撮影する (レーザーの反応を撮影の分だけ待たせない)
-            self.markStep("grab")
-            try:
-                self.updateGrab()
-                self.grab_error = None
-            except Exception as e:
-                self.onGrabError(e)
-            self.markStep("panel")
-            try:
-                self.updatePanel()
-            except Exception as e:
-                self.onPanelError(e)
-            # 掴んでいる間・伸ばしている間は滑らかにするため、VR UI を指している間は反応を早くするため更新頻度を上げる
-            if self.grabbing is not None or self.resizing is not None:
-                interval = 1 / 60
-            elif self.pointer_notified is not None:
-                interval = 1 / 30
-            else:
-                interval = 1 / 16
-            self.markStep("sleep")
-            self.reportSlowSteps()
-            sleepTime = interval - (time.monotonic() - startTime)
-            if sleepTime > 0:
-                time.sleep(sleepTime)
-        self.markStep("teardown")
-        self.teardown()
-        self.markStep("idle")
-        # 止まったあとは「見失っている」表示を残さない
-        self.notifyPanelOutOfView(False)
+        stop = self.run_stop
+        watcher = Thread(target=self.watchStall, args=(sys._current_frames, get_ident(), stop), daemon=True)
+        watcher.start()
+        try:
+            while self.checkActive() is True and self.loop is True and not self.start_cancelled and not stop.is_set():
+                startTime = time.monotonic()
+                self.applyVrPanelEnabled()
+                self.markStep("update")
+                for size in self.settings.keys():
+                    self.update(size)
+                try:
+                    self.retryPendingPositions()
+                except Exception:
+                    errorLogging()
+                # 先にレーザー (ポインタ・ホバー) を処理してから撮影する (レーザーの反応を撮影の分だけ待たせない)
+                self.markStep("grab")
+                try:
+                    self.updateGrab()
+                    self.grab_error = None
+                except Exception as e:
+                    self.onGrabError(e)
+                self.markStep("panel")
+                try:
+                    self.updatePanel()
+                except Exception as e:
+                    self.onPanelError(e)
+                # 掴んでいる間・伸ばしている間は滑らかにするため、VR UI を指している間は反応を早くするため更新頻度を上げる
+                if self.grabbing is not None or self.resizing is not None:
+                    interval = 1 / 60
+                elif self.pointer_notified is not None:
+                    interval = 1 / 30
+                else:
+                    interval = 1 / 16
+                self.markStep("sleep")
+                self.reportSlowSteps()
+                sleepTime = interval - (time.monotonic() - startTime)
+                if sleepTime > 0:
+                    stop.wait(sleepTime)
+        finally:
+            stop.set()
+            watcher.join(timeout=_SHUTDOWN_JOIN_TIMEOUT_SEC)
+            self.notifyPanelOutOfView(False)
 
     def markStep(self, name: str) -> None:
         """処理の段階が変わった。前の段階にかかった時間の最大を覚える (reportSlowSteps / watchStall)。"""
@@ -2993,11 +3041,10 @@ class Overlay:
         self.step_loops = 0
         self.step_reported_at = now
 
-    def watchStall(self, current_frames: Callable[[], Dict[int, Any]], thread_id: int) -> None:
+    def watchStall(self, current_frames: Callable[[], Dict[int, Any]], thread_id: int, stop: Event) -> None:
         """オーバーレイのスレッドが同じ段階で _STALL_REPORT_SEC 以上止まったら、どこで止まっているかをログに出す。"""
         reported = None
-        while self.loop and not self.start_cancelled:
-            time.sleep(0.5)
+        while not stop.wait(0.5):
             step = self.loop_step
             if step[0] in ("sleep", "idle") or step is reported or time.monotonic() - step[1] < _STALL_REPORT_SEC:
                 continue
@@ -3019,25 +3066,26 @@ class Overlay:
                 self.gl["glfw"].make_context_current(self.gl["window"])
             except Exception:
                 errorLogging()
+        self.capture_generation += 1
         self.closePanelStream()
-        self.destroyOverlays()
-        self.releaseSession()
-        self.shutdownPanelTexture()
+        with self.publication_lock:
+            self.initialized = False
+            self.destroyOverlays()
+            self.releaseSession()
+            self.shutdownPanelTexture()
         printLog("overlay: 止めました")
 
     def destroyOverlays(self) -> None:
         """作ったオーバーレイをすべて消す。消した後は何もしない。"""
         self.invalidateOverlayState()
-        if not isinstance(self.overlay, openvr.IVROverlay):
-            return
-        try:
-            for size in self.settings.keys():
-                if isinstance(self.handle.get(size), int):
-                    self.overlay.destroyOverlay(self.handle[size])
-            for handle in [*self.pointer_handles.values(), *[h for h in (self.toolbar_handle, self.ghost_handle, self.tooltip_handle) if h is not None]]:
-                self.overlay.destroyOverlay(handle)
-        except Exception:
-            errorLogging()
+        handles, self.owned_handles = self.owned_handles, []
+        overlay, self.overlay = self.overlay, None
+        self.handle = {}
+        for handle in handles:
+            try:
+                overlay.destroyOverlay(handle)
+            except Exception:
+                errorLogging()
         self.pointer_handles = {}
         self.toolbar_handle = None
         self.toolbar_visible = False
@@ -3053,7 +3101,7 @@ class Overlay:
     def releaseSession(self) -> None:
         """SteamVR との接続の参照を返す。閉じるのに失敗しても、次に ON にしたとき作り直せるようにする。"""
         self.invalidateOverlayState()
-        if not isinstance(self.system, openvr.IVRSystem):
+        if self.system is None:
             return
         try:
             # Only releases our reference; the real openvr.shutdown()
@@ -3078,6 +3126,7 @@ class Overlay:
             self.resetTooltipEpoch()
             self.panel_stopped = True
             self.closePanelStream()
+            self.reportFailure("capture")
 
     def onGrabError(self, e: Exception) -> None:
         """掴み・伸ばす処理で例外が出たら、その操作をやめる (同じ例外で毎フレーム止まり続けないように)。"""
@@ -3099,121 +3148,112 @@ class Overlay:
             self.grab_error = repr(e)
             errorLogging()
 
+    def reportFailure(self, reason: str) -> None:
+        if reason == "runtime":
+            self.failure = reason
+            self.start_cancelled = True
+            self.initialized = False
+            self.run_stop.set()
+            self.stop_requested.set()
+        if self.failure_callback is not None:
+            try:
+                self.failure_callback(reason)
+            except Exception:
+                errorLogging()
+
     def main(self) -> None:
         printLog("overlay: SteamVR の起動を確かめています")
         try:
-            while True:
-                while self.checkSteamvrRunning() is False:
+            while not self.start_cancelled:
+                while not self.checkSteamvrRunning():
                     if self.waitUnlessCancelled(_STEAMVR_POLL_SEC):
                         return
                 if self.waitUnlessCancelled(0.0):
                     return
-                self.init()
-                if self.initialized is True:
-                    self.mainloop()
-                    with self.start_lock:
-                        if self.start_cancelled:
-                            # 作っている間に止められた (mainloop はすぐ終わり、後片付けも済んでいる)
-                            # ponytail: この直後に ON にされる1秒未満の間は取りこぼす。起こるようなら状態を1つにまとめる
-                            self.start_cancelled = False
-                            self.initialized = False
-                            return
-                        if self.loop is False:
-                            return  # shutdownOverlay が止めた。後片付けと initialized はそちらで
-                        # SteamVR が終わった (VREvent_Quit) か、接続が切れた。mainloop がハンドルを
-                        # 片付け済みなのに initialized が True のまま残り、次の字幕は作り直しを
-                        # 5秒待ち、VR画面は SteamVR を起動し直しても戻らなかった。起動を待ち直す
-                        self.initialized = False
-                        self.init_process = True
-                    printLog("overlay: SteamVR が終わりました。もう一度起動したらつなぎ直します")
-                    if self.waitUnlessCancelled(_STEAMVR_POLL_SEC):
-                        return
-                    continue
-                if not self.connect_failed:
-                    return  # 接続以外の失敗は確かめ直さない (途中まで作ったものが残るため)
-                # SteamVR にまだつながらない (HMD が見つからないなど)。「作っている途中」のまま待って確かめ直す
-                with self.start_lock:
-                    self.init_process = True
-                if self.waitUnlessCancelled(_STEAMVR_POLL_SEC):
+                self.run_stop = Event()
+                self.reconnect_requested = False
+                try:
+                    self.init()
+                    if self.initialized and not self.start_cancelled:
+                        self.mainloop()
+                finally:
+                    self.run_stop.set()
+                    self.initialized = False
+                    self.teardown()
+                if self.start_cancelled:
+                    return
+                if not self.connect_failed and not self.loop:
+                    return
+                self.init_process = True
+                if not self.reconnect_requested and self.waitUnlessCancelled(_STEAMVR_POLL_SEC):
                     return
         except Exception:
-            # スレッドの例外はどこにも残らず、「作っている途中」のままだと以後 ON にしても作り直せない
             errorLogging()
-            with self.start_lock:
-                self.init_process = False
+            self.reportFailure("runtime")
+        finally:
+            self.run_stop.set()
+            self.initialized = False
+            self.loop = False
+            self.init_process = False
 
     def waitUnlessCancelled(self, seconds: float) -> bool:
-        """seconds 秒待つ。その間に止められたら (shutdownOverlay)、起動をやめて True を返す。"""
         deadline = time.monotonic() + seconds
-        while True:
-            with self.start_lock:
-                if self.start_cancelled:
-                    self.start_cancelled = False
-                    self.init_process = False
-                    return True
+        while not self.start_cancelled:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return False
-            time.sleep(min(remaining, _START_CANCEL_POLL_SEC))
+            self.stop_requested.wait(min(remaining, _START_CANCEL_POLL_SEC))
+        return True
 
-    def startOverlay(self) -> None:
+    def startOverlay(self) -> bool:
         with self._lifecycle_lock:
-            with self.start_lock:
-                if self.initialized and not self._stop_timed_out:
-                    self.start_cancelled = False
-                    return
-                if self.thread_overlay is not None and self.thread_overlay.is_alive():
-                    # During startup OFF->ON can reuse the same pending attempt.
-                    # During teardown it must not revive or replace the worker.
-                    if self.init_process and not self._stop_timed_out:
-                        self.start_cancelled = False
-                    return
-                if self._stop_timed_out:
-                    # The old owner has exited; finish any remaining cleanup
-                    # before allowing a new owner to publish handles.
-                    self.destroyOverlays()
-                    self.releaseSession()
-                    self.initialized = False
-                self._stop_timed_out = False
-                self.start_cancelled = False
-                if self.initialized is False and self.init_process is False:
-                    self.init_process = True
-                    self.thread_overlay = Thread(target=self.main)
-                    self.thread_overlay.daemon = True
-                    self.thread_overlay.start()
+            if self.thread_overlay is not None and self.thread_overlay.is_alive():
+                return self.failure is None and not self.start_cancelled
+            self._stop_timed_out = False
+            self.start_cancelled = False
+            self.stop_requested = Event()
+            self.failure = None
+            self.publication_generation += 1
+            self.init_process = True
+            self.run_stop = Event()
+            self.thread_overlay = Thread(target=self.main, daemon=True)
+            self.thread_overlay.start()
+            return self.failure is None
 
     def shutdownOverlay(self) -> None:
         with self._lifecycle_lock:
+            # Revoke before joining, even if reconnect or a native call is in progress.
+            self.start_cancelled = True
+            self.publication_generation += 1
+            self.initialized = False
+            self.loop = False
+            self.stop_requested.set()
+            self.run_stop.set()
             self.requested_anchor = None
-            with self.start_lock:
-                if self.init_process is True:
-                    # SteamVR の起動を待っている (または作っている) 間に止められた: 起動しないようにする
-                    self.start_cancelled = True
-                    return
-            if self.initialized is True and self.init_process is False:
-                if isinstance(self.thread_overlay, Thread):
-                    self.loop = False
-                    self.thread_overlay.join(timeout=_SHUTDOWN_JOIN_TIMEOUT_SEC)
-                    if self.thread_overlay.is_alive():
-                        if not self._stop_timed_out:
-                            self._stop_timed_out = True
-                            printLog(
-                                f"overlay: shutdown timed out after {_SHUTDOWN_JOIN_TIMEOUT_SEC}s; "
-                                "retaining the worker and handles until it exits"
-                            )
-                        return
-                    self.thread_overlay = None
-                # ふつうはオーバーレイのスレッドが終わるときに済ませている (teardown)。残っていれば片付ける
-                try:
-                    self.destroyOverlays()
-                    self.releaseSession()
-                finally:
-                    self.initialized = False
-                    self._stop_timed_out = False
+            worker = self.thread_overlay
+        if worker is None or worker is current_thread():
+            return
+        worker.join(timeout=_SHUTDOWN_JOIN_TIMEOUT_SEC)
+        with self._lifecycle_lock:
+            if self.thread_overlay is not worker:
+                return
+            if worker.is_alive():
+                if not self._stop_timed_out:
+                    self._stop_timed_out = True
+                    printLog(f"overlay: shutdown timed out after {_SHUTDOWN_JOIN_TIMEOUT_SEC}s; retaining owner")
+                return
+            self.thread_overlay = None
+            self._stop_timed_out = False
 
-    def reStartOverlay(self) -> None:
-        self.shutdownOverlay()
-        self.startOverlay()
+    def reStartOverlay(self, *, current: Callable[[], bool] = lambda: True) -> bool:
+        # Only the owner may release OpenVR/GL. Never resurrect a stopped owner here.
+        with self.publication_lock:
+            if self.start_cancelled or not current():
+                return False
+            self.initialized = False
+            self.reconnect_requested = True
+            self.run_stop.set()
+            return True
 
     @staticmethod
     def checkSteamvrRunning() -> bool:

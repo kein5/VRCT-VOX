@@ -112,3 +112,16 @@ for (const language of ["en", "ja"]) test(`${language}: partial output warning n
         assert.equal(notice.type, "warning");
     }
 });
+
+for (const language of ["en", "ja"]) test(`${language}: overlay failure notifies and re-reads all output switches`, async () => {
+    const translation = yaml.load(readFileSync(new URL(`../../locales/${language}.yml`, import.meta.url), "utf8"));
+    const i18n = i18next.createInstance();
+    await i18n.init({ lng: language, resources: { [language]: { translation } } });
+    const s = await loadBridgeRoutes(undefined, i18n);
+    s.receiveRoutes({ status: 400, endpoint: "/run/message_output_error", result: {
+        error_code: "OVERLAY_RUNTIME_FAILED", data: { reason: "runtime" }, message: "private native exception",
+    } });
+    assert.deepEqual(s.notices, [{ type: "error", key: translation.backend_errors.OVERLAY_RUNTIME_FAILED,
+        options: { category_id: "OVERLAY_RUNTIME_FAILED" } }]);
+    assert.deepEqual(s.reads, ["/get/data/overlay_small_log", "/get/data/overlay_large_log", "/get/data/overlay_vr_panel"]);
+});

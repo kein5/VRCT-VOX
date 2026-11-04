@@ -44,6 +44,7 @@ def overlay_fixture():
     overlay.tooltip_handle = 90
     overlay.vr_resources_tried = True  # OpenGL や追加のオーバーレイは作らない (VrResourcesTest で確かめる)
     overlay.handle = {LAUNCHER: 1, PANEL: 2}
+    overlay.owned_handles = [1, 2, 90]
     overlay.gl = {"size": overlay.layout["atlas"], "texture": 10, "vr_texture": object(), "GL": MagicMock()}
     overlay.launcher_interactive = True
     overlay.layout_applied = overlay.layout
