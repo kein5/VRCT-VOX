@@ -16,7 +16,7 @@ from audio_device_identity import capture_key, device_id, resolve_device
 @pytest.fixture
 def manager():
     path = Path(__file__).parents[2] / 'src-python/device_manager.py'
-    tree = ast.parse(path.read_text())
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     classes = [node for node in tree.body if isinstance(node, ast.ClassDef)]
     env = dict(dataclass=dataclass, Any=Any, Callable=Callable, Dict=Dict, List=List, Optional=Optional,
         Event=Event, Lock=Lock, Thread=Thread, uuid4=uuid4,
