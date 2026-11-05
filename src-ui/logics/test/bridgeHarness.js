@@ -36,7 +36,7 @@ const stubApi = (values = {}) => new Proxy({ __esModule: true, ...values }, {
     get: (target, key) => key in target ? target[key] : typeof key === "string" && key.startsWith("use") ? () => stubApi() : noop,
 });
 
-export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = null) => {
+export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = null, modelDownloads = null) => {
     const subject = await loadBridgeStore();
     const { runtime, stores, jotai } = subject;
     const notices = [], reads = [];
@@ -77,7 +77,7 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
     const feature = values => stubApi({ send, reset: noop, backendStopped: noop, ...values });
     const voice = { useVoice: () => feature({ settings: null, status: {} }) };
     const speech = { useSpeechServers: () => feature({ state: {}, pending: {} }) };
-    const downloads = { useModelDownloads: () => feature({ state: { jobs: {} }, hardware: {}, pending: null }) };
+    const downloads = modelDownloads ?? { useModelDownloads: () => feature({ state: { jobs: {} }, hardware: {}, pending: null }) };
     const realtime = { useRealtimeASR: () => feature({ state: {} }) };
     const routes = await loadModule(new URL("../useReceiveRoutes.js", import.meta.url), runtime, {
         "@useI18n": { useI18n: () => i18n ? { t: i18n.t.bind(i18n), i18n } : { t: key => key } },

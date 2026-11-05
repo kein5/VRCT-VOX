@@ -304,8 +304,8 @@ def test_obs_timeout_keeps_server_and_refuses_second_listener():
 
     server = ObsBrowserSourceServer('127.0.0.1', 2232)
     old = server._thread = PendingThread()
-    http = server._server = Mock()
-    with patch('models.obs.obs_browser_source_server.ThreadingHTTPServer') as spawn, \
+    http = server._server = Mock(has_handlers=False)
+    with patch('models.obs.obs_browser_source_server._ObsHTTPServer') as spawn, \
             patch('models.obs.obs_browser_source_server.printLog') as log:
         server.stop()
         server.stop()
@@ -328,7 +328,7 @@ def test_model_does_not_forget_obs_worker_when_stop_times_out():
     owner = bare_model()
     server = owner.obs_browser_source_server = ObsBrowserSourceServer('127.0.0.1', 2232)
     old = server._thread = PendingThread()
-    server._server = Mock()
+    server._server = Mock(has_handlers=False)
     with patch.object(model_module, 'ObsBrowserSourceServer') as spawn, \
             patch('models.obs.obs_browser_source_server.printLog'):
         owner.stopObsBrowserSourceServer()

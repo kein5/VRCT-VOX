@@ -3200,8 +3200,7 @@ class Model:
                 return server.is_running
             except Exception:
                 errorLogging()
-                if server is None or server.is_stopped:
-                    self.obs_browser_source_server = None
+                self.stopObsBrowserSourceServer()
                 return False
 
     def stopObsBrowserSourceServer(self) -> None:

@@ -1,6 +1,7 @@
 """Coupled IPC lifecycle transactions with fake listeners and fake bind results."""
 
 from io import BytesIO
+import inspect
 from queue import Queue
 from threading import Event, Lock, RLock
 from types import SimpleNamespace
@@ -87,6 +88,51 @@ def assert_consistent(s):
     assert not s.config.OBS_BROWSER_SOURCE or s.config.WEBSOCKET_SERVER
 
 
+@pytest.mark.parametrize("failure", ["bind", "preflight", "exception", None])
+def test_startup_obs_failure_disables_and_notifies_after_initial_settings(services, monkeypatch, failure):
+    s = services
+    s.config.OBS_BROWSER_SOURCE = s.config.WEBSOCKET_SERVER = True
+    if failure == "bind":
+        s.obs_results = [False]
+    if failure in ("preflight", "exception"):
+        def available(host, port):
+            if port == s.config.OBS_BROWSER_SOURCE_PORT:
+                if failure == "exception":
+                    raise OSError("preflight failed")
+                return False
+            return True
+        monkeypatch.setattr(controller_module, "isAvailableWebSocketServer", available)
+    events = []
+    instance = SimpleNamespace(
+        updateConfigSettings=lambda: events.append(("settings", s.config.OBS_BROWSER_SOURCE)),
+        run=lambda *args: events.append(args),
+    )
+    # Execute the actual startup statements without starting audio, models or GUI.
+    source = inspect.getsource(Controller.init)
+    startup = source.split("        # Init WebSocket Server\n", 1)[1].split("        # Revalidate Selected Models\n", 1)[0]
+    publish = source.split("        self.updateConfigSettings()\n", 1)[1].split("        self.notifyNonCommercialCTranslate2Weight()", 1)[0]
+    import textwrap
+    exec(compile(textwrap.dedent(startup) + "\nself.updateConfigSettings()\n" + textwrap.dedent(publish),
+                 "<controller startup>", "exec"), {**vars(controller_module), "self": instance})
+    assert s.config.OBS_BROWSER_SOURCE is (failure is None)
+    assert s.config.WEBSOCKET_SERVER and s.model.checkWebSocketServerAlive()
+    assert s.ws[0].stops == 0
+    if failure:
+        assert events[0] == ("settings", False)
+        status, endpoint, result = events[1]
+        assert status == 400 and endpoint == "/set/enable/obs_browser_source"
+        assert result["error_code"] == (
+            "OBS_BROWSER_SOURCE_PORT_UNAVAILABLE" if failure == "preflight"
+            else "OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE")
+        assert result["data"] is False
+        assert s.model.obs_browser_source_server is None
+        if failure == "bind":
+            assert s.obs[0].stops >= 1
+    else:
+        assert events == [("settings", True)]
+    assert_consistent(s)
+
+
 @pytest.mark.parametrize("already_running", [False, True])
 @pytest.mark.parametrize("failure", ["preflight", "bind", "exception"])
 def test_failed_obs_enable_releases_only_its_own_websocket(services, monkeypatch, already_running, failure):
@@ -115,29 +161,37 @@ def test_failed_obs_enable_releases_only_its_own_websocket(services, monkeypatch
     assert_consistent(s)
 
 
-@pytest.mark.parametrize("host,path,status,has_token", [
-    ("127.0.0.1:2232", "/", 403, False),
-    ("127.0.0.1:2232", "/obs?token=wrong", 403, False),
-    ("127.0.0.1:2232", "/?token=test-token&token=test-token", 403, False),
-    ("127.0.0.1:2232", "/?token=test-token", 200, True),
-    ("127.0.0.1:2232", "/obs?token=test-token", 200, True),
-    ("attacker.example", "/?token=test-token", 403, False),
-    ("127.0.0.1:2232", "/health", 200, False),
+@pytest.mark.parametrize("host,path,status,has_token,authorization", [
+    ("127.0.0.1:2232", "/", 403, False, ""),
+    ("127.0.0.1:2232", "/obs?token=wrong", 403, False, ""),
+    ("127.0.0.1:2232", "/?token=test-token&token=test-token", 403, False, ""),
+    ("127.0.0.1:2232", "/?token=test-token", 200, True, ""),
+    ("127.0.0.1:2232", "/obs?token=test-token", 200, True, ""),
+    ("attacker.example", "/?token=test-token", 403, False, ""),
+    ("127.0.0.1:2232", "/health", 200, False, ""),
+    ("localhost:2232", "/obs/connection", 200, False, "Bearer test-token"),
+    ("attacker.example", "/obs/connection", 403, False, "Bearer test-token"),
+    ("localhost:2232", "/obs/connection", 403, False, ""),
+    ("localhost:2232", "/obs/connection", 403, False, "test-token"),
+    ("localhost:2232", "/obs/connection", 403, False, "Bearer wrong"),
+    ("localhost:2232", "/obs/connection?token=test-token", 403, False, ""),
 ])
-def test_obs_http_token_protection_without_sockets(monkeypatch, host, path, status, has_token):
+def test_obs_http_token_protection_without_sockets(monkeypatch, host, path, status, has_token, authorization):
     """Exercise the real HTTP handler with an in-memory request/response."""
     import models.obs.obs_browser_source_server as obs_module
 
     http_factory = Mock()
     thread_factory = Mock()
-    monkeypatch.setattr(obs_module, "ThreadingHTTPServer", http_factory)
+    monkeypatch.setattr(obs_module, "_ObsHTTPServer", http_factory)
+    http_factory.return_value.has_handlers = False
+    monkeypatch.setattr(obs_module, "config", SimpleNamespace(WEBSOCKET_PORT=2233))
     monkeypatch.setattr(obs_module.threading, "Thread", thread_factory)
     server = obs_module.ObsBrowserSourceServer("127.0.0.1", 2232, ws_token="test-token")
     server.start()  # Both the listener and worker are fakes.
     try:
         handler_class = http_factory.call_args.args[1]
         request = object.__new__(handler_class)
-        request.path, request.headers = path, {"Host": host}
+        request.path, request.headers = path, {"Host": host, "Authorization": authorization}
         request.wfile = BytesIO()
         request.send_response = Mock()
         headers = {}
@@ -153,6 +207,11 @@ def test_obs_http_token_protection_without_sockets(monkeypatch, host, path, stat
             assert "no-store" in headers["Cache-Control"]
         elif status == 403:
             assert b"<html" not in body
+        elif path == "/obs/connection":
+            assert body == b'{"wsPort": 2233}'
+            assert headers["Content-Type"] == "application/json"
+            assert headers["Referrer-Policy"] == "no-referrer"
+            assert "no-store" in headers["Cache-Control"]
         else:
             assert body == b"ok"
     finally:

@@ -25,18 +25,27 @@ export const useModelDownloads = () => {
         store.set(stateAtom, previous => sameSnapshot(previous, value) ? previous : value);
         return true;
     }, [store]);
-    const acknowledge = useCallback(value => {
+    const settle = useCallback(endpoint => {
+        setPending(previous => {
+            if (!previous?.some(request => request.endpoint === endpoint)) return previous;
+            const remaining = previous?.filter(request => request.endpoint !== endpoint);
+            return remaining?.length ? remaining : null;
+        });
+    }, [setPending]);
+    const acknowledge = useCallback((value, endpoint) => {
         // A poll can overtake the command response; it must not roll back state.
         updateState(value);
-        setPending(null);
-    }, [updateState, setPending]);
+        settle(endpoint);
+        setError(previous => previous === "request_unconfirmed" ? null : previous);
+    }, [updateState, settle, setError]);
     const updateError = useCallback((value, endpoint = "") => {
-        setError(value); setPending(null);
+        setError(value); settle(endpoint);
         if (value && endpoint.includes("model_download_hardware"))
             store.set(hardwareAtom, previous => ({ ...previous, phase: "failed", error_code: value }));
-    }, [store, setError, setPending]);
+    }, [store, setError, settle]);
     const backendStopped = useCallback(() => {
         updateError("backend_unavailable");
+        store.set(pendingAtom, null);
         store.set(stateAtom, value => ({ ...value, jobs: Object.fromEntries(Object.entries(value.jobs).map(([id, job]) =>
             [id, ["queued", "downloading", "verifying", "cancelling"].includes(job.phase)
                 ? { ...job, phase: "failed", error_code: "backend_unavailable" } : job])) }));
@@ -50,11 +59,18 @@ export const useModelDownloads = () => {
     }, [store]);
     const send = useCallback(async (endpoint, data) => {
         const isHardware = endpoint.includes('model_download_hardware');
-        if (endpoint.startsWith("/run/") && !isHardware) { setError(null); setPending({ endpoint, id: data.id }); }
+        let request;
+        if (endpoint.startsWith("/run/") && !isHardware) {
+            const pending = store.get(pendingAtom);
+            if (pending && !(endpoint === "/run/cancel_model_download" && pending.every(item =>
+                item.endpoint === "/run/apply_model_download" && item.id === data.id && item.job_id === data.job_id))) return;
+            request = { endpoint, id: data.id, job_id: data.job_id };
+            setError(null); setPending([...(pending ?? []), request]);
+        }
         if (isHardware && endpoint.startsWith('/run/')) store.set(hardwareAtom, { ...store.get(hardwareAtom), phase: 'probing' });
         if (!await transport.current(endpoint, data)) {
             if (isHardware) store.set(hardwareAtom, { ...store.get(hardwareAtom), phase: 'failed', error_code: 'backend_unavailable' });
-            else updateError("backend_unavailable");
+            else if (!request || store.get(pendingAtom)?.includes(request)) updateError("backend_unavailable", endpoint);
         }
     }, [store, setPending, setError, updateError]);
     const ensureHardware = useCallback(() => {

@@ -6966,17 +6966,25 @@ class Controller:
 
         # Init OBS Browser Source Server
         printLog("Init OBS Browser Source Server")
+        obs_startup_error = None
         if config.OBS_BROWSER_SOURCE is True:
             if config.WEBSOCKET_SERVER is not True:
                 config.OBS_BROWSER_SOURCE = False
                 model.stopObsBrowserSourceServer()
                 printLog("OBS Browser Source requires WebSocket Server")
-            elif isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.OBS_BROWSER_SOURCE_PORT) is True:
-                model.startObsBrowserSourceServer(config.WEBSOCKET_HOST, config.OBS_BROWSER_SOURCE_PORT)
             else:
-                config.OBS_BROWSER_SOURCE = False
-                model.stopObsBrowserSourceServer()
-                printLog("OBS Browser Source server host or port is not available")
+                try:
+                    if isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.OBS_BROWSER_SOURCE_PORT) is not True:
+                        obs_startup_error = ErrorCode.OBS_BROWSER_SOURCE_PORT_UNAVAILABLE
+                    elif not model.startObsBrowserSourceServer(config.WEBSOCKET_HOST, config.OBS_BROWSER_SOURCE_PORT):
+                        obs_startup_error = ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE
+                except Exception:
+                    errorLogging()
+                    obs_startup_error = ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE
+                if obs_startup_error is not None:
+                    config.OBS_BROWSER_SOURCE = False
+                    model.stopObsBrowserSourceServer()
+                    printLog("OBS Browser Source server could not start")
 
         # Revalidate Selected Models
         printLog("Revalidate Selected Models")
@@ -6990,6 +6998,9 @@ class Controller:
         # Update Settings
         printLog("Update settings")
         self.updateConfigSettings()
+        if obs_startup_error is not None:
+            response = VRCTError.create_error_response(obs_startup_error, data=False)
+            self.run(response["status"], "/set/enable/obs_browser_source", response["result"])
         # After initialization_complete so the UI is ready to show it.
         self.notifyNonCommercialCTranslate2Weight()
         for key in getattr(config, "INVALID_SAVED_API_URLS", []):

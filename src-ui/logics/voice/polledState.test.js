@@ -155,7 +155,7 @@ test("downloads and hardware skip equal observations, reject overtaken responses
     assert.equal(render().state, before);
     await render().send("/run/start_model_download", { id: "model" });
     assert.ok(render().pending);
-    render().acknowledge({ observation_id: "7", jobs: { model: { phase: "queued" } } });
+    render().acknowledge({ observation_id: "7", jobs: { model: { phase: "queued" } } }, "/run/start_model_download");
     assert.equal(render().pending, null);
     assert.equal(render().state, before);
 });
