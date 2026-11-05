@@ -96,6 +96,16 @@ def _cropKey(crop) -> tuple:
     return (crop.shape, crop.dtype.str, hashlib.blake2b(pixels, digest_size=16).digest())
 
 
+def _boxOverlap(a, b) -> float:
+    """Intersection over union for current/previous candidate association."""
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    intersection = max(0, min(ax + aw, bx + bw) - max(ax, bx)) * max(
+        0, min(ay + ah, by + bh) - max(ay, by))
+    union = aw * ah + bw * bh - intersection
+    return intersection / union if union > 0 else 0.0
+
+
 class _RecognitionCache:
     """LRU of successful reads (including empty words), scoped by the pipeline.
 
@@ -124,6 +134,12 @@ class _RecognitionCache:
         while len(self._items) > self._max_items:
             self._items.popitem(last=False)
 
+    def visibleWords(self, key: tuple) -> List[dict]:
+        # Identical pixels still show these words even if inference is due.
+        # This only refreshes delivered-text visibility, never delivers a result.
+        entry = self._items.get(key)
+        return entry[1] if entry is not None else []
+
 
 def _similar(a: str, b: str, max_distance: int = 2) -> bool:
     """Cheap bounded edit-distance check for near-duplicate OCR output.
@@ -134,6 +150,10 @@ def _similar(a: str, b: str, max_distance: int = 2) -> bool:
     """
     if a == b:
         return True
+    # Short replies need exact matching; longer texts allow at most 20% edits.
+    max_distance = min(max_distance, min(len(a), len(b)) // 5)
+    if max_distance == 0:
+        return False
     if abs(len(a) - len(b)) > max_distance:
         return False
     # Classic DP, but bail out as soon as the whole row exceeds the budget.
@@ -161,8 +181,8 @@ class _DedupCache:
     エントリは「最後に見た時刻」で持ち、見るたびに更新する。つまり保持時間は
     「画面から消えてから」測る。消えて `retention_sec` 経っても現れなければ忘れ、
     その後で同じ文が出たら新しい発言として配送する。
-    近い文 (編集距離2以内) も同じ扱いにする。OCRのゆらぎで1〜2文字違うだけの
-    同じ吹き出しを別物として配送しないため。
+    5文字未満は完全一致だけで判定する。長い文は文字数の2割、最大2文字までの
+    編集をOCRのゆらぎとして扱う。
     """
 
     def __init__(self, max_items: int = 128) -> None:
@@ -254,7 +274,8 @@ class OcrPipeline:
                         "text": 0, "bubble": 0, "emit": 0}
         self._counts_since = 0.0
         self._last_tick_at = 0.0
-        self._candidate_offset = 0
+        self._candidate_attempts = {}
+        self._attempt_number = 0
         self._engine_failures = OcrFailureLog("OCR engine", lambda: errorLogging(), lambda message: printLog(message))
         self._tick_failures = OcrFailureLog("OCR tick", lambda: errorLogging(), lambda message: printLog(message))
         self._stage_retries = {
@@ -300,7 +321,7 @@ class OcrPipeline:
         self._dedup.evictStale(now, max(DEDUP_RETENTION_SEC, interval * 2.0))
 
     def _captureFailureLogged(self) -> bool:
-        # The unchanged facade and HWND wrapper return None after logging.
+        # The facade and native wrappers return None after logging failures.
         # Inspect only their failure indicators, never retain exceptions/frames.
         for owner in (self._capture, getattr(self._capture, "_window", None),
                       getattr(self._capture, "_openvr", None)):
@@ -339,6 +360,7 @@ class OcrPipeline:
             self._resetRecognition()
             self._recognition_context = context
             self._recognition_objects = objects
+            self._candidate_attempts = {}
 
     @property
     def detectorName(self) -> str:
@@ -377,7 +399,8 @@ class OcrPipeline:
             return not self._stop_event.is_set()
         self._resetRecognition()
         self._last_tick_at = 0.0
-        self._candidate_offset = 0
+        self._candidate_attempts = {}
+        self._attempt_number = 0
         self._runtimeState("waiting", "activation")
         if not self.isEngineAvailable():
             printLog("OCR pipeline: engine or opencv unavailable, refusing to start")
@@ -612,19 +635,28 @@ class OcrPipeline:
     def _emit(self, text: str) -> bool:
         if self._stop_event.is_set() or not self._activation_ready():
             return False
-        try:
-            accepted = self._callback({
-                "text": text,
-                "language": self._source_language if self._source_language != "auto" else None,
-                "is_final": True,
-                "segment_id": uuid.uuid4().hex,
-                "recognition_error": False,
-                "source": "ocr",
-            })
-            return accepted is not False
-        except Exception:
-            errorLogging()
-            return False
+        # Processing exceptions belong to the worker's tick diagnostics/backoff.
+        # An ordinary admission rejection remains eligible on the next tick.
+        accepted = self._callback({
+            "text": text,
+            "language": self._source_language if self._source_language != "auto" else None,
+            "is_final": True,
+            "segment_id": uuid.uuid4().hex,
+            "recognition_error": False,
+            "source": "ocr",
+        })
+        return accepted is not False
+
+    def _orderCandidates(self, candidates):
+        # Carry attempt order across confidence changes and small box motion.
+        # Retain only boxes/counters from this frame, never crops or old work.
+        previous = self._candidate_attempts.copy()
+        attempts = {}
+        for bbox, _ in candidates:
+            match = max(previous, key=lambda old: _boxOverlap(bbox, old), default=None)
+            attempts[bbox] = previous.pop(match) if match is not None and _boxOverlap(bbox, match) >= 0.5 else 0
+        self._candidate_attempts = attempts
+        return sorted(candidates, key=lambda candidate: attempts[candidate[0]])
 
     def _run(self) -> None:
         # Capture backends hold OS resources tied to the creating thread,
@@ -729,6 +761,7 @@ class OcrPipeline:
         if candidates and self._detector is not self._region_source:
             candidates = self._inRegion(candidates, frame)
         if not candidates:
+            self._candidate_attempts = {}
             return
         self._counts["candidate"] += len(candidates)
 
@@ -737,23 +770,29 @@ class OcrPipeline:
         # all of them would stall the loop for seconds and starve the GPU that
         # whisper is sharing, so only the most confident few — which the
         # detector already sorted first — get an OCR budget on any single tick.
-        candidates = candidates[:MAX_CANDIDATES_PER_TICK]
-        offset = self._candidate_offset % len(candidates)
-        candidates = candidates[offset:] + candidates[:offset]
+        candidates = self._orderCandidates(candidates[:MAX_CANDIDATES_PER_TICK])
 
         now = time.monotonic()
         deadline = now + self._tick_budget
 
         splits = getattr(self._detector, "splits_bubbles", False) is True
-        for index, (bbox, crop) in enumerate(candidates):
+        keyed = [(bbox, crop, _cropKey(crop)) for bbox, crop in candidates]
+        # A slow six-candidate rotation can exceed dedup retention. Refresh
+        # known, identical crops even when their next read is outside the budget.
+        for bbox, crop, key in keyed:
+            words = self._recognition.visibleWords(key)
+            for block, _ in self._bubbles(bbox, crop, words, splits) if words else ():
+                text = self._mergeWords(block)
+                self._dedup.seen(_textHash(text), text, now)
+
+        for bbox, crop, key in keyed:
             if self._stop_event.is_set():
                 return
             read_at = time.monotonic()
             if read_at > deadline:
                 break
-            # Resume with the next current-frame candidate after yielding.
-            self._candidate_offset = (offset + index + 1) % len(candidates)
-            key = _cropKey(crop)
+            self._attempt_number += 1
+            self._candidate_attempts[bbox] = self._attempt_number
             words = self._recognition.get(key, read_at)
             if words is not None:
                 # Reuse says nothing about engine health. Only a real read may

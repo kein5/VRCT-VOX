@@ -316,9 +316,59 @@ class TestRecognitionReuse(unittest.TestCase):
         self.assertEqual(len(self.received), 1)
         self.assertEqual(self.reader.call_count, 1)  # Recognition reuse still applies.
 
+    def test_confidence_reordering_and_small_motion_do_not_starve_a_bubble(self):
+        attempted = []
+
+        def read(crop):
+            attempted.append(int(crop[0, 0, 0]))
+            self.now += 0.7
+            return self.result
+
+        self.reader.side_effect = read
+        for tick in range(12):
+            self.candidates = [((tick, 0, 64, 24), np.full_like(self.frame, tick)),
+                               ((80 + tick, 0, 64, 24), np.full_like(self.frame, 99))]
+            if tick % 2:
+                self.candidates.reverse()
+            self._tick()
+        self.assertIn(99, attempted[:2])
+        self.assertLessEqual(len(attempted), 12)
+
+    def test_slow_rotation_keeps_visible_messages_but_expires_absent_text(self):
+        texts = ["alpha message", "bravo reply", "charlie talks", "delta speaks",
+                 "echo greeting", "foxtrot says goodbye"]
+        crops = [((i * 80, 0, 64, 24), np.full_like(self.frame, i)) for i in range(6)]
+        self.candidates = crops
+
+        def read(crop):
+            self.now += 6  # A full six-candidate rotation takes over 30 seconds.
+            return SimpleNamespace(txts=[texts[int(crop[0, 0, 0])]], scores=[0.9], boxes=None)
+
+        self.reader.side_effect = read
+        for _ in range(18):
+            self._tick()
+        self.assertEqual([p["text"] for p in self.received], texts)
+        # Changing the pixels must not keep the old text alive at the same box.
+        self.candidates = [((0, 0, 64, 24), np.full_like(self.frame, 1))]
+        for _ in range(40):
+            self._tick(seconds=1)
+        self.assertNotIn(ocr_pipeline._textHash(texts[0]), self.pipeline._dedup._items)
+        self.candidates = crops[:1]
+        self._tick()
+        self.assertEqual([p["text"] for p in self.received], texts + texts[:1])
+
+    def test_distinct_short_replies_are_delivered_and_exact_repeats_are_not(self):
+        for index, text in enumerate(("はい", "いや", "はい", "いや")):
+            self.frame[0, 0, 0] = index
+            self.reader.return_value = SimpleNamespace(txts=[text], scores=[1.0], boxes=None)
+            self._tick()
+        self.assertEqual([p["text"] for p in self.received], ["はい", "いや"])
+
     def test_callback_exception_does_not_mark_a_delivery(self):
         self.pipeline._callback = Mock(side_effect=RuntimeError("callback failed"))
-        self.pipeline._tick()
+        # The worker handles processing exceptions with its tick retry policy.
+        with self.assertRaisesRegex(RuntimeError, "callback failed"):
+            self.pipeline._tick()
         self.assertFalse(self.pipeline._dedup._items)
         self.pipeline._callback = self.received.append
         self._tick()

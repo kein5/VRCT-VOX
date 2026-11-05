@@ -175,22 +175,22 @@ if sys.platform == "win32":
         """
         hwnd_dc = _user32.GetWindowDC(hwnd)
         if not hwnd_dc:
-            return None
+            raise OSError("GetWindowDC failed")
         mem_dc = None
         bitmap = None
         old_obj = None
         try:
             mem_dc = _gdi32.CreateCompatibleDC(hwnd_dc)
             if not mem_dc:
-                return None
+                raise OSError("CreateCompatibleDC failed")
             bitmap = _gdi32.CreateCompatibleBitmap(hwnd_dc, width, height)
             if not bitmap:
-                return None
+                raise OSError("CreateCompatibleBitmap failed")
             old_obj = _gdi32.SelectObject(mem_dc, bitmap)
 
             ok = _user32.PrintWindow(hwnd, mem_dc, _PW_RENDERFULLCONTENT)
             if not ok:
-                return None
+                raise OSError("PrintWindow failed")
 
             bmi = _BITMAPINFOHEADER()
             bmi.biSize = ctypes.sizeof(_BITMAPINFOHEADER)
@@ -205,8 +205,8 @@ if sys.platform == "win32":
                 mem_dc, bitmap, 0, height,
                 ctypes.byref(buf), ctypes.byref(bmi), 0,  # DIB_RGB_COLORS
             )
-            if got == 0:
-                return None
+            if got != height:
+                raise OSError("GetDIBits did not return the full frame")
             arr = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 4))
             return arr[:, :, :3].copy()  # BGRA -> BGR
         finally:
@@ -270,6 +270,8 @@ class HwndCapture:
         _left, _top, width, height = rect
         try:
             frame = _print_window(hwnd, width, height)
+            if frame is None:
+                raise OSError("PrintWindow returned no frame")
         except Exception as exc:
             self._failures.failure(exc)
             self._hwnd = None
