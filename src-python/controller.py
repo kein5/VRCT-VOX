@@ -1333,10 +1333,9 @@ class Controller:
         Returns:
             dict with status 200 and result True on success.
         """
+        # Close admission and revoke existing work before any cleanup can wait.
+        model.message_delivery.close()
         model.requestOSCShutdown()
-        # Revoke intent before any cleanup can wait on a worker or lock.
-        for source in ("mic", "speaker", "ocr", "chat"):
-            model.message_delivery.revoke(source)
         # Signal both owners before either close can wait on a worker or lock.
         for owner in (getattr(self, 'model_downloads', None),
                       getattr(self, 'legacy_downloads', None)):
@@ -1600,6 +1599,7 @@ class Controller:
         model.ensure_initialized()
         session = getattr(model, "_" + source + "_session")
         generation = self._audioGeneration(source)
+        session.publication_guard_fnc = lambda: self._messagePublicationGuard(source)
         session.device_fnc = lambda device, previous: self._publishAudioDeviceLocked(source, device, previous)
         # Start/rollback callbacks run under the caller's source lock. Recorder
         # errors arrive on another thread and must enter through the lock boundary.
@@ -1975,6 +1975,7 @@ class Controller:
         mic_snapshot=None,
         settings_snapshot=None,
         chatbox_sequence=None,
+        feature_enabled=None,
     ) -> Optional[dict]:
         """mic/speaker/chatMessage共通のパイプライン(バックエンドレビュー
         フェーズ3項目25、`MessageDirectionSpec`参照)。
@@ -1993,7 +1994,8 @@ class Controller:
         current = self._messagePublicationGuard(spec.kind, publication_guard)
         # Internal capture pauses/handoffs keep admitted work. Explicit OFF
         # revokes its epoch instead of relying on a later live feature check.
-        feature_enabled = spec.feature_gate_attr is None or getattr(config, spec.feature_gate_attr) is True
+        if feature_enabled is None:
+            feature_enabled = spec.feature_gate_attr is None or getattr(config, spec.feature_gate_attr) is True
         if not current():
             return None
         with getattr(self, "_voice_settings_lock", nullcontext()), \
@@ -2165,9 +2167,9 @@ class Controller:
                     return
                 original = "" if snapshot.send_only_translated and snapshot.translation_enabled else message
                 formatted = self.messageFormatter(spec.osc_format_type, translation, original, snapshot.format_parts)
+                osc_current = lambda: current() and getattr(config, spec.osc_send_gate_attr)
                 sent = model.chatbox_order.send(
-                    chatbox_sequence, lambda: model.oscSendMessage(formatted),
-                    lambda: current() and getattr(config, spec.osc_send_gate_attr))
+                    chatbox_sequence, lambda: model.oscSendMessage(formatted, current=osc_current), osc_current)
                 if sent is False:
                     if spec is REALTIME_MIC_SPEC:
                         payload.update(delivery_outcome="not_delivered", delivery_reason="superseded")
@@ -2285,7 +2287,8 @@ class Controller:
         )
 
     def micMessage(self, result: dict) -> None:
-        current = self._messagePublicationGuard("mic")
+        batch_guard = result.get("_publication_guard")
+        current = self._messagePublicationGuard("mic", batch_guard)
         if (
             result.get("recognition_error") is not True
             and not current()
@@ -2332,10 +2335,11 @@ class Controller:
             )
         elif isinstance(message, str) and len(message) > 0:
             self._processMessage(MIC_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"),
-                                 publication_guard=current)
+                                 publication_guard=current, feature_enabled=True if batch_guard is not None else None)
 
     def speakerMessage(self, result:dict) -> None:
-        current = self._messagePublicationGuard("speaker")
+        batch_guard = result.get("_publication_guard")
+        current = self._messagePublicationGuard("speaker", batch_guard)
         if result.get("recognition_error") is True:
             is_pipeline_error = all(
                 key in result for key in ("error_code", "stage", "source", "message", "recoverable")
@@ -2374,7 +2378,7 @@ class Controller:
             )
         elif isinstance(message, str) and len(message) > 0:
             self._processMessage(SPEAKER_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"),
-                                 publication_guard=current)
+                                 publication_guard=current, feature_enabled=True if batch_guard is not None else None)
 
     def ocrMessage(self, result: dict) -> bool:
         """OCRで読んだチャット吹き出しを、受信メッセージと同じ経路へ流す。
@@ -2795,6 +2799,9 @@ class Controller:
         return self.getVoiceStatus()
 
     def chatMessage(self, data) -> dict:
+        current = self._messagePublicationGuard("chat")
+        if not current():
+            return {"status": 200, "result": None}
         msg_id = data["id"]
         message = data["message"]
         if len(message) == 0:
@@ -2810,7 +2817,7 @@ class Controller:
                 },
             }
         result = self._processMessage(CHAT_MESSAGE_SPEC, message, None, msg_id=msg_id,
-                                      voice_generation=data.get("_voice_generation"))
+                                      voice_generation=data.get("_voice_generation"), publication_guard=current)
         return {"status": 200, "result": result}
 
 

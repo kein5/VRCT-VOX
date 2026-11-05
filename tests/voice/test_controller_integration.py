@@ -76,7 +76,7 @@ def test_text_to_osc_websocket_history_and_pcm_once(controller_module, pcm_serve
             result = controller.chatMessage({"id": "chat-1", "message": "こんにちは"})
             assert result == {"status": 200, "result": {"id": "chat-1", "original": {
                 "message": "こんにちは", "transliteration": []}, "translations": []}}
-            module.model.oscSendMessage.assert_called_once_with("こんにちは")
+            module.model.oscSendMessage.assert_called_once_with("こんにちは", current=ANY)
             module.model.addTranslationHistory.assert_called_once_with("chat", "こんにちは", snapshot=ANY)
             legacy = module.model.websocketSendMessage.call_args.args[0]
             assert set(legacy) == {"type", "src_languages", "dst_languages", "message", "translation", "transliteration"}

@@ -390,6 +390,7 @@ class _AudioDeviceSession:
         self._print_transcript: Optional[threadFnc] = None
         self._energy_progressbar: Optional[threadFnc] = None
         self.transcript_fnc: Optional[Callable[[dict], None]] = None
+        self.publication_guard_fnc = None
         self.energy_fnc: Callable[[float], None] = lambda v: None
         self.error_fnc = None
         self.runtime_error_fnc = None
@@ -778,6 +779,7 @@ class _AudioDeviceSession:
                     self._handle_pipeline_error(failure, recorder)
                     return
                 try:
+                    current = self.publication_guard_fnc() if callable(self.publication_guard_fnc) else None
                     self._transcribe(transcriber, audio_queue)
                     if self._transcriber is not transcriber:
                         return
@@ -793,6 +795,13 @@ class _AudioDeviceSession:
                     if callable(self.transcript_fnc):
                         while transcriber.hasTranscript():
                             result = transcriber.getTranscript()
+                            # Keep the inference batch's ownership across slow callbacks.
+                            if current is not None:
+                                if not current():
+                                    while transcriber.hasTranscript():
+                                        transcriber.getTranscript()
+                                    break
+                                result["_publication_guard"] = current
                             result["recognition_error"] = transcriber.last_recognition_error
                             self.transcript_fnc(result)
                 except AudioPipelineError as error:
@@ -1906,9 +1915,10 @@ class Model:
         self.ensure_initialized()
         self.osc_handler.sendTyping(flag=False)
 
-    def oscSendMessage(self, message:str):
+    def oscSendMessage(self, message:str, current=None):
         self.ensure_initialized()
-        self.osc_handler.sendMessage(message=message, notification=config.NOTIFICATION_VRC_SFX)
+        return self.osc_handler.sendMessage(message=message, notification=config.NOTIFICATION_VRC_SFX,
+                                           current=current)
 
     def _queueMicMuteStatusChangeLocked(self):
         self.mic_lifecycle_worker.enqueue(

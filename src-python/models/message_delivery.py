@@ -7,14 +7,19 @@ class DeliveryEpochs:
     def __init__(self):
         self._lock = Lock()
         self._epochs = dict.fromkeys(("mic", "speaker", "ocr", "chat"), 0)
+        self._closed = False
 
     def snapshot(self, source):
         with self._lock:
-            return self._epochs[source]
+            return None if self._closed else self._epochs[source]
 
     def current(self, source, epoch):
         with self._lock:
-            return self._epochs[source] == epoch
+            return not self._closed and self._epochs[source] == epoch
+
+    def close(self):
+        with self._lock:
+            self._closed = True
 
     def revoke(self, source):
         # Never hold this lock across rendering, publication or worker joins.
@@ -42,6 +47,7 @@ class ChatboxOrder:
                 return
             if sequence < self._sent:
                 return False
-            publish()
+            if publish() is False:
+                return
             self._sent = sequence
             return True
