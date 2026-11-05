@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from contextlib import nullcontext
 import sys
 from uuid import uuid4
 from audio_device_identity import capture_key, device_id
@@ -390,13 +391,13 @@ class DeviceManager:
         self._topology_generation += 1
 
     @staticmethod
-    def _windowsEndpointIds():
+    def _windowsEndpointIds(*, locked=False):
         if sys.platform != "win32" or AudioUtilities is None or comtypes is None:
             return {}
         comtypes.CoInitialize()
         try:
             result = {}
-            with pyaudio_op_lock:
+            with nullcontext() if locked else pyaudio_op_lock:
                 endpoints, endpoint = [], None
                 try:
                     endpoints = AudioUtilities.GetAllDevices()
@@ -413,12 +414,45 @@ class DeviceManager:
         finally:
             comtypes.CoUninitialize()
 
+    def getOpenedDevice(self, audio, actual):
+        """Resolve this open's slot using its PortAudio owner; caller holds the audio lock."""
+        generation = self._topology_generation
+        loopback = actual.get("isLoopbackDevice", False)
+        host = {"name": str(actual.get("hostApi", "unknown"))}
+        devices, endpoints = [actual], {}
+        try:
+            host = audio.get_host_api_info_by_index(actual["hostApi"])
+            devices = [audio.get_device_info_by_host_api_device_index(actual["hostApi"], index)
+                       for index in range(host["deviceCount"])]
+            devices = [d for d in devices if d.get("maxInputChannels", 0) > 0
+                       and d.get("isLoopbackDevice", False) == loopback]
+            endpoints = self._windowsEndpointIds(locked=True)
+        except Exception:
+            # Capture still works without native IDs, but the requested ID is
+            # not evidence of what this open owns. Publish a slot identity.
+            errorLogging()
+        if not any(d.get("index") == actual["index"] for d in devices):
+            devices.append(actual)
+            endpoints = {}
+        devices = [actual if d.get("index") == actual["index"] else d for d in devices]
+        missing = {"device": {"name": "NoDevice", "index": -1}}
+        snapshot = self._identifiedSnapshot(
+            mic_devices={} if loopback else {host["name"]: devices},
+            default_mic_device={**missing, "host": host},
+            speaker_devices=devices if loopback else [],
+            default_speaker_device=missing, generation=generation, endpoint_ids=endpoints)
+        rows = snapshot.speaker_devices if loopback else snapshot.mic_devices[host["name"]]
+        opened = next(d for d in rows if d.get("index") == actual["index"])
+        return {**opened, "host_name": host["name"]}
+
     def _identifiedSnapshot(self, *, mic_devices, default_mic_device,
-                            speaker_devices, default_speaker_device, generation=None):
+                            speaker_devices, default_speaker_device, generation=None, endpoint_ids=None):
         namespace = getattr(self, "_identity_namespace", "initial")
         if generation is None:
             generation = getattr(self, "_topology_generation", 0)
-        endpoints = self._windowsEndpointIds() if mic_devices or speaker_devices else {}
+        endpoints = endpoint_ids
+        if endpoints is None:
+            endpoints = self._windowsEndpointIds() if mic_devices or speaker_devices else {}
         counts = {}
         for host, devices in mic_devices.items():
             for d in devices:

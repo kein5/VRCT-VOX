@@ -20,6 +20,7 @@ class FakeServers:
         self.row = dict(state="stopped", generation=0, error_code=None)
         self.started = []
         self.stopped = []
+        self.run = 0
 
     def state(self):
         return {"asr": dict(self.row)}
@@ -27,11 +28,15 @@ class FakeServers:
     def start(self, profile, options, generation):
         assert profile == "asr" and generation == self.row["generation"]
         self.row.update(state="ready", generation=generation + 1)
+        self.run = generation + 1
         self.started.append(generation + 1)
 
     def binding(self, profile):
         assert profile == "asr" and self.row["state"] == "ready"
         return "http://127.0.0.1:9911"
+
+    def current_run(self, profile):
+        return self.run
 
     def stop(self, profile, generation=None):
         assert profile == "asr"

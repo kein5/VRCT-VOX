@@ -470,6 +470,257 @@ def test_off_invalidates_read_error_recovery(rig):
     r.dm.update.assert_not_called()
 
 
+def test_old_read_recovery_cannot_stop_replacement(rig):
+    r = rig
+    r.enable('energy')
+    r.enable('transcript')
+    epoch = r.backend.message_delivery.snapshot(r.source)
+    generation = r.c._audioGeneration(r.source)
+    opened_before = len(r.opened)
+    r.c._queueAudioReconciliation(r.source)
+    reconcile = next(iter(r.worker.jobs.values()))
+    r.worker.jobs.clear()
+    r.worker.queued.clear()
+    first = r.session._recorder
+    first.device_error_event.set()
+    assert r.worker.queued.wait(2)
+    recovery = next(iter(r.worker.jobs.values()))
+    r.worker.jobs.clear()
+    reconcile()
+    second = r.session._recorder
+    assert second is not first and len(r.opened) == opened_before + 1
+    recovery()
+    assert r.session._recorder is second
+    assert getattr(r.config, r.energy_flag) and getattr(r.config, r.transcript_flag)
+    assert r.c._audioGeneration(r.source) == generation
+    assert r.backend.message_delivery.current(r.source, epoch)
+    second.stop.assert_not_called()
+    r.dm.update.assert_not_called()
+
+
+def test_late_old_error_does_not_consume_replacement_notification(rig, monkeypatch):
+    r = rig
+    r.enable('energy')
+    first = r.session._recorder
+    pending = []
+    real_thread = model_module.Thread
+
+    class PendingError:
+        def __init__(self, target, **kwargs):
+            self.target = target
+
+        def start(self):
+            pending.append(self.target)
+
+    monkeypatch.setattr(model_module, 'Thread', PendingError)
+    first.device_error_event.set()
+    assert len(pending) == 1
+    monkeypatch.setattr(model_module, 'Thread', real_thread)
+    r.devices.remove(r.a)
+    r.c._queueAudioReconciliation(r.source)
+    r.worker.drain()
+    second = r.session._recorder
+    assert second is not first and r.session._active_device == r.b
+    pending.pop()()
+    assert not r.session._pipeline_error_notified
+    assert not r.worker.jobs
+    r.worker.queued.clear()
+    second.device_error_event.set()
+    assert r.worker.queued.wait(2)
+    r.worker.drain()
+    assert r.session._recorder is None
+    assert not getattr(r.config, r.energy_flag)
+    second.stop.assert_called_once()
+    failures = [value for _, endpoint, value in r.calls
+                if endpoint == '/run/transcription_recognition_error']
+    assert len(failures) == 1 and failures[0]['error_code'] == 'AUDIO_READ_ERROR'
+    assert 'capture_revision' not in failures[0]
+
+
+def test_read_recovery_rechecks_owner_after_enumeration(rig):
+    r = rig
+    r.enable('energy')
+    first = r.session._recorder
+    first.device_error_event.set()
+    assert r.worker.queued.wait(2)
+    r.dm.update.side_effect = lambda: r.c._reconcileAudio(r.source)
+    r.worker.drain()
+    second = r.session._recorder
+    assert second is not None and second is not first
+    assert getattr(r.config, r.energy_flag)
+    second.stop.assert_not_called()
+
+
+def test_runtime_notification_rechecks_owner_under_source_lock(rig):
+    r = rig
+    r.enable('energy')
+    queued = []
+    notify = r.session.runtime_error_fnc
+    completed = Event()
+
+    def capture(failure):
+        queued.append(failure)
+        completed.set()
+
+    r.session.runtime_error_fnc = capture
+    r.session._recorder.device_error_event.set()
+    assert completed.wait(2)
+    r.c._reconcileAudio(r.source)
+    second = r.session._recorder
+    notify(queued[0])
+    assert not r.worker.jobs
+    assert r.session._recorder is second
+    assert not r.session._pipeline_error_notified
+    second.stop.assert_not_called()
+
+
+@pytest.mark.parametrize('session_type', [MicSession, SpeakerSession])
+def test_stop_before_listener_entry_closes_retained_stream_once(session_type):
+    class Source:
+        def __init__(self):
+            self.pa = SimpleNamespace(is_stopped=lambda: False, stop_stream=Mock())
+            self.stream = SimpleNamespace(pyaudio_stream=self.pa)
+            self.audio = SimpleNamespace(terminate=Mock())
+            self.exits = 0
+
+        def __exit__(self, *args):
+            self.exits += 1
+            self.stream = None
+            self.audio.terminate()
+
+    source = Source()
+    wrapped = recorders._LockedAudioSource(source)
+    release, rejected = Event(), Event()
+
+    def listener():
+        assert release.wait(2)
+        try:
+            with wrapped:
+                raise AssertionError('cancelled listener entered')
+        except OSError:
+            rejected.set()
+
+    thread = Thread(target=listener)
+    thread.start()
+
+    def raw_stop(*, wait_for_stop):
+        release.set()
+        thread.join(2)
+        assert not thread.is_alive()
+
+    stopper = recorders._wrapStopperWithBlockingReadUnblock(wrapped, raw_stop)
+    session = session_type()
+    session.features = {'energy'}
+    session._recorder = SimpleNamespace(source=wrapped, stop=stopper, resume=lambda: None)
+    try:
+        assert session._stop() is False
+        assert rejected.is_set()
+        assert session._recorder is None and not session._cleanup_workers
+        assert source.exits == 1 and source.stream is None
+        wrapped.close()
+        wrapped.close()
+        assert source.exits == 1
+        source.audio.terminate.assert_called_once()
+    finally:
+        release.set()
+        thread.join(2)
+
+
+@pytest.mark.parametrize('source_kind', ['mic', 'speaker'])
+@pytest.mark.parametrize('native_id', ['endpoint-A', 'endpoint-B', None])
+def test_open_rechecks_injected_native_identity(monkeypatch, source_kind, native_id):
+    import device_manager as devices_module
+
+    info = dict(name='USB audio' + (' [Loopback]' if source_kind == 'speaker' else ''),
+                hostApi=0, index=1, maxInputChannels=2, defaultSampleRate=48000,
+                isLoopbackDevice=source_kind == 'speaker')
+    audio = SimpleNamespace(
+        get_device_info_by_index=lambda index: dict(info),
+        get_host_api_info_by_index=lambda index: {'name': 'WASAPI', 'deviceCount': 1},
+        get_device_info_by_host_api_device_index=lambda host, index: dict(info),
+    )
+
+    class Source:
+        stream = None
+        exits = 0
+
+        def __enter__(self):
+            self.stream = object()
+
+        def __exit__(self, *args):
+            self.exits += 1
+            self.stream = None
+
+    source = Source()
+    source.audio = audio
+    monkeypatch.setattr(recorders, 'Microphone', lambda **kwargs: source)
+    endpoints = Mock(return_value={'USB audio': [native_id]} if native_id else {})
+    monkeypatch.setattr(devices_module.DeviceManager, '_windowsEndpointIds', endpoints)
+    selected = dict(info, endpoint_id='endpoint-A', id=f'{source_kind}:WASAPI:endpoint-A')
+    if native_id == 'endpoint-B':
+        with pytest.raises(OSError, match='endpoint changed'):
+            recorders._open_with_fallback({}, device_index=1, expected_device=selected)
+        assert source.exits == 1 and source.stream is None
+    else:
+        result = recorders._open_with_fallback({}, device_index=1, expected_device=selected)
+        assert result is source
+        if native_id:
+            assert source.opened_device['endpoint_id'] == native_id
+        else:
+            assert 'endpoint_id' not in source.opened_device
+            assert source.opened_device['id'].startswith('pa:')
+            assert source.opened_device['name'] == info['name']
+        source.__exit__(None, None, None)
+    endpoints.assert_called_once()
+
+
+@pytest.mark.parametrize('unavailable', ['duplicate_portaudio', 'duplicate_native', 'enumeration_error', 'null_id'])
+def test_unresolved_open_does_not_claim_requested_identity(monkeypatch, unavailable):
+    import device_manager as devices_module
+
+    info = dict(name='USB audio', hostApi=0, index=1, maxInputChannels=1)
+    if unavailable == 'null_id':
+        info['endpoint_id'] = None
+    endpoints = {'USB audio': ['endpoint-A', 'endpoint-B']} if unavailable == 'duplicate_native' else {}
+    if unavailable == 'duplicate_portaudio':
+        endpoints = {'USB audio': ['endpoint-A']}
+    monkeypatch.setattr(devices_module.DeviceManager, '_windowsEndpointIds', lambda **kwargs: endpoints)
+    host = Mock(return_value={'name': 'WASAPI', 'deviceCount': 2 if unavailable == 'duplicate_portaudio' else 1})
+    if unavailable == 'enumeration_error':
+        host.side_effect = OSError('enumeration unavailable')
+    source = SimpleNamespace(stream=object(), audio=SimpleNamespace(
+        get_device_info_by_index=lambda index: dict(info),
+        get_host_api_info_by_index=host,
+        get_device_info_by_host_api_device_index=lambda host, index: dict(info, index=index + 1)))
+    monkeypatch.setattr(recorders, 'Microphone', lambda **kwargs: source)
+    monkeypatch.setattr(recorders, '_validate_audio_source', lambda value: value)
+    selected = dict(info, endpoint_id='endpoint-A', id='mic:WASAPI:endpoint-A')
+    assert recorders._open_with_fallback({}, device_index=1, expected_device=selected) is source
+    assert not source.opened_device.get('endpoint_id')
+    assert source.opened_device['id'].startswith('pa:')
+
+
+def test_unverified_open_publishes_actual_device(rig):
+    r = rig
+    actual = dict(r.a, id='pa:opened-slot', host_name='Host')
+    create = r.session._create_recorder
+
+    def recording(device):
+        recorder = create(device)
+        recorder.source = SimpleNamespace(opened_device=actual)
+        return recorder
+
+    r.session._create_recorder = recording
+    assert r.enable('energy')['result'] is True
+    assert r.session._active_device == actual
+    assert getattr(r.config, r.id_key) == actual['id']
+    assert r.config.SELECTED_MIC_HOST == 'Host'
+    notices = [v for _, endpoint, v in r.calls if endpoint == '/run/audio_device_switched']
+    assert notices == [{'source': r.source,
+                        'old_device': {'id': r.a['id'], 'name': r.a['name']},
+                        'new_device': {'id': actual['id'], 'name': actual['name']}}]
+
+
 def test_opened_stream_is_reused_and_cancel_prevents_later_open(opener, monkeypatch):
     class Source:
         stream = None

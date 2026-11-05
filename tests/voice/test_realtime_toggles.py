@@ -52,6 +52,7 @@ class FakeServers:
         self.row = dict(state=state, base_url="http://127.0.0.1:9911" if state == "ready" else None,
                         error_code=None, generation=0)
         self.fail, self.started, self.stopped = fail, [], []
+        self.run = 0 if state == "ready" else None
 
     def state(self):
         return {"asr": copy.deepcopy(self.row)}
@@ -60,6 +61,7 @@ class FakeServers:
         assert profile == "asr" and generation == self.row["generation"]
         self.started.append(options)
         self.row["generation"] += 1
+        self.run = self.row["generation"]
         if self.fail:
             self.row.update(state="failed", error_code=self.fail, generation=self.row["generation"] + 1)
         else:
@@ -69,6 +71,9 @@ class FakeServers:
         if self.row["state"] != "ready":
             raise RuntimeError("speech_server_not_ready")
         return self.row["base_url"]
+
+    def current_run(self, profile):
+        return self.run
 
     def stop(self, profile, generation=None):
         if generation is not None and generation != self.row["generation"]:
@@ -271,7 +276,7 @@ def test_asr_server_crash_turns_bundled_toggles_off_with_the_server_code(app, mo
     c.speech_servers = servers = FakeServers("ready")
     assert c.setEnableTranscriptionSend()["result"] is True
     servers.row.update(state="failed", error_code="speech_server_exited", base_url=None)
-    c._speechServerEnded("asr")
+    c._speechServerEnded("asr", servers.current_run("asr"))
     status, _, result = pushed(c, "/set/enable/transcription_send")[-1]
     assert status == 400 and result["details"] == {"reason": "speech_server_exited"}
     assert not made[0].active

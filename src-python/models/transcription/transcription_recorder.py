@@ -25,7 +25,7 @@ from datetime import datetime
 from errors import AudioPipelineFailure, ERROR_METADATA, ErrorCode
 from utils import errorLogging, printLog, putDroppingOldestOnFull
 from .utterance_diagnostics import utterance_diagnostics
-from device_manager import pyaudio_op_lock
+from device_manager import device_manager, pyaudio_op_lock
 from models.transcription.audio_vad import FRAME_DURATION_MS, VadRecognizerAdapter, VadSegmenter
 
 # 直前に同じ物理デバイスを force-stop した直後は、WASAPI 側の解放が
@@ -118,6 +118,7 @@ class _LockedAudioSource(AudioSource):
         # NotImplementedError を送出するガードなので、意図的に呼ばない。
         self._source = source
         self._cancelled = threading.Event()
+        self._closed = False
         self._read_error_handler: Optional[Callable[[Exception], None]] = None
 
     def set_read_error_handler(self, handler: Callable[[Exception], None]) -> None:
@@ -126,11 +127,13 @@ class _LockedAudioSource(AudioSource):
     def __enter__(self) -> Any:
         with pyaudio_op_lock:
             if self._cancelled.is_set():
+                self._close_locked()
                 raise OSError("Audio open cancelled")
             if getattr(self._source, "stream", None) is None:
                 self._source.__enter__()
+                self._closed = False
             if self._cancelled.is_set():
-                _close_audio_source(self._source)
+                self._close_locked()
                 raise OSError("Audio open cancelled")
             stream = getattr(self._source, "stream", None)
             if (
@@ -143,7 +146,16 @@ class _LockedAudioSource(AudioSource):
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> Any:
         with pyaudio_op_lock:
-            return self._source.__exit__(exc_type, exc_value, traceback)
+            return self._close_locked(exc_type, exc_value, traceback)
+
+    def _close_locked(self, exc_type=None, exc_value=None, traceback=None):
+        if not self._closed:
+            if getattr(self._source, "stream", None) is not None:
+                result = self._source.__exit__(exc_type, exc_value, traceback)
+            else:
+                result = _close_audio_source(self._source)
+            self._closed = True
+            return result
 
     def cancel(self):
         self._cancelled.set()
@@ -151,7 +163,7 @@ class _LockedAudioSource(AudioSource):
     def close(self):
         self.cancel()
         with pyaudio_op_lock:
-            _close_audio_source(self._source)
+            self._close_locked()
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._source, name)
@@ -228,10 +240,20 @@ def _open_with_fallback(fallback_kwargs, *, cancelled=None, expected_device=None
                 if expected_device is not None:
                     try:
                         actual = source.audio.get_device_info_by_index(candidate["device_index"])
+                        native_keys = ("endpoint_id", "deviceUID", "uid")
+                        missing_identity = any(expected_device.get(key) and not actual.get(key)
+                                               for key in native_keys)
+                        if missing_identity:
+                            actual = device_manager.getOpenedDevice(source.audio, actual)
+                        expected_id = next((expected_device[key] for key in native_keys if expected_device.get(key)), None)
+                        actual_id = next((actual[key] for key in native_keys if actual.get(key)), None)
+                        if expected_id and actual_id and expected_id != actual_id:
+                            raise OSError("Audio endpoint changed while opening")
                         # Slot reuse must not be published as the former endpoint.
-                        for key in ("name", "hostApi", "endpoint_id", "deviceUID", "uid"):
+                        for key in ("name", "hostApi"):
                             if key in expected_device and key in actual and expected_device[key] != actual[key]:
                                 raise OSError("Audio endpoint changed while opening")
+                        source.opened_device = actual if missing_identity else {**expected_device, **actual}
                     except Exception:
                         _close_audio_source(source)
                         raise
