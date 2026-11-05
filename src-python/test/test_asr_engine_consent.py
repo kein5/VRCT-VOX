@@ -97,6 +97,7 @@ def fake_session(engine):
     session = namespace["_AudioDeviceSession"]()
     session.features = {"transcript"}
     session._pipeline_error_lock = RLock()
+    session._capture_revision = 0
     session._create_transcriber = lambda: transcriber_module.AudioTranscriber(
         False, None, 3, 10, engine, root="unused", whisper_weight_type="base")
     session._create_recorder = Mock(side_effect=AssertionError("capture must not open"))

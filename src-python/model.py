@@ -401,6 +401,7 @@ class _AudioDeviceSession:
         self._pipeline_error_lock = Lock()
         self._pipeline_error_started = False
         self._pipeline_error_notified = False
+        self._capture_revision = 0
         # 現在 Recorder が開いているデバイス (dict) を保持し、
         # reconfigure() で「同一デバイスかつ features 変化なし」なら no-op
         # にするために使う。
@@ -578,8 +579,10 @@ class _AudioDeviceSession:
             exception_type=type(error).__name__ if error is not None else None,
         )
 
-    def _notify_pipeline_error(self, failure: AudioPipelineFailure, callback=None) -> None:
+    def _notify_pipeline_error(self, failure: AudioPipelineFailure, callback=None, *, revision=None) -> None:
         with self._pipeline_error_lock:
+            if revision is not None and revision != self._capture_revision:
+                return
             if self._pipeline_error_notified:
                 return
             self._pipeline_error_notified = True
@@ -598,6 +601,10 @@ class _AudioDeviceSession:
             if self._pipeline_error_started:
                 return
             self._pipeline_error_started = True
+            revision = self._capture_revision
+            error_callback = self.error_fnc or self.transcript_fnc
+            failed_device = self._active_device
+            runtime_callback = self.runtime_error_fnc
 
         # 自分自身を join できないため、現在の worker は先にループを
         # 終了させ、停止・後始末・通知は別スレッドで行う。
@@ -605,17 +612,14 @@ class _AudioDeviceSession:
         if worker is not None and worker is current_thread():
             worker.stop()
 
-        error_callback = self.error_fnc or self.transcript_fnc
-        failed_device = self._active_device
-        runtime_callback = self.runtime_error_fnc
-
         def cleanup_and_notify() -> None:
             if callable(runtime_callback):
                 # The controller decides continuation vs terminal failure under
                 # its source lock, then owns cleanup. Do not hold the session
                 # lock while crossing that boundary or stop before revocation.
                 self._notify_pipeline_error(failure, lambda data: runtime_callback(
-                    {**data, "failed_device": failed_device}))
+                    {**data, "failed_device": failed_device, "capture_revision": revision}),
+                    revision=revision)
                 return
             with self._stop_lock:
                 if recorder is not None and self._recorder is not recorder:
@@ -631,7 +635,7 @@ class _AudioDeviceSession:
                 callback = lambda data: error_callback({**data, "failed_device": failed_device})
             else:
                 callback = error_callback
-            self._notify_pipeline_error(failure_to_notify, callback)
+            self._notify_pipeline_error(failure_to_notify, callback, revision=revision)
 
         Thread(
             target=cleanup_and_notify,
@@ -658,6 +662,7 @@ class _AudioDeviceSession:
         requested_device = device
 
         with self._pipeline_error_lock:
+            self._capture_revision += 1
             self._pipeline_error_started = False
             self._pipeline_error_notified = False
 
@@ -688,7 +693,8 @@ class _AudioDeviceSession:
                 for candidate in candidates:
                     try:
                         self._recorder = self._create_recorder(candidate)
-                        device = candidate
+                        opened_device = getattr(getattr(self._recorder, "source", None), "opened_device", None)
+                        device = opened_device if isinstance(opened_device, dict) else candidate
                         break
                     except AudioOpenBusy:
                         raise

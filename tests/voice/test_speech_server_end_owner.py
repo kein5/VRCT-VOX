@@ -4,7 +4,7 @@ Real controller, hub and bus; server processes, HTTP and audio are all fakes.
 """
 # ruff: noqa: F811 -- pytest uses imported fixtures by name.
 from contextlib import contextmanager
-from threading import Event
+from threading import Event, Thread, current_thread
 from unittest.mock import MagicMock, call
 
 import pytest
@@ -12,10 +12,123 @@ import pytest
 from models.audio_routing.audio_router import AudioRouter
 from models.voice_events import AudioFrame
 from test_controller_integration import controller_module  # noqa: F401
-from test_realtime_controls import app  # noqa: F401
+from test_realtime_controls import app, start  # noqa: F401
 from test_scheduler import Sink, event, until
 from test_speech_server_controls import owned, run_server  # noqa: F401
 from test_tts_toggle_server import enable
+
+
+def bundled_asr(c, owned):
+    c.setSpeechServerSettings(owned[0])
+    settings = c.getRealtimeASRSettings()['result']
+    settings['server'] = 'bundled'
+    assert c.setRealtimeASRSettings(settings)['status'] == 200
+    run_server(c, 'asr')
+
+
+@pytest.mark.parametrize('source', ['mic', 'speaker'])
+def test_old_asr_stop_callback_preserves_replacement_capture(app, owned, monkeypatch, source):
+    c, _, _ = app
+    bundled_asr(c, owned)
+    start(c, source)
+    entered, release = Event(), Event()
+    original = c._speechServerEnded
+
+    def held(profile, run=None):
+        if current_thread().name == 'held-asr-stop':
+            entered.set()
+            assert release.wait(3)
+        original(profile, run)
+
+    monkeypatch.setattr(c, '_speechServerEnded', held)
+    stopping = Thread(target=lambda: c.stopSpeechServer({'profile': 'asr'}), name='held-asr-stop')
+    stopping.start()
+    try:
+        assert entered.wait(1)
+        owned[1][0].fail()
+        run_server(c, 'asr')
+        start(c, source)
+        generation = c.getRealtimeASRState()['result'][source]['generation']
+        release.set()
+        stopping.join(2)
+        assert not stopping.is_alive()
+        assert c.speech_servers.state()['asr']['state'] == 'ready'
+        state = c.getRealtimeASRState()['result'][source]
+        assert state['requested'] and state['generation'] == generation
+    finally:
+        release.set()
+        stopping.join(2)
+        c.speech_servers.close()
+
+
+@pytest.mark.parametrize('ending', ['stop', 'natural'])
+def test_asr_end_invalidates_only_current_dependencies_once(app, owned, ending):
+    c, _, _ = app
+    bundled_asr(c, owned)
+    run = c.speech_servers.current_run('asr')
+    start(c, 'mic')
+    start(c, 'speaker')
+    c.stopRealtimeASR({'source': 'speaker'})
+    before = c.getRealtimeASRState()['result']
+    try:
+        if ending == 'stop':
+            c.stopSpeechServer({'profile': 'asr'})
+        owned[1][0].fail()
+        c._speechServerEnded('asr', run)
+        after = c.getRealtimeASRState()['result']
+        assert not after['mic']['requested']
+        assert after['mic']['generation'] == before['mic']['generation'] + 1
+        assert after['speaker']['generation'] == before['speaker']['generation']
+        notices = [entry.args for entry in c.run.call_args_list
+                   if entry.args[0] == 400 and entry.args[1] == '/set/enable/transcription_send']
+        assert len(notices) == (1 if ending == 'natural' else 0)
+        if notices:
+            assert notices[0][2]['details']['reason'] == 'speech_server_exited'
+    finally:
+        c.speech_servers.close()
+
+
+def test_asr_end_during_handoff_revokes_pending_dependency(app, owned, monkeypatch):
+    c, m, captures = app
+    bundled_asr(c, owned)
+
+    def handoff(source):
+        owned[1][0].fail()
+        return True
+
+    monkeypatch.setattr(m.model, 'stopCaptureForRealtime', handoff)
+    try:
+        generation = c.getRealtimeASRState()['result']['mic']['generation']
+        result = c.startRealtimeASR({'source': 'mic', '_realtime_generation': generation})
+        assert result['result']['error_code'] == 'realtime_stale_start'
+        assert not captures
+    finally:
+        c.speech_servers.close()
+
+
+@pytest.mark.parametrize('server', ['bundled', 'external'])
+def test_delayed_asr_natural_end_preserves_new_capture(app, owned, server):
+    c, _, _ = app
+    bundled_asr(c, owned)
+    start(c)
+    pending, notify = [], c.speech_servers.on_end
+    c.speech_servers.on_end = lambda *args: pending.append(args)
+    try:
+        owned[1][0].fail()
+        c.stopRealtimeASR({'source': 'mic'})
+        settings = c.getRealtimeASRSettings()['result']
+        settings['server'] = server
+        c.setRealtimeASRSettings(settings)
+        if server == 'bundled':
+            run_server(c, 'asr')
+        start(c)
+        generation = c.getRealtimeASRState()['result']['mic']['generation']
+        notify(*pending[0])
+        notify(*pending[0])
+        state = c.getRealtimeASRState()['result']['mic']
+        assert state['requested'] and state['generation'] == generation
+    finally:
+        c.speech_servers.close()
 
 
 @pytest.fixture

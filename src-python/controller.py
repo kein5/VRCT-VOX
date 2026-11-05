@@ -660,15 +660,17 @@ class Controller:
             self._releaseTtsServers(only=owned)
         elif profile == "asr":
             with self._realtime_lock:
-                bundled = self._realtime_settings["server"] == "bundled"
-                if bundled:
-                    for source in ("mic", "speaker"):
+                affected = []
+                for source in ("mic", "speaker"):
+                    if (run is not None and self._realtime_requested[source]
+                            and self._realtime_server_runs[source] == (self._realtime_generation[source], run)):
+                        affected.append(source)
                         self._invalidateRealtimeLocked(source)
-            if bundled:
-                row = self.speech_servers.state()["asr"]
+                row = self.speech_servers.state()["asr"] if affected else None
+            if affected:
                 # A crash is worth a notice; a Stop from Settings is the user's own.
                 reason = (row.get("error_code") or "speech_server_start_failed") if row["state"] == "failed" else None
-                for source in ("mic", "speaker"):
+                for source in affected:
                     self._publishRealtimeToggle(source, reason)
 
     def stopSpeechServer(self, data, *args, **kwargs):
@@ -688,6 +690,7 @@ class Controller:
         self._realtime_generation = {source: 0 for source in ("mic", "speaker")}
         self._realtime_requested = dict.fromkeys(self._realtime_generation, False)
         self._realtime_owners = dict.fromkeys(self._realtime_generation)
+        self._realtime_server_runs = dict.fromkeys(self._realtime_generation)
         self._realtime_errors = dict.fromkeys(self._realtime_generation)
         self._realtime_closed = False
         # Linux main toggles: the state last shown for each source, a bundled
@@ -720,6 +723,7 @@ class Controller:
     def _invalidateRealtimeLocked(self, source):
         self._realtime_generation[source] += 1
         self._realtime_requested[source] = False
+        self._realtime_server_runs[source] = None
         if source == "mic":
             self._cancelMicVoice()
         owner = self._realtime_owners[source]
@@ -1096,8 +1100,12 @@ class Controller:
                         options = prepared
                     else:
                         options, _ = session_options(self._realtime_settings, source)
-                        if self._realtime_settings["server"] == "bundled":
-                            options = replace(options, base_url=self.speech_servers.binding("asr"))
+                    server_run = None
+                    if self._realtime_settings["server"] == "bundled":
+                        server_run = self.speech_servers.current_run("asr")
+                        options = replace(options, base_url=self.speech_servers.binding("asr"))
+                        if server_run is None or self.speech_servers.current_run("asr") != server_run:
+                            return failure("speech_server_not_ready")
                     detect = options.language == "auto"
                     language = self._realtimeFallbackLanguage(source) if detect else self._realtimeLanguage(options.language)
                 except RuntimeError:
@@ -1111,6 +1119,9 @@ class Controller:
                 self._realtime_generation[source] += 1
                 generation = self._realtime_generation[source]
                 self._realtime_requested[source] = True
+                # Terminal handling takes this lock too, including while the
+                # source is still draining its previous capture owner.
+                self._realtime_server_runs[source] = (generation, server_run) if server_run is not None else None
                 self._realtime_errors[source] = None
 
             def current():
@@ -1547,7 +1558,7 @@ class Controller:
                      and len([d for _, d in self._audioDevices(source) if d.get("name") == old_name]) > 1)
         if source == "mic" and not ambiguous:
             host = next((host for host, item in self._audioDevices(source)
-                         if capture_key(item) == capture_key(device)), "NoHost") if device else "NoHost"
+                         if capture_key(item) == capture_key(device)), device.get("host_name", "NoHost")) if device else "NoHost"
             config.SELECTED_MIC_HOST = host
             self.run(200, "/run/selectable_mic_host_list", list(device_manager.getMicDevices()))
             self.run(200, self.run_mapping.get("selected_mic_host", "/run/selected_mic_host"), host)
@@ -1609,15 +1620,19 @@ class Controller:
     def _audioPipelineFailedLocked(self, source, generation, failure, *, cleanup=False):
         if generation != self._audioGeneration(source):
             return
+        revision = failure.get("capture_revision")
+        if revision is not None and not self._audioCaptureCurrentLocked(source, revision):
+            return
         failed_device = failure.get("failed_device")
-        public_failure = {key: value for key, value in failure.items() if key != "failed_device"}
+        public_failure = {key: value for key, value in failure.items()
+                          if key not in ("failed_device", "capture_revision")}
         if failed_device and failure.get("error_code") == "AUDIO_READ_ERROR":
             # A read error can precede the device-list notification. Reconcile
             # one fresh snapshot before declaring the user's capture ended.
             worker = getattr(model, source + "_lifecycle_worker", None)
             if worker is not None and worker.enqueue(
-                    lambda: self._recoverAudioDeviceLoss(source, generation, failed_device, public_failure),
-                    coalesce_key=f"{source}_read_error_{generation}") is not False:
+                    lambda: self._recoverAudioDeviceLoss(source, generation, revision, failed_device, public_failure),
+                    coalesce_key=f"{source}_read_error_{generation}_{revision}") is not False:
                 return
         if cleanup:
             public_failure = self._disableAudioAfterDeviceLossLocked(source) or public_failure
@@ -1625,9 +1640,14 @@ class Controller:
             self._audioTerminalFailureLocked(source, generation)
         self.run(200, self.run_mapping.get("transcription_recognition_error", "/run/transcription_recognition_error"), public_failure)
 
-    def _recoverAudioDeviceLoss(self, source, generation, failed_device, failure):
+    def _audioCaptureCurrentLocked(self, source, revision):
+        session = getattr(model, "_" + source + "_session")
+        return session._recorder is not None and session._capture_revision == revision
+
+    def _recoverAudioDeviceLoss(self, source, generation, revision, failed_device, failure):
         with self._audioLock(source):
-            if generation != self._audioGeneration(source):
+            if (generation != self._audioGeneration(source)
+                    or not self._audioCaptureCurrentLocked(source, revision)):
                 return
         refresh_failed = False
         try:
@@ -1636,7 +1656,8 @@ class Controller:
             refresh_failed = True
             errorLogging()
         with self._audioLock(source):
-            if generation != self._audioGeneration(source):
+            if (generation != self._audioGeneration(source)
+                    or not self._audioCaptureCurrentLocked(source, revision)):
                 return
             available = [d for _, d in self._audioDevices(source)]
             if not refresh_failed and not any(capture_key(d) == capture_key(failed_device) for d in available):
