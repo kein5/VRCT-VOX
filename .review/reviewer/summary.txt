@@ -1,0 +1,1 @@
+cx-r2-toggle ui exit=0 6s

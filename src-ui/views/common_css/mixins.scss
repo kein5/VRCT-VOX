@@ -70,6 +70,8 @@ $toggle_control_ease: ease-out;
 
     .control {
         position: relative;
+        // The track has no content, so a flex parent could otherwise squeeze it.
+        flex-shrink: 0;
         width: var(--toggle_width, #{$toggle_width});
         height: var(--toggle_height, #{$toggle_height});
         border-radius: calc(var(--toggle_height, #{$toggle_height}) / 2);
