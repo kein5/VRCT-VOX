@@ -230,6 +230,78 @@ def test_guarded_retry_accepts_only_once(monkeypatch):
     assert overlay.overlay.setOverlayRaw.call_count == 2
 
 
+@pytest.mark.parametrize("output", ["small", "large", "realtime"])
+@pytest.mark.parametrize("failure", ["upload", "reconnect_timeout"])
+def test_current_upload_failure_reaches_message_error_and_rolls_back_history(monkeypatch, output, failure):
+    backend, cfg = model_destination(monkeypatch)
+    overlay = backend.overlay
+    native = overlay.overlay
+    native.setOverlayRaw.side_effect = RuntimeError("upload rejected")
+    if failure == "upload":
+        monkeypatch.setattr(overlay, "reStartOverlay", Mock(return_value=True))
+    else:
+        monkeypatch.setattr(module, "_REINIT_WAIT_TIMEOUT_SEC", 0)
+    controller = object.__new__(Controller)
+    controller.run_mapping = {}
+    controller.run = Mock()
+    monkeypatch.setattr(controller_module, "errorLogging", Mock())
+    failures = []
+    if output == "small":
+        action = lambda: backend.updateOverlaySmallLog(Image.new("RGBA", (2, 2)))
+    elif output == "large":
+        action = lambda: backend.publishMessageOverlayLargeLog("send", "message", "English", [], current=lambda: True)
+    else:
+        action = lambda: backend.publishRealtimeCaptionOverlay(dict(source="mic", namespace="n", item_id="i",
+            revision=1, state="final", text="message", translations=[]), "English", {}, lambda: True)
+    sink = "overlay_small" if output == "small" else "overlay_large"
+    result = controller._runMessageSink(sink, action, lambda: True, failures, SimpleNamespace(kind="mic"), "row")
+    assert result is False
+    assert failures == [{"output": sink, "error_code": "MESSAGE_OUTPUT_FAILED"}]
+    status, endpoint, response = controller.run.call_args.args
+    assert status == 400 and endpoint == "/run/message_output_error"
+    assert response["data"] == {"id": "row", "source": "mic", **failures[0]}
+    assert controller.run.call_count == 1
+    assert native.setOverlayRaw.call_count == (2 if failure == "upload" else 1)
+    assert not backend.overlay_image.message_log
+
+
+@pytest.mark.parametrize("revoke", ["delivery", "disabled", "superseded", "shutdown"])
+@pytest.mark.parametrize("stage", ["retry", "wait"])
+def test_revoked_upload_failure_stays_silent(monkeypatch, revoke, stage):
+    backend, cfg = model_destination(monkeypatch)
+    overlay = backend.overlay
+    current = [True]
+    def cancel():
+        if revoke == "delivery":
+            current[0] = False
+        elif revoke == "disabled":
+            cfg.OVERLAY_LARGE_LOG = False
+        elif revoke == "superseded":
+            overlay.output_generations["large"] = 1
+        else:
+            overlay.shutdownOverlay()
+    def failed(*args):
+        if overlay.overlay.setOverlayRaw.call_count == 2:
+            cancel()
+        raise RuntimeError("upload rejected")
+    overlay.overlay.setOverlayRaw.side_effect = failed
+    if stage == "retry":
+        monkeypatch.setattr(overlay, "reStartOverlay", Mock(return_value=True))
+    else:
+        monkeypatch.setattr(module.time, "sleep", lambda _: cancel())
+    controller = object.__new__(Controller)
+    controller.run_mapping = {}
+    controller.run = Mock()
+    failures = []
+    controller._runMessageSink("overlay_large", lambda: backend.publishMessageOverlayLargeLog(
+        "send", "cancelled", "English", [], current=lambda: current[0]),
+        lambda: current[0], failures, SimpleNamespace(kind="mic"), "row")
+    assert failures == []
+    controller.run.assert_not_called()
+    assert not backend.overlay_image.message_log
+    assert overlay.overlay.setOverlayRaw.call_count == (2 if stage == "retry" else 1)
+
+
 def model_destination(monkeypatch):
     backend = object.__new__(Model)
     backend.ensure_initialized = lambda: None
@@ -440,6 +512,65 @@ def test_runtime_failure_notifies_ui_and_clears_switches(monkeypatch):
     status, endpoint, result = controller.run.call_args.args
     assert status == 400 and endpoint == "/run/message_output_error"
     assert result["error_code"] == "OVERLAY_RUNTIME_FAILED"
+
+
+@pytest.mark.parametrize("reason", ["capture", "capture_stalled"])
+@pytest.mark.parametrize("remaining", [None, "small", "large"])
+def test_capture_failure_stops_owner_only_without_remaining_demand(monkeypatch, reason, remaining):
+    backend, cfg = model_destination(monkeypatch)
+    overlay = backend.overlay
+    cfg.OVERLAY_SMALL_LOG = remaining == "small"
+    cfg.OVERLAY_LARGE_LOG = remaining == "large"
+    controller = object.__new__(Controller)
+    controller._model = backend
+    controller.run_mapping = {}
+    controller.run = Mock()
+    overlay.failure_callback = controller._onOverlayFailure
+    native, glfw, gl = overlay.overlay, Mock(), Mock()
+    overlay.owned_handles = [1, 2]
+    overlay.system = object()
+    overlay.gl = {"GL": gl, "glfw": glfw, "window": "window", "texture": 11}
+    overlay.vr_resources_tried = True
+    job = SimpleNamespace(done=False, reported=False, started=0, generation=overlay.capture_generation)
+    overlay.capture_job = job
+    frames, observed = [], []
+    def frame():
+        frames.append(True)
+        if len(frames) == 1:
+            if reason == "capture_stalled":
+                overlay.collectCapture(module._STALL_REPORT_SEC + 1)
+            else:
+                for _ in range(module._PANEL_ERROR_LIMIT):
+                    overlay.onPanelError(RuntimeError("capture"))
+            overlay.applyVrPanelEnabled()
+            observed.append((cfg.OVERLAY_VR_PANEL, overlay.vr_panel_enabled, overlay.start_cancelled,
+                             overlay.run_stop.is_set(), overlay.stop_requested.is_set(),
+                             overlay.capture_job is job, native.destroyOverlay.call_count))
+        else:
+            overlay.shutdownOverlay()
+    monkeypatch.setattr(module, "Thread", Mock())
+    monkeypatch.setattr(overlay, "checkSteamvrRunning", lambda: True)
+    monkeypatch.setattr(overlay, "checkActive", Mock(side_effect=[True, True, False]))
+    monkeypatch.setattr(overlay, "init", Mock())
+    monkeypatch.setattr(overlay, "update", Mock())
+    monkeypatch.setattr(overlay, "updateGrab", Mock())
+    monkeypatch.setattr(overlay, "updatePanel", frame)
+    overlay.main()
+    assert len(frames) == (1 if remaining is None else 2)
+    stopped = remaining is None
+    assert observed == [(False, False, stopped, stopped, stopped, True, 0)]
+    assert cfg.OVERLAY_SMALL_LOG is (remaining == "small")
+    assert cfg.OVERLAY_LARGE_LOG is (remaining == "large")
+    assert overlay.capture_job is job
+    assert not overlay.initialized and not overlay.loop and overlay.gl is None
+    assert native.destroyOverlay.call_count == 2
+    module.openvr_session.release.assert_called_once()
+    gl.glDeleteTextures.assert_called_once_with([11])
+    glfw.destroy_window.assert_called_once_with("window")
+    assert controller.run.call_count == 1
+    status, endpoint, response = controller.run.call_args.args
+    assert status == 400 and endpoint == "/run/message_output_error"
+    assert response["data"] == {"reason": reason}
 
 
 def test_enable_does_not_report_success_for_failed_start(monkeypatch):

@@ -90,12 +90,16 @@ export const VrPanelSyncController = () => {
     // 状態が変わるたびに直列化して送ることになるため)。ONになったら全状態を送る
     useEffect(() => {
         if (!is_vr_panel_enabled) return undefined;
+        let disposed = false;
         const entries = atomEntries();
         const unsubscribes = entries.map(([name, atom]) =>
             jotai.sub(atom, () => emitState([[name, atom]]))
         );
-        const unlistenReady = listen("vr-panel-ready", () => emitState(atomEntries(), true));
+        const unlistenReady = listen("vr-panel-ready", () => {
+            if (!disposed) emitState(atomEntries(), true);
+        });
         const unlistenStdout = listen("vr-panel-stdout", ({ payload }) => {
+            if (disposed) return;
             if (!isRelayAllowed(payload.path)) {
                 console.warn("[vr-panel] blocked request from the VR panel:", payload.path);
                 rejectLanguageMutation(payload.languageRequest, "blocked");
@@ -116,6 +120,7 @@ export const VrPanelSyncController = () => {
             }).catch(console.error);
         });
         const unlistenConfigPage = listen("vr-panel-config-page", ({ payload: is_opened }) => {
+            if (disposed) return;
             if (is_opened === true) {
                 isVrSettingsOpenRef.current = true;
                 // デスクトップが先に開いていたら、VR側を閉じてもデスクトップの設定画面は閉じない
@@ -134,6 +139,9 @@ export const VrPanelSyncController = () => {
         emitState(entries, true);
 
         return () => {
+            disposed = true;
+            isVrSettingsOpenRef.current = false;
+            isOpenedByVrRef.current = false;
             unsubscribes.forEach(unsubscribe => unsubscribe());
             unlistenReady.then(f => f());
             unlistenStdout.then(f => f());

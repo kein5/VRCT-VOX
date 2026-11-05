@@ -188,3 +188,63 @@ def test_tracking_loss_without_a_press_only_clears_hover(panel):
     panel.capture.mouseUp.assert_not_called()
     assert 2 not in panel.overlay.panel_input
     assert not panel.overlay.trigger_blocked
+
+
+@pytest.mark.parametrize("boundary", ["quit", "tracking_error", "teardown"])
+def test_owner_exit_and_tracking_exceptions_cancel_press_and_pointer(panel, monkeypatch, boundary):
+    press(panel)
+    overlay = panel.overlay
+    overlay.pointer_callback = MagicMock()
+    assert overlay.pointer_notified is not None
+    monkeypatch.setattr(module, "errorLogging", MagicMock())
+    monkeypatch.setattr(module, "raiseThreadPriority", MagicMock())
+    monkeypatch.setattr(module, "Thread", MagicMock())
+    if boundary == "quit":
+        overlay.initialized = True
+        overlay.system = MagicMock()
+        def quit(event):
+            event.eventType = openvr.VREvent_Quit
+            return True
+        overlay.system.pollNextEvent.side_effect = quit
+        overlay.mainloop()
+    elif boundary == "tracking_error":
+        poses = overlay.overlay_system.getDeviceToAbsoluteTrackingPose.side_effect
+        overlay.overlay_system.getDeviceToAbsoluteTrackingPose.side_effect = RuntimeError("tracking")
+        monkeypatch.setattr(overlay, "checkActive", MagicMock(side_effect=[True, False]))
+        monkeypatch.setattr(overlay, "update", MagicMock())
+        monkeypatch.setattr(overlay, "updatePanel", MagicMock())
+        original = overlay.onGrabError
+        def on_error(error):
+            original(error)
+            assert_cancelled(panel)  # Must cancel before the next loop, not just at exit.
+            assert overlay.pointer_notified is None
+        monkeypatch.setattr(overlay, "onGrabError", on_error)
+        overlay.mainloop()
+        overlay.overlay_system.getDeviceToAbsoluteTrackingPose.side_effect = poses
+    else:
+        overlay.teardown()
+    assert_cancelled(panel)
+    assert overlay.pointer_notified is None
+    overlay.pointer_callback.assert_called_once_with(None)
+    assert_requires_release(panel)
+
+
+@pytest.mark.parametrize("failed_call", ["mouseMove", "mouseUp"])
+def test_native_cancel_failure_still_releases_other_hand_and_resources(panel, monkeypatch, failed_call):
+    overlay = panel.overlay
+    overlay.panel_input = {1: (True, (450, 260)), 2: (True, (450, 260))}
+    overlay.pointer_notified = (450, 260)
+    overlay.pointer_callback = MagicMock()
+    overlay.overlay = native = MagicMock()
+    overlay.owned_handles = [10]
+    overlay.system = object()
+    release = MagicMock()
+    monkeypatch.setattr(module.openvr_session, "release", release)
+    monkeypatch.setattr(module, "errorLogging", MagicMock())
+    getattr(panel.capture, failed_call).side_effect = [RuntimeError("cancel"), None]
+    overlay.teardown()
+    assert not overlay.panel_input and overlay.trigger_blocked == {1, 2}
+    assert panel.capture.mouseMove.call_count == panel.capture.mouseUp.call_count == 2
+    overlay.pointer_callback.assert_called_once_with(None)
+    native.destroyOverlay.assert_called_once_with(10)
+    release.assert_called_once()

@@ -6192,6 +6192,8 @@ class Controller:
             config.OVERLAY_LARGE_LOG = False
         config.OVERLAY_VR_PANEL = False
         self._model.setVrPanelEnabled(False)
+        if not (config.OVERLAY_SMALL_LOG or config.OVERLAY_LARGE_LOG or config.OVERLAY_VR_PANEL):
+            self._model.shutdownOverlay()
         response = VRCTError.create_error_response(ErrorCode.OVERLAY_RUNTIME_FAILED,
                                                   data={"reason": reason})
         self.run(response["status"], self.run_mapping.get("message_output_error", "/run/message_output_error"),

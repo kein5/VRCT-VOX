@@ -68,13 +68,12 @@ class UpdateImageReinitTimeoutTests(unittest.TestCase):
 
         with patch("models.overlay.overlay._REINIT_WAIT_TIMEOUT_SEC", 0.002), \
              patch("models.overlay.overlay._REINIT_WAIT_POLL_INTERVAL_SEC", 0.001), \
-             patch("models.overlay.overlay.printLog") as mock_print_log:
+             self.assertRaisesRegex(TimeoutError, "reinitialization timed out"):
             start = time.monotonic()
             self.overlay.updateImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0)), "small")
-            elapsed = time.monotonic() - start
+        elapsed = time.monotonic() - start
 
         self.assertLess(elapsed, 2.0, "タイムアウトを超えて長時間ブロックしてはいけない")
-        mock_print_log.assert_called_once()
         # 再初期化が終わらなかったので、リトライの setOverlayRaw は
         # 呼ばれていないこと (=最初の1回だけ)。
         self.overlay.overlay.setOverlayRaw.assert_called_once()
@@ -85,6 +84,7 @@ class UpdateImageReinitTimeoutTests(unittest.TestCase):
             return True
 
         self.overlay.reStartOverlay = MagicMock(side_effect=fake_restart)
+        self.overlay.overlay.setOverlayRaw.side_effect = [RuntimeError("boom"), None]
 
         with patch("models.overlay.overlay._REINIT_WAIT_TIMEOUT_SEC", 5.0):
             self.overlay.updateImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0)), "small")
