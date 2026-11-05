@@ -5,6 +5,14 @@ import { expectBackendExit } from "./common/sidecarExitExpectation.js";
 import { createSidecarSessionOwner } from "./common/sidecarSession.js";
 import { loadModule } from "./test/hookHarness.js";
 
+test("blocked config loading shows the persistent load-failure notice", async () => {
+    const s = await loadBridgeRoutes();
+    s.receiveRoutes({ endpoint: "/run/config_save_failed", status: 200,
+        result: { reason: "load_failed", path: "/settings/config.json" } });
+    assert.deepEqual(s.notices, [{ type: "error", key: "common_error.config_save_failed.load_failed",
+        options: { hide_duration: null, category_id: "config_save_failed" } }]);
+});
+
 test("failed required initialization maps and scalars retain renderable defaults and warn", async context => {
     const errors = context.mock.method(console, "error", () => {});
     const s = await loadBridgeRoutes();

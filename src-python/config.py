@@ -3,6 +3,9 @@ import sys
 import copy
 import errno
 import math
+import contextlib
+import stat
+import tempfile
 from os import path as os_path, makedirs as os_makedirs, replace as os_replace, fsync as os_fsync, remove as os_remove
 from json import load as json_load
 from json import dump as json_dump
@@ -806,9 +809,8 @@ class Config:
     Responsibilities:
     - expose read-only and read-write configuration via properties
     - persist selected values to JSON with debounce
-    Implementation notes: initialization may depend on optional subsystems; any
-    exceptions during init/load are captured and logged to avoid import-time
-    crashes.
+    Initialization must finish before the singleton is published. Load failures
+    keep the original settings file and block persistence until a successful load.
     """
 
     _instance = None
@@ -905,15 +907,14 @@ class Config:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(Config, cls).__new__(cls)
+            instance = super(Config, cls).__new__(cls)
             try:
-                cls._instance.init_config()
+                instance.init_config()
             except Exception:
                 errorLogging()
-            try:
-                cls._instance.load_config()
-            except Exception:
-                errorLogging()
+                raise
+            instance.load_config()
+            cls._instance = instance
         return cls._instance
 
     def setSelectedLanguages(self, your, target) -> None:
@@ -933,6 +934,31 @@ class Config:
             self._SELECTED_YOUR_LANGUAGES, self._SELECTED_TARGET_LANGUAGES = normalized
         self.saveConfig("SELECTED_YOUR_LANGUAGES", normalized[0])
 
+    @contextlib.contextmanager
+    def _configFileLock(self):
+        # Keep this inode in place: unlinking a lock file can split its owners.
+        fd = os.open(f"{self.PATH_CONFIG}.lock",
+                     os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise OSError(errno.EINVAL, "Config lock is not a regular file")
+            if os.name == "nt":
+                import msvcrt
+                # Byte-range locks may extend past EOF; do not alter the file.
+                msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                if os.name == "nt":
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
     def saveConfigToFile(self, *, _retry_timer=None) -> None:
         with self._file_lock:
             if _retry_timer is not None:
@@ -940,32 +966,41 @@ class Config:
                 if self._save_retry_timer is not _retry_timer:
                     return
                 self._save_retry_timer = None
+            if not self._initialized or not self._config_loaded:
+                return
             # Snapshot and write share one serialization boundary. An older
             # debounced callback must never overwrite a newer immediate save.
-            filtered = {}
-            for var_name, var_func in json_serializable_vars.items():
-                try:
-                    filtered[var_name] = var_func(self)
-                except Exception:
-                    pass
-            self._config_data = filtered
-            tmp_path = f"{self.PATH_CONFIG}.tmp"
+            tmp_path = None
             try:
-                # config.json holds API keys: owner-only on POSIX, also for a file
-                # that existed before with wider permissions (replaced below).
-                fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-                if os.name == "posix":
-                    os.fchmod(fd, 0o600)
-                with os.fdopen(fd, "w", encoding="utf-8") as fp:
-                    json_dump(filtered, fp, indent=4, ensure_ascii=False, allow_nan=False)
-                    fp.flush()
-                    os_fsync(fp.fileno())
-                os_replace(tmp_path, self.PATH_CONFIG)
-            except (OSError, ValueError, TypeError) as e:
-                # Invalid JSON values must leave the last good file intact and
-                # use the normal save-failure notification/retry path.
+                with self._configFileLock():
+                    # A failed getter invalidates the entire snapshot.
+                    filtered = {name: getter(self) for name, getter in json_serializable_vars.items()}
+                    self._config_data = filtered
+                    # Exclusive creation prevents temp collisions and symlink
+                    # traversal; mkstemp also restricts POSIX permissions to 0600.
+                    fd, tmp_path = tempfile.mkstemp(
+                        prefix=os_path.basename(self.PATH_CONFIG) + ".", suffix=".tmp",
+                        dir=os_path.dirname(self.PATH_CONFIG))
+                    try:
+                        fp = os.fdopen(fd, "w", encoding="utf-8")
+                    except Exception:
+                        os.close(fd)
+                        raise
+                    with fp:
+                        json_dump(filtered, fp, indent=4, ensure_ascii=False, allow_nan=False)
+                        fp.flush()
+                        os_fsync(fp.fileno())
+                    os_replace(tmp_path, self.PATH_CONFIG)
+                    tmp_path = None
+            except Exception as e:
                 self._saveFailedLocked(e)
                 return
+            finally:
+                if tmp_path is not None:
+                    try:
+                        os_remove(tmp_path)
+                    except OSError:
+                        pass
             recovered = self._save_failed
             self._save_failed = False
             if isinstance(self._save_retry_timer, threading.Timer):
@@ -984,7 +1019,7 @@ class Config:
             return "read_only"
         return "write_failed"
 
-    def _saveFailedLocked(self, error: Exception) -> None:
+    def _saveFailedLocked(self, error: Exception, *, retry: bool = True) -> None:
         """書き込みに失敗した。値はメモリーに残っているので、知らせて、あとで書き直す。
 
         以前は例外を setter が捨て、変更は保存されないまま成功を返していた (再起動で消える)。
@@ -993,18 +1028,14 @@ class Config:
         errorLogging()
         first = not self._save_failed
         self._save_failed = True
-        try:
-            os_remove(f"{self.PATH_CONFIG}.tmp")
-        except OSError:
-            pass
-        if self._save_retry_timer is None:
+        if retry and self._save_retry_timer is None:
             timer = threading.Timer(
                 self._save_retry_sec, lambda: self.saveConfigToFile(_retry_timer=timer)
             )
             self._save_retry_timer = timer
             timer.daemon = True
             timer.start()
-        self._save_failure_reason = self._saveFailureReason(error)
+        self._save_failure_reason = self._saveFailureReason(error) if retry else "load_failed"
         # 失敗が続く間は、最初の1回だけ知らせる
         if first and self.on_save_failed is not None:
             threading.Thread(target=self.on_save_failed, args=(self._save_failure_reason, self.PATH_CONFIG),
@@ -1025,6 +1056,8 @@ class Config:
         # される (以前あった self._config_data[key] = value は
         # 何も読まれない dead code だったため削除)。
         with self._file_lock:
+            if not self._initialized or not self._config_loaded:
+                return
             if isinstance(self._timer, threading.Timer) and self._timer.is_alive():
                 self._timer.cancel()
 
@@ -1330,6 +1363,8 @@ class Config:
     OCR_USE_CHATBOX_DETECTOR = ManagedProperty('OCR_USE_CHATBOX_DETECTOR', type_=bool)
 
     def init_config(self):
+        self._initialized = False
+        self._config_loaded = False
         self._SELECTED_MIC_DEVICE_ID = ''
         self._SELECTED_SPEAKER_DEVICE_ID = ''
         # Read Only
@@ -1345,7 +1380,6 @@ class Config:
         state_dir = os_path.abspath(os_path.expanduser(environ.get("VRCT_CONFIG_DIR") or self._PATH_LOCAL))
         self._PATH_CONFIG = os_path.join(state_dir, "config.json")
         self._PATH_LOGS = os_path.join(state_dir, "logs")
-        os_makedirs(self._PATH_LOGS, exist_ok=True)
         self._GITHUB_URL = "https://api.github.com/repos/kein5/VRCT-VOX/releases/latest"
         self._GITHUB_RELEASES_LIST_URL = "https://api.github.com/repos/kein5/VRCT-VOX/releases"
         # VRCT-VOX numbers its own releases from 0.1.0, each with the version
@@ -1365,7 +1399,6 @@ class Config:
         # these external mappings may be empty dicts if the optional modules failed to import
         self._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST = getattr(ctranslate2_weights, 'keys', lambda: [])()
         self._SELECTABLE_WHISPER_WEIGHT_TYPE_LIST = getattr(whisper_models, 'keys', lambda: [])()
-        translation_lang = loadTranslationLanguages(self.PATH_LOCAL)
         self._SELECTABLE_TRANSLATION_ENGINE_LIST = getattr(translation_lang, 'keys', lambda: [])()
         try:
             # transcription_lang is nested dict; attempt to extract keys defensively
@@ -1397,8 +1430,6 @@ class Config:
         for weight_type in self.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST:
             self._SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[weight_type] = False
         self._SELECTABLE_TRANSLATION_ENGINE_STATUS = {}
-        for engine in self.SELECTABLE_TRANSLATION_ENGINE_LIST:
-            self._SELECTABLE_TRANSLATION_ENGINE_STATUS[engine] = False
         self._SELECTABLE_TRANSCRIPTION_ENGINE_STATUS = {}
         for engine in self.SELECTABLE_TRANSCRIPTION_ENGINE_LIST:
             self._SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
@@ -1689,68 +1720,102 @@ class Config:
         # unless turned off here. Without the download this has no effect.
         self._OCR_USE_CHATBOX_DETECTOR = True
 
-    def _moveUnreadableConfigAside(self) -> Optional[str]:
-        """Rename an unreadable config.json to config.json.unreadable-<time> and
-        return the new path, or None when it could not be moved."""
+        # Finish defaults before reading resources or creating directories.
+        loaded_translation_lang = loadTranslationLanguages(self.PATH_LOCAL)
+        self._SELECTABLE_TRANSLATION_ENGINE_LIST = getattr(loaded_translation_lang, 'keys', lambda: [])()
+        self._SELECTABLE_TRANSLATION_ENGINE_STATUS = {
+            engine: False for engine in self.SELECTABLE_TRANSLATION_ENGINE_LIST
+        }
+        self._initialized = True
+        try:
+            os_makedirs(self._PATH_LOGS, exist_ok=True)
+        except OSError:
+            # Diagnostics must not prevent complete settings initialization.
+            errorLogging()
+
+    def _moveUnreadableConfigAside(self) -> str:
+        """Reserve a unique backup name, then preserve the unreadable file."""
         import time
-        backup = f"{self.PATH_CONFIG}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}"
+        fd, backup = tempfile.mkstemp(
+            prefix=f"{os_path.basename(self.PATH_CONFIG)}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}-",
+            dir=os_path.dirname(self.PATH_CONFIG))
+        os.close(fd)
         try:
             os_replace(self.PATH_CONFIG, backup)
             return backup
         except OSError:
-            errorLogging()
-            return None
+            os_remove(backup)
+            raise
 
     def load_config(self):
+        with self._file_lock:
+            if not self._initialized:
+                raise RuntimeError("Config initialization is incomplete")
+            self._config_loaded = False
+            for name in ("_timer", "_save_retry_timer"):
+                timer = getattr(self, name)
+                if timer is not None:
+                    timer.cancel()
+                    setattr(self, name, None)
+        self._loading_saved_config = True
+        try:
+            self._loadConfig()
+        except Exception as error:
+            with self._file_lock:
+                # Retrying a write cannot repair a read or preservation failure.
+                self._saveFailedLocked(error, retry=False)
+            return
+        finally:
+            self._loading_saved_config = False
+        with self._file_lock:
+            self._config_loaded = True
+        self.saveConfigToFile()
+
+    def _loadConfig(self):
         self._config_data = {}
         # Set when config.json could not be read and was moved aside, so the
         # UI can say the app started with defaults and where the old file is.
         self.UNREADABLE_CONFIG_BACKUP = None
-        if os_path.isfile(self.PATH_CONFIG) is not False:
+        try:
+            with open(self.PATH_CONFIG, 'r', encoding="utf-8") as fp:
+                self._config_data = json_load(fp)
+            if not isinstance(self._config_data, dict):
+                raise ValueError("config.json is not a JSON object")
+        except FileNotFoundError:
+            if os_path.lexists(self.PATH_CONFIG):
+                raise
+        except (ValueError, UnicodeDecodeError):
+            errorLogging()
+            self.UNREADABLE_CONFIG_BACKUP = self._moveUnreadableConfigAside()
+            self._config_data = {}
+        # Old single-region configs already use OCR_CAPTURE_REGION. Retain
+        # that window region and migrate VR to the full view, never a copy.
+        self._config_data.setdefault("OCR_VR_CAPTURE_REGION",
+                                     {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0})
+        self.INVALID_SAVED_API_URLS = []
+        for key, value in self._config_data.items():
+            if key in CUSTOM_URL_KEYS and not valid_saved_api_url(value):
+                # Empty disables discovery; never move a saved key to a fallback host.
+                setattr(self, "_" + key, "")
+                self.INVALID_SAVED_API_URLS.append(key)
+                continue
+            # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。
+            # 未知キー（Descriptorなし）は無視して注入を防止。
             try:
-                with open(self.PATH_CONFIG, 'r', encoding="utf-8") as fp:
-                    if fp.readable() and fp.seek(0, 2) > 0:
-                        fp.seek(0)
-                        self._config_data = json_load(fp)
-                if not isinstance(self._config_data, dict):
-                    raise ValueError("config.json is not a JSON object")
-            except (ValueError, UnicodeDecodeError):
-                # Without this the defaults below are saved over the only copy
-                # of the user's settings and API keys.
-                errorLogging()
-                self._config_data = {}
-                self.UNREADABLE_CONFIG_BACKUP = self._moveUnreadableConfigAside()
-            if isinstance(self._config_data, dict):
-                # Old single-region configs already use OCR_CAPTURE_REGION. Retain
-                # that window region and migrate VR to the full view, never a copy.
-                self._config_data.setdefault("OCR_VR_CAPTURE_REGION",
-                                             {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0})
-                self.INVALID_SAVED_API_URLS = []
-                self._loading_saved_config = True
-                for key, value in self._config_data.items():
-                    if key in CUSTOM_URL_KEYS and not valid_saved_api_url(value):
-                        # Empty disables discovery; never move a saved key to a fallback host.
-                        setattr(self, "_" + key, "")
-                        self.INVALID_SAVED_API_URLS.append(key)
+                descriptor = getattr(type(self), key, None)
+                if isinstance(descriptor, ManagedProperty):
+                    if descriptor.readonly or not descriptor.serialize:
                         continue
-                    # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。
-                    # 未知キー（Descriptorなし）は無視して注入を防止。
-                    try:
-                        descriptor = getattr(type(self), key, None)
-                        if isinstance(descriptor, ManagedProperty):
-                            if descriptor.readonly or not descriptor.serialize:
-                                continue
-                            setattr(self, key, value)
-                        elif isinstance(descriptor, ValidatedProperty):
-                            if not descriptor.serialize:
-                                continue
-                            setattr(self, key, value)
-                        else:
-                            # 不明キーは破棄（古い/不要/改竄の可能性）
-                            continue
-                    except Exception:
-                        errorLogging()
-                self._loading_saved_config = False
+                    setattr(self, key, value)
+                elif isinstance(descriptor, ValidatedProperty):
+                    if not descriptor.serialize:
+                        continue
+                    setattr(self, key, value)
+                else:
+                    # 不明キーは破棄（古い/不要/改竄の可能性）
+                    continue
+            except ConfigValidationError:
+                errorLogging()
 
         # config.json から読み込んだ SELECTED_RELEASE_CHANNEL は、前回起動時に
         # UI でチャンネルを切り替えた「つもり」の値をそのまま引き継いでいる
@@ -1788,8 +1853,6 @@ class Config:
                     os_remove(installer_language_marker)
                 except Exception:
                     errorLogging()
-
-        self.saveConfigToFile()
 
     def revalidate_selected_models(self):
         pairs = [

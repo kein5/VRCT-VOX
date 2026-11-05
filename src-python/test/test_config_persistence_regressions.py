@@ -9,6 +9,9 @@ import ast
 import copy
 import errno
 import json
+import os
+import queue
+import subprocess
 import sys
 import threading
 from contextlib import nullcontext
@@ -111,6 +114,8 @@ def isolated(tmp_path, monkeypatch):
     config._file_lock = threading.Lock()
     config._SELECTABLE_TRANSLATION_ENGINE_STATUS = {"OpenAI_API": True, "CTranslate2": True}
     config.on_save_failed, config.on_save_recovered = Mock(), Mock()
+    config.load_config()
+    config._timer = None
     controller_ns = dict(config=config, ConfigValidationError=ns["ConfigValidationError"],
                          ErrorCode=ErrorCode, VRCTError=VRCTError, nullcontext=nullcontext,
                          printLog=Mock(), copy=copy,
@@ -399,3 +404,353 @@ def test_pair_validation_rejects_invalid_second_map_before_first_commit(isolated
     assert config.SELECTED_YOUR_LANGUAGES == old_your
     assert config.SELECTED_TARGET_LANGUAGES == old_target
     config.saveConfig.assert_not_called()
+
+
+def test_log_directory_collision_keeps_complete_saved_settings(isolated, monkeypatch, tmp_path):
+    state = tmp_path / "collision"
+    state.mkdir()
+    (state / "logs").write_text("user file")
+    saved = {"MESSAGE_BOX_RATIO": 23, "UI_LANGUAGE": "ja",
+             "AUTH_KEYS": {**isolated.config.AUTH_KEYS, "DeepL_API": "saved-key"}, "SEND_MESSAGE_TO_VRC": False}
+    path = state / "config.json"
+    path.write_text(json.dumps(saved))
+    monkeypatch.setenv("VRCT_CONFIG_DIR", str(state))
+    config = isolated.ns["Config"]()
+    result = strict_json(path.read_text())
+    assert all(result[key] == value for key, value in saved.items())
+    assert result.keys() == isolated.ns["json_serializable_vars"].keys()
+    assert config.SELECTABLE_TAB_NO_LIST == ["1", "2", "3"]
+    assert (state / "logs").read_text() == "user file"
+
+
+def test_incomplete_initialization_never_loads_or_publishes_singleton(isolated, monkeypatch):
+    cls = isolated.ns["Config"]
+    load = Mock()
+    monkeypatch.setattr(cls, "load_config", load)
+    isolated.ns["getComputeDeviceList"] = Mock(side_effect=RuntimeError("initialization failed"))
+    original = isolated.path.read_bytes()
+    with pytest.raises(RuntimeError, match="initialization failed"):
+        cls()
+    assert cls._instance is None
+    load.assert_not_called()
+    assert isolated.path.read_bytes() == original
+
+
+def test_resource_read_sees_all_defaults_but_failed_initialization_cannot_save(isolated):
+    config = object.__new__(isolated.ns["Config"])
+    original = isolated.path.read_bytes()
+
+    def read_resource(_):
+        defaults = {name: getter(config) for name, getter in isolated.ns["json_serializable_vars"].items()}
+        assert defaults["UI_LANGUAGE"] == "en"
+        assert defaults["AUTH_KEYS"]["DeepL_API"] is None
+        raise OSError("resource read failed")
+
+    isolated.ns["loadTranslationLanguages"] = read_resource
+    with pytest.raises(OSError, match="resource read failed"):
+        config.init_config()
+    with pytest.raises(RuntimeError, match="initialization is incomplete"):
+        config.load_config()
+    config.saveConfigToFile()
+    assert isolated.path.read_bytes() == original
+
+
+def test_failed_snapshot_getter_preserves_file_and_retries(isolated):
+    config = isolated.config
+    original = isolated.path.read_bytes()
+    getter = isolated.ns["json_serializable_vars"]["UI_LANGUAGE"]
+    isolated.ns["json_serializable_vars"]["UI_LANGUAGE"] = Mock(side_effect=AttributeError("missing default"))
+    config.saveConfigToFile()
+    assert isolated.path.read_bytes() == original
+    config.on_save_failed.assert_called_once_with("write_failed", str(isolated.path))
+    isolated.ns["json_serializable_vars"]["UI_LANGUAGE"] = getter
+    config._save_retry_timer.fire()
+    assert "UI_LANGUAGE" in strict_json(isolated.path.read_text())
+    config.on_save_recovered.assert_called_once_with()
+
+
+def test_startup_writes_once_after_all_settings_are_applied(isolated):
+    config = isolated.config
+    saved = {"MESSAGE_BOX_RATIO": 27, "UI_LANGUAGE": "ja",
+             "AUTH_KEYS": {**config.AUTH_KEYS, "DeepL_API": "saved-key"},
+             "WEBSOCKET_AUTH_TOKEN": "saved-token", "SEND_MESSAGE_TO_VRC": False}
+    isolated.path.write_text(json.dumps(saved))
+    dump = isolated.ns["json_dump"]
+    snapshots = []
+
+    def observe(values, *args, **kwargs):
+        snapshots.append(copy.deepcopy(values))
+        return dump(values, *args, **kwargs)
+
+    isolated.ns["json_dump"] = observe
+    config.load_config()
+    assert len(snapshots) == 1
+    assert all(snapshots[0][key] == value for key, value in saved.items())
+    assert config._timer is None
+
+
+@pytest.mark.parametrize("failure", [KeyboardInterrupt, RuntimeError])
+def test_interrupted_load_blocks_later_saves(isolated, monkeypatch, failure):
+    config = isolated.config
+    original = json.dumps({"MESSAGE_BOX_RATIO": 27, "UI_LANGUAGE": "ja"}).encode()
+    isolated.path.write_bytes(original)
+    setter = type(config).__setattr__
+
+    def interrupt(instance, key, value):
+        if key == "UI_LANGUAGE":
+            raise failure("load interrupted")
+        setter(instance, key, value)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(type(config), "__setattr__", interrupt)
+        if failure is KeyboardInterrupt:
+            with pytest.raises(KeyboardInterrupt):
+                config.load_config()
+        else:
+            config.load_config()
+            config.on_save_failed.assert_called_once_with("load_failed", str(isolated.path))
+    config.MESSAGE_BOX_RATIO = 30
+    config.saveConfigToFile()
+    assert isolated.path.read_bytes() == original
+    assert config._timer is None
+    assert not config._loading_saved_config
+
+
+def test_saves_before_load_leave_existing_file_untouched(isolated):
+    config = object.__new__(isolated.ns["Config"])
+    config.init_config()
+    original = isolated.path.read_bytes()
+    config.MESSAGE_BOX_RATIO = 31
+    config.UI_LANGUAGE = "ja"
+    config.saveConfigToFile()
+    assert isolated.path.read_bytes() == original
+    assert config._timer is None
+
+
+def test_read_permission_failure_blocks_saves_and_reports_until_reload(isolated):
+    config = isolated.config
+    original = isolated.path.read_bytes()
+    isolated.ns["open"] = Mock(side_effect=PermissionError(errno.EACCES, "unreadable"))
+    config.load_config()
+    config.UI_LANGUAGE = "ja"
+    config.MESSAGE_BOX_RATIO = 32
+    config.saveConfigToFile()
+    assert isolated.path.read_bytes() == original
+    assert config._timer is None
+    assert config._save_retry_timer is None
+    late = Mock()
+    config.setSaveCallbacks(late, config.on_save_recovered)
+    late.assert_called_once_with("load_failed", str(isolated.path))
+    del isolated.ns["open"]
+    config.load_config()
+    assert config.UI_LANGUAGE == "en"
+    config.on_save_recovered.assert_called_once_with()
+
+
+@pytest.mark.skipif(os.name != "posix" or getattr(os, "geteuid", lambda: 0)() == 0,
+                    reason="requires non-root POSIX permission enforcement")
+def test_real_unreadable_file_is_not_replaced_in_writable_directory(isolated):
+    original = isolated.path.read_bytes()
+    isolated.path.chmod(0)
+    try:
+        isolated.config.load_config()
+        isolated.config.MESSAGE_BOX_RATIO = 34
+        isolated.config.saveConfigToFile()
+        assert isolated.path.stat().st_mode & 0o777 == 0
+        isolated.config.on_save_failed.assert_called_once_with("load_failed", str(isolated.path))
+    finally:
+        isolated.path.chmod(0o600)
+    assert isolated.path.read_bytes() == original
+
+
+def test_failed_backup_blocks_default_and_later_saves(isolated):
+    config = isolated.config
+    original = b'{"UI_LANGUAGE": "ja", "AUTH_KEYS": {"DeepL_API": "recoverable"'
+    isolated.path.write_bytes(original)
+    replace = isolated.ns["os_replace"]
+
+    def refuse_backup(source, destination):
+        if str(destination) != str(isolated.path):
+            raise PermissionError(errno.EACCES, "cannot preserve config")
+        return replace(source, destination)
+
+    isolated.ns["os_replace"] = refuse_backup
+    config.load_config()
+    config.MESSAGE_BOX_RATIO = 33
+    config.saveConfigToFile()
+    assert isolated.path.read_bytes() == original
+    assert config.UNREADABLE_CONFIG_BACKUP is None
+    assert config._save_retry_timer is None
+    config.on_save_failed.assert_called_once_with("load_failed", str(isolated.path))
+    assert list(isolated.path.parent.glob("config.json.unreadable-*")) == []
+
+
+def test_backups_never_clobber_an_existing_recovery_copy(isolated, monkeypatch):
+    monkeypatch.setattr("time.strftime", lambda _: "fixed-time")
+    occupied = isolated.path.with_name("config.json.unreadable-fixed-time")
+    occupied.mkdir()
+    backups = []
+    for broken in ("first broken file", "second broken file"):
+        isolated.path.write_text(broken)
+        isolated.config.load_config()
+        backup = Path(isolated.config.UNREADABLE_CONFIG_BACKUP)
+        backups.append(backup)
+        assert backup.read_text() == broken
+    assert backups[0] != backups[1]
+    assert backups[0].read_text() == "first broken file"
+    assert occupied.is_dir()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX symlink and mode regression")
+@pytest.mark.parametrize("fail", [False, True])
+def test_legacy_temporary_symlink_is_never_followed_or_removed(isolated, fail):
+    victim = isolated.path.parent / "user-notes.txt"
+    victim.write_text("keep these notes")
+    victim.chmod(0o644)
+    legacy = isolated.path.with_suffix(".json.tmp")
+    legacy.symlink_to(victim)
+    original = isolated.path.read_bytes()
+    if fail:
+        isolated.ns["os_replace"] = Mock(side_effect=OSError(errno.ENOSPC, "full disk"))
+    isolated.config.saveConfigToFile()
+    assert victim.read_text() == "keep these notes"
+    assert victim.stat().st_mode & 0o777 == 0o644
+    assert legacy.is_symlink()
+    assert not isolated.path.is_symlink()
+    assert list(isolated.path.parent.glob("config.json.*.tmp")) == []
+    if fail:
+        assert isolated.path.read_bytes() == original
+    else:
+        strict_json(isolated.path.read_text())
+        assert isolated.path.stat().st_mode & 0o777 == 0o600
+
+
+def test_independent_temps_keep_published_file_intact_when_other_writer_fails(isolated, monkeypatch):
+    first = isolated.config
+    second = object.__new__(type(first))
+    second.init_config()
+    second._config_loaded = True
+    second._file_lock = threading.Lock()
+    first._UI_LANGUAGE = "en"
+    second._UI_LANGUAGE = "ja"
+    # Exercise temp-file isolation independently of the additional process lock.
+    monkeypatch.setattr(type(first), "_configFileLock", lambda _: nullcontext(), raising=False)
+    opened, resume = threading.Event(), threading.Event()
+    dump, replace = isolated.ns["json_dump"], isolated.ns["os_replace"]
+    paths, failures = [], []
+    unrelated = isolated.path.with_name("config.json.other.tmp")
+    unrelated.write_text("another writer owns this")
+
+    def pause(values, fp, **kwargs):
+        if threading.current_thread().name == "first-writer":
+            opened.set()
+            if not resume.wait(5):
+                failures.append("first writer was not released")
+        dump(values, fp, **kwargs)
+
+    def publish(source, destination):
+        paths.append(source)
+        if threading.current_thread().name == "first-writer":
+            raise OSError(errno.EIO, "first writer cannot publish")
+        replace(source, destination)
+
+    isolated.ns["json_dump"], isolated.ns["os_replace"] = pause, publish
+    writer = threading.Thread(target=first.saveConfigToFile, name="first-writer", daemon=True)
+    writer.start()
+    try:
+        assert opened.wait(5)
+        second.saveConfigToFile()
+        published = isolated.path.read_bytes()
+    finally:
+        resume.set()
+        writer.join(5)
+    assert not writer.is_alive() and not failures
+    assert isolated.path.read_bytes() == published
+    assert strict_json(published)["UI_LANGUAGE"] == "ja"
+    assert len(set(paths)) == 2
+    assert first._save_failed and not second._save_failed
+    assert unrelated.read_text() == "another writer owns this"
+    assert list(isolated.path.parent.glob("config.json.*.tmp")) == [unrelated]
+
+
+@pytest.mark.parametrize("terminate_first", [False, True])
+def test_process_writers_serialize_and_release_lock_after_exit(isolated, terminate_first):
+    # Only the production persistence methods run in the children; no singleton,
+    # application imports, sockets, multiprocessing semaphores or GUI are needed.
+    script = '''
+import ast, contextlib, errno, json, os, stat, sys, tempfile, threading
+from pathlib import Path
+source, destination, value = sys.argv[1:]
+tree = ast.parse(Path(source).read_text())
+cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Config")
+methods = {"_configFileLock", "saveConfigToFile", "_saveFailureReason", "_saveFailedLocked"}
+cls.body = [node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name in methods]
+os_path, os_remove, os_replace, os_fsync = os.path, os.remove, os.replace, os.fsync
+errorLogging = lambda: None
+json_serializable_vars = {"value": lambda _: value}
+def json_dump(values, fp, **kwargs):
+    print("writing", flush=True)
+    if value == "first":
+        sys.stdin.readline()
+    json.dump(values, fp, **kwargs)
+exec(compile(ast.Module(body=[cls], type_ignores=[]), source, "exec"))
+config = Config()
+config.PATH_CONFIG = destination
+config._file_lock = threading.Lock()
+config._initialized = config._config_loaded = True
+config._save_failed = False
+config._save_retry_timer = None
+config._save_retry_sec = 3600
+config.on_save_failed = config.on_save_recovered = None
+real_open = os.open
+def observe_open(path, *args, **kwargs):
+    fd = real_open(path, *args, **kwargs)
+    print("opened", flush=True)
+    return fd
+os.open = observe_open
+print("ready", flush=True)
+config.saveConfigToFile()
+print("failed" if config._save_failed else "saved", flush=True)
+'''
+    children = []
+
+    def start(value):
+        process = subprocess.Popen(
+            [sys.executable, "-B", "-c", script, str(SOURCE / "config.py"), str(isolated.path), value],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        lines = queue.Queue()
+        reader = threading.Thread(target=lambda: [lines.put(line.strip()) for line in process.stdout], daemon=True)
+        reader.start()
+        children.append((process, reader))
+        assert lines.get(timeout=5) == "ready"
+        return process, lines
+
+    try:
+        first, first_lines = start("first")
+        while first_lines.get(timeout=5) != "writing":
+            pass
+        second, second_lines = start("second")
+        assert second_lines.get(timeout=5) == "opened"
+        with pytest.raises(queue.Empty):
+            second_lines.get(timeout=0.2)
+        if terminate_first:
+            # Abrupt process death also releases the lock without deleting it.
+            first.kill()
+        else:
+            first.stdin.write("\n")
+            first.stdin.flush()
+        first.wait(timeout=5)
+        if not terminate_first:
+            assert first.returncode == 0, first.stderr.read()
+        second.wait(timeout=5)
+        assert second.returncode == 0, second.stderr.read()
+        assert strict_json(isolated.path.read_text()) == {"value": "second"}
+        assert isolated.path.with_suffix(".json.lock").is_file()
+    finally:
+        for process, reader in children:
+            if process.poll() is None:
+                process.kill()
+            process.wait(timeout=5)
+            reader.join(5)
+            for stream in (process.stdin, process.stdout, process.stderr):
+                stream.close()

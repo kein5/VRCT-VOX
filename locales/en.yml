@@ -137,6 +137,7 @@ common_error:
     request_423: "The operation could not run because the backend was busy. Wait for the current operation to finish, then try again."
     request_send_failed: "The request could not be sent. Check the displayed value and try again. If this continues, restart VRCT-VOX."
     config_save_failed:
+        load_failed: "Saved settings could not be loaded safely. The original file is preserved and changes will not be saved. Check the file and its permissions, then restart VRCT-VOX. ({{file}})"
         disk_full: "Can't save settings: the disk is full. Free some space and they will be saved automatically. Until then, changes are lost when VRCT-VOX quits. ({{file}})"
         permission_denied: "Can't save settings: no permission to write there. Check the folder's permissions; they will be saved automatically once fixed. Until then, changes are lost when VRCT-VOX quits. ({{file}})"
         read_only: "Can't save settings: the location is read-only. They will be saved automatically once it is writable. Until then, changes are lost when VRCT-VOX quits. ({{file}})"

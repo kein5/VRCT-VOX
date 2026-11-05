@@ -25,6 +25,8 @@ class ConfigSaveFailureTests(unittest.TestCase):
         self.config.init_config()
         self.config._PATH_CONFIG = str(self.path)
         self.config._file_lock = threading.Lock()
+        with patch.object(self.config, "saveConfigToFile"):
+            self.config.load_config()
         self.config._save_retry_sec = 3600  # the test triggers the retry itself
         self.failed, self.recovered = [], []
         self.done = threading.Event()
