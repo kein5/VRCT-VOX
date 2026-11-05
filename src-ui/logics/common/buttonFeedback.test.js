@@ -78,7 +78,7 @@ test("Settings pauses transcription with intent and restores it; user OFF has no
     const runtime = hooks(), requests = [];
     let open = true, memory;
     const state = {};
-    const stores = { store: {} };
+    const stores = { store: { backend_subprocess: {} } };
     for (const name of ["TranslationStatus", "TranscriptionSendStatus", "TranscriptionReceiveStatus", "OcrCaptureStatus", "ForegroundStatus"]) {
         state[name] = { data: true, state: "ok" };
         stores[`useStore_${name}`] = () => ({
@@ -219,6 +219,7 @@ test("main switches block pending repeats but TTS/RVC cancellation remains avail
     const runtime = hooks();
     const { SwitchContainer } = await load("app/main_page/sidebar_section/main_function_switch/MainFunctionSwitch.jsx", runtime, {
         "@store": { store: {} },
+        "@logics_common": {},
         "../../../../../logics/common/useNotificationStatus": {},
         "../../../../../logics/voice/useVoice": {},
         "@logics_main": { useIsMainPageCompactMode: () => ({ currentIsMainPageCompactMode: { data: false } }) },

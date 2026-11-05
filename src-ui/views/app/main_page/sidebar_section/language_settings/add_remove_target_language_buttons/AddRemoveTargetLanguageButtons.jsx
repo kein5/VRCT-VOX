@@ -29,12 +29,12 @@ export const AddRemoveTargetLanguageButtons = () => {
         <div className={styles.add_remove_target_language_container}>
             <div className={remove_button_class} aria-disabled={isLanguageSettingsBusy} onClick={() => { if (canChangeLanguageSettings()) removeTargetLanguage(); }}
                 role="button" tabIndex={0} aria-label={t("main_page.remove_target_language")}
-                onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (canChangeLanguageSettings()) removeTargetLanguage(); } }}>
+                onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (event.repeat) return; if (canChangeLanguageSettings()) removeTargetLanguage(); } }}>
                 <RemoveSvg className={styles.remove_svg} aria-hidden="true" />
             </div>
             <div className={add_button_class} aria-disabled={isLanguageSettingsBusy} onClick={() => { if (canChangeLanguageSettings()) addTargetLanguage(); }}
                 role="button" tabIndex={0} aria-label={t("main_page.add_target_language")}
-                onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (canChangeLanguageSettings()) addTargetLanguage(); } }}>
+                onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (event.repeat) return; if (canChangeLanguageSettings()) addTargetLanguage(); } }}>
                 <AddSvg className={styles.add_svg} aria-hidden="true" />
             </div>
         </div>

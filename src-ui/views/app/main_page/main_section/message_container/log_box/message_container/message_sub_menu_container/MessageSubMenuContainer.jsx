@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import clsx from "clsx";
 import { useI18n } from "@useI18n";
 import { Tooltip } from "@common_components";
@@ -8,30 +8,53 @@ import RefreshSvg from "@images/refresh_2.svg?react";
 
 export const MessageSubMenuContainer = (props) => {
     const { t } = useI18n();
-    const [is_holding, setIsHolding] = useState(false);
     const progressRef = useRef(null);
-    const holdTimeout = useRef(null);
+    const currentHold = useRef(null);
 
-    const startHold = () => {
-        setIsHolding(true);
+    const startHold = event => {
+        if (event.button !== 0 || !event.isPrimary || currentHold.current) return;
+        const hold = { pointerId: event.pointerId, target: event.currentTarget, timer: null };
+        currentHold.current = hold;
+        hold.target.setPointerCapture(hold.pointerId);
         if (progressRef.current) {
-        progressRef.current.style.transition = "width 500ms linear";
-        progressRef.current.style.width = "100%";
+            progressRef.current.style.transition = "width 500ms linear";
+            progressRef.current.style.width = "100%";
         }
-        holdTimeout.current = setTimeout(() => {
+        hold.timer = setTimeout(() => {
+            if (currentHold.current !== hold) return;
+            cancelHold();
             props.resendFunction();
             props.setIsHovered(false);
         }, 500);
     };
 
     const cancelHold = () => {
-        setIsHolding(false);
+        const hold = currentHold.current;
+        currentHold.current = null;
+        if (hold) {
+            clearTimeout(hold.timer);
+            if (hold.target.hasPointerCapture(hold.pointerId)) hold.target.releasePointerCapture(hold.pointerId);
+        }
         if (progressRef.current) {
             progressRef.current.style.transition = "none";
             progressRef.current.style.width = "0%";
         }
-        clearTimeout(holdTimeout.current);
     };
+
+    const moveHold = event => {
+        const hold = currentHold.current;
+        if (!hold || event.pointerId !== hold.pointerId) return;
+        const rect = hold.target.getBoundingClientRect();
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) cancelHold();
+    };
+
+    useEffect(() => {
+        window.addEventListener("blur", cancelHold);
+        return () => {
+            window.removeEventListener("blur", cancelHold);
+            cancelHold();
+        };
+    }, []);
 
     const onClickFunction = () => {
         props.editFunction();
@@ -57,9 +80,13 @@ export const MessageSubMenuContainer = (props) => {
                 type="button"
                 aria-label={t("main_page.message_log.resend_button_label")}
                 className={styles.resend_button}
-                onMouseDown={startHold}
-                onMouseUp={cancelHold}
-                onMouseLeave={cancelHold}
+                onPointerDown={startHold}
+                onPointerUp={cancelHold}
+                onPointerLeave={cancelHold}
+                onPointerMove={moveHold}
+                onPointerCancel={cancelHold}
+                onLostPointerCapture={cancelHold}
+                onBlur={cancelHold}
                 onClick={onClickFunction}
                 >
                     <SendMessageSvg className={styles.send_message_svg} />

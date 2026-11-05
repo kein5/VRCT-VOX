@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ErrorBoundary } from "react-error-boundary";
+import { useI18n } from "@useI18n";
 
 import CopySvg from "@images/copy.svg?react";
 import CheckMarkSvg from "@images/check_mark.svg?react";
@@ -37,6 +38,7 @@ export const AppErrorBoundary = ({children}) => {
 };
 
 const ErrorContainer = ({error, errorInfo}) => {
+    const { t } = useI18n();
     const { asyncCloseApp } = useWindow();
     const { currentSoftwareVersion } = useSoftwareVersion();
     const { is_copied, copyToClipboard } = useCopyToClipboard({ show_error_notification: false });
@@ -64,7 +66,7 @@ const ErrorContainer = ({error, errorInfo}) => {
             <div className={styles.drag_able_area} data-tauri-drag-region></div>
             <CloseButton variant="active_error" onClick={asyncCloseApp} />
             <div className={styles.wrapper}>
-                <p className={styles.error_message}>An error occurred. Please restart VRCT or contact the developers.</p>
+                <p className={styles.error_message}>{t("common_error.recovery_instructions")}</p>
                 <SafeActionButtons />
                 {error ?
                     <div className={styles.error_detail_container}>
@@ -74,7 +76,7 @@ const ErrorContainer = ({error, errorInfo}) => {
                             </p>
                         </div>
                         <button className={styles.copy_error_message_button} onClick={onCopyErrorLog}>
-                            <p className={styles.copy_text}>Copy</p>
+                            <p className={styles.copy_text}>{t("common_error.copy_error_log")}</p>
                             {is_copied
                                 ? <CheckMarkSvg className={styles.check_mark_svg}/>
                                 : <CopySvg className={styles.copy_svg}/>
@@ -98,6 +100,7 @@ const SafeActionButtons = () => {
 };
 
 const ActionButtons = () => {
+    const { t } = useI18n();
     const { updateSoftware, updateSoftware_CUDA } = useUpdateSoftware();
     const { currentIsSoftwareUpdating, updateIsSoftwareUpdating } = useIsSoftwareUpdating();
     const { currentLatestSoftwareVersionInfo } = useSoftwareVersion();
@@ -129,7 +132,7 @@ const ActionButtons = () => {
                     onClick={onClickUpdate}
                     disabled={is_updating}
                 >
-                    {is_updating ? "Updating..." : "Update Available — Update Now"}
+                    {is_updating ? t("common_error.updating") : t("common_error.update_now")}
                 </button>
             )}
             <a
@@ -138,7 +141,7 @@ const ActionButtons = () => {
                 target="_blank"
                 rel="noreferrer"
             >
-                <span>Check VRCT Status</span>
+                <span>{t("common_error.check_issues")}</span>
                 <ExternalLinkSvg className={styles.external_link_svg} />
             </a>
         </div>

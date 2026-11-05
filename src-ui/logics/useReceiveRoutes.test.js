@@ -70,12 +70,13 @@ for (const endpoint of ["/run/update_software", "/run/update_cuda_software"]) {
         const s = await loadBridgeRoutes(), events = {}, crashes = [];
         const owner = createSidecarSessionOwner({ store: s.stores.store,
             createCommand: () => ({ on: (name, fn) => { events[name] = fn; },
-                stdout: { on: () => {} }, stderr: { on: () => {} }, spawn: async () => ({}) }),
+                stdout: { on: (_, fn) => { events.stdout = fn; } }, stderr: { on: () => {} }, spawn: async () => ({}) }),
             setInterval: () => 1, clearInterval: () => {},
         });
         const detach = owner.attach(() => ({ setStartupState: () => {}, beginStartup: () => {}, started: () => {},
-            backendStopped: s.backendStopped, unexpectedExit: event => crashes.push(event) }));
+            receiveRoutes: s.receiveRoutes, backendStopped: s.backendStopped, unexpectedExit: event => crashes.push(event) }));
         await s.stores.store.backend_session.completion;
+        events.stdout(JSON.stringify({ endpoint: "/run/initialization_complete", status: 200, result: {} }));
         const session = s.stores.store.backend_session;
         expectBackendExit(session, endpoint);
         s.runtime.store.set(s.stores.Atom_IsSoftwareUpdating, { state: "ok", data: true });

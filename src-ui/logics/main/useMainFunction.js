@@ -42,6 +42,7 @@ export const useMainFunction = () => {
 
     const createTogglePair = (pendingFn, updateFn, endpointName) => {
         const setFn = (to_enable, disableIntent) => {
+            if (!store.is_vr_panel && (!store.backend_subprocess || store.backend_stopped)) return;
             pendingFn();
             if (to_enable) {
                 asyncStdoutToPython(`/set/enable/${endpointName}`);
@@ -50,6 +51,7 @@ export const useMainFunction = () => {
             }
         };
         const toggleFn = () => {
+            if (!store.is_vr_panel && (!store.backend_subprocess || store.backend_stopped)) return;
             // updater は data を返す必要がある(returnしないとdataがundefinedになる)。
             // またsetFn(バックエンドへの送信という副作用)はupdater内で呼ばず、
             // dataを変更せずstateのみpendingにしてから同期的に外側で呼び出す。
