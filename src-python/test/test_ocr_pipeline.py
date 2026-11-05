@@ -48,6 +48,15 @@ class TestSimilar(unittest.TestCase):
         self.assertFalse(_similar("hello", "hxllo world"[:5], max_distance=0))
         self.assertTrue(_similar("hello", "hello", max_distance=0))
 
+    def test_short_texts_require_exact_matching(self) -> None:
+        for first, second in (("はい", "いや"), ("yes", "yet"), ("okay", "away")):
+            self.assertFalse(_similar(first, second))
+
+    def test_edit_budget_scales_with_the_shorter_text(self) -> None:
+        self.assertTrue(_similar("hello", "hallo"))
+        self.assertFalse(_similar("hello", "halLo"))
+        self.assertFalse(_similar("hello", "hello!!"))
+
 
 class TestMergeWords(unittest.TestCase):
     """OCRが返した行をどう繋ぐか。

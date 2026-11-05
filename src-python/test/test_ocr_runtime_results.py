@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from models.ocr import ocr_bubble_detector, ocr_capture, ocr_capture_x11, ocr_pipeline
+from models.ocr import ocr_bubble_detector, ocr_capture, ocr_capture_hwnd, ocr_capture_openvr, ocr_capture_x11, ocr_pipeline
 
 
 @pytest.fixture
@@ -100,6 +100,92 @@ def test_first_missing_frame_is_waiting_not_ready(subject):
     s.capture.get.return_value = s.frame
     s.pipeline._tick()
     assert s.pipeline.runtimeStatus["state"] == "reading"
+
+
+@pytest.mark.parametrize("working_fallback", [False, True])
+@pytest.mark.parametrize("failure_at", ["acquire", "read"])
+def test_openvr_failure_retries_only_without_a_working_fallback(subject, monkeypatch, working_fallback, failure_at):
+    s = subject
+    mirror = SimpleNamespace(read=Mock(return_value=s.frame), close=Mock())
+    session = SimpleNamespace(acquire=Mock(), release=Mock())
+    vr = ocr_capture_openvr.OpenVRMirrorCapture()
+    monkeypatch.setattr(vr, "isAvailable", lambda: True)
+    monkeypatch.setattr(vr, "_isVrchatScene", lambda: True)
+    monkeypatch.setattr(ocr_capture_openvr, "openvr_session", session)
+    monkeypatch.setattr(ocr_capture_openvr, "openvr", SimpleNamespace(
+        VRApplication_Background=2, Eye_Left=0, IVRCompositor=Mock()))
+    monkeypatch.setattr(ocr_capture_openvr, "D3D11Mirror", lambda *args: mirror)
+    monkeypatch.setattr(ocr_capture_openvr, "errorLogging", lambda: s.traces.append("vr trace"))
+    monkeypatch.setattr(ocr_capture_openvr, "printLog", s.logs.append)
+    failing = session.acquire if failure_at == "acquire" else mirror.read
+    failing.side_effect = RuntimeError("device lost")
+    window = SimpleNamespace(isAvailable=lambda: True, capture=Mock(
+        return_value=s.frame if working_fallback else None), close=Mock())
+    monkeypatch.setattr(ocr_capture, "_windowCapture", lambda title: ("hwnd", window))
+    monkeypatch.setattr(ocr_capture, "OpenVRMirrorCapture", lambda: vr)
+    monkeypatch.setattr(ocr_capture, "_isSteamvrRunning", lambda: True)
+    monkeypatch.setattr(ocr_capture.sys, "platform", "win32")
+    monkeypatch.setattr(ocr_capture, "isFrameBlank", lambda frame: frame is None)
+    s.pipeline._capture = capture = ocr_capture.OcrCapture()
+    for tick in range(80):
+        s.clock.now = 100 + tick * 0.75
+        s.pipeline._tick()
+        assert s.pipeline.runtimeStatus["state"] == ("reading" if working_fallback else "retrying")
+    assert len(s.traces) == 1
+    retry = s.pipeline._stage_retries["capture"]
+    if working_fallback:
+        assert retry.retry_at == 0
+        assert window.capture.call_count == 80
+    else:
+        assert s.pipeline.runtimeStatus["error_code"] == "OCR_DISABLED_CAPTURE_UNAVAILABLE"
+        assert retry.delay == 30
+        assert window.capture.call_count < 10
+    if failure_at == "read":
+        assert mirror.close.call_count == session.release.call_count == failing.call_count
+    # A real VR frame (with nonuniform pixels) proves recovery.
+    failing.side_effect = None
+    s.frame[0, 0, 0] = 255
+    s.clock.now = max(retry.retry_at, s.clock.now + 5)
+    s.pipeline._tick()
+    assert s.pipeline.runtimeStatus["state"] == "reading"
+    assert capture.source == "vr"
+    assert retry.retry_at == 0
+
+
+def test_hwnd_failed_read_backs_off_but_minimized_window_waits(subject, monkeypatch):
+    s = subject
+    window = ocr_capture_hwnd.HwndCapture()
+    monkeypatch.setattr(window, "isAvailable", lambda: True)
+    monkeypatch.setattr(ocr_capture_hwnd, "_find_vrchat_hwnd", lambda title: 42)
+    monkeypatch.setattr(ocr_capture_hwnd, "_window_rect", lambda hwnd: (0, 0, 8, 8))
+    iconic = Mock(return_value=True)
+    monkeypatch.setattr(ocr_capture_hwnd, "_is_iconic", iconic)
+    read = Mock(return_value=None)
+    monkeypatch.setattr(ocr_capture_hwnd, "_print_window", read)
+    monkeypatch.setattr(ocr_capture_hwnd, "errorLogging", lambda: s.traces.append("hwnd trace"))
+    monkeypatch.setattr(ocr_capture_hwnd, "printLog", s.logs.append)
+    monkeypatch.setattr(ocr_capture, "_windowCapture", lambda title: ("hwnd", window))
+    monkeypatch.setattr(ocr_capture, "_isSteamvrRunning", lambda: False)
+    monkeypatch.setattr(ocr_capture, "isFrameBlank", lambda frame: frame is None)
+    s.pipeline._capture = ocr_capture.OcrCapture()
+    s.pipeline._tick()
+    assert s.pipeline.runtimeStatus["state"] == "waiting"
+    read.assert_not_called()
+    iconic.return_value = False
+    for at, delay in ((100, 1), (101, 2), (103, 4), (107, 8)):
+        s.clock.now = at
+        s.pipeline._tick()
+        assert s.pipeline.runtimeStatus["error_code"] == "OCR_DISABLED_CAPTURE_UNAVAILABLE"
+        assert s.pipeline._stage_retries["capture"].retry_at == at + delay
+        s.clock.now += 0.5
+        s.pipeline._tick()
+    assert read.call_count == 4
+    assert len(s.traces) == 1
+    s.clock.now = 115
+    read.return_value = s.frame
+    s.pipeline._tick()
+    assert s.pipeline.runtimeStatus["state"] == "reading"
+    assert s.pipeline._stage_retries["capture"].retry_at == 0
 
 
 def test_unsupported_x11_format_reaches_pipeline_through_unchanged_facade(subject, monkeypatch):

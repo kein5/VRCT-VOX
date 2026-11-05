@@ -4,11 +4,15 @@ VRの読み出しで何も取れない (VRChatがSteamVRのシーンでない、
 以前は何も読めないまま待ち続けていた。デスクトップ画面の取得へ切り替えることを見る。
 """
 
+import ctypes
+import importlib.util
 import unittest
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 
+from models.ocr import ocr_capture_hwnd
 from models.ocr.ocr_capture import OcrCapture
 from models.ocr.ocr_capture_openvr import OpenVRMirrorCapture
 
@@ -124,6 +128,41 @@ class FrameBlankTest(unittest.TestCase):
         scene[500:800, 900:1700] = 255  # a chat bubble in a night window (the whole-frame mean stays above 3)
         self.assertFalse(isFrameBlank(scene))
         self.assertFalse(isFrameBlank(np.random.default_rng(0).integers(0, 256, (1455, 2575, 3), dtype=np.uint8)))
+
+
+@pytest.mark.parametrize("operation,result", [
+    ("GetWindowDC", 0), ("CreateCompatibleDC", 0), ("CreateCompatibleBitmap", 0),
+    ("PrintWindow", 0), ("GetDIBits", 0), ("GetDIBits", 4),
+])
+def test_native_hwnd_failures_raise_and_release_allocated_handles(monkeypatch, operation, result):
+    # Load the Windows branch with fake DLLs; no native window or DLL is opened.
+    user32, gdi32 = MagicMock(), MagicMock()
+    user32.GetWindowDC.return_value = 10
+    user32.PrintWindow.return_value = 1
+    gdi32.CreateCompatibleDC.return_value = 20
+    gdi32.CreateCompatibleBitmap.return_value = 30
+    gdi32.SelectObject.return_value = 40
+    gdi32.GetDIBits.return_value = 8
+    owner = user32 if operation in ("GetWindowDC", "PrintWindow") else gdi32
+    getattr(owner, operation).return_value = result
+    spec = importlib.util.spec_from_file_location("models.ocr._test_hwnd_native", ocr_capture_hwnd.__file__)
+    native = importlib.util.module_from_spec(spec)
+    with monkeypatch.context() as windows:
+        windows.setattr(ocr_capture_hwnd.sys, "platform", "win32")
+        windows.setattr(ctypes, "WinDLL", lambda name, **kwargs: user32 if name == "user32" else gdi32,
+                        raising=False)
+        spec.loader.exec_module(native)
+    with pytest.raises(OSError, match=operation):
+        native._print_window(42, 8, 8)
+    if operation == "GetWindowDC":
+        user32.ReleaseDC.assert_not_called()
+    else:
+        user32.ReleaseDC.assert_called_once_with(42, 10)
+    if operation not in ("GetWindowDC", "CreateCompatibleDC"):
+        gdi32.DeleteDC.assert_called_once_with(20)
+    if operation in ("PrintWindow", "GetDIBits"):
+        gdi32.SelectObject.assert_any_call(20, 40)
+        gdi32.DeleteObject.assert_called_once_with(30)
 
 
 if __name__ == "__main__":

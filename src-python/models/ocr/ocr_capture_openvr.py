@@ -24,6 +24,7 @@ Three lifecycle rules matter here:
 from __future__ import annotations
 
 import sys
+import time
 from typing import Optional
 
 import numpy as np
@@ -44,6 +45,7 @@ except Exception:  # pragma: no cover
     Process = None  # type: ignore
 
 from .ocr_capture_d3d11 import D3D11Mirror
+from .ocr_failure import OcrFailureLog
 
 try:
     from utils import errorLogging, printLog
@@ -69,9 +71,7 @@ class OpenVRMirrorCapture:
         self._compositor = None
         self._mirror: Optional[D3D11Mirror] = None
         self._session_held = False
-        # 失敗が続く間 (SteamVR再起動中など) は5秒ごとに再試行するので、
-        # トレースバックは最初の1回だけ残す。成功したら次の失敗をまた残す。
-        self._failure_logged = False
+        self._failures = OcrFailureLog("OCR OpenVR capture", lambda: errorLogging(), lambda message: printLog(message))
 
     def isAvailable(self) -> bool:
         return openvr is not None and sys.platform == "win32"
@@ -81,13 +81,6 @@ class OpenVRMirrorCapture:
         if openvr is None:
             return 0
         return openvr.Eye_Right if self._eye_name == "right" else openvr.Eye_Left
-
-    def _logFailure(self, message: str) -> None:
-        if self._failure_logged:
-            return
-        self._failure_logged = True
-        errorLogging()
-        printLog(f"OCR: {message} (further failures are not logged until a frame is read)")
 
     def _init(self) -> bool:
         if self._mirror is not None:
@@ -102,8 +95,8 @@ class OpenVRMirrorCapture:
             self._compositor = openvr.IVRCompositor()
             self._mirror = D3D11Mirror(system, self._compositor, self._eye)
             return True
-        except Exception:
-            self._logFailure("could not open the OpenVR mirror texture")
+        except Exception as exc:
+            self._failures.failure(exc)
             self._resetVrState()
             return False
 
@@ -146,19 +139,20 @@ class OpenVRMirrorCapture:
             return False
 
     def capture(self) -> Optional[np.ndarray]:
+        self._failures.report(time.monotonic())
         if not self._init():
             return None
         try:
             if not self._isVrchatScene():
                 return None
             rgb = self._mirror.read()
-        except Exception:
+        except Exception as exc:
             # The compositor session may have been torn down (SteamVR restart).
             # Drop everything so the next tick re-acquires.
-            self._logFailure("reading the OpenVR mirror texture failed")
+            self._failures.failure(exc)
             self._resetVrState()
             return None
-        self._failure_logged = False
+        self._failures.success()
         # D3D11Mirror returns RGB (for the tools); OCR uses BGR like the HWND path.
         return np.ascontiguousarray(rgb[:, :, ::-1])
 
@@ -169,3 +163,4 @@ class OpenVRMirrorCapture:
         released theirs too (models/openvr_session.py).
         """
         self._resetVrState()
+        self._failures.reset()

@@ -226,6 +226,44 @@ class TestPipelineBackoff(_Harness):
         self.assertEqual(len(self._messages("recovered")), 1)
         self.capture.close.assert_called_once()
 
+    def test_delivery_exceptions_use_tick_backoff_and_retry_until_accepted(self):
+        self.reader.side_effect = None
+        self.reader.return_value = SimpleNamespace(txts=["hello world"], scores=[1.0], boxes=None)
+        self.pipeline._detector.detect.return_value = [((0, 0, 8, 8), self.frame)]
+        callback = self.pipeline._callback
+        callback.side_effect = RuntimeError("delivery failed")
+        stop = Mock()
+        stop.is_set.return_value = False
+        snapshots = []
+
+        def wait(seconds):
+            snapshots.append((self.now, self.pipeline.runtimeStatus, callback.call_count,
+                              len(self.pipeline._dedup._items)))
+            self.now += seconds
+            if self.now >= 161:
+                callback.side_effect = None
+                callback.return_value = True
+            if self.now >= 194:
+                stop.is_set.return_value = True
+
+        stop.wait.side_effect = wait
+        self.pipeline._stop_event = stop
+        self.pipeline._poll_interval = 1
+        self._patch(ocr_pipeline, "lowerCurrentThread")
+        self.pipeline._run()
+        failures = [row for row in snapshots if row[0] < 161]
+        self.assertTrue(all(row[1]["state"] == "retrying" for row in failures))
+        self.assertTrue(all(row[1]["stage"] == "tick" for row in failures))
+        self.assertTrue(all(row[1]["error_code"] == "OCR_DISABLED_UNKNOWN" for row in failures))
+        self.assertTrue(all(row[3] == 0 for row in failures))
+        self.assertEqual(failures[-1][2], 6)  # Attempts at 100, 101, 103, 107, 115, 131.
+        self.assertEqual(callback.call_count, 7)  # Recovery at 161, then deduplication.
+        self.assertEqual(len(self.tracebacks), 1)
+        self.assertEqual(len(self._messages("suppressed")), 1)
+        self.assertEqual(len(self._messages("recovered")), 1)
+        self.assertEqual(snapshots[-1][1]["state"], "reading")
+        self.assertEqual(snapshots[-1][3], 1)
+
 
 class TestResponsiveStop(unittest.TestCase):
     def test_stop_wakes_the_worker_during_a_thirty_second_cooldown(self):
