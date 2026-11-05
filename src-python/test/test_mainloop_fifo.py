@@ -114,6 +114,42 @@ class EndpointFifoTests(unittest.TestCase):
             "/set/disable/websocket_server",
         ])
 
+    def test_provider_key_model_and_delete_share_fifo(self):
+        for provider in ("plamo", "gemini", "openai", "groq", "openrouter", "openai_compatible",
+                         "groq_whisper", "openai_whisper", "custom_whisper", "deepgram"):
+            with self.subTest(provider=provider):
+                self._assert_fifo([
+                    f"/set/data/{provider}_auth_key", f"/set/data/selected_{provider}_model",
+                    f"/delete/data/{provider}_auth_key",
+                ])
+
+    def test_provider_url_key_and_model_share_fifo(self):
+        for provider in ("openai_compatible", "custom_whisper"):
+            with self.subTest(provider=provider):
+                self._assert_fifo([
+                    f"/set/data/{provider}_url", f"/delete/data/{provider}_auth_key",
+                    f"/set/data/selected_{provider}_model",
+                ])
+
+    def test_different_providers_can_check_credentials_concurrently(self):
+        entered = [threading.Event(), threading.Event()]
+        release = self._release_event()
+
+        def handle(data):
+            entered[data].set()
+            self.assertTrue(release.wait(2))
+            return {"status": 200, "result": data}
+
+        endpoints = ["/set/data/openai_auth_key", "/set/data/custom_whisper_url"]
+        main = self._main({ep: {"status": True, "variable": handle} for ep in endpoints})
+        main.startHandler()
+        for index, endpoint in enumerate(endpoints):
+            main.queue.put((endpoint, index, 0))
+            self.assertTrue(entered[index].wait(2))
+        self.assertTrue(self.responses.empty())
+        release.set()
+        self.assertEqual({self.responses.get(timeout=2)[2] for _ in endpoints}, {0, 1})
+
     def test_backlog_does_not_occupy_workers_for_other_endpoints(self):
         entered = [threading.Event(), threading.Event()]
         release = self._release_event()

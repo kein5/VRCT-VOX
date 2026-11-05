@@ -3221,56 +3221,50 @@ class Controller:
         printLog("Set Custom Whisper URL", data)
         engine = "Custom_Whisper"
         try:
-            data = str(data).strip()
-            auth_key = config.TRANSCRIPTION_AUTH_KEYS[engine]
-
-            if not auth_key:
-                config.TRANSCRIPTION_CUSTOM_URL = data
-                return {"status":200, "result":config.TRANSCRIPTION_CUSTOM_URL}
-
-            result = model.authenticationTranscriptionApiKey(api_key=auth_key, base_url=data)
-            if result is True:
-                model_list = model.getTranscriptionApiModelList(api_key=auth_key, base_url=data)
-                if len(model_list) == 0:
-                    config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-                    config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = []
-                    config.SELECTED_CUSTOM_WHISPER_MODEL = None
-                    self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
-                    self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
-                    self.updateTranscriptionEngine()
-                    response = VRCTError.create_error_response(
-                        ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID,
-                        data=config.TRANSCRIPTION_CUSTOM_URL
-                    )
-                else:
+            with config.credential_lock:
+                auth_key = config.TRANSCRIPTION_AUTH_KEYS[engine]
+                previous_url = config.TRANSCRIPTION_CUSTOM_URL
+                if not auth_key:
                     config.TRANSCRIPTION_CUSTOM_URL = data
-                    config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
-                    config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = model_list
-                    self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
-                    if config.SELECTED_CUSTOM_WHISPER_MODEL not in config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST:
-                        config.SELECTED_CUSTOM_WHISPER_MODEL = config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST[0]
-                    self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
-                    self.updateTranscriptionEngine()
-                    response = {"status":200, "result":config.TRANSCRIPTION_CUSTOM_URL}
-            else:
-                config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-                config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = []
-                config.SELECTED_CUSTOM_WHISPER_MODEL = None
-                self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
-                self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
-                self.updateTranscriptionEngine()
-                response = VRCTError.create_error_response(
+                    return {"status":200, "result":config.TRANSCRIPTION_CUSTOM_URL}
+            if model.authenticationTranscriptionApiKey(api_key=auth_key, base_url=data) is not True:
+                return VRCTError.create_error_response(
                     ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID,
-                    data=config.TRANSCRIPTION_CUSTOM_URL
+                    data=config.TRANSCRIPTION_CUSTOM_URL,
                 )
+            model_list = model.getTranscriptionApiModelList(api_key=auth_key, base_url=data)
+            if not isinstance(model_list, list) or not model_list or any(
+                not isinstance(name, str) or not name.strip() for name in model_list
+            ):
+                return VRCTError.create_error_response(
+                    ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID,
+                    data=config.TRANSCRIPTION_CUSTOM_URL,
+                )
+            model_list = list(model_list)
         except Exception as e:
             errorLogging(provider=engine)
-            response = VRCTError.create_exception_error_response(
+            return VRCTError.create_exception_error_response(
                 e,
                 data=config.TRANSCRIPTION_CUSTOM_URL,
                 provider=engine,
             )
-        return response
+        with config.credential_lock:
+            if config.TRANSCRIPTION_AUTH_KEYS[engine] != auth_key or config.TRANSCRIPTION_CUSTOM_URL != previous_url:
+                return VRCTError.create_error_response(
+                    ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID,
+                    data=config.TRANSCRIPTION_CUSTOM_URL,
+                )
+            selected_model = config.SELECTED_CUSTOM_WHISPER_MODEL
+            if selected_model not in model_list:
+                selected_model = model_list[0]
+            config.TRANSCRIPTION_CUSTOM_URL = data
+            config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = model_list
+            config.SELECTED_CUSTOM_WHISPER_MODEL = selected_model
+            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
+            self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], model_list)
+            self.run(200, self.run_mapping["selected_custom_whisper_model"], selected_model)
+            self.updateTranscriptionEngine()
+        return {"status":200, "result":data}
 
 
 
@@ -3974,9 +3968,8 @@ class Controller:
                 return VRCTError.create_error_response(
                     spec.error_auth_invalid, data=config.AUTH_KEYS.get(engine_key),
                 )
-            candidate = model.prepareTranslatorCredential(
-                engine_key, data, selected_model=getattr(config, spec.selected_model_attr),
-            )
+            previous_model = getattr(config, spec.selected_model_attr)
+            candidate = model.prepareTranslatorCredential(engine_key, data, selected_model=previous_model)
         except Exception:
             errorLogging(provider=engine_key)
             return VRCTError.create_error_response(
@@ -3985,6 +3978,10 @@ class Controller:
 
         _, model_list, selected_model = candidate
         with config.credential_lock:
+            if getattr(config, spec.selected_model_attr) != previous_model:
+                return VRCTError.create_error_response(
+                    spec.error_auth_failed, data=config.AUTH_KEYS.get(engine_key),
+                )
             config.updateCredential("AUTH_KEYS", engine_key, data)
             setattr(config, spec.selectable_model_list_attr, model_list)
             setattr(config, spec.selected_model_attr, selected_model)
@@ -4312,8 +4309,9 @@ class Controller:
                     ErrorCode.AUTH_OPENAI_COMPATIBLE_INVALID, data=config.AUTH_KEYS[engine],
                 )
             base_url = config.OPENAI_COMPATIBLE_URL
+            previous_model = config.SELECTED_OPENAI_COMPATIBLE_MODEL
             candidate = model.prepareTranslatorCredential(
-                engine, data, selected_model=config.SELECTED_OPENAI_COMPATIBLE_MODEL,
+                engine, data, selected_model=previous_model,
                 base_url=base_url,
             )
         except Exception:
@@ -4322,8 +4320,8 @@ class Controller:
                 ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED, data=config.AUTH_KEYS[engine],
             )
         with config.credential_lock:
-            # A URL change may finish while the candidate is being checked.
-            if config.OPENAI_COMPATIBLE_URL != base_url:
+            # A related setting may change while the candidate is being checked.
+            if config.OPENAI_COMPATIBLE_URL != base_url or config.SELECTED_OPENAI_COMPATIBLE_MODEL != previous_model:
                 return VRCTError.create_error_response(
                     ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED, data=config.AUTH_KEYS[engine],
                 )
@@ -4370,11 +4368,12 @@ class Controller:
                 raise ValueError("Empty endpoint URL")
             with config.credential_lock:
                 auth_key = config.AUTH_KEYS[engine]
+                previous_model = config.SELECTED_OPENAI_COMPATIBLE_MODEL
                 if not auth_key:
                     config.OPENAI_COMPATIBLE_URL = data
                     return {"status": 200, "result": config.OPENAI_COMPATIBLE_URL}
             candidate = model.prepareTranslatorCredential(
-                engine, auth_key, selected_model=config.SELECTED_OPENAI_COMPATIBLE_MODEL,
+                engine, auth_key, selected_model=previous_model,
                 base_url=data,
             )
         except Exception:
@@ -4384,8 +4383,8 @@ class Controller:
                 data=config.OPENAI_COMPATIBLE_URL,
             )
         with config.credential_lock:
-            # Do not publish a client for a key replaced/deleted during the check.
-            if config.AUTH_KEYS[engine] != auth_key:
+            # Do not publish a client for a superseded key/model combination.
+            if config.AUTH_KEYS[engine] != auth_key or config.SELECTED_OPENAI_COMPATIBLE_MODEL != previous_model:
                 return VRCTError.create_error_response(
                     ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID,
                     data=config.OPENAI_COMPATIBLE_URL,
