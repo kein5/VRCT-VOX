@@ -335,7 +335,7 @@ class ConfigValidationError(Exception):
 # It performs optional type validation, optional allowed-values check, and calls
 # instance.saveConfig(...) on successful set.
 class ManagedProperty:
-    def __init__(self, name: str, type_: type = None, allowed=None, immediate_save: bool = False, serialize: bool = True, readonly: bool = False, mutable_tracking: bool = False):
+    def __init__(self, name: str, type_: type = None, allowed=None, immediate_save: bool = False, serialize: bool = True, readonly: bool = False, mutable_tracking: bool = False, allow_none: bool = False):
         self.name = name
         self.type_ = type_
         self.allowed = allowed
@@ -343,6 +343,7 @@ class ManagedProperty:
         self.serialize = serialize
         self.readonly = readonly
         self.mutable_tracking = mutable_tracking
+        self.allow_none = allow_none
         self.private_name = f"_{name}"
         self.wrapper_cache_name = f"_wrapper_{name}"
 
@@ -377,8 +378,15 @@ class ManagedProperty:
         if self.readonly:
             raise AttributeError(f"Cannot set read-only property '{self.name}'")
 
-        # Type check if requested（Noneは常に許可）
+        if value is None and not self.allow_none:
+            raise ConfigValidationError(self.name, value)
+
+        # Nullable selections opt in; booleans are not numeric settings.
         if self.type_ is not None and value is not None and not isinstance(value, self.type_):
+            raise ConfigValidationError(self.name, value)
+        if isinstance(value, bool) and self.type_ in (int, float, (int, float)):
+            raise ConfigValidationError(self.name, value)
+        if isinstance(value, float) and not math.isfinite(value):
             raise ConfigValidationError(self.name, value)
 
         # Allowed-values check: can be an iterable or a callable
@@ -419,7 +427,8 @@ class ManagedProperty:
 
         # Persist change
         try:
-            if self.serialize:
+            # Keep the pending saved values available to dependent validators.
+            if self.serialize and not getattr(instance, "_loading_saved_config", False):
                 instance.saveConfig(self.name, value, immediate_save=self.immediate_save)
         except Exception:
             # Keep setter robust during import-time initialization
@@ -476,7 +485,7 @@ class ValidatedProperty:
             normalized = copy.deepcopy(normalized)
         setattr(instance, self.private_name, normalized)
         try:
-            if self.serialize:
+            if self.serialize and not getattr(instance, "_loading_saved_config", False):
                 instance.saveConfig(self.name, normalized, immediate_save=self.immediate_save)
         except Exception:
             pass
@@ -515,13 +524,36 @@ def _main_window_geometry_validator(val, inst):
             new[key] = inst.MAIN_WINDOW_GEOMETRY[key]
     return new
 
-def _selected_transcription_compute_type_validator(val, inst):
+def _selected_compute_type_validator(val, inst, device_attr):
     if not isinstance(val, str):
         return None
-    compute_types = inst.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE.get("compute_types", [])
-    if val in compute_types:
+    device = getattr(inst, device_attr)
+    if getattr(inst, "_loading_saved_config", False):
+        # The saved type can precede its device in config.json. Resolve against
+        # current capabilities without depending on the order of the setters.
+        saved_device = inst._config_data.get(device_attr, device)
+        device = _compute_device_validator(saved_device, inst) or device
+    if val in device.get("compute_types", []):
         return val
     return None
+
+
+def _selected_transcription_compute_type_validator(val, inst):
+    return _selected_compute_type_validator(val, inst, 'SELECTED_TRANSCRIPTION_COMPUTE_DEVICE')
+
+
+def _asr_timeout_allowed(value, inst, source, kind):
+    if not 0 <= value <= 30:
+        return False
+    other_kind = 'PHRASE' if kind == 'RECORD' else 'RECORD'
+    other_key = f'{source}_{other_kind}_TIMEOUT'
+    other = getattr(inst, other_key)
+    if getattr(inst, "_loading_saved_config", False):
+        saved = inst._config_data.get(other_key, other)
+        if type(saved) is int and 0 <= saved <= 30:
+            other = saved
+    return value <= other if kind == 'RECORD' else value >= other
+
 
 def _overlay_small_validator(val, inst):
     if not (isinstance(val, dict) and set(val.keys()) == set(inst.OVERLAY_SMALL_LOG_SETTINGS.keys())):
@@ -529,6 +561,8 @@ def _overlay_small_validator(val, inst):
     base = inst.OVERLAY_SMALL_LOG_SETTINGS
     new = dict(base)
     for key, v in val.items():
+        if isinstance(v, float) and not math.isfinite(v):
+            return None
         if key == 'tracker' and isinstance(v, str) and v in ['HMD', 'LeftHand', 'RightHand']:
             new[key] = v
         elif key in ['x_pos','y_pos','z_pos','x_rotation','y_rotation','z_rotation'] and isinstance(v,(int,float)):
@@ -551,6 +585,8 @@ def _validate_overlay_vr_window(val, current):
         return None
     new = dict(current)
     for key, v in val.items():
+        if isinstance(v, float) and not math.isfinite(v):
+            return None
         # Playspace: SteamVRの空間に固定 (VR UIのウィンドウだけが選べる)
         if key == 'tracker' and isinstance(v, str) and v in ['HMD', 'LeftHand', 'RightHand', 'Playspace']:
             new[key] = v
@@ -566,6 +602,8 @@ def _overlay_large_validator(val, inst):
     base = inst.OVERLAY_LARGE_LOG_SETTINGS
     new = dict(base)
     for key, v in val.items():
+        if isinstance(v, float) and not math.isfinite(v):
+            return None
         if key == 'tracker' and isinstance(v, str) and v in ['HMD', 'LeftHand', 'RightHand']:
             new[key] = v
         elif key in ['x_pos','y_pos','z_pos','x_rotation','y_rotation','z_rotation'] and isinstance(v,(int,float)):
@@ -671,12 +709,7 @@ def _selected_target_languages_validator(val, inst):
 
 
 def _selected_translation_compute_type_validator(val, inst):
-    if not isinstance(val, str):
-        return None
-    compute_types = inst.SELECTED_TRANSLATION_COMPUTE_DEVICE.get("compute_types", [])
-    if val in compute_types:
-        return val
-    return None
+    return _selected_compute_type_validator(val, inst, 'SELECTED_TRANSLATION_COMPUTE_DEVICE')
 
 def _keepSavedDeviceUntilListed(inst) -> bool:
     """config.json を読む時点では、デバイスの一覧がまだ取れていない。
@@ -748,8 +781,9 @@ def _compute_device_validator(val, inst):
     if not isinstance(val, dict):
         return None
     for dev in inst.SELECTABLE_COMPUTE_DEVICE_LIST:
-        if dev == val:
-            return copy.deepcopy(val)
+        if all(key in val and type(val[key]) is type(dev[key]) and val[key] == dev[key]
+               for key in ('device', 'device_index', 'device_name')):
+            return copy.deepcopy(dev)
     return None
 
 def _allowed_in_populated(list_attr_name: str):
@@ -1083,14 +1117,14 @@ class Config:
     MAIN_WINDOW_GEOMETRY = ValidatedProperty('MAIN_WINDOW_GEOMETRY', _main_window_geometry_validator, immediate_save=True)
 
     # --- Mic-related simple properties ---
-    MIC_THRESHOLD = ManagedProperty('MIC_THRESHOLD', type_=int)
+    MIC_THRESHOLD = ManagedProperty('MIC_THRESHOLD', type_=int, allowed=lambda v, inst: 0 <= v <= inst.MAX_MIC_THRESHOLD)
     MIC_AUTOMATIC_THRESHOLD = ManagedProperty('MIC_AUTOMATIC_THRESHOLD', type_=bool)
-    MIC_RECORD_TIMEOUT = ManagedProperty('MIC_RECORD_TIMEOUT', type_=int)
-    MIC_PHRASE_TIMEOUT = ManagedProperty('MIC_PHRASE_TIMEOUT', type_=int)
-    MIC_MAX_PHRASES = ManagedProperty('MIC_MAX_PHRASES', type_=int)
+    MIC_RECORD_TIMEOUT = ManagedProperty('MIC_RECORD_TIMEOUT', type_=int, allowed=lambda v, inst: _asr_timeout_allowed(v, inst, 'MIC', 'RECORD'))
+    MIC_PHRASE_TIMEOUT = ManagedProperty('MIC_PHRASE_TIMEOUT', type_=int, allowed=lambda v, inst: _asr_timeout_allowed(v, inst, 'MIC', 'PHRASE'))
+    MIC_MAX_PHRASES = ManagedProperty('MIC_MAX_PHRASES', type_=int, allowed=lambda v, inst: 0 <= v <= 30)
     MIC_AVG_LOGPROB = ManagedProperty('MIC_AVG_LOGPROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and -2 <= v <= 0)
     MIC_NO_SPEECH_PROB = ManagedProperty('MIC_NO_SPEECH_PROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and 0 <= v <= 1)
-    MIC_NO_REPEAT_NGRAM_SIZE = ManagedProperty('MIC_NO_REPEAT_NGRAM_SIZE', type_=int)
+    MIC_NO_REPEAT_NGRAM_SIZE = ManagedProperty('MIC_NO_REPEAT_NGRAM_SIZE', type_=int, allowed=lambda v, inst: v >= 0)
     HOTKEYS = ValidatedProperty('HOTKEYS',
         validator=lambda val, inst: (
             {**inst.HOTKEYS, **{k: (v if (isinstance(v, list) or v is None) else inst.HOTKEYS.get(k))
@@ -1100,14 +1134,14 @@ class Config:
     )
 
     # --- Speaker-related simple properties ---
-    SPEAKER_THRESHOLD = ManagedProperty('SPEAKER_THRESHOLD', type_=int)
+    SPEAKER_THRESHOLD = ManagedProperty('SPEAKER_THRESHOLD', type_=int, allowed=lambda v, inst: 0 <= v <= inst.MAX_SPEAKER_THRESHOLD)
     SPEAKER_AUTOMATIC_THRESHOLD = ManagedProperty('SPEAKER_AUTOMATIC_THRESHOLD', type_=bool)
-    SPEAKER_RECORD_TIMEOUT = ManagedProperty('SPEAKER_RECORD_TIMEOUT', type_=int)
-    SPEAKER_PHRASE_TIMEOUT = ManagedProperty('SPEAKER_PHRASE_TIMEOUT', type_=int)
-    SPEAKER_MAX_PHRASES = ManagedProperty('SPEAKER_MAX_PHRASES', type_=int)
+    SPEAKER_RECORD_TIMEOUT = ManagedProperty('SPEAKER_RECORD_TIMEOUT', type_=int, allowed=lambda v, inst: _asr_timeout_allowed(v, inst, 'SPEAKER', 'RECORD'))
+    SPEAKER_PHRASE_TIMEOUT = ManagedProperty('SPEAKER_PHRASE_TIMEOUT', type_=int, allowed=lambda v, inst: _asr_timeout_allowed(v, inst, 'SPEAKER', 'PHRASE'))
+    SPEAKER_MAX_PHRASES = ManagedProperty('SPEAKER_MAX_PHRASES', type_=int, allowed=lambda v, inst: 0 <= v <= 60)
     SPEAKER_AVG_LOGPROB = ManagedProperty('SPEAKER_AVG_LOGPROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and -2 <= v <= 0)
     SPEAKER_NO_SPEECH_PROB = ManagedProperty('SPEAKER_NO_SPEECH_PROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and 0 <= v <= 1)
-    SPEAKER_NO_REPEAT_NGRAM_SIZE = ManagedProperty('SPEAKER_NO_REPEAT_NGRAM_SIZE', type_=int)
+    SPEAKER_NO_REPEAT_NGRAM_SIZE = ManagedProperty('SPEAKER_NO_REPEAT_NGRAM_SIZE', type_=int, allowed=lambda v, inst: v >= 0)
 
     # -- VAD (Silero) によるマイク/スピーカーの発話区間検出 ---
     # 既定は False (従来通りのエネルギー閾値方式)。過去に2度、この領域
@@ -1233,7 +1267,7 @@ class Config:
 
     # --- Selection properties with validation (ManagedProperty) ---
     SELECTED_TAB_NO = ManagedProperty('SELECTED_TAB_NO', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TAB_NO_LIST)
-    SELECTED_TRANSCRIPTION_ENGINE = ManagedProperty('SELECTED_TRANSCRIPTION_ENGINE', type_=str, allowed=lambda v, inst: v is None or v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST)
+    SELECTED_TRANSCRIPTION_ENGINE = ManagedProperty('SELECTED_TRANSCRIPTION_ENGINE', type_=str, allowed=lambda v, inst: v is None or v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST, allow_none=True)
     SELECTED_RELEASE_CHANNEL = ManagedProperty('SELECTED_RELEASE_CHANNEL', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_RELEASE_CHANNEL_LIST)
     CTRANSLATE2_WEIGHT_TYPE = ManagedProperty('CTRANSLATE2_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST)
     # True once the user has seen the non-commercial license notice for the
@@ -1243,18 +1277,18 @@ class Config:
     # default, so the saved value is usually not a deliberate choice).
     CTRANSLATE2_LICENSE_NOTICE_SHOWN = ManagedProperty('CTRANSLATE2_LICENSE_NOTICE_SHOWN', type_=bool)
     WHISPER_WEIGHT_TYPE = ManagedProperty('WHISPER_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST)
-    SELECTED_PLAMO_MODEL = ManagedProperty('SELECTED_PLAMO_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_PLAMO_MODEL_LIST'))
-    SELECTED_GEMINI_MODEL = ManagedProperty('SELECTED_GEMINI_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GEMINI_MODEL_LIST'))
-    SELECTED_OPENAI_MODEL = ManagedProperty('SELECTED_OPENAI_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_MODEL_LIST'))
-    SELECTED_GROQ_MODEL = ManagedProperty('SELECTED_GROQ_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GROQ_MODEL_LIST'))
-    SELECTED_OPENROUTER_MODEL = ManagedProperty('SELECTED_OPENROUTER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENROUTER_MODEL_LIST'))
-    SELECTED_LMSTUDIO_MODEL = ManagedProperty('SELECTED_LMSTUDIO_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_LMSTUDIO_MODEL_LIST'))
-    SELECTED_OPENAI_COMPATIBLE_MODEL = ManagedProperty('SELECTED_OPENAI_COMPATIBLE_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST'))
-    SELECTED_OLLAMA_MODEL = ManagedProperty('SELECTED_OLLAMA_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OLLAMA_MODEL_LIST'))
-    SELECTED_GROQ_WHISPER_MODEL = ManagedProperty('SELECTED_GROQ_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GROQ_WHISPER_MODEL_LIST'))
-    SELECTED_OPENAI_WHISPER_MODEL = ManagedProperty('SELECTED_OPENAI_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_WHISPER_MODEL_LIST'))
-    SELECTED_CUSTOM_WHISPER_MODEL = ManagedProperty('SELECTED_CUSTOM_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_CUSTOM_WHISPER_MODEL_LIST'))
-    SELECTED_DEEPGRAM_MODEL = ManagedProperty('SELECTED_DEEPGRAM_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_DEEPGRAM_MODEL_LIST'))
+    SELECTED_PLAMO_MODEL = ManagedProperty('SELECTED_PLAMO_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_PLAMO_MODEL_LIST'), allow_none=True)
+    SELECTED_GEMINI_MODEL = ManagedProperty('SELECTED_GEMINI_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GEMINI_MODEL_LIST'), allow_none=True)
+    SELECTED_OPENAI_MODEL = ManagedProperty('SELECTED_OPENAI_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_MODEL_LIST'), allow_none=True)
+    SELECTED_GROQ_MODEL = ManagedProperty('SELECTED_GROQ_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GROQ_MODEL_LIST'), allow_none=True)
+    SELECTED_OPENROUTER_MODEL = ManagedProperty('SELECTED_OPENROUTER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENROUTER_MODEL_LIST'), allow_none=True)
+    SELECTED_LMSTUDIO_MODEL = ManagedProperty('SELECTED_LMSTUDIO_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_LMSTUDIO_MODEL_LIST'), allow_none=True)
+    SELECTED_OPENAI_COMPATIBLE_MODEL = ManagedProperty('SELECTED_OPENAI_COMPATIBLE_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST'), allow_none=True)
+    SELECTED_OLLAMA_MODEL = ManagedProperty('SELECTED_OLLAMA_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OLLAMA_MODEL_LIST'), allow_none=True)
+    SELECTED_GROQ_WHISPER_MODEL = ManagedProperty('SELECTED_GROQ_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GROQ_WHISPER_MODEL_LIST'), allow_none=True)
+    SELECTED_OPENAI_WHISPER_MODEL = ManagedProperty('SELECTED_OPENAI_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_WHISPER_MODEL_LIST'), allow_none=True)
+    SELECTED_CUSTOM_WHISPER_MODEL = ManagedProperty('SELECTED_CUSTOM_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_CUSTOM_WHISPER_MODEL_LIST'), allow_none=True)
+    SELECTED_DEEPGRAM_MODEL = ManagedProperty('SELECTED_DEEPGRAM_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_DEEPGRAM_MODEL_LIST'), allow_none=True)
 
     # --- Translation and language settings ---
     MIC_WORD_FILTER = ValidatedProperty('MIC_WORD_FILTER', _mic_word_filter_validator)

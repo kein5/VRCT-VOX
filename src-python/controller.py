@@ -196,7 +196,9 @@ def _configValidationErrorResponse(error_code: ErrorCode):
             try:
                 return func(*args, **kwargs)
             except ConfigValidationError as e:
-                return VRCTError.create_error_response(error_code, data=e.value)
+                # Restore the UI to the accepted value; rejected input may be
+                # nonfinite and cannot be serialized in an IPC response.
+                return VRCTError.create_error_response(error_code, data=getattr(config, e.attr_name, e.value))
         return wrapper
     return decorator
 
@@ -4603,6 +4605,7 @@ class Controller:
 
 
     @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
     def setOverlaySmallLogSettings(data, *args, **kwargs) -> dict:
         config.OVERLAY_SMALL_LOG_SETTINGS = data
         model.updateOverlaySmallLogSettings()
@@ -4656,6 +4659,7 @@ class Controller:
 
 
     @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
     def setOverlayLargeLogSettings(data, *args, **kwargs) -> dict:
         config.OVERLAY_LARGE_LOG_SETTINGS = data
         model.updateOverlayLargeLogSettings()

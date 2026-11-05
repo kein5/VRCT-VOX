@@ -23,23 +23,23 @@
 | `FONT_FAMILY` | str | `'Yu Gothic UI'` | 2秒後にまとめて |
 | `UI_LANGUAGE` | str、許可値 lambda v, inst: v in inst.SELECTABLE_UI_LANGUAGE_LIST | `'en'` | 2秒後にまとめて |
 | `MAIN_WINDOW_GEOMETRY` | 検証 _main_window_geometry_validator | `{'x_pos': 0, 'y_pos': 0, 'width': 870, 'height': 654}` | 即時 |
-| `MIC_THRESHOLD` | int | `300` | 2秒後にまとめて |
+| `MIC_THRESHOLD` | int、許可値 lambda v, inst: 0 <= v <= inst.MAX_MIC_THRESHOLD | `300` | 2秒後にまとめて |
 | `MIC_AUTOMATIC_THRESHOLD` | bool | `False` | 2秒後にまとめて |
-| `MIC_RECORD_TIMEOUT` | int | `3` | 2秒後にまとめて |
-| `MIC_PHRASE_TIMEOUT` | int | `3` | 2秒後にまとめて |
-| `MIC_MAX_PHRASES` | int | `10` | 2秒後にまとめて |
+| `MIC_RECORD_TIMEOUT` | int、許可値 lambda v, inst: _asr_timeout_allowed(v, inst, 'MIC', 'RECORD') | `3` | 2秒後にまとめて |
+| `MIC_PHRASE_TIMEOUT` | int、許可値 lambda v, inst: _asr_timeout_allowed(v, inst, 'MIC', 'PHRASE') | `3` | 2秒後にまとめて |
+| `MIC_MAX_PHRASES` | int、許可値 lambda v, inst: 0 <= v <= 30 | `10` | 2秒後にまとめて |
 | `MIC_AVG_LOGPROB` | (int, float)、許可値 lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and (-2 <= v <= 0) | `-0.8` | 2秒後にまとめて |
 | `MIC_NO_SPEECH_PROB` | (int, float)、許可値 lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and (0 <= v <= 1) | `0.6` | 2秒後にまとめて |
-| `MIC_NO_REPEAT_NGRAM_SIZE` | int | `0` | 2秒後にまとめて |
+| `MIC_NO_REPEAT_NGRAM_SIZE` | int、許可値 lambda v, inst: v >= 0 | `0` | 2秒後にまとめて |
 | `HOTKEYS` | 検証 lambda val, inst: {**inst.HOTKEYS, **{k: v if isinstance(v, list) or v is None else inst.HOTKEYS.get(k) for k, v in val.items()}} if isinstance(val, dict) and set(val.keys()) <= set(inst.HOTKEYS.keys()) else None | `{'open_quick_chat': None, 'toggle_vrct_visibility': None, 'toggle_translation': None, '…` | 即時 |
-| `SPEAKER_THRESHOLD` | int | `300` | 2秒後にまとめて |
+| `SPEAKER_THRESHOLD` | int、許可値 lambda v, inst: 0 <= v <= inst.MAX_SPEAKER_THRESHOLD | `300` | 2秒後にまとめて |
 | `SPEAKER_AUTOMATIC_THRESHOLD` | bool | `False` | 2秒後にまとめて |
-| `SPEAKER_RECORD_TIMEOUT` | int | `3` | 2秒後にまとめて |
-| `SPEAKER_PHRASE_TIMEOUT` | int | `3` | 2秒後にまとめて |
-| `SPEAKER_MAX_PHRASES` | int | `10` | 2秒後にまとめて |
+| `SPEAKER_RECORD_TIMEOUT` | int、許可値 lambda v, inst: _asr_timeout_allowed(v, inst, 'SPEAKER', 'RECORD') | `3` | 2秒後にまとめて |
+| `SPEAKER_PHRASE_TIMEOUT` | int、許可値 lambda v, inst: _asr_timeout_allowed(v, inst, 'SPEAKER', 'PHRASE') | `3` | 2秒後にまとめて |
+| `SPEAKER_MAX_PHRASES` | int、許可値 lambda v, inst: 0 <= v <= 60 | `10` | 2秒後にまとめて |
 | `SPEAKER_AVG_LOGPROB` | (int, float)、許可値 lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and (-2 <= v <= 0) | `-0.8` | 2秒後にまとめて |
 | `SPEAKER_NO_SPEECH_PROB` | (int, float)、許可値 lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and (0 <= v <= 1) | `0.6` | 2秒後にまとめて |
-| `SPEAKER_NO_REPEAT_NGRAM_SIZE` | int | `0` | 2秒後にまとめて |
+| `SPEAKER_NO_REPEAT_NGRAM_SIZE` | int、許可値 lambda v, inst: v >= 0 | `0` | 2秒後にまとめて |
 | `MIC_ENABLE_VAD` | bool | `False` | 2秒後にまとめて |
 | `SPEAKER_ENABLE_VAD` | bool | `False` | 2秒後にまとめて |
 | `AUTH_KEYS` | 検証 lambda val, inst: {k: val[k] if k in val and isinstance(val[k], (str, type(None))) else inst.AUTH_KEYS.get(k) for k in inst.AUTH_KEYS.keys()} if isinstance(val, dict) else None | `{'DeepL_API': None, 'Plamo_API': None, 'Gemini_API': None, 'OpenAI_API': None, 'OpenAI_…` | 2秒後にまとめて |
