@@ -3,6 +3,72 @@ import { test } from "node:test";
 import { loadBridgeRoutes } from "./test/bridgeHarness.js";
 import { expectBackendExit } from "./common/sidecarExitExpectation.js";
 import { createSidecarSessionOwner } from "./common/sidecarSession.js";
+import { loadModule } from "./test/hookHarness.js";
+
+test("failed required initialization maps and scalars retain renderable defaults and warn", async context => {
+    const errors = context.mock.method(console, "error", () => {});
+    const s = await loadBridgeRoutes();
+    const fields = ["selected_your_languages", "selected_target_languages", "selected_tab_no",
+        "selected_translation_engines", "ui_scaling", "auto_mic_select", "ui_language"];
+    s.receiveRoutes({ endpoint: "/run/initialization_complete", status: 200,
+        result: Object.fromEntries(fields.map(name => [`/get/data/${name}`, null])) });
+    assert.equal(s.runtime.store.get(s.stores.dynamicStoreRegistry.Atom_UiScaling).data, 100);
+    assert.equal(s.runtime.store.get(s.stores.dynamicStoreRegistry.Atom_EnableAutoMicSelect).data, true);
+    assert.equal(s.runtime.store.get(s.stores.Atom_SelectedPresetTabNumber).data, "1");
+    const { LanguageSelectorOpenButton } = await loadModule(new URL("../views/app/main_page/sidebar_section/language_settings/language_selector_open_button/LanguageSelectorOpenButton.jsx", import.meta.url), s.runtime, {
+        "@store": s.stores,
+        "@useI18n": { useI18n: () => ({ t: key => key, i18n: { language: "en" } }) },
+        "../../../../../../logics/common/languageNames.js": { createLanguageNames: () => ({ name: value => value }) },
+        "@logics_main": { useLanguageSettings: () => ({
+            ...s.stores.useStore_SelectedPresetTabNumber(), ...s.stores.useStore_SelectedYourLanguages(), ...s.stores.useStore_SelectedTargetLanguages(),
+        }) },
+    });
+    for (const selector_key of ["your_language", "target_language"]) {
+        assert.doesNotThrow(() => s.runtime.render(LanguageSelectorOpenButton, { selector_key, target_key: "1", TurnedOnSvgComponent: "svg" }));
+    }
+    assert.equal(s.notices.length, 1);
+    assert.equal(s.notices[0].key, "common_warning.startup_degraded");
+    assert.equal(errors.mock.calls.filter(call => call.arguments[0] === "Sidecar initialization field unavailable").length, fields.length);
+});
+
+test("malformed nested language maps and required scalar types cannot replace defaults", async context => {
+    context.mock.method(console, "error", () => {});
+    const s = await loadBridgeRoutes();
+    const your = s.runtime.store.get(s.stores.Atom_SelectedYourLanguages);
+    const target = s.runtime.store.get(s.stores.Atom_SelectedTargetLanguages);
+    s.receiveRoutes({ endpoint: "/run/initialization_complete", status: 200, result: {
+        "/get/data/selected_your_languages": { 1: null, 2: {}, 3: {} },
+        "/get/data/selected_target_languages": { ...target.data, 2: { 1: target.data[2][1] } },
+        "/get/data/selected_tab_no": "4", "/get/data/ui_scaling": "100", "/get/data/auto_mic_select": 1,
+    } });
+    assert.strictEqual(s.runtime.store.get(s.stores.Atom_SelectedYourLanguages), your);
+    assert.strictEqual(s.runtime.store.get(s.stores.Atom_SelectedTargetLanguages), target);
+    assert.equal(s.runtime.store.get(s.stores.Atom_SelectedPresetTabNumber).data, "1");
+    assert.equal(s.runtime.store.get(s.stores.dynamicStoreRegistry.Atom_UiScaling).data, 100);
+    assert.equal(s.notices.length, 1);
+});
+
+test("valid language maps, compute-device objects, false and zero survive initialization", async () => {
+    const s = await loadBridgeRoutes();
+    const your = structuredClone(s.runtime.store.get(s.stores.Atom_SelectedYourLanguages).data);
+    your["2"]["1"] = { language: "Japanese", country: "Japan", enable: true };
+    const device = { device_name: "CPU", device: "cpu", device_index: 0, compute_types: ["int8"] };
+    s.receiveRoutes({ endpoint: "/run/initialization_complete", status: 200, result: {
+        "/get/data/selected_your_languages": your, "/get/data/selected_tab_no": "2",
+        "/get/data/selected_translation_compute_device": device,
+        "/get/data/selectable_language_list": [{ language: "Japanese", country: "Japan" }],
+        "/get/data/auto_mic_select": false, "/get/data/mic_threshold": 0,
+        "/get/data/custom_whisper_auth_key": null, "/get/data/selected_custom_whisper_model": null,
+        "/get/data/selected_transcription_engine": null,
+    } });
+    assert.deepEqual(s.runtime.store.get(s.stores.Atom_SelectedYourLanguages).data, your);
+    assert.deepEqual(s.runtime.store.get(s.stores.dynamicStoreRegistry.Atom_SelectedTranslationComputeDevice).data, device);
+    assert.equal(s.runtime.store.get(s.stores.dynamicStoreRegistry.Atom_EnableAutoMicSelect).data, false);
+    assert.equal(s.runtime.store.get(s.stores.dynamicStoreRegistry.Atom_MicThreshold).data, 0);
+    assert.equal(s.runtime.store.get(s.stores.dynamicStoreRegistry.Atom_CustomWhisperAuthKey).data, null);
+    assert.equal(s.runtime.store.get(s.stores.dynamicStoreRegistry.Atom_SelectedCustomWhisperModel).data, null);
+    assert.deepEqual(s.notices, []);
+});
 
 test("null init getter retains its real default, applies later fields, reaches ready and warns once", async context => {
     const errors = context.mock.method(console, "error", () => {});

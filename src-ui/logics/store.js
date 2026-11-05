@@ -17,6 +17,7 @@ import { requestSettingsNavigation } from "./voice/settingsNavigation";
 
 import { pendingRequestRecovery, restorePendingValue, restoreDownloadPending, staticPendingControls } from "./common/pendingRequestRecovery.js";
 import { updateMeterValue } from "./common/meterValue.js";
+import { initialLanguages } from "./common/initializationFields.js";
 
 export const store = {
     backend_subprocess: null,
@@ -213,8 +214,8 @@ export const { atomInstance: Atom_SelectedPresetTabNumber, useHook: useStore_Sel
 export const { atomInstance: Atom_LanguageMutation, useHook: useStore_LanguageMutation } = createAtomWithHook(
     { inFlight: null, lastVrResult: null, isResyncing: false }, "LanguageMutation", { is_state_ok: true }
 );
-export const { atomInstance: Atom_SelectedYourLanguages, useHook: useStore_SelectedYourLanguages } = createAtomWithHook({}, "SelectedYourLanguages");
-export const { atomInstance: Atom_SelectedTargetLanguages, useHook: useStore_SelectedTargetLanguages } = createAtomWithHook({}, "SelectedTargetLanguages");
+export const { atomInstance: Atom_SelectedYourLanguages, useHook: useStore_SelectedYourLanguages } = createAtomWithHook(initialLanguages(), "SelectedYourLanguages");
+export const { atomInstance: Atom_SelectedTargetLanguages, useHook: useStore_SelectedTargetLanguages } = createAtomWithHook(initialLanguages(true), "SelectedTargetLanguages");
 
 export const { atomInstance: Atom_TranslationEngines, useHook: useStore_TranslationEngines } = createAtomWithHook(translator_status, "TranslationEngines");
 export const { atomInstance: Atom_SelectedTranslationEngines, useHook: useStore_SelectedTranslationEngines } = createAtomWithHook({1:"", 2:"", 3:""}, "SelectedTranslationEngines");

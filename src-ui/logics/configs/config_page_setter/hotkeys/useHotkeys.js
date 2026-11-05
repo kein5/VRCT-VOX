@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { getDefaultStore } from "jotai";
-import { store, useStore_Hotkeys, Atom_IsOpenedConfigPage, Atom_IsBackendReady, Atom_IsSoftwareUpdating } from "@store";
+import { store, useStore_Hotkeys, Atom_IsOpenedConfigPage, Atom_IsBackendReady, Atom_IsSoftwareUpdating, Atom_Hotkeys } from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useNotificationStatus } from "@logics_common";
 import { useMainFunction } from "@logics_main";
@@ -27,6 +27,7 @@ let disposed = false;
 // Keep native mutations ordered too: a register already in flight may finish
 // after an acknowledgement starts the next reconciliation.
 let nativeRegistration = Promise.resolve();
+const pendingEdits = new Map();
 const reconcileNative = operation => {
     const result = nativeRegistration.then(operation);
     nativeRegistration = result.catch(() => {});
@@ -191,65 +192,57 @@ export const useHotkeys = () => {
 
     const setHotkeys = async (hotkeys) => {
         const [targetActionKey, targetHotkey] = Object.entries(hotkeys)[0];
-
-        // 削除の場合は競合チェックなしで保存
-        if (!targetHotkey) {
-            pendingHotkeys();
-            const updatedHotkeys = { ...currentHotkeys.data, [targetActionKey]: null };
-            closeNotification();
-            return asyncStdoutToPython("/set/data/hotkeys", updatedHotkeys);
-        }
-
-        const platform = await currentPlatform();
-        if (targetActionKey === "open_quick_chat" && !platform) return false;
-
-        const targetShortcut = parseHotkey(targetHotkey);
-        const targetDisplay = targetHotkey.join(" + ");
-        const actionLabel = getHotkeyActionLabel(targetActionKey, t);
-
-        // 1. VRCT内の他のホットキーと重複していないかチェック
-        for (const [actionKey, hotkey] of Object.entries(currentHotkeys.data)) {
-            if (actionKey === targetActionKey || !hotkey) continue;
-            const shortcut = parseHotkey(hotkey);
-            if (shortcut === targetShortcut) {
-                showNotification_Error(
-                    t("config_page.hotkeys.error_in_use", {
-                        action_name: actionLabel,
-                        hotkey: targetDisplay,
-                    })
-                );
-                return false;
-            }
-        }
-
-        // 2. OS / 他のアプリケーションで既に使用されていないか（テスト登録）
-        // On native Wayland the desktop resolves conflicts when binding.
-        let isOsConflict = false;
-        if (platform !== "wayland") {
-            try {
-                await register(targetShortcut, () => {});
-                await unregister(targetShortcut);
-            } catch (err) {
-                console.warn(`Hotkey registration test failed for ${targetShortcut}:`, err);
-                isOsConflict = true;
-            }
-        }
-
-        if (isOsConflict) {
-            showNotification_Error(
-                t("config_page.hotkeys.error_in_use", {
-                    action_name: actionLabel,
-                    hotkey: targetDisplay,
-                })
-            );
+        if (pendingEdits.get(targetActionKey)?.sent) return false;
+        const acknowledged = () => getDefaultStore().get(Atom_Hotkeys).data;
+        const initial = JSON.stringify(acknowledged()[targetActionKey]);
+        const session = store.backend_session;
+        const edit = { keys: targetHotkey };
+        const isCurrent = () => !disposed && owner.mounted && pendingEdits.get(targetActionKey) === edit &&
+            store.backend_session === session && JSON.stringify(acknowledged()[targetActionKey]) === initial;
+        const conflict = () => {
+            if (!targetHotkey) return false;
+            const latest = [...Object.entries(acknowledged()), ...[...pendingEdits].map(([key, value]) => [key, value.keys])];
+            return latest.some(([key, keys]) => key !== targetActionKey && keys && parseHotkey(keys) === parseHotkey(targetHotkey));
+        };
+        const reportConflict = () => {
+            showNotification_Error(t("config_page.hotkeys.error_in_use", {
+                action_name: getHotkeyActionLabel(targetActionKey, t), hotkey: targetHotkey.join(" + "),
+            }));
             return false;
+        };
+        if (conflict()) return reportConflict();
+        // Reserve the proposed content before the first await, across hook instances.
+        pendingEdits.set(targetActionKey, edit);
+        try {
+            if (targetHotkey) {
+                const platform = await currentPlatform();
+                if (!isCurrent() || (targetActionKey === "open_quick_chat" && !platform)) return false;
+                if (conflict()) return reportConflict();
+                if (platform !== "wayland") {
+                    try {
+                        await reconcileNative(async () => {
+                            if (!isCurrent()) return;
+                            const shortcut = parseHotkey(targetHotkey);
+                            await register(shortcut, () => {});
+                            await unregister(shortcut);
+                        });
+                    } catch (error) {
+                        if (!isCurrent()) return false;
+                        console.warn("Hotkey registration test failed:", error);
+                        return reportConflict();
+                    }
+                }
+            }
+            if (!isCurrent()) return false;
+            if (conflict()) return reportConflict();
+            pendingHotkeys();
+            closeNotification();
+            edit.sent = true;
+            const response = await asyncStdoutToPython("/set/data/hotkeys", { [targetActionKey]: targetHotkey });
+            return response !== false && (!response?.status || response.status === 200);
+        } finally {
+            if (pendingEdits.get(targetActionKey) === edit) pendingEdits.delete(targetActionKey);
         }
-
-        // 3. 競合なし：保存してバックエンドに送信
-        pendingHotkeys();
-        const updatedHotkeys = { ...currentHotkeys.data, [targetActionKey]: targetHotkey };
-        closeNotification();
-        return asyncStdoutToPython("/set/data/hotkeys", updatedHotkeys);
     };
 
     const registerShortcuts = async () => {

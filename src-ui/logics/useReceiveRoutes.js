@@ -13,12 +13,11 @@ import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { pendingRequestRecovery, featureResyncReads } from "./common/pendingRequestRecovery.js";
 import { receiveLanguageMutation, resetLanguageMutations, isLanguageMutation } from "./main/languageMutations";
-import { applyInitializationFields } from "./common/initializationFields.js";
+import { applyInitializationFields, createInitializationValidators } from "./common/initializationFields.js";
 import { isBackendUpdate, rejectExpectedExit } from "./common/sidecarExitExpectation.js";
+import { settingsWriteResponses } from "./common/settingsWriteResponses.js";
 
-const INIT_ARRAY_FIELDS = new Set(SETTINGS_ARRAY
-    .filter(setting => ["arrayToObject", "arrayToIdLabel", "transformToIndexedArray", "deviceOptionsToObject"].includes(setting.response_transform))
-    .map(setting => `/get/data/${setting.base_endpoint_name}`));
+const INIT_FIELD_VALIDATORS = createInitializationValidators(SETTINGS_ARRAY);
 
 export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/model_download_catalog", ns: downloads, hook_name: "useModelDownloads", method_name: "updateCatalog" },
@@ -287,6 +286,7 @@ export const useReceiveRoutes = () => {
         }
         if (!pendingRequestRecovery.acceptResponse(endpoint)) return;
         pendingRequestRecovery.receive(parsed_data, asyncStdoutToPython);
+        settingsWriteResponses.receive(parsed_data);
         if (endpoint === "/run/send_message_box" && [400, 404, 423, 500].includes(status)) {
             hook_results.useMessage.failSentMessageLog(result?.data ?? result);
         }
@@ -352,7 +352,7 @@ export const useReceiveRoutes = () => {
             sendRealtime("/get/data/realtime_asr_settings");
             sendRealtime("/get/data/realtime_asr_state");
             for (const source of ["mic", "speaker"]) sendRealtime("/get/data/realtime_asr_endpoints", { source });
-            const failedFields = applyInitializationFields(result, routes, INIT_ARRAY_FIELDS, handleInvalidEndpoint);
+            const failedFields = applyInitializationFields(result, routes, INIT_FIELD_VALIDATORS, handleInvalidEndpoint);
             updateIsBackendReady(true);
             resetLanguageMutations();
             if (failedFields.length > 0) {

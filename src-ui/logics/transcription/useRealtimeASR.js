@@ -73,7 +73,9 @@ export const useRealtimeASR = () => {
     // response batch before React rerenders. Hook closures are not authority.
     const send = useCallback(async (endpoint, data) => {
         if (endpoint !== "/get/data/realtime_asr_state") updateError(null);
-        if (!await asyncStdoutToPython(endpoint, data)) updateError("backend_unavailable");
+        const response = await asyncStdoutToPython(endpoint, data);
+        if (response === false) updateError("backend_unavailable");
+        return response;
     }, [updateError]);
     return { settings, state, endpoints, models, error, send, updateSettings,
         updateState, updateEndpoints, updateModels, updateError, reset, backendStopped };
