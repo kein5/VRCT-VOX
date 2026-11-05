@@ -69,6 +69,8 @@ voice_mute_state.json
 # Claude Code environment setup (not committed)
 CLAUDE.md
 .claude/
+# Local review notes and probe output from audit/fix worktrees
+/.review/
 docs/adr/
 src-python/docs/ref/
 src-python/telemetry_state.json
