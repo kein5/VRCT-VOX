@@ -1,6 +1,7 @@
 """Slow translation must not stall partial captions or publish after stop."""
 
 import importlib
+from dataclasses import replace
 from queue import Queue, Empty
 from threading import Event
 import time
@@ -21,10 +22,11 @@ class Session:
     source = "mic"
     namespace = "owned"
 
-    def __init__(self):
+    def __init__(self, *, snapshot_voice=None):
         self.updates = Queue()
         self.active = True
         self.clock = time.monotonic
+        self.snapshot_voice = snapshot_voice
 
     def pop_update(self, timeout=0.05):
         try:
@@ -46,18 +48,19 @@ class Session:
         )
 
     def emit(self, item="u", final=False, revision=1, text="text"):
-        self.updates.put(
-            TranscriptUpdate(
-                self.source,
-                self.namespace,
-                item,
-                revision,
-                text,
-                final,
-                "final" if final else "partial",
-                received_ns=int(self.clock() * 1e9),
-            )
+        update = TranscriptUpdate(
+            self.source,
+            self.namespace,
+            item,
+            revision,
+            text,
+            final,
+            "final" if final else "partial",
+            received_ns=int(self.clock() * 1e9),
         )
+        if final and self.snapshot_voice is not None:
+            update = replace(update, voice_snapshot=self.snapshot_voice())
+        self.updates.put(update)
 
 
 def create(session, publish, process, errors, **kwargs):

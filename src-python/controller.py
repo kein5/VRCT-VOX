@@ -1188,7 +1188,8 @@ class Controller:
                     REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC,
                     update.text, snapshot.source_language, msg_id=update.namespace + ":" + update.item_id,
                     publication_guard=guard, speech_update=update if source == "mic" else None,
-                    mic_snapshot=mic_snapshot, settings_snapshot=snapshot, chatbox_sequence=sequence)
+                    mic_snapshot=mic_snapshot, settings_snapshot=snapshot, chatbox_sequence=sequence,
+                    output_progress=valid.output)
 
             def admit(update):
                 admitted = self._messagePublicationGuard(source)
@@ -1202,7 +1203,7 @@ class Controller:
                 sequence = model.chatbox_order.admit() if source == "mic" and update.is_final else None
                 with self._voice_settings_lock, getattr(self, "_language_settings_lock", nullcontext()):
                     snapshot = MessageSnapshot.capture(config, spec, spoken)
-                    mic_snapshot = self._snapshotMicVoiceLocked(snapshot) if source == "mic" and update.is_final else None
+                    mic_snapshot = update.voice_snapshot if source == "mic" and update.is_final else None
                 return (
                     lambda payload: publish(payload, admitted, snapshot),
                     lambda event, valid: process(event, valid, admitted, mic_snapshot, snapshot, sequence),
@@ -1218,7 +1219,8 @@ class Controller:
                 if self._realtime_closed or self._realtime_generation[source] != generation:
                     return failure("realtime_stale_start")
                 try:
-                    session = RealtimeSession(source, options, endpoint)
+                    session = RealtimeSession(source, options, endpoint,
+                                              snapshot_voice=self._snapshotMicVoice if source == "mic" else None)
                     def stopped():
                         try:
                             clear_overlay()
@@ -1905,12 +1907,12 @@ class Controller:
 
         return current
 
-    def _snapshotMicVoiceLocked(self, snapshot):
-        # The realtime admission holds the voice lock through content + generation capture.
-        if getattr(self, "voice_events", None) is not None:
-            if self.voice_events.settings.mic_mode == "translated" and snapshot.translation_enabled:
-                return (self.voice_events.settings, self.voice_events.generation(),
-                        self.voice_events.source_generation("mic"))
+    def _snapshotMicVoice(self):
+        with self._voice_settings_lock:
+            if getattr(self, "voice_events", None) is not None:
+                if self.voice_events.settings.mic_mode == "translated" and config.ENABLE_TRANSLATION:
+                    return (self.voice_events.settings, self.voice_events.generation(),
+                            self.voice_events.source_generation("mic"))
         return None
 
     def _runMessageSink(self, output, action, current, failures, spec, msg_id):
@@ -1955,6 +1957,7 @@ class Controller:
         settings_snapshot=None,
         chatbox_sequence=None,
         feature_enabled=None,
+        output_progress=None,
     ) -> Optional[dict]:
         """mic/speaker/chatMessage共通のパイプライン(バックエンドレビュー
         フェーズ3項目25、`MessageDirectionSpec`参照)。
@@ -1991,7 +1994,8 @@ class Controller:
         failures = []
 
         def sink(output, action):
-            self._runMessageSink(output, action, current, failures, spec, msg_id)
+            self._runMessageSink(output, (lambda: output_progress(action)) if output_progress else action,
+                                 current, failures, spec, msg_id)
 
         if spec.has_word_filter and model.checkKeywords(message):
             if not current():
@@ -2011,7 +2015,7 @@ class Controller:
         # した場合は出力自体が無いので測らない。
         pipeline_started_at = time.perf_counter()
         translate_elapsed_ms = 0
-        # Realtime mic intent is stamped before entering its final queue.
+        # Realtime mic intent is stamped before entering the session mailbox.
         # Typed chat carries the receiver's generation through translation.
         voice_started_ns = time.monotonic_ns()
 
@@ -2153,6 +2157,7 @@ class Controller:
                     if spec is REALTIME_MIC_SPEC:
                         payload.update(delivery_outcome="not_delivered", delivery_reason="superseded")
                     printLog(f"[message][{spec.kind}] chatbox skipped: newer message already sent sequence={chatbox_sequence}")
+                return sent
 
             sink("osc", send_osc)
 
@@ -2192,7 +2197,7 @@ class Controller:
                 if spec.clipboard and config.ENABLE_CLIPBOARD:
                     formatted = self.messageFormatter(spec.osc_format_type, translation, message, snapshot.format_parts)
                     if current() and config.ENABLE_CLIPBOARD:
-                        model.setCopyToClipboardAndPasteFromClipboard(formatted)
+                        return model.setCopyToClipboardAndPasteFromClipboard(formatted) is not False
 
             sink("clipboard", clipboard)
             if spec.delivery == "push":
@@ -2200,13 +2205,13 @@ class Controller:
 
             def websocket():
                 if model.checkWebSocketServerAlive() is True and current():
-                    model.websocketSendMessage({
+                    return model.websocketSendMessage({
                         "type": spec.ws_type,
                         "src_languages": language_payload(snapshot.your_languages if spec.multi_target else snapshot.target_languages),
                         "dst_languages": language_payload(snapshot.destinations),
                         "message": message, "translation": translation,
                         "transliteration": transliteration_translation,
-                    })
+                    }) is not False
 
             sink("websocket", websocket)
 
@@ -2214,6 +2219,7 @@ class Controller:
                 if config.LOGGER_FEATURE:
                     translation_text = f" ({'/'.join(translation)})" if translation else ""
                     model.logger.info(f"{spec.logger_prefix} {message}{translation_text}")
+                    return True
 
             sink("logger", logger)
 
@@ -2447,8 +2453,8 @@ class Controller:
             event = microphone_event(update, translations, usable, source_language=snapshot.source_language,
                                      targets=snapshot.target_languages, selected_slot=settings.target_slot)
             if event is not None:
-                self.voice_events.publish(event, expected_generation=generation,
-                                          expected_source_generation=source_generation)
+                return self.voice_events.publish(event, expected_generation=generation,
+                                                 expected_source_generation=source_generation)
 
     def _cancelMicVoice(self):
         bus = getattr(self, "voice_events", None)

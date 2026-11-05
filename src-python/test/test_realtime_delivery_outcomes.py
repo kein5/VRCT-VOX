@@ -110,8 +110,109 @@ def test_blocked_and_queued_finals_settle_before_translation_returns(app, cancel
         release.set()
 
 
-def test_superseded_chatbox_keeps_other_outputs_without_reporting_sent(app):
+@pytest.mark.parametrize("cancel", ["expiry", "mute", "off"])
+@pytest.mark.parametrize("output", ["osc", "websocket"])
+def test_committed_output_stays_delivered_while_later_sink_waits(app, cancel, output):
     entered, release = Event(), Event()
+    app.cfg.ENABLE_CLIPBOARD = False
+    app.cfg.SEND_MESSAGE_TO_VRC = output == "osc"
+    app.m.checkWebSocketServerAlive.return_value = output == "websocket"
+
+    def log(*args):
+        entered.set()
+        assert release.wait(2)
+
+    app.m.logger.info.side_effect = log
+    session, delivery = start(app)
+    try:
+        session.emit("committed")
+        assert entered.wait(1)
+        assert app.m.oscSendMessage.call_count == int(output == "osc")
+        assert app.m.websocketSendMessage.call_count == int(output == "websocket")
+        if cancel == "expiry":
+            expired_at = monotonic() + 3
+            delivery._clock = lambda: expired_at
+        elif cancel == "mute":
+            app.mute()
+            app.mute(False)
+        else:
+            app.c.stopRealtimeASR({"source": "mic"})
+        eventually(lambda: bool(outcomes(app)))
+        assert_outcome(app, "committed", "delivered")
+        release.set()
+        assert delivery.close()
+        assert_outcome(app, "committed", "delivered")
+        app.m.addTranslationHistory.assert_not_called()
+        assert app.c.voice_events.status()["accepted"] == 0
+        assert not any(p["state"] == "translated" for p in captions(app))
+    finally:
+        release.set()
+
+
+@pytest.mark.parametrize("output", ["websocket", "clipboard"])
+def test_rejected_output_does_not_count_as_committed(app, output):
+    app.cfg.SEND_MESSAGE_TO_VRC = False
+    app.cfg.LOGGER_FEATURE = False
+    app.cfg.ENABLE_CLIPBOARD = output == "clipboard"
+    app.m.checkWebSocketServerAlive.return_value = output == "websocket"
+
+    def reject(*args):
+        app.mute()
+        return False
+
+    sink = app.m.websocketSendMessage if output == "websocket" else app.m.setCopyToClipboardAndPasteFromClipboard
+    sink.side_effect = reject
+    session, delivery = start(app)
+    session.emit("rejected")
+    wait_for_finals(session, delivery)
+    sink.assert_called_once()
+    assert_outcome(app, "rejected", "not_delivered", "revoked")
+
+
+@pytest.mark.parametrize("succeeds", [True, False])
+@pytest.mark.parametrize("cancel", ["expiry", "mute", "off"])
+def test_outcome_waits_for_first_inflight_output_result(app, succeeds, cancel):
+    entered, release = Event(), Event()
+    app.cfg.ENABLE_CLIPBOARD = False
+
+    def send(*args, **kwargs):
+        entered.set()
+        assert release.wait(2)
+        if not succeeds:
+            raise RuntimeError("transport failed")
+        return True
+
+    app.m.oscSendMessage.side_effect = send
+    session, delivery = start(app)
+    try:
+        session.emit("inflight")
+        assert entered.wait(1)
+        if cancel == "expiry":
+            expired_at = monotonic() + 3
+            delivery._clock = lambda: expired_at
+        elif cancel == "mute":
+            app.mute()
+        else:
+            app.c.stopRealtimeASR({"source": "mic"})
+        delivery._settle_invalid()
+        assert outcomes(app) == []
+        release.set()
+        eventually(lambda: bool(outcomes(app)))
+        assert_outcome(app, "inflight", "delivered" if succeeds else "not_delivered",
+                       None if succeeds else "expired" if cancel == "expiry" else "revoked")
+        assert delivery.close()
+        app.m.websocketSendMessage.assert_not_called()
+    finally:
+        release.set()
+
+
+@pytest.mark.parametrize("other_outputs", [True, False])
+def test_superseded_chatbox_outcome_accounts_for_other_committed_outputs(app, other_outputs):
+    entered, release = Event(), Event()
+    app.cfg.ENABLE_CLIPBOARD = False
+    app.cfg.LOGGER_FEATURE = other_outputs
+    app.m.checkWebSocketServerAlive.return_value = other_outputs
+    assert app.c.voice_events.set_enabled(False)
 
     def translate(message, **kwargs):
         if message == "older":
@@ -128,10 +229,11 @@ def test_superseded_chatbox_keeps_other_outputs_without_reporting_sent(app):
     finally:
         release.set()
     wait_for_finals(session, delivery)
-    assert_outcome(app, "older", "not_delivered", "superseded")
+    assert_outcome(app, "older", "delivered" if other_outputs else "not_delivered",
+                   None if other_outputs else "superseded")
     app.m.oscSendMessage.assert_called_once()
-    assert app.m.websocketSendMessage.call_count == 2
-    assert app.m.logger.info.call_count == 2
+    assert app.m.websocketSendMessage.call_count == 2 * int(other_outputs)
+    assert app.m.logger.info.call_count == 2 * int(other_outputs)
     assert any(p["state"] == "translated" for p in captions(app))
 
 

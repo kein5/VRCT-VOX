@@ -43,7 +43,7 @@ class FakeServers:
 
 
 class FakeSession:
-    def __init__(self, source, options, endpoint):
+    def __init__(self, source, options, endpoint, *, snapshot_voice=None):
         self.source = source
         self.active = False
         self.released = False
@@ -100,8 +100,8 @@ def app(monkeypatch):
     c.run = MagicMock()
     made = []
 
-    def session(*args):
-        result = FakeSession(*args)
+    def session(*args, **kwargs):
+        result = FakeSession(*args, **kwargs)
         made.append(result)
         return result
 
