@@ -10,13 +10,14 @@ import { generateLocalizedDocumentUrl } from "@ui_configs";
 import { CloseButton } from "@common_components";
 
 export const SplashComponent = () => {
+    const { t } = useI18n();
     const { asyncCloseApp } = useWindow();
     return (
         <div className={styles.container}>
             <StartUpProgressContainer />
             <DownloadModelsContainer />
             <AnnouncementsContainer />
-            <CloseButton onClick={asyncCloseApp} />
+            <CloseButton aria-label={t("studio.close")} onClick={asyncCloseApp} />
         </div>
     );
 };

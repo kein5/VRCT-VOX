@@ -18,7 +18,7 @@ export const StartupFailedComponent = () => {
                     </button>
                 </div>
             </div>
-            <CloseButton onClick={asyncCloseApp} />
+            <CloseButton aria-label={t("studio.close")} onClick={asyncCloseApp} />
         </div>
     );
 };

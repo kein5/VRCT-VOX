@@ -117,6 +117,7 @@ voice:
 common:
     check_latest_status: "最新の状況を確認"
     close_button_label: "閉じる"
+    dismiss_notification: "通知を閉じる"
     go_back_button_label: "戻る"
     default_label: "デフォルト"
     reset_to_default: "初期値に戻す"

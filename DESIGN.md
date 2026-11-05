@@ -104,7 +104,7 @@ Keep the user's configured UI font, scaling and log-font preferences. Local Noto
 
 ## Layout
 
-The regular main rail is 240px and the settings rail is 208px. At the existing 800px scaling-aware breakpoint, main navigation uses a 72px icon rail; settings use a 56px rail that expands for keyboard focus or hover; focus from a click does not keep it open after the pointer leaves. Small windows scroll rather than dropping controls. Top status controls can scroll horizontally when necessary.
+The regular main rail is 240px and the settings rail is 208px. At the existing 800px scaling-aware breakpoint, main navigation uses a 72px icon rail; its toggle can temporarily expand the rail to reach the language controls without changing the saved compact preference. Returning to a wide window clears that temporary expansion. Settings use a 56px rail that expands for keyboard focus or hover; focus from a click does not keep it open after the pointer leaves. Small windows scroll rather than dropping controls. Top status controls can scroll horizontally when necessary.
 
 The conversation occupies the largest region. An empty state explains where to type, and the composer has a blue send action. Settings have a conventional back button, search and aligned sections. Field labels stack below 700px. Dialogs constrain their width to the viewport and keep explicit consent visible.
 

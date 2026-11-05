@@ -7,14 +7,14 @@ import ArrowLeftSvg from "@images/arrow_left.svg?react";
 
 export const SidebarCompactModeButton = () => {
     const { t } = useI18n();
-    const { toggleIsMainPageCompactMode, currentIsMainPageCompactMode, isAutomaticCompact } = useIsMainPageCompactMode();
+    const { toggleIsMainPageCompactMode, currentIsMainPageCompactMode } = useIsMainPageCompactMode();
 
     const class_names = clsx(styles["arrow_left_svg"], {
         [styles["reverse"]]: currentIsMainPageCompactMode.data
     });
 
     return (
-        <button type="button" disabled={isAutomaticCompact} aria-label={t("studio.toggle_sidebar")}
+        <button type="button" aria-label={t("studio.toggle_sidebar")}
             aria-expanded={!currentIsMainPageCompactMode.data} className={styles.container} onClick={toggleIsMainPageCompactMode}>
             <ArrowLeftSvg className={class_names} preserveAspectRatio="none" aria-hidden="true" />
         </button>
