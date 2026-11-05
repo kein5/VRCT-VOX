@@ -3,6 +3,8 @@
 .toggle_switch_container {
     position: relative;
     display: inline-flex;
+    // Long labels or status text wrap instead of narrowing the switch.
+    flex-shrink: 0;
     align-items: center;
     @include toggle_control_styles;
 
