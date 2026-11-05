@@ -258,6 +258,124 @@ def test_url_without_a_key_only_saves_url(subject):
 
 
 @pytest.mark.parametrize("engine,name,key", TRANSLATION[:-1])
+def test_translation_candidate_cannot_overwrite_newer_model_selection(subject, engine, name, key):
+    s = subject
+    prefix = model_prefix(engine)
+    setattr(s.config, f"SELECTABLE_{prefix}_MODEL_LIST", ["working-model", "new-model"])
+    original = s.model.prepareTranslatorCredential
+
+    def prepare(*args, **kwargs):
+        candidate = original(*args, **kwargs)
+        assert getattr(s.controller, f"set{name}Model")("new-model") == {
+            "status": 200, "result": "new-model",
+        }
+        return candidate
+
+    s.model.prepareTranslatorCredential = prepare
+    result = getattr(s.controller, f"set{name}AuthKey")(key)
+    assert result["status"] == 400
+    assert result["result"]["data"] == s.config.AUTH_KEYS[engine] == "synthetic-old-key"
+    assert getattr(s.config, f"SELECTED_{prefix}_MODEL") == "new-model"
+    assert live_client(s, engine) is s.previous
+    assert live_client(s, engine).selected_model == "new-model"
+    s.controller.run.assert_not_called()
+
+
+def test_compatible_url_candidate_cannot_overwrite_newer_model_selection(subject):
+    s = subject
+    s.config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = ["working-model", "new-model"]
+    original = s.model.prepareTranslatorCredential
+
+    def prepare(*args, **kwargs):
+        candidate = original(*args, **kwargs)
+        assert s.controller.setOpenAICompatibleModel("new-model")["status"] == 200
+        return candidate
+
+    s.model.prepareTranslatorCredential = prepare
+    result = s.controller.setOpenAICompatibleURL("https://candidate.invalid/v1")
+    assert result["status"] == 400
+    assert result["result"]["data"] == s.config.OPENAI_COMPATIBLE_URL == "https://previous.invalid/v1"
+    assert s.config.SELECTED_OPENAI_COMPATIBLE_MODEL == live_client(s, "OpenAI_Compatible").selected_model == "new-model"
+    assert live_client(s, "OpenAI_Compatible") is s.previous
+    s.controller.run.assert_not_called()
+
+
+@pytest.mark.parametrize("failure", ["auth", "empty", "invalid_model", "discovery"])
+@pytest.mark.parametrize("available", [False, True])
+def test_custom_whisper_url_failure_preserves_working_state(subject, failure, available):
+    s = subject
+    s.config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"] = available
+    if failure == "auth":
+        s.model.authenticationTranscriptionApiKey.return_value = False
+    elif failure == "discovery":
+        s.model.getTranscriptionApiModelList.side_effect = RuntimeError("synthetic failure")
+    else:
+        s.model.getTranscriptionApiModelList.return_value = [] if failure == "empty" else [None]
+    s.config.saveConfig.reset_mock()
+    result = s.controller.setCustomWhisperURL("https://candidate.invalid/v1")
+    assert result["status"] == 400
+    assert result["result"]["error_code"] == (
+        "GENERAL_EXCEPTION" if failure == "discovery" else "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID"
+    )
+    assert result["result"]["data"] == s.config.TRANSCRIPTION_CUSTOM_URL == "https://transcription.invalid/v1"
+    assert s.config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"] == "synthetic-old-key"
+    assert s.config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST == ["working-model"]
+    assert s.config.SELECTED_CUSTOM_WHISPER_MODEL == "working-model"
+    assert s.config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"] is available
+    s.config.saveConfig.assert_not_called()
+    s.controller.run.assert_not_called()
+    s.controller.updateTranscriptionEngine.assert_not_called()
+
+
+@pytest.mark.parametrize("change", ["delete", "replace", "url"])
+def test_custom_whisper_url_candidate_rejected_after_newer_setting(subject, change):
+    s = subject
+
+    def discover(**kwargs):
+        if change == "delete":
+            assert s.controller.delCustomWhisperAuthKey()["status"] == 200
+        elif change == "replace":
+            s.config.updateCredential("TRANSCRIPTION_AUTH_KEYS", "Custom_Whisper", "synthetic-other-key")
+        else:
+            s.config.TRANSCRIPTION_CUSTOM_URL = "https://other.invalid/v1"
+        s.config.saveConfig.reset_mock()
+        s.controller.run.reset_mock()
+        s.controller.updateTranscriptionEngine.reset_mock()
+        return ["new-model"]
+
+    s.model.getTranscriptionApiModelList.side_effect = discover
+    result = s.controller.setCustomWhisperURL("https://candidate.invalid/v1")
+    assert result["status"] == 400
+    assert result["result"]["error_code"] == "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID"
+    assert result["result"]["data"] == s.config.TRANSCRIPTION_CUSTOM_URL == (
+        "https://other.invalid/v1" if change == "url" else "https://transcription.invalid/v1"
+    )
+    assert s.config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"] == {
+        "delete": None, "replace": "synthetic-other-key", "url": "synthetic-old-key",
+    }[change]
+    assert s.config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"] is (change != "delete")
+    assert s.config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST == ([] if change == "delete" else ["working-model"])
+    assert s.config.SELECTED_CUSTOM_WHISPER_MODEL == (None if change == "delete" else "working-model")
+    s.config.saveConfig.assert_not_called()
+    s.controller.run.assert_not_called()
+    s.controller.updateTranscriptionEngine.assert_not_called()
+
+
+@pytest.mark.parametrize("models,selected", [(["new-model", "working-model"], "working-model"),
+                                           (["new-model"], "new-model")])
+def test_custom_whisper_url_success_commits_validated_state(subject, models, selected):
+    s = subject
+    s.model.getTranscriptionApiModelList.return_value = models
+    result = s.controller.setCustomWhisperURL("https://candidate.invalid/v1")
+    assert result == {"status": 200, "result": "https://candidate.invalid/v1"}
+    assert s.config.TRANSCRIPTION_CUSTOM_URL == result["result"]
+    assert s.config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST == models
+    assert s.config.SELECTED_CUSTOM_WHISPER_MODEL == selected
+    assert s.config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"] is True
+    s.controller.updateTranscriptionEngine.assert_called_once()
+
+
+@pytest.mark.parametrize("engine,name,key", TRANSLATION[:-1])
 def test_translation_falls_back_to_first_candidate_model(subject, engine, name, key):
     # A previously selected model has disappeared from the new provider's list.
     prefix = model_prefix(engine)

@@ -883,6 +883,18 @@ class Main:
             # at dequeue prevents STOP from overtaking a preempted START worker.
             if endpoint in {"/run/typing_message_box", "/run/stop_typing_message_box"}:
                 return "/lock/typing_message_box"
+            # A prepared credential/client and its model belong to one intent
+            # stream. Different providers can still perform checks in parallel.
+            for provider in (
+                "deepl", "plamo", "gemini", "openai", "groq", "openrouter", "openai_compatible",
+                "groq_whisper", "openai_whisper", "custom_whisper", "deepgram",
+            ):
+                if endpoint in {
+                    f"/set/data/{provider}_auth_key", f"/delete/data/{provider}_auth_key",
+                    f"/set/data/selected_{provider}_model",
+                } or (provider in {"openai_compatible", "custom_whisper"}
+                      and endpoint == f"/set/data/{provider}_url"):
+                    return f"/lock/credential/{provider}"
             # OBS depends on WebSocket. Hold one transaction lock through
             # preflight, startup/rebind, config commit and failure cleanup.
             if endpoint in {
