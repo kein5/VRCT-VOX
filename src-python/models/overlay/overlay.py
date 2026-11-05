@@ -1023,7 +1023,7 @@ class Overlay:
         return self.publication_generation, self.output_generations.get(size, 0)
 
     def updateImage(self, img: Image.Image, size: str, *, current: Callable[[], bool] = lambda: True) -> bool:
-        """Return True only for an accepted upload. Never carry revoked bytes through reconnect."""
+        """Return True for an accepted upload, False for cancellation; raise on current failure."""
         generation = self.publicationToken(size)
         valid = lambda: self.publicationCurrent(size, generation, current)
         if not valid() or not (self.initialized or (self._constructing and self.owner_thread_id == get_ident())):
@@ -1050,10 +1050,10 @@ class Overlay:
                 except Exception:
                     if self._constructing:
                         raise
-                    if attempt or not valid():
-                        if valid():
-                            errorLogging()
+                    if not valid():
                         return False
+                    if attempt:
+                        raise
             # The owner tears down and reconnects; do not hold the upload lock while waiting.
             if not self.reStartOverlay(current=valid):
                 return False
@@ -1063,8 +1063,7 @@ class Overlay:
             if not valid():
                 return False
             if not self.initialized:
-                printLog(f"overlay: {size} reinitialization timed out after {_REINIT_WAIT_TIMEOUT_SEC}s")
-                return False
+                raise TimeoutError(f"overlay: {size} reinitialization timed out after {_REINIT_WAIT_TIMEOUT_SEC}s")
         return False
 
     def initPanelTexture(self) -> None:
@@ -1692,13 +1691,20 @@ class Overlay:
         if pressed:
             self.trigger_blocked.add(hand)
         if xy is not None and self.panel_hwnd is not None:
-            window_capture.mouseMove(self.panel_hwnd, *_OUTSIDE_XY, pressed=pressed)
+            try:
+                window_capture.mouseMove(self.panel_hwnd, *_OUTSIDE_XY, pressed=pressed)
+            except Exception:
+                errorLogging()
             if pressed:
-                window_capture.mouseUp(self.panel_hwnd, *_OUTSIDE_XY)
+                try:
+                    window_capture.mouseUp(self.panel_hwnd, *_OUTSIDE_XY)
+                except Exception:
+                    errorLogging()
 
     def cancelPanelInputs(self) -> None:
         for hand in tuple(self.panel_input):
             self.cancelPanelInput(hand)
+        self.notifyPointer(None)
 
     def handlePanelInput(self, hand: int, xy: Optional[tuple], state: Optional[Any]) -> None:
         """レーザーが当たっている位置 (撮影画像上のピクセル、外れていれば None) へマウス入力を送る。
@@ -3007,6 +3013,7 @@ class Overlay:
                     stop.wait(sleepTime)
         finally:
             stop.set()
+            self.cancelPanelInputs()
             watcher.join(timeout=_SHUTDOWN_JOIN_TIMEOUT_SEC)
             self.notifyPanelOutOfView(False)
 
@@ -3061,6 +3068,7 @@ class Overlay:
         OpenGL の環境を作ったこのスレッドで、環境を今のものにしたまま閉じる。
         GL コンテキストは作ったスレッドでしか破棄できないので、それも最後にここで行う。
         """
+        self.cancelPanelInputs()
         if self.gl is not None:
             try:
                 self.gl["glfw"].make_context_current(self.gl["window"])
@@ -3130,6 +3138,7 @@ class Overlay:
 
     def onGrabError(self, e: Exception) -> None:
         """掴み・伸ばす処理で例外が出たら、その操作をやめる (同じ例外で毎フレーム止まり続けないように)。"""
+        self.cancelPanelInputs()
         self.grabbing = None
         if self.resizing is not None:
             self.resizing = None
