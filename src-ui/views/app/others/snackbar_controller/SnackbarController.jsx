@@ -12,6 +12,7 @@ import ErrorSvg from "@images/error.svg?react";
 
 import { useNotificationStatus } from "@logics_common";
 import { CloseButton } from "@common_components";
+import { useI18n } from "@useI18n";
 
 const CustomTransition = cssTransition({
     enter: "fade_in",
@@ -21,6 +22,7 @@ const CustomTransition = cssTransition({
 
 
 export const SnackbarController = () => {
+    const { t } = useI18n();
     const { currentNotificationStatus, closeNotification } = useNotificationStatus();
     // const [containerKey, setContainerKey] = useState(0);
 
@@ -61,7 +63,7 @@ export const SnackbarController = () => {
                     toastClassName: snackbar_classname,
                     hideProgressBar: to_hide_progress_bar,
                     progressClassName: styles.toast_progress,
-                    closeButton: ({ closeToast }) => <CloseButton size="small" onClick={closeToast} />,
+                    closeButton: ({ closeToast }) => <CloseButton size="small" aria-label={t("common.dismiss_notification")} onClick={closeToast} />,
                     onClose: () => {
                         closeNotification();
                     },

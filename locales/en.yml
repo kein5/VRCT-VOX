@@ -117,6 +117,7 @@ voice:
 common:
     check_latest_status: "Check the latest status"
     close_button_label: "Close"
+    dismiss_notification: "Dismiss notification"
     go_back_button_label: "Go Back"
     default_label: "Default"
     reset_to_default: "Reset to default"

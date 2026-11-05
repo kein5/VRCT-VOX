@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ErrorBoundary } from "react-error-boundary";
 import { useI18n } from "@useI18n";
+import { ErrorBoundary } from "react-error-boundary";
 
 import CopySvg from "@images/copy.svg?react";
 import CheckMarkSvg from "@images/check_mark.svg?react";
@@ -64,7 +64,7 @@ const ErrorContainer = ({error, errorInfo}) => {
     return (
         <div className={styles.container}>
             <div className={styles.drag_able_area} data-tauri-drag-region></div>
-            <CloseButton variant="active_error" onClick={asyncCloseApp} />
+            <CloseButton variant="active_error" aria-label={t("studio.close")} onClick={asyncCloseApp} />
             <div className={styles.wrapper}>
                 <p className={styles.error_message}>{t("common_error.recovery_instructions")}</p>
                 <SafeActionButtons />

@@ -1,5 +1,6 @@
 import { TranscriptionConsentController } from "./_app_controllers/TranscriptionConsentController";
 import { useI18n } from "@useI18n";
+import { useRef } from "react";
 
 import {
     KeyEventController,
@@ -68,6 +69,7 @@ export const App = () => {
 
 const Contents = () => {
     const { currentIsSoftwareUpdating } = useIsSoftwareUpdating();
+    const mainPage = useRef(null);
     return (
         <>
             <WindowGeometryController />
@@ -77,8 +79,8 @@ const Contents = () => {
             ?
             <div className={styles.pages_wrapper}>
                 <ConfigPage />
-                <MainPage />
-                <ModalController />
+                <MainPage focusFallback={mainPage} />
+                <ModalController fallback={mainPage} />
                 <TranscriptionConsentController />
             </div>
             :

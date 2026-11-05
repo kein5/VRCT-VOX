@@ -422,11 +422,14 @@ test("opening and closing settings keeps the same MainSection type and key mount
         "./sidebar_section/SidebarSection": { SidebarSection: icon },
         "./main_section/MainSection": { MainSection },
     });
-    const initial = find(runtime.render(MainPage), node => node.type === MainSection);
+    const focusFallback = { current: null };
+    const initial = find(runtime.render(MainPage, { focusFallback }), node => node.type === MainSection);
     for (const state of [true, false]) {
         open = state;
-        const page = runtime.render(MainPage);
+        const page = runtime.render(MainPage, { focusFallback });
         const section = find(page, node => node.type === MainSection);
+        assert.equal(page.ref, focusFallback);
+        assert.equal(page.props.tabIndex, -1, "quick-dialog fallback is programmatically focusable");
         assert.equal(page.props["aria-hidden"], state);
         assert.equal(section.type, initial.type);
         assert.equal(section.key, initial.key);
