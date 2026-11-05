@@ -115,6 +115,7 @@ voice:
     error: "発声できません（サーバー・言語・出力先を確認）"
 
 common:
+    check_latest_status: "最新の状況を確認"
     close_button_label: "閉じる"
     go_back_button_label: "戻る"
     default_label: "デフォルト"
@@ -123,6 +124,12 @@ common:
     loading: "読み込み中…"
 
 common_error:
+    recovery_instructions: "エラーが発生しました。VRCT-VOXを再起動してください。繰り返し発生する場合は、VRCT-VOXのIssuesで報告してください。"
+    last_error_line: "最後のエラー行"
+    copy_error_log: "エラーログをコピー"
+    updating: "更新中…"
+    update_now: "新しいバージョンに更新する"
+    check_issues: "VRCT-VOXのIssuesを開く"
     backend_startup_failed: "VRCT-VOXの処理部分を起動できませんでした。もう一度お試しください。繰り返し起きる場合は、VRCT-VOXをインストールし直してください。"
     backend_startup_retry: "もう一度起動する"
     request_404: "この操作は利用できません。VRCT-VOXを再起動して、もう一度お試しください。"
@@ -240,6 +247,7 @@ common_warning:
     unable_to_use_osc_query: "OSC受信またはOSCQueryの公開を開始できないため、以下の機能を無効にしました。マイクミュート同期がオンだった場合は、マイク入力も停止しています。ローカルのOSC設定を確認して保存し直してから、マイク入力をオンにしてください。"
 
 main_page:
+    backend_disconnected: "エンジンとの接続が切れました"
     translation: "翻訳"
     transcription_send: "マイク入力"
     transcription_receive: "聞き取り"

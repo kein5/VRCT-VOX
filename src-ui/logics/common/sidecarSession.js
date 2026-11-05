@@ -46,7 +46,7 @@ export const createSidecarSessionOwner = ({ store, createCommand, setInterval, c
         if (session.child) void retireChild(session);
     };
     const start = () => {
-        const session = { phase: "starting", child: null, timer: null, expectedExits: new Map(), retrying: false };
+        const session = { phase: "starting", initialized: false, child: null, timer: null, expectedExits: new Map(), retrying: false };
         store.backend_session = session;
         store.backend_subprocess = null;
         store.backend_stopped = false;
@@ -64,11 +64,11 @@ export const createSidecarSessionOwner = ({ store, createCommand, setInterval, c
                 command.on("close", ({ code, signal } = {}) => {
                     if (!isCurrent(session)) return;
                     session.closed = true;
-                    if (session.phase === "starting") {
+                    const expected = session.expectedExits.size > 0;
+                    if (!session.initialized && !expected) {
                         fail(session, { code, signal });
                         return;
                     }
-                    const expected = session.expectedExits.size > 0;
                     if (finish(session, "stopped") && !expected) handlers()?.unexpectedExit({ code, signal });
                 });
                 command.stdout.on("data", line => {
@@ -77,7 +77,9 @@ export const createSidecarSessionOwner = ({ store, createCommand, setInterval, c
                     // an empty line. Escaped newlines inside JSON remain intact.
                     if (typeof line === "string" && line.trim() === "") return;
                     try {
-                        handlers()?.receiveRoutes(JSON.parse(line));
+                        const message = JSON.parse(line);
+                        handlers()?.receiveRoutes(message);
+                        if (message.status === 200 && message.endpoint === "/run/initialization_complete") session.initialized = true;
                     } catch (error) {
                         console.log(error, line);
                     }

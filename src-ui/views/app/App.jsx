@@ -55,7 +55,7 @@ export const App = () => {
 
                 {startupState === "failed"
                     ? <StartupFailedComponent />
-                    : currentIsBackendReady.data === false
+                    : startupState !== "stopped" && currentIsBackendReady.data === false
                     ? <SplashComponent />
                     : <Contents key={i18n.language} />
                 }

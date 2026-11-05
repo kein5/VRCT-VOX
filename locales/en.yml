@@ -115,6 +115,7 @@ voice:
     error: "Voice unavailable (check server, language and output)"
 
 common:
+    check_latest_status: "Check the latest status"
     close_button_label: "Close"
     go_back_button_label: "Go Back"
     default_label: "Default"
@@ -123,6 +124,12 @@ common:
     loading: "Loading…"
 
 common_error:
+    recovery_instructions: "An error occurred. Restart VRCT-VOX. If it keeps happening, report it in the VRCT-VOX issues."
+    last_error_line: "Last error line"
+    copy_error_log: "Copy error log"
+    updating: "Updating…"
+    update_now: "Update available — update now"
+    check_issues: "Check VRCT-VOX issues"
     backend_startup_failed: "The VRCT-VOX engine could not start. Try again. If this continues, reinstall VRCT-VOX."
     backend_startup_retry: "Try starting again"
     request_404: "This operation is not available. Restart VRCT-VOX and try again."
@@ -240,6 +247,7 @@ common_warning:
     unable_to_use_osc_query: "OSC reception or OSCQuery advertisement is unavailable. The functions below are disabled. If mic mute sync was on, microphone input has also been stopped. Check the local OSC settings and save them again before turning microphone input back on."
 
 main_page:
+    backend_disconnected: "Engine disconnected"
     translation: "Translation"
     transcription_send: "Voice2Chatbox"
     transcription_receive: "Speaker2Log"

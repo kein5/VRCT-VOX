@@ -28,7 +28,7 @@ const Tab = (props) => {
     return (
         <div className={class_names} aria-disabled={isLanguageSettingsBusy} onClick={onclickFunction}
             role="button" tabIndex={0} aria-pressed={currentSelectedPresetTabNumber.data === props.preset_number}
-            onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); onclickFunction(); } }}>
+            onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (event.repeat) return; onclickFunction(); } }}>
             <p className={styles.tab_number}>{props.preset_number}</p>
         </div>
     );

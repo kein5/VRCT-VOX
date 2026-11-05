@@ -32,7 +32,7 @@ export const MessageLogSettingsContainer = (props) => {
                 <div className={styles.config_svg_wrapper} role="button" tabIndex={0} aria-expanded={is_opened}
                     aria-label={t("config_page.appearance.textbox_ui_size.label")}
                     onClick={event => { event.stopPropagation(); setIsOpened(!is_opened); }}
-                    onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); setIsOpened(!is_opened); } }}>
+                    onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (event.repeat) return; setIsOpened(!is_opened); } }}>
                     <ConfigSvg className={styles.config_svg} aria-hidden="true"/>
                 </div>
             </div>

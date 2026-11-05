@@ -71,7 +71,7 @@ const TranslatorBox = (props) => {
 
     return (
         <div className={box_class_name} aria-disabled={isLanguageSettingsBusy} onClick={selectTranslator}
-            role="button" tabIndex={0} aria-pressed={!!props.is_selected} onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); selectTranslator(); } }}>
+            role="button" tabIndex={0} aria-pressed={!!props.is_selected} onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (event.repeat) return; selectTranslator(); } }}>
             <p className={styles.translator_name}>{props.label}</p>
             {props.is_default && <p className={label_default_class_name}>{t("common.default_label")}</p>}
         </div>

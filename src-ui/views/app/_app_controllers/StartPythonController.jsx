@@ -30,7 +30,7 @@ export const StartPythonController = () => {
         },
         setStartupState: phase => {
             updateBackendStartupState(phase);
-            if (phase === "failed") updateIsBackendReady(false);
+            if (phase === "failed" || phase === "stopped") updateIsBackendReady(false);
         },
         started: asyncFetchFonts,
         unexpectedExit: ({ code, signal }) => {
@@ -40,7 +40,7 @@ export const StartPythonController = () => {
         },
         stderr: line => {
             showNotification_Error(
-                `An error occurred. Please restart VRCT-VOX or contact the developers. The last line:${JSON.stringify(line)}`, { hide_duration: null }
+                `${t("common_error.recovery_instructions")}\n${t("common_error.last_error_line")}: ${JSON.stringify(line)}`, { hide_duration: null }
             );
             console.error("stderr", line);
         },

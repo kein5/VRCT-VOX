@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useVoice, sourceKey } from "../../../../../logics/voice/useVoice";
 import { useNotificationStatus } from "../../../../../logics/common/useNotificationStatus";
 import { useI18n } from "@useI18n";
+import { useIsBackendReady } from "@logics_common";
 import { store } from "@store";
 import clsx from "clsx";
 import styles from "./MainFunctionSwitch.module.scss";
@@ -19,6 +20,7 @@ import { ToggleSwitch } from "../../../../common_components/toggle_switch/Toggle
 
 export const MainFunctionSwitch = () => {
     const { t, i18n } = useI18n();
+    const { currentIsBackendReady } = useIsBackendReady();
 
     const {
         toggleTranslation, currentTranslationStatus,
@@ -45,12 +47,14 @@ export const MainFunctionSwitch = () => {
         if (rvcOwnsInput && voice.directState.error) notify(voice.directState.error, "RVC");
     }, [rvcOwnsInput, voice.directState.error]);
     const toggleTts = () => {
+        if (!store.backend_subprocess || store.backend_stopped) return;
         if (voice.ttsPending?.intent === false) return;
         if (voice.status.tts_enabled || voice.ttsPending?.intent) return voice.send("/run/disable_tts");
         if (!Number.isSafeInteger(voice.status.tts_generation)) return notify(t("voice_ui.state_unknown"), "TTS");
         voice.send("/run/enable_tts", { generation: voice.status.tts_generation });
     };
     const toggleRvc = () => {
+        if (!store.backend_subprocess || store.backend_stopped) return;
         if (rvcOwnsInput && voice.directPending?.intent === false) return;
         if (rvcOwnsInput && (voice.directState.requested || voice.directState.pending || voice.directPending?.intent))
             return voice.send("/run/stop_direct_voice");
@@ -112,9 +116,10 @@ export const MainFunctionSwitch = () => {
                     switch_id={item.switch_id}
                     cancellable={item.cancellable}
                     disabled={item.disabled}
+                    unavailable={!currentIsBackendReady.data}
                     switchLabel={item.label}
                     currentState={item.currentState}
-                    statusText={item.statusText}
+                    statusText={currentIsBackendReady.data ? item.statusText : t("main_page.backend_disconnected")}
                     toggleFunction={item.toggleFunction}
                     SvgComponent={item.SvgComponent}
                 >
@@ -124,28 +129,31 @@ export const MainFunctionSwitch = () => {
     );
 };
 
-export const SwitchContainer = ({ switchLabel, switch_id, children, currentState, toggleFunction, SvgComponent, cancellable = false, disabled = false, statusText = null }) => {
+export const SwitchContainer = ({ switchLabel, switch_id, children, currentState, toggleFunction, SvgComponent, cancellable = false, disabled = false, unavailable = false, statusText = null }) => {
     const { currentIsMainPageCompactMode } = useIsMainPageCompactMode();
-    const blocked = disabled || (!cancellable && currentState.state === "pending");
+    const active = !unavailable && currentState.data === true;
+    const pending = !unavailable && currentState.state === "pending";
+    const blocked = unavailable || disabled || (!cancellable && pending);
 
     const getClassNames = (baseClass) => clsx(baseClass, {
         [styles.is_compact_mode]: currentIsMainPageCompactMode.data,
-        [styles.is_active]: (currentState.data === true),
-        [styles.is_pending]: (currentState.state === "pending"),
+        [styles.is_active]: active,
+        [styles.is_pending]: pending,
+        [styles.is_unavailable]: unavailable,
         [styles.cancellable]: cancellable,
     });
 
     return (
         <div
             className={getClassNames(styles.switch_container)}
-            role="switch" aria-label={switchLabel} aria-checked={currentState.data === true}
-            aria-busy={currentState.state === "pending"} aria-disabled={blocked} tabIndex={0}
+            role="switch" aria-label={unavailable ? `${switchLabel}: ${statusText}` : switchLabel} aria-checked={active}
+            aria-busy={pending} aria-disabled={blocked} tabIndex={0}
             title={statusText ?? undefined}
             onClick={() => { if (!blocked) toggleFunction(); }}
             onKeyDown={event => {
                 if (event.key === " " || event.key === "Enter") {
                     event.preventDefault();
-                    if (!blocked) toggleFunction();
+                    if (!event.repeat && !blocked) toggleFunction();
                 }
             }}
         >
@@ -157,13 +165,13 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
             </div>
 
             <ToggleSwitch
-                isActive={currentState.data === true}
-                isPending={currentState.state === "pending"}
+                isActive={active}
+                isPending={pending}
                 className={getClassNames(styles.toggle_control)}
             />
 
             <div className={getClassNames(styles.switch_indicator)}></div>
-            {(currentState.state === "pending") && (
+            {pending && (
                 <span className={styles.loader}></span>
             )}
         </div>
