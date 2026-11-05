@@ -348,7 +348,7 @@ def obs_request():
     """Exercise the real HTTP handler using byte streams, without sockets or threads."""
     def request(path, *, token="secret-token", host="127.0.0.1:2232"):
         with (
-            patch("models.obs.obs_browser_source_server.ThreadingHTTPServer") as http_server,
+            patch("models.obs.obs_browser_source_server._ObsHTTPServer") as http_server,
             patch("models.obs.obs_browser_source_server.threading.Thread"),
         ):
             server = ObsBrowserSourceServer("127.0.0.1", 0, ws_token=token)

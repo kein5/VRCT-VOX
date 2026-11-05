@@ -145,7 +145,8 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
                 {job?.error_code && <p role="alert">{failure(job.error_code)}</p>}
                 {job?.phase === "ready" && <p>{t("model_downloads.apply_hint")}</p>}
                 <div className={styles.actions}>
-                    {active && <button type="button" disabled={!!pending || job.phase === "cancelling"}
+                    {active && <button type="button" disabled={job.phase === "cancelling" || !!pending?.some(request =>
+                        request.endpoint !== "/run/apply_model_download" || request.id !== entry.id || request.job_id !== job.job_id)}
                         onClick={() => request("/run/cancel_model_download", entry, job)}>{t("model_downloads.cancel")}</button>}
                     {job?.phase === "ready" && <button type="button" disabled={busy || blocked || !expected?.[entry.target]}
                         onClick={() => send("/run/apply_model_download", { id: entry.id, job_id: job.job_id, expected: expected[entry.target] })}>{t("model_downloads.apply")}</button>}

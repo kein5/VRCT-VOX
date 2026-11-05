@@ -66,13 +66,16 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 - `OBS_BROWSER_SOURCE`（既定オフ）、`OBS_BROWSER_SOURCE_PORT`（既定2232、整数の1〜65535）。待ち受けるアドレスは`WEBSOCKET_HOST`と同じ。
 - OBSとWebSocketのオン・オフ、両サーバーのホスト・ポート変更は[同じIPCロック](ipc-protocol.md#並行性とロック)で直列に処理する。WebSocketをオフにするとOBSもオフになる。OBSだけをオフにしてもWebSocketは止めない。
 - OBSの有効化が失敗したら、その試行で新しく起動したWebSocketを停止する。もともと動いていたWebSocketは維持する。有効化中に依存先のWebSocketを起動できなければ`WEBSOCKET_SERVER_UNAVAILABLE`、OBSのポートを確保できなければ`OBS_BROWSER_SOURCE_PORT_UNAVAILABLE`、OBSの起動に失敗すれば`OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE`を返す。
+- 保存済みの設定による起動でも、OBSの実際の起動結果を確認する。失敗したらOBSをオフにし、途中まで確保したサーバーを停止する。初期設定をUIへ渡した後に、上記のOBSエラーを通知する。動作しているWebSocketは維持する。
 - WebSocketホストの変更では、有効なOBSも新しいホストで待ち受けを開始してから設定を確定する。OBSの再起動に失敗したら両サーバーを元のホストへ戻し、`OBS_BROWSER_SOURCE_HOST_UNAVAILABLE`を返す。WebSocketの復旧にも失敗したら両方をオフにし、OBSだけ復旧できなければOBSをオフにする。
 - OBSポートの変更で再起動に失敗したら、元のポートで復旧を試み、`OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE`を返す。復旧できなければOBSをオフにする。整数でないか1〜65535の範囲外のポートには、設定やサービスを変更する前に`OBS_BROWSER_SOURCE_PORT_INVALID`を返す。失敗した要求の値とUIの待機解除は[エラーの扱い](cross-cutting.md#エラーの扱い)に従う。
 - `GET /`と`GET /obs`は`?token=<WEBSOCKET_AUTH_TOKEN>`が必要。`hmac.compare_digest`で照合し、トークンがないか合わなければ403と短い平文だけを返す。認証前にHTMLやトークンを返さない。
+- `GET /obs/connection`は`Authorization: Bearer <WEBSOCKET_AUTH_TOKEN>`で同じ照合を行い、現在のWebSocketポートだけを`{"wsPort": 整数}`で返す。トークンは応答に含めず、クエリ文字列による認証は受け付けない。HTMLと同じHost検証とキャッシュ・参照元の制限を使う。
 - `GET /health`は認証なしで`ok`だけを返す。それ以外のパスは404。どのパスでも、`Host`がIPアドレスか`localhost`でなければ403（DNSリバインディング対策）。
 - HTMLの応答には`Cache-Control: no-store, max-age=0`と`Referrer-Policy: no-referrer`を付ける。アクセスログは出さず、クエリ文字列を記録しない。
 - 設定画面からコピーするURLには、WebSocketと同じトークンが入る。画面では伏せて表示する。設定済みのOBSブラウザソースもURLのコピーし直しが必要で、URL欄の下に案内を出す。
-- ページはWebSocketサーバーに接続して字幕を受け取る。切れたら0.5秒から1.5倍ずつ、最大8秒の間隔でつなぎ直す。
+- HTTPの同時処理は16件までとし、超過した接続は閉じる。読み取りの待機は5秒、要求全体も5秒を期限とし、0.1秒周期で期限を確認して未完了の接続を閉じる。停止時は新規受付を止め、受け付けた接続を閉じて、待受処理と各要求の終了を合計2秒まで待つ。残った処理があれば所有者を保持し、終了するまで次の起動を認めない。
+- ページはWebSocketサーバーに接続して字幕を受け取る。切れたら0.5秒から1.5倍ずつ、最大8秒の待ち時間で再試行する。毎回`/obs/connection`から現在のポートを取り直すため、変更通知を受け取れなくても新しいポートへ接続できる。再取得は5秒で打ち切り、認証失敗・不正な応答・通信失敗でも同じ待ち時間で再試行する。
 - 表示の設定と範囲: 最大メッセージ数14（1〜50）、表示時間60秒（1〜120）、フェードアウト12秒（0〜120）、文字の大きさ40（10〜200）、文字色`#FFFFFF`、縁取り3（0〜20）、縁取りの色`#000000`。
 
 ## クラウドとネットワークのサービス

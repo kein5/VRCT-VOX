@@ -1335,7 +1335,7 @@ model_downloads:
         downloads_closed: "The backend is shutting down. Downloading is unavailable."
         download_apply_failed: "The model path could not be saved. Check file access and retry."
         backend_unavailable: "The backend is unavailable. No download has been confirmed."
-        request_unconfirmed: "The request was not confirmed. Refresh the status before retrying."
+        request_unconfirmed: "This is taking longer than expected. Wait for it to finish, or cancel if the model is still being verified."
 
     headroom: "Memory headroom"
     headroom_vr: "VRChat / other models: leave 2 GiB free"

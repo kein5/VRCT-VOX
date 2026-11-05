@@ -1335,7 +1335,7 @@ model_downloads:
         downloads_closed: "バックエンドを終了中のため取得できません。"
         download_apply_failed: "モデルパスを保存できませんでした。ファイルのアクセス権を確認してください。"
         backend_unavailable: "バックエンドに接続できません。取得開始を確認できていません。"
-        request_unconfirmed: "要求の完了を確認できません。状態を再読込みしてから再試行してください。"
+        request_unconfirmed: "処理に時間がかかっています。完了を待つか、検証中であればキャンセルしてください。"
 
     headroom: "残しておくメモリの余裕"
     headroom_vr: "VRChat・他モデルと併用：2 GiBを残す"

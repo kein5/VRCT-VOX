@@ -274,7 +274,9 @@ export const useReceiveRoutes = () => {
             if (fn === undefined && method_name !== null) {
                 console.error("Method not found.", { endpoint, hook_name, method_name, result_obj, fn });
             }
-            return [endpoint, typeof fn === "function" ? fn : noop];
+            return [endpoint, typeof fn === "function"
+                ? (hook_name === "useModelDownloads" && method_name === "acknowledge" ? value => fn(value, endpoint) : fn)
+                : noop];
         })
     );
 
