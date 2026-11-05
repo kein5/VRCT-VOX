@@ -22,10 +22,10 @@ async function setup() {
         export const useRef = value => state.runtime ? state.runtime.api.useRef(value) : ({ current: value });
         export const useEffect = (callback, deps) => state.runtime ? state.runtime.api.useEffect(callback, deps) : state.cleanups.push(callback());
         export const store = { appWindow: {} };
-        export const Atom_IsOpenedConfigPage = 'settings', Atom_IsBackendReady = 'ready', Atom_IsSoftwareUpdating = 'updating';
+        export const Atom_IsOpenedConfigPage = 'settings', Atom_IsBackendReady = 'ready', Atom_IsSoftwareUpdating = 'updating', Atom_Hotkeys = 'hotkeys';
         export const getDefaultStore = () => ({ get: atom => ({ data: state[atom] }) });
         export const useStore_Hotkeys = () => ({ currentHotkeys: { data: state.hotkeys }, updateHotkeys: value => { state.hotkeys = value; }, pendingHotkeys() {} });
-        export const useStdoutToPython = () => ({ asyncStdoutToPython: async (...args) => { state.writes.push(args); return true; } });
+        export const useStdoutToPython = () => ({ asyncStdoutToPython: async (...args) => { state.writes.push(args); return state.writeGate ?? true; } });
         export const useNotificationStatus = () => ({ showNotification_SaveSuccess() {}, closeNotification() {},
             showNotification_Error: (...args) => state.notices.push(args) });
         export const useI18n = () => ({ t: key => key, i18n: { exists: () => true } });
@@ -284,4 +284,81 @@ test("portal reconciliation observes acknowledged content and does not rebind on
 test("Settings close controller leaves registration to its single owner", async () => {
     const source = await readFile(new URL("../../../../views/app/_app_controllers/ConfigPageCloseTriggerController.jsx", import.meta.url), "utf8");
     assert.doesNotMatch(source, /useHotkeys|registerShortcuts|unregisterAll/);
+});
+
+for (const deletion of [false, true]) test(`overlapping hotkey ${deletion ? "deletion" : "assignment"} sends only the edited actions`, async () => {
+    const subject = await setup(), gate = deferred();
+    subject.state.platformGate = "native";
+    subject.state.hotkeys = { toggle_translation: null, toggle_transcription_send: ["Ctrl", "M"] };
+    subject.state.registerGate = gate.promise;
+    const hook = await subject.load();
+    const first = hook.setHotkeys({ toggle_translation: ["Ctrl", "T"] });
+    await flush();
+    const second = hook.setHotkeys({ toggle_transcription_send: deletion ? null : ["Ctrl", "N"] });
+    gate.resolve();
+    await Promise.all([first, second]);
+    const final = Object.assign({}, ...subject.state.writes.map(([, value]) => value));
+    assert.deepEqual(final, { toggle_translation: ["Ctrl", "T"], toggle_transcription_send: deletion ? null : ["Ctrl", "N"] });
+    assert.ok(subject.state.writes.every(([, value]) => Object.keys(value).length === 1));
+});
+
+for (const boundary of ["preflight", "acknowledgement"]) test(`pending shortcut at ${boundary} cannot be assigned to a second action`, async () => {
+    const subject = await setup(), gate = deferred();
+    subject.state.platformGate = "native";
+    subject.state.hotkeys = { toggle_translation: null, toggle_transcription_send: null };
+    if (boundary === "preflight") subject.state.registerGate = gate.promise;
+    else subject.state.writeGate = gate.promise;
+    const hook = await subject.load();
+    const first = hook.setHotkeys({ toggle_translation: ["Ctrl", "T"] });
+    await flush();
+    const second = hook.setHotkeys({ toggle_transcription_send: ["Ctrl", "T"] });
+    await flush();
+    gate.resolve(true);
+    assert.equal(await second, false);
+    await first;
+    assert.equal(subject.state.writes.length, 1);
+});
+
+test("preflight rechecks the latest acknowledged content before saving", async () => {
+    const subject = await setup(), gate = deferred();
+    subject.state.platformGate = "native";
+    subject.state.hotkeys = { toggle_translation: null, toggle_transcription_send: null };
+    subject.state.registerGate = gate.promise;
+    const hook = await subject.load();
+    const edit = hook.setHotkeys({ toggle_translation: ["Ctrl", "T"] });
+    await flush();
+    hook.setSuccessHotkeys({ toggle_translation: null, toggle_transcription_send: ["Ctrl", "T"] });
+    gate.resolve();
+    assert.equal(await edit, false);
+    assert.deepEqual(subject.state.writes, []);
+});
+
+test("a newer edit of the same action supersedes its pending preflight", async () => {
+    const subject = await setup(), gate = deferred();
+    subject.state.platformGate = "native";
+    subject.state.hotkeys = { toggle_translation: null };
+    subject.state.registerGate = gate.promise;
+    const hook = await subject.load();
+    const first = hook.setHotkeys({ toggle_translation: ["Ctrl", "T"] });
+    await flush();
+    const second = hook.setHotkeys({ toggle_translation: ["Ctrl", "N"] });
+    gate.resolve();
+    assert.equal(await first, false);
+    assert.equal(await second, true);
+    assert.deepEqual(subject.state.writes, [["/set/data/hotkeys", { toggle_translation: ["Ctrl", "N"] }]]);
+});
+
+test("a sent edit stays reserved until its acknowledgement even if the same action is edited again", async () => {
+    const subject = await setup(), gate = deferred();
+    subject.state.platformGate = "native";
+    subject.state.hotkeys = { toggle_translation: null, toggle_transcription_send: null };
+    subject.state.writeGate = gate.promise;
+    const hook = await subject.load();
+    const first = hook.setHotkeys({ toggle_translation: ["Ctrl", "T"] });
+    await flush();
+    assert.equal(await hook.setHotkeys({ toggle_translation: ["Ctrl", "N"] }), false);
+    assert.equal(await hook.setHotkeys({ toggle_transcription_send: ["Ctrl", "T"] }), false);
+    gate.resolve(true);
+    await first;
+    assert.equal(subject.state.writes.length, 1);
 });

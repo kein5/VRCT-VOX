@@ -1,10 +1,22 @@
 import assert from "node:assert/strict";
+import { readFile, readdir } from "node:fs/promises";
 import { test } from "node:test";
 import { createSidecarSessionOwner } from "./sidecarSession.js";
 import { expectBackendExit } from "./sidecarExitExpectation.js";
 import { hooks, loadModule, find } from "../test/hookHarness.js";
 import { deferred, flush, loadBridgeStore, loadBridgeRoutes } from "../test/bridgeHarness.js";
 import * as utils from "../utils.js";
+
+test("only the main window can retire a spawned sidecar through shell kill", async () => {
+    const directory = new URL("../../../src-tauri/capabilities/", import.meta.url);
+    const capabilities = await Promise.all((await readdir(directory)).filter(name => name.endsWith(".json"))
+        .map(async name => JSON.parse(await readFile(new URL(name, directory), "utf8"))));
+    const grants = capabilities.filter(capability => capability.permissions.some(permission =>
+        (typeof permission === "string" ? permission : permission.identifier) === "shell:allow-kill"));
+    assert.equal(grants.length, 1);
+    assert.equal(grants[0].identifier, "vrct-capability");
+    assert.deepEqual(grants[0].windows, ["main"]);
+});
 
 const setup = () => {
     const store = {}, attempts = [], timers = new Map(), states = [], messages = [], crashes = [];

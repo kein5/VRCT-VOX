@@ -3,9 +3,11 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { pendingRequestRecovery } from "./pendingRequestRecovery.js";
 import { rejectExpectedExit } from "./sidecarExitExpectation.js";
+import { settingsWriteResponses } from "./settingsWriteResponses.js";
 
 const moduleUrl = source => `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
 async function setup() {
+    settingsWriteResponses.stop();
     // Exercise the actual transport adapter; only Tauri, hooks and the language
     // owner are stubs. The recovery module is the real relative .js module.
     const dependencies = moduleUrl(`
@@ -29,12 +31,47 @@ async function setup() {
         source = source.replace(JSON.stringify(name), JSON.stringify(dependencies));
     source = source.replace('"./pendingRequestRecovery.js"', JSON.stringify(new URL("./pendingRequestRecovery.js", import.meta.url).href));
     source = source.replace('"./sidecarExitExpectation.js"', JSON.stringify(new URL("./sidecarExitExpectation.js", import.meta.url).href));
+    source = source.replace('"./settingsWriteResponses.js"', JSON.stringify(new URL("./settingsWriteResponses.js", import.meta.url).href));
     const { useStdoutToPython } = await import(moduleUrl(source));
     let value = { state: "pending", data: 9000 };
     pendingRequestRecovery.register({ endpoints: ["/set/data/osc_port", "/get/data/osc_port"], read: "/get/data/osc_port",
         restore: () => { const changed = value.state === "pending"; value = { ...value, state: "ok" }; return changed; } });
     return { ...deps, send: useStdoutToPython().asyncStdoutToPython, get value() { return value; } };
 }
+
+test("settings transport returns its canonical write response, never a matching GET", async () => {
+    const subject = await setup(), endpoint = "/set/data/realtime_asr_settings", writes = [];
+    subject.store.backend_subprocess = { write: async line => { writes.push(JSON.parse(line)); } };
+    let completed = false;
+    const saving = subject.send(endpoint, { vocabulary: { terms: ["a = b"] } }).then(response => { completed = true; return response; });
+    settingsWriteResponses.receive({ endpoint: "/get/data/realtime_asr_settings", status: 200, result: {} });
+    await Promise.resolve();
+    assert.equal(completed, false);
+    const reply = { endpoint, status: 200, result: { vocabulary: { terms: ["a=b"] } } };
+    settingsWriteResponses.receive(reply);
+    assert.deepEqual(await saving, reply);
+    assert.deepEqual(Object.keys(writes[0]), ["endpoint", "data"], "wire format is unchanged");
+});
+
+test("backend recovery releases pending settings response owners", async () => {
+    const subject = await setup();
+    subject.store.backend_subprocess = { write: async () => true };
+    const saving = subject.send("/set/data/voice_settings", {});
+    pendingRequestRecovery.stop();
+    assert.equal(await saving, false);
+});
+
+test("an uncertain settings write blocks another send and restores its pending control", async context => {
+    context.mock.method(console, "error", () => {});
+    const subject = await setup(), endpoint = "/set/data/hotkeys";
+    let writes = 0, restores = 0;
+    pendingRequestRecovery.register({ endpoints: [endpoint], restore: () => { restores++; return true; } });
+    subject.store.backend_subprocess = { write: async () => { writes++; throw Error("unknown delivery"); } };
+    assert.equal(await subject.send(endpoint, { toggle_translation: ["Ctrl", "T"] }), false);
+    assert.equal(await subject.send(endpoint, { toggle_translation: ["Ctrl", "N"] }), false);
+    assert.equal(writes, 1);
+    assert.equal(restores, 2);
+});
 
 for (const mode of ["missing", "false", "throw", "reject"]) test(`actual transport restores on ${mode} without a success notification`, async context => {
     context.mock.method(console, "error", () => {});

@@ -33,6 +33,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
     const needsSelection = draft => draft.mode !== directState.settings?.mode || draft.engine !== directState.settings?.engine;
     const label = ([name]) => t(name === "mode" ? "voice.direct_mode" : name === "engine" ? "voice.vc_engine" : `voice.vc_${name}`, { defaultValue: name });
     const form = useSettingsDraft(saved, directError, updateDirectError, { label,
+        savedFromResponse: value => ({ ...defaults, ...value.settings }),
         write: value => send("/set/data/direct_voice_settings", value), canSave: draft => !busy && validNumbers(draft),
         pending: draft => needsSelection(draft) && JSON.stringify(draft) === JSON.stringify(saved) ? [t(variant === "rvc" ? "voice_ui.select_rvc" : "voice.direct_mode")] : [] });
     const { draft, setDraft, saving, dirty } = form;

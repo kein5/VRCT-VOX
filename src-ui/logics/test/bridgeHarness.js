@@ -4,6 +4,7 @@ import { hooks, loadModule } from "./hookHarness.js";
 import * as recovery from "../common/pendingRequestRecovery.js";
 import * as initialization from "../common/initializationFields.js";
 import * as exitExpectation from "../common/sidecarExitExpectation.js";
+import * as settingsResponses from "../common/settingsWriteResponses.js";
 import * as meterValue from "../common/meterValue.js";
 import * as utils from "../utils.js";
 
@@ -27,6 +28,7 @@ export const loadBridgeStore = async (runtime = hooks()) => {
         "./voice/settingsNavigation": { requestSettingsNavigation: action => action() },
         "./common/pendingRequestRecovery.js": recovery,
         "./common/meterValue.js": meterValue,
+        "./common/initializationFields.js": initialization,
     });
     return { runtime, stores, jotai, subscriptions };
 };
@@ -64,7 +66,11 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
     });
     const configs = stubApi(Object.fromEntries([...new Set(settings.SETTINGS_ARRAY.map(setting => setting.Category))]
         .map(category => [`use${category}`, settings.createCategoryHook(category)])));
-    const main = stubApi();
+    const languages = await loadModule(new URL("../main/useLanguageSettings.js", import.meta.url), runtime, {
+        "@store": stores, "@ui_configs": { translator_status: [] },
+        "./languageMutations": { canChangeLanguageSettings: () => true, createLanguageRequestId: () => "test" },
+    });
+    const main = stubApi(languages);
     const transcriptionConsent = await loadModule(new URL("../transcription/useTranscriptionConsent.js", import.meta.url), runtime);
     const errors = await loadModule(new URL("../_useBackendErrorHandling.js", import.meta.url), runtime, {
         "@logics_common": common, "@logics_main": main, "@logics_configs": configs,
@@ -90,6 +96,7 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
         "./common/pendingRequestRecovery.js": recovery,
         "./common/initializationFields.js": initialization,
         "./common/sidecarExitExpectation.js": exitExpectation,
+        "./common/settingsWriteResponses.js": settingsResponses,
         "./main/languageMutations": { receiveLanguageMutation: noop, resetLanguageMutations: noop, isLanguageMutation: () => false },
     });
     return { ...subject, notices, reads, ...runtime.render(routes.useReceiveRoutes) };

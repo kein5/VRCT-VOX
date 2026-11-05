@@ -56,7 +56,9 @@ export const useSpeechServers = () => {
             const generation = atoms.get(stateAtom)[data.profile]?.generation ?? -1;
             atoms.set(pendingAtom, { ...atoms.get(pendingAtom), [data.profile]: { generation } });
         }
-        if (!await asyncStdoutToPython(endpoint, data)) updateError("backend_unavailable");
+        const response = await asyncStdoutToPython(endpoint, data);
+        if (response === false) updateError("backend_unavailable");
+        return response;
     }, [atoms, setError, updateError]);
     return { settings, state, pending, error, send, updateSettings, updateState, updateError, reset, backendStopped };
 };

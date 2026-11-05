@@ -5,7 +5,7 @@ import { rebaseDraft } from "../../../../../../logics/voice/draftRebase.js";
 
 async function fixture(context) {
     context.mock.timers.enable({ apis: ["setTimeout"] });
-    const runtime = hooks(), barRuntime = hooks(), calls = [], listeners = [];
+    const runtime = hooks(), barRuntime = hooks(), calls = [], listeners = [], responses = [];
     const window = {
         addEventListener(type, fn, options) { listeners.push({ type, fn, capture: !!options?.capture }); },
         removeEventListener(type, fn) { const i = listeners.findIndex(row => row.type === type && row.fn === fn); if (i >= 0) listeners.splice(i, 1); },
@@ -24,7 +24,11 @@ async function fixture(context) {
             speaker: { endpoint: null, follow_default: true, language: "ja" },
             vocabulary: { builtin: true, terms: [] } },
         state: {}, endpoints: {}, models: {}, error: null,
-        send: (endpoint, data) => calls.push([endpoint, data]),
+        send: (endpoint, data) => {
+            calls.push([endpoint, data]);
+            if (endpoint.startsWith("/set/")) return new Promise(resolve => responses.push(resolve));
+            return true;
+        },
         updateError: error => { asr.error = error; },
     };
     const speech = { state: {}, send: () => {} };
@@ -52,9 +56,15 @@ async function fixture(context) {
     const status = () => find(bar(), node => node.props?.role === "status").props.children;
     const changeURL = () => { field("realtime.url").onChange({ target: { value: "http://localhost:9090" } }); render(); };
     const writes = () => calls.filter(([endpoint]) => endpoint.startsWith("/set/"));
+    const acknowledge = async value => {
+        asr.settings = value;
+        responses.shift()({ status: 200, result: value });
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+        render();
+    };
     context.after(() => { runtime.unmount(); barRuntime.unmount(); });
     render();
-    return { runtime, barRuntime, asr, render, bar, field, entries, status, changeURL, writes, window, modal, listeners };
+    return { runtime, barRuntime, asr, render, bar, field, entries, status, changeURL, writes, acknowledge, window, modal, listeners };
 }
 
 test("realtime drafts register and unregister with the shared save bar, including dictionary edits", async context => {
@@ -119,12 +129,28 @@ for (const method of ["submit", "save bar"]) {
         assert.equal(s.writes().length, 1);
         assert.equal(s.writes()[0][0], "/set/data/realtime_asr_settings");
         assert.equal(s.writes()[0][1].base_url, "http://localhost:9090");
-        s.asr.settings = s.writes()[0][1];
-        s.render();
+        await s.acknowledge(s.writes()[0][1]);
         assert.equal(s.status(), "voice_ui.saved");
         assert.equal(s.entries()[0].dirty, false);
     });
 }
+
+test("canonical vocabulary acknowledgement clears the save bar and enables realtime Start", async context => {
+    const s = await fixture(context);
+    s.asr.state = { mic: { requested: false }, speaker: { requested: false } };
+    s.asr.models = { server: "external", configured_url: s.asr.settings.base_url, base_url: s.asr.settings.base_url,
+        models: [{ id: "asr-model", languages: ["ja"] }] };
+    find(s.render(), node => node.type === "input" && node.props.maxLength === 320).props.onChange({ target: { value: "VRChat = ブイアールチャット" } });
+    find(s.render(), node => node.type === "button" && node.props.children === "realtime.vocabulary_add").props.onClick();
+    s.render(); s.entries()[0].save(); s.render();
+    const sent = s.writes()[0][1];
+    await s.acknowledge({ ...sent, vocabulary: { ...sent.vocabulary, terms: ["VRChat=ブイアールチャット"] } });
+    assert.equal(s.entries()[0].dirty, false);
+    assert.equal(s.status(), "voice_ui.saved");
+    assert.equal(find(s.render(), node => node.type === "button" && node.props.children === "realtime.start_mic").props.disabled, false);
+    context.mock.timers.tick(5000); s.render();
+    assert.equal(s.asr.error, null);
+});
 
 test("rejected and unconfirmed saves keep edits visible and guarded; refresh does not erase them", async context => {
     const s = await fixture(context);
