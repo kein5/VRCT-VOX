@@ -21,6 +21,8 @@ class TranscriptUpdate:
     # The code a final reports in "languages" (speech.cpp 0.10.0), else ''.
     # Detected by the model, not a confidence: only a translation source hint.
     language: str = field(default='', compare=False)
+    # Local speech ownership, bound before the session mailbox can delay a final.
+    voice_snapshot: tuple | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass

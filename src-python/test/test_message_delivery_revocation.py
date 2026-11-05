@@ -5,6 +5,7 @@ The real voice bus is used through enqueue; its worker is never started.
 """
 
 import copy
+from dataclasses import replace
 from queue import Empty, Queue
 from threading import Event, Lock, Thread, RLock
 from types import SimpleNamespace
@@ -27,12 +28,13 @@ from test_controller_message_pipeline import _CONFIG_KEYS, _RUN_MAPPING
 
 
 class FakeSession:
-    def __init__(self, source, options, endpoint):
+    def __init__(self, source, options, endpoint, *, snapshot_voice=None):
         self.source = source
         self.namespace = source + "-session"
         self.active = False
         self.updates = Queue()
         self.idle = Event()
+        self.snapshot_voice = snapshot_voice
 
     def start(self):
         self.active = True
@@ -60,9 +62,12 @@ class FakeSession:
 
     def emit(self, item, *, final=True):
         self.idle.clear()
-        self.updates.put(TranscriptUpdate(
+        update = TranscriptUpdate(
             self.source, self.namespace, item, 1, item, final,
-            "final" if final else "partial", received_ns=time.monotonic_ns()))
+            "final" if final else "partial", received_ns=time.monotonic_ns())
+        if final and self.snapshot_voice is not None:
+            update = replace(update, voice_snapshot=self.snapshot_voice())
+        self.updates.put(update)
 
 
 def eventually(predicate):
@@ -331,6 +336,46 @@ def test_mic_mute_does_not_revoke_other_sources(app, source):
     app.m.updateOverlayLargeLog.assert_called_once()
     app.m.websocketSendMessage.assert_called_once()
     app.m.logger.info.assert_called_once()
+
+
+@pytest.mark.parametrize("cycle", ["stop_voice", "mute_resume", "tts_off_on"])
+def test_mailbox_final_keeps_receipt_voice_generation(app, cycle):
+    session, delivery = start(app)
+    entered, release = Event(), Event()
+
+    def publish(status, endpoint, payload):
+        if endpoint == "/run/realtime_caption" and payload["state"] == "partial":
+            entered.set()
+            assert release.wait(2)
+
+    app.c.run.side_effect = publish
+    try:
+        session.emit("blocking-partial", final=False)
+        assert entered.wait(1)
+        session.emit("queued-before-cycle")
+        assert session.updates.qsize() == 1
+        if cycle == "stop_voice":
+            assert app.c.stopVoice()["status"] == 200
+        elif cycle == "mute_resume":
+            app.c.voice_events.set_muted(True)
+            session.emit("queued-during-cycle")
+            app.c.voice_events.set_muted(False)
+        else:
+            assert app.c.voice_events.set_enabled(False)
+            session.emit("queued-during-cycle")
+            assert app.c.voice_events.set_enabled(True)
+        release.set()
+        wait_for_finals(session, delivery)
+        count = 1 if cycle == "stop_voice" else 2
+        assert app.m.oscSendMessage.call_count == count
+        assert app.m.websocketSendMessage.call_count == count
+        assert app.m.logger.info.call_count == count
+        assert app.c.voice_events.status()["accepted"] == 0
+        session.emit("after-cycle")
+        wait_for_finals(session, delivery)
+        assert app.c.voice_events.status()["accepted"] == 1
+    finally:
+        release.set()
 
 
 @pytest.mark.parametrize("cycle", ["stop_voice", "mute_resume", "tts_off_on"])

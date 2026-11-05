@@ -28,8 +28,8 @@ def settings():
 class CaptureSession(Session):
     created = None
 
-    def __init__(self, source, options, endpoint):
-        super().__init__()
+    def __init__(self, source, options, endpoint, *, snapshot_voice=None):
+        super().__init__(snapshot_voice=snapshot_voice)
         self.source, self.options, self.endpoint = source, options, endpoint
         self.namespace = uuid4().hex
         self.active = False

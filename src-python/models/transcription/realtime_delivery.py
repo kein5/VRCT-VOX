@@ -1,11 +1,34 @@
 """Bounded final translation, independent of capture and partial captions."""
 
 from collections import OrderedDict
+from dataclasses import dataclass
 from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread, current_thread
 from time import monotonic
 
 from .utterance_diagnostics import utterance_diagnostics
+
+
+@dataclass
+class _PendingFinal:
+    update: object
+    deadline: float
+    publish: object
+    admitted: object
+    shown: bool
+    committed: bool = False
+    output_pending: bool = False
+
+
+class _FinalGuard:
+    def __init__(self, delivery, update, deadline):
+        self.delivery, self.update, self.deadline = delivery, update, deadline
+
+    def __call__(self):
+        return self.delivery._current(self.update) and self.delivery._clock() < self.deadline
+
+    def output(self, action):
+        return self.delivery._output(self.update, action)
 
 
 class RealtimeDelivery:
@@ -87,14 +110,32 @@ class RealtimeDelivery:
             return "expired"
         return None
 
+    def _output(self, update, action):
+        # Reserve settlement without holding a lock over I/O. Only an explicit
+        # success commits output; a gated/skipped sink must not count as sent.
+        with self._pending_lock:
+            pending = self._pending.get(update.item_id)
+            if pending is None or self._reason(update, pending.deadline, pending.admitted):
+                return False
+            pending.output_pending = True
+        committed = False
+        try:
+            committed = action() is True
+            return committed
+        finally:
+            with self._pending_lock:
+                pending.committed |= committed
+                pending.output_pending = False
+
     def _settle(self, update, outcome, reason=None, result=None):
         # The reader (expiry/stop) and final worker compete for one outcome.
         # Never hold this lock across publication, rendering or a worker join.
         with self._pending_lock:
-            pending = self._pending.pop(update.item_id, None)
-        if pending is None:
-            return
-        _, deadline, publish, admitted, shown = pending
+            pending = self._pending.get(update.item_id)
+            if pending is None or (pending.output_pending and not pending.committed):
+                return
+            del self._pending[update.item_id]
+        deadline, publish, admitted, shown = pending.deadline, pending.publish, pending.admitted, pending.shown
         invalid = self._reason(update, deadline, admitted)
         if invalid:
             outcome, reason, result = "not_delivered", invalid, None
@@ -110,6 +151,9 @@ class RealtimeDelivery:
             invalid = self._reason(update, deadline, admitted)
             if invalid:
                 outcome, reason = "not_delivered", invalid
+            if pending.committed:
+                # Later expiry/failure cannot undo an output that already left.
+                outcome, reason = "delivered", None
             if shown:
                 publish(dict(source=update.source, namespace=update.namespace,
                              item_id=update.item_id, revision=update.revision + 2,
@@ -118,10 +162,10 @@ class RealtimeDelivery:
     def _settle_invalid(self):
         with self._pending_lock:
             pending = list(self._pending.values())
-        for update, deadline, _, admitted, _ in pending:
-            reason = self._reason(update, deadline, admitted)
+        for item in pending:
+            reason = self._reason(item.update, item.deadline, item.admitted)
             if reason:
-                self._settle(update, "not_delivered", reason)
+                self._settle(item.update, "not_delivered", reason)
 
     def _read(self):
         try:
@@ -152,13 +196,14 @@ class RealtimeDelivery:
                     self._terminal[update.item_id] = None
                     if len(self._terminal) > 256:
                         self._terminal.popitem(last=False)
-                # Bind delivery/voice intent before publishing or queueing a final.
+                # Voice ownership already belongs to the session's receipt.
+                # Bind text delivery intent before publishing or queueing a final.
                 publish, process, admitted = self._admit(update) if self._admit else (
                     self._publish, self._process, lambda: True)
                 shown = publish(payload) is not False
                 if update.is_final and not expired and not empty_final:
                     with self._pending_lock:
-                        self._pending[update.item_id] = (update, deadline, publish, admitted, shown)
+                        self._pending[update.item_id] = _PendingFinal(update, deadline, publish, admitted, shown)
                     reason = self._reason(update, deadline, admitted)
                     if reason:
                         self._settle(update, "not_delivered", reason)
@@ -186,8 +231,7 @@ class RealtimeDelivery:
                 except Empty:
                     continue
 
-                def current():
-                    return self._current(update) and self._clock() < deadline
+                current = _FinalGuard(self, update, deadline)
 
                 queue_ms = max(0.0, (self._clock() - update.received_ns / 1e9) * 1000)
                 utterance_diagnostics.record(

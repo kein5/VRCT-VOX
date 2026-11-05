@@ -138,7 +138,7 @@ class Dependencies:
         return capture
 
 
-def session(monkeypatch, source="mic", dependencies=None):
+def session(monkeypatch, source="mic", dependencies=None, **kwargs):
     m = importlib.import_module("models.transcription.realtime_session")
     settings = importlib.import_module("models.transcription.realtime_settings")
     deps = dependencies or Dependencies()
@@ -152,8 +152,41 @@ def session(monkeypatch, source="mic", dependencies=None):
         endpoint,
         capture_factory=deps.capture,
         client_factory=deps.client,
+        **kwargs,
     )
     return instance, deps
+
+
+def test_final_voice_ownership_is_bound_before_waiting_in_session_mailbox(monkeypatch):
+    generation = [1]
+    captured = []
+
+    async def inline(function, *args):
+        return function(*args)
+
+    # This mailbox test uses immediate fake preflight/capture operations.
+    monkeypatch.setattr(asyncio, "to_thread", inline)
+
+    def snapshot():
+        captured.append(generation[0])
+        return ("settings", generation[0], 0)
+
+    s, d = session(monkeypatch, snapshot_voice=snapshot)
+    try:
+        s.start()
+        eventually(lambda: s.health()["state"] == "ready")
+        c = d.clients[0]
+        c.incoming.put(TranscriptUpdate("mic", c.namespace, "partial", 1, "part", False, "partial"))
+        c.incoming.put(TranscriptUpdate("mic", c.namespace, "final", 1, "text", True, "final"))
+        eventually(lambda: s._updates.qsize() == 2)
+        generation[0] = 2
+        assert s.pop_update().voice_snapshot is None
+        assert s.pop_update().voice_snapshot == ("settings", 1, 0)
+        assert captured == [1]
+        c.incoming.put(TranscriptUpdate("mic", c.namespace, "new", 1, "new", True, "final"))
+        assert s.pop_update(timeout=1).voice_snapshot == ("settings", 2, 0)
+    finally:
+        assert s.close()
 
 
 def test_updates_keep_namespace_source_and_stop_discards_queued_results(monkeypatch):

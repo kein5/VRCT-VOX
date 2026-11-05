@@ -29,12 +29,14 @@ class RealtimeSession:
         *,
         capture_factory=PipeWireCapture,
         client_factory=SpeechCppRealtime,
+        snapshot_voice=None,
     ):
         _validate(endpoint, source)
         if not isinstance(options, SessionOptions):
             raise ValueError("realtime_options_invalid")
         self.source, self.options, self.endpoint = source, options, endpoint
         self._capture_factory, self._client_factory = capture_factory, client_factory
+        self._snapshot_voice = snapshot_voice
         self._lock = Lock()
         self._stop = Event()
         self._cancel = CancelToken()
@@ -195,6 +197,8 @@ class RealtimeSession:
                 update = await client.next_update()
                 if not update.received_ns:
                     update = replace(update, received_ns=monotonic_ns())
+                if update.is_final and self._snapshot_voice is not None:
+                    update = replace(update, voice_snapshot=self._snapshot_voice())
                 with self._lock:
                     if self._stop.is_set():
                         return
