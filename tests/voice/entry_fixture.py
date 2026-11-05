@@ -62,8 +62,8 @@ def main():
         def addTranslationHistory(self, source, text, *, snapshot=None):
             journal('history_contract', source=source, text=text)
 
-        def oscSendMessage(self, message):
-            osc.sendMessage(message, notification=False)
+        def oscSendMessage(self, message, current=None):
+            return osc.sendMessage(message, notification=False, current=current)
 
         def oscStartSendTyping(self):
             osc.sendTyping(True)

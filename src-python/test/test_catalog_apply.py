@@ -360,7 +360,7 @@ def test_shutdown_closes_manager_before_waiting_for_other_services(ready, contro
     # shutdown() first closes OSC admission and revokes message delivery (PR #118).
     controller_methods["model"] = SimpleNamespace(
         requestOSCShutdown=lambda: None,
-        message_delivery=SimpleNamespace(revoke=lambda source: None),
+        message_delivery=SimpleNamespace(close=lambda: None, revoke=lambda source: None),
     )
     controller = controller_methods["Controller"]()
     controller.model_downloads = manager

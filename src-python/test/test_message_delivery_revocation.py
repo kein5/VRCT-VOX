@@ -849,3 +849,195 @@ def test_shutdown_revokes_all_sources_before_any_cleanup_wait(app):
     app.c._stopServiceForShutdown = cleanup
     with pytest.raises(CleanupReached):
         app.c.shutdown()
+
+
+@pytest.mark.parametrize("cancel", ["reconfigure", "off", "send_switch"])
+def test_osc_lifecycle_wait_rechecks_publication(app, cancel):
+    from models.osc.osc import OSCHandler
+    from osc_fakes import fake_transports
+
+    app.cfg.NOTIFICATION_VRC_SFX = True
+    entered = Event()
+    lock = RLock()
+
+    class ObservedLock:
+        def acquire(self, *args, **kwargs):
+            return lock.acquire(*args, **kwargs)
+
+        def release(self):
+            lock.release()
+
+        def __enter__(self):
+            entered.set()
+            lock.acquire()
+
+        def __exit__(self, *args):
+            lock.release()
+
+    with fake_transports():
+        osc = OSCHandler()
+        osc._lifecycle_lock = ObservedLock()
+        app.m.osc_handler = osc
+        app.m.oscSendMessage = Model.oscSendMessage.__get__(app.m)
+        older = app.m.chatbox_order.admit()
+        worker = Thread(target=lambda: app.c.micMessage({"text": "private", "language": "English"}))
+        try:
+            with lock:
+                worker.start()
+                assert entered.wait(1)
+                if cancel == "reconfigure":
+                    app.m.setOscPort(9001)
+                elif cancel == "off":
+                    app.c.setDisableTranscriptionSend()
+                else:
+                    app.cfg.SEND_MESSAGE_TO_VRC = False
+            worker.join(2)
+            assert not worker.is_alive()
+            osc.udp_client.send_message.assert_not_called()
+            # A transport skip must neither claim delivery nor advance ordering.
+            publish = Mock(return_value=True)
+            assert app.m.chatbox_order.send(older, publish, lambda: True) is True
+            publish.assert_called_once()
+            if cancel == "send_switch":
+                app.m.websocketSendMessage.assert_called_once()
+            else:
+                app.m.websocketSendMessage.assert_not_called()
+        finally:
+            worker.join(2)
+            osc.oscServerStop()
+
+
+def legacy_batch(app, monkeypatch, source, before_results=lambda: None, before_callback=lambda: None):
+    from test_audio_pipeline_failure import _FakeRecorder, DEVICE
+
+    session = (model_module.MicSession if source == "mic" else model_module.SpeakerSession)()
+    previous = getattr(app.m, "_" + source + "_session")
+    setattr(app.m, "_" + source + "_session", session)
+    app.c._wireAudioSessionLocked(source)
+    setattr(app.m, "_" + source + "_session", previous)
+    session.device_fnc = None
+    session.features = {"transcript"}
+    def callback(result):
+        before_callback()
+        getattr(app.c, source + "Message")(result)
+
+    session.transcript_fnc = callback
+    recorder = _FakeRecorder()
+    transcripts = []
+    transcriber = Mock(last_recognition_error=False)
+    transcriber.getAudioWaitTimeout.return_value = None
+    transcriber.hasTranscript.side_effect = lambda: bool(transcripts)
+    transcriber.getTranscript.side_effect = lambda: transcripts.pop(0)
+
+    def transcribe(_, queue):
+        queue.get_nowait()
+        before_results()
+        transcripts.extend({"text": text, "language": "English"} for text in ("first", "queued"))
+
+    monkeypatch.setattr(session, "_create_recorder", lambda device: recorder)
+    monkeypatch.setattr(session, "_create_transcriber", lambda: transcriber)
+    monkeypatch.setattr(session, "_transcribe", transcribe)
+    worker = Mock()
+    monkeypatch.setattr(model_module, "threadFnc", worker)
+    session._start(device=DEVICE)
+    recorder.audio_queue.put((b"00", None))
+    return worker.call_args.args[0], transcripts
+
+
+@pytest.mark.parametrize("source", ["mic", "speaker"])
+@pytest.mark.parametrize("cancel_at", ["inference", "callback_entry", "first_callback"])
+def test_legacy_batch_keeps_ownership_after_source_restart(app, monkeypatch, source, cancel_at):
+    translator = app.m.getInputTranslate if source == "mic" else app.m.getOutputTranslate
+
+    def revoke():
+        if source == "mic":
+            app.mute(True)
+            app.mute(False)
+        else:
+            app.c.setDisableTranscriptionReceive()
+            app.cfg.ENABLE_TRANSCRIPTION_RECEIVE = True
+        app.c.run.reset_mock()
+
+    def translate(message, **kwargs):
+        if message == "first" and cancel_at == "first_callback":
+            revoke()
+        return ["translation"], [True], ["translated"]
+
+    translator.side_effect = translate
+    run, transcripts = legacy_batch(app, monkeypatch, source,
+                                    revoke if cancel_at == "inference" else lambda: None,
+                                    revoke if cancel_at == "callback_entry" else lambda: None)
+    run()
+    assert not transcripts
+    assert translator.call_count == (1 if cancel_at == "first_callback" else 0)
+    assert_no_outputs(app)
+
+
+@pytest.mark.parametrize("source", ["mic", "speaker"])
+@pytest.mark.parametrize("pause", ["settings", "handoff"])
+def test_legacy_batch_survives_internal_pause(app, monkeypatch, source, pause):
+    translator = app.m.getInputTranslate if source == "mic" else app.m.getOutputTranslate
+
+    def translate(message, **kwargs):
+        if message == "first":
+            if pause == "settings":
+                disable = app.c.setDisableTranscriptionSend if source == "mic" else app.c.setDisableTranscriptionReceive
+                disable({"reason": "settings_pause"})
+            else:
+                start(app, source)
+        return ["translation"], [True], ["translated"]
+
+    translator.side_effect = translate
+    run, transcripts = legacy_batch(app, monkeypatch, source)
+    run()
+    assert not transcripts
+    assert translator.call_count == 2
+    assert app.m.oscSendMessage.call_count == 2
+    assert app.m.websocketSendMessage.call_count == 2
+    assert app.m.addTranslationHistory.call_count == 2
+
+
+def test_legacy_batch_admitted_while_muted_stays_revoked(app, monkeypatch):
+    app.mute(True)
+    run, transcripts = legacy_batch(app, monkeypatch, "mic", lambda: app.mute(False))
+    run()
+    assert not transcripts
+    app.m.getInputTranslate.assert_not_called()
+    assert_no_outputs(app)
+
+
+@pytest.mark.parametrize("message", ["queued-before-shutdown", ""])
+def test_shutdown_closes_new_message_admission_before_cleanup(app, monkeypatch, message):
+    sources = ("mic", "speaker", "ocr", "chat")
+    old = [app.c._messagePublicationGuard(source) for source in sources]
+    # Keep the complete shutdown path and response, with device/service teardown fake.
+    monkeypatch.setattr(module, "device_manager", Mock())
+    monkeypatch.setattr(app.cfg, "saveConfigToFile", Mock(), raising=False)
+    app.m.telemetryShutdown = Mock()
+    app.c._stopServiceForShutdown = Mock()
+    app.c._stopWorkerForShutdown = Mock()
+    app.c._stopLockedForShutdown = Mock()
+    app.c.run_mapping["downloaded_whisper_weight"] = "/run/downloaded_whisper_weight"
+
+    def close():
+        assert not any(current() for current in old)
+        for source in sources:
+            assert app.m.message_delivery.snapshot(source) is None
+            assert not app.c._messagePublicationGuard(source)()
+            app.m.message_delivery.revoke(source)
+            assert not app.c._messagePublicationGuard(source)()
+        response = app.c.chatMessage({"id": "queued", "message": message})
+        assert response["status"] == 200
+        assert response["result"] is None
+        app.m.getInputTranslate.assert_not_called()
+        assert_no_outputs(app)
+        # Required terminal notices are independent of ordinary message guards.
+        download = app.c.DownloadWhisper(app.c.run_mapping, "tiny", app.c.run)
+        download.downloaded(ready=True)
+        return True
+
+    app.cfg.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT = {}
+    app.c.model_downloads = Mock(close=close)
+    assert app.c.shutdown() == {"status": 200, "result": True}
+    assert app.c.run.call_args.args[1] == "/run/downloaded_whisper_weight"
+    assert not any(app.c._messagePublicationGuard(source)() for source in sources)

@@ -5,7 +5,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import FrozenInstanceError
 from threading import Event, RLock, Thread
-from unittest.mock import Mock
+from unittest.mock import ANY, Mock
 
 import pytest
 
@@ -105,7 +105,7 @@ def test_content_changes_during_translation_keep_every_sink_consistent(subject, 
         payload = [call.args[2] for call in c.run.call_args_list if call.args[0] == 200][-1]
     assert payload['translations'] == [{'message': '日本語の訳', 'transliteration': [dict(orig='日本語の訳', hiragana=True, romaji=False)]}]
     if source != 'ocr':
-        m.oscSendMessage.assert_called_once_with(c.messageFormatter('SEND', ['日本語の訳'], '', before_format))
+        m.oscSendMessage.assert_called_once_with(c.messageFormatter('SEND', ['日本語の訳'], '', before_format), current=ANY)
     ws = m.websocketSendMessage.call_args.args[0]
     assert ws['translation'] == ['日本語の訳']
     assert ws['src_languages'] == (before_your if source in ('chat', 'mic') else before_targets)
@@ -126,7 +126,7 @@ def test_translation_enabled_after_admission_does_not_add_translation(subject):
     result = subject.c.chatMessage({'id': 'off', 'message': 'original'})
     assert result['result']['translations'] == []
     subject.m.translator.translate.assert_not_called()
-    subject.m.oscSendMessage.assert_called_once_with('original')
+    subject.m.oscSendMessage.assert_called_once_with('original', current=ANY)
     assert subject.m.websocketSendMessage.call_args.args[0]['translation'] == []
 
 
@@ -343,7 +343,7 @@ def test_blocked_mic_translation_rechecks_speech_settings_but_keeps_text_snapsho
     assert translated[0]['translations'] == [{'message': '日本語の訳', 'transliteration': []}]
     assert 'output_failures' not in translated[0]
     m.oscSendMessage.assert_called_once_with(c.messageFormatter(
-        'SEND', ['日本語の訳'], 'original', cfg.SEND_MESSAGE_FORMAT_PARTS))
+        'SEND', ['日本語の訳'], 'original', cfg.SEND_MESSAGE_FORMAT_PARTS), current=ANY)
     ws = m.websocketSendMessage.call_args.args[0]
     assert ws['translation'] == ['日本語の訳']
     assert ws['dst_languages'] == before_targets
@@ -470,3 +470,12 @@ def test_chat_tts_checks_only_the_selected_targets_provenance(subject, slot, spo
     if spoken:
         event = subject.c.voice_events.publish.call_args.args[0]
         assert (event.translated_text, event.target_language) == ('한국어', 'Korean')
+
+
+def test_skipped_transport_send_does_not_claim_delivery_or_advance_watermark(subject):
+    older = subject.m.chatbox_order.admit()
+    newer = subject.m.chatbox_order.admit()
+    assert subject.m.chatbox_order.send(newer, lambda: False, lambda: True) is None
+    publish = Mock(return_value=True)
+    assert subject.m.chatbox_order.send(older, publish, lambda: True) is True
+    publish.assert_called_once()

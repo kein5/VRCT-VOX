@@ -304,14 +304,14 @@ class TestMicMessage(_MessagePipelineTestBase):
         config.SEND_ONLY_TRANSLATED_MESSAGES = True
         self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
-        self._model.oscSendMessage.assert_called_once_with("hola")
+        self._model.oscSendMessage.assert_called_once_with("hola", current=ANY)
 
     def test_osc_send_combines_message_and_translation_by_default(self) -> None:
         self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         # SEND_MESSAGE_FORMAT_PARTS の既定は translation_first=False なので
         # メッセージが先、翻訳が後になる。
-        self._model.oscSendMessage.assert_called_once_with("hello\nhola")
+        self._model.oscSendMessage.assert_called_once_with("hello\nhola", current=ANY)
 
     def test_clipboard_copies_when_enabled(self) -> None:
         config.ENABLE_CLIPBOARD = True
@@ -569,7 +569,7 @@ class TestChatMessage(_MessagePipelineTestBase):
         config.SEND_ONLY_TRANSLATED_MESSAGES = True
         self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.chatMessage({"id": "1", "message": "hello"})
-        self._model.oscSendMessage.assert_called_once_with("hola")
+        self._model.oscSendMessage.assert_called_once_with("hola", current=ANY)
 
     def test_osc_send_respects_send_message_to_vrc_flag(self) -> None:
         # 訂正: chatMessage も mic と同じ SEND_MESSAGE_TO_VRC ゲートを持つ

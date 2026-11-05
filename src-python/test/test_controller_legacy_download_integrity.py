@@ -145,7 +145,7 @@ def test_startup_retry_requires_previous_attempt_to_stop_and_join(app, monkeypat
 def test_shutdown_revokes_then_signals_both_owners_before_any_join(app):
     controller, _, backend = app
     order = []
-    backend.message_delivery.revoke.side_effect = lambda source: order.append(source)
+    backend.message_delivery.close.side_effect = lambda: order.append("close")
 
     class Owner:
         def __init__(self, name):
@@ -155,8 +155,7 @@ def test_shutdown_revokes_then_signals_both_owners_before_any_join(app):
             order.append("signal:" + self.name)
 
         def close(self):
-            assert order[:6] == ["mic", "speaker", "ocr", "chat",
-                                 "signal:catalog", "signal:legacy"]
+            assert order[:3] == ["close", "signal:catalog", "signal:legacy"]
             order.append("join:" + self.name)
             return True
 
@@ -170,7 +169,6 @@ def test_shutdown_revokes_then_signals_both_owners_before_any_join(app):
     try:
         with pytest.raises(AfterDownloadShutdown):
             controller.shutdown()
-        assert order == ["mic", "speaker", "ocr", "chat",
-                         "signal:catalog", "signal:legacy", "join:catalog", "join:legacy"]
+        assert order == ["close", "signal:catalog", "signal:legacy", "join:catalog", "join:legacy"]
     finally:
         controller.legacy_downloads = original

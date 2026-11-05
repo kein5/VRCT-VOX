@@ -244,11 +244,13 @@ class OSCHandler:
             if not self._shutdown:
                 self.udp_client.send_message(self.osc_parameter_chatbox_typing, [flag])
 
-    def sendMessage(self, message="", notification=True):
+    def sendMessage(self, message="", notification=True, current=None):
         if message:
             with self._lifecycle_lock:
-                if not self._shutdown:
+                if not self._shutdown and (current is None or current()):
                     self.udp_client.send_message(self.osc_parameter_chatbox_input, [message, True, notification])
+                    return True
+        return False
 
     def getOSCParameterValue(self, address):
         deadline = time.monotonic() + OSC_QUERY_TIMEOUT_SECONDS
