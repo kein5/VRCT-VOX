@@ -447,11 +447,12 @@ class _AudioDeviceSession:
                 "api_model": config.SELECTED_OPENAI_WHISPER_MODEL,
             }
         if engine == "Custom_Whisper":
-            return {
-                "api_key": config.TRANSCRIPTION_AUTH_KEYS.get("Custom_Whisper"),
-                "base_url": config.TRANSCRIPTION_CUSTOM_URL,
-                "api_model": config.SELECTED_CUSTOM_WHISPER_MODEL,
-            }
+            with config.credential_lock:
+                return {
+                    "api_key": config.TRANSCRIPTION_AUTH_KEYS.get("Custom_Whisper"),
+                    "base_url": config.TRANSCRIPTION_CUSTOM_URL,
+                    "api_model": config.SELECTED_CUSTOM_WHISPER_MODEL,
+                }
         if engine == "Deepgram":
             # Deepgram はエンドポイントが固定 (base_url入力欄が無い) ため
             # base_urlは渡さない。api_model_languagesは、選択中モデルが

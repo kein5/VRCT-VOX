@@ -131,6 +131,14 @@ class EndpointFifoTests(unittest.TestCase):
                     f"/set/data/selected_{provider}_model",
                 ])
 
+    def test_provider_pair_url_and_key_share_fifo(self):
+        for provider in ("openai_compatible", "custom_whisper"):
+            with self.subTest(provider=provider):
+                self._assert_fifo([
+                    f"/set/data/{provider}_auth_key_and_url", f"/set/data/{provider}_url",
+                    f"/set/data/{provider}_auth_key",
+                ])
+
     def test_different_providers_can_check_credentials_concurrently(self):
         entered = [threading.Event(), threading.Event()]
         release = self._release_event()

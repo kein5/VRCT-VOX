@@ -412,7 +412,7 @@ export const _useBackendErrorHandling = () => {
             // Cloud transcription: the endpoint names the engine, e.g.
             // /set/data/groq_whisper_auth_key -> GroqWhisperAuthKey.
             case "TRANSCRIPTION_API_AUTH_FAILED": {
-                const base = CLOUD_TRANSCRIPTION_BASES[endpoint?.match(/^\/set\/data\/(\w+?)_auth_key$/)?.[1]];
+                const base = CLOUD_TRANSCRIPTION_BASES[endpoint?.match(/^\/set\/data\/(\w+?)_auth_key(?:_and_url)?$/)?.[1]];
                 if (base) transcription[`update${base}AuthKey`](data ?? "");
                 showNotification_Error(t("common_error.transcription_api_auth_failed"), { category_id: error_code });
                 return;

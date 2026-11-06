@@ -60,6 +60,8 @@ dist-ssr
 error.txt
 config.json
 config.json.tmp
+config.json.lock
+config.json.*.tmp
 voice_mute_state.json
 
 

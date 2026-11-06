@@ -631,6 +631,8 @@ def test_independent_temps_keep_published_file_intact_when_other_writer_fails(is
     second.init_config()
     second._config_loaded = True
     second._file_lock = threading.Lock()
+    # credential_lock is process-wide; these two objects stand in for two processes.
+    second.credential_lock = threading.RLock()
     first._UI_LANGUAGE = "en"
     second._UI_LANGUAGE = "ja"
     # Exercise temp-file isolation independently of the additional process lock.
@@ -697,6 +699,7 @@ exec(compile(ast.Module(body=[cls], type_ignores=[]), source, "exec"))
 config = Config()
 config.PATH_CONFIG = destination
 config._file_lock = threading.Lock()
+config.credential_lock = threading.RLock()
 config._initialized = config._config_loaded = True
 config._save_failed = False
 config._save_retry_timer = None

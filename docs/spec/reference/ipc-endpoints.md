@@ -10,7 +10,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - UIの受信先: 200の応答を処理するUIのフック（`useReceiveRoutes.js`の静的ルートと`ui_config_setter.js`の定義から生成）。「—」は受信先がない。
 - ログで伏せる: `process.log`で値を`***MASKED***`に置き換える（`SENSITIVE_ENDPOINT_MARKERS`）。stdoutのIPCそのものは伏せない。
 
-## 要求（393件: 削除 11、取得 175、実行 35、有効化 38、無効化 38、設定 96）
+## 要求（395件: 削除 11、取得 175、実行 35、有効化 38、無効化 38、設定 98）
 
 | エンドポイント | 種別 | 処理（controller） | 初期化前 | UIの受信先 | 備考 |
 |---|---|---|---|---|---|
@@ -55,6 +55,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/set/data/selected_openai_whisper_model` | 設定 | `setOpenAIWhisperModel` | 可 | useTranscription.setSuccessSelectedOpenAIWhisperModel |  |
 | `/get/data/custom_whisper_auth_key` | 取得 | `getCustomWhisperAuthKey` | 可 | useTranscription.updateFromBackendCustomWhisperAuthKey | ログで伏せる |
 | `/set/data/custom_whisper_auth_key` | 設定 | `setCustomWhisperAuthKey` | 可 | useTranscription.setSuccessCustomWhisperAuthKey | ログで伏せる |
+| `/set/data/custom_whisper_auth_key_and_url` | 設定 | `setCustomWhisperAuthKeyAndURL` | 可 | useTranscription.setSuccessCustomWhisperAuthKey | ログで伏せる |
 | `/delete/data/custom_whisper_auth_key` | 削除 | `delCustomWhisperAuthKey` | 可 | useTranscription.deleteSuccessCustomWhisperAuthKey | ログで伏せる |
 | `/get/data/custom_whisper_url` | 取得 | `getCustomWhisperURL` | 可 | useTranscription.updateFromBackendCustomWhisperURL |  |
 | `/set/data/custom_whisper_url` | 設定 | `setCustomWhisperURL` | 可 | useTranscription.setSuccessCustomWhisperURL |  |
@@ -160,6 +161,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/set/data/lmstudio_url` | 設定 | `setTranslatorLMStudioURL` | 可 | useTranslation.setSuccessLMStudioURL |  |
 | `/get/data/openai_compatible_auth_key` | 取得 | `getOpenAICompatibleAuthKey` | 可 | useTranslation.updateFromBackendOpenAICompatibleAuthKey | ログで伏せる |
 | `/set/data/openai_compatible_auth_key` | 設定 | `setOpenAICompatibleAuthKey` | 可 | useTranslation.setSuccessOpenAICompatibleAuthKey | ログで伏せる |
+| `/set/data/openai_compatible_auth_key_and_url` | 設定 | `setOpenAICompatibleAuthKeyAndURL` | 可 | useTranslation.setSuccessOpenAICompatibleAuthKey | ログで伏せる |
 | `/delete/data/openai_compatible_auth_key` | 削除 | `delOpenAICompatibleAuthKey` | 可 | useTranslation.deleteSuccessOpenAICompatibleAuthKey | ログで伏せる |
 | `/get/data/openai_compatible_url` | 取得 | `getOpenAICompatibleURL` | 可 | useTranslation.updateFromBackendOpenAICompatibleURL |  |
 | `/set/data/openai_compatible_url` | 設定 | `setOpenAICompatibleURL` | 可 | useTranslation.setSuccessOpenAICompatibleURL |  |

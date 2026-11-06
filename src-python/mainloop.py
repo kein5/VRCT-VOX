@@ -258,6 +258,7 @@ mapping = {
 
     "/get/data/custom_whisper_auth_key": {"status": True, "variable":controller.getCustomWhisperAuthKey},
     "/set/data/custom_whisper_auth_key": {"status": True, "variable":controller.setCustomWhisperAuthKey},
+    "/set/data/custom_whisper_auth_key_and_url": {"status": True, "variable":controller.setCustomWhisperAuthKeyAndURL},
     "/delete/data/custom_whisper_auth_key": {"status": True, "variable":controller.delCustomWhisperAuthKey},
     "/get/data/custom_whisper_url": {"status": True, "variable":controller.getCustomWhisperURL},
     "/set/data/custom_whisper_url": {"status": True, "variable":controller.setCustomWhisperURL},
@@ -397,6 +398,7 @@ mapping = {
 
     "/get/data/openai_compatible_auth_key": {"status": True, "variable":controller.getOpenAICompatibleAuthKey},
     "/set/data/openai_compatible_auth_key": {"status": True, "variable":controller.setOpenAICompatibleAuthKey},
+    "/set/data/openai_compatible_auth_key_and_url": {"status": True, "variable":controller.setOpenAICompatibleAuthKeyAndURL},
     "/delete/data/openai_compatible_auth_key": {"status": True, "variable":controller.delOpenAICompatibleAuthKey},
     "/get/data/openai_compatible_url": {"status": True, "variable":controller.getOpenAICompatibleURL},
     "/set/data/openai_compatible_url": {"status": True, "variable":controller.setOpenAICompatibleURL},
@@ -893,7 +895,7 @@ class Main:
                     f"/set/data/{provider}_auth_key", f"/delete/data/{provider}_auth_key",
                     f"/set/data/selected_{provider}_model",
                 } or (provider in {"openai_compatible", "custom_whisper"}
-                      and endpoint == f"/set/data/{provider}_url"):
+                      and endpoint in {f"/set/data/{provider}_url", f"/set/data/{provider}_auth_key_and_url"}):
                     return f"/lock/credential/{provider}"
             # OBS depends on WebSocket. Hold one transaction lock through
             # preflight, startup/rebind, config commit and failure cleanup.

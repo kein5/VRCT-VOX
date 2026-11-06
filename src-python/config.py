@@ -960,7 +960,8 @@ class Config:
             os.close(fd)
 
     def saveConfigToFile(self, *, _retry_timer=None) -> None:
-        with self._file_lock:
+        # A persisted snapshot must not split a URL/key commit.
+        with self.credential_lock, self._file_lock:
             if _retry_timer is not None:
                 # A cancelled callback can already be waiting for this lock.
                 if self._save_retry_timer is not _retry_timer:
