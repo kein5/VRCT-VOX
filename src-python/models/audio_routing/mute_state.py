@@ -2,7 +2,7 @@
 import json
 import os
 from pathlib import Path
-import tempfile
+from exclusive_tempfile import mkstemp as exclusive_mkstemp
 
 
 class MuteState:
@@ -20,7 +20,7 @@ class MuteState:
 
     def write(self, muted):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        fd, name = tempfile.mkstemp(prefix='.voice-mute-', dir=self.path.parent)
+        fd, name = exclusive_mkstemp(prefix='.voice-mute-', dir=self.path.parent)
         try:
             with os.fdopen(fd, 'w', encoding='utf-8') as stream:
                 json.dump({'version': 1, 'muted': bool(muted)}, stream)

@@ -85,7 +85,7 @@ class TestResolve(_Root):
         spec = resolveModelSpec("auto")
         keys = Path(resolveModelFiles(self.root, spec).keys)
         before = keys.stat()
-        with patch.object(ocr_models.tempfile, "mkstemp", side_effect=AssertionError("rewrote valid keys")), \
+        with patch.object(ocr_models, "exclusive_mkstemp", side_effect=AssertionError("rewrote valid keys")), \
                 patch.object(ocr_models.os, "replace", side_effect=AssertionError("replaced valid keys")):
             self.assertEqual(resolveModelFiles(self.root, spec).keys, str(keys))
         after = keys.stat()

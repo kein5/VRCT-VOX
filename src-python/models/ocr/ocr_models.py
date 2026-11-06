@@ -20,7 +20,7 @@ from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
-import tempfile
+from exclusive_tempfile import mkstemp as exclusive_mkstemp
 from threading import Lock
 from typing import Dict, Iterable, List, Tuple
 
@@ -127,7 +127,7 @@ def _keysFile(root: Path, dict_yml: Path, sha256: str) -> Path:
         except FileNotFoundError:
             pass  # Another resolver may have replaced/removed the cache.
     target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(dir=target.parent, prefix=".keys-", suffix=".tmp")
+    fd, temporary = exclusive_mkstemp(dir=target.parent, prefix=".keys-", suffix=".tmp")
     try:
         with os.fdopen(fd, "wb") as stream:
             stream.write(content)

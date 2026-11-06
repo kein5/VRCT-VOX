@@ -6,7 +6,7 @@ import errno
 import math
 import contextlib
 import stat
-import tempfile
+import exclusive_tempfile
 from os import path as os_path, makedirs as os_makedirs, replace as os_replace, fsync as os_fsync, remove as os_remove
 from json import load as json_load
 from json import dump as json_dump
@@ -980,7 +980,7 @@ class Config:
                     self._config_data = filtered
                     # Exclusive creation prevents temp collisions and symlink
                     # traversal; mkstemp also restricts POSIX permissions to 0600.
-                    fd, tmp_path = tempfile.mkstemp(
+                    fd, tmp_path = exclusive_tempfile.mkstemp(
                         prefix=os_path.basename(self.PATH_CONFIG) + ".", suffix=".tmp",
                         dir=os_path.dirname(self.PATH_CONFIG))
                     try:
@@ -1738,7 +1738,7 @@ class Config:
     def _moveUnreadableConfigAside(self) -> str:
         """Reserve a unique backup name, then preserve the unreadable file."""
         import time
-        fd, backup = tempfile.mkstemp(
+        fd, backup = exclusive_tempfile.mkstemp(
             prefix=f"{os_path.basename(self.PATH_CONFIG)}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}-",
             dir=os_path.dirname(self.PATH_CONFIG))
         os.close(fd)
