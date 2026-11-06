@@ -201,7 +201,7 @@ def test_advancing_graph_cycle_is_same_epoch_but_not_same_snapshot(tmp_path):
     assert subprocess.run([str(executable)], capture_output=True).returncode == 0
 
 
-@pytest.mark.parametrize('change', ['driver', 'latency', 'unstable'])
+@pytest.mark.parametrize('change', ['driver', 'latency', 'format', 'unstable'])
 def test_capture_waits_for_stable_startup_before_delivering_pcm(tmp_path, change):
     """Bluetooth startup rebinds before stable delivery; later changes still stop."""
     harness = tmp_path / 'startup.c'
@@ -248,6 +248,16 @@ int main(int argc, char **argv) {
     if (!push(&s) || s.started || s.sequence) return 10;
     fixture_now+=600000000;
     if (argv[1][0]=='d') stream_io(&s,SPA_IO_Position,&b,sizeof(b));
+    else if (argv[1][0]=='f') {
+        stream_param(&s,SPA_PARAM_Format,NULL);
+        if (s.format_ok || s.stable_since || s.stopping) return 18;
+        fixture_now+=600000000;
+        if (!push(&s) || s.started || s.sequence || s.stable_since) return 19;
+        uint8_t bytes[1024]; struct spa_pod_builder builder=SPA_POD_BUILDER_INIT(bytes,sizeof(bytes));
+        struct spa_audio_info_raw audio={.format=SPA_AUDIO_FORMAT_S16_LE,.rate=RATE,.channels=1};
+        stream_param(&s,SPA_PARAM_Format,spa_format_audio_raw_build(&builder,SPA_PARAM_Format,&audio));
+        if (!s.format_ok) return 20;
+    }
     else {
         uint8_t bytes[1024]; struct spa_pod_builder builder=SPA_POD_BUILDER_INIT(bytes,sizeof(bytes));
         struct spa_latency_info latency={.direction=SPA_DIRECTION_OUTPUT,.max_ns=1000000};
@@ -607,9 +617,10 @@ int main(int argc, char **argv) {
     assert b"corrupted" in result.stderr
 
 
+@pytest.mark.parametrize("param", ["latency", "format"])
 @pytest.mark.parametrize("started", [False, True])
-def test_null_latency_invalidates_cached_value_and_stops_active_capture(
-    tmp_path, started
+def test_null_param_invalidates_cached_value_and_stops_active_capture(
+    tmp_path, started, param
 ):
     harness = tmp_path / "latency.c"
     harness.write_text(
@@ -621,10 +632,13 @@ def test_null_latency_invalidates_cached_value_and_stops_active_capture(
 #undef main
 int main(int argc, char **argv) {
     pw_init(&argc,&argv);
-    struct state s={.started=argv[1][0]=='1',.latency_ok=true,.latency={.max_quantum=2}};
+    struct state s={.started=argv[1][0]=='1',.format_ok=true,.stable_since=100,
+        .latency_ok=true,.latency={.max_quantum=2}};
     s.loop=pw_main_loop_new(NULL);
-    stream_param(&s,SPA_PARAM_Latency,NULL);
-    bool valid=!s.latency_ok && s.stopping==s.started && (!s.started || s.result!=0);
+    bool format=argv[2][0]=='f';
+    stream_param(&s,format?SPA_PARAM_Format:SPA_PARAM_Latency,NULL);
+    bool valid=!(format?s.format_ok:s.latency_ok) && !s.stable_since &&
+        s.stopping==s.started && (!s.started || s.result!=0);
     pw_main_loop_destroy(s.loop); pw_deinit();
     return valid ? 0 : 3;
 }
@@ -653,7 +667,8 @@ int main(int argc, char **argv) {
         check=True,
     )
     result = subprocess.run(
-        [str(binary), str(int(started))], capture_output=True, timeout=2
+        [str(binary), str(int(started)), param], capture_output=True, timeout=2
     )
-    assert result.returncode == 0, "NULL latency left previous timing epoch usable"
+    assert result.returncode == 0, f"NULL {param} left previous timing epoch usable"
     assert result.stdout == b""
+    assert result.stderr == (f"asr_capture_{param}_removed\n".encode() if started else b"")

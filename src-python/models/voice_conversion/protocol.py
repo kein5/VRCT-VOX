@@ -1,10 +1,12 @@
 """Fixed live-VC pipe contract, independent of the optional inference runtime.
 
-Timed reads require unbuffered binary pipes. This is not a UI/JSON IPC endpoint.
+Timed reads access pipe descriptors directly; do not mix in buffered reads.
+This is not a UI/JSON IPC endpoint.
 An engine's checked conversion state is evidence about its execution, not an
 acoustic guarantee that no arbitrary input resembles an output.
 """
 import json
+import os
 import re
 import select
 import struct
@@ -114,7 +116,9 @@ def read_packet(stream, *, timeout=1, check=lambda: None):
                 if not select.select([stream], [], [], min(.02, remaining))[0]:
                     continue
             check()
-            chunk = stream.read(size - len(result))
+            # Buffered stdin can block for more bytes or read ahead past select().
+            chunk = (os.read(stream.fileno(), size - len(result)) if deadline is not None
+                     else stream.read(size - len(result)))
             if not chunk:
                 raise ProtocolError('vc_worker_eof')
             result.extend(chunk)
