@@ -28,7 +28,7 @@ async function setup() {
     };
     field();
     field().onFocus();
-    return { render, field, key, saves };
+    return { render, field, key, saves, props };
 }
 
 for (const shiftKey of [false, true]) test(`${shiftKey ? "Shift+Tab" : "Tab"} moves focus without saving a binding`, async () => {
@@ -70,4 +70,21 @@ test("blur cancels a partial chord; a fresh chord and the clear button still sav
     assert.equal(clear.props["aria-label"], "quick_chat.clear_shortcut");
     clear.props.onClick();
     assert.deepEqual(subject.saves.at(-1), { open_quick_chat: null });
+});
+
+for (const newerEdit of [false, true]) test(`rejected hotkey restores committed display without overwriting a newer edit: ${newerEdit}`, async () => {
+    const s = await setup();
+    let resolve;
+    s.props.setHotkeys = () => new Promise(done => { resolve = done; });
+    s.key("w", { ctrlKey: true });
+    s.field(); s.field(); // Let blur's synchronization effect finish before rejection.
+    if (newerEdit) {
+        s.field().onFocus();
+        s.field().onKeyDown({ key: "n", ctrlKey: true, preventDefault() {} });
+    } else {
+        s.props.value = { open_quick_chat: ["Ctrl", "E"] }; s.field();
+    }
+    resolve(false);
+    await Promise.resolve(); await Promise.resolve();
+    assert.equal(s.field().ui_variable, newerEdit ? "Ctrl + N" : "Ctrl + E");
 });

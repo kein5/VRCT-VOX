@@ -330,18 +330,20 @@ const ObsBrowserSourceMaxMessagesContainer = () => {
     });
 
     const onChangeFunction = (value) => {
-        rawOnChange(value.replace(/[^0-9]/g, ""));
+        rawOnChange(value);
     };
 
     return (
         <EntryWithSaveButtonContainer
             label={t("config_page.advanced_settings.obs_browser_source_max_messages.label")}
+            desc={t("config_page.advanced_settings.obs_browser_source_max_messages.desc")}
             variable={variable}
             saveFunction={saveFunction}
             onChangeFunction={onChangeFunction}
             state={currentObsBrowserSourceMaxMessages.state}
             width="10rem"
             type="number"
+            min={1} max={50} step={1}
         />
     );
 };
@@ -358,18 +360,20 @@ const ObsBrowserSourceDisplayDurationContainer = () => {
     });
 
     const onChangeFunction = (value) => {
-        rawOnChange(value.replace(/[^0-9]/g, ""));
+        rawOnChange(value);
     };
 
     return (
         <EntryWithSaveButtonContainer
             label={t("config_page.advanced_settings.obs_browser_source_display_duration.label")}
+            desc={t("config_page.advanced_settings.obs_browser_source_display_duration.desc")}
             variable={variable}
             saveFunction={saveFunction}
             onChangeFunction={onChangeFunction}
             state={currentObsBrowserSourceDisplayDuration.state}
             width="10rem"
             type="number"
+            min={1} max={120} step={1}
         />
     );
 };
@@ -386,18 +390,20 @@ const ObsBrowserSourceFadeoutDurationContainer = () => {
     });
 
     const onChangeFunction = (value) => {
-        rawOnChange(value.replace(/[^0-9]/g, ""));
+        rawOnChange(value);
     };
 
     return (
         <EntryWithSaveButtonContainer
             label={t("config_page.advanced_settings.obs_browser_source_fadeout_duration.label")}
+            desc={t("config_page.advanced_settings.obs_browser_source_fadeout_duration.desc")}
             variable={variable}
             saveFunction={saveFunction}
             onChangeFunction={onChangeFunction}
             state={currentObsBrowserSourceFadeoutDuration.state}
             width="10rem"
             type="number"
+            min={0} max={120} step={1}
         />
     );
 };
@@ -414,18 +420,20 @@ const ObsBrowserSourceFontSizeContainer = () => {
     });
 
     const onChangeFunction = (value) => {
-        rawOnChange(value.replace(/[^0-9]/g, ""));
+        rawOnChange(value);
     };
 
     return (
         <EntryWithSaveButtonContainer
             label={t("config_page.advanced_settings.obs_browser_source_font_size.label")}
+            desc={t("config_page.advanced_settings.obs_browser_source_font_size.desc")}
             variable={variable}
             saveFunction={saveFunction}
             onChangeFunction={onChangeFunction}
             state={currentObsBrowserSourceFontSize.state}
             width="10rem"
             type="number"
+            min={10} max={200} step={1}
         />
     );
 };
@@ -465,18 +473,20 @@ const ObsBrowserSourceFontOutlineThicknessContainer = () => {
     });
 
     const onChangeFunction = (value) => {
-        rawOnChange(value.replace(/[^0-9]/g, ""));
+        rawOnChange(value);
     };
 
     return (
         <EntryWithSaveButtonContainer
             label={t("config_page.advanced_settings.obs_browser_source_font_outline_thickness.label")}
+            desc={t("config_page.advanced_settings.obs_browser_source_font_outline_thickness.desc")}
             variable={variable}
             saveFunction={saveFunction}
             onChangeFunction={onChangeFunction}
             state={currentObsBrowserSourceFontOutlineThickness.state}
             width="10rem"
             type="number"
+            min={0} max={20} step={1}
         />
     );
 };

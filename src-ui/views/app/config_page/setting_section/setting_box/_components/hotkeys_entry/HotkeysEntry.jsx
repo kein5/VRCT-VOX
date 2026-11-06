@@ -15,6 +15,7 @@ export const HotkeysEntry = (props) => {
     const entryRef = useRef(null);
     const pressedKeys = useRef(new Set());
     const keysRef = useRef([]);
+    const editVersion = useRef(0);
 
     useEffect(() => {
         const hotkey = props.value[props.hotkey_id];
@@ -25,9 +26,10 @@ export const HotkeysEntry = (props) => {
 
 
     const updateHotkeys = async (keys) => {
+        const version = ++editVersion.current;
         entryRef.current.blur();
         const result = await props.setHotkeys({ [props.hotkey_id]: keys });
-        if (result === false) setDisplayValue("");
+        if (result === false && editVersion.current === version) setDisplayValue(committedDisplayValueRef.current);
     };
 
     const processKey = (key) => {
@@ -117,6 +119,7 @@ export const HotkeysEntry = (props) => {
     };
 
     const handleFocus = () => {
+        editVersion.current++;
         setIsAcceptingInput(true);
         setDisplayValue("");
     };

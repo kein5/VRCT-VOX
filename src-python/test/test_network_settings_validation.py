@@ -18,6 +18,13 @@ from utils import isValidPort, isValidWebSocketHost, isAvailableWebSocketServer
 
 
 PORTS = [0, 1, 65535, 65536, -1, True, 1.0, "80", "8x", None]
+OBS_NUMERIC = [
+    ("MAX_MESSAGES", "MaxMessages", "maxMessages", 1, 50),
+    ("DISPLAY_DURATION", "DisplayDuration", "displayDuration", 1, 120),
+    ("FADEOUT_DURATION", "FadeoutDuration", "fadeoutDuration", 0, 120),
+    ("FONT_SIZE", "FontSize", "fontSize", 10, 200),
+    ("FONT_OUTLINE_THICKNESS", "FontOutlineThickness", "outlineThickness", 0, 20),
+]
 SETTINGS = [
     ("OSC_PORT", "setOscPort", 9000, "VALIDATION_OSC_PORT_INVALID"),
     ("WEBSOCKET_PORT", "setWebSocketPort", 2231, "WEBSOCKET_PORT_INVALID"),
@@ -66,6 +73,75 @@ def load(settings, values):
     settings.load_config()
     with open(settings.PATH_CONFIG, encoding="utf-8") as stream:
         return json.load(stream)
+
+
+@pytest.mark.parametrize("suffix,method,wire,minimum,maximum", OBS_NUMERIC)
+def test_obs_numeric_rejects_invalid_values_without_saving_or_publishing(settings, suffix, method, wire, minimum, maximum):
+    key = f"OBS_BROWSER_SOURCE_{suffix}"
+    previous = getattr(settings, key)
+    target = object.__new__(Controller)
+    target._pushObsBrowserSourceSettings = Mock()
+    for value in [minimum - 1, maximum + 1, str(maximum + 1), True, 1.5, "1.5", "", None]:
+        response = getattr(target, f"setObsBrowserSource{method}")(value)
+        assert response["status"] == 400, value
+        assert response["result"]["data"] == previous
+        assert response["result"]["error_code"] == f"{key}_INVALID"
+        assert getattr(settings, key) == previous
+    settings.saveConfig.assert_not_called()
+    target._pushObsBrowserSourceSettings.assert_not_called()
+
+
+@pytest.mark.parametrize("suffix,method,wire,minimum,maximum", OBS_NUMERIC)
+def test_obs_numeric_saved_live_and_reloaded_values_agree(settings, monkeypatch, suffix, method, wire, minimum, maximum):
+    from models.obs import obs_browser_source_server as obs_module
+
+    monkeypatch.setattr(obs_module, "config", settings)
+    key = f"OBS_BROWSER_SOURCE_{suffix}"
+    settings.OBS_BROWSER_SOURCE = True
+    controller_module.model.checkWebSocketServerAlive.return_value = True
+    target = object.__new__(Controller)
+    for value in [minimum, str(maximum)]:
+        response = getattr(target, f"setObsBrowserSource{method}")(value)
+        assert response == {"status": 200, "result": int(value)}
+        pushed = controller_module.model.websocketSendMessage.call_args.args[0]["settings"]
+        assert pushed[wire] == int(value)
+        saved = load(settings, {key: int(value)})
+        assert saved[key] == getattr(settings, key) == int(value)
+        html = obs_module._build_overlay_html()
+        fragments = {
+            "maxMessages": f"maxMessages: {value}",
+            "displayDuration": f"--display-duration: {value}s",
+            "fadeoutDuration": f"--fadeout-duration: {value}s",
+            "fontSize": f"--font-size: {value}px",
+            "outlineThickness": f"--outline-size: {value}px",
+        }
+        assert fragments[wire] in html
+
+
+@pytest.mark.parametrize("suffix,method,wire,minimum,maximum", OBS_NUMERIC)
+def test_obs_numeric_invalid_saved_values_fall_back_on_load(settings, suffix, method, wire, minimum, maximum):
+    key = f"OBS_BROWSER_SOURCE_{suffix}"
+    previous = getattr(settings, key)
+    for value in [minimum - 1, maximum + 1, True, None, 1.5]:
+        saved = load(settings, {key: value})
+        assert saved[key] == getattr(settings, key) == previous
+
+
+def test_obs_numeric_live_page_enforces_the_initialization_ranges(settings, monkeypatch):
+    import shutil
+    import subprocess
+    from pathlib import Path
+    from models.obs import obs_browser_source_server as obs_module
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is required to execute the generated OBS page")
+    monkeypatch.setattr(obs_module, "config", settings)
+    result = subprocess.run(
+        [node, str(Path(__file__).with_name("obs_numeric_settings.mjs"))],
+        input=obs_module._build_overlay_html(), text=True, capture_output=True, timeout=10,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.mark.parametrize("value", PORTS)

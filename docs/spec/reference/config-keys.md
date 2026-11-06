@@ -81,12 +81,12 @@
 | `WEBSOCKET_AUTH_TOKEN` | str、許可値 lambda v, inst: isinstance(v, str) and bool(v.strip()) | `secrets_token_urlsafe(32)` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE` | bool | `False` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_PORT` | int、許可値 lambda v, inst: isValidPort(v) | `2232` | 2秒後にまとめて |
-| `OBS_BROWSER_SOURCE_MAX_MESSAGES` | int | `14` | 2秒後にまとめて |
-| `OBS_BROWSER_SOURCE_DISPLAY_DURATION` | int | `60` | 2秒後にまとめて |
-| `OBS_BROWSER_SOURCE_FADEOUT_DURATION` | int | `12` | 2秒後にまとめて |
-| `OBS_BROWSER_SOURCE_FONT_SIZE` | int | `40` | 2秒後にまとめて |
+| `OBS_BROWSER_SOURCE_MAX_MESSAGES` | int、許可値 lambda v, inst: is_valid_numeric_setting('MAX_MESSAGES', v) | `14` | 2秒後にまとめて |
+| `OBS_BROWSER_SOURCE_DISPLAY_DURATION` | int、許可値 lambda v, inst: is_valid_numeric_setting('DISPLAY_DURATION', v) | `60` | 2秒後にまとめて |
+| `OBS_BROWSER_SOURCE_FADEOUT_DURATION` | int、許可値 lambda v, inst: is_valid_numeric_setting('FADEOUT_DURATION', v) | `12` | 2秒後にまとめて |
+| `OBS_BROWSER_SOURCE_FONT_SIZE` | int、許可値 lambda v, inst: is_valid_numeric_setting('FONT_SIZE', v) | `40` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_FONT_COLOR` | str | `'#FFFFFF'` | 2秒後にまとめて |
-| `OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS` | int | `3` | 2秒後にまとめて |
+| `OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS` | int、許可値 lambda v, inst: is_valid_numeric_setting('FONT_OUTLINE_THICKNESS', v) | `3` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR` | str | `'#000000'` | 2秒後にまとめて |
 | `ENABLE_TELEMETRY` | bool | `False` | 2秒後にまとめて |
 | `AUTO_DOWNLOAD_MODELS` | bool | `False` | 2秒後にまとめて |

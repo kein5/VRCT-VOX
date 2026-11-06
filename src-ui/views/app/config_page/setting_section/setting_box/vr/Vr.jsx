@@ -30,6 +30,7 @@ import { randomIntMinMax } from "@utils";
 export const Vr = () => {
     const { t } = useI18n();
     const [is_opened_small_settings, setIsOpenedSmallSettings] = useState(true);
+    const resetEditor = useRef(null);
     const toggleIsOpenedSmallSettings = () => {
         setIsOpenedSmallSettings(!is_opened_small_settings);
     };
@@ -47,6 +48,7 @@ export const Vr = () => {
 
 
     const restoreDefaultSettings = () => {
+        resetEditor.current?.();
         setOverlaySmallLogSettings(ui_configs.overlay_small_log_default_settings);
         setOverlayLargeLogSettings(ui_configs.overlay_large_log_default_settings);
     };
@@ -64,6 +66,8 @@ export const Vr = () => {
                     />
                     {is_opened_small_settings ? (
                         <OverlaySettingsContainer
+                            key="small"
+                            resetRef={resetEditor}
                             id="overlay_settings_small"
                             ui_configs={ui_configs.overlay_small_log}
                             default_ui_configs={ui_configs.overlay_small_log_default_settings}
@@ -75,6 +79,8 @@ export const Vr = () => {
                         />
                     ) : (
                         <OverlaySettingsContainer
+                            key="large"
+                            resetRef={resetEditor}
                             id="overlay_settings_large"
                             ui_configs={ui_configs.overlay_large_log}
                             default_ui_configs={ui_configs.overlay_large_log_default_settings}
@@ -107,14 +113,23 @@ const OverlaySettingsContainer = ({
     toggle_is_enabled_overlay,
     ui_configs,
     default_ui_configs,
-    id
+    id,
+    resetRef,
 }) => {
     const { t } = useI18n();
     const [settings, setSettings] = useState(current_overlay_settings);
-    const [timeout_id, setTimeoutId] = useState(null);
+    const settingsRef = useRef(settings);
+    const timerRef = useRef(null);
+    const editVersion = useRef(0);
+    const pendingWrites = useRef(0);
+    const confirmedRef = useRef(current_overlay_settings);
+    confirmedRef.current = current_overlay_settings;
 
     useEffect(() => {
-        if (state !== "pending") setSettings(current_overlay_settings);
+        if (state !== "pending" && timerRef.current === null && !pendingWrites.current) {
+            settingsRef.current = current_overlay_settings;
+            setSettings(current_overlay_settings);
+        }
     }, [current_overlay_settings, state]);
 
 
@@ -123,24 +138,51 @@ const OverlaySettingsContainer = ({
         setIsOpenedPositionController(!is_opened_position_controller);
     };
 
-    const onChangeFunction = (key, value) => {
-        setSettings((prev) => ({ ...prev, [key]: value }));
+    useEffect(() => () => { clearTimeout(timerRef.current); editVersion.current++; }, []);
+    useEffect(() => {
+        resetRef.current = () => {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+            editVersion.current++;
+            settingsRef.current = default_ui_configs;
+            setSettings(default_ui_configs);
+        };
+        return () => { resetRef.current = null; };
+    }, [resetRef, default_ui_configs]);
 
-        if (timeout_id) clearTimeout(timeout_id);
-
-        const new_timeout_id = setTimeout(() => {
-            const new_data = { ...settings, [key]: value };
-            Promise.resolve(setOverlaySettings(new_data)).then(sent => {
-                if (sent === false) setSettings(current_overlay_settings);
-            });
-        }, 50);
-
-        setTimeoutId(new_timeout_id);
+    const updateSettings = (key, value) => {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+        editVersion.current++;
+        settingsRef.current = { ...settingsRef.current, [key]: value };
+        setSettings(settingsRef.current);
     };
-
+    const sendSettings = async () => {
+        const version = editVersion.current;
+        pendingWrites.current++;
+        try {
+            const response = await setOverlaySettings(settingsRef.current);
+            if (version !== editVersion.current) return;
+            const confirmed = response?.status === 200 ? response.result
+                : response === false || response?.status ? confirmedRef.current : null;
+            if (confirmed) {
+                settingsRef.current = confirmed;
+                setSettings(confirmed);
+            }
+        } finally {
+            pendingWrites.current--;
+        }
+    };
+    const onChangeFunction = (key, value) => {
+        updateSettings(key, value);
+        timerRef.current = setTimeout(() => {
+            timerRef.current = null;
+            sendSettings();
+        }, 50);
+    };
     const selectFunction = (key, value) => {
-        const new_data = { ...settings, [key]: value };
-        setOverlaySettings(new_data);
+        updateSettings(key, value);
+        sendSettings();
     };
 
 
@@ -256,6 +298,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.x_pos.max}
                     setterFunction={(value) => onChangeFunction("x_pos", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     valueLabelDisplay={x_variable_display}
                     valueLabelDisplayLocation="top"
                 />
@@ -284,6 +327,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.y_pos.max}
                     setterFunction={(value) => onChangeFunction("y_pos", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     orientation="vertical"
                     valueLabelDisplay={y_variable_display}
                     valueLabelDisplayLocation="right"
@@ -313,6 +357,7 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.z_pos.max}
                     setterFunction={(value) => onChangeFunction("z_pos", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     orientation="vertical"
                     valueLabelDisplay={z_variable_display}
                     valueLabelDisplayLocation="left"
@@ -375,6 +420,7 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.x_rotation.max}
                     setterFunction={(value) => onChangeFunction("x_rotation", -value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     orientation="vertical"
                     valueLabelDisplay={x_variable_display}
                     valueLabelDisplayLocation="right"
@@ -405,6 +451,7 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.y_rotation.max}
                     setterFunction={(value) => onChangeFunction("y_rotation", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     valueLabelDisplay={y_variable_display}
                     valueLabelDisplayLocation="top"
                 />
@@ -433,6 +480,7 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.z_rotation.max}
                     setterFunction={(value) => onChangeFunction("z_rotation", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     orientation="vertical"
                     valueLabelDisplay={z_variable_display}
                     valueLabelDisplayLocation="left"
@@ -498,6 +546,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     max={100}
                     setterFunction={(value) => onChangeFunction("opacity", value / 100)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                 />
             </div>
             <div className={styles.other_controls_wrapper}>
@@ -516,6 +565,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     max={ui_configs.ui_scaling.max}
                     setterFunction={(value) => onChangeFunction("ui_scaling", value / 100)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                 />
             </div>
             <div className={styles.other_controls_wrapper}>
@@ -531,6 +581,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     max={60}
                     setterFunction={(value) => onChangeFunction("display_duration", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                 />
             </div>
             <div className={styles.other_controls_wrapper}>
@@ -546,6 +597,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     max={5}
                     setterFunction={(value) => onChangeFunction("fadeout_duration", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                 />
             </div>
         </div>

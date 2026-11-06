@@ -4,13 +4,21 @@ import { _Entry } from "../_atoms/_entry/_Entry";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useStore_IsOpenedMicWordFilterList } from "@store";
 import { useTranscription } from "@logics_configs";
+import { useSettingsDraft } from "../../../../../../../logics/voice/useSettingsDraft";
 
 export const WordFilter = (props) => {
     const { t } = useI18n();
 
     const [input_value, setInputValue] = useState("");
-    const { currentMicWordFilterList, updateMicWordFilterList, setMicWordFilterList } = useTranscription();
+    const { currentMicWordFilterList, setMicWordFilterList } = useTranscription();
     const { currentIsOpenedMicWordFilterList, updateIsOpenedMicWordFilterList } = useStore_IsOpenedMicWordFilterList();
+
+    const [error, setError] = useState(null);
+    const form = useSettingsDraft(currentMicWordFilterList.data, error, setError, {
+        write: setMicWordFilterList,
+        label: () => t("config_page.transcription.mic_word_filter.label"),
+    });
+    const words = form.draft ?? currentMicWordFilterList.data;
 
     const listSectionRef = useRef(null);
     const shouldScrollToBottomRef = useRef(false);
@@ -20,14 +28,13 @@ export const WordFilter = (props) => {
 
     useEffect(() => {
         const pending = pendingFocusRef.current;
-        if (!pending || currentMicWordFilterList.data.includes(pending.word)) return;
+        if (!pending || words.includes(pending.word)) return;
         pendingFocusRef.current = null;
         // Do not take focus back if the user moved while the update settled.
         if (document.activeElement !== pending.button && document.activeElement !== document.body) return;
-        const words = currentMicWordFilterList.data;
         const word = words[Math.min(pending.index, words.length - 1)];
         (deleteRefs.current.get(word) ?? entryRef.current)?.focus();
-    }, [currentMicWordFilterList.data]);
+    }, [words]);
 
     const setListSectionRef = useCallback((node) => {
         listSectionRef.current = node;
@@ -50,7 +57,7 @@ export const WordFilter = (props) => {
                 }
             });
         }
-    }, [currentMicWordFilterList.data, currentIsOpenedMicWordFilterList.data]);
+    }, [words, currentIsOpenedMicWordFilterList.data]);
 
     const onChangeEntry = (e) => {
         setInputValue(e.target.value);
@@ -63,51 +70,32 @@ export const WordFilter = (props) => {
 
     const addWords = () => {
         if (input_value === undefined) return;
-        let added = false;
-        updateMicWordFilterList((prev_list) => {
-            const input_value_array = input_value.split(",");
-            let updated_list = [...prev_list.data];
-            for (let each_input_value of input_value_array) {
-                each_input_value = each_input_value.trim();
-                if (each_input_value) {
-                    const exists = updated_list.find((item) => item === each_input_value);
-                    if (!exists) {
-                        updated_list = [...updated_list, each_input_value];
-                        added = true;
-                    }
-                }
-            }
-            if (added) {
-                setMicWordFilterList(updated_list);
-            }
-            return updated_list;
-        });
-
-        if (added) {
+        const updated_list = [...words];
+        for (const word of input_value.split(",").map(value => value.trim())) {
+            if (word && !updated_list.includes(word)) updated_list.push(word);
+        }
+        if (updated_list.length !== words.length) {
+            form.setDraft(updated_list);
             shouldScrollToBottomRef.current = true;
         }
         updateIsOpenedMicWordFilterList(true);
         setInputValue("");
     };
 
-
     const deleteAction = (target_item_value, button) => {
         pendingFocusRef.current = { word: target_item_value, button,
-            index: currentMicWordFilterList.data.indexOf(target_item_value) };
-        updateMicWordFilterList((prev_list) => {
-            const updated_list = prev_list.data.filter((item) => item !== target_item_value);
-            setMicWordFilterList(updated_list);
-            return updated_list;
-        });
+            index: words.indexOf(target_item_value) };
+        form.setDraft(words.filter(item => item !== target_item_value));
     };
 
 
     return (
         <div className={styles.container}>
-            { currentIsOpenedMicWordFilterList.data && currentMicWordFilterList.data.length > 0 &&
+            {form.navigationDialog}
+            { currentIsOpenedMicWordFilterList.data && words.length > 0 &&
                 <div ref={setListSectionRef} className={styles.list_section_wrapper}>
                     {
-                        currentMicWordFilterList.data.map((item) => {
+                        words.map((item) => {
                             return <WordFilterItem value={item} key={item} deleteAction={deleteAction}
                                 buttonRef={node => {
                                     if (node) deleteRefs.current.set(item, node);

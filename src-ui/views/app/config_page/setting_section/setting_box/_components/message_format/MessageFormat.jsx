@@ -11,7 +11,8 @@ import {
 import { useAppearance } from "@logics_configs";
 import { ui_configs } from "@ui_configs";
 import { ResetButton } from "@common_components";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
+import { useSettingsDraft } from "../../../../../../../logics/voice/useSettingsDraft";
 
 const ENTRY_WIDTH = "8rem";
 
@@ -24,6 +25,13 @@ const EXAMPLE_TEXTS = {
 
 export const MessageFormat = (props) => {
     const { currentIsBreakPoint } = useStore_IsBreakPoint();
+    const { t } = useTranslation();
+    const [error, setError] = useState(null);
+    const form = useSettingsDraft(props.variable.data, error, setError, {
+        write: props.setFunction,
+        label: () => props.label ?? t(`config_page.others.${props.format_id}_message_format.label`),
+    });
+    const format = form.draft ?? props.variable.data;
     const message_format_container_class = clsx(styles.container, {
         [styles.is_break_point]: currentIsBreakPoint.data,
     });
@@ -31,13 +39,15 @@ export const MessageFormat = (props) => {
     return (
         <div className={message_format_container_class} role="group" aria-labelledby={props["aria-labelledby"]} aria-describedby={props["aria-describedby"]}>
             <ExampleComponent
-                format={props.variable.data}
+                format={format}
                 format_id={props.format_id}
             />
+            {form.navigationDialog}
             <div className={styles.border}></div>
             <InputComponent
-                variable={props.variable.data}
-                setFunction={props.setFunction}
+                variable={format}
+                setFunction={form.setDraft}
+                saveFunction={() => form.submit(props.setFunction)}
                 format_id={props.format_id}
             />
         </div>
@@ -192,7 +202,7 @@ const ExampleComponent = ({ format, format_id }) => {
 };
 
 
-const InputComponent = ({id, variable, setFunction, format_id }) => {
+const InputComponent = ({ variable: local_var, setFunction, saveFunction, format_id }) => {
     const { t } = useTranslation();
 
     const locale_base_path = "config_page.others.message_format_common.settings.";
@@ -209,30 +219,6 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
         return replaced;
     };
 
-    const [local_var, setLocalVar] = useState(variable);
-    const debounce_ref = useRef(null);
-
-    useEffect(() => {
-        setLocalVar(variable);
-    }, [variable]);
-
-    useEffect(() => {
-        return () => {
-            if (debounce_ref.current) {
-                clearTimeout(debounce_ref.current);
-                debounce_ref.current = null;
-            }
-        };
-    }, []);
-
-    const scheduleUpdate = (new_var) => {
-        if (debounce_ref.current) clearTimeout(debounce_ref.current);
-        debounce_ref.current = setTimeout(() => {
-            setFunction(new_var);
-            debounce_ref.current = null;
-        }, 500);
-    };
-
     const handleChange = (parent_key, child_key) => (e) => {
         const raw_value = e.target.value;
         const parsed_value = replaceValue(raw_value);
@@ -245,15 +231,13 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
                     [child_key]: parsed_value,
                 },
             };
-            setLocalVar(new_var);
-            scheduleUpdate(new_var);
+            setFunction(new_var);
         } else {
             const new_var = {
                 ...local_var,
                 [parent_key]: parsed_value,
             };
-            setLocalVar(new_var);
-            scheduleUpdate(new_var);
+            setFunction(new_var);
         }
     };
 
@@ -268,7 +252,6 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
 
     const resetFunction = () => {
         const new_val = format_id === "send" ? ui_configs.send_message_format_parts : ui_configs.received_message_format_parts;
-        setLocalVar(new_val);
         setFunction(new_val);
     };
 
@@ -276,7 +259,6 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
     const renderSwapButton = (variable) => {
         const swapMessageAndTranslate = () => {
             const new_var = { ...variable, translation_first: !variable.translation_first };
-            setLocalVar(new_var);
             setFunction(new_var);
         };
 
@@ -301,33 +283,33 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
                 { !local_var.translation_first ?
                 <div className={styles.input_wrapper}>
                     <div className={styles.input_contents}>
-                        <_Entry aria-label={t("config_page.others.message_format_common.settings.before_original")} ui_variable={toUiValue(local_var.message.prefix)} width={ENTRY_WIDTH} onChange={handleChange("message", "prefix")} />
+                        <_Entry onEnterPressed={saveFunction} aria-label={t("config_page.others.message_format_common.settings.before_original")} ui_variable={toUiValue(local_var.message.prefix)} width={ENTRY_WIDTH} onChange={handleChange("message", "prefix")} />
                         <p className={styles.preset_text}>{LABEL_ORIGINAL}</p>
-                        <_Entry aria-label={t("config_page.others.message_format_common.settings.after_original")} ui_variable={toUiValue(local_var.message.suffix)} width={ENTRY_WIDTH} onChange={handleChange("message", "suffix")} />
+                        <_Entry onEnterPressed={saveFunction} aria-label={t("config_page.others.message_format_common.settings.after_original")} ui_variable={toUiValue(local_var.message.suffix)} width={ENTRY_WIDTH} onChange={handleChange("message", "suffix")} />
                     </div>
                     <div className={styles.input_contents}>
-                        <_Entry aria-label={t("config_page.others.message_format_common.settings.between")} ui_variable={toUiValue(local_var.separator)} width={ENTRY_WIDTH} onChange={handleChange("separator")} />
+                        <_Entry onEnterPressed={saveFunction} aria-label={t("config_page.others.message_format_common.settings.between")} ui_variable={toUiValue(local_var.separator)} width={ENTRY_WIDTH} onChange={handleChange("separator")} />
                     </div>
                     <div className={styles.input_contents}>
-                        <_Entry aria-label={t("config_page.others.message_format_common.settings.before_translation")} ui_variable={toUiValue(local_var.translation.prefix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "prefix")} />
+                        <_Entry onEnterPressed={saveFunction} aria-label={t("config_page.others.message_format_common.settings.before_translation")} ui_variable={toUiValue(local_var.translation.prefix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "prefix")} />
                         <p className={styles.preset_text}>{LABEL_TRANSLATED}</p>
-                        <_Entry aria-label={t("config_page.others.message_format_common.settings.after_translation")} ui_variable={toUiValue(local_var.translation.suffix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "suffix")} />
+                        <_Entry onEnterPressed={saveFunction} aria-label={t("config_page.others.message_format_common.settings.after_translation")} ui_variable={toUiValue(local_var.translation.suffix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "suffix")} />
                     </div>
                 </div>
                 :
                 <div className={styles.input_wrapper}>
                     <div className={styles.input_contents}>
-                        <_Entry aria-label={t("config_page.others.message_format_common.settings.before_translation")} ui_variable={toUiValue(local_var.translation.prefix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "prefix")} />
+                        <_Entry onEnterPressed={saveFunction} aria-label={t("config_page.others.message_format_common.settings.before_translation")} ui_variable={toUiValue(local_var.translation.prefix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "prefix")} />
                         <p className={styles.preset_text}>{LABEL_TRANSLATED}</p>
-                        <_Entry aria-label={t("config_page.others.message_format_common.settings.after_translation")} ui_variable={toUiValue(local_var.translation.suffix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "suffix")} />
+                        <_Entry onEnterPressed={saveFunction} aria-label={t("config_page.others.message_format_common.settings.after_translation")} ui_variable={toUiValue(local_var.translation.suffix)} width={ENTRY_WIDTH} onChange={handleChange("translation", "suffix")} />
                     </div>
                     <div className={styles.input_contents}>
-                        <_Entry aria-label={t("config_page.others.message_format_common.settings.between")} ui_variable={toUiValue(local_var.separator)} width={ENTRY_WIDTH} onChange={handleChange("separator")} />
+                        <_Entry onEnterPressed={saveFunction} aria-label={t("config_page.others.message_format_common.settings.between")} ui_variable={toUiValue(local_var.separator)} width={ENTRY_WIDTH} onChange={handleChange("separator")} />
                     </div>
                     <div className={styles.input_contents}>
-                        <_Entry aria-label={t("config_page.others.message_format_common.settings.before_original")} ui_variable={toUiValue(local_var.message.prefix)} width={ENTRY_WIDTH} onChange={handleChange("message", "prefix")} />
+                        <_Entry onEnterPressed={saveFunction} aria-label={t("config_page.others.message_format_common.settings.before_original")} ui_variable={toUiValue(local_var.message.prefix)} width={ENTRY_WIDTH} onChange={handleChange("message", "prefix")} />
                         <p className={styles.preset_text}>{LABEL_ORIGINAL}</p>
-                        <_Entry aria-label={t("config_page.others.message_format_common.settings.after_original")} ui_variable={toUiValue(local_var.message.suffix)} width={ENTRY_WIDTH} onChange={handleChange("message", "suffix")} />
+                        <_Entry onEnterPressed={saveFunction} aria-label={t("config_page.others.message_format_common.settings.after_original")} ui_variable={toUiValue(local_var.message.suffix)} width={ENTRY_WIDTH} onChange={handleChange("message", "suffix")} />
                     </div>
                 </div>
                 }
@@ -336,7 +318,7 @@ const InputComponent = ({id, variable, setFunction, format_id }) => {
                         <p className={styles.multi_translation_title}>{LABEL_FOR_MULTI_TRANSLATION}</p>
                         <div className={styles.input_contents}>
                             <p className={styles.preset_text}>{LABEL_TRANSLATED}</p>
-                            <_Entry aria-label={t("config_page.others.message_format_common.settings.between_translations")} ui_variable={toUiValue(local_var.translation.separator)} width={ENTRY_WIDTH} onChange={handleChange("translation", "separator")} />
+                            <_Entry onEnterPressed={saveFunction} aria-label={t("config_page.others.message_format_common.settings.between_translations")} ui_variable={toUiValue(local_var.translation.separator)} width={ENTRY_WIDTH} onChange={handleChange("translation", "separator")} />
                             <p className={styles.preset_text}>{LABEL_TRANSLATED}</p>
                         </div>
                     </div>

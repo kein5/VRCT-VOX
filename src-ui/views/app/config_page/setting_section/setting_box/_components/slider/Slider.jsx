@@ -15,6 +15,7 @@ export const Slider = (props) => {
         state: props.state,
         setterFunction: props.setterFunction,
         setter_timing: props.setter_timing,
+        debounce_ms: props.debounce_ms,
         postUpdateAction: props.postUpdateAction,
         min: props.min,
         max: props.max,

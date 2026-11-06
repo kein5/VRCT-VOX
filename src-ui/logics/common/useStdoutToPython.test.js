@@ -88,12 +88,18 @@ for (const mode of ["missing", "false", "throw", "reject"]) test(`actual transpo
 test("successful transport preserves the wire format and stays pending until response", async () => {
     const subject = await setup(), writes = [];
     subject.store.backend_subprocess = { write: async line => { writes.push(line); } };
-    assert.equal(await subject.send("/set/data/osc_port", 9001), true);
+    let settled = false;
+    const saving = subject.send("/set/data/osc_port", 9001).then(response => { settled = true; return response; });
+    await Promise.resolve();
     assert.equal(writes.length, 1);
     assert.deepEqual(JSON.parse(writes[0]), { endpoint: "/set/data/osc_port", data: Buffer.from("9001").toString("base64") });
     assert.ok(writes[0].endsWith("\n"));
     assert.equal(subject.value.state, "pending");
     assert.deepEqual(subject.notices, []);
+    assert.equal(settled, false);
+    const reply = { endpoint: "/set/data/osc_port", status: 200, result: 9001 };
+    settingsWriteResponses.receive(reply);
+    assert.deepEqual(await saving, reply);
 });
 
 test("encoding throws also restore before any write", async context => {

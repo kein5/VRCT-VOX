@@ -246,6 +246,7 @@ export const useSliderLogic = ({
     show_label_values = null,
     marks_step,
     setter_timing = "on_change_committed",
+    debounce_ms = 200,
 }) => {
     const [ui_value, setUiValue] = useState(variable);
     const debounceTimerRef = useRef(null);
@@ -254,11 +255,12 @@ export const useSliderLogic = ({
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
         }
+        if (debounce_ms === 0) return setterFunction(value);
         debounceTimerRef.current = setTimeout(() => {
             Promise.resolve(setterFunction(value)).then(sent => { if (sent === false) setUiValue(variable); });
             debounceTimerRef.current = null;
-        }, 200);
-    }, [setterFunction, variable]);
+        }, debounce_ms);
+    }, [setterFunction, variable, debounce_ms]);
 
     useEffect(() => {
         return () => {
@@ -367,49 +369,78 @@ export const useSaveButtonLogic = ({
     label,
 }) => {
     const [input_value, setInputValue] = useState(variable);
-    const [submitted, setSubmitted] = useState(false);
+    const [saveState, setSaveState] = useState("saved");
+    const submitted = useRef(null);
+    const previous = useRef(variable);
+    const same = (a, b) => String(a ?? "") === String(b ?? "");
 
-    const onChangeFunction = (value) => {
+    const onChangeFunction = value => {
         setInputValue(value);
+        if (!submitted.current) setSaveState("unsaved");
     };
-
     const saveFunction = async () => {
-        setSubmitted(true);
+        if (saveState === "saving" || state === "pending") return;
+        const request = { value: input_value };
+        submitted.current = request;
+        setSaveState("saving");
         const empty = input_value === "" || input_value === null;
-        const sent = await (empty && typeof deleteFunction === "function"
-            ? deleteFunction() : setFunction(empty ? "" : input_value));
-        // An immediate transport failure can be batched with pending by React.
-        // Restore the local draft even when no pending render was committed.
-        if (sent === false) { setInputValue(variable); setSubmitted(false); }
-        return sent;
+        try {
+            const response = await (empty && typeof deleteFunction === "function"
+                ? deleteFunction() : setFunction(empty ? "" : input_value));
+            if (submitted.current !== request) return response;
+            if (response?.status === 200) {
+                setInputValue(value => same(value, request.value) ? response.result : value);
+                previous.current = response.result;
+                setSaveState("saved");
+                submitted.current = null;
+            } else if (response === false || response?.status) {
+                setSaveState("save_failed");
+                submitted.current = null;
+            }
+            return response;
+        } catch {
+            if (submitted.current === request) {
+                setSaveState("save_failed");
+                submitted.current = null;
+            }
+            return false;
+        }
     };
 
     useEffect(() => {
-        if (state === "pending") return;
-        setInputValue(variable);
-        setSubmitted(false);
-    }, [variable, state]);
+        // Pending recovery and rejected responses carry the old confirmed value.
+        // Only untouched fields follow a refresh; submitted drafts await their response.
+        const old = previous.current;
+        if (!submitted.current) setInputValue(value => same(value, old) ? variable : value);
+        previous.current = variable;
+    }, [variable]);
+    useEffect(() => {
+        if (saveState !== "saving") return;
+        const timer = setTimeout(() => setSaveState("save_failed"), 5000);
+        return () => clearTimeout(timer);
+    }, [saveState]);
+    useEffect(() => () => { submitted.current = null; }, []);
 
-    // Loading is also "pending"; only a save sent from here shows as saving.
-    const saving = submitted && state === "pending";
-    const dirty = !saving && String(input_value ?? "") !== String(variable ?? "");
+    const saving = saveState === "saving";
+    const dirty = !!submitted.current || saveState === "save_failed" || !same(input_value, variable);
+    const status = saving || saveState === "save_failed" ? saveState : dirty ? "unsaved" : "saved";
     const id = useId();
     const latest = useRef();
-    latest.current = { saveFunction, discard: () => setInputValue(variable) };
+    latest.current = { saveFunction, discard: () => {
+        submitted.current = null;
+        setInputValue(variable);
+        setSaveState("saved");
+    } };
     useEffect(() => {
         setSaveBarEntry(id, {
-            dirty, edited: dirty, saving, saveState: saving ? "saving" : dirty ? "unsaved" : "saved",
+            dirty, edited: dirty, saving, saveState: status,
             changes: dirty && label ? [label] : [], canSave: state !== "pending",
             save: () => latest.current.saveFunction(), discard: () => latest.current.discard(),
         });
-    }, [id, dirty, saving, label, state]);
+    }, [id, dirty, saving, status, label, state]);
     useEffect(() => () => setSaveBarEntry(id, null), [id]);
 
-    return {
-        variable: input_value,
-        onChangeFunction: onChangeFunction,
-        saveFunction: saveFunction,
-    };
+    return { variable: input_value, onChangeFunction, saveFunction };
 };
 
 const createMarks = (min, max, marks_step = 1, labelFormatter = (value) => value) => {

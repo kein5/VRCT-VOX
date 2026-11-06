@@ -106,3 +106,20 @@ test("an identical GET cannot acknowledge a write and an older response cannot c
     await s.reply(1, s.requests[1].value);
     assert.equal(s.render().saveState, "saved");
 });
+
+for (const response of [false, { status: 400 }]) test(`a rejected draft remains failed even after an identical refresh: ${JSON.stringify(response)}`, async context => {
+    const s = await setup(context);
+    s.edit();
+    const saving = s.render().submit(s.write); s.render();
+    s.state.saved = structuredClone(s.requests[0].value);
+    s.state.error = "specific_backend_error";
+    s.render();
+    s.requests[0].resolve(response); await saving;
+    assert.equal(s.render().dirty, true);
+    assert.equal(s.render().saveState, "save_failed");
+    assert.equal(s.state.error, "specific_backend_error");
+    s.state.error = null;
+    assert.equal(s.render().saveState, "save_failed");
+    s.render().discard();
+    assert.equal(s.render().saveState, "saved");
+});

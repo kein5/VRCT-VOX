@@ -8,6 +8,7 @@ from dataclasses import asdict, replace
 import copy
 import functools
 import re
+from models.obs.settings import parse_numeric_setting
 import time
 import sys
 from pathlib import Path
@@ -5963,12 +5964,12 @@ class Controller:
 
     def setObsBrowserSourceMaxMessages(self, data, *args, **kwargs) -> dict:
         try:
-            value = int(data)
-        except Exception:
+            value = parse_numeric_setting("MAX_MESSAGES", data)
+        except (ValueError, TypeError):
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_MAX_MESSAGES_INVALID,
                 data=config.OBS_BROWSER_SOURCE_MAX_MESSAGES,
-                custom_message="OBS Browser Source max messages must be a number",
+                custom_message="Enter a whole number from 1 to 50",
             )
         config.OBS_BROWSER_SOURCE_MAX_MESSAGES = value
         self._pushObsBrowserSourceSettings()
@@ -5977,12 +5978,12 @@ class Controller:
 
     def setObsBrowserSourceDisplayDuration(self, data, *args, **kwargs) -> dict:
         try:
-            value = int(data)
-        except Exception:
+            value = parse_numeric_setting("DISPLAY_DURATION", data)
+        except (ValueError, TypeError):
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_DISPLAY_DURATION_INVALID,
                 data=config.OBS_BROWSER_SOURCE_DISPLAY_DURATION,
-                custom_message="OBS Browser Source display duration must be a number",
+                custom_message="Enter a whole number from 1 to 120",
             )
         config.OBS_BROWSER_SOURCE_DISPLAY_DURATION = value
         self._pushObsBrowserSourceSettings()
@@ -5991,12 +5992,12 @@ class Controller:
 
     def setObsBrowserSourceFadeoutDuration(self, data, *args, **kwargs) -> dict:
         try:
-            value = int(data)
-        except Exception:
+            value = parse_numeric_setting("FADEOUT_DURATION", data)
+        except (ValueError, TypeError):
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_FADEOUT_DURATION_INVALID,
                 data=config.OBS_BROWSER_SOURCE_FADEOUT_DURATION,
-                custom_message="OBS Browser Source fadeout duration must be a number",
+                custom_message="Enter a whole number from 0 to 120",
             )
         config.OBS_BROWSER_SOURCE_FADEOUT_DURATION = value
         self._pushObsBrowserSourceSettings()
@@ -6005,12 +6006,12 @@ class Controller:
 
     def setObsBrowserSourceFontSize(self, data, *args, **kwargs) -> dict:
         try:
-            value = int(data)
-        except Exception:
+            value = parse_numeric_setting("FONT_SIZE", data)
+        except (ValueError, TypeError):
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_FONT_SIZE_INVALID,
                 data=config.OBS_BROWSER_SOURCE_FONT_SIZE,
-                custom_message="OBS Browser Source font size must be a number",
+                custom_message="Enter a whole number from 10 to 200",
             )
         config.OBS_BROWSER_SOURCE_FONT_SIZE = value
         self._pushObsBrowserSourceSettings()
@@ -6031,12 +6032,12 @@ class Controller:
 
     def setObsBrowserSourceFontOutlineThickness(self, data, *args, **kwargs) -> dict:
         try:
-            value = int(data)
-        except Exception:
+            value = parse_numeric_setting("FONT_OUTLINE_THICKNESS", data)
+        except (ValueError, TypeError):
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS_INVALID,
                 data=config.OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS,
-                custom_message="OBS Browser Source outline thickness must be a number",
+                custom_message="Enter a whole number from 0 to 20",
             )
         config.OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS = value
         self._pushObsBrowserSourceSettings()

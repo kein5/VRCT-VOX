@@ -81,7 +81,7 @@ export function useSettingsDraft(saved, error, updateError, { write, canSave = t
             } else if (response === false || response?.status) {
                 setSaving(false);
                 submitted.current = null;
-                setAwaitingResponse(false);
+                // Keep failed writes dirty even if a refresh has the same value.
             }
         } catch {
             if (submitted.current !== request) return;

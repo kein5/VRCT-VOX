@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import clsx from "clsx";
+import { rebaseDraft } from "../../../../../../logics/voice/draftRebase.js";
+import { changedPaths } from "../../../../../../logics/voice/saveBar.js";
 import { hooks, loadModule, find, stubGlobals, eventTarget } from "../../../../../../logics/test/hookHarness.js";
 
 const all = (tree, predicate) => {
@@ -14,7 +16,11 @@ const focusNode = document => ({ focus() { document.activeElement = this; }, blu
 
 for (const index of [0, 1, 2]) test(`word filter names its delete buttons and focuses a neighbour after deleting index ${index}`, async t => {
     const runtime = hooks(), document = { body: {}, activeElement: null };
-    stubGlobals(t, { document, requestAnimationFrame: fn => fn() });
+    t.after(() => runtime.unmount());
+    stubGlobals(t, { document, window: eventTarget(), requestAnimationFrame: fn => fn() });
+    const { useSettingsDraft } = await loadModule(new URL("../../../../../../logics/voice/useSettingsDraft.jsx", import.meta.url), runtime, {
+        "./draftRebase": { rebaseDraft }, "./saveBar": { changedPaths, setSaveBarEntry() {} },
+    });
     const state = { currentMicWordFilterList: { data: ["alpha", "日本語", "gamma"] },
         updateMicWordFilterList(fn) { this.currentMicWordFilterList.data = fn(this.currentMicWordFilterList); },
         setMicWordFilterList: () => {} };
@@ -22,6 +28,7 @@ for (const index of [0, 1, 2]) test(`word filter names its delete buttons and fo
     state.updateMicWordFilterList = fn => { state.currentMicWordFilterList.data = fn(state.currentMicWordFilterList); };
     const Entry = () => null;
     const { WordFilter } = await loadModule(new URL("./word_filter/WordFilter.jsx", import.meta.url), runtime, {
+        "../../../../../../../logics/voice/useSettingsDraft": { useSettingsDraft },
         "@logics_configs": { useTranscription: () => state },
         "@store": { useStore_IsOpenedMicWordFilterList: () => ({ currentIsOpenedMicWordFilterList: { data: true } }) },
         "@useI18n": { useI18n: () => ({ t: (name, values) => values?.word ? `Remove ${values.word}` : name }) },

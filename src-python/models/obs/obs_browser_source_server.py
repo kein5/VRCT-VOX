@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from time import monotonic
 from urllib.parse import parse_qs, urlparse
 
+from models.obs.settings import NUMERIC_RANGES
 from config import config
 from utils import printLog
 
@@ -126,21 +127,21 @@ def _build_overlay_html(ws_token: str = "") -> str:
     ws_token_js = ws_token if isinstance(ws_token, str) else ""
 
     max_messages = _clamp_int(
-        getattr(config, "OBS_BROWSER_SOURCE_MAX_MESSAGES", 14), 1, 50
+        getattr(config, "OBS_BROWSER_SOURCE_MAX_MESSAGES", 14), *NUMERIC_RANGES["MAX_MESSAGES"]
     )
     display_duration = _clamp_int(
-        getattr(config, "OBS_BROWSER_SOURCE_DISPLAY_DURATION", 60), 1, 120
+        getattr(config, "OBS_BROWSER_SOURCE_DISPLAY_DURATION", 60), *NUMERIC_RANGES["DISPLAY_DURATION"]
     )
     fadeout_duration = _clamp_int(
-        getattr(config, "OBS_BROWSER_SOURCE_FADEOUT_DURATION", 12), 0, 120
+        getattr(config, "OBS_BROWSER_SOURCE_FADEOUT_DURATION", 12), *NUMERIC_RANGES["FADEOUT_DURATION"]
     )
 
-    font_size = _clamp_int(getattr(config, "OBS_BROWSER_SOURCE_FONT_SIZE", 40), 10, 200)
+    font_size = _clamp_int(getattr(config, "OBS_BROWSER_SOURCE_FONT_SIZE", 40), *NUMERIC_RANGES["FONT_SIZE"])
     font_color = _normalize_hex_color(
         getattr(config, "OBS_BROWSER_SOURCE_FONT_COLOR", "#FFFFFF")
     )
     outline_thickness = _clamp_int(
-        getattr(config, "OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS", 3), 0, 20
+        getattr(config, "OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS", 3), *NUMERIC_RANGES["FONT_OUTLINE_THICKNESS"]
     )
     outline_color = _normalize_hex_color(
         getattr(config, "OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR", "#000000"),
@@ -251,28 +252,32 @@ def _build_overlay_html(ws_token: str = "") -> str:
 
         const HEX_COLOR_RE = /^#[0-9a-fA-F]{{6}}$/;
 
+        const numericRanges = {json.dumps({"maxMessages": NUMERIC_RANGES["MAX_MESSAGES"], "displayDuration": NUMERIC_RANGES["DISPLAY_DURATION"], "fadeoutDuration": NUMERIC_RANGES["FADEOUT_DURATION"], "fontSize": NUMERIC_RANGES["FONT_SIZE"], "outlineThickness": NUMERIC_RANGES["FONT_OUTLINE_THICKNESS"]})};
+        const validNumber = (name, value) => Number.isInteger(value) &&
+          value >= numericRanges[name][0] && value <= numericRanges[name][1];
+
         const applySettings = (settings) => {{
           if (!settings || typeof settings !== "object") return;
           const style = document.documentElement.style;
 
-          if (Number.isFinite(settings.maxMessages) && settings.maxMessages > 0) {{
+          if (validNumber("maxMessages", settings.maxMessages)) {{
             SETTINGS.maxMessages = settings.maxMessages;
           }}
-          if (Number.isFinite(settings.displayDuration) && settings.displayDuration >= 0) {{
+          if (validNumber("displayDuration", settings.displayDuration)) {{
             SETTINGS.displayDurationMs = settings.displayDuration * 1000;
             style.setProperty("--display-duration", `${{settings.displayDuration}}s`);
           }}
-          if (Number.isFinite(settings.fadeoutDuration) && settings.fadeoutDuration >= 0) {{
+          if (validNumber("fadeoutDuration", settings.fadeoutDuration)) {{
             SETTINGS.fadeoutDurationMs = settings.fadeoutDuration * 1000;
             style.setProperty("--fadeout-duration", `${{settings.fadeoutDuration}}s`);
           }}
-          if (Number.isFinite(settings.fontSize) && settings.fontSize > 0) {{
+          if (validNumber("fontSize", settings.fontSize)) {{
             style.setProperty("--font-size", `${{settings.fontSize}}px`);
           }}
           if (typeof settings.fontColor === "string" && HEX_COLOR_RE.test(settings.fontColor)) {{
             style.setProperty("--font-color", settings.fontColor);
           }}
-          if (Number.isFinite(settings.outlineThickness) && settings.outlineThickness >= 0) {{
+          if (validNumber("outlineThickness", settings.outlineThickness)) {{
             style.setProperty("--outline-size", `${{settings.outlineThickness}}px`);
           }}
           if (typeof settings.outlineColor === "string" && HEX_COLOR_RE.test(settings.outlineColor)) {{

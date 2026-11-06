@@ -1,4 +1,5 @@
 from models.network_policy import CUSTOM_URL_KEYS, valid_saved_api_url
+from models.obs.settings import is_valid_numeric_setting
 import sys
 import copy
 import errno
@@ -1284,12 +1285,12 @@ class Config:
     # --- OBS Browser Source (overlay for OBS) ---
     OBS_BROWSER_SOURCE = ManagedProperty('OBS_BROWSER_SOURCE', type_=bool)
     OBS_BROWSER_SOURCE_PORT = ManagedProperty('OBS_BROWSER_SOURCE_PORT', type_=int, allowed=lambda v, inst: isValidPort(v))
-    OBS_BROWSER_SOURCE_MAX_MESSAGES = ManagedProperty('OBS_BROWSER_SOURCE_MAX_MESSAGES', type_=int)
-    OBS_BROWSER_SOURCE_DISPLAY_DURATION = ManagedProperty('OBS_BROWSER_SOURCE_DISPLAY_DURATION', type_=int)
-    OBS_BROWSER_SOURCE_FADEOUT_DURATION = ManagedProperty('OBS_BROWSER_SOURCE_FADEOUT_DURATION', type_=int)
-    OBS_BROWSER_SOURCE_FONT_SIZE = ManagedProperty('OBS_BROWSER_SOURCE_FONT_SIZE', type_=int)
+    OBS_BROWSER_SOURCE_MAX_MESSAGES = ManagedProperty('OBS_BROWSER_SOURCE_MAX_MESSAGES', type_=int, allowed=lambda v, inst: is_valid_numeric_setting('MAX_MESSAGES', v))
+    OBS_BROWSER_SOURCE_DISPLAY_DURATION = ManagedProperty('OBS_BROWSER_SOURCE_DISPLAY_DURATION', type_=int, allowed=lambda v, inst: is_valid_numeric_setting('DISPLAY_DURATION', v))
+    OBS_BROWSER_SOURCE_FADEOUT_DURATION = ManagedProperty('OBS_BROWSER_SOURCE_FADEOUT_DURATION', type_=int, allowed=lambda v, inst: is_valid_numeric_setting('FADEOUT_DURATION', v))
+    OBS_BROWSER_SOURCE_FONT_SIZE = ManagedProperty('OBS_BROWSER_SOURCE_FONT_SIZE', type_=int, allowed=lambda v, inst: is_valid_numeric_setting('FONT_SIZE', v))
     OBS_BROWSER_SOURCE_FONT_COLOR = ManagedProperty('OBS_BROWSER_SOURCE_FONT_COLOR', type_=str)
-    OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS = ManagedProperty('OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS', type_=int)
+    OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS = ManagedProperty('OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS', type_=int, allowed=lambda v, inst: is_valid_numeric_setting('FONT_OUTLINE_THICKNESS', v))
     OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR = ManagedProperty('OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR', type_=str)
 
     # --- Telemetry Settings ---

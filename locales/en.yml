@@ -233,11 +233,11 @@ backend_errors:
     OBS_BROWSER_SOURCE_PORT_UNAVAILABLE: "Another app is using the OBS browser source port. Choose a different port."
     OBS_BROWSER_SOURCE_PORT_INVALID: "Enter an OBS browser source port from 1 to 65535 using whole numbers."
     OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE: "The OBS browser source server cannot start. Check that no other app is using its port."
-    OBS_BROWSER_SOURCE_MAX_MESSAGES_INVALID: "Enter the maximum number of messages as a number."
-    OBS_BROWSER_SOURCE_DISPLAY_DURATION_INVALID: "Enter the display time as a number."
-    OBS_BROWSER_SOURCE_FADEOUT_DURATION_INVALID: "Enter the fade-out time as a number."
-    OBS_BROWSER_SOURCE_FONT_SIZE_INVALID: "Enter the font size as a number."
-    OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS_INVALID: "Enter the outline thickness as a number."
+    OBS_BROWSER_SOURCE_MAX_MESSAGES_INVALID: "Enter a whole number from 1 to 50."
+    OBS_BROWSER_SOURCE_DISPLAY_DURATION_INVALID: "Enter a whole number from 1 to 120."
+    OBS_BROWSER_SOURCE_FADEOUT_DURATION_INVALID: "Enter a whole number from 0 to 120."
+    OBS_BROWSER_SOURCE_FONT_SIZE_INVALID: "Enter a whole number from 10 to 200."
+    OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS_INVALID: "Enter a whole number from 0 to 20."
     VRC_MIC_MUTE_SYNC_OSC_DISABLED: "VRC mic mute sync is unavailable because OSC reception or OSCQuery advertisement is not ready. Check that the OSC destination is 127.0.0.1 or localhost, then save the OSC settings again."
 
 common_warning:
@@ -890,16 +890,21 @@ config_page:
             label: "OBS Port"
         obs_browser_source_max_messages:
             label: "Max Messages"
+            desc: "Enter a whole number from 1 to 50."
         obs_browser_source_display_duration:
             label: "Display Duration (sec)"
+            desc: "Enter a whole number from 1 to 120."
         obs_browser_source_fadeout_duration:
             label: "Fade-out Duration (sec)"
+            desc: "Enter a whole number from 0 to 120."
         obs_browser_source_font_size:
             label: "Font Size (px)"
+            desc: "Enter a whole number from 10 to 200."
         obs_browser_source_font_color:
             label: "Font Color (#RRGGBB)"
         obs_browser_source_font_outline_thickness:
             label: "Outline Thickness (px)"
+            desc: "Enter a whole number from 0 to 20."
         obs_browser_source_font_outline_color:
             label: "Outline Color (#RRGGBB)"
 
