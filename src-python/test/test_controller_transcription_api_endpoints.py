@@ -178,37 +178,34 @@ class CustomWhisperURLEndpointTests(_ConfigSnapshotMixin, unittest.TestCase):
         mock_model.authenticationTranscriptionApiKey.assert_not_called()
 
     @patch("controller.model")
-    def test_set_url_with_auth_key_validates_and_applies(self, mock_model) -> None:
-        config.TRANSCRIPTION_AUTH_KEYS = {"Custom_Whisper": "local-secret"}
-        mock_model.authenticationTranscriptionApiKey.return_value = True
-        mock_model.getTranscriptionApiModelList.return_value = ["whisper"]
-
-        response = self.controller.setCustomWhisperURL("http://localhost:9000/v1")
-
-        self.assertEqual(response["status"], 200)
-        self.assertEqual(config.TRANSCRIPTION_CUSTOM_URL, "http://localhost:9000/v1")
-        self.assertTrue(config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"])
-        self.assertEqual(config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST, ["whisper"])
-        mock_model.getTranscriptionApiModelList.assert_called_once_with(
-            api_key="local-secret", base_url="http://localhost:9000/v1"
-        )
-
-    @patch("controller.model")
-    def test_set_url_that_fails_auth_preserves_working_configuration(self, mock_model) -> None:
+    def test_set_url_with_auth_key_requires_reentry_without_outbound_calls(self, mock_model) -> None:
         config.TRANSCRIPTION_AUTH_KEYS = {"Custom_Whisper": "local-secret"}
         config.TRANSCRIPTION_CUSTOM_URL = "http://localhost:8000/v1"
         config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = ["whisper"]
         config.SELECTED_CUSTOM_WHISPER_MODEL = "whisper"
         config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"] = True
-        mock_model.authenticationTranscriptionApiKey.return_value = False
 
-        response = self.controller.setCustomWhisperURL("https://unreachable.example/v1")
+        response = self.controller.setCustomWhisperURL("https://candidate.example/v1")
 
         self.assertEqual(response["status"], 400)
+        self.assertEqual(response["result"]["error_code"], "CREDENTIAL_REENTRY_REQUIRED")
+        self.assertEqual(response["result"]["data"], "http://localhost:8000/v1")
         self.assertEqual(config.TRANSCRIPTION_CUSTOM_URL, "http://localhost:8000/v1")
+        self.assertEqual(config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"], "local-secret")
         self.assertTrue(config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"])
         self.assertEqual(config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST, ["whisper"])
         self.assertEqual(config.SELECTED_CUSTOM_WHISPER_MODEL, "whisper")
+        self.assertEqual(mock_model.mock_calls, [])
+
+    @patch("controller.model")
+    def test_set_same_url_with_auth_key_does_not_authenticate(self, mock_model) -> None:
+        config.TRANSCRIPTION_AUTH_KEYS = {"Custom_Whisper": "local-secret"}
+        config.TRANSCRIPTION_CUSTOM_URL = "http://localhost:8000/v1"
+
+        response = self.controller.setCustomWhisperURL("  http://localhost:8000/v1  ")
+
+        self.assertEqual(response, {"status": 200, "result": "http://localhost:8000/v1"})
+        self.assertEqual(mock_model.mock_calls, [])
 
 
 class DeepgramAuthKeyEndpointTests(_ConfigSnapshotMixin, unittest.TestCase):

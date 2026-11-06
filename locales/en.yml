@@ -212,6 +212,7 @@ backend_errors:
     AUTH_OPENROUTER_FAILED: "The OpenRouter API key could not be verified. Check that the key is correct."
     AUTH_OPENAI_COMPATIBLE_INVALID: "The OpenAI-compatible API key is not in a valid format."
     AUTH_OPENAI_COMPATIBLE_FAILED: "Could not reach the OpenAI-compatible endpoint, or it rejected the API key. Check the URL and the key."
+    CREDENTIAL_REENTRY_REQUIRED: "The URL has changed. To keep your saved key from being sent to a different server, enter the key for the new URL. For a server without a key, delete the saved key first, then change the URL."
     MODEL_PLAMO_INVALID: "That Plamo model cannot be used."
     MODEL_GEMINI_INVALID: "That Gemini model cannot be used."
     MODEL_OPENAI_INVALID: "That OpenAI model cannot be used."
@@ -384,6 +385,7 @@ config_page:
         correct_auth_key_required: "Correct API Key Required"
         open_auth_key_webpage: "Open API Key Management Webpage"
         auth_key_success: "API key update completed."
+        credential_reentry_required: "The URL has changed. To keep your saved key from being sent to a different server, enter the key for the new URL. For a server without a key, delete the saved key first, then change the URL."
         connection_check:
             button_label: "Connection Check"
             checking: "Checking..."
@@ -1450,4 +1452,4 @@ transcription_consent:
     unselected: "Not selected"
 network_privacy:
     http_warning: "This connection is not encrypted. Text, audio and API keys may be visible to others on the network."
-    save_notice: "The URL is checked only when you save. A saved API key will be sent to this address."
+    save_notice: "The URL is checked when you save. If you enter an API key, it is sent to this address for verification."

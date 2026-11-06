@@ -161,6 +161,7 @@ class ErrorCode(str, Enum):
     AUTH_GROQ_FAILED = "AUTH_GROQ_FAILED"
     AUTH_OPENROUTER_INVALID = "AUTH_OPENROUTER_INVALID"
     AUTH_OPENROUTER_FAILED = "AUTH_OPENROUTER_FAILED"
+    CREDENTIAL_REENTRY_REQUIRED = "CREDENTIAL_REENTRY_REQUIRED"
     
     # ============================================================================
     # モデル選択エラー (MODEL_*)
@@ -804,6 +805,13 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
     ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID: {
         "category": ErrorCategory.CONNECTION,
         "message": "Custom transcription server URL is not valid",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+
+    ErrorCode.CREDENTIAL_REENTRY_REQUIRED: {
+        "category": ErrorCategory.AUTH,
+        "message": "Enter the API key again for the new URL, or delete the saved key before changing the URL for a server without a key",
         "severity": "warning",
         "user_action_required": True,
     },

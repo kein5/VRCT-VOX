@@ -3248,64 +3248,21 @@ class Controller:
 
 
     def setCustomWhisperURL(self, data, *args, **kwargs) -> dict:
-        """URL 変更時は「認証成功後に URL を確定」する順序を守る
-        (翻訳側の OpenAI互換エンジンの setOpenAICompatibleURL と同じ)。
-
-        Auth Key が未設定の場合は URL だけ保存して終わる (次回 Auth Key 入力時に検証される)。
-        """
+        """Require explicit key entry before changing a credential's destination."""
         try:
             data = validate_api_url(data.strip() if isinstance(data, str) else data)
         except ValueError:
             return VRCTError.create_error_response(
                 ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID, data=config.TRANSCRIPTION_CUSTOM_URL)
         printLog("Set Custom Whisper URL", data)
-        engine = "Custom_Whisper"
-        try:
-            with config.credential_lock:
-                auth_key = config.TRANSCRIPTION_AUTH_KEYS[engine]
-                previous_url = config.TRANSCRIPTION_CUSTOM_URL
-                if not auth_key:
-                    config.TRANSCRIPTION_CUSTOM_URL = data
-                    return {"status":200, "result":config.TRANSCRIPTION_CUSTOM_URL}
-            if model.authenticationTranscriptionApiKey(api_key=auth_key, base_url=data) is not True:
-                return VRCTError.create_error_response(
-                    ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID,
-                    data=config.TRANSCRIPTION_CUSTOM_URL,
-                )
-            model_list = model.getTranscriptionApiModelList(api_key=auth_key, base_url=data)
-            if not isinstance(model_list, list) or not model_list or any(
-                not isinstance(name, str) or not name.strip() for name in model_list
-            ):
-                return VRCTError.create_error_response(
-                    ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID,
-                    data=config.TRANSCRIPTION_CUSTOM_URL,
-                )
-            model_list = list(model_list)
-        except Exception as e:
-            errorLogging(provider=engine)
-            return VRCTError.create_exception_error_response(
-                e,
-                data=config.TRANSCRIPTION_CUSTOM_URL,
-                provider=engine,
-            )
         with config.credential_lock:
-            if config.TRANSCRIPTION_AUTH_KEYS[engine] != auth_key or config.TRANSCRIPTION_CUSTOM_URL != previous_url:
+            if data == config.TRANSCRIPTION_CUSTOM_URL:
+                return {"status": 200, "result": config.TRANSCRIPTION_CUSTOM_URL}
+            if config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"]:
                 return VRCTError.create_error_response(
-                    ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID,
-                    data=config.TRANSCRIPTION_CUSTOM_URL,
-                )
-            selected_model = config.SELECTED_CUSTOM_WHISPER_MODEL
-            if selected_model not in model_list:
-                selected_model = model_list[0]
+                    ErrorCode.CREDENTIAL_REENTRY_REQUIRED, data=config.TRANSCRIPTION_CUSTOM_URL)
             config.TRANSCRIPTION_CUSTOM_URL = data
-            config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = model_list
-            config.SELECTED_CUSTOM_WHISPER_MODEL = selected_model
-            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
-            self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], model_list)
-            self.run(200, self.run_mapping["selected_custom_whisper_model"], selected_model)
-            self.updateTranscriptionEngine()
-        return {"status":200, "result":data}
-
+            return {"status": 200, "result": config.TRANSCRIPTION_CUSTOM_URL}
 
 
     @staticmethod
@@ -4458,44 +4415,22 @@ class Controller:
 
 
     def setOpenAICompatibleURL(self, data, *args, **kwargs) -> dict:
-        """Keep the previous URL/client unless the candidate is ready to translate."""
+        """Require explicit key entry before changing a credential's destination."""
         try:
             data = validate_api_url(data.strip() if isinstance(data, str) else data)
         except ValueError:
             return VRCTError.create_error_response(
                 ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID, data=config.OPENAI_COMPATIBLE_URL)
         printLog("Set OpenAI Compatible URL", data)
-        engine = "OpenAI_Compatible"
-        try:
-            data = str(data).strip()
-            if not data:
-                raise ValueError("Empty endpoint URL")
-            with config.credential_lock:
-                auth_key = config.AUTH_KEYS[engine]
-                previous_model = config.SELECTED_OPENAI_COMPATIBLE_MODEL
-                if not auth_key:
-                    config.OPENAI_COMPATIBLE_URL = data
-                    return {"status": 200, "result": config.OPENAI_COMPATIBLE_URL}
-            candidate = model.prepareTranslatorCredential(
-                engine, auth_key, selected_model=previous_model,
-                base_url=data,
-            )
-        except Exception:
-            errorLogging(provider=engine)
-            return VRCTError.create_error_response(
-                ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID,
-                data=config.OPENAI_COMPATIBLE_URL,
-            )
         with config.credential_lock:
-            # Do not publish a client for a superseded key/model combination.
-            if config.AUTH_KEYS[engine] != auth_key or config.SELECTED_OPENAI_COMPATIBLE_MODEL != previous_model:
+            if data == config.OPENAI_COMPATIBLE_URL:
+                return {"status": 200, "result": config.OPENAI_COMPATIBLE_URL}
+            if config.AUTH_KEYS["OpenAI_Compatible"]:
                 return VRCTError.create_error_response(
-                    ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID,
-                    data=config.OPENAI_COMPATIBLE_URL,
-                )
+                    ErrorCode.CREDENTIAL_REENTRY_REQUIRED, data=config.OPENAI_COMPATIBLE_URL)
             config.OPENAI_COMPATIBLE_URL = data
-            self._commitOpenAICompatibleCandidate(candidate)
-        return {"status": 200, "result": data}
+            return {"status": 200, "result": config.OPENAI_COMPATIBLE_URL}
+
 
     def setOpenAICompatibleModel(self, data, *args, **kwargs) -> dict:
         printLog("Set OpenAI Compatible Model", data)

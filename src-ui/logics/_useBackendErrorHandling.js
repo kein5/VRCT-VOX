@@ -47,6 +47,7 @@ const ENDPOINT_URL_ERRORS = new Set([
     "CONNECTION_LMSTUDIO_URL_INVALID",
     "CONNECTION_OPENAI_COMPATIBLE_URL_INVALID",
     "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID",
+    "CREDENTIAL_REENTRY_REQUIRED",
 ]);
 
 // Saved URL repairs can arrive before the UI applies its saved language.
@@ -486,6 +487,11 @@ export const _useBackendErrorHandling = () => {
                 return;
             case "CONNECTION_OPENAI_COMPATIBLE_URL_INVALID":
                 updateOpenAICompatibleURL(data);
+                showNotification_Error(localized, { category_id: error_code });
+                return;
+            case "CREDENTIAL_REENTRY_REQUIRED":
+                if (endpoint === "/set/data/openai_compatible_url") updateOpenAICompatibleURL(data);
+                else if (endpoint === "/set/data/custom_whisper_url") transcription.updateCustomWhisperURL(data);
                 showNotification_Error(localized, { category_id: error_code });
                 return;
 

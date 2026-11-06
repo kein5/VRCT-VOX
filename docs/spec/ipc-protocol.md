@@ -87,6 +87,8 @@ flowchart LR
 
 音声・RVC・リアルタイム音声認識・モデル取得のエンドポイントは、200以外を受け取ると`errorHandling_Backend`ではなく各機能のエラー表示に回る（`receiveRoutes`の先頭の分岐）。
 
+OpenAI互換とCustom WhisperのURL単独の設定要求（`/set/data/openai_compatible_url`、`/set/data/custom_whisper_url`）は、検証後のURLが保存済みの値と異なり、キーが保存されている場合、外部へ通信せず400を返す。`result.error_code`は`CREDENTIAL_REENTRY_REQUIRED`、`result.data`は保存済みURLで、設定や動作中の状態は変更しない。UIは該当するURLの待機だけを解除する。同じURLなら通信も変更もせず200を返し、キーが未設定ならURLだけを保存する。URLとキーの同時変更には`_auth_key_and_url`を使う（[APIキーの変更](cross-cutting.md#apiキーの変更)）。
+
 ### 失敗した要求の待機を解除する
 
 - 通常の設定とメイン機能は、要求中もatomの`data`に最後に確認した値を保つ。404・423・500ではその値を保ったまま`state`を`ok`へ戻す。成功時のハンドラーは呼ばず、保存成功の通知も出さない。VRだけが待機中の場合も、mainから同じ値を再通知する。

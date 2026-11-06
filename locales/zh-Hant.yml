@@ -8,6 +8,9 @@ common:
     go_back_button_label: "返回"
     default_label: "預設"
 
+backend_errors:
+    CREDENTIAL_REENTRY_REQUIRED: "URL 已變更。為避免將已儲存的金鑰傳送到其他伺服器，請輸入新 URL 使用的金鑰。如果伺服器不需要金鑰，請先刪除已儲存的金鑰，再變更 URL。"
+
 common_error:
     ctranslate2_license_consent_required: "{{weight_type}} 採用非商業授權（CC-BY-NC-4.0）。請先在 設定 > 翻譯 中確認授權。"
     translation_language_unsupported: "{{model}} 無法翻譯 {{languages}}，因此已重設語言。如需使用該語言，請選擇其他翻譯引擎或 {{ctranslate2}} 模型。"
@@ -124,6 +127,7 @@ config_page:
         correct_auth_key_required: "需要正確的 API 金鑰"
         open_auth_key_webpage: "打開 API 金鑰管理頁面"
         auth_key_success: "API 金鑰更新完成。"
+        credential_reentry_required: "URL 已變更。為避免將已儲存的金鑰傳送到其他伺服器，請輸入新 URL 使用的金鑰。如果伺服器不需要金鑰，請先刪除已儲存的金鑰，再變更 URL。"
         connection_check:
             button_label:
             checking:

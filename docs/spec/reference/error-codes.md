@@ -7,7 +7,7 @@
 - 既定メッセージ: サイドカーが返す英語の`message`。UIは多くの場合`locales/`の文言に置き換えて表示する。
 - UIの個別処理: `_useBackendErrorHandling.js`に専用の分岐（値の巻き戻しや翻訳した文言の表示）がある。空欄のコードは、音声やモデル取得など別の経路で処理されるか、汎用の通知になる。
 
-## コード（105件）
+## コード（106件）
 
 | コード | 分類 | 既定メッセージ | 重大度 | 利用者の対処 | UIの個別処理 |
 |---|---|---|---|---|---|
@@ -91,6 +91,7 @@
 | `CONNECTION_LMSTUDIO_URL_INVALID` | connection | LMStudio URL is not valid | warning | 要 | あり |
 | `CONNECTION_OPENAI_COMPATIBLE_URL_INVALID` | connection | OpenAI-compatible endpoint URL is not valid | warning | 要 | あり |
 | `CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID` | connection | Custom transcription server URL is not valid | warning | 要 | あり |
+| `CREDENTIAL_REENTRY_REQUIRED` | auth | Enter the API key again for the new URL, or delete the saved key before changing the URL for a server without a key | warning | 要 | あり |
 | `WEBSOCKET_HOST_INVALID` | websocket | WebSocket server host is not available | error | 要 | あり |
 | `WEBSOCKET_PORT_UNAVAILABLE` | websocket | WebSocket server port is not available | error | 要 | あり |
 | `WEBSOCKET_PORT_INVALID` | websocket | WebSocket server port must be a number | warning | 要 | あり |
