@@ -173,7 +173,7 @@ class TestResolve(_Root):
         base = self.install(BASE_MODEL_ID)
         files = resolveModelFiles(self.root, spec)
         self.assertEqual(files.det, str(base / "det.onnx"))
-        self.assertTrue(files.rec.endswith("ppocrv5-korean/" + "e" * 40 + "/rec.onnx"))
+        self.assertTrue(Path(files.rec).as_posix().endswith("ppocrv5-korean/" + "e" * 40 + "/rec.onnx"))
 
     def test_tampered_file_is_rejected(self) -> None:
         self.install(BASE_MODEL_ID, corrupt="rec.onnx")
