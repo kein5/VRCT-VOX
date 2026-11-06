@@ -533,7 +533,7 @@ def main():
     }
     if not all(report['cleanup'].values()):
         report.update(status='failed', cleanup_failure=True)
-    (args.output / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2))
+    (args.output / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps({'status': report['status'], 'failure': report.get('failure')}), flush=True)
     return 0 if report['status'] == 'passed' else 1
 

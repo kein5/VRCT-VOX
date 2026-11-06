@@ -13,6 +13,8 @@ function App() {
         context: async () => ({ language: 'en', enter_to_send: true, clear_on_send: true }),
         hide: async () => { window.quickChatHidden = true; },
         onOpen: async () => () => {},
+        onContextChanged: async () => () => {},
+        growBy: async () => {},
         submit: async request => {
             if (window.hold) await new Promise(resolve => { window.release = resolve; });
             if (window.fail) throw new Error('backend_unavailable');
