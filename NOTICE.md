@@ -164,6 +164,17 @@ dependencies are listed in `pyproject.toml` (resolved in `uv.lock`) and
 carry their own licenses; JavaScript and Rust dependencies are listed in
 `package.json` and `src-tauri/Cargo.toml`.
 
+## Windows installer download component
+
+The Windows installer uses NScurl. Its retained notices for NScurl, Brotli,
+curl, nghttp2, OpenSSL, zlib and Zstandard are embedded in the setup executable
+under `$PLUGINSDIR/licenses/nscurl/` and can be read by extracting the installer
+with 7-Zip, even if the application download fails. Both Windows application
+ZIPs also include these texts in `_internal/licenses/nscurl/` (the `../nscurl/`
+directory relative to the installed copy of this NOTICE).
+The retained source copies are in
+[`src-tauri/nsis/licenses/nscurl/`](src-tauri/nsis/licenses/nscurl/).
+
 ## LGPL and GPL components in VRCT-VOX builds
 
 The frozen backend (`_internal` next to the `vrct-vox-sidecar` executable)
@@ -179,7 +190,7 @@ component.
 | libsoxr, statically built into the `soxr` 1.1.0 extension module | `_internal/soxr/` | LGPL-2.1-or-later | [soxr 1.1.0 source distribution](https://pypi.org/project/soxr/1.1.0/#files) (contains libsoxr), [python-soxr](https://github.com/dofuuz/python-soxr) |
 | FFmpeg libraries (libavcodec, libavformat, libavutil, libswresample, libswscale) shipped with `opencv-python-headless` 4.10.0.84 | Linux: `_internal/opencv_python_headless.libs/`; Windows: `_internal/cv2/opencv_videoio_ffmpeg*.dll` | LGPL-2.1-or-later | [FFmpeg](https://ffmpeg.org/download.html); build scripts and version in [opencv-python 84](https://github.com/opencv/opencv-python/tree/84) |
 | libquadmath and libgfortran (GCC runtime) shipped with `opencv-python-headless` on Linux | `_internal/opencv_python_headless.libs/` | libquadmath: LGPL-2.1-or-later; libgfortran: GPL-3.0-or-later with the GCC Runtime Library Exception 3.1 | [GCC](https://gcc.gnu.org/) |
-| `zeroconf` 0.39.1 (Python) | `_internal/zeroconf/` (source files, outside the PYZ archive) | LGPL-2.1-or-later | [zeroconf 0.39.1](https://pypi.org/project/zeroconf/0.39.1/#files) |
+| `zeroconf` 0.152.0 (Python) | `_internal/zeroconf/` (source files, outside the PYZ archive) | LGPL-2.1-or-later | [zeroconf 0.152.0 source distribution](https://files.pythonhosted.org/packages/15/d2/7fa1e89251245a7135f13a653ccf0c8db46ab4ce1877007285b9da7e8865/zeroconf-0.152.0.tar.gz) |
 | Seed-VC Realtime integration (Python source, run by an external worker) | `_internal/integrations/seed_vc/` | GPL-3.0-only (license text included) | The files themselves; [seed-vc-realtime](https://github.com/jiaheguo521/seed-vc-realtime) |
 | PyInstaller bootloader | `vrct-vox-sidecar` | GPL-2.0-or-later with the PyInstaller bootloader exception | [PyInstaller 6.10.0](https://pypi.org/project/pyinstaller/6.10.0/#files) |
 

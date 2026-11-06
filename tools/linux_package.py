@@ -12,11 +12,11 @@ import tarfile
 import tempfile
 
 try:
-    from .check_voice_distribution import _check_name, _zip, check
-    from .distribution_policy import ARCHIVE_SUFFIXES, OCR_RUNTIME_DATA
+    from .check_voice_distribution import _check_name, _inspect_member, _InspectionBudget, check
+    from .distribution_policy import OCR_RUNTIME_DATA
 except ImportError:
-    from check_voice_distribution import _check_name, _zip, check
-    from distribution_policy import ARCHIVE_SUFFIXES, OCR_RUNTIME_DATA
+    from check_voice_distribution import _check_name, _inspect_member, _InspectionBudget, check
+    from distribution_policy import OCR_RUNTIME_DATA
 
 RUNTIME = ('vrct-vox', 'vrct-vox-sidecar', '_internal/base_library.zip',
            '_internal/build/vrct-voice-gate', '_internal/build/vrct-source-bridge',
@@ -46,7 +46,7 @@ def check_tree(root, *, require_runtime=False, allow_directory_links=False):
             if not valid:
                 raise ValueError(f'Unsafe distribution symlink: {path}')
         elif stat.S_ISREG(mode):
-            check([path])
+            check([path], root=root)
         elif not stat.S_ISDIR(mode):
             raise ValueError(f'Special file in distribution: {path}')
     if require_runtime:
@@ -63,12 +63,14 @@ def check_tree(root, *, require_runtime=False, allow_directory_links=False):
 
 def inspect_tar(path):
     """Inventory before extraction. No devices, hardlinks, ambiguous paths or outside links."""
+    budget = _InspectionBudget()
     try:
         with tarfile.open(path, 'r:gz') as archive:
             members = {}
             roots = set()
             for member in archive:
                 name = member.name
+                budget.consume(member.size, path)
                 parts = PurePosixPath(name).parts
                 if not parts or name.startswith('/') or '\\' in name or '..' in parts or name != '/'.join(parts) or name in members:
                     raise ValueError(f'Unsafe/duplicate archive path: {name}')
@@ -79,17 +81,7 @@ def inspect_tar(path):
                     raise ValueError(f'Unsafe archive type/mode: {name}')
                 if member.isfile():
                     with archive.extractfile(member) as src:
-                        magic = src.read(4)
-                    if name.lower().endswith('.zip') or magic.startswith(b'PK\x03\x04'):
-                        if member.size > 128 * 1024 * 1024:
-                            raise ValueError(f'Oversized nested archive: {name}')
-                        with archive.extractfile(member) as src, tempfile.TemporaryFile() as snapshot:
-                            import shutil
-                            shutil.copyfileobj(src, snapshot)
-                            snapshot.seek(0)
-                            _zip(snapshot, f'{path}!{name}')
-                    elif name.lower().endswith(ARCHIVE_SUFFIXES):
-                        raise ValueError(f'Unsupported nested archive: {name}')
+                        _inspect_member(src, member.size, name, str(path), 0, budget)
             if len(roots) != 1:
                 raise ValueError('Expected one archive root')
             root = next(iter(roots))
