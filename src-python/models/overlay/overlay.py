@@ -157,7 +157,8 @@ def computeVrLayout(width: int, height: int) -> Dict[str, Any]:
     VR画面 (React) はこの結果を受け取って描く。既定の大きさでは src-ui/views/vr/vr_layout.json と一致する
     (test_overlay_grab_move で確認)。
     """
-    right_x = max(width, LAUNCHER_WIDTH_PX + 10) + 8  # ログの右の列は、ランチャーより右に置く
+    # ログの右の列は、ランチャーと既定の大きさのログより右に置く (ログを既定より縮めても右の列は動かさない)
+    right_x = max(width, PANEL_DEFAULT_SIZE[0], LAUNCHER_WIDTH_PX + 10) + 8
     return {
         "atlas": (right_x + 720, max(height + 8 + 128, 880)),
         "regions": {

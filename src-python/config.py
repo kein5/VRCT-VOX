@@ -307,7 +307,7 @@ DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS = {
     "display_duration": 5,
     "fadeout_duration": 0,  # 常に表示
     "opacity": 1.0,
-    "ui_scaling": 0.1984,  # 横幅(m)。952x128px の帯 (左端のマーク込み)
+    "ui_scaling": 0.1834,  # 横幅(m)。880x128px の帯。ボタンの大きさは、左端のマークがあった 952px 幅で 0.1984m のときと同じ
     "tracker": "LeftHand",
 }
 

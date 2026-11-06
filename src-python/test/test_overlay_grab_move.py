@@ -967,7 +967,7 @@ class VrWindowsShownAfterFirstFrameTest(unittest.TestCase):
         pose = lambda index: np.eye(4)  # noqa: E731
         overlay.applyVrWindows(pose)
         overlay.overlay.showOverlay.assert_not_called()  # まだ撮れていない
-        overlay.panel_image_size = (1690, 880)
+        overlay.panel_image_size = (1628, 880)
         overlay.applyVrWindows(pose)
         shown = {call.args[0] for call in overlay.overlay.showOverlay.call_args_list}
         self.assertEqual(shown, {10, 11})  # 撮れたら出す
@@ -1416,20 +1416,20 @@ class VrLayoutTest(unittest.TestCase):
         from models.overlay.overlay import regionBounds
 
         u0, _u1, v0, v1 = regionBounds(LAUNCHER)
-        self.assertAlmostEqual(u0, 10 / 1690)
+        self.assertAlmostEqual(u0, 10 / 1628)
         self.assertAlmostEqual(v0, 1 - 708 / 880)  # 表示の上端 = 画像の708行目
         self.assertAlmostEqual(v1, 1 - 836 / 880)  # ランチャーの下端
         self.assertEqual(regionBounds(PANEL)[2:], (1.0, 1 - 700 / 880))  # ログは画像の上側
         # レーザーの当たった点 (空間座標) → 撮影画像上のピクセル。空間固定・原点に置いたランチャー
         overlay = Overlay({LAUNCHER: {k: 0.0 for k in KEYS} | {"tracker": "Playspace", "ui_scaling": 0.28}})
-        overlay.panel_image_size = (2535, 1254)  # DPI 150% (1690 x 1.5)
+        overlay.panel_image_size = (2442, 1254)  # DPI 150% (1628 x 1.5)
         pose = overlay.overlayWorldPose(LAUNCHER, lambda index: np.eye(4))
         results = MagicMock()
         results.vPoint.v = [0.0, 0.0, 0.0]  # 中央
         x, y = overlay.regionPixel(LAUNCHER, results, pose)
-        self.assertAlmostEqual(x, (10 + 476) * 1.5, delta=2)
+        self.assertAlmostEqual(x, (10 + 440) * 1.5, delta=2)
         self.assertAlmostEqual(y, (708 + 64) * 1.5, delta=2)
-        results.vPoint.v = [-0.14 + 0.001, 0.28 * 128 / 952 / 2 - 0.001, 0.0]  # 左上の角
+        results.vPoint.v = [-0.14 + 0.001, 0.28 * 128 / 880 / 2 - 0.001, 0.0]  # 左上の角
         x, y = overlay.regionPixel(LAUNCHER, results, pose)
         self.assertAlmostEqual(x, 10 * 1.5, delta=8)
         self.assertAlmostEqual(y, 708 * 1.5, delta=8)
@@ -1814,7 +1814,7 @@ class PanelLayoutTest(unittest.TestCase):
 
         layout = computeVrLayout(1400, 1000)
         self.assertEqual(layout["regions"][PANEL], (0, 0, 1400, 1000))
-        self.assertEqual(layout["regions"][LAUNCHER], (10, 1008, 952, 128))  # ログの下
+        self.assertEqual(layout["regions"][LAUNCHER], (10, 1008, 880, 128))  # ログの下
         self.assertEqual(layout["regions"][POPUP][0], 1408)  # ログの右
         self.assertEqual(layout["regions"][TOOLBAR][0], 1408)
         self.assertEqual(layout["atlas"], (1408 + 720, 1008 + 128))
@@ -1827,8 +1827,8 @@ class PanelLayoutTest(unittest.TestCase):
             regions = computeVrLayout(width, 700)["regions"]
             self.assertLess(regions[LAUNCHER][0] + regions[LAUNCHER][2], regions[POPUP][0])
             self.assertEqual(regions[TOOLBAR][0], regions[POPUP][0])
-        # 小さくしても、ランチャー (952px) より左の列は狭くしない
-        self.assertEqual(computeVrLayout(600, 400)["regions"][POPUP][0], 970)
+        # 小さくしても、ランチャー (880px) より左の列は狭くしない
+        self.assertEqual(computeVrLayout(600, 400)["regions"][POPUP][0], 908)
 
     def _overlay(self):
         overlay = Overlay({PANEL: {}, LAUNCHER: {}})
@@ -2177,7 +2177,7 @@ class VrWindowsTest(unittest.TestCase):
         overlay.overlay = MagicMock()
         overlay.overlay_system = MagicMock()
         overlay.handle = {PANEL: 10, LAUNCHER: 11, POPUP: 12}
-        overlay.panel_image_size = (1690, 880)  # 画面は一度撮れている
+        overlay.panel_image_size = (1628, 880)  # 画面は一度撮れている
         return overlay, POPUP
 
     def test_hide_and_show_follow_the_requested_state(self):
