@@ -214,6 +214,8 @@ class NativeWebDriver:
                    XDG_CACHE_HOME=str(self.output / "cache"),
                    HF_HOME=str(self.output / "hf"), HF_HUB_OFFLINE="1",
                    TRANSFORMERS_OFFLINE="1", **self.extra_env)
+        # Release/AppImage tests must not attach to an installed instance.
+        env.setdefault("VRCT_CONFIG_DIR", str(self.output / "config/vrct-vox"))
         self.log = (self.output / "driver.log").open("w")
         driver = os.environ.get("VRCT_TEST_DRIVER", str(ROOT / "tmp/voice-completion/tauri-driver/bin/tauri-driver"))
         self.process = subprocess.Popen(

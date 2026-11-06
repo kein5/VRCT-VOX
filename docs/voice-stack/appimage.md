@@ -120,6 +120,12 @@ routing case needs WirePlumber 0.5. It records no physical microphone and uses
 no inference models. The CI uses Xvfb and tests extraction; it does not claim
 FUSE, physical audio or private routing acceptance on Ubuntu 24.04.
 
+Both the WebDriver and normal-launch tests pass `VRCT_CONFIG_DIR`, so they remain
+independent of an installed app. For manual AppImage tests with isolated `XDG_*`
+directories, also set `VRCT_CONFIG_DIR` to `$XDG_CONFIG_HOME/vrct-vox`, preserving
+the same state location. See the [Linux acceptance guide](linux-build-pipeline.md#acceptance-and-exclusions)
+for testing the single-instance guard itself and its D-Bus requirement.
+
 A local build on CachyOS/glibc 2.44 includes GLIBC_2.44 references and does not
 run on older distributions. Release images come from the hosted Ubuntu 24.04
 workflow; other target machines must be tested separately. Host kernel/glibc, GPU drivers, PipeWire and

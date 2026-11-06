@@ -122,6 +122,14 @@ This extracts to a path containing spaces, makes the installation read-only,
 checks restart/settings persistence, the frozen router and bundled engine entry,
 and verifies installation hashes did not change. For GUI tests also set
 `VRCT_TEST_NATIVE_GUI=1` and `VRCT_TEST_DRIVER` to a tauri-driver 2.1.0 executable.
+The shared `NativeWebDriver` launcher passes `VRCT_CONFIG_DIR` explicitly, defaulting
+to its existing `$XDG_CONFIG_HOME/vrct-vox` location and preserving caller overrides.
+This lets release-build tests run beside the installed app: debug builds and launches
+with `VRCT_CONFIG_DIR` set bypass the [single-instance guard](../spec/ipc-protocol.md#起動と初期化).
+For manual tests with isolated `XDG_*` directories, also pass `VRCT_CONFIG_DIR`
+pointing to that same config directory; changing `XDG_*` alone does not bypass the guard.
+To test duplicate-launch prevention itself, leave `VRCT_CONFIG_DIR` unset and use
+a release build with a working D-Bus session bus shared by both launches.
 On a physical desktop run under `tools/display_power_guard.py` via system Python/Gio.
 CI explicitly uses `VRCT_TEST_XVFB=1` with Xvfb, checks its server and real rendering.
 Setting `VRCT_TEST_NATIVE_ROUTE=1` additionally tests a private PipeWire graph and
