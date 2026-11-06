@@ -118,7 +118,7 @@ except ImportError:
     import window_capture
     from overlay_tooltip import LAUNCHER_WIDTH_PX, marker_matches, tooltip_mask, validate_tooltip
 
-# VR UI: Tauriの "VRCT VR Panel" ウィンドウ1枚に複数のウィンドウ (ログ・ランチャー) を並べて描き、
+# VR UI: Tauriの "VRCT-VOX VR Panel" ウィンドウ1枚に複数のウィンドウ (ログ・ランチャー) を並べて描き、
 # 1回だけ撮影して、オーバーレイごとにその一部 (領域) を切り出して表示する。
 # settings のキー。PANEL はログウィンドウ (位置は OVERLAY_VR_PANEL_SETTINGS に保存)
 PANEL = "panel"

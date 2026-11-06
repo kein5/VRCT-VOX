@@ -24,7 +24,7 @@
 
 ```
 Tauri (src-tauri/src/lib.rs)
-  └─ "VRCT VR Panel" ウィンドウ (画面外 -10000,-10000 / vr.html / src-ui/views/vr/)
+  └─ "VRCT-VOX VR Panel" ウィンドウ (画面外 -10000,-10000 / vr.html / src-ui/views/vr/)
         ↑ 状態は VrPanelSyncController.jsx が全 atom を一方向に同期
 Python (src-python/models/overlay/)
   ├─ overlay.py        Overlay クラス (1 本の mainloop)
