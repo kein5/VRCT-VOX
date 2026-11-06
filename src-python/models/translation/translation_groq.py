@@ -9,6 +9,7 @@ try:
     from .translation_languages import translation_lang
     from .translation_utils import loadTranslatePromptConfig
     from .translation_model_list import RecentModelList
+    from .translation_response import extractTranslationText
     from .translation_timeouts import CLOUD_LLM_TIMEOUT
 except Exception:
     import sys
@@ -17,6 +18,7 @@ except Exception:
     from translation_languages import translation_lang, loadTranslationLanguages
     from translation_utils import loadTranslatePromptConfig
     from translation_model_list import RecentModelList
+    from translation_response import extractTranslationText
     from translation_timeouts import CLOUD_LLM_TIMEOUT
     translation_lang = loadTranslationLanguages(path=".", force=True)
 
@@ -188,16 +190,7 @@ class GroqClient(RecentModelList):
         if resp.response_metadata.get("finish_reason") == "length":
             # Discard partial output; Model.getTranslate uses the empty-translation failure path.
             return ""
-        content = ""
-        if isinstance(resp.content, str):
-            content = resp.content
-        elif isinstance(resp.content, list):
-            for part in resp.content:
-                if isinstance(part, str):
-                    content += part
-                elif isinstance(part, dict) and "content" in part and isinstance(part["content"], str):
-                    content += part["content"]
-        return content.strip()
+        return extractTranslationText(resp.content)
 
 if __name__ == "__main__":
     AUTH_KEY = "GROQ_API_KEY"

@@ -121,7 +121,6 @@ class Translator:
     """
 
     def __init__(self) -> None:
-        self.is_enable_translators = ENABLE_TRANSLATORS
         self.deepl_client: Optional[DeepLClient] = None
         # TRANSLATION_PROVIDER_REGISTRY に登録されたエンジン
         # (Plamo/Gemini/OpenAI/Groq/OpenRouter、フェーズ3項目17) の
@@ -666,15 +665,12 @@ class Translator:
             source_language, target_language = self.getLanguageCode(translator_name, weight_type, target_country, source_language, target_language)
             match translator_name:
                 case "DeepL_API":
-                    if self.is_enable_translators is True:
-                        if self.deepl_client is None:
-                            result = False
-                        else:
-                            result = self.deepl_client.translate_text(
-                                message,
-                                source_lang=source_language,
-                                target_lang=target_language
-                                ).text
+                    if self.deepl_client is not None:
+                        result = self.deepl_client.translate_text(
+                            message,
+                            source_lang=source_language,
+                            target_lang=target_language
+                            ).text
                 case name if name in TRANSLATION_PROVIDER_REGISTRY:
                     # Plamo_API/Gemini_API/OpenAI_API/Groq_API/OpenRouter_API
                     # (「認証キー+モデル一覧」型、フェーズ3項目17) は
