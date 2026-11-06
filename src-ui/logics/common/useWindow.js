@@ -93,8 +93,12 @@ export const useWindow = () => {
 
     const asyncUpdateBreakPoint = async () => {
         const size = await appWindow.innerSize();
+        // innerSize is in physical pixels; the breakpoint, like the CSS
+        // (max-width: 800px) queries, is in CSS pixels. At 150% display
+        // scaling an 800px-wide window is 1200 physical pixels.
+        const width = size.width / (globalThis.devicePixelRatio || 1);
         const dynamicBreakPoint = 800 * (currentUiScaling.data / 100);
-        const narrow = size.width <= dynamicBreakPoint;
+        const narrow = width <= dynamicBreakPoint;
         // Every update re-renders whatever reads IsBreakPoint, so only send changes.
         if (document.documentElement.hasAttribute("data-narrow") === narrow) return;
         updateIsBreakPoint(narrow);
