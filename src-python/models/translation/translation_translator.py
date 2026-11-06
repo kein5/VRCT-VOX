@@ -36,6 +36,8 @@ except Exception:
 # NOTE: これは 1 リクエストあたりの値。Bing は認証ページの取得と翻訳、
 # さらにトークン失効時の 1 回のリトライで最大 4 リクエストを発行しうる。
 _WEB_TRANSLATOR_TIMEOUT_SECONDS = 10
+_CTRANSLATE2_MAX_INPUT_LENGTH = 1024
+_CTRANSLATE2_MAX_DECODING_LENGTH = 256
 
 import warnings
 from threading import RLock
@@ -136,6 +138,7 @@ class Translator:
         self.ollama_connected: bool = False
         self.ctranslate2_translator: Any = None
         self.ctranslate2_tokenizer: Any = None
+        self._ctranslate2_model_parameters: Optional[dict] = None
         self.is_loaded_ctranslate2_model: bool = False
         self.is_changed_translator_parameters: bool = False
         # ctranslate2_translator/ctranslate2_tokenizer は mic/speaker の
@@ -146,9 +149,8 @@ class Translator:
         # (クラッシュせず気付きにくい翻訳品質の劣化)、changeCTranslate2Model()
         # によるモデル差し替え中の破棄途中オブジェクトに translate_batch が
         # 入りうる。CTranslate2 の Translator 自体はスレッドセーフだが、
-        # これは tokenizer の保護にはならない。RLock なのは、将来
-        # 呼び出し元が既にロックを保持した状態で再入する可能性に備えるため
-        # (現状のコードパスでは再入は起きない)。
+        # これは tokenizer の保護にはならない。推論時の重み切り替えから
+        # changeCTranslate2Model() を呼ぶため、再入可能な RLock を使う。
         self._ctranslate2_lock: RLock = RLock()
 
     def prepareCredential(self, engine_key: str, auth_key: str, selected_model=None,
@@ -493,17 +495,26 @@ class Translator:
         ``is_loaded_ctranslate2_model`` on success.
         """
         if ctranslate2 is None or transformers is None:
-            return
+            raise RuntimeError("CTranslate2 and Transformers are required for local translation")
 
         with self._ctranslate2_lock:
-            self.is_loaded_ctranslate2_model = False
             weight_path = resolveCTranslate2Weight(path, model_type)
             if weight_path is None:
                 raise MissingCTranslate2Tokenizer(model_type)
-            self.ctranslate2_tokenizer = downloadCTranslate2Tokenizer(path, model_type)
+            tokenizer = downloadCTranslate2Tokenizer(path, model_type)
 
             if compute_type == "auto":
                 compute_type = getBestComputeType(device, device_index)
+            # Keep a valid old pair if preparation fails, but never allocate
+            # two native models at once. A failed replacement stays unloaded.
+            try:
+                if self.ctranslate2_translator is not None:
+                    self.ctranslate2_translator.unload_model()
+            finally:
+                self.ctranslate2_translator = None
+                self.ctranslate2_tokenizer = None
+                self._ctranslate2_model_parameters = None
+                self.is_loaded_ctranslate2_model = False
             self.ctranslate2_translator = ctranslate2.Translator(
                 str(weight_path),
                 device=device,
@@ -511,6 +522,11 @@ class Translator:
                 compute_type=compute_type,
                 inter_threads=1,
                 intra_threads=4,
+            )
+            self.ctranslate2_tokenizer = tokenizer
+            self._ctranslate2_model_parameters = dict(
+                path=path, model_type=model_type, device=device,
+                device_index=device_index, compute_type=compute_type,
             )
             self.is_loaded_ctranslate2_model = True
 
@@ -532,8 +548,18 @@ class Translator:
         with self._ctranslate2_lock:
             if self.is_loaded_ctranslate2_model is True:
                 try:
+                    parameters = self._ctranslate2_model_parameters
+                    if parameters is None:
+                        return False
+                    if parameters["model_type"] != weight_type:
+                        # Use the message's admitted weight, even if a newer
+                        # selection has already been used by another request.
+                        self.changeCTranslate2Model(**{**parameters, "model_type": weight_type})
                     self.ctranslate2_tokenizer.src_lang = source_language
-                    source = self.ctranslate2_tokenizer.convert_ids_to_tokens(self.ctranslate2_tokenizer.encode(message))
+                    source = self.ctranslate2_tokenizer.convert_ids_to_tokens(
+                        self.ctranslate2_tokenizer.encode(message, truncation=False))
+                    if len(source) > _CTRANSLATE2_MAX_INPUT_LENGTH:
+                        return False
                     match weight_type:
                         case "m2m100_418M-ct2-int8" | "m2m100_1.2B-ct2-int8":
                             target_prefix = [self.ctranslate2_tokenizer.lang_code_to_token[target_language]]
@@ -541,8 +567,14 @@ class Translator:
                             target_prefix = [target_language]
                         case _:
                             return False
-                    results = self.ctranslate2_translator.translate_batch([source], target_prefix=[target_prefix])
-                    target = results[0].hypotheses[0][1:]
+                    results = self.ctranslate2_translator.translate_batch(
+                        [source], target_prefix=[target_prefix], max_input_length=0,
+                        max_decoding_length=_CTRANSLATE2_MAX_DECODING_LENGTH, return_end_token=True,
+                    )
+                    target = results[0].hypotheses[0]
+                    if not target or target[-1] != self.ctranslate2_tokenizer.eos_token:
+                        return False
+                    target = target[1:-1]
                     result = self.ctranslate2_tokenizer.decode(self.ctranslate2_tokenizer.convert_tokens_to_ids(target))
                 except Exception:
                     errorLogging()

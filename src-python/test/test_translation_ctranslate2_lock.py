@@ -29,6 +29,7 @@ class _FakeTokenizer:
     """
 
     lang_code_to_token: dict = {}
+    eos_token = "</s>"
 
     def __init__(self, set_delay_sec: float = 0.05) -> None:
         self._src_lang = None
@@ -44,7 +45,7 @@ class _FakeTokenizer:
         time.sleep(self._set_delay_sec)
         self._src_lang = value
 
-    def encode(self, message):
+    def encode(self, message, **kwargs):
         self.calls.append((self._src_lang, message))
         return [1, 2, 3]
 
@@ -64,8 +65,11 @@ class _FakeResult:
 
 
 class _FakeCTranslate2Translator:
-    def translate_batch(self, sources, target_prefix):
-        return [_FakeResult([["<s>", "tok"]])]
+    def translate_batch(self, sources, target_prefix, **kwargs):
+        return [_FakeResult([["<s>", "tok", "</s>"]])]
+
+    def unload_model(self):
+        pass
 
 
 class TranslateCTranslate2LockTests(unittest.TestCase):
@@ -75,6 +79,7 @@ class TranslateCTranslate2LockTests(unittest.TestCase):
         self.translator.ctranslate2_tokenizer = self.tokenizer
         self.translator.ctranslate2_translator = _FakeCTranslate2Translator()
         self.translator.is_loaded_ctranslate2_model = True
+        self.translator._ctranslate2_model_parameters = {"model_type": "nllb-200-distilled-600M-ct2-int8"}
 
     def test_concurrent_calls_do_not_observe_each_others_src_lang(self) -> None:
         # mic が "Japanese"、speaker が "English" を同時に翻訳する状況を
