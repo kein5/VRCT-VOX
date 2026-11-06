@@ -8,6 +8,9 @@ common:
     go_back_button_label: "돌아가기"
     default_label: "기본값"
 
+backend_errors:
+    CREDENTIAL_REENTRY_REQUIRED: "URL이 변경되었습니다. 저장된 키가 다른 서버로 전송되지 않도록 새 URL에서 사용할 키를 입력하세요. 키가 필요 없는 서버라면 먼저 저장된 키를 삭제한 다음 URL을 변경하세요."
+
 common_error:
     ctranslate2_license_consent_required: "{{weight_type}}은(는) 비상업적 라이선스(CC-BY-NC-4.0)입니다. 먼저 설정 > 번역에서 라이선스를 확인하세요."
     translation_language_unsupported: "{{model}}은(는) {{languages}}을(를) 번역할 수 없어 언어를 초기화했습니다. 이 언어를 사용하려면 다른 번역 엔진이나 {{ctranslate2}} 모델을 선택하세요."
@@ -124,6 +127,7 @@ config_page:
         correct_auth_key_required: "올바른 API 키 필요"
         open_auth_key_webpage: "API 키 관리 페이지 열기"
         auth_key_success: "API 키 갱신이 완료되었습니다."
+        credential_reentry_required: "URL이 변경되었습니다. 저장된 키가 다른 서버로 전송되지 않도록 새 URL에서 사용할 키를 입력하세요. 키가 필요 없는 서버라면 먼저 저장된 키를 삭제한 다음 URL을 변경하세요."
         connection_check:
             button_label: "연결 확인"
             checking: "확인 중..."

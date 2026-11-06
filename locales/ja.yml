@@ -212,6 +212,7 @@ backend_errors:
     AUTH_OPENROUTER_FAILED: "OpenRouter APIキーを確認できませんでした。キーが正しいか確認してください。"
     AUTH_OPENAI_COMPATIBLE_INVALID: "OpenAI互換APIキーの形式が正しくありません。"
     AUTH_OPENAI_COMPATIBLE_FAILED: "OpenAI互換エンドポイントに接続できないか、APIキーが受け付けられませんでした。URLとAPIキーを確認してください。"
+    CREDENTIAL_REENTRY_REQUIRED: "URLが変わったため、保存済みのキーが別のサーバーへ送られないよう、新しいURLで使うキーを入力してください。キーが不要なサーバーを使う場合は、先に保存済みのキーを削除してからURLを変更してください。"
     MODEL_PLAMO_INVALID: "そのPlamoのモデルは使えません。"
     MODEL_GEMINI_INVALID: "そのGeminiのモデルは使えません。"
     MODEL_OPENAI_INVALID: "そのOpenAIのモデルは使えません。"
@@ -384,6 +385,7 @@ config_page:
         correct_auth_key_required: "正しいAPIキーが必要"
         open_auth_key_webpage: "APIキー管理ページを開く"
         auth_key_success: "APIキーの更新が完了しました。"
+        credential_reentry_required: "URLが変わったため、保存済みのキーが別のサーバーへ送られないよう、新しいURLで使うキーを入力してください。キーが不要なサーバーを使う場合は、先に保存済みのキーを削除してからURLを変更してください。"
         connection_check:
             button_label: "接続確認"
             checking: "確認中..."
@@ -1450,4 +1452,4 @@ transcription_consent:
     unselected: "未選択"
 network_privacy:
     http_warning: "この接続は暗号化されません。文章・音声・APIキーをネットワーク上の第三者に読み取られる可能性があります。"
-    save_notice: "保存すると接続先を確認します。登録済みのAPIキーがある場合は、このURLに送信します。"
+    save_notice: "URLは保存時に確認します。APIキーを入力して保存すると、このURLに送信して認証します。"

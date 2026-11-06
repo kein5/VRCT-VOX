@@ -6,6 +6,34 @@ import yaml from "js-yaml";
 import { renderToStaticMarkup } from "react-dom/server";
 import { loadBridgeRoutes } from "./test/bridgeHarness.js";
 
+test("credential reentry notices and field hints exist in every supported locale", () => {
+    for (const language of ["en", "ja", "ko", "zh-Hans", "zh-Hant"]) {
+        const locale = yaml.load(readFileSync(new URL(`../../locales/${language}.yml`, import.meta.url), "utf8"));
+        assert.ok(locale.backend_errors.CREDENTIAL_REENTRY_REQUIRED);
+        assert.ok(locale.config_page.common.credential_reentry_required);
+    }
+});
+
+for (const [base, provider] of [["OpenAICompatible", "openai_compatible"], ["CustomWhisper", "custom_whisper"]]) {
+    test(`${provider}: credential reentry settles only the URL and explains the rejection`, async () => {
+        const s = await loadBridgeRoutes();
+        const url = s.stores.dynamicStoreRegistry[`Atom_${base}URL`];
+        const key = s.stores.dynamicStoreRegistry[`Atom_${base}AuthKey`];
+        const savedURL = "https://previous.invalid/v1";
+        const savedKey = { state: "pending", data: "synthetic-saved-key" };
+        s.runtime.store.set(url, { state: "pending", data: savedURL });
+        s.runtime.store.set(key, savedKey);
+        s.receiveRoutes({ status: 400, endpoint: `/set/data/${provider}_url`, result: {
+            error_code: "CREDENTIAL_REENTRY_REQUIRED", data: savedURL,
+        } });
+        assert.deepEqual(s.runtime.store.get(url), { state: "ok", data: savedURL });
+        assert.strictEqual(s.runtime.store.get(key), savedKey);
+        assert.equal(s.notices.length, 1);
+        assert.equal(s.notices[0].options.category_id, "CREDENTIAL_REENTRY_REQUIRED");
+        assert.deepEqual(s.reads, []);
+    });
+}
+
 test("compatible URL rejection restores the URL and settles only its pending request", async () => {
     const s = await loadBridgeRoutes();
     const url = s.stores.dynamicStoreRegistry.Atom_OpenAICompatibleURL;
@@ -47,7 +75,9 @@ for (const [field, code] of [
     ["lmstudio_url", "CONNECTION_LMSTUDIO_URL_INVALID"],
     ["openai_compatible_url", "CONNECTION_OPENAI_COMPATIBLE_URL_INVALID"],
     ["transcription_custom_url", "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID"],
-]) test(`${field}: an early startup repair notice renders in the saved UI language`, async () => {
+    ["openai_compatible_url", "CREDENTIAL_REENTRY_REQUIRED"],
+    ["custom_whisper_url", "CREDENTIAL_REENTRY_REQUIRED"],
+]) test(`${field}: ${code} renders in the saved UI language`, async () => {
     const resources = Object.fromEntries(["en", "ja"].map(language => [language, {
         translation: yaml.load(readFileSync(new URL(`../../locales/${language}.yml`, import.meta.url), "utf8")),
     }]));
