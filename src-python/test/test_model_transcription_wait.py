@@ -13,7 +13,7 @@ from model import MicSession, SpeakerSession, _AudioQueue
 from models.transcription.transcription_recorder import BaseEnergyAndAudioRecorder, BaseVadAndAudioRecorder
 from models.transcription.transcription_transcriber import AudioTranscriber
 from utils import putDroppingOldestOnFull
-from test.asr_wait_fakes import CountingConfig, FakeRecorder
+from asr_wait_fakes import CountingConfig, FakeRecorder
 
 
 class ObservedQueue(_AudioQueue):

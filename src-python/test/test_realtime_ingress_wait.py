@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 from models.transcription import realtime_audio as audio
 from models.voice_events import AudioFrame
-from test.asr_wait_fakes import run_async
+from asr_wait_fakes import run_async
 
 
 FRAME = AudioFrame(b"\0\0" * 480, 24000)
