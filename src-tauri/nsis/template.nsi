@@ -28,6 +28,8 @@ ${StrLoc}
 !define HEADERIMAGE "{{header_image}}"
 !define MAINBINARYNAME "{{main_binary_name}}"
 !define MAINBINARYSRCPATH "{{main_binary_path}}"
+; The Python sidecar from tauri.conf.json bundle.externalBin ("bin/vrct-vox-sidecar").
+!define SIDECARBINARYNAME "vrct-vox-sidecar"
 !define BUNDLEID "{{bundle_id}}"
 !define COPYRIGHT "{{copyright}}"
 !define OUTFILE "{{out_file}}"
@@ -243,7 +245,8 @@ FunctionEnd
 ; latest release of the channel this installer itself was published for,
 ; with no extra decisions to make.
 
-!insertmacro MUI_PAGE_COMPONENTS
+; No components page: EarlyChecks, WebView2 and Install are all required.
+; The page only let a user untick the WebView2 runtime or the app itself.
 
 ; 4-4. Custom page to ask user if he wants to reinstall/uninstall
 ;    only if a previous installtion was detected
@@ -742,6 +745,36 @@ SectionEnd
         Abort "$(appRunning)"
   ${EndIf}
   app_check_done:
+  ; Killing the main process skips the shell plugin's exit handler, so the
+  ; Python sidecar keeps running until its own watchdog stops it (1-2 min).
+  ; Meanwhile its exe and loaded libraries cannot be deleted, and its final
+  ; save can write config.json again. The main app is gone at this point:
+  ; it was not running, or the user agreed to stop it above.
+  !if "${INSTALLMODE}" == "currentUser"
+    nsis_tauri_utils::FindProcessCurrentUser "${SIDECARBINARYNAME}.exe"
+  !else
+    nsis_tauri_utils::FindProcess "${SIDECARBINARYNAME}.exe"
+  !endif
+  Pop $R0
+  ${If} $R0 = 0
+    !if "${INSTALLMODE}" == "currentUser"
+      nsis_tauri_utils::KillProcessCurrentUser "${SIDECARBINARYNAME}.exe"
+    !else
+      nsis_tauri_utils::KillProcess "${SIDECARBINARYNAME}.exe"
+    !endif
+    Pop $R0
+    Sleep 500
+    ${If} $R0 <> 0
+      ; Its watchdog may have ended it between the two calls.
+      !if "${INSTALLMODE}" == "currentUser"
+        nsis_tauri_utils::FindProcessCurrentUser "${SIDECARBINARYNAME}.exe"
+      !else
+        nsis_tauri_utils::FindProcess "${SIDECARBINARYNAME}.exe"
+      !endif
+      Pop $R0
+      ${IfThen} $R0 = 0 ${|} Abort "$(failedToKillApp)" ${|}
+    ${EndIf}
+  ${EndIf}
 !macroend
 
 Function CheckAppIsRunning
@@ -823,6 +856,8 @@ Section Install
   Var /GLOBAL package_hash_available
   Var /GLOBAL expected_package_hash
   Var /GLOBAL actual_package_hash
+  Var /GLOBAL tar_archive
+  Var /GLOBAL tar_target
   ${If} $SelectedEdition == "gpu"
     StrCpy $file_name "${SOFTWARE_DOWNLOAD_FILENAME_GPU}"
     StrCpy $req_dl_mb ${REQ_DOWNLOAD_MB_GPU}
@@ -1218,8 +1253,19 @@ Section Install
     ; entries, ~5.8GB unpacked). -v prints each file as it is written so the
     ; details view scrolls during extraction instead of sitting on
     ; "Extracting ..." until done.
+    ;
+    ; tar.exe converts its arguments to the ANSI code page. A character outside
+    ; it (a Japanese user name on an English Windows, for example) becomes "?",
+    ; and tar can open neither the archive nor the -C folder. Pass the 8.3
+    ; short paths instead. A volume without 8.3 names returns the long path,
+    ; which is what was passed before.
+    GetFullPathName /SHORT $tar_archive "$TEMP\$file_name"
+    ${IfThen} $tar_archive == "" ${|} StrCpy $tar_archive "$TEMP\$file_name" ${|}
+    GetFullPathName /SHORT $tar_target "$INSTDIR\.upd\new"
+    ${IfThen} $tar_target == "" ${|} StrCpy $tar_target "$INSTDIR\.upd\new" ${|}
+    ClearErrors
     ${DisableX64FSRedirection}
-    nsExec::ExecToLog '"$SYSDIR\tar.exe" -xvf "$TEMP\$file_name" -C "$INSTDIR\.upd\new"'
+    nsExec::ExecToLog '"$SYSDIR\tar.exe" -xvf "$tar_archive" -C "$tar_target"'
     Pop $0
     ${EnableX64FSRedirection}
     ${If} $0 == 0
@@ -1613,12 +1659,16 @@ Section Uninstall
     Delete "$INSTDIR\\{{this}}"
   {{/each}}
 
-  ; ユーザーデータ (config.json / ログ / weights) は既定では保持する。
+  ; ユーザーデータ (config.json / ログ / weights / downloaded_models) は既定では保持する。
   ; 別の保存先への更新後に既存 uninstaller を呼ぶ場合にも
   ; この Section が実行されるため、無条件削除すると全設定が失われる。
   ; 完全削除は「Delete AppData」チェックが入った場合のみ。
+  ; config.json の隣に置くファイルは docs/spec/data-and-persistence.md の表を参照。
   ${If} $DeleteAppDataCheckboxState == 1
     Delete "$INSTDIR\config.json"
+    Delete "$INSTDIR\config.json.unreadable-*"
+    Delete "$INSTDIR\voice_mute_state.json"
+    RmDir /r "$INSTDIR\downloaded_models"
     Delete "$INSTDIR\process.log"
     Delete "$INSTDIR\error.log"
     Delete "$INSTDIR\crash_trace.log"
