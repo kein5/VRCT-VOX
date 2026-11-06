@@ -297,7 +297,9 @@ class VadSegmenter:
         # 集計する (デバイス読み取りや ASR キューでの待ち時間は含まない)。
         wait_ms = (frame_count - self._silence_start_frame) * FRAME_DURATION_MS if self._silence_start_frame is not None else 0
         result = None
-        if self._speaking and frame_count >= self.min_speech_frames:
+        # speaking は開始判定済み。強制分割後の短い末尾や空の flush も
+        # 自然な終端として返し、下流の累積バッファを確定できるようにする。
+        if self._speaking:
             result = SpeechSegment(b"".join(self._speech_frames), self._segment_id, reason=reason)
         if self._speaking or self._positive_frames:
             self._segment_id = next(_segment_id_counter)
@@ -305,8 +307,13 @@ class VadSegmenter:
         self._speech_frames = []
         self._positive_frames = 0
         self._speech_frame_count = 0
-        self._silence_start_frame = None
-        self._speaking = False
+        if reason == "max_duration":
+            # 発話と無音の検出は継続する。anchor は次の断片の座標に移す。
+            if self._silence_start_frame is not None:
+                self._silence_start_frame -= frame_count
+        else:
+            self._silence_start_frame = None
+            self._speaking = False
         self.pre_speech_frames.clear()
 
         if result is not None:

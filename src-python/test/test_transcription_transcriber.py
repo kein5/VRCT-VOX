@@ -9,6 +9,7 @@ import numpy as np
 from speech_recognition.exceptions import RequestError, UnknownValueError
 
 from errors import AudioPipelineError, ErrorCode
+from models.transcription.audio_vad import FRAME_SAMPLES, VadSegmenter
 from models.transcription.transcription_providers import TranscriptionApiError
 from models.transcription.transcription_transcriber import (
     AudioTranscriber,
@@ -42,6 +43,31 @@ def _already_old_timestamp() -> datetime:
 
 
 class TestAudioProcessingSelection(unittest.TestCase):
+    def test_downmixes_speaker_pcm_without_clipping(self) -> None:
+        for channels in (2, 3, 6):
+            with self.subTest(channels=channels):
+                source = FakeAudioSource()
+                source.channels = channels
+                source.SAMPLE_RATE = 48000
+                transcriber = AudioTranscriber(True, source, 3, 10, "Google")
+                frames = np.array([
+                    [25000] * channels,
+                    [-25000] * channels,
+                    [24000] + [0] * (channels - 1),
+                    [32767] * channels,
+                    [-32768] * channels,
+                ], dtype="<i2")
+                transcriber.audio_sources["last_sample"] = frames.tobytes()
+
+                result = transcriber.processSpeakerData()
+
+                self.assertEqual(
+                    np.frombuffer(result.get_raw_data(), dtype="<i2").tolist(),
+                    [25000, -25000, 24000 // channels, 32767, -32768],
+                )
+                self.assertEqual(result.sample_rate, 48000)
+                self.assertEqual(result.sample_width, 2)
+
     @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
     def test_selects_mic_processing_for_microphone(self, _) -> None:
         transcriber = AudioTranscriber(False, FakeAudioSource(), 3, 10, "Google")
@@ -266,16 +292,12 @@ class TestConfirmedCompleteTranscription(unittest.TestCase):
         transcriber.whisper_model.transcribe.assert_not_called()
 
     @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
-    def test_backlog_with_multiple_phrases_is_confirmed_one_per_call(self, _) -> None:
+    def test_backlog_with_multiple_phrases_is_confirmed_across_calls(self, _) -> None:
         """バックログに複数の無音ギャップが溜まっていても取りこぼさないこと。
 
-        ただし**1回の呼び出しにつき1フレーズ**で返る。呼び出し元
-        (model.sendTranscript) が配信できるのはこの関数から戻った後なので、
-        1回の呼び出しで ASR を何度も回すと、その間ずっと何も表示されない
-        まま溜まり、最後にまとめてドッと出る (実機ログで「約14秒間に ASR が
-        6回成功、その間の配信はゼロ、直後に4件まとめて配信」を確認)。
-        呼び出し元はループで即座に呼び直すため、残りは次の呼び出しで処理
-        される。
+        最初の確定後にいったん返り、呼び出し元が結果を配信できるようにする。
+        その時点で未送信のバッファとキューに残った音声は、次の呼び出しで
+        どちらも認識される。
         """
         transcriber = make_whisper_transcriber(False, FakeAudioSource(), 3, 10, "Whisper")
         transcriber.transcription_engine = "Whisper"
@@ -297,7 +319,9 @@ class TestConfirmedCompleteTranscription(unittest.TestCase):
         # 呼び出し元のループ相当。残りも取りこぼさず確定される。
         self.assertTrue(transcriber.transcribeAudioQueue(audio_queue, ["Japanese"], ["Japan"]))
 
-        self.assertEqual(transcriber.whisper_model.transcribe.call_count, 2)
+        self.assertEqual(transcriber.whisper_model.transcribe.call_count, 3)
+        submitted = [call.args[0] for call in transcriber.whisper_model.transcribe.call_args_list]
+        self.assertEqual([audio.tolist() for audio in submitted], [[1 / 32768], [2 / 32768], [3 / 32768]])
         self.assertEqual(transcriber.audio_sources["last_sample"], b"\x03\x00")
 
     @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
@@ -488,6 +512,38 @@ class TestInterimSendVad(unittest.TestCase):
     されるが、蓄積用の last_sample 自体には混ざらない (パディング済みの
     内容が次のチャンクの土台になってしまうと、パディングが発話の途中に
     紛れ込むため)。"""
+
+    @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
+    def test_silence_after_max_duration_clears_audio_before_the_next_utterance(self, _) -> None:
+        probabilities = iter([0.9] * 219 + [0.0] * 100 + [0.9] * 3 + [0.0] * 25)
+        segmenter = VadSegmenter(lambda _: next(probabilities), max_speech_frames=219)
+        transcriber = AudioTranscriber(False, FakeAudioSource(), 3, 10, "Google", vad_segmented=True)
+        seen_buffers = []
+
+        def recognize(audio_data, **_kwargs):
+            seen_buffers.append(audio_data.get_raw_data())
+            return ("hello", 0.9)
+
+        transcriber.audio_recognizer.recognize_google = MagicMock(side_effect=recognize)
+        audio_queue = Queue()
+        now = datetime.now()
+        old_speech = np.full(FRAME_SAMPLES * 219, 1000, dtype="<i2").tobytes()
+        new_speech = np.full(FRAME_SAMPLES * 3, 2000, dtype="<i2").tobytes()
+
+        def feed(pcm, timestamp):
+            for segment in segmenter.process(pcm):
+                audio_queue.put((segment.audio, timestamp, segment.reason))
+            return transcriber.transcribeAudioQueue(audio_queue, ["Japanese"], ["Japan"])
+
+        self.assertTrue(feed(old_speech, now))
+        self.assertTrue(transcriber.audio_sources["last_sample"])
+        self.assertTrue(feed(bytes(FRAME_SAMPLES * 2 * 100), now + timedelta(seconds=4)))
+        self.assertEqual(transcriber.audio_sources["last_sample"], b"")
+        self.assertIsNone(segmenter.flush())
+        self.assertTrue(feed(new_speech + bytes(FRAME_SAMPLES * 2 * 25), now + timedelta(minutes=5)))
+        self.assertEqual(len(seen_buffers), 3)
+        self.assertIn(new_speech, seen_buffers[-1])
+        self.assertNotIn(1000, np.frombuffer(seen_buffers[-1], dtype="<i2"))
 
     @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
     def test_resends_the_growing_buffer_from_the_true_start_padded_each_time(self, _) -> None:
@@ -706,6 +762,63 @@ class TestInterimSendNonVad(unittest.TestCase):
 
         transcriber.audio_recognizer.recognize_google = MagicMock(side_effect=_record_and_recognize)
         return transcriber, seen_buffers
+
+    def test_unsent_utterance_survives_between_drain_calls(self) -> None:
+        transcriber, seen_buffers = self._makeTranscriber()
+        audio_queue = Queue()
+        now = datetime.now()
+        clips = [np.full(16000, value, dtype="<i2").tobytes() for value in (1000, 2000, 3000)]
+        for index, clip in enumerate(clips):
+            audio_queue.put((clip, now + timedelta(seconds=5 * index)))
+
+        self.assertTrue(transcriber.transcribeAudioQueue(audio_queue, ["Japanese"], ["Japan"]))
+        self.assertEqual(seen_buffers, clips[:1])
+        self.assertEqual(transcriber.audio_sources["last_sample"], clips[1])
+        self.assertEqual(audio_queue.qsize(), 1)
+        self.assertTrue(transcriber.transcribeAudioQueue(audio_queue, ["Japanese"], ["Japan"]))
+
+        self.assertEqual(seen_buffers, clips)
+        self.assertTrue(audio_queue.empty())
+        self.assertFalse(transcriber.transcribeAudioQueue(audio_queue, ["Japanese"], ["Japan"]))
+        self.assertEqual(seen_buffers, clips)
+
+    def test_unsent_utterance_is_submitted_on_idle_timeout_after_an_early_return(self) -> None:
+        transcriber, seen_buffers = self._makeTranscriber()
+        audio_queue = Queue()
+        now = datetime.now() - timedelta(seconds=30)
+        for index in range(3):
+            audio_queue.put((bytes([index + 1, 0]), now + timedelta(seconds=5 * index)))
+
+        self.assertTrue(transcriber.transcribeAudioQueue(audio_queue, ["Japanese"], ["Japan"]))
+        audio_queue.get_nowait()  # No further input reaches the next drain.
+        self.assertTrue(transcriber.transcribeAudioQueue(audio_queue, ["Japanese"], ["Japan"]))
+
+        self.assertEqual(seen_buffers, [b"\x01\x00", b"\x02\x00"])
+        self.assertEqual(transcriber.audio_sources["last_sample"], b"")
+        self.assertIsNone(transcriber.getAudioWaitTimeout())
+        self.assertFalse(transcriber.transcribeAudioQueue(audio_queue, ["Japanese"], ["Japan"]))
+
+    def test_clip_duration_is_not_counted_as_silence(self) -> None:
+        for channels in (1, 2):
+            with self.subTest(channels=channels):
+                transcriber, seen_buffers = self._makeTranscriber()
+                source = FakeAudioSource()
+                source.SAMPLE_RATE = 48000
+                source.channels = channels
+                transcriber.setAudioSource(source)
+                audio_queue = Queue()
+                now = datetime.now()
+                clip = np.full(48000 * 3 * channels, 1000, dtype="<i2").tobytes()
+
+                audio_queue.put((clip, now))
+                transcriber.transcribeAudioQueue(audio_queue, ["Japanese"], ["Japan"])
+                audio_queue.put((clip, now + timedelta(seconds=3.01)))
+                transcriber.transcribeAudioQueue(audio_queue, ["Japanese"], ["Japan"])
+                # The next three-second clip follows four seconds of silence.
+                audio_queue.put((clip, now + timedelta(seconds=10.01)))
+                transcriber.transcribeAudioQueue(audio_queue, ["Japanese"], ["Japan"])
+
+                self.assertEqual(seen_buffers, [clip, clip + clip, clip])
 
     @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
     def test_google_resends_the_growing_buffer_when_chunks_arrive_one_at_a_time(self, _) -> None:

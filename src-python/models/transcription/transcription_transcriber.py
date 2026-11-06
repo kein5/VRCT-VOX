@@ -23,12 +23,10 @@ partial (発話中の暫定結果) 通知は行わない。
 """
 
 import time
-from io import BytesIO
 from queue import Empty
 from threading import Event
-import wave
 from typing import Any, Dict, List, Optional
-from speech_recognition import Recognizer, AudioData, AudioFile
+from speech_recognition import Recognizer, AudioData
 from speech_recognition.exceptions import UnknownValueError
 from datetime import datetime, timedelta
 from .transcription_whisper import getWhisperModel, checkWhisperWeight
@@ -48,7 +46,6 @@ from .transcription_openai_compatible import TRANSCRIPTION_API_ENGINES as _API_T
 _CLOUD_TRANSCRIPTION_ENGINES = _API_TRANSCRIPTION_ENGINES + ("Deepgram",)
 
 import numpy as np
-from pydub import AudioSegment
 from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, TranscriptionStartError
 from utils import errorLogging, printLog
 from .utterance_diagnostics import utterance_diagnostics
@@ -204,6 +201,7 @@ class AudioTranscriber:
             "sample_width": source.SAMPLE_WIDTH,
             "channels": source.channels,
             "last_sample": bytes(),
+            "unsent": False,
             "last_spoken": None,
             "phrase_started_at": None,
             "process_data_func": self.processSpeakerData if self.speaker else self.processMicData,
@@ -318,12 +316,8 @@ class AudioTranscriber:
         """
         source_info = self.audio_sources
         transcribed = False
-        # last_sample に「まだ一度も送信していない追記」があるか。
-        # interim_send をキューのドレイン単位で1回に畳む
-        # (下記参照) にあたり、reset_only() が前提にしている
-        # 「この last_sample は直前に送信済み」が崩れるため、それを
-        # 明示的に追跡して取りこぼしを防ぐ。
-        unsent = False
+        # 未送信の追記は last_sample と一緒に保持する。途中で return しても
+        # 次の呼び出しで送信済みと誤認して捨てない。
         kind = "speaker" if self.speaker else "mic"
 
         def send_current_buffer() -> bool:
@@ -344,30 +338,29 @@ class AudioTranscriber:
                 source_info["last_sample"] = original
 
         def finalize() -> None:
-            nonlocal transcribed, unsent
+            nonlocal transcribed
             if send_current_buffer():
                 transcribed = True
             source_info["last_sample"] = bytes()
             source_info["phrase_started_at"] = None
-            unsent = False
+            source_info["unsent"] = False
 
         def interim_send() -> None:
             # finalize と異なり last_sample/phrase_started_at を
             # リセットしない。次のチャンクが来たら、今回よりさらに育った
             # 同じ発話の累積バッファを再送信することになる (v3.5.0 と同じ)。
-            nonlocal transcribed, unsent
+            nonlocal transcribed
             if send_current_buffer():
                 transcribed = True
-            unsent = False
+            source_info["unsent"] = False
 
         def reset_only() -> None:
             # interim_send() で直前に送信済みの内容を
             # もう一度 _finalizeAndTranscribe に通すと無駄な二重送信に
             # なるため、次のフレーズのための状態リセットだけ行う。
-            nonlocal unsent
             source_info["last_sample"] = bytes()
             source_info["phrase_started_at"] = None
-            unsent = False
+            source_info["unsent"] = False
 
         if self.vad_segmented:
             while True:
@@ -380,6 +373,7 @@ class AudioTranscriber:
                 if source_info["phrase_started_at"] is None:
                     source_info["phrase_started_at"] = time_spoken
                 source_info["last_sample"] += data
+                source_info["unsent"] = source_info["unsent"] or bool(data)
                 source_info["last_spoken"] = time_spoken
                 # 蓄積されている音声そのものの長さを使う。
                 # セグメント到着時刻の差 (time_spoken - phrase_started_at) では
@@ -447,9 +441,17 @@ class AudioTranscriber:
                 break
 
             self._recordQueueWait(time_spoken)
+            # recorded_at はクリップ終端。次のクリップの音声長を除いて
+            # 開始時刻を見積もり、前の終端との間だけを無音として扱う。
+            bytes_per_second = (
+                source_info["sample_rate"] * source_info["sample_width"] * source_info["channels"]
+            )
+            clip_started_at = time_spoken - timedelta(
+                seconds=len(data) / bytes_per_second if bytes_per_second else 0.0
+            )
             if (
                 source_info["last_spoken"] is not None
-                and time_spoken - source_info["last_spoken"] > timedelta(seconds=self.phrase_timeout)
+                and clip_started_at - source_info["last_spoken"] > timedelta(seconds=self.phrase_timeout)
             ):
                 # ここに残っている last_sample は通常
                 # 直前のループで既に interim_send() 済みなので、再送信せず
@@ -457,7 +459,7 @@ class AudioTranscriber:
                 # ドレイン畳み込み (下記) で送信を飛ばしていた場合は
                 # 未送信のまま捨てることになるので、その時は送ってから
                 # リセットする。
-                if not unsent:
+                if not source_info["unsent"]:
                     reset_only()
                 else:
                     finalize()
@@ -467,15 +469,14 @@ class AudioTranscriber:
 
             source_info["last_sample"] += data
             source_info["last_spoken"] = time_spoken
-            unsent = True
+            source_info["unsent"] = True
 
             # VAD 経路と同じく、蓄積されている音声そのものの長さで測る。
             # チャンクの到着時刻の差では、フレーズ最初のチャンクが含む音声
             # (listen_energy_and_audio_in_background はフレーズ単位で
             # コールバックするので、record_timeout = 既定3秒まで育つ) が
             # 丸ごと欠落し、15秒の安全弁が約18秒まで発火しない。
-            # 上の phrase_timeout 判定は「到着の間隔 = 無音ギャップ」を
-            # 見るものなので、そちらは時刻のままで正しい。
+            # 上の phrase_timeout 判定はクリップ間の無音ギャップを見る。
             if _bufferedSeconds(source_info) >= MAX_PHRASE_DURATION_SECONDS:
                 finalize()
             elif audio_queue.empty():
@@ -511,7 +512,7 @@ class AudioTranscriber:
             # 通常は既に送信済み (末尾のチャンクが来た回のループで送られて
             # いる) なので、再送信せずリセットだけする。未送信で残って
             # いる場合だけ送ってからリセットする。
-            if not unsent:
+            if not source_info["unsent"]:
                 reset_only()
             else:
                 finalize()
@@ -689,26 +690,8 @@ class AudioTranscriber:
         return audio_data
 
     def processSpeakerData(self) -> AudioData:
-        temp_file = BytesIO()
-        with wave.open(temp_file, 'wb') as wf:
-            wf.setnchannels(self.audio_sources["channels"])
-            # Recorder/normalizer output is signed 16-bit PCM on both OSes.
-            # Serializing it must not import a Windows-only device driver.
-            wf.setsampwidth(2)
-            wf.setframerate(self.audio_sources["sample_rate"])
-            wf.writeframes(self.audio_sources["last_sample"])
-        temp_file.seek(0)
-
-        if self.audio_sources["channels"] > 2:
-            audio = AudioSegment.from_file(temp_file, format="wav")
-            mono_audio = audio.set_channels(1)
-            temp_file = BytesIO()
-            mono_audio.export(temp_file, format="wav")
-            temp_file.seek(0)
-
-        with AudioFile(temp_file) as source:
-            audio = self.audio_recognizer.record(source)
-        return audio
+        # マイクと同じ平均でモノラル化し、AudioFile の L+R 加算による音割れを防ぐ。
+        return self.processMicData()
 
     def updateTranscript(self, result: dict) -> None:
         """呼び出し元 (_finalizeAndTranscribe) は完成したフレーズ1件に
@@ -743,5 +726,6 @@ class AudioTranscriber:
     def clearTranscriptData(self) -> None:
         self.transcript_data.clear()
         self.audio_sources["last_sample"] = bytes()
+        self.audio_sources["unsent"] = False
         self.audio_sources["last_spoken"] = None
         self.audio_sources["phrase_started_at"] = None

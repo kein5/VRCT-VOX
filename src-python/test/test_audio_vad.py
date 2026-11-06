@@ -118,6 +118,69 @@ class TestVadSegmenterBasics(unittest.TestCase):
 
 
 class TestVadSegmenterMaxDuration(unittest.TestCase):
+    def test_silence_after_max_duration_emits_a_natural_boundary(self) -> None:
+        engine = ProbabilitySequence([0.9] * 5 + [0.0] * 8)
+        segmenter = VadSegmenter(
+            engine, hangover_frames=2, min_speech_frames=2,
+            pre_speech_pad_frames=2, max_speech_frames=5,
+        )
+
+        first = segmenter.process(frame() * 5)
+        self.assertEqual([segment.reason for segment in first], ["max_duration"])
+        self.assertTrue(segmenter.speaking)
+        self.assertEqual(engine.reset_count, 0)
+        tail = segmenter.process(frame(0) * 8)
+
+        self.assertEqual([segment.reason for segment in tail], ["silence"])
+        self.assertEqual(first[0].audio + tail[0].audio, frame() * 5 + frame(0) * 3)
+        self.assertFalse(segmenter.speaking)
+        self.assertEqual(engine.reset_count, 1)
+        self.assertIsNone(segmenter.flush())
+
+    def test_split_during_hangover_keeps_the_silence_anchor(self) -> None:
+        engine = ProbabilitySequence([0.9] * 3 + [0.0] * 4)
+        segmenter = VadSegmenter(
+            engine, hangover_frames=3, min_speech_frames=3,
+            pre_speech_pad_frames=3, max_speech_frames=6,
+        )
+
+        segments = segmenter.process(frame() * 3 + frame(0) * 4)
+
+        self.assertEqual([segment.reason for segment in segments], ["max_duration", "silence"])
+        self.assertEqual(segments[1].audio, frame(0))
+        self.assertEqual(b"".join(segment.audio for segment in segments), frame() * 3 + frame(0) * 4)
+        self.assertFalse(segmenter.speaking)
+        self.assertEqual(engine.reset_count, 1)
+
+    def test_flush_after_max_duration_emits_boundary_even_without_more_audio(self) -> None:
+        engine = ProbabilitySequence([0.9] * 5)
+        segmenter = VadSegmenter(
+            engine, min_speech_frames=2, pre_speech_pad_frames=2, max_speech_frames=5,
+        )
+        segmenter.process(frame() * 5)
+
+        result = segmenter.flush()
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.reason, "flush")
+        self.assertEqual(result.audio, b"")
+        self.assertFalse(segmenter.speaking)
+        self.assertEqual(engine.reset_count, 1)
+        self.assertIsNone(segmenter.flush())
+
+    def test_short_continuation_after_max_duration_is_kept_on_flush(self) -> None:
+        segmenter = VadSegmenter(
+            ProbabilitySequence([0.9] * 6), min_speech_frames=2,
+            pre_speech_pad_frames=2, max_speech_frames=5,
+        )
+        segments = segmenter.process(frame() * 6)
+
+        tail = segmenter.flush()
+
+        self.assertIsNotNone(tail)
+        self.assertEqual(tail.reason, "flush")
+        self.assertEqual(segments[0].audio + tail.audio, frame() * 6)
+
     def test_long_continuous_speech_without_silence_is_force_split(self) -> None:
         """ADR-0003 の回帰テスト: 無音を含まない長い連続発話が
         max_speech_frames で強制終端され、新しい segment_id で
@@ -174,10 +237,7 @@ class TestVadSegmenterMaxDuration(unittest.TestCase):
         self.assertEqual(engine.reset_count, 1)
 
     def test_continuous_speech_resumes_quickly_after_max_duration_cut(self) -> None:
-        """強制分割の直後も、話者が話し続けていれば
-        min_speech_frames 分の短い遅延だけで次のセグメントが再始動する
-        こと (エンジンリセットしないことの効果を確認)。
-        """
+        """強制分割後も発話を継続し、同じフレーム数ごとに分割する。"""
         segmenter = VadSegmenter(
             ProbabilitySequence([0.9] * 12),
             hangover_frames=99,
@@ -188,10 +248,8 @@ class TestVadSegmenterMaxDuration(unittest.TestCase):
 
         segments = segmenter.process(frame() * 12)
 
-        # 5フレームで最初の max_duration、そこから min_speech_frames=2 で
-        # 再始動し、また max_speech_frames=5 溜まったところで2回目の
-        # max_duration ... という周期になるはず。
-        self.assertGreaterEqual(len(segments), 2)
+        self.assertEqual(len(segments), 2)
+        self.assertTrue(segmenter.speaking)
 
 
 class TestVadSegmenterFlushAndReset(unittest.TestCase):
