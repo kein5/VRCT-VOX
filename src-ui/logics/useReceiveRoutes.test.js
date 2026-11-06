@@ -78,6 +78,31 @@ test("valid language maps, compute-device objects, false and zero survive initia
     assert.deepEqual(s.notices, []);
 });
 
+test("message format objects from the backend survive initialization", async () => {
+    const s = await loadBridgeRoutes();
+    const format = { message: { prefix: "[", suffix: "]" }, separator: " / ",
+        translation: { prefix: "", separator: "\n", suffix: "" }, translation_first: true };
+    s.receiveRoutes({ endpoint: "/run/initialization_complete", status: 200, result: {
+        "/get/data/send_message_format_parts": format,
+        "/get/data/received_message_format_parts": format,
+    } });
+    assert.deepEqual(s.runtime.store.get(s.stores.dynamicStoreRegistry.Atom_SendMessageFormatParts).data, format);
+    assert.deepEqual(s.runtime.store.get(s.stores.dynamicStoreRegistry.Atom_ReceivedMessageFormatParts).data, format);
+    assert.deepEqual(s.notices, []);
+});
+
+test("a failed message format getter keeps a format the settings page can render", async context => {
+    context.mock.method(console, "error", () => {});
+    const s = await loadBridgeRoutes();
+    s.receiveRoutes({ endpoint: "/run/initialization_complete", status: 200, result: {
+        "/get/data/send_message_format_parts": null,
+    } });
+    const { message, translation } = s.runtime.store.get(s.stores.dynamicStoreRegistry.Atom_SendMessageFormatParts).data;
+    assert.equal(message.prefix, "");
+    assert.equal(translation.suffix, "");
+    assert.equal(s.notices.length, 1);
+});
+
 test("null init getter retains its real default, applies later fields, reaches ready and warns once", async context => {
     const errors = context.mock.method(console, "error", () => {});
     const s = await loadBridgeRoutes();

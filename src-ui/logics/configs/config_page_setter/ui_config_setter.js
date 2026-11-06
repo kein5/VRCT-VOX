@@ -1095,7 +1095,7 @@ export const SETTINGS_ARRAY = [
     {
         Category: "Others",
         Base_Name: "SendMessageFormatParts",
-        default_value: [],
+        default_value: ui_configs.send_message_format_parts,
         ui_template_id: "list",
         logics_template_id: "get_set",
         base_endpoint_name: "send_message_format_parts",
@@ -1103,7 +1103,7 @@ export const SETTINGS_ARRAY = [
     {
         Category: "Others",
         Base_Name: "ReceivedMessageFormatParts",
-        default_value: [],
+        default_value: ui_configs.received_message_format_parts,
         ui_template_id: "list",
         logics_template_id: "get_set",
         base_endpoint_name: "received_message_format_parts",

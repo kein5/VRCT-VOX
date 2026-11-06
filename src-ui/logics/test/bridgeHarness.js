@@ -8,6 +8,9 @@ import * as settingsResponses from "../common/settingsWriteResponses.js";
 import * as meterValue from "../common/meterValue.js";
 import * as utils from "../utils.js";
 
+const messageFormat = { message: { prefix: "", suffix: "" }, separator: "\n",
+    translation: { prefix: "", separator: "\n", suffix: "" }, translation_first: false };
+
 export const deferred = () => {
     let resolve, reject;
     const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
@@ -61,7 +64,8 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
     const settings = await loadModule(new URL("../configs/config_page_setter/ui_config_setter.js", import.meta.url), runtime, {
         jotai, "@store": stores, "../../common/pendingRequestRecovery.js": recovery,
         "../../../views/vr/vr_layout.json": {},
-        "@ui_configs": { ui_configs: {}, ctranslate2_weight_type_status: [], whisper_weight_type_status: [] },
+        "@ui_configs": { ui_configs: { send_message_format_parts: messageFormat, received_message_format_parts: messageFormat },
+            ctranslate2_weight_type_status: [], whisper_weight_type_status: [] },
         "./useSettingsLogics": settingsLogics,
     });
     const configs = stubApi(Object.fromEntries([...new Set(settings.SETTINGS_ARRAY.map(setting => setting.Category))]
