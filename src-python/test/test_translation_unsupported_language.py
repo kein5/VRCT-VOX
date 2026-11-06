@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from models.transcription.transcription_languages import transcription_lang
 from models.translation.translation_languages import loadTranslationLanguages
 from models.translation.translation_translator import Translator, UnsupportedLanguageError
 
@@ -104,8 +105,8 @@ class TestTranslateNeverReportsAnUnreachableEngineAsSuccess(unittest.TestCase):
                     )
                     self.assertIs(result, False)
 
-    def test_deepl_returns_false_when_translators_are_disabled(self) -> None:
-        self.translator.is_enable_translators = False
+    def test_deepl_returns_false_without_an_authenticated_client(self) -> None:
+        self.translator.deepl_client = None
         result = self.translator.translate(
             translator_name="DeepL_API",
             weight_type="",
@@ -115,6 +116,35 @@ class TestTranslateNeverReportsAnUnreachableEngineAsSuccess(unittest.TestCase):
             message="hello",
         )
         self.assertIs(result, False)
+
+    @patch("models.translation.translation_translator.ENABLE_TRANSLATORS", False)
+    @patch("models.translation.translation_translator.other_web_Translator", None)
+    def test_authenticated_deepl_works_without_the_web_extension(self) -> None:
+        translator = Translator()
+        translator.deepl_client = MagicMock()
+        translator.deepl_client.translate_text.return_value.text = "こんにちは"
+        result = translator.translate(
+            translator_name="DeepL_API", weight_type="", source_language="English",
+            target_language="Japanese", target_country="Japan", message="hello",
+        )
+        self.assertEqual(result, "こんにちは")
+        translator.deepl_client.translate_text.assert_called_once_with(
+            "hello", source_lang="en", target_lang="ja",
+        )
+
+    @patch("models.translation.translation_translator.ENABLE_TRANSLATORS", False)
+    @patch("models.translation.translation_translator.errorLogging")
+    def test_deepl_backend_failure_is_reported_without_the_web_extension(self, mock_log) -> None:
+        translator = Translator()
+        translator.deepl_client = MagicMock()
+        translator.deepl_client.translate_text.side_effect = RuntimeError("provider failure")
+        result = translator.translate(
+            translator_name="DeepL_API", weight_type="", source_language="English",
+            target_language="Japanese", target_country="Japan", message="hello",
+        )
+        self.assertIs(result, False)
+        translator.deepl_client.translate_text.assert_called_once()
+        mock_log.assert_called_once_with(provider="DeepL_API")
 
     def test_unknown_translator_name_never_returns_an_empty_string(self) -> None:
         # E.g. a config naming an engine this build dropped. It never reaches
@@ -141,6 +171,42 @@ class TestTranslateNeverReportsAnUnreachableEngineAsSuccess(unittest.TestCase):
             message="こんにちは",
         )
         self.assertEqual(result, "こんにちは")
+
+
+class TestFilipinoLanguageMapping(unittest.TestCase):
+    providers = [
+        ("CTranslate2", "nllb-200-distilled-600M-ct2-int8", "tgl_Latn", "eng_Latn"),
+        ("CTranslate2", "nllb-200-distilled-1.3B-ct2-int8", "tgl_Latn", "eng_Latn"),
+        ("CTranslate2", "nllb-200-3.3B-ct2-int8", "tgl_Latn", "eng_Latn"),
+        *[(engine, "", "Tagalog", "English") for engine in (
+            "OpenAI_API", "OpenAI_Compatible", "Groq_API", "OpenRouter_API", "LMStudio", "Ollama",
+        )],
+    ]
+
+    def test_canonical_filipino_resolves_as_source_and_target(self) -> None:
+        self.assertIn("Philippines", transcription_lang["Filipino"])
+        for engine, weight, filipino, english in self.providers:
+            with self.subTest(engine=engine, weight=weight):
+                self.assertEqual(
+                    Translator.getLanguageCode(engine, weight, "United States", "Filipino", "English"),
+                    (filipino, english),
+                )
+                self.assertEqual(
+                    Translator.getLanguageCode(engine, weight, "Philippines", "English", "Filipino"),
+                    (english, filipino),
+                )
+
+    def test_legacy_tagalog_key_still_resolves(self) -> None:
+        for engine, weight, tagalog, english in self.providers:
+            with self.subTest(engine=engine, weight=weight):
+                self.assertEqual(
+                    Translator.getLanguageCode(engine, weight, "United States", "Tagalog", "English"),
+                    (tagalog, english),
+                )
+                self.assertEqual(
+                    Translator.getLanguageCode(engine, weight, "Philippines", "English", "Tagalog"),
+                    (english, tagalog),
+                )
 
 
 if __name__ == "__main__":

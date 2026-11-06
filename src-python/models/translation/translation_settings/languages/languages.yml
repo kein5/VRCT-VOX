@@ -544,6 +544,7 @@ CTranslate2:
       Telugu: tel_Telu
       Tajik: tgk_Cyrl
       Tagalog: tgl_Latn
+      Filipino: tgl_Latn
       Thai: tha_Thai
       Tigrinya: tir_Ethi
       Tamasheq (Latin script): taq_Latn
@@ -675,6 +676,7 @@ OpenAI_API:
     Dutch: Dutch
     English: English
     Estonian: Estonian
+    Filipino: Tagalog
     Finnish: Finnish
     French: French
     Galician: Galician

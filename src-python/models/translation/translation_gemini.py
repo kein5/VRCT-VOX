@@ -9,6 +9,7 @@ try:
     from .translation_languages import translation_lang
     from .translation_utils import loadTranslatePromptConfig
     from .translation_model_list import RecentModelList
+    from .translation_response import extractTranslationText
     from .translation_timeouts import CLOUD_LLM_TIMEOUT_SECONDS
 except Exception:
     import sys
@@ -18,6 +19,7 @@ except Exception:
     from translation_languages import translation_lang
     from translation_utils import loadTranslatePromptConfig
     from translation_model_list import RecentModelList
+    from translation_response import extractTranslationText
     from translation_timeouts import CLOUD_LLM_TIMEOUT_SECONDS
 
 logger = logging.getLogger("langchain_google_genai")
@@ -191,16 +193,7 @@ class GeminiClient(RecentModelList):
         if resp.response_metadata.get("finish_reason") == "MAX_TOKENS":
             # Discard partial output; Model.getTranslate uses the empty-translation failure path.
             return ""
-        content = ""
-        if isinstance(resp.content, str):
-            content = resp.content
-        elif isinstance(resp.content, list):
-            for part in resp.content:
-                if isinstance(part, str):
-                    content += part
-                elif isinstance(part, dict) and "content" in part and isinstance(part["content"], str):
-                    content += part["content"]
-        return content.strip()
+        return extractTranslationText(resp.content)
 
 if __name__ == "__main__":
     AUTH_KEY = "AUTH_KEY"
