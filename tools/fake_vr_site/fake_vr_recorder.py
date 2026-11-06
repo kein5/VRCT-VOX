@@ -24,6 +24,7 @@ from typing import Any, Dict, Optional, Tuple
 import openvr
 
 _DEVICES = {"hmd": 0, "left": 1, "right": 2}
+_SAME_FRAME_SEC = 0.005
 _BUTTONS = {
     "trigger": openvr.k_EButton_SteamVR_Trigger,
     "grip": openvr.k_EButton_Grip,
@@ -81,10 +82,12 @@ class Recorder:
         handle = int(texture.handle or 0)
         if texture.eType != openvr.TextureType_OpenGL or not handle:
             return
+        # アプリは画面が変わったときだけテクスチャを渡す。時間で間引くと最後の変化 (吹き出しが出たフレームなど) を
+        # 取りこぼすので、同じ描画で続けて渡された分 (領域ごとのオーバーレイ、数ms以内) だけ読まない
         now = time.monotonic()
-        if now - self.texture_read_at.get(handle, 0.0) < self.interval:
+        last, self.texture_read_at[handle] = self.texture_read_at.get(handle, 0.0), now
+        if now - last < _SAME_FRAME_SEC:
             return
-        self.texture_read_at[handle] = now
         size = self.texture_size(handle)
         if size is None:
             return
