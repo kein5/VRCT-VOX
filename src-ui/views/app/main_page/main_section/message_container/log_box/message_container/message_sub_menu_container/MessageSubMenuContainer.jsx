@@ -10,9 +10,13 @@ export const MessageSubMenuContainer = (props) => {
     const { t } = useI18n();
     const progressRef = useRef(null);
     const currentHold = useRef(null);
+    // Releasing a completed hold over the button still fires its click; that
+    // click must not also run edit, which replaces the draft being typed.
+    const resentByHold = useRef(false);
 
     const startHold = event => {
         if (event.button !== 0 || !event.isPrimary || currentHold.current) return;
+        resentByHold.current = false;
         const hold = { pointerId: event.pointerId, target: event.currentTarget, timer: null };
         currentHold.current = hold;
         hold.target.setPointerCapture(hold.pointerId);
@@ -23,6 +27,7 @@ export const MessageSubMenuContainer = (props) => {
         hold.timer = setTimeout(() => {
             if (currentHold.current !== hold) return;
             cancelHold();
+            resentByHold.current = true;
             props.resendFunction();
             props.setIsHovered(false);
         }, 500);
@@ -56,9 +61,12 @@ export const MessageSubMenuContainer = (props) => {
         };
     }, []);
 
-    const onClickFunction = () => {
+    const onClickFunction = event => {
+        const after_hold = resentByHold.current;
+        resentByHold.current = false;
+        // A keyboard activation (detail 0) is always a deliberate edit.
+        if (after_hold && event?.detail !== 0) return;
         props.editFunction();
-
     };
 
     const offset = {
