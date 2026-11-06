@@ -2,6 +2,10 @@ import { pendingRequestRecovery } from "./pendingRequestRecovery.js";
 
 const endpoints = new Set(["voice_settings", "direct_voice_settings", "speech_server_settings", "realtime_asr_settings", "hotkeys"]
     .map(name => `/set/data/${name}`));
+for (const provider of ["openai_compatible", "custom_whisper"]) {
+    for (const field of ["url", "auth_key", "auth_key_and_url"]) endpoints.add(`/set/data/${provider}_${field}`);
+    endpoints.add(`/delete/data/${provider}_auth_key`);
+}
 
 // These setters reply in FIFO order. Keep timed-out owners until their reply:
 // a GET or a later write must never confirm an earlier, uncertain save.

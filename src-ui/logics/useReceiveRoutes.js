@@ -20,6 +20,8 @@ import { settingsWriteResponses } from "./common/settingsWriteResponses.js";
 const INIT_FIELD_VALIDATORS = createInitializationValidators(SETTINGS_ARRAY);
 
 export const STATIC_ROUTE_META_LIST = [
+    { endpoint: "/set/data/openai_compatible_auth_key_and_url", ns: configs, hook_name: "useTranslation", method_name: "setSuccessOpenAICompatibleAuthKey", url_method_name: "updateOpenAICompatibleURL" },
+    { endpoint: "/set/data/custom_whisper_auth_key_and_url", ns: configs, hook_name: "useTranscription", method_name: "setSuccessCustomWhisperAuthKey", url_method_name: "updateCustomWhisperURL" },
     { endpoint: "/get/data/model_download_catalog", ns: downloads, hook_name: "useModelDownloads", method_name: "updateCatalog" },
     { endpoint: "/get/data/model_download_hardware", ns: downloads, hook_name: "useModelDownloads", method_name: "updateHardware" },
     { endpoint: "/run/refresh_model_download_hardware", ns: downloads, hook_name: "useModelDownloads", method_name: "updateHardware" },
@@ -267,9 +269,13 @@ export const useReceiveRoutes = () => {
     const noop = () => {};
 
     const routes = Object.fromEntries(
-        ROUTE_META_LIST.map(({ endpoint, hook_name, method_name }) => {
+        ROUTE_META_LIST.map(({ endpoint, hook_name, method_name, url_method_name }) => {
             const result_obj = hook_results[hook_name] || {};
             const fn = result_obj[method_name];
+            if (url_method_name) return [endpoint, value => {
+                result_obj[url_method_name](value.url);
+                fn(value.auth_key);
+            }];
             if (fn === undefined && method_name !== null) {
                 console.error("Method not found.", { endpoint, hook_name, method_name, result_obj, fn });
             }
@@ -585,6 +591,7 @@ const buildRouteMetaList = () => {
             ns: item.ns ?? null,
             hook_name: item.hook_name ?? null,
             method_name: item.method_name ?? null,
+            url_method_name: item.url_method_name,
         });
     }
 

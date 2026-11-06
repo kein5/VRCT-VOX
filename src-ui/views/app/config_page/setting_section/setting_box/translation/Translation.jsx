@@ -1,3 +1,4 @@
+import { CredentialPair } from "../_components/credential_pair/CredentialPair";
 import { endpointDescription } from "../../../../../../logics/common/endpointPrivacy";
 import { useRef, useState } from "react";
 import { useI18n } from "@useI18n";
@@ -119,8 +120,7 @@ const LocalLLM_Container = () => {
             <OllamaConnectionCheck_Box />
             <OllamaModelContainer />
 
-            <OpenAICompatibleURL_Box />
-            <OpenAICompatibleAuthKey_Box />
+            <OpenAICompatibleCredentials />
             <OpenAICompatibleModelContainer />
         </div>
     );
@@ -740,60 +740,9 @@ const OllamaModelContainer = () => {
     );
 };
 
-const OpenAICompatibleURL_Box = () => {
-    const { t } = useI18n();
-    const { currentOpenAICompatibleURL, setOpenAICompatibleURL } = useTranslation();
-
-    const { variable, onChangeFunction, saveFunction } = useSaveButtonLogic({
-        variable: currentOpenAICompatibleURL.data,
-        state: currentOpenAICompatibleURL.state,
-        setFunction: setOpenAICompatibleURL,
-        label: t("config_page.translation.openai_compatible_url.label"),
-    });
-
-    return (
-        <>
-            <EntryWithSaveButtonContainer
-                label={t("config_page.translation.openai_compatible_url.label")}
-                desc={endpointDescription(variable, t("config_page.translation.openai_compatible_url.desc"), t)}
-                variable={variable}
-                saveFunction={saveFunction}
-                onChangeFunction={onChangeFunction}
-                state={currentOpenAICompatibleURL.state}
-                remove_border_bottom={true}
-                width="24rem"
-            />
-        </>
-    );
-};
-const OpenAICompatibleAuthKey_Box = () => {
-    const { t } = useI18n();
-    const {
-        currentOpenAICompatibleAuthKey,
-        setOpenAICompatibleAuthKey,
-        deleteOpenAICompatibleAuthKey,
-    } = useTranslation();
-
-    const { variable, onChangeFunction, saveFunction } = useSaveButtonLogic({
-        variable: currentOpenAICompatibleAuthKey.data,
-        state: currentOpenAICompatibleAuthKey.state,
-        setFunction: setOpenAICompatibleAuthKey,
-        deleteFunction: deleteOpenAICompatibleAuthKey,
-        label: t("config_page.translation.openai_compatible_auth_key.label"),
-    });
-
-    return (
-        <>
-            <AuthKeyContainer
-                label={t("config_page.translation.openai_compatible_auth_key.label")}
-                variable={variable}
-                state={currentOpenAICompatibleAuthKey.state}
-                onChangeFunction={onChangeFunction}
-                saveFunction={saveFunction}
-                remove_border_bottom={true}
-            />
-        </>
-    );
+const OpenAICompatibleCredentials = () => {
+    const settings = useTranslation();
+    return <CredentialPair settings={settings} base="OpenAICompatible" provider="openai_compatible" section="translation" />;
 };
 const OpenAICompatibleModelContainer = () => {
     const { t } = useI18n();

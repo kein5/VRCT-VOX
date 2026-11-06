@@ -64,7 +64,7 @@ IPCでやり取りする主なデータの形と、ディスクに残すファ�
 
 `LMSTUDIO_URL`、`OPENAI_COMPATIBLE_URL`、`TRANSCRIPTION_CUSTOM_URL`は、保存値の読み込み時と変更要求の受付時に同じ規則で検証する。HTTPSは任意のホストを受け付ける。HTTPは`localhost`、127.0.0.0/8、::1、10/8、172.16/12、192.168/16、fc00::/7、IPv4・IPv6のリンクローカルに限る。LANのホスト名をDNSで解決してHTTPを許可することはない。URLのユーザー情報、キー・トークン・パスワード・認証情報・署名などを表すクエリ名、フラグメント、不正なポートは拒否する。
 
-HTTPでプライベートLANやリンクローカルのアドレスへ接続する場合は、文章・音声・APIキーが暗号化されない旨を設定欄に表示する。同じPC内で通信するループバックには、この警告を出さない。保存時に接続を確かめる旨の案内は、すべてのカスタムURLに表示する。URLの入力中は通信せず、保存時に登録済みキーを使って接続先を確かめる。拒否した変更は、既存の`CONNECTION_LMSTUDIO_URL_INVALID`、`CONNECTION_OPENAI_COMPATIBLE_URL_INVALID`、`CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID`を返して元のURLを保つ。
+HTTPでプライベートLANやリンクローカルのアドレスへ接続する場合は、文章・音声・APIキーが暗号化されない旨を設定欄に表示する。同じPC内で通信するループバックには、この警告を出さない。保存時に接続を確かめる旨の案内は、すべてのカスタムURLに表示する。URLの入力中は通信しない。URLだけの保存では登録済みキーを使い、URLとキーを一緒に保存するときは入力した組み合わせで接続先を確かめる（[APIキーの変更](cross-cutting.md#apiキーの変更)）。拒否した変更は、既存の`CONNECTION_LMSTUDIO_URL_INVALID`、`CONNECTION_OPENAI_COMPATIBLE_URL_INVALID`、`CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID`を返して元のURLを保つ。
 
 不正な保存済みURLは空文字列にして接続を止め、起動完了時に対応するURLエラーで再設定を促す。この通知は表示時のUI言語で翻訳し、保存済みの言語が後から反映された場合も表示を更新する。保存済みキーを別の既定ホストへ送らないため、既定URLには戻さない。キー自体は残す。空文字列は未設定の状態として保存できる。キー名・IPCエンドポイント名・JSONの形式は変更しない。
 

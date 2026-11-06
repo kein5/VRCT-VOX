@@ -37,7 +37,7 @@ export const VoiceRouteSettings = () => {
     const { settings, directState, directPending, error, updateError, send } = useVoice();
     const busy = !!directPending || directState.requested || directState.pending || directState.stopping || !directState.observation_id;
     const form = useSettingsDraft(settings, error, updateError, { label: ([key]) => t(`voice.${key}`, { defaultValue: key }),
-        write: value => send("/set/data/voice_settings", value), canSave: !busy });
+        write: value => send("/set/data/voice_settings", value), canSave: !busy, patch: true });
     useEffect(() => { send("/get/data/voice_settings"); }, [send]);
     return <section className={styles.container} aria-label={t("voice.routing")} data-setting-id="voice_route">
         <SectionLabelComponent label={t("voice.routing")} />

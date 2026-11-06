@@ -1,6 +1,7 @@
 """Credential transactions with synthetic keys and entirely stubbed providers."""
 
 from concurrent.futures import ThreadPoolExecutor
+import json
 from dataclasses import replace
 from threading import Barrier, Event, current_thread
 from types import SimpleNamespace
@@ -9,9 +10,11 @@ from unittest.mock import Mock
 import pytest
 
 import controller as controller_module
+import config as config_module
+import model as model_module
 from config import Config
 from controller import Controller
-from model import Model
+from model import Model, _AudioDeviceSession
 from models.translation import translation_translator as translator_module
 from models.translation.translation_providers import TRANSLATION_PROVIDER_REGISTRY
 
@@ -504,3 +507,104 @@ def test_transcription_delete_changes_only_its_key(subject, engine, name):
     assert result == {"status": 200, "result": None}
     assert subject.config.TRANSCRIPTION_AUTH_KEYS == {**before, engine: None}
     assert subject.config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] is False
+
+
+@pytest.mark.parametrize("name,engine,url_attr,map_name", [
+    ("OpenAICompatible", "OpenAI_Compatible", "OPENAI_COMPATIBLE_URL", "AUTH_KEYS"),
+    ("CustomWhisper", "Custom_Whisper", "TRANSCRIPTION_CUSTOM_URL", "TRANSCRIPTION_AUTH_KEYS"),
+])
+@pytest.mark.parametrize("failure", [None, "auth", "models", "exception", "superseded", "url", "delete"])
+def test_endpoint_pair_authenticates_only_submitted_pair(subject, monkeypatch, name, engine, url_attr, map_name, failure):
+    s = subject
+    old_url = "https://provider-a.example/v1"
+    setattr(s.config, url_attr, old_url)
+    pair = {"url": "https://provider-b.example/v1", "auth_key": "FAKE-KEY-B"}
+    calls = []
+
+    def authenticate(key, url):
+        calls.append((key, url))
+        assert (key, url) == ("FAKE-KEY-B", pair["url"])
+        if failure == "exception":
+            raise RuntimeError("synthetic failure")
+        if failure == "superseded":
+            s.config.updateCredential(map_name, engine, "FAKE-KEY-C")
+            s.config.saveConfig.reset_mock()
+        return failure != "auth"
+
+    def translator_auth(client, key):
+        client.auth_key = key
+        return authenticate(key, client.base_url)
+
+    monkeypatch.setattr(FakeClient, "setAuthKey", translator_auth)
+    s.model.authenticationTranscriptionApiKey.side_effect = lambda api_key, base_url: authenticate(api_key, base_url)
+    if failure == "models":
+        monkeypatch.setattr(FakeClient, "getModelList", lambda self: [])
+        s.model.getTranscriptionApiModelList.return_value = []
+    if failure == "url":
+        pair["url"] = "file:///invalid"
+    if failure == "delete":
+        pair["auth_key"] = ""
+    s.config.saveConfig.reset_mock()
+    result = getattr(s.controller, f"set{name}AuthKeyAndURL")(pair)
+    success = failure in (None, "delete")
+    assert result["status"] == (200 if success else 400)
+    assert calls == ([] if failure in ("url", "delete") else [("FAKE-KEY-B", pair["url"])])
+    assert getattr(s.config, url_attr) == (pair["url"] if success else old_url)
+    expected_key = None if failure == "delete" else "FAKE-KEY-B" if success else "FAKE-KEY-C" if failure == "superseded" else "synthetic-old-key"
+    assert getattr(s.config, map_name)[engine] == expected_key
+    if success:
+        assert result["result"] == {"url": pair["url"], "auth_key": expected_key}
+        if failure != "delete" and engine == "OpenAI_Compatible":
+            assert live_client(s, engine).ready
+            assert live_client(s, engine).base_url == pair["url"]
+    else:
+        code = ("CONNECTION_OPENAI_COMPATIBLE_URL_INVALID" if engine == "OpenAI_Compatible"
+                else "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID") if failure == "url" else (
+                    "AUTH_OPENAI_COMPATIBLE_FAILED" if engine == "OpenAI_Compatible" else "TRANSCRIPTION_API_AUTH_FAILED")
+        assert result["result"]["error_code"] == code
+        assert result["result"]["data"] == (old_url if failure == "url" else expected_key)
+        s.config.saveConfig.assert_not_called()
+        s.controller.run.assert_not_called()
+        if engine == "OpenAI_Compatible":
+            assert live_client(s, engine) is s.previous
+    if engine == "Custom_Whisper" and success and failure != "delete":
+        s.model.getTranscriptionApiModelList.assert_called_once_with(api_key="FAKE-KEY-B", base_url=pair["url"])
+
+
+@pytest.mark.parametrize("consumer", ["persistence", "transcription"])
+def test_endpoint_pair_consumers_hold_the_commit_lock(subject, monkeypatch, tmp_path, consumer):
+    cfg = subject.config
+
+    def try_lock():
+        acquired = cfg.credential_lock.acquire(blocking=False)
+        if acquired:
+            cfg.credential_lock.release()
+        return acquired
+
+    def check_lock():
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            assert pool.submit(try_lock).result(timeout=2) is False
+
+    if consumer == "persistence":
+        def snapshot(config):
+            check_lock()
+            return {"url": config.OPENAI_COMPATIBLE_URL, "auth_key": config.AUTH_KEYS["OpenAI_Compatible"]}
+        monkeypatch.setattr(config_module, "json_serializable_vars", {"pair": snapshot})
+        cfg._PATH_CONFIG = str(tmp_path / "config.json")
+        cfg._initialized = cfg._config_loaded = True
+        cfg.saveConfigToFile()
+        assert json.loads((tmp_path / "config.json").read_text())["pair"] == {
+            "url": cfg.OPENAI_COMPATIBLE_URL, "auth_key": cfg.AUTH_KEYS["OpenAI_Compatible"],
+        }
+    else:
+        class CheckingConfig(Config):
+            def __getattribute__(self, name):
+                if name == "TRANSCRIPTION_AUTH_KEYS":
+                    check_lock()
+                return super().__getattribute__(name)
+        cfg.__class__ = CheckingConfig
+        cfg._SELECTED_TRANSCRIPTION_ENGINE = "Custom_Whisper"
+        monkeypatch.setattr(model_module, "config", cfg)
+        result = _AudioDeviceSession._resolve_api_transcription_kwargs()
+        assert result["api_key"] == "synthetic-old-key"
+        assert result["base_url"] == cfg.TRANSCRIPTION_CUSTOM_URL

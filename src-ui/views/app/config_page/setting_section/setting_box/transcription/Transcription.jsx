@@ -1,4 +1,4 @@
-import { endpointDescription } from "../../../../../../logics/common/endpointPrivacy";
+import { CredentialPair } from "../_components/credential_pair/CredentialPair";
 import { SpeechServers } from "../advanced_settings/SpeechServers";
 import { useI18n } from "@useI18n";
 import styles from "./Transcription.module.scss";
@@ -21,7 +21,6 @@ import {
     SliderContainer,
     SwitchBoxContainer,
     AuthKeyContainer,
-    EntryWithSaveButtonContainer,
 } from "../_templates/Templates";
 
 import {
@@ -289,39 +288,13 @@ const CloudTranscription_Container = () => {
             <Description text={t("config_page.transcription.cloud_section.desc")} />
             {CLOUD_TRANSCRIPTION_ENGINES.map(engine => (
                 <div key={engine.id}>
-                    {engine.has_url && <CloudURL_Box engine={engine} />}
-                    <CloudAuthKey_Box engine={engine} />
+                    {engine.has_url
+                        ? <CredentialPair settings={transcription} base={engine.base} provider={engine.key} section="transcription" />
+                        : <CloudAuthKey_Box engine={engine} />}
                     <CloudModel_Box engine={engine} />
                 </div>
             ))}
         </div>
-    );
-};
-
-const CloudURL_Box = ({ engine }) => {
-    const { t } = useI18n();
-    const transcription = useTranscription();
-    const current = transcription[`current${engine.base}URL`];
-    const label = t(`config_page.transcription.${engine.key}_url.label`);
-
-    const { variable, onChangeFunction, saveFunction } = useSaveButtonLogic({
-        variable: current.data,
-        state: current.state,
-        setFunction: transcription[`set${engine.base}URL`],
-        label,
-    });
-
-    return (
-        <EntryWithSaveButtonContainer
-            label={label}
-            desc={endpointDescription(variable, t(`config_page.transcription.${engine.key}_url.desc`), t)}
-            variable={variable}
-            saveFunction={saveFunction}
-            onChangeFunction={onChangeFunction}
-            state={current.state}
-            remove_border_bottom={true}
-            width="24rem"
-        />
     );
 };
 

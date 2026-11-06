@@ -23,7 +23,7 @@ export const VoiceSettings = () => {
         return t(`voice.${key}`, { defaultValue: key });
     };
     const form = useSettingsDraft(settings, error, updateError, { label,
-        write: value => send("/set/data/voice_settings", value), canSave: validGenerationOptions });
+        write: value => send("/set/data/voice_settings", value), canSave: validGenerationOptions, patch: true });
     const { draft, setDraft, saving } = form;
     useEffect(() => {
         send("/get/data/voice_settings");
@@ -123,7 +123,7 @@ export const TtsOutputDeviceSettings = ({ title }) => {
     const { t } = useI18n();
     const { settings, devices, error, send, updateError } = useVoice();
     const form = useSettingsDraft(settings, error, updateError, { label: ([key]) => t(`voice.${key}`, { defaultValue: key }),
-        write: value => send("/set/data/voice_settings", value), canSave: validGenerationOptions });
+        write: value => send("/set/data/voice_settings", value), canSave: validGenerationOptions, patch: true });
     const { draft, setDraft, saving } = form;
     useEffect(() => {
         send("/get/data/voice_settings");

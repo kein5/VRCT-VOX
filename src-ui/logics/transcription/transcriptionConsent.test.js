@@ -173,6 +173,7 @@ test("settings keep the selected engine and Google notice inside the radio row's
     const { TranscriptionEngine_Box } = await loadModule(new URL("../../views/app/config_page/setting_section/setting_box/transcription/Transcription.jsx", import.meta.url), s.runtime, {
         "@logics_configs": s.configs, "@utils": {},
         "../advanced_settings/SpeechServers": {}, "./RealtimeASRSettings": {},
+        "../_components/credential_pair/CredentialPair": {},
         "../../../../../../logics/configs/cloudTranscription": { CLOUD_TRANSCRIPTION_ENGINES: [] },
         "../../../../../../logics/common/endpointPrivacy": endpointPrivacy,
         "../_templates/Templates": { RadioButtonContainer: "radio-options" }, "../_components": {},

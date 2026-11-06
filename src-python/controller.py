@@ -2485,14 +2485,14 @@ class Controller:
             bus.cancel_source("mic")
 
     def setVoiceSettings(self, data, *args, **kwargs) -> dict:
-        try:
-            settings = VoiceSettings.from_dict(data)
-            if settings.routing == 'managed' and not sys.platform.startswith('linux'):
-                raise ValueError('managed_route_linux_only')
-        except (ValueError, TypeError):
-            return {"status": 400, "result": {"error_code": "VOICE_SETTINGS_INVALID",
-                    "message": "Invalid voice settings; select an output and local server.", "data": None}}
         with self._voice_settings_lock:
+            try:
+                settings = VoiceSettings.from_dict({**self.voice_events.settings.to_dict(), **data})
+                if settings.routing == 'managed' and not sys.platform.startswith('linux'):
+                    raise ValueError('managed_route_linux_only')
+            except (ValueError, TypeError):
+                return {"status": 400, "result": {"error_code": "VOICE_SETTINGS_INVALID",
+                        "message": "Invalid voice settings; select an output and local server.", "data": None}}
             if settings.routing != self.voice_events.settings.routing:
                 direct = self.direct_voice.health()
                 if direct['requested'] or direct['pending'] or direct.get('stopping'):
@@ -3229,6 +3229,9 @@ class Controller:
 
     def setCustomWhisperAuthKey(self, data, *args, **kwargs) -> dict:
         return self._setTranscriptionCredential("Custom_Whisper", data, base_url=config.TRANSCRIPTION_CUSTOM_URL)
+
+    def setCustomWhisperAuthKeyAndURL(self, data, *args, **kwargs) -> dict:
+        return self._setEndpointCredential("Custom_Whisper", data)
 
     def delCustomWhisperAuthKey(self, *args, **kwargs) -> dict:
         with config.credential_lock:
@@ -4334,6 +4337,70 @@ class Controller:
     @staticmethod
     def getOpenAICompatibleAuthKey(*args, **kwargs) -> dict:
         return {"status":200, "result":config.AUTH_KEYS["OpenAI_Compatible"]}
+
+    def setOpenAICompatibleAuthKeyAndURL(self, data, *args, **kwargs) -> dict:
+        return self._setEndpointCredential("OpenAI_Compatible", data)
+
+    def _setEndpointCredential(self, engine, data):
+        """Authenticate the submitted URL/key pair before publishing either value."""
+        translation = engine == "OpenAI_Compatible"
+        map_name = "AUTH_KEYS" if translation else "TRANSCRIPTION_AUTH_KEYS"
+        url_name = "OPENAI_COMPATIBLE_URL" if translation else "TRANSCRIPTION_CUSTOM_URL"
+        prefix = "OPENAI_COMPATIBLE" if translation else "CUSTOM_WHISPER"
+        auth_error = ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED if translation else ErrorCode.TRANSCRIPTION_API_AUTH_FAILED
+        url_error = (ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID if translation
+                     else ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID)
+        if not isinstance(data, dict) or set(data) != {"url", "auth_key"}:
+            return VRCTError.create_error_response(auth_error, data=getattr(config, map_name)[engine])
+        try:
+            url = validate_api_url(data["url"].strip() if isinstance(data["url"], str) else data["url"])
+        except ValueError:
+            return VRCTError.create_error_response(url_error, data=getattr(config, url_name))
+        key = data["auth_key"]
+        if key is not None and not isinstance(key, str):
+            return VRCTError.create_error_response(auth_error, data=getattr(config, map_name)[engine])
+        key = (key.strip() or None) if isinstance(key, str) else None
+        with config.credential_lock:
+            previous = (getattr(config, url_name), getattr(config, map_name)[engine],
+                        getattr(config, f"SELECTED_{prefix}_MODEL"))
+        try:
+            if key and translation:
+                candidate = model.prepareTranslatorCredential(engine, key, selected_model=previous[2], base_url=url)
+            elif key:
+                if model.authenticationTranscriptionApiKey(api_key=key, base_url=url) is not True:
+                    raise ValueError("Credential authentication failed")
+                model_list = model.getTranscriptionApiModelList(api_key=key, base_url=url)
+                if not isinstance(model_list, list) or not model_list or any(
+                    not isinstance(name, str) or not name.strip() for name in model_list
+                ):
+                    raise ValueError("No supported models available")
+                model_list = list(model_list)
+                selected_model = previous[2] if previous[2] in model_list else model_list[0]
+        except Exception:
+            errorLogging(provider=engine)
+            return VRCTError.create_error_response(auth_error, data=getattr(config, map_name)[engine])
+        with config.credential_lock:
+            if previous != (getattr(config, url_name), getattr(config, map_name)[engine],
+                            getattr(config, f"SELECTED_{prefix}_MODEL")):
+                return VRCTError.create_error_response(auth_error, data=getattr(config, map_name)[engine])
+            setattr(config, url_name, url)
+            if key is None:
+                if translation:
+                    self.delOpenAICompatibleAuthKey()
+                else:
+                    self.delCustomWhisperAuthKey()
+            else:
+                config.updateCredential(map_name, engine, key)
+                if translation:
+                    self._commitOpenAICompatibleCandidate(candidate)
+                else:
+                    config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = model_list
+                    config.SELECTED_CUSTOM_WHISPER_MODEL = selected_model
+                    config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
+                    self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], model_list)
+                    self.run(200, self.run_mapping["selected_custom_whisper_model"], selected_model)
+                    self.updateTranscriptionEngine()
+        return {"status": 200, "result": {"url": url, "auth_key": key}}
 
     def setOpenAICompatibleAuthKey(self, data, *args, **kwargs) -> dict:
         printLog("Set OpenAI Compatible Auth Key")

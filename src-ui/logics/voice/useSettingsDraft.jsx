@@ -9,7 +9,8 @@ import { changedPaths, setSaveBarEntry } from "./saveBar";
 // function of the draft. `pending` (a list, or a function of the draft) names
 // changes that are not in the draft,
 // e.g. an engine the backend has not selected yet.
-export function useSettingsDraft(saved, error, updateError, { write, canSave = true, label = path => path.join("."), pending = [], savedFromResponse = value => value } = {}) {
+// `patch` sends only changed top-level fields to setters that merge them.
+export function useSettingsDraft(saved, error, updateError, { write, canSave = true, label = path => path.join("."), pending = [], savedFromResponse = value => value, patch = false } = {}) {
     const { t } = useI18n();
     const [draft, setDraft] = useState(null);
     const [saving, setSaving] = useState(false);
@@ -65,7 +66,9 @@ export function useSettingsDraft(saved, error, updateError, { write, canSave = t
         setAwaitingResponse(true);
         setSaving(true);
         try {
-            const response = await send(draft);
+            const value = patch ? Object.fromEntries(Object.entries(draft).filter(([key, value]) =>
+                JSON.stringify(value) !== JSON.stringify(saved?.[key]))) : draft;
+            const response = await send(value);
             if (submitted.current !== request) return;
             if (response?.status === 200) {
                 const canonical = savedFromResponse(response.result);
