@@ -64,6 +64,7 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 `src-python/models/obs/obs_browser_source_server.py`。配信画面に字幕を出すHTMLを配る。
 
 - `OBS_BROWSER_SOURCE`（既定オフ）、`OBS_BROWSER_SOURCE_PORT`（既定2232、整数の1〜65535）。待ち受けるアドレスは`WEBSOCKET_HOST`と同じ。
+- 表示設定の数値は整数に限る。最大メッセージ数は1〜50、表示時間は1〜120秒、フェードアウト時間は0〜120秒、文字サイズは10〜200px、縁取りの太さは0〜20px。IPCでは整数の文字列も受け付け、成功応答と配信通知には保存した整数を返す。範囲外・小数・真偽値は既存の`OBS_BROWSER_SOURCE_*_INVALID`で拒否し、保存も配信もしない。保存ファイルに無効な値があれば、読み込み時に既定値へ戻す。初回表示と開いているページへの更新も同じ範囲を使う。
 - OBSとWebSocketのオン・オフ、両サーバーのホスト・ポート変更は[同じIPCロック](ipc-protocol.md#並行性とロック)で直列に処理する。WebSocketをオフにするとOBSもオフになる。OBSだけをオフにしてもWebSocketは止めない。
 - OBSの有効化が失敗したら、その試行で新しく起動したWebSocketを停止する。もともと動いていたWebSocketは維持する。有効化中に依存先のWebSocketを起動できなければ`WEBSOCKET_SERVER_UNAVAILABLE`、OBSのポートを確保できなければ`OBS_BROWSER_SOURCE_PORT_UNAVAILABLE`、OBSの起動に失敗すれば`OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE`を返す。
 - 保存済みの設定による起動でも、OBSの実際の起動結果を確認する。失敗したらOBSをオフにし、途中まで確保したサーバーを停止する。初期設定をUIへ渡した後に、上記のOBSエラーを通知する。動作しているWebSocketは維持する。

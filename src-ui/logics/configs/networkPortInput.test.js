@@ -17,12 +17,17 @@ test("port drafts accept only digits in range and serialize as integers", () => 
     assert.deepEqual(PORT_INPUT_LIMITS, { min: 1, max: 65535, step: 1 });
 });
 
+const obsNumeric = [
+    ["MaxMessages", "max_messages", 1, 50], ["DisplayDuration", "display_duration", 1, 120],
+    ["FadeoutDuration", "fadeout_duration", 0, 120], ["FontSize", "font_size", 10, 200],
+    ["FontOutlineThickness", "font_outline_thickness", 0, 20],
+];
 const box = "../../views/app/config_page/setting_section/setting_box/";
 async function settingsHarness() {
     const runtime = hooks(), drafts = [], sent = [], copied = [];
     let saveOptions;
     const advanced = {};
-    for (const name of ["OscPort", "WebsocketPort", "ObsBrowserSourcePort"]) {
+    for (const name of ["OscPort", "WebsocketPort", "ObsBrowserSourcePort", ...obsNumeric.map(([name]) => `ObsBrowserSource${name}`)]) {
         advanced[`current${name}`] = { state: "ok", data: 2231 };
         advanced[`set${name}`] = value => sent.push([name, value]);
     }
@@ -53,6 +58,7 @@ async function settingsHarness() {
     return { runtime, drafts, sent, copied, get saveOptions() { return saveOptions; },
         components: [module.OscPortContainer, child(ws, "WebsocketPortContainer"), child(obs, "ObsBrowserSourcePortContainer")],
         urlComponent: child(ws, "WebsocketUrlContainer"),
+        numericComponents: obsNumeric.map(([name]) => child(obs, `ObsBrowserSource${name}Container`)),
     };
 }
 
@@ -123,3 +129,16 @@ for (const language of ["en", "ja"]) {
         assert.match(translation.config_page.advanced_settings.websocket_host.label, /IPv4/);
     });
 }
+
+for (const [index, [name, suffix, min, max]] of obsNumeric.entries()) test(`OBS ${name} exposes its bounds and preserves invalid drafts for validation`, async () => {
+    const s = await settingsHarness();
+    const row = s.runtime.render(s.numericComponents[index]);
+    assert.deepEqual([row.props.min, row.props.max, row.props.step], [min, max, 1]);
+    for (const value of ["-1", "1.5", String(max + 1), ""]) row.props.onChangeFunction(value);
+    assert.deepEqual(s.drafts, ["-1", "1.5", String(max + 1), ""]);
+    for (const lang of ["en", "ja"]) {
+        const strings = yaml.load(readFileSync(new URL(`../../../locales/${lang}.yml`, import.meta.url), "utf8"));
+        const description = strings.config_page.advanced_settings[`obs_browser_source_${suffix}`].desc;
+        assert.ok(description.includes(String(min)) && description.includes(String(max)));
+    }
+});
