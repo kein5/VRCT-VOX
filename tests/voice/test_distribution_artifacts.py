@@ -2,6 +2,7 @@ import io
 import importlib.util
 import shutil
 import subprocess
+import tarfile
 from pathlib import Path
 from types import SimpleNamespace
 import zipfile
@@ -9,6 +10,118 @@ import zipfile
 import pytest
 
 from tools import check_voice_distribution as guard
+from tools.linux_package import check_tree, inspect_tar, pack
+
+
+def _zip_bytes(name, data=b"synthetic", prefix=b"", comment=b""):
+    payload = io.BytesIO(prefix)
+    payload.seek(0, io.SEEK_END)
+    with zipfile.ZipFile(payload, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(name, data)
+        archive.comment = comment
+    return payload.getvalue()
+
+
+def _inspect_payload(tmp_path, container, name, data):
+    if container == "zip":
+        output = tmp_path / "package.zip"
+        output.write_bytes(_zip_bytes(name, data))
+        guard.check([output])
+    elif container == "tar":
+        output = tmp_path / "package.tar.gz"
+        with tarfile.open(output, "w:gz") as archive:
+            member = tarfile.TarInfo("VRCT-VOX/" + name)
+            member.size = len(data)
+            archive.addfile(member, io.BytesIO(data))
+        inspect_tar(output)
+    else:
+        root = tmp_path / "VRCT-VOX"
+        payload = root / name
+        payload.parent.mkdir(parents=True, exist_ok=True)
+        payload.write_bytes(data)
+        if container == "tree":
+            guard.check([root])
+        elif container == "linux_tree":
+            check_tree(root)
+        else:
+            pack(root, tmp_path / "package.tar.gz", require_runtime=False)
+
+
+@pytest.mark.parametrize("container", ["zip", "tar"])
+@pytest.mark.parametrize("adjust_offsets", [False, True])
+@pytest.mark.parametrize("name,reason", [
+    ("ocr_onnx/chatbox_yolox_tiny.onnx", "OCR"),
+    ("voice/Mia2026.pth", "Private voice"),
+])
+def test_prefixed_nested_zip_is_inspected(tmp_path, container, name, reason, adjust_offsets):
+    prefix = b"MZ executable preamble\n"
+    payload = _zip_bytes(name, prefix=prefix) if adjust_offsets else prefix + _zip_bytes(name)
+    assert zipfile.is_zipfile(io.BytesIO(payload))
+    with pytest.raises(ValueError, match=reason):
+        _inspect_payload(tmp_path, container, "_internal/payload.dat", payload)
+
+
+@pytest.mark.parametrize("container", ["zip", "tar", "tree", "linux_tree", "pack"])
+@pytest.mark.parametrize("levels", [1, 2])
+def test_nested_zip_preserves_ocr_context(tmp_path, container, levels):
+    payload = _zip_bytes("det.onnx")
+    if levels == 2:
+        payload = _zip_bytes("models\\more.dat", payload)
+    with pytest.raises(ValueError, match="OCR"):
+        _inspect_payload(tmp_path, container, "_internal/rapidocr/models/assets.zip", payload)
+
+
+@pytest.mark.parametrize("container", ["zip", "tar", "tree", "linux_tree", "pack"])
+def test_inspection_ignores_host_ocr_directory(tmp_path, container):
+    host = tmp_path / "ocr"
+    host.mkdir()
+    _inspect_payload(host, container, "_internal/faster_whisper/assets/silero_vad_v6.onnx", b"VAD")
+
+
+@pytest.mark.parametrize("container", ["zip", "tar"])
+@pytest.mark.parametrize("comment_size", [0, 65535])
+def test_oversized_prefixed_nested_zip_is_rejected(tmp_path, monkeypatch, container, comment_size):
+    monkeypatch.setattr(guard, "MAX_NESTED_ZIP", 128)
+    payload = _zip_bytes("LICENSE.txt", prefix=b"MZ" + b"x" * 128, comment=b"c" * comment_size)
+    with pytest.raises(ValueError, match="oversized"):
+        _inspect_payload(tmp_path, container, "_internal/payload.dat", payload)
+
+
+@pytest.mark.parametrize("container", ["zip", "tar"])
+def test_large_non_archive_members_remain_allowed(tmp_path, monkeypatch, container):
+    monkeypatch.setattr(guard, "MAX_NESTED_ZIP", 128)
+    _inspect_payload(tmp_path, container, "_internal/runtime.dll", b"MZ" + b"x" * 1024)
+
+
+@pytest.mark.parametrize("container", ["zip", "tar"])
+def test_nested_zip_expansion_budget_is_shared(tmp_path, monkeypatch, container):
+    payload = _zip_bytes("large.txt", b"x" * 4096)
+    monkeypatch.setattr(guard, "MAX_INSPECTION_BYTES", len(payload) + 4095, raising=False)
+    with pytest.raises(ValueError, match="budget"):
+        _inspect_payload(tmp_path, container, "payload.dat", payload)
+
+
+@pytest.mark.parametrize("container", ["zip", "tar"])
+def test_nested_zip_entry_budget_is_shared(tmp_path, monkeypatch, container):
+    payload = _zip_bytes("LICENSE.txt")
+    monkeypatch.setattr(guard, "MAX_INSPECTION_ENTRIES", 1, raising=False)
+    with pytest.raises(ValueError, match="budget"):
+        _inspect_payload(tmp_path, container, "payload.dat", payload)
+
+
+@pytest.mark.parametrize("container", ["zip", "tar"])
+def test_nested_zip_depth_is_bounded(tmp_path, container):
+    payload = _zip_bytes("LICENSE.txt")
+    for _ in range(6):
+        payload = _zip_bytes("payload.dat", payload, prefix=b"MZ")
+    with pytest.raises(ValueError, match="nesting"):
+        _inspect_payload(tmp_path, container, "payload.dat", payload)
+
+
+@pytest.mark.parametrize("container", ["zip", "tar"])
+def test_allowed_prefixed_nested_zip_remains_allowed(tmp_path, container):
+    payload = _zip_bytes("faster_whisper/assets/silero_vad_v6.onnx", prefix=b"MZ")
+    _inspect_payload(tmp_path, container, "_internal/payload.dat", payload)
 
 
 @pytest.mark.parametrize("name", [
@@ -129,12 +242,32 @@ def test_nsis_unknown_or_nested_payload_never_passes(tmp_path, monkeypatch, list
 def test_nsis_clean_listing_and_inspector_failure(tmp_path, monkeypatch):
     installer = tmp_path / "setup.exe"
     installer.write_bytes(b"fake")
-    monkeypatch.setattr("subprocess.run", lambda *a, **kw: SimpleNamespace(returncode=0, stdout="Type = Nsis\n\n----------\nPath = LICENSE.txt\nSize = 100\n", stderr=""))
+    listing = "Type = Nsis\n\n----------\n" + "".join(
+        f"Path = $PLUGINSDIR\\licenses\\nscurl\\{name}\nSize = 100\n\n"
+        for name in ("LICENSE.md", "LICENSE.brotli.md", "LICENSE.curl.md", "LICENSE.nghttp2.md",
+                     "LICENSE.openssl.md", "LICENSE.zlib.md", "LICENSE.zstd.md"))
+    monkeypatch.setattr("subprocess.run", lambda *a, **kw: SimpleNamespace(returncode=0, stdout=listing, stderr=""))
     guard.check_nsis([installer])
     def fail(*a, **kw):
         raise FileNotFoundError("no 7z")
     monkeypatch.setattr("subprocess.run", fail)
     with pytest.raises(ValueError, match="inspect"):
+        guard.check_nsis([installer])
+
+
+@pytest.mark.parametrize("missing", [
+    "LICENSE.md", "LICENSE.brotli.md", "LICENSE.curl.md", "LICENSE.nghttp2.md",
+    "LICENSE.openssl.md", "LICENSE.zlib.md", "LICENSE.zstd.md",
+])
+def test_nsis_requires_each_retained_nscurl_notice(tmp_path, monkeypatch, missing):
+    installer = tmp_path / "setup.exe"
+    installer.write_bytes(b"fake")
+    notices = Path(__file__).resolve().parents[2] / "src-tauri/nsis/licenses/nscurl"
+    listing = "Type = Nsis\n\n----------\n" + "".join(
+        f"Path = $PLUGINSDIR/licenses/nscurl/{path.name}\nSize = 100\n\n"
+        for path in notices.iterdir() if path.name != missing)
+    monkeypatch.setattr("subprocess.run", lambda *a, **kw: SimpleNamespace(returncode=0, stdout=listing, stderr=""))
+    with pytest.raises(ValueError, match="NScurl notice"):
         guard.check_nsis([installer])
 
 

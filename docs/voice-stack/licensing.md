@@ -34,6 +34,25 @@ OCR重みを展開済みdatas/binariesのsource/destination両方で除外する
 Windows最終実物、Linux製品package、全同梱依存の最終ライセンス監査は未完了。
 モデル取得承認を再配布承認へ読み替えない。speech.cpp GUI管理はP5-Bで実装済み、未公開。
 
+## Windowsインストーラーの通知とzeroconfの版（2026-11-06）
+
+NScurlと依存部品の通知7点は、`src-tauri/nsis/licenses/nscurl/`の原文を保持し、
+NSISインストーラー内の`$PLUGINSDIR/licenses/nscurl/`へ同梱する。
+アプリ本体の取得に失敗した場合も、setup.exeを7-Zipで展開して読める。
+CPU版・CUDA版のZIPにも`_internal/licenses/nscurl/`として収集し、
+[NOTICE](../../NOTICE.md#windows-installer-download-component)に場所を記載する。
+最終NSIS成果物の検査では、この7点のいずれかが欠けていれば失敗する。
+Windows実物の展開結果と、同梱DLLの版に対応する通知一式かどうかの確認は別途必要。
+
+zeroconfのNOTICEは、`uv.lock`に固定された0.152.0と、そのソース配布物のURLへ訂正した。
+各specの`.py`収集設定は維持する。凍結後のファイル構成の確認や、配布条件全体の監査を
+完了したという意味ではない。
+
+配布物の検査では、ZIPとtar内のZIPを拡張子や先頭の署名だけでなく末尾の情報でも識別する。
+ネストしたZIPは1個128 MiBまで、ZIP・tarそれぞれの検査全体は展開後16 GiB・10万エントリーまで、
+ZIPの入れ子は4段までとし、上限を超えた場合は検査失敗とする。
+OCRのディレクトリー情報は入れ子の中でも引き継ぎ、ホスト上の作業ディレクトリー名は判定に使わない。
+
 ## Managed route追加分（2026-10-27）
 
 制御helper `native/voice-gate/main.c` はMITの新規コード。system `libpipewire-0.3` に動的リンクし、

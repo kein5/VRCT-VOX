@@ -18,6 +18,7 @@ a = Analysis(
     datas=[
         ("./../LICENSE", "licenses/VRCT/"),
         ("./../NOTICE.md", "licenses/VRCT/"),
+        ("./../src-tauri/nsis/licenses/nscurl", "licenses/nscurl/"),
         ('./../src-python/models/overlay/fonts', 'fonts/'),
         ('./../src-python/models/translation/translation_settings/prompt', 'translation_settings/prompt/'),
         ('./../src-python/models/translation/translation_settings/languages', 'translation_settings/languages/'),

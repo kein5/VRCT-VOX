@@ -504,6 +504,15 @@ Var TargetVersion
 Var UILang
 Var SelectedChannel
 Function .onInit
+  ; Embed notices in setup.exe even when the application download fails.
+  InitPluginsDir
+  Push $OUTDIR
+  SetOutPath "$PLUGINSDIR\licenses\nscurl"
+  File "..\..\..\..\nsis\licenses\nscurl\LICENSE*.md"
+  Pop $0
+  SetOutPath "$0"
+  ClearErrors
+
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   IfErrors +2 0
     StrCpy $PassiveMode 1
