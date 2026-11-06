@@ -38,6 +38,7 @@ from .transcription_providers import (
     OpenAICompatibleTranscriptionProvider,
     DeepgramProvider,
     TranscriptionApiError,
+    resolveDetectedLanguage,
 )
 from .transcription_openai_compatible import TRANSCRIPTION_API_ENGINES as _API_TRANSCRIPTION_ENGINES
 
@@ -570,8 +571,8 @@ class AudioTranscriber:
         # 候補言語ごとの呼び出し内訳。`_finalizeAndTranscribe` 1回の中で
         # provider.transcribe() が何回走ったかは、従来ログから見えなかった。
         # Google は「検出された言語」の概念が無く is_definitive が常に False
-        # なので必ず候補言語の数だけ叩く一方、Whisper系は自分で言語を検出し
-        # 一致すれば早期 break、Deepgram は常に1回で済む。つまり同じ
+        # なので必ず候補言語の数だけ叩く一方、Whisper系とDeepgramは
+        # 1回の自動検出結果を候補に照合する。つまり同じ
         # `asr=..ms` でも中身の回数がエンジンと設定で変わる。
         # speaker 側は SELECTED_TARGET_LANGUAGES を候補に使うため、
         # ターゲット言語を増やすとここが増える (mic 側は SELECTED_YOUR_LANGUAGES
@@ -587,7 +588,7 @@ class AudioTranscriber:
                 for language, country in zip(languages, countries):
                     call_started_at = time.perf_counter()
                     try:
-                        text, confidence, is_definitive = provider.transcribe(
+                        text, confidence, is_definitive, detected_language = provider.transcribe(
                             audio_data,
                             language,
                             country,
@@ -619,15 +620,16 @@ class AudioTranscriber:
                     else:
                         # 「認識結果0件」を例外ではなく空文字で返すプロバイダが
                         # ある。GoogleProvider は UnknownValueError を内部で
-                        # 握って ("", 0.0, False) を返すため、上の
+                        # 握って空の結果を返すため、上の
                         # except UnknownValueError は Google では一度も発火
                         # しない。ここで拾わないと、何も認識できなかった
                         # 呼び出しが成功したかのように所要時間だけログに出て、
                         # 失敗率の内訳 (nomatch なのか timeout なのか) を
                         # 実ログから追えない。
                         language_calls.append(f"{language}=nomatch({elapsed_ms}ms)")
-                    if confidence > best["confidence"]:
-                        best = {"confidence": confidence, "text": text, "language": language}
+                    if text and (is_definitive or confidence > best["confidence"]):
+                        result_language = resolveDetectedLanguage(detected_language, languages, countries)
+                        best = {"confidence": confidence, "text": text, "language": result_language}
                     if is_definitive:
                         break
 

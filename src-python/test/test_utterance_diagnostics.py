@@ -225,7 +225,7 @@ class PipelineDiagnosticsTests(unittest.TestCase):
         self._patch(module)
         transcriber = module.AudioTranscriber(False, SimpleNamespace(
             SAMPLE_RATE=16000, SAMPLE_WIDTH=2, channels=1), 3, 10, "Google", vad_segmented=True)
-        transcriber._resolve_provider = lambda: SimpleNamespace(transcribe=lambda *a, **k: ("PRIVATE TEXT", .9, True))
+        transcriber._resolve_provider = lambda: SimpleNamespace(transcribe=lambda *a, **k: ("PRIVATE TEXT", .9, True, "en"))
         with patch.object(module.time, "perf_counter", return_value=0), patch.object(module, "printLog") as errors:
             for _ in range(30):
                 queue = Queue()
@@ -247,7 +247,7 @@ class PipelineDiagnosticsTests(unittest.TestCase):
         transcriber = module.AudioTranscriber(False, SimpleNamespace(
             SAMPLE_RATE=16000, SAMPLE_WIDTH=2, channels=1), 3, 10, "Google")
         provider = MagicMock()
-        provider.transcribe.return_value = ("", 0, False)
+        provider.transcribe.return_value = ("", 0, False, None)
         transcriber._resolve_provider = lambda: provider
         with patch.object(module.time, "perf_counter", return_value=0), \
                 patch.object(module, "printLog", side_effect=self.logs.append), \

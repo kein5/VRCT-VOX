@@ -803,7 +803,7 @@ class TestAsrLanguageCallBreakdown(unittest.TestCase):
     SELECTED_TARGET_LANGUAGES を候補に使うため、ターゲット言語を3つにすると
     Google では1セグメントあたり3回叩く (Google は「検出された言語」の概念が
     無く is_definitive が常に False のため)。一方 Whisper 系は自分で言語を
-    検出して一致すれば早期 break する。
+    検出して1回で終える。
     """
 
     def _capture_logs(self) -> list:
@@ -846,7 +846,7 @@ class TestAsrLanguageCallBreakdown(unittest.TestCase):
         """認識結果0件の呼び出しを、成功したかのような所要時間だけで
         記録してはいけない。
 
-        GoogleProvider は UnknownValueError を内部で握って ("", 0.0, False)
+        GoogleProvider は UnknownValueError を内部で握って空の結果
         を返すため、_finalizeAndTranscribe の except UnknownValueError は
         Google では発火しない。実機ログでも成功率 40% の裏で nomatch が
         0 件しか出ておらず、失敗の内訳 (nomatch なのか timeout なのか) を
@@ -982,7 +982,7 @@ class TestApiTranscriptionEngines(unittest.TestCase):
     @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
     @patch("models.transcription.transcription_transcriber.OpenAICompatibleTranscriptionProvider")
     def test_transcribes_via_api_provider_and_updates_transcript(self, provider_cls, _) -> None:
-        provider_cls.return_value.transcribe.return_value = ("hello", 0.9, True)
+        provider_cls.return_value.transcribe.return_value = ("hello", 0.9, True, "ja")
         transcriber = AudioTranscriber(
             False, FakeAudioSource(), 3, 10, "OpenAI_Whisper",
             api_key="sk-openai", base_url="https://api.openai.com/v1", api_model="whisper-1",
@@ -1016,7 +1016,7 @@ class TestApiTranscriptionEngines(unittest.TestCase):
     @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
     @patch("models.transcription.transcription_transcriber.OpenAICompatibleTranscriptionProvider")
     def test_clears_previous_error_state_before_a_successful_call(self, provider_cls, _) -> None:
-        provider_cls.return_value.transcribe.return_value = ("hello", 0.9, True)
+        provider_cls.return_value.transcribe.return_value = ("hello", 0.9, True, "ja")
         transcriber = AudioTranscriber(
             False, FakeAudioSource(), 3, 10, "Groq_Whisper",
             api_key="sk-groq", base_url="https://api.groq.com/openai/v1", api_model="whisper-large-v3",
@@ -1034,7 +1034,7 @@ class TestApiTranscriptionEngines(unittest.TestCase):
     @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
     @patch("models.transcription.transcription_transcriber.OpenAICompatibleTranscriptionProvider")
     def test_definitive_result_stops_trying_further_language_candidates(self, provider_cls, _) -> None:
-        provider_cls.return_value.transcribe.return_value = ("hello", 0.9, True)
+        provider_cls.return_value.transcribe.return_value = ("hello", 0.9, True, "ja")
         transcriber = AudioTranscriber(
             False, FakeAudioSource(), 3, 10, "Groq_Whisper",
             api_key="sk-groq", base_url="https://api.groq.com/openai/v1", api_model="whisper-large-v3",
@@ -1050,8 +1050,8 @@ class TestApiTranscriptionEngines(unittest.TestCase):
     @patch("models.transcription.transcription_transcriber.OpenAICompatibleTranscriptionProvider")
     def test_keeps_trying_remaining_candidates_when_not_definitive(self, provider_cls, _) -> None:
         provider_cls.return_value.transcribe.side_effect = [
-            ("low", 0.2, False),
-            ("high", 0.8, False),
+            ("low", 0.2, False, "ja"),
+            ("high", 0.8, False, "en"),
         ]
         transcriber = AudioTranscriber(
             False, FakeAudioSource(), 3, 10, "Groq_Whisper",
@@ -1093,7 +1093,7 @@ class TestDeepgramTranscriptionEngine(unittest.TestCase):
     @patch("models.transcription.transcription_transcriber.checkWhisperWeight", return_value=False)
     @patch("models.transcription.transcription_transcriber.DeepgramProvider")
     def test_transcribes_via_provider_and_updates_transcript(self, provider_cls, _) -> None:
-        provider_cls.return_value.transcribe.return_value = ("hello", 0.9, True)
+        provider_cls.return_value.transcribe.return_value = ("hello", 0.9, True, "ja")
         transcriber = AudioTranscriber(
             False, FakeAudioSource(), 3, 10, "Deepgram",
             api_key="dg-test", api_model="nova-3",
@@ -1130,7 +1130,7 @@ class TestDeepgramTranscriptionEngine(unittest.TestCase):
         # DeepgramProvider は常に is_definitive=True を返す (1回の呼び出しで
         # 自動言語検出が完結するため)。複数候補言語を渡しても1回しか
         # 呼ばれないことを確認する。
-        provider_cls.return_value.transcribe.return_value = ("hello", 0.9, True)
+        provider_cls.return_value.transcribe.return_value = ("hello", 0.9, True, "ja")
         transcriber = AudioTranscriber(
             False, FakeAudioSource(), 3, 10, "Deepgram",
             api_key="dg-test", api_model="nova-3",
