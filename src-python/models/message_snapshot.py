@@ -22,7 +22,7 @@ def language_payload(languages):
 @dataclass(frozen=True)
 class MessageSnapshot:
     tab: str
-    source_language: str
+    source_language: str | None
     your_languages: Mapping
     target_languages: Mapping
     translation_enabled: bool
@@ -43,8 +43,12 @@ class MessageSnapshot:
             your = freeze(config.SELECTED_YOUR_LANGUAGES[tab])
             target = freeze(config.SELECTED_TARGET_LANGUAGES[tab])
             source = your if spec.multi_target else target
+            source_language = language or source["1"]["language"]
+            if spec.kind in ("mic", "speaker") and spec.delivery == "push":
+                # Batch ASR may return text without detected-language metadata.
+                source_language = language
             return cls(
-                tab, language or source["1"]["language"], your, target,
+                tab, source_language, your, target,
                 config.ENABLE_TRANSLATION, config.SELECTED_TRANSLATION_ENGINES[tab],
                 config.CTRANSLATE2_WEIGHT_TYPE,
                 config.CONVERT_MESSAGE_TO_HIRAGANA, config.CONVERT_MESSAGE_TO_ROMAJI,

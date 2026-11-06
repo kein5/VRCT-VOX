@@ -1,7 +1,7 @@
 """models/transcription/transcription_providers.py のテスト。
 
 各プロバイダの「1言語候補に対して1回試行する」契約
-(text, confidence, is_definitive) を検証する。実際のネットワーク/SDK
+(text, confidence, is_definitive, detected_language) を検証する。実際のネットワーク/SDK
 内部通信はテスト対象としない (SDKは信頼する)。VRCT側のテストは
 「送信までの処理」(正しいファイル形式・モデル名・パラメータでSDKを
 呼び出しているか) と「データ取得後の処理」(レスポンスの解釈・
@@ -48,7 +48,7 @@ class TestGoogleProvider(unittest.TestCase):
         recognizer.recognize_google.return_value = ("hello", 0.9)
         provider = GoogleProvider(recognizer)
 
-        text, confidence, is_definitive = provider.transcribe(
+        text, confidence, is_definitive, detected_language = provider.transcribe(
             _audio_data(1.0), "English", "United States",
             avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
         )
@@ -71,7 +71,7 @@ class TestGoogleProvider(unittest.TestCase):
         recognizer.recognize_google.side_effect = UnknownValueError()
         provider = GoogleProvider(recognizer)
 
-        text, confidence, is_definitive = provider.transcribe(
+        text, confidence, is_definitive, detected_language = provider.transcribe(
             _audio_data(1.0), "Japanese", "Japan",
             avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
         )
@@ -115,7 +115,7 @@ class TestLocalWhisperProvider(unittest.TestCase):
         )
         provider = LocalWhisperProvider(whisper_model)
 
-        text, confidence, is_definitive = provider.transcribe(
+        text, confidence, is_definitive, detected_language = provider.transcribe(
             self._make_audio_data(), "Japanese", "Japan",
             avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
         )
@@ -145,14 +145,14 @@ class TestLocalWhisperProvider(unittest.TestCase):
         )
         provider = LocalWhisperProvider(whisper_model)
 
-        _, _, is_definitive = provider.transcribe(
+        _, _, is_definitive, detected_language = provider.transcribe(
             self._make_audio_data(), "French", "France",
             avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=False,
         )
 
         self.assertTrue(is_definitive)  # transcription_lang["French"]["France"]["Whisper"] == "fr"
 
-    def test_is_not_definitive_when_detected_language_does_not_match(self) -> None:
+    def test_returns_detected_language_even_when_candidate_does_not_match(self) -> None:
         whisper_model = MagicMock()
         whisper_model.transcribe.return_value = (
             [_segment("hola")],
@@ -160,12 +160,13 @@ class TestLocalWhisperProvider(unittest.TestCase):
         )
         provider = LocalWhisperProvider(whisper_model)
 
-        _, _, is_definitive = provider.transcribe(
+        _, _, is_definitive, detected_language = provider.transcribe(
             self._make_audio_data(), "French", "France",
             avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=False,
         )
 
-        self.assertFalse(is_definitive)
+        self.assertTrue(is_definitive)
+        self.assertEqual(detected_language, "es")
 
 
 class TestOpenAICompatibleTranscriptionProvider(unittest.TestCase):
@@ -208,7 +209,7 @@ class TestOpenAICompatibleTranscriptionProvider(unittest.TestCase):
         # The json format carries text only: no segments, no detected language.
         provider._client.audio.transcriptions.create.return_value = SimpleNamespace(text="hello")
 
-        text, confidence, is_definitive = provider.transcribe(
+        text, confidence, is_definitive, detected_language = provider.transcribe(
             self._make_audio_data(), "English", "United States",
             avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=False,
         )
@@ -261,7 +262,7 @@ class TestOpenAICompatibleTranscriptionProvider(unittest.TestCase):
             ],
         )
 
-        text, confidence, is_definitive = provider.transcribe(
+        text, confidence, is_definitive, detected_language = provider.transcribe(
             self._make_audio_data(), "Japanese", "Japan",
             avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
         )
@@ -277,7 +278,7 @@ class TestOpenAICompatibleTranscriptionProvider(unittest.TestCase):
             text="plain text result", language=None, segments=None,
         )
 
-        text, confidence, is_definitive = provider.transcribe(
+        text, confidence, is_definitive, detected_language = provider.transcribe(
             self._make_audio_data(), "English", "United States",
             avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
         )
@@ -291,7 +292,7 @@ class TestOpenAICompatibleTranscriptionProvider(unittest.TestCase):
             text="", language="en", segments=[],
         )
 
-        text, confidence, is_definitive = provider.transcribe(
+        text, confidence, is_definitive, detected_language = provider.transcribe(
             self._make_audio_data(), "English", "United States",
             avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
         )
@@ -397,7 +398,7 @@ class TestDeepgramProvider(unittest.TestCase):
         with patch("models.transcription.transcription_providers.requests") as mock_requests:
             mock_requests.post.return_value = response
             mock_requests.exceptions = requests.exceptions
-            text, confidence, is_definitive = provider.transcribe(
+            text, confidence, is_definitive, detected_language = provider.transcribe(
                 self._make_audio_data(), "English", "United States",
                 avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
             )
@@ -428,7 +429,7 @@ class TestDeepgramProvider(unittest.TestCase):
         with patch("models.transcription.transcription_providers.requests") as mock_requests:
             mock_requests.post.return_value = response
             mock_requests.exceptions = requests.exceptions
-            _, _, is_definitive = provider.transcribe(
+            _, _, is_definitive, detected_language = provider.transcribe(
                 self._make_audio_data(), "Japanese", "Japan",
                 avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=False,
             )
@@ -512,7 +513,7 @@ class TestDeepgramProvider(unittest.TestCase):
         with patch("models.transcription.transcription_providers.requests") as mock_requests:
             mock_requests.post.return_value = response
             mock_requests.exceptions = requests.exceptions
-            text, confidence, is_definitive = provider.transcribe(
+            text, confidence, is_definitive, detected_language = provider.transcribe(
                 self._make_audio_data(), "English", "United States",
                 avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
             )
@@ -521,21 +522,20 @@ class TestDeepgramProvider(unittest.TestCase):
         self.assertEqual(confidence, 0.0)
         self.assertFalse(is_definitive)
 
-    def test_malformed_response_shape_returns_empty_result(self) -> None:
+    def test_malformed_response_shape_raises_provider_error(self) -> None:
         provider = DeepgramProvider(api_key="dg-test", model="nova-2")
         response = _make_deepgram_response(200, {"results": {"channels": []}})
 
         with patch("models.transcription.transcription_providers.requests") as mock_requests:
             mock_requests.post.return_value = response
             mock_requests.exceptions = requests.exceptions
-            text, confidence, is_definitive = provider.transcribe(
-                self._make_audio_data(), "English", "United States",
-                avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
-            )
+            with self.assertRaises(TranscriptionApiError) as ctx:
+                provider.transcribe(
+                    self._make_audio_data(), "English", "United States",
+                    avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
+                )
 
-        self.assertEqual(text, "")
-        self.assertEqual(confidence, 0.0)
-        self.assertFalse(is_definitive)
+        self.assertEqual(ctx.exception.error_code, ErrorCode.TRANSCRIPTION_API_SERVER_ERROR)
 
     def test_401_maps_to_auth_failed(self) -> None:
         provider = DeepgramProvider(api_key="dg-bad", model="nova-2")
