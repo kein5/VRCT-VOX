@@ -141,7 +141,7 @@ test("main language and log div buttons activate only on fresh Enter or Space pr
         ["sidebar_section/language_settings/preset_tab_selector/PresetTabSelector.jsx", "PresetTabSelector", {}],
         ["sidebar_section/language_settings/translator_selector_open_button/TranslatorSelectorOpenButton.jsx", "TranslatorSelectorOpenButton", {}],
         ["sidebar_section/language_settings/translator_selector_open_button/translator_selector/TranslatorSelector.jsx", "TranslatorSelector",
-            { translation_engines: [{ id: "two", label: "Two" }], selected_id: "one" }],
+            { translation_engines: [{ id: "two", label: "Two", is_available: true }], selected_id: "one" }],
         ["sidebar_section/language_settings/language_swap_button/LanguageSwapButton.jsx", "LanguageSwapButton", {}],
         ["sidebar_section/language_settings/add_remove_target_language_buttons/AddRemoveTargetLanguageButtons.jsx", "AddRemoveTargetLanguageButtons", {}],
         ["main_section/message_container/message_log_settings_container/MessageLogSettingsContainer.jsx", "MessageLogSettingsContainer", {}],

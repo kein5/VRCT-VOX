@@ -62,6 +62,9 @@ const TranslatorBox = (props) => {
     );
 
     const selectTranslator = () => {
+        // The stylesheet blocks the pointer on an unavailable engine; the keyboard
+        // must not select it either.
+        if (!props.is_available) return;
         if (!canChangeLanguageSettings()) return;
         if (props.is_selected === false) {
             setSelectedTranslationEngines(props.id);
@@ -69,9 +72,10 @@ const TranslatorBox = (props) => {
         updateIsOpenedTranslatorSelector(false);
     };
 
+    // Like a disabled button, an unavailable engine leaves the tab order.
     return (
-        <div className={box_class_name} aria-disabled={isLanguageSettingsBusy} onClick={selectTranslator}
-            role="button" tabIndex={0} aria-pressed={!!props.is_selected} onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (event.repeat) return; selectTranslator(); } }}>
+        <div className={box_class_name} aria-disabled={isLanguageSettingsBusy || !props.is_available} onClick={selectTranslator}
+            role="button" tabIndex={props.is_available ? 0 : -1} aria-pressed={!!props.is_selected} onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (event.repeat) return; selectTranslator(); } }}>
             <p className={styles.translator_name}>{props.label}</p>
             {props.is_default && <p className={label_default_class_name}>{t("common.default_label")}</p>}
         </div>
