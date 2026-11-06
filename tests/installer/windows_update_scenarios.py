@@ -391,7 +391,9 @@ def gui_scenario(installer, work):
                     selected = True
                 if "Could not download the package checksum" in text:
                     saw_failure = True
-                for caption in ("OK", "I Agree", "Next >", "Install", "Close", "Finish"):
+                # A failed install leaves only Cancel, which also runs .onInstFailed.
+                aborted = "Installation Aborted" in text
+                for caption in ("Cancel",) if aborted else ("OK", "I Agree", "Next >", "Install", "Close", "Finish"):
                     matches = [b for b in buttons if b.window_text().replace("&", "").strip() == caption]
                     if matches:
                         matches[0].click()
