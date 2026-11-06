@@ -130,6 +130,17 @@ flowchart LR
 
 ## 起動と初期化
 
+通常の配布版では、Tauriの最初のプラグインとして`tauri-plugin-single-instance`を登録する。
+二重に起動すると、既存の`main`ウィンドウを表示し、最小化を解除してフォーカスを移す。
+後から起動したプロセスは、Pythonサイドカーの起動、マイクの使用、`config.json`の読み書きより前に終了する。
+既存の`main`がまだ作られていなければ、ウィンドウ操作は行わない。表示要求と操作の失敗は既存プロセスの`startup.log`に記録する。
+
+デバッグビルドと、環境変数`VRCT_CONFIG_DIR`に保存先を指定した起動では、この制御を無効にする。
+開発用のworktreeや、状態を分けたネイティブGUI試験を、インストール済みのアプリと同時に動かすためである。
+Linuxの配布版を隔離した`XDG_*`で試す場合は、`VRCT_CONFIG_DIR`にも同じ設定先（`$XDG_CONFIG_HOME/vrct-vox`）を明示する。
+Linuxの判定はD-Busのセッションバスに依存し、バスに接続できない環境では二重起動を防げない。
+設定の保存先と`config.json.lock`の動作は変えない。判定と試験起動時の環境変数は`tests/devtools/test_single_instance.py`で検証する。
+
 ```mermaid
 sequenceDiagram
   participant UI as UI（main）

@@ -4,6 +4,7 @@ use std::io::{Error, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 mod quick_chat;
+mod single_instance;
 #[cfg(target_os = "linux")]
 mod portal_shortcuts;
 #[cfg(not(target_os = "linux"))]
@@ -101,7 +102,28 @@ pub fn run() {
         }
         context
     };
-    let result = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    if single_instance::single_instance_enabled(
+        cfg!(debug_assertions),
+        std::env::var_os("VRCT_CONFIG_DIR").as_deref(),
+    ) {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let Some(window) = app.get_webview_window("main") else {
+                return;
+            };
+            startup_log("Second launch requested; restoring main window");
+            if let Err(error) = window.show() {
+                startup_log(&format!("Main window show failed: {error}"));
+            }
+            if let Err(error) = window.unminimize() {
+                startup_log(&format!("Main window unminimize failed: {error}"));
+            }
+            if let Err(error) = window.set_focus() {
+                startup_log(&format!("Main window focus failed: {error}"));
+            }
+        }));
+    }
+    let result = builder
         .setup(|app| {
             let main_window = app.get_webview_window("main").ok_or_else(|| {
                 Error::other("main webview window was not created")
