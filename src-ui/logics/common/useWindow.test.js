@@ -25,3 +25,54 @@ for (const [physical, ratio, scaling, narrow] of [
     assert.equal(attributes.has("data-narrow"), narrow);
     assert.deepEqual(updates, narrow ? [true] : []);
 });
+
+const loadClosing = async (runtime, appWindow, sent) => loadModule(new URL("./useWindow.js", import.meta.url), runtime, {
+    "@tauri-apps/api/window": {},
+    "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython: endpoint => sent.push(endpoint) }) },
+    "@store": { store: { appWindow }, useStore_IsBreakPoint: () => ({ updateIsBreakPoint() {} }) },
+    "@logics_configs": { useAppearance: () => ({ currentUiScaling: { data: 100 } }) },
+});
+
+test("Alt+F4 and the close button share one shutdown before the window is destroyed", async context => {
+    context.mock.timers.enable({ apis: ["setTimeout"] });
+    const runtime = hooks(), sent = [], calls = [];
+    let requested = null;
+    const appWindow = {
+        onCloseRequested: async handler => { requested = handler; return () => calls.push("unlisten"); },
+        destroy: async () => calls.push("destroy"),
+        close: async () => calls.push("close"),
+    };
+    const { WindowCloseController, useWindow } = await loadClosing(runtime, appWindow, sent);
+    runtime.render(WindowCloseController);
+    await Promise.resolve();
+
+    let prevented = false;
+    requested({ preventDefault: () => { prevented = true; } }); // Alt+F4
+    useWindow().asyncCloseApp(); // and the title bar button while it waits
+    assert.equal(prevented, true);
+    assert.deepEqual(sent, ["/run/shutdown"]);
+    assert.deepEqual(calls, []); // the backend gets its time to save first
+    context.mock.timers.tick(2000);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls, ["destroy"]);
+    runtime.unmount();
+    assert.deepEqual(calls, ["destroy", "unlisten"]);
+});
+
+test("a failed destroy removes the listener and closes the window the usual way", async context => {
+    context.mock.timers.enable({ apis: ["setTimeout"] });
+    stubGlobals(context, { console: { ...console, error() {} } });
+    const runtime = hooks(), sent = [], calls = [];
+    const appWindow = {
+        onCloseRequested: async () => () => calls.push("unlisten"),
+        destroy: async () => { throw new Error("not allowed"); },
+        close: async () => calls.push("close"),
+    };
+    const { WindowCloseController, useWindow } = await loadClosing(runtime, appWindow, sent);
+    runtime.render(WindowCloseController);
+    await Promise.resolve();
+    const closed = useWindow().asyncCloseApp();
+    context.mock.timers.tick(2000);
+    await closed;
+    assert.deepEqual(calls, ["unlisten", "close"]);
+});
