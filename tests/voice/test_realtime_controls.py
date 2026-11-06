@@ -413,6 +413,7 @@ def test_real_config_persistence_contains_choices_not_capture_intent(tmp_path):
     cfg = object.__new__(Config)
     cfg.init_config()
     cfg._PATH_CONFIG = str(tmp_path / "config.json")
+    cfg.load_config()
     try:
         assert cfg.REALTIME_ASR_SETTINGS == normalize_settings({})
         cfg.REALTIME_ASR_SETTINGS = settings()

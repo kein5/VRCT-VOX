@@ -381,8 +381,8 @@ export const useReceiveRoutes = () => {
             return;
         }
         if (endpoint === "/run/config_save_failed") {
-            // The change stays applied in memory; the sidecar keeps retrying the write.
-            const reason = ["disk_full", "permission_denied", "read_only"].includes(result?.reason) ? result.reason : "write_failed";
+            // Failed writes retry; failed loads preserve the original until restart.
+            const reason = ["disk_full", "permission_denied", "read_only", "load_failed"].includes(result?.reason) ? result.reason : "write_failed";
             showNotification_Error(t(`common_error.config_save_failed.${reason}`, { file: result?.path ?? "" }),
                 { hide_duration: null, category_id: "config_save_failed" });
             return;

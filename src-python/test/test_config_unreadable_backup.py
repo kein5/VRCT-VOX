@@ -57,7 +57,7 @@ class UnreadableConfigTests(unittest.TestCase):
 
         self.assertIsNone(instance.UNREADABLE_CONFIG_BACKUP)
         self.assertEqual(instance.UI_LANGUAGE, "ja")
-        self.assertEqual([p.name for p in self.path.parent.iterdir()], ["config.json"])
+        self.assertEqual(sorted(p.name for p in self.path.parent.iterdir()), ["config.json", "config.json.lock"])
 
 
 if __name__ == "__main__":
