@@ -2,7 +2,11 @@
 import io
 import json
 import os
+from pathlib import Path
+import select
 import struct
+import subprocess
+import sys
 from threading import Event, Thread
 import time
 
@@ -114,3 +118,48 @@ def test_partial_pipe_packet_times_out_and_can_be_cancelled():
                 p.read_packet(source, timeout=60, check=cancel)
         finally:
             thread.join()
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='select on worker pipes requires POSIX file descriptors')
+@pytest.mark.parametrize('part', ['prefix', 'header', 'pcm', 'short', 'full', 'consecutive'])
+def test_worker_buffered_stdin_respects_packet_deadline_without_read_ahead(part):
+    """Use the interpreter/stdin setup of both live workers, keeping stdin open."""
+    short = p.encode_packet(p.ready_info(SESSION))
+    full = p.encode_packet(p.input_info(SESSION, 0, STAMP), RAW)
+    body = {'prefix': full[:1], 'header': full[:p.PREFIX.size + 1],
+            'pcm': full[:-1], 'short': short, 'full': full,
+            'consecutive': short * 2}[part]
+    script = '''
+import io, sys
+sys.path.insert(0, sys.argv[1])
+from models.voice_conversion import protocol as p
+assert isinstance(sys.stdin.buffer, io.BufferedReader)
+print('ready', flush=True)
+try:
+    for _ in range(int(sys.argv[2])):
+        info, pcm = p.read_packet(sys.stdin.buffer, timeout=.15)
+        assert info['pcm_bytes'] == len(pcm)
+except p.ProtocolError as exc:
+    print(str(exc), flush=True)
+else:
+    print('complete', flush=True)
+'''
+    process = subprocess.Popen(
+        [sys.executable, '-u', '-c', script, str(Path(p.__file__).resolve().parents[2]),
+         '2' if part == 'consecutive' else '1'],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+    try:
+        assert select.select([process.stdout], [], [], 3)[0], 'worker did not start'
+        assert process.stdout.readline() == b'ready\n'
+        process.stdin.write(body)
+        try:
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            pytest.fail('buffered worker stdin blocked past the packet deadline')
+        assert process.returncode == 0, process.stderr.read()
+        expected = b'vc_worker_stalled\n' if part in ('prefix', 'header', 'pcm') else b'complete\n'
+        assert process.stdout.read() == expected
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.communicate(timeout=2)

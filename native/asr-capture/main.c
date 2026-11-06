@@ -122,7 +122,11 @@ static void stream_param(void *data, uint32_t id, const struct spa_pod *param) {
             s->stable_since = 0;
             if (s->started) failed(s, "latency_removed");
         }
-        if (s->started && id == SPA_PARAM_Format) failed(s, "format_removed");
+        if (id == SPA_PARAM_Format) {
+            s->format_ok = false;
+            s->stable_since = 0;
+            if (s->started) failed(s, "format_removed");
+        }
         return;
     }
     if (id == SPA_PARAM_Format) {

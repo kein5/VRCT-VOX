@@ -21,13 +21,16 @@ from .capture_packets import CapturePackets
 
 HELPER = resource_root() / 'build' / 'vrct-asr-capture'
 EXCLUDED = ('vrct.managed.', 'vrct.source-bridge.', 'vrct.asr.capture.')
+# Four times the native 500 ms watchdog allows scheduling delays under audio load.
+_FRAME_TIMEOUT_NS = 2_000_000_000
 _NATIVE_ERRORS = frozenset('asr_capture_' + code for code in (
     'owner_gone stalled core_changed core_error stream_disconnected clock_changed '
     'latency_removed format_removed format_invalid latency_invalid latency_changed '
     'stream_identity_invalid clock_snapshot_inconsistent clock_position_missing '
     'clock_invalid buffer_corrupted discontinuity buffer_invalid timestamp_invalid '
     'stale_buffer pipe_blocked endpoint_changed unexpected_link endpoint_removed '
-    'link_removed endpoint_missing stream_create_failed stream_connect_failed'
+    'link_removed endpoint_missing stream_create_failed stream_connect_failed '
+    'pipewire_version_unsupported'
 ).split())
 _ERRORS = _NATIVE_ERRORS | frozenset('asr_capture_' + code for code in (
     'single_use start_timeout stopped consumer_busy consumer_closed helper_closed failed'
@@ -243,19 +246,24 @@ class PipeWireCapture:
             if process is None:
                 return
             os.set_blocking(process.stderr.fileno(), False)
+            last_frame_ns = None
             while not self._stop.is_set():
                 if code := diagnostics.read(process.stderr):
                     raise CaptureError(code)
                 if process.poll() is not None:
                     raise CaptureError(diagnostics.read(process.stderr) or 'asr_capture_helper_closed')
+                if last_frame_ns is not None and time.monotonic_ns() - last_frame_ns >= _FRAME_TIMEOUT_NS:
+                    raise CaptureError('asr_capture_stalled')
                 if not select.select([process.stdout], [], [], .05)[0]:
                     continue
                 raw = os.read(process.stdout.fileno(), 4096)
                 if not raw:
                     raise CaptureError(diagnostics.read(process.stderr) or 'asr_capture_helper_closed')
-                for frame in decoder.feed(raw, time.monotonic_ns()):
+                received_ns = time.monotonic_ns()
+                for frame in decoder.feed(raw, received_ns):
                     if self._stop.is_set():
                         break
+                    last_frame_ns = received_ns
                     if self._on_audio(frame) is False:
                         raise CaptureError('asr_capture_consumer_closed')
                     self._ready.set()
