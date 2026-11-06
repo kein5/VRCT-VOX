@@ -525,6 +525,18 @@ def test_cached_absence_cannot_cancel_a_new_listener(monkeypatch):
         assert probe.close(.5)
 
 
+def test_listening_rows_include_unknown_state_without_a_peer():
+    """Windows 11 build 26220 reported a listening socket's state as 0 (psutil NONE)."""
+    psutil = SimpleNamespace(CONN_LISTEN='LISTEN', CONN_NONE='NONE')
+
+    def row(port, status, raddr=()):
+        return SimpleNamespace(laddr=('127.0.0.1', port), raddr=raddr, status=status)
+
+    rows = [row(1, 'LISTEN'), row(2, 'NONE'), row(3, 'NONE', ('127.0.0.1', 9)),
+            row(4, 'ESTABLISHED', ('127.0.0.1', 9)), SimpleNamespace(laddr=(), raddr=(), status='NONE')]
+    assert listener_table._listening_endpoints(rows, psutil) == {('127.0.0.1', 1), ('127.0.0.1', 2)}
+
+
 def test_absence_confirmation_shares_original_table_deadline(monkeypatch):
     clock, calls = [10.0], []
 
