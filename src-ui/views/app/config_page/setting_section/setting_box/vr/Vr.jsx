@@ -19,6 +19,7 @@ import { ResetButton } from "@common_components";
 import {
     useVr,
 } from "@logics_configs";
+import { useIsOpenedConfigPage } from "@logics_common";
 import { useStdoutToPython } from "@useStdoutToPython";
 
 import RedoSvg from "@images/redo.svg?react";
@@ -667,12 +668,20 @@ const VrUiBetaContainer = () => {
 const SendSampleTextToggleButton = () => {
     const { t } = useI18n();
     const { sendTextToOverlay } = useVr();
+    const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
     const [is_started, setIsStarted] = useState(false);
+    // Closing settings only hides this page; it stays mounted, so stop the
+    // samples here. Reopening settings does not restart them.
+    const is_settings_open = currentIsOpenedConfigPage.data === true;
+
+    useEffect(() => {
+        if (!is_settings_open) setIsStarted(false);
+    }, [is_settings_open]);
 
     useEffect(() => {
         let interval_id;
 
-        if (is_started) {
+        if (is_started && is_settings_open) {
             interval_id = setInterval(() => {
                 const text_data = Array.from(
                     { length: randomIntMinMax(1, 5) },
@@ -687,7 +696,7 @@ const SendSampleTextToggleButton = () => {
                 clearInterval(interval_id);
             }
         };
-    }, [is_started]);
+    }, [is_started, is_settings_open]);
 
     const toggleFunction = () => {
         setIsStarted(!is_started);
