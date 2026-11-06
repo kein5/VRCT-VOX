@@ -32,8 +32,14 @@ export const HotkeysEntry = (props) => {
         if (result === false && editVersion.current === version) setDisplayValue(committedDisplayValueRef.current);
     };
 
-    const processKey = (key) => {
+    // Key names as stored and as the shortcut parsers read them ("Ctrl", "Q").
+    // Space is spelled out: " " cannot be joined into "Control+Space". A digit
+    // is taken from the key itself, since Shift turns "1" into "!" on keydown
+    // but not on a keyup after Shift was released.
+    const processKey = ({ key, code }) => {
+        if (key === " " || code === "Space") return "Space";
         if (/^[a-zA-Z]$/.test(key)) return key.toUpperCase();
+        if (/^Digit[0-9]$/.test(code ?? "")) return code.slice(-1);
         if (key === "Meta") return "Super";
         return key;
     };
@@ -49,7 +55,7 @@ export const HotkeysEntry = (props) => {
             }
         });
 
-        const key = processKey(event.key);
+        const key = processKey(event);
         if (!["Control", "Shift", "Alt", "Meta"].includes(event.key)) {
             keys.push(key);
             nonModifierKeys.push(key);
@@ -84,7 +90,7 @@ export const HotkeysEntry = (props) => {
         if (event.key === "Tab" || event.key === "Escape") return;
         lastKeyRef.current = null;
 
-        const key = processKey(event.key);
+        const key = processKey(event);
         if (!pressedKeys.current.has(key)) return;
         pressedKeys.current.delete(key);
 

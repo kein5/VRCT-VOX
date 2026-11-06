@@ -334,6 +334,8 @@ const parseHotkey = (hotkeyString) => {
         Alt: "Alt",
         Shift: "Shift",
         Meta: "Super",
+        // Older recordings stored Space as " ", which leaves an empty token.
+        " ": "Space",
     };
 
 
