@@ -89,7 +89,9 @@ class FakeDelivery:
 
 
 @pytest.fixture
-def app(monkeypatch):
+def app(tmp_path, monkeypatch):
+    # tmp_path を先に作る。ここで sys.platform を "linux" にした後で作ると、Windows の
+    # pytest が os.getuid (Windows には無い) を呼んで失敗する
     # Bypass Controller construction: no app workers, models or services start.
     c = module.Controller.__new__(module.Controller)
     settings = {"server": "bundled", "model": "asr"}
