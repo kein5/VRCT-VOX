@@ -12,7 +12,7 @@ from tools.voice_b_poc import FRAME, ToneObservation
 @pytest.mark.parametrize('fault', [None, 'burst', 'gap', 'eof'])
 def test_no_output_case_rejects_transient_audio_and_capture_loss(fault):
     source = Path(__file__).parents[1] / 'platform/test_native_low_latency_controls.py'
-    function = next(n for n in ast.walk(ast.parse(source.read_text()))
+    function = next(n for n in ast.walk(ast.parse(source.read_text(encoding="utf-8")))
                     if isinstance(n, ast.FunctionDef) and n.name == 'silence')
     monitor = ToneObservation()
     monitor.feed(bytes(FRAME * 2), 20_000_000)

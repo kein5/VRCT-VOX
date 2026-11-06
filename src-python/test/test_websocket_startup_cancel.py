@@ -1,7 +1,9 @@
 """OI-20: real asyncio threads, fake serve/bind; no TCP sockets are opened."""
 
 import asyncio
+import selectors
 import threading
+import time
 
 import pytest
 
@@ -11,7 +13,19 @@ from models.websocket.websocket_server import WebSocketServer
 @pytest.fixture(autouse=True)
 def timer_woken_loops(monkeypatch):
     """No socket I/O, even for asyncio's cross-thread wakeup in this sandbox."""
+    class NoSocketSelector(selectors.SelectSelector):
+        # Without the self-pipe nothing is registered, and Windows select() rejects
+        # three empty sets (WinError 10022). The loop's 1 ms tick bounds the wait.
+        def select(self, timeout=None):
+            if self._readers or self._writers:
+                return super().select(timeout)
+            time.sleep(0.001 if timeout is None else max(0.0, min(timeout, 0.001)))
+            return []
+
     class TimerLoop(asyncio.SelectorEventLoop):
+        def __init__(self):
+            super().__init__(NoSocketSelector())
+
         def _make_self_pipe(self):
             pass
 

@@ -326,7 +326,7 @@ def test_sidecar_scrubs_before_runtime_imports(monkeypatch):
     assert os.environ["LANGCHAIN_TRACING_V2"] == "false"
     assert "LANGCHAIN_API_KEY" not in os.environ and "OLLAMA_API_KEY" not in os.environ
     source = Path(__file__).resolve().parents[1] / "mainloop.py"
-    tree = ast.parse(source.read_text())
+    tree = ast.parse(source.read_text(encoding="utf-8"))
     scrub_line = next(node.lineno for node in tree.body if isinstance(node, ast.Expr)
                       and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name)
                       and node.value.func.id == "scrub_network_environment")
