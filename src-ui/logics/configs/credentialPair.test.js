@@ -81,7 +81,6 @@ for (const [base, provider, section] of providers) {
     });
 
     for (const [field, value, suffix, data] of [
-        ["url", "https://provider-b.example/v1", "url", "https://provider-b.example/v1"],
         ["key", "FAKE-KEY-B", "auth_key", "FAKE-KEY-B"],
         ["key", "", "auth_key", undefined],
     ]) test(`${provider}: editing only ${field} (${value || "delete"}) preserves the single-field endpoint`, async context => {
@@ -90,6 +89,121 @@ for (const [base, provider, section] of providers) {
         assert.equal(s.requests.length, 1);
         assert.equal(s.requests[0].endpoint, `/${value ? "set" : "delete"}/data/${provider}_${suffix}`);
         assert.equal(s.requests[0].data, data);
+    });
+
+    test(`${provider}: a changed URL clears the saved key and blocks every save path`, async context => {
+        const s = await setup(context, base, provider, section);
+        s.edit("url", "https://provider-b.example/v1");
+        assert.equal(s.field("key").variable, "");
+        assert.equal(s.entry().canSave, false);
+        assert.deepEqual(s.field("key").add_warnings, [{ label: "config_page.common.credential_reentry_required" }]);
+        s.field("url").saveFunction(); s.field("key").saveFunction(); s.entry().save();
+        await flush(); s.render();
+        assert.equal(s.requests.length, 0);
+        s.edit("key", "   ");
+        assert.equal(s.entry().canSave, false);
+        s.field("key").saveFunction();
+        assert.equal(s.requests.length, 0);
+    });
+
+    test(`${provider}: trimmed URL comparison restores an untouched key`, async context => {
+        const s = await setup(context, base, provider, section);
+        const savedURL = s.settings[`current${base}URL`].data;
+        s.edit("url", `  ${savedURL}  `);
+        assert.equal(s.field("key").variable, "FAKE-KEY-A");
+        s.edit("url", "https://provider-b.example/v1");
+        s.edit("url", "https://provider-c.example/v1");
+        assert.equal(s.field("key").variable, "");
+        s.edit("url", `  ${savedURL}  `);
+        assert.equal(s.field("key").variable, "FAKE-KEY-A");
+        assert.equal(s.entry().canSave, true);
+        assert.deepEqual(s.field("key").add_warnings, []);
+    });
+
+    for (const value of ["FAKE-KEY-A", "FAKE-KEY-B"]) {
+        for (const keyFirst of [false, true]) test(`${provider}: URL edits preserve a typed ${value} (key first: ${keyFirst})`, async context => {
+            const s = await setup(context, base, provider, section);
+            if (keyFirst) s.edit("key", value);
+            s.edit("url", "https://provider-b.example/v1");
+            if (!keyFirst) s.edit("key", value);
+            s.edit("url", s.settings[`current${base}URL`].data);
+            assert.equal(s.field("key").variable, value);
+            s.edit("url", "https://provider-c.example/v1");
+            assert.equal(s.field("key").variable, value);
+            assert.equal(s.entry().canSave, true);
+            s.field("key").saveFunction(); s.render();
+            assert.equal(s.requests.length, 1);
+            const request = s.requests[0];
+            assert.equal(request.endpoint, `/set/data/${provider}_auth_key_and_url`);
+            assert.deepEqual(request.data, { url: "https://provider-c.example/v1", auth_key: value });
+            s.settings[`current${base}URL`].data = request.data.url;
+            s.settings[`current${base}AuthKey`].data = value;
+            s.owners.receive({ endpoint: request.endpoint, status: 200, result: request.data });
+            await flush(); s.render();
+            assert.equal(s.entry().dirty, false);
+            s.edit("url", "https://provider-d.example/v1");
+            assert.equal(s.field("key").variable, "");
+        });
+    }
+
+    for (const leave of [false, true]) test(`${provider}: ${leave ? "leave dialog" : "Discard"} restores both values and resets key entry`, async context => {
+        const s = await setup(context, base, provider, section);
+        s.edit("url", "https://provider-b.example/v1");
+        assert.equal(s.field("key").variable, "");
+        // A refresh must not reinsert the saved secret into the edited pair.
+        s.settings[`current${base}AuthKey`] = { state: "ok", data: "FAKE-KEY-A" };
+        s.render();
+        assert.equal(s.field("key").variable, "");
+        if (leave) {
+            let proceeded = false, prevented = false;
+            window.dispatch("vrct:settings-leave", {
+                preventDefault: () => { prevented = true; }, detail: { proceed: () => { proceeded = true; } },
+            });
+            const dialog = find(s.render(), node => node.type === "dialog");
+            assert.equal(prevented, true);
+            find(dialog, node => node.type === "button" && node.props.children === "voice_ui.keep_editing").props.onClick();
+            assert.equal(s.field("key").variable, "");
+            assert.equal(proceeded, false);
+            window.dispatch("vrct:settings-leave", { preventDefault() {}, detail: { proceed: () => { proceeded = true; } } });
+            find(s.render(), node => node.type === "button" && node.props.children === "voice_ui.discard_leave").props.onClick();
+            assert.equal(proceeded, true);
+        } else s.entry().discard();
+        s.render();
+        assert.equal(s.field("url").variable, s.settings[`current${base}URL`].data);
+        assert.equal(s.field("key").variable, "FAKE-KEY-A");
+        assert.equal(s.entry().dirty, false);
+        s.edit("key", "FAKE-KEY-B"); s.entry().discard(); s.render();
+        s.edit("url", "https://provider-c.example/v1");
+        assert.equal(s.field("key").variable, "");
+        assert.equal(s.requests.length, 0);
+    });
+
+    test(`${provider}: deleting the saved key permits a later URL-only save`, async context => {
+        const s = await setup(context, base, provider, section);
+        s.edit("key", ""); s.entry().save(); s.render();
+        const deletion = s.requests[0];
+        assert.equal(deletion.endpoint, `/delete/data/${provider}_auth_key`);
+        s.settings[`current${base}AuthKey`].data = null;
+        s.owners.receive({ endpoint: deletion.endpoint, status: 200, result: null });
+        await flush(); s.render();
+        s.edit("url", "https://provider-b.example/v1");
+        assert.equal(s.entry().canSave, true);
+        s.entry().save(); s.render();
+        assert.equal(s.requests[1].endpoint, `/set/data/${provider}_url`);
+        assert.equal(s.requests[1].data, "https://provider-b.example/v1");
+    });
+
+    test(`${provider}: rebasing a refreshed saved key keeps the new URL draft empty`, async context => {
+        const s = await setup(context, base, provider, section);
+        s.edit("url", "https://provider-b.example/v1");
+        s.settings[`current${base}AuthKey`].data = "FAKE-REFRESHED-KEY";
+        s.render();
+        assert.equal(s.field("key").variable, "");
+        assert.equal(s.field("url").variable, "https://provider-b.example/v1");
+        assert.equal(s.entry().canSave, false);
+        s.entry().discard(); s.render();
+        assert.equal(s.field("key").variable, "FAKE-REFRESHED-KEY");
+        assert.equal(s.entry().dirty, false);
     });
 
     for (const failure of ["rejected", "transport"]) test(`${provider}: ${failure} pair remains editable without sending a fallback key`, async context => {

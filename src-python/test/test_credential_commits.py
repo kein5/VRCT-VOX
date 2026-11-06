@@ -222,42 +222,57 @@ def test_deepgram_missing_language_metadata_is_checked_before_commit(subject):
     assert subject.config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Deepgram"] is True
 
 
-@pytest.mark.parametrize("failure", ["empty", "auth", "client"])
-def test_url_failure_restores_url_without_replacing_client(subject, monkeypatch, failure):
-    method, replacement = {
-        "empty": ("getModelList", Mock(return_value=[])),
-        "auth": ("setAuthKey", Mock(return_value=False)),
-        "client": ("updateClient", Mock(side_effect=RuntimeError("synthetic failure"))),
-    }[failure]
-    monkeypatch.setattr(FakeClient, method, replacement)
-    result = subject.controller.setOpenAICompatibleURL("https://candidate.invalid/v1")
-    replacement.assert_called_once()
-    assert result["status"] == 400
-    assert result["result"]["error_code"] == "CONNECTION_OPENAI_COMPATIBLE_URL_INVALID"
-    assert result["result"]["data"] == subject.config.OPENAI_COMPATIBLE_URL == "https://previous.invalid/v1"
-    assert subject.config.AUTH_KEYS["OpenAI_Compatible"] == "synthetic-old-key"
-    assert live_client(subject, "OpenAI_Compatible") is subject.previous
-    assert subject.config.SELECTABLE_TRANSLATION_ENGINE_STATUS["OpenAI_Compatible"] is True
-    assert subject.config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST == ["working-model"]
-    subject.controller.run.assert_not_called()
+@pytest.mark.parametrize("name,engine,url_attr,map_name,prefix,status_attr", [
+    ("OpenAICompatible", "OpenAI_Compatible", "OPENAI_COMPATIBLE_URL", "AUTH_KEYS",
+     "OPENAI_COMPATIBLE", "SELECTABLE_TRANSLATION_ENGINE_STATUS"),
+    ("CustomWhisper", "Custom_Whisper", "TRANSCRIPTION_CUSTOM_URL", "TRANSCRIPTION_AUTH_KEYS",
+     "CUSTOM_WHISPER", "SELECTABLE_TRANSCRIPTION_ENGINE_STATUS"),
+])
+@pytest.mark.parametrize("available", [False, True])
+@pytest.mark.parametrize("stored_key", [None, "synthetic-old-key"])
+@pytest.mark.parametrize("change", ["different", "same", "trimmed", "invalid"])
+def test_url_only_never_authenticates_or_changes_credential_state(
+    subject, name, engine, url_attr, map_name, prefix, status_attr, available, stored_key, change,
+):
+    s = subject
+    s.config.updateCredential(map_name, engine, stored_key)
+    getattr(s.config, status_attr)[engine] = available
+    previous_url = getattr(s.config, url_attr)
+    submitted = {
+        "different": "https://candidate.invalid/v1",
+        "same": previous_url, "trimmed": f"  {previous_url}  ", "invalid": "file:///invalid",
+    }[change]
+    s.model.prepareTranslatorCredential = Mock(side_effect=AssertionError("Must not authenticate"))
+    s.config.saveConfig.reset_mock()
 
+    result = getattr(s.controller, f"set{name}URL")(submitted)
 
-def test_url_success_commits_prepared_client(subject):
-    result = subject.controller.setOpenAICompatibleURL("https://candidate.invalid/v1")
-    assert result == {"status": 200, "result": "https://candidate.invalid/v1"}
-    assert subject.config.OPENAI_COMPATIBLE_URL == result["result"]
-    client = live_client(subject, "OpenAI_Compatible")
-    assert client.ready and client.base_url == result["result"]
-    assert client.auth_key == "synthetic-old-key"
-
-
-def test_url_without_a_key_only_saves_url(subject):
-    subject.config.updateCredential("AUTH_KEYS", "OpenAI_Compatible", None)
-    subject.model.prepareTranslatorCredential = Mock(side_effect=AssertionError("Must not authenticate"))
-    result = subject.controller.setOpenAICompatibleURL("https://candidate.invalid/v1")
-    assert result == {"status": 200, "result": "https://candidate.invalid/v1"}
-    subject.model.prepareTranslatorCredential.assert_not_called()
-    assert live_client(subject, "OpenAI_Compatible") is subject.previous
+    rejected = change == "invalid" or (change == "different" and stored_key is not None)
+    expected_url = submitted if change == "different" and not stored_key else previous_url
+    assert result["status"] == (400 if rejected else 200)
+    if rejected:
+        code = ("CONNECTION_OPENAI_COMPATIBLE_URL_INVALID" if engine == "OpenAI_Compatible"
+                else "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID") if change == "invalid" else "CREDENTIAL_REENTRY_REQUIRED"
+        assert result["result"]["error_code"] == code
+        assert result["result"]["data"] == previous_url
+    else:
+        assert result["result"] == expected_url
+    assert getattr(s.config, url_attr) == expected_url
+    assert getattr(s.config, map_name)[engine] == stored_key
+    assert getattr(s.config, status_attr)[engine] is available
+    assert getattr(s.config, f"SELECTABLE_{prefix}_MODEL_LIST") == ["working-model"]
+    assert getattr(s.config, f"SELECTED_{prefix}_MODEL") == "working-model"
+    assert live_client(s, "OpenAI_Compatible") is s.previous
+    s.model.prepareTranslatorCredential.assert_not_called()
+    s.model.authenticationTranscriptionApiKey.assert_not_called()
+    s.model.getTranscriptionApiModelList.assert_not_called()
+    s.controller.run.assert_not_called()
+    s.controller.updateTranslationEngineAndEngineList.assert_not_called()
+    s.controller.updateTranscriptionEngine.assert_not_called()
+    if expected_url == previous_url:
+        s.config.saveConfig.assert_not_called()
+    else:
+        s.config.saveConfig.assert_called_once()
 
 
 @pytest.mark.parametrize("engine,name,key", TRANSLATION[:-1])
@@ -282,100 +297,6 @@ def test_translation_candidate_cannot_overwrite_newer_model_selection(subject, e
     assert live_client(s, engine) is s.previous
     assert live_client(s, engine).selected_model == "new-model"
     s.controller.run.assert_not_called()
-
-
-def test_compatible_url_candidate_cannot_overwrite_newer_model_selection(subject):
-    s = subject
-    s.config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = ["working-model", "new-model"]
-    original = s.model.prepareTranslatorCredential
-
-    def prepare(*args, **kwargs):
-        candidate = original(*args, **kwargs)
-        assert s.controller.setOpenAICompatibleModel("new-model")["status"] == 200
-        return candidate
-
-    s.model.prepareTranslatorCredential = prepare
-    result = s.controller.setOpenAICompatibleURL("https://candidate.invalid/v1")
-    assert result["status"] == 400
-    assert result["result"]["data"] == s.config.OPENAI_COMPATIBLE_URL == "https://previous.invalid/v1"
-    assert s.config.SELECTED_OPENAI_COMPATIBLE_MODEL == live_client(s, "OpenAI_Compatible").selected_model == "new-model"
-    assert live_client(s, "OpenAI_Compatible") is s.previous
-    s.controller.run.assert_not_called()
-
-
-@pytest.mark.parametrize("failure", ["auth", "empty", "invalid_model", "discovery"])
-@pytest.mark.parametrize("available", [False, True])
-def test_custom_whisper_url_failure_preserves_working_state(subject, failure, available):
-    s = subject
-    s.config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"] = available
-    if failure == "auth":
-        s.model.authenticationTranscriptionApiKey.return_value = False
-    elif failure == "discovery":
-        s.model.getTranscriptionApiModelList.side_effect = RuntimeError("synthetic failure")
-    else:
-        s.model.getTranscriptionApiModelList.return_value = [] if failure == "empty" else [None]
-    s.config.saveConfig.reset_mock()
-    result = s.controller.setCustomWhisperURL("https://candidate.invalid/v1")
-    assert result["status"] == 400
-    assert result["result"]["error_code"] == (
-        "GENERAL_EXCEPTION" if failure == "discovery" else "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID"
-    )
-    assert result["result"]["data"] == s.config.TRANSCRIPTION_CUSTOM_URL == "https://transcription.invalid/v1"
-    assert s.config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"] == "synthetic-old-key"
-    assert s.config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST == ["working-model"]
-    assert s.config.SELECTED_CUSTOM_WHISPER_MODEL == "working-model"
-    assert s.config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"] is available
-    s.config.saveConfig.assert_not_called()
-    s.controller.run.assert_not_called()
-    s.controller.updateTranscriptionEngine.assert_not_called()
-
-
-@pytest.mark.parametrize("change", ["delete", "replace", "url"])
-def test_custom_whisper_url_candidate_rejected_after_newer_setting(subject, change):
-    s = subject
-
-    def discover(**kwargs):
-        if change == "delete":
-            assert s.controller.delCustomWhisperAuthKey()["status"] == 200
-        elif change == "replace":
-            s.config.updateCredential("TRANSCRIPTION_AUTH_KEYS", "Custom_Whisper", "synthetic-other-key")
-        else:
-            s.config.TRANSCRIPTION_CUSTOM_URL = "https://other.invalid/v1"
-        s.config.saveConfig.reset_mock()
-        s.controller.run.reset_mock()
-        s.controller.updateTranscriptionEngine.reset_mock()
-        return ["new-model"]
-
-    s.model.getTranscriptionApiModelList.side_effect = discover
-    result = s.controller.setCustomWhisperURL("https://candidate.invalid/v1")
-    assert result["status"] == 400
-    assert result["result"]["error_code"] == "CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID"
-    assert result["result"]["data"] == s.config.TRANSCRIPTION_CUSTOM_URL == (
-        "https://other.invalid/v1" if change == "url" else "https://transcription.invalid/v1"
-    )
-    assert s.config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"] == {
-        "delete": None, "replace": "synthetic-other-key", "url": "synthetic-old-key",
-    }[change]
-    assert s.config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"] is (change != "delete")
-    assert s.config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST == ([] if change == "delete" else ["working-model"])
-    assert s.config.SELECTED_CUSTOM_WHISPER_MODEL == (None if change == "delete" else "working-model")
-    s.config.saveConfig.assert_not_called()
-    s.controller.run.assert_not_called()
-    s.controller.updateTranscriptionEngine.assert_not_called()
-
-
-@pytest.mark.parametrize("models,selected", [(["new-model", "working-model"], "working-model"),
-                                           (["new-model"], "new-model")])
-def test_custom_whisper_url_success_commits_validated_state(subject, models, selected):
-    s = subject
-    s.model.getTranscriptionApiModelList.return_value = models
-    result = s.controller.setCustomWhisperURL("https://candidate.invalid/v1")
-    assert result == {"status": 200, "result": "https://candidate.invalid/v1"}
-    assert s.config.TRANSCRIPTION_CUSTOM_URL == result["result"]
-    assert s.config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST == models
-    assert s.config.SELECTED_CUSTOM_WHISPER_MODEL == selected
-    assert s.config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"] is True
-    s.controller.updateTranscriptionEngine.assert_called_once()
 
 
 @pytest.mark.parametrize("engine,name,key", TRANSLATION[:-1])
@@ -414,9 +335,12 @@ def test_compatible_candidate_rejected_if_other_setting_changes_during_check(sub
         return candidate
     s.model.prepareTranslatorCredential = prepare
     if changing_url:
-        result = s.controller.setOpenAICompatibleURL("https://candidate.invalid/v1")
-        assert result["result"]["error_code"] == "CONNECTION_OPENAI_COMPATIBLE_URL_INVALID"
-        assert result["result"]["data"] == s.config.OPENAI_COMPATIBLE_URL == "https://previous.invalid/v1"
+        result = s.controller.setOpenAICompatibleAuthKeyAndURL({
+            "url": "https://candidate.invalid/v1", "auth_key": "synthetic-candidate-key",
+        })
+        assert result["result"]["error_code"] == "AUTH_OPENAI_COMPATIBLE_FAILED"
+        assert result["result"]["data"] == "synthetic-other-key"
+        assert s.config.OPENAI_COMPATIBLE_URL == "https://previous.invalid/v1"
         assert s.config.AUTH_KEYS["OpenAI_Compatible"] == "synthetic-other-key"
     else:
         result = s.controller.setOpenAICompatibleAuthKey("synthetic-candidate-key")
