@@ -1008,10 +1008,12 @@ class Controller:
             settings = normalize_realtime_settings(self._realtime_settings)
         row = settings[source]
         try:
-            if realtime_endpoint(settings, source) is None:
-                default_endpoint(source)  # Fail before loading a model for a missing device.
+            # Fail before loading a model for a missing device or one that cannot be read.
+            endpoint = realtime_endpoint(settings, source) or default_endpoint(source)
         except ValueError as exc:
             return str(exc), None
+        if self._carriesOwnVoice(endpoint):
+            return "realtime_endpoint_feedback", None
         if not self._realtimeStartCurrent(source, expected):
             return "realtime_stale_start", None
         if settings["server"] == "bundled":
@@ -1097,6 +1099,10 @@ class Controller:
         except (KeyError, TypeError, AttributeError):
             return None
 
+    def _carriesOwnVoice(self, endpoint):
+        return (self._directUsesOutputDevice()
+                and carries_own_voice(endpoint.name, self.voice_events.settings.output_device))
+
     def _startRealtime(self, source, expected, prepared=None):
         """prepared: SessionOptions that a main toggle already checked with the server."""
         def failure(code, status=409):
@@ -1138,8 +1144,7 @@ class Controller:
                         endpoint = default
                     if endpoint is None:
                         raise ValueError("realtime_endpoint_required")
-                    if self._directUsesOutputDevice() and carries_own_voice(
-                            endpoint.name, self.voice_events.settings.output_device):
+                    if self._carriesOwnVoice(endpoint):
                         raise ValueError("realtime_endpoint_feedback")
                     if prepared is not None:
                         options = prepared

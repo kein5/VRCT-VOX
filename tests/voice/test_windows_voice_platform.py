@@ -493,6 +493,22 @@ def test_saved_outputs_reach_the_device_list(controller_module, monkeypatch):  #
     assert seen == [(settings.output_device, '')]
 
 
+def test_captions_refuse_the_voice_cable_before_starting_a_server(controller_module, monkeypatch):  # noqa: F811
+    """Starting one first left it stopping, which then refused the next, valid start."""
+    from threading import Lock
+    endpoint = Endpoint(1, 0, '["Windows WASAPI", "CABLE Output (VB-Audio Virtual Cable)"]', 'Audio/Source')
+    monkeypatch.setattr(controller_module, 'realtime_endpoint', lambda settings, source: endpoint)
+    monkeypatch.setattr(controller_module, 'normalize_realtime_settings', lambda value: dict(mic={}, server='bundled'))
+    started = []
+    controller = SimpleNamespace(
+        _realtime_lock=Lock(), _realtime_closed=False, _realtime_generation=dict(mic=0), _realtime_settings={},
+        voice_events=SimpleNamespace(settings=SimpleNamespace(output_device=DEVICE)), _directUsesOutputDevice=lambda: True,
+        _awaitAsrServer=lambda *args: started.append(args))
+    controller._carriesOwnVoice = lambda row: controller_module.Controller._carriesOwnVoice(controller, row)
+    code, options = controller_module.Controller._prepareRealtimeToggle(controller, 'mic', 0)
+    assert (code, options, started) == ('realtime_endpoint_feedback', None, [])
+
+
 def test_leaving_the_bundled_server_clears_a_toggle_shown_on(controller_module, monkeypatch):  # noqa: F811
     from threading import Lock, RLock
     monkeypatch.setattr(controller_module.sys, 'platform', 'win32')
