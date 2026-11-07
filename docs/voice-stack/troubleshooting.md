@@ -9,6 +9,9 @@
 | `first_audio_timeout` | 応答ヘッダ＋最初のPCMが10秒内に届かなかった。モデルwarmup、文の長さ、GPU負荷を確認。接続/後続readは2秒、要求全体は30秒 |
 | `language_or_text_unavailable` | 自分の言語、選択した翻訳先、有効な訳文、他言語サーバーの別ポート |
 | `audio_devices_unavailable` | WindowsはPyAudioWPatch、Linuxはpw-dumpとユーザーのPipeWireセッション |
+| `speech_server_vulkan_missing` | Windowsで`vulkan-1.dll`が見つからない。GPUドライバーを入れるか更新する |
+| `vc_feedback_blocked` | Windowsで入力と出力が同じ仮想ケーブルの両端。入力に実際のマイクを選ぶ |
+| `vc_capture_overrun`、`vc_block_expired` | 変換が実時間に追いついていない。GPUを使う他のアプリを止める。Windowsの手順は[ここ](local-setup-windows.md#rvc) |
 | `output_missing*` / `output_disconnected` | 一覧更新・明示再選択。既定デバイスへ自動切替しない |
 | `output_stalled` / `output_drain_timeout` | PipeWireグラフのsink/source接続、VRChat入力選択 |
 | `monitor_output_missing` / `monitor_output_disconnected` / `monitor_pipewire_unavailable` | モニター出力（自分のスピーカーで聞く）だけの問題。仮想マイクへの読み上げは続く。TTSページでモニター出力先を選び直す |

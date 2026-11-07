@@ -6,8 +6,10 @@ integration. A source checkout and a separately prepared uv environment are
 required. One Linux/RTX 4080 SUPER environment has passed real-model inference,
 private PipeWire, 60-second continuous operation and native GUI tests using a
 user-supplied model. See [validation report](../../docs/voice-stack/rvc-mia-validation-2026-10-29.md).
-That private model is not included. Listening, physical mic/VRChat, Windows and
-long-duration mixed-load acceptance remain open.
+That private model is not included. Listening, physical mic/VRChat and
+long-duration mixed-load acceptance remain open. Windows uses `venv\Scripts\python.exe`,
+hash-locked `requirements-cuda-windows.lock` and `requirements-windows.lock`, and a
+user-installed virtual cable; see the [Windows guide](../../docs/voice-stack/local-setup-windows.md).
 
 Expected runtime folder:
 
@@ -64,7 +66,8 @@ strict live deadline and is not claimed to be realtime.
 Streaming adapts upstream's resampling and SOLA: 48 kHz input/output, 80 ms input
 blocks, 40 ms overlap, 10 ms search, 2 s left history. These are **configuration
 values, not a measured latency**. A fixed-size history does not itself imply a
-2 s output delay. No VAD/denoise/RMS envelope controls are included in this first
+2 s output delay. At startup the worker times a few blocks and falls back to 1 s or
+0.5 s of history when 2 s does not leave room in the 80 ms block on this GPU. No VAD/denoise/RMS envelope controls are included in this first
 profile. Stop/mute is the existing OS route's responsibility. Nothing falls back
 to the original voice. Future measured profiles may require different settings;
 the current 160 ms post-block freshness deadline has not been relaxed.
@@ -83,7 +86,7 @@ quality or VRChat behavior. Real-model tests require explicit local paths and
 opt-in flags; see `tests/platform/test_native_rvc_worker.py` and
 `tests/platform/test_native_rvc_ui.py`. Record model versions/hashes, licenses
 and consent before acquisition or execution. Physical mic, listening, VRChat,
-controlled GPU contention, long runs and Windows remain separate gates.
+controlled GPU contention and long runs remain separate gates.
 
 Source/streaming adaptation is MIT; see `LICENSE.upstream` for RVC and the SOLA
 source credited by upstream. Model rights and dependency licenses are separate.
