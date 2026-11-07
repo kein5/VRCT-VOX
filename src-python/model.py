@@ -826,6 +826,10 @@ class _AudioDeviceSession:
                 # the new transcription pipeline fail with None.
                 if self._transcriber is transcriber:
                     self._transcriber = None
+                # sendTranscript and this function keep the transcriber in a
+                # reference cycle, so without this each mic toggle left a whole
+                # Whisper model and its threads behind until the next full GC.
+                transcriber.releaseModel()
                 # 明示 gc.collect() は呼ばない: ActiveEndpointTracker が別スレッド
                 # (CoInitialize 済み apartment) で保持している comtypes の COM
                 # ポインタが、この _print_transcript スレッド (CoInitialize
