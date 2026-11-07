@@ -740,6 +740,9 @@ _INIT_MAPPING_EXCLUDED_ENDPOINTS = frozenset({
     "/get/data/ocr_readiness",
     # Runtime-only state; the OCR page polls it while shown.
     "/get/data/ocr_capture_status",
+    # Asks the speech server over HTTP. Windows takes 2 s to refuse a closed local
+    # port, and a stalled server takes 5 s. The UI requests it after startup.
+    "/get/data/realtime_asr_models",
 })
 
 init_mapping = {

@@ -359,6 +359,7 @@ export const useReceiveRoutes = () => {
             resetRealtime();
             sendRealtime("/get/data/realtime_asr_settings");
             sendRealtime("/get/data/realtime_asr_state");
+            sendRealtime("/get/data/realtime_asr_models");
             for (const source of ["mic", "speaker"]) sendRealtime("/get/data/realtime_asr_endpoints", { source });
             const failedFields = applyInitializationFields(result, routes, INIT_FIELD_VALIDATORS, handleInvalidEndpoint);
             updateIsBackendReady(true);
