@@ -235,7 +235,8 @@ class LocalWhisperProvider:
                 continue
             text += s.text
 
-        return text, info.language_probability, True, source_language or getattr(info, "language", None)
+        # Whisper のセグメントは先頭に空白が付く。チャットボックスや翻訳へそのまま渡さない
+        return text.strip(), info.language_probability, True, source_language or getattr(info, "language", None)
 
 
 def _map_openai_exception(exc: Exception) -> ErrorCode:
@@ -318,6 +319,7 @@ class OpenAICompatibleTranscriptionProvider:
             # フィルタリングができないため、テキストをそのまま採用する。
             text = getattr(response, "text", "") or ""
 
+        text = text.strip()
         if not text:
             return "", 0.0, False, None
 
