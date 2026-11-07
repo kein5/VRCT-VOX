@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(SPECPATH).resolve().parent
 sys.path.insert(0, str(ROOT / "tools"))
 from distribution_policy import filter_toc
-from windows_voice_resources import voice_toc
+from windows_voice_resources import notice_toc, voice_toc
 
 _use_upx = os.environ.get("VRCT_PYINSTALLER_UPX") == "1"
 
@@ -44,10 +44,11 @@ a = Analysis(
     # へ収集させる (2026-09-18 に torch を落とすまでは、torch が同梱していた
     # 同じDLL群が torch 経由で収集されていた)。実行時のDLL検索パス登録は
     # src-python/utils.py の _registerBundledCudaLibraries が行う。
-    hiddenimports=['faster_whisper.vad', 'models.transcription.audio_pipeline', 'rapidocr', 'rapidocr.inference_engine.onnxruntime', 'cv2', 'models.ocr', 'windows_capture',
+    hiddenimports=['faster_whisper.vad', 'rapidocr', 'rapidocr.inference_engine.onnxruntime', 'cv2', 'models.ocr', 'windows_capture',
                    'nvidia.cublas', 'nvidia.cudnn',
                    'soxr', 'pyaudiowpatch', 'models.transcription.capture_windows', 'models.audio_routing.windows_route',
-                   'models.voice_conversion.router_worker', 'models.voice_conversion.rvc_process'],
+                   'models.voice_conversion.router_worker', 'models.voice_conversion.rvc_process',
+                   'models.voice_conversion.seed_process'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -57,7 +58,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
-a.datas += voice_toc(ROOT)
+a.datas += voice_toc(ROOT) + notice_toc()
 a.datas = filter_toc(a.datas)
 a.binaries = filter_toc(a.binaries)
 pyz = PYZ(a.pure)

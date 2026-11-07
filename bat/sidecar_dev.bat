@@ -26,6 +26,11 @@ REM onedir output (bin\_internal). Remove any production payload first so
 REM dev-fast cannot leave stale frozen Python files behind. Create a marked
 REM placeholder because PyInstaller is intentionally skipped here and the
 REM dev sidecar launches the selected venv directly (.venv or .venv_cuda).
+REM npm run build clears build\, and the dev sidecar reads the bundle from there.
+if not exist build\speechcpp\speech.exe (
+    .venv\Scripts\python tools/speechcpp_bundle.py --variant windows-x64-vulkan --download --output build/speechcpp
+    if errorlevel 1 exit /b 1
+)
 if exist src-tauri\bin\_internal (
     rmdir /S /Q src-tauri\bin\_internal
     if exist src-tauri\bin\_internal (

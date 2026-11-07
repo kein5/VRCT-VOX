@@ -19,5 +19,5 @@ if "%VRCT_PYINSTALLER_CLEAN%"=="1" (
 )
 
 if errorlevel 1 exit /b 1
-python tools/check_voice_distribution.py src-tauri/bin/_internal
+python tools/check_voice_distribution.py src-tauri/bin/_internal --windows-voice src-tauri/bin/_internal
 if errorlevel 1 exit /b 1
