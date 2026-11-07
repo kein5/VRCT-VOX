@@ -12,7 +12,7 @@ from openai import APIStatusError
 from errors import VRCTError
 from models.diagnostics import provider_errors, redact_diagnostic_text
 import utils
-from test.test_outbound_network_policy import LLMS
+from test_outbound_network_policy import LLMS
 
 
 @pytest.fixture

@@ -59,6 +59,10 @@ def parse_source(value):
 
 
 def enumerate_sources():
+    if sys.platform == 'win32':
+        from .devices_windows import enumerate_endpoints
+        return [{'id': _source_id(row['endpoint']), 'label': row['label']}
+                for row in enumerate_endpoints('mic')]
     if not sys.platform.startswith('linux'):
         raise RuntimeError('source_bridge_linux_only')
     return _sources(_read_graph())

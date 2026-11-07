@@ -17,6 +17,13 @@
     height: 100%;
 }
 
+.unavailable_hint {
+    padding: 1.2rem 1.2rem 0;
+    font-size: 1.2rem;
+    line-height: 1.6;
+    color: var(--dark_550_color);
+}
+
 .wrapper {
     padding: 2rem 0;
     display: flex;
@@ -103,4 +110,5 @@ $box_size: 6.2rem;
     text-align: center;
     text-wrap: balance;
 }
-.box[aria-disabled="true"] { opacity: .55; cursor: wait; }
+// Busy dimming; an unavailable engine already has its own look above.
+.box.is_available[aria-disabled="true"] { opacity: .55; cursor: wait; }

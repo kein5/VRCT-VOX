@@ -17,7 +17,7 @@ npm run setup-python
 
 Windowsの同期とLinux候補のビルドでは、uvが`uv.lock`のハッシュを使って取得したPythonパッケージを照合します。Linuxでは同期前に、各アーカイブのSHA-256とGit依存の完全なcommit SHAがあることも検査し、不足していれば停止します。詳しくは[Linuxビルドパイプライン](voice-stack/linux-build-pipeline.md)を参照してください。音声契約のCIはハッシュ付きの一覧を書き出し、`uv pip sync --require-hashes`で同期します。
 
-CUDA版は対応するNVIDIAドライバーを使います。cuBLAS・cuDNNは`pyproject.toml`の`cuda` extraにある`nvidia-*-cu12`パッケージから同梱するため、CUDA Toolkitを別に入れる必要はありません。モデルの取得と本体のビルドは別の操作です。
+CUDA版は対応するNVIDIAドライバーを使います。cuBLAS・cuDNNは`pyproject.toml`の`cuda` extraにある`nvidia-*-cu12`パッケージから同梱するため、CUDA Toolkitを別に入れる必要はありません。モデルの取得と本体のビルドは別の操作です。Windowsのビルドは、`build/speechcpp`がなければ固定版のspeech.cpp（約29 MB）を公式リリースから取得し、ハッシュを確かめてから同梱します。
 
 ## 開発時の起動
 

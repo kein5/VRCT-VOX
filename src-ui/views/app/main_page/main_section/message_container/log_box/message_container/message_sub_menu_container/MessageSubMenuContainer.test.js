@@ -47,6 +47,26 @@ test("resend accepts only a primary pointer hold; a click still edits", async co
     assert.equal(s.captured.size, 0);
 });
 
+test("the click that ends a completed resend hold does not also edit (replace the draft)", async context => {
+    const s = await setup(context);
+    s.down();
+    [...s.timers.values()][0]();
+    assert.deepEqual(s.sent, ["resend"]);
+    s.render().props.onPointerUp({ pointerId: 1 });
+    s.render().props.onClick({ detail: 1 });
+    assert.deepEqual(s.edited, []);
+    // Only that one click is absorbed: a later short press or a keyboard click edits.
+    s.render().props.onClick({ detail: 0 });
+    assert.deepEqual(s.edited, ["edit"]);
+    s.down();
+    [...s.timers.values()][0]();
+    s.down();
+    s.render().props.onPointerUp({ pointerId: 1 });
+    s.render().props.onClick({ detail: 1 });
+    assert.deepEqual(s.sent, ["resend", "resend"]);
+    assert.deepEqual(s.edited, ["edit", "edit"]);
+});
+
 for (const cancel of ["onPointerUp", "onPointerLeave", "onPointerCancel", "onLostPointerCapture", "onBlur", "window blur", "unmount"])
     test(`resend ${cancel} invalidates the hold, including a queued timer callback`, async context => {
         const s = await setup(context);

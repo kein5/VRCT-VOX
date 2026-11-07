@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useVoice, sourceKey } from "../../../../../logics/voice/useVoice";
+import { directRouteReady, usesOutputDevice } from "../../../../../logics/voice/routeState";
 import { useNotificationStatus } from "../../../../../logics/common/useNotificationStatus";
 import { useI18n } from "@useI18n";
 import { useIsBackendReady } from "@logics_common";
@@ -63,9 +64,10 @@ export const MainFunctionSwitch = () => {
         if (voice.directDraftBlocked) return notify(t("voice_ui.save_direct_first"), "RVC");
         const cfg = voice.directState.settings;
         const source = voice.directSources.sources?.find(item => sourceKey(item.id) === voice.selectedSource);
-        if (voice.settings?.routing !== "managed" || !voice.directState.observation_id ||
+        if (!directRouteReady(voice.settings, voice.directState) || !voice.directState.observation_id ||
             voice.directSources.error || !source || cfg?.mode !== "converted" || cfg?.engine !== "rvc" ||
-            !cfg.rvc_runtime || !cfg.rvc_model) return notify(t("voice_ui.rvc_not_ready"), "RVC");
+            !cfg.rvc_runtime || !cfg.rvc_model)
+            return notify(t(usesOutputDevice(voice.directState) ? "voice_ui.rvc_not_ready_device" : "voice_ui.rvc_not_ready"), "RVC");
         voice.send("/run/start_direct_voice", { source: source.id, mode: "converted", options: {
             engine: "rvc", runtime: cfg.rvc_runtime, model: cfg.rvc_model, index: cfg.rvc_index,
             pitch: cfg.rvc_pitch, index_rate: cfg.rvc_index_rate,

@@ -35,7 +35,9 @@ def test_mic_mode_is_independent_and_never_falls_back_to_original():
     {"mic_mode": "translated", "output_device": "cable"},
     {"mic_mode": "translated", "direct_policy": "mix"},
 ])
-def test_mic_settings_require_valid_mode_and_explicit_routing(value):
+def test_mic_settings_require_valid_mode_and_explicit_routing(value, monkeypatch):
+    # Windows has no managed route and takes the first combination on its output device.
+    monkeypatch.setattr("models.tts.settings.sys.platform", "linux")
     with pytest.raises((ValueError, TypeError)):
         VoiceSettings.from_dict(value)
 

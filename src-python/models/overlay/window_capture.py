@@ -1,4 +1,4 @@
-"""VRパネル用: Tauriの "VRCT VR Panel" ウィンドウを撮影し、マウス入力を送る (Windows専用)。
+"""VRパネル用: Tauriの "VRCT-VOX VR Panel" ウィンドウを撮影し、マウス入力を送る (Windows専用)。
 
 ウィンドウは画面外に置かれている。撮影は WindowStream (Windows.Graphics.Capture、windows-capture) を使い、
 使えないときは PrintWindow(PW_RENDERFULLCONTENT) で撮る (どちらも隠れていても撮れる。最小化中は不可)。
@@ -12,7 +12,9 @@ from typing import Optional
 
 import numpy as np
 
-VR_PANEL_TITLE = "VRCT VR Panel"
+# src-tauri/src/lib.rs の .title() と同じ文字列。WebView2 は文書の <title> をウィンドウ名へ写さないため、
+# FindWindowW が見るのは Rust 側で付けた名前だけ (完全一致)
+VR_PANEL_TITLE = "VRCT-VOX VR Panel"
 
 _PW_RENDERFULLCONTENT = 2
 _WM_MOUSEMOVE = 0x0200

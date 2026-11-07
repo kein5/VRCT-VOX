@@ -14,6 +14,11 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def sent_messages(page):
+    """Send requests only: sending first stops the typing indicator (useMessage.js), which is not a send."""
+    return [request for request in page.evaluate("window.sent") if request["endpoint"] == "/run/send_message_box"]
+
+
 def test_quick_chat_focus_ime_pending_once_and_escape(ui):
     from playwright.sync_api import expect
 
@@ -38,8 +43,8 @@ def test_quick_chat_focus_ime_pending_once_and_escape(ui):
     field.press("Enter")
     page.evaluate("window.release()")
     expect(field).to_have_value("")
-    sent = page.evaluate("window.sent")
-    assert len(sent) == 1 and sent[0]["endpoint"] == "/run/send_message_box"
+    sent = sent_messages(page)
+    assert len(sent) == 1
     assert json.loads(base64.b64decode(sent[0]["data"]))["message"] == "日本語の変換"
     field.fill("keep draft")
     field.press("Escape")
@@ -70,7 +75,7 @@ def test_quick_chat_failure_and_long_text_keep_input(ui):
     page.evaluate("window.fail = false")
     page.get_by_role("button", name="Send", exact=True).click()
     expect(field).to_have_value("")
-    sent = page.evaluate("window.sent")
+    sent = sent_messages(page)
     assert len(sent) == 1
     assert json.loads(base64.b64decode(sent[0]["data"]))["message"] == text
 
@@ -94,4 +99,4 @@ def test_unconfirmed_send_stays_pending_and_keeps_draft(ui):
     assert page.evaluate("window.sent") == []
     page.evaluate("window.release()")
     expect(field).to_have_value("")
-    assert len(page.evaluate("window.sent")) == 1
+    assert len(sent_messages(page)) == 1

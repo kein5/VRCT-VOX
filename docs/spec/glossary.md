@@ -18,10 +18,10 @@
 | 音声経路 | 読み上げとRVCの音声をVRChatへ届ける道筋 | `voice_route` |
 | 管理対象の経路 | 画面では「管理対象の仮想マイク（Linux）」。アプリが作るLinuxの仮想マイクを使う経路。ミュートは読み上げとRVCの両方に効く | `managed`、`vrct.managed.source` |
 | 既存の外部ケーブル | 利用者が用意した仮想ケーブルを使う経路 | `external` |
-| 入力の転送（RVC） | マイクの声をRVCで変換して仮想マイクへ流すこと | `direct_voice` |
+| 入力の転送（RVC） | マイクの声をRVCで変換して仮想マイク（Windowsでは出力デバイス）へ流すこと | `direct_voice` |
 | 世代番号 | 停止のたびに進む番号。古い世代の読み上げを鳴らさないために使う | `generation`、`epoch`、`_voice_generation` |
 | チャット読み取り | VRChatのチャットボックスを画面から読み取るOCRの機能 | `ocr_capture` |
-| リアルタイム音声認識 | 話している途中から字幕を出す音声認識（Linux） | `realtime_asr`、`/run/realtime_caption` |
+| リアルタイム音声認識 | 話している途中から字幕を出す音声認識。Linuxと、同梱サーバーを選んだWindowsのメインスイッチが使う | `realtime_asr`、`/run/realtime_caption` |
 | 字幕オーバーレイ | VRの視界に会話を出す表示（一行・複数行） | `overlay_small_log`、`overlay_large_log` |
 | VR UI | VRの中で操作する手首のランチャーとウィンドウ | `vr_panel` |
 | チャット入力の小窓 | ホットキーで開く入力専用のウィンドウ | `quick_chat` |

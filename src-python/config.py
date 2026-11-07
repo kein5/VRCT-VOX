@@ -6,7 +6,7 @@ import errno
 import math
 import contextlib
 import stat
-import tempfile
+import exclusive_tempfile
 from os import path as os_path, makedirs as os_makedirs, replace as os_replace, fsync as os_fsync, remove as os_remove
 from json import load as json_load
 from json import dump as json_dump
@@ -307,7 +307,9 @@ DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS = {
     "display_duration": 5,
     "fadeout_duration": 0,  # 常に表示
     "opacity": 1.0,
-    "ui_scaling": 0.1984,  # 横幅(m)。952x128px の帯 (左端のマーク込み)
+    # 帯が 952px 幅だとしたときの横幅(m) (LAUNCHER_SAVED_WIDTH_PX)。実際の 880px の帯は 0.1834m になる。
+    # 左端のマークがあった頃と同じ意味なので、保存済みの値は書き換えなくても同じ大きさで出る
+    "ui_scaling": 0.1984,
     "tracker": "LeftHand",
 }
 
@@ -980,7 +982,7 @@ class Config:
                     self._config_data = filtered
                     # Exclusive creation prevents temp collisions and symlink
                     # traversal; mkstemp also restricts POSIX permissions to 0600.
-                    fd, tmp_path = tempfile.mkstemp(
+                    fd, tmp_path = exclusive_tempfile.mkstemp(
                         prefix=os_path.basename(self.PATH_CONFIG) + ".", suffix=".tmp",
                         dir=os_path.dirname(self.PATH_CONFIG))
                     try:
@@ -1738,7 +1740,7 @@ class Config:
     def _moveUnreadableConfigAside(self) -> str:
         """Reserve a unique backup name, then preserve the unreadable file."""
         import time
-        fd, backup = tempfile.mkstemp(
+        fd, backup = exclusive_tempfile.mkstemp(
             prefix=f"{os_path.basename(self.PATH_CONFIG)}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}-",
             dir=os_path.dirname(self.PATH_CONFIG))
         os.close(fd)

@@ -243,6 +243,15 @@ for (const [action, oldKeys, newKeys] of [
     assert.equal(subject.state.registered.size, 0);
 });
 
+test("a Space stored by older recordings as \" \" registers as Control+Space", async () => {
+    const subject = await owner();
+    subject.state.hotkeys = { open_quick_chat: ["Ctrl", " "] };
+    await subject.render();
+    assert.deepEqual([...subject.state.registered.keys()], ["Control+Space"]);
+    subject.runtime.unmount();
+    await flush();
+});
+
 test("an old native register completing after a new acknowledgement is released before the new binding", async () => {
     const subject = await owner(), gate = deferred();
     subject.state.registerGate = gate.promise;

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { hooks, loadModule, find } from "../../../logics/test/hookHarness.js";
 import { loadBridgeStore } from "../../../logics/test/bridgeHarness.js";
 import { chunkArray } from "../../../logics/utils.js";
+import * as routeState from "../../../logics/voice/routeState.js";
 
 const icon = () => null;
 const keydown = (control, key, repeat = false) => {
@@ -21,6 +22,7 @@ const loadSwitches = async (b, voice = {}) => {
         "@logics_common": { useIsBackendReady: b.stores.useStore_IsBackendReady },
         "../../../../../logics/common/useNotificationStatus": { useNotificationStatus: () => ({ showNotification_Error() {} }) },
         "../../../../../logics/voice/useVoice": { useVoice: () => voice },
+        "../../../../../logics/voice/routeState": routeState,
         "@logics_main": { ...main, useIsMainPageCompactMode: () => ({ currentIsMainPageCompactMode: { data: false } }) },
         "../../../../common_components/toggle_switch/ToggleSwitch": { ToggleSwitch: icon },
     });
@@ -141,7 +143,7 @@ test("main language and log div buttons activate only on fresh Enter or Space pr
         ["sidebar_section/language_settings/preset_tab_selector/PresetTabSelector.jsx", "PresetTabSelector", {}],
         ["sidebar_section/language_settings/translator_selector_open_button/TranslatorSelectorOpenButton.jsx", "TranslatorSelectorOpenButton", {}],
         ["sidebar_section/language_settings/translator_selector_open_button/translator_selector/TranslatorSelector.jsx", "TranslatorSelector",
-            { translation_engines: [{ id: "two", label: "Two" }], selected_id: "one" }],
+            { translation_engines: [{ id: "two", label: "Two", is_available: true }], selected_id: "one" }],
         ["sidebar_section/language_settings/language_swap_button/LanguageSwapButton.jsx", "LanguageSwapButton", {}],
         ["sidebar_section/language_settings/add_remove_target_language_buttons/AddRemoveTargetLanguageButtons.jsx", "AddRemoveTargetLanguageButtons", {}],
         ["main_section/message_container/message_log_settings_container/MessageLogSettingsContainer.jsx", "MessageLogSettingsContainer", {}],

@@ -28,6 +28,7 @@ export const store = {
     text_area_ref: null,
     is_fetched_available_releases_already: false,
     last_executed_time_startTyping: 0,
+    expired_speech: null,
 };
 
 const generatePropertyNames = (base_name) => ({

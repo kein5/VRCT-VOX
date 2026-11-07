@@ -13,7 +13,7 @@ from model import MicSession, SpeakerSession, _AudioQueue
 from models.transcription.transcription_recorder import BaseEnergyAndAudioRecorder, BaseVadAndAudioRecorder
 from models.transcription.transcription_transcriber import AudioTranscriber
 from utils import putDroppingOldestOnFull
-from test.asr_wait_fakes import CountingConfig, FakeRecorder
+from asr_wait_fakes import CountingConfig, FakeRecorder
 
 
 class ObservedQueue(_AudioQueue):
@@ -95,7 +95,8 @@ class TestTranscriptionWait(unittest.TestCase):
         queue.put((b"\1\0" * 160, spoken))
         remaining = queue.waits.get(timeout=1)
         self.assertGreater(remaining, 0)
-        self.assertLessEqual(remaining, 0.2)
+        # Wall-clock arithmetic can overshoot by a microsecond (seen on Windows: 0.200001)
+        self.assertLessEqual(remaining, 0.2 + 1e-3)
         self.assertTrue(transcriber.audio_sources["last_sample"])
         self.assertIsNone(queue.waits.get(timeout=1))
         elapsed = (datetime.now() - spoken).total_seconds()
@@ -192,7 +193,7 @@ class TestTranscriptionWait(unittest.TestCase):
         for recorder_cls in (BaseEnergyAndAudioRecorder, BaseVadAndAudioRecorder):
             with self.subTest(recorder=recorder_cls.__name__):
                 if recorder_cls is BaseEnergyAndAudioRecorder:
-                    recorder = recorder_cls(FakeRecorder(), 300, False, 3, 5)
+                    recorder = recorder_cls(FakeRecorder(), 300, False, 3)
                     listener = "listen_energy_and_audio_in_background"
                 else:
                     recorder = recorder_cls(FakeRecorder(), record_timeout=5, label="mic")

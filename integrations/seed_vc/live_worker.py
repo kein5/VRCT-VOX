@@ -23,7 +23,9 @@ def convert_packet(vc, info, pcm, session, sequence):
         raise p.ProtocolError('vc_conversion_failed')
     converted = resample_poly(output, 320, 147)
     audio = (np.clip(converted, -1, 1) * 32767).astype('<i2').tobytes()
-    result = dict(info, type='output', state=vc.status)
+    # The first silent block still fades out the last voiced one, and that is converted voice.
+    state = 'converted' if vc.status == 'vad_silence' and any(audio) else vc.status
+    result = dict(info, type='output', state=state)
     p.require_output(result, audio, info, pcm, time.monotonic_ns())
     return result, audio
 
@@ -47,8 +49,9 @@ def main():
     ready = p.ready_info(args.session)
     output = sys.stdout.buffer
     with redirect_stdout(sys.stderr):
-        from .loader import create_engine
+        from .loader import create_engine, use_graphs
         from .blocks import BlockSession
+        from .graphs import fit_block, release_search_memory
         from .profiles import PROFILES
         import numpy as np
         from scipy.signal import resample_poly
@@ -62,6 +65,9 @@ def main():
         for _ in range(3):
             if vc.convert(np.zeros(engine.block_frame, dtype=np.float32)) is None:
                 raise p.ProtocolError('vc_warmup_failed')
+        if use_graphs():
+            fit_block(engine, vc, np.zeros(engine.block_frame, dtype=np.float32))
+            release_search_memory()
         engine._prepare_buffers(channels=1)
         _write(output, ready)
         sequence = 0

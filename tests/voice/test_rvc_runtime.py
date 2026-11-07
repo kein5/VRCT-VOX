@@ -37,6 +37,33 @@ def test_source_pin_rejects_modified_and_untracked_python(tmp_path, monkeypatch)
         loader.require_source(tmp_path)
 
 
+def test_a_tree_with_the_pinned_digest_needs_no_git(tmp_path, monkeypatch):
+    from integrations.rvc import loader
+
+    def no_git(*args, **kwargs):
+        raise FileNotFoundError("git")
+
+    (tmp_path / "infer").mkdir()
+    (tmp_path / "infer/module.py").write_text("pass\n")
+    monkeypatch.setattr(loader, "SOURCE_DIGEST", loader.source_digest(tmp_path))
+    monkeypatch.setattr(loader.subprocess, "check_output", no_git)
+    loader.require_source(tmp_path)
+    (tmp_path / "injected.py").write_text("pass\n")
+    with pytest.raises(ValueError, match="vc_source_unverified"):
+        loader.require_source(tmp_path)
+
+
+def test_source_digest_covers_names_and_contents(tmp_path):
+    from integrations.rvc import loader
+
+    (tmp_path / "a.py").write_text("pass\n")
+    first = loader.source_digest(tmp_path)
+    (tmp_path / "a.py").write_text("pass  \n")
+    changed = loader.source_digest(tmp_path)
+    (tmp_path / "a.py").rename(tmp_path / "b.py")
+    assert len({first, changed, loader.source_digest(tmp_path)}) == 3
+
+
 def test_missing_local_assets_fail_without_loading_torch(tmp_path):
     from integrations.rvc.loader import require_assets
 

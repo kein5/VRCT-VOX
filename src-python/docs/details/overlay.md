@@ -696,7 +696,7 @@ if robust_overlay.safeStartOverlay():
 
 ```
 Tauri (src-tauri/src/lib.rs)  set_vr_panel_window
-  └─ "VRCT VR Panel" ウィンドウ (画面外 / src-ui/vr.html / src-ui/views/vr/)   … VR UI が ON の間だけ作る
+  └─ "VRCT-VOX VR Panel" ウィンドウ (画面外 / src-ui/vr.html / src-ui/views/vr/)   … VR UI が ON の間だけ作る
         ↑ 状態は VrPanelSyncController.jsx が全 atom を一方向に同期（メイン → VR）
 Python (src-python/models/overlay/)
   ├─ overlay.py          Overlay クラス (1 本の mainloop スレッドが全オーバーレイを動かす)
@@ -719,7 +719,7 @@ Python (src-python/models/overlay/)
 ### ランチャー
 
 - 手首（左右は設定）に付く。`launcher_auto_hide` が ON なら、手首を見たときだけ出る（面の向き 45° 以内かつ視線 40° 以内が 0.05 秒続いたら出す。外れて 0.3 秒で消す。0.1 秒でフェード）。レーザーを当てている間は消さない。出始めの 0.2 秒は押せない。
-- 左端に VRCT のマーク（吹き出し）を常に出す。ランチャーの領域は 952×128px（`LAUNCHER_WIDTH_PX`。マークの 60px を足しても、ボタンの大きさは 880px 幅のときと同じ）。横幅は `ui_scaling`（m）で、既定は 0.1984（`DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS`）。
+- ランチャーの領域は 880×128px（`LAUNCHER_WIDTH_PX`。ボタン7つと区切り）。以前は左端に VRCT のマーク（吹き出し）を出して 952px 幅だったが、外した。大きさは `ui_scaling`（m）で、既定は 0.1984（`DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS`）。`ui_scaling` は「帯が 952px 幅だとしたときの横幅」（`LAUNCHER_SAVED_WIDTH_PX`）のままで、実際のオーバーレイの横幅は `regionWidthM` が 880/952 倍して求める（既定で 0.1834m）。マークがあった頃の保存値を書き換えずに、ボタンの大きさを保つためである。`_LAUNCHER_WIDTH_RANGE_M`（0.12〜1.0）も保存値で比べる。
 - **見失い対策**: 掴んで手首から 15cm より遠くへ置く、または横幅を 0.12〜1.0m の外にして放すと、手首から一番近い限度の内側の点（方向は変えない）へ、0.3 秒、だんだん速く吸い寄せる（`updateLauncherReturn` / `launcherNearestInReach`）。向き・付けている手・範囲内の大きさは変えず、範囲外の大きさだけ範囲の端に収める。保存された値が範囲の外だったときも、起動時に同じように寄せる（`Model.init`）。PC 側の設定の「ランチャーの位置と大きさを初期に戻す」（`/run/vr_launcher_reset`）も同じ動きで、手は左手に戻る。戻している間は出し続け、押せない。
 - ログボタンの 600ms 長押しで、見失ったログを目の前へ呼び戻す (`/run/vr_panel_recall_log`)。
 - **操作の吹き出し**（`OVERLAY_VR_TOOLTIP`、既定 ON）: 別のオーバーレイ（`VRCT_tooltip`）。VR 画面が描いた吹き出しを撮影し、画像に埋めた世代 marker（epoch 48bit / revision 32bit の 80 セル）が現在の要求と一致したときだけ表示する（古い撮影結果が混ざらないため）。
@@ -732,7 +732,7 @@ VR UI を ON にして**最初に**ランチャーを出すときだけ再生す
 2. 画面が一度撮れた (`panel_last_raw`) 時点で、ヘッドセットを着けていれば (`headsetWorn`)、頭の正面（視線の先 0.7m）にランチャーのオーバーレイごと出して playing にする。着用が分からない・手首を見たほうが先なら、手首でそのまま playing にする（どちらでも、ランチャーが出なくなることがないように）。
 3. 正面（1.3 秒）では視線に追従し、飛び始める位置で固定する。VR 画面は VRCT のアイコンだけを大きく出す（手首の大きさの 5 倍。領域は高さ約 128px なので、大きいほど荒い）。
 4. 手首（0.8 秒）へだんだん速く吸い寄せ、掛け算で縮める（`introFlightPose`。向きは slerp）。手首が追跡できないときは今の場所で待ち、時間切れで通常の位置へ戻す。
-5. 着いたらロゴ入りのカプセルが現れ、文字だけが消え、吹き出しは左端へスライドして残り（本物のマークの位置で入れ替わる）、カプセルが横に開いてボタンが並ぶ（VR 画面の CSS）。全体で約 4.2 秒。この間 (`_LAUNCHER_INTRO_SEC`=4.8 秒) は出し続け、押せない。
+5. 着いたらロゴ入りのカプセルが現れ、ロゴが消えながら、カプセルが横に開いてボタンが並ぶ（VR 画面の CSS）。全体で約 4.2 秒。この間 (`_LAUNCHER_INTRO_SEC`=4.8 秒) は出し続け、押せない。
 
 - 演出中は、領域の外側（VR 画面の背景色 `#151517`）を透明にする (`introKeyAlpha`)。領域の左上の角のピクセルを背景色として使う。VR 画面は不透明にしか描けないため。色との差が小さいほど透明にし、透明にした部分は色も 0 にする。
 - 時間は Python (`_INTRO_FRONT_SEC` など) と `VrLauncher.module.scss` の `intro_*` を**一緒に**変える。

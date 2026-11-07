@@ -6,8 +6,11 @@ integration. A source checkout and a separately prepared uv environment are
 required. One Linux/RTX 4080 SUPER environment has passed real-model inference,
 private PipeWire, 60-second continuous operation and native GUI tests using a
 user-supplied model. See [validation report](../../docs/voice-stack/rvc-mia-validation-2026-10-29.md).
-That private model is not included. Listening, physical mic/VRChat, Windows and
-long-duration mixed-load acceptance remain open.
+That private model is not included. Listening, physical mic/VRChat and
+long-duration mixed-load acceptance remain open. On Windows the app can set up this
+runtime after consent, from hash-locked `requirements-cuda-windows.lock` and
+`requirements-windows.lock`, and voice goes to a user-installed virtual cable; see the
+[Windows guide](../../docs/voice-stack/local-setup-windows.md).
 
 Expected runtime folder:
 
@@ -24,9 +27,11 @@ runtime/
 
 Choose a permitted speaker `.pth` outside or inside that folder and an optional
 matching `.index`. A nonzero retrieval blend requires an index. Save only stores
-intent; Start checks local files. Keep the source checkout unmodified; untracked
-Python files are rejected. The source validator currently requires Git. The
-runtime is trusted executable code, not an untrusted-plugin sandbox.
+intent; Start checks local files. Keep the source unmodified; extra Python files are
+rejected. `loader.SOURCE_DIGEST` covers the pinned commit's Python files, so an
+unpacked source archive needs no Git. Git is only needed to check a checkout whose
+line endings it converted. The runtime is trusted executable code, not an
+untrusted-plugin sandbox.
 
 The qualified environment uses Python 3.12.14 and Torch/torchaudio 2.11.0+cu128 (CUDA 12.8);
 until 2026-11-02 it was 2.7.1+cu118. torchaudio has no build past 2.11.0, which keeps Torch there.
@@ -57,9 +62,12 @@ v1/v2 synthesizers at 32/40/48 kHz (real-model validation so far: v2/48 kHz), wi
 blend 0..1. Requested retrieval failures stop output, even if upstream catches
 the exception. Missing model parameters are rejected instead of retained from
 random initialization. Torch checkpoint loading is weights-only; transformers
-use local files only. CUDA graphs are disabled for the first profile. The pinned
-GPU eligibility function selects precision/device; CPU fallback may miss the
-strict live deadline and is not claimed to be realtime.
+use local files only. On Windows the upstream CUDA graphs are on: they took a block
+from 70 ms to 18 ms on an i7-1255U and RTX 3060 Ti with no measurable change in the
+voice (see the [Windows report](../../docs/voice-stack/windows-voice-report.md)). On
+Linux they stay off until tested there. The pinned GPU eligibility function selects
+precision/device; CPU fallback may miss the strict live deadline and is not claimed
+to be realtime.
 
 Streaming adapts upstream's resampling and SOLA: 48 kHz input/output, 80 ms input
 blocks, 40 ms overlap, 10 ms search, 2 s left history. These are **configuration
@@ -83,7 +91,7 @@ quality or VRChat behavior. Real-model tests require explicit local paths and
 opt-in flags; see `tests/platform/test_native_rvc_worker.py` and
 `tests/platform/test_native_rvc_ui.py`. Record model versions/hashes, licenses
 and consent before acquisition or execution. Physical mic, listening, VRChat,
-controlled GPU contention, long runs and Windows remain separate gates.
+controlled GPU contention and long runs remain separate gates.
 
 Source/streaming adaptation is MIT; see `LICENSE.upstream` for RVC and the SOLA
 source credited by upstream. Model rights and dependency licenses are separate.

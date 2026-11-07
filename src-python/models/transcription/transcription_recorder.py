@@ -359,25 +359,12 @@ class BaseEnergyAndAudioRecorder:
         energy_threshold: int,
         dynamic_energy_threshold: bool,
         phrase_time_limit: int,
-        record_timeout: int,
         label: str = "mic",
     ) -> None:
         self.recorder = Recognizer()
         self.recorder.energy_threshold = energy_threshold
         self.recorder.dynamic_energy_threshold = dynamic_energy_threshold
         self.phrase_time_limit = phrase_time_limit
-        # record_timeout=0 (以下) は「無制限録音」の意図として扱う (issue #113)。
-        # custom_speech_recognition 3.10.4.3 以降は録音ループ冒頭で
-        #   if time.time() - record_start_time > record_timeout: raise WaitTimeoutError
-        # というガードが入り、0 を渡すとループ突入直後に必ず真になって
-        # 1 バッファも読めないまま録音が中断され、音声が一切拾えなくなる。
-        # v3.1.0 時代の実質挙動 (record_timeout 無視) に合わせ、非正値は
-        # 事実上の無制限 (inf) に正規化する。フレーズ終端は energy ベースの
-        # 無音検出 (と phrase_time_limit) が引き続き担う。
-        if not record_timeout or record_timeout <= 0:
-            self.record_timeout = float("inf")
-        else:
-            self.record_timeout = record_timeout
         self.stop = None
         self.pause = None
         self.resume = None
@@ -465,13 +452,18 @@ class BaseEnergyAndAudioRecorder:
                 errorLogging()
 
         try:
+            # custom_speech_recognition 3.10.4.3 以降の record_timeout は実時間で測り、
+            # 超えると録音中のフレーズを丸ごと捨てる。読み取った音声の長さで区切り、
+            # そこまでの音声を返す phrase_time_limit があるので、無制限にして使わない。
+            # 同じ値を渡すと 2 つが競争になる。44.1kHz で既定の 3 秒なら、読み取りが
+            # 5ms 遅れるだけで 3 秒分の発話が消える。0 は 1 バッファも読めない (issue #113)。
             stop, pause, resume = self.recorder.listen_energy_and_audio_in_background(
                 source=self.source,
                 callback=audio_callback,
                 phrase_time_limit=self.phrase_time_limit,
                 callback_energy=energy_callback if energy_queue is not None else None,
                 phrase_timeout=1,
-                record_timeout=self.record_timeout,
+                record_timeout=float("inf"),
             )
         except Exception as error:  # noqa: BLE001 - report and preserve setup failure
             self._set_device_error(error)
@@ -678,7 +670,6 @@ class SelectedMicEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
         energy_threshold: int,
         dynamic_energy_threshold: bool,
         phrase_time_limit: int,
-        record_timeout: int = 5,
     ) -> None:
         # PortAudio の WASAPI はステレオ入力を channels=1 で開くと変換せず
         # L,R,L,R... のまま半分だけ返し、文字起こしが壊れる (メーターは動く)。
@@ -701,7 +692,6 @@ class SelectedMicEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
                 energy_threshold=energy_threshold,
                 dynamic_energy_threshold=dynamic_energy_threshold,
                 phrase_time_limit=phrase_time_limit,
-                record_timeout=record_timeout,
                 label="mic",
             )
         except Exception:
@@ -716,7 +706,6 @@ class SelectedSpeakerEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
         energy_threshold: int,
         dynamic_energy_threshold: bool,
         phrase_time_limit: int,
-        record_timeout: int = 5,
     ) -> None:
         source = _create_microphone(
             {},
@@ -733,7 +722,6 @@ class SelectedSpeakerEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
                 energy_threshold=energy_threshold,
                 dynamic_energy_threshold=dynamic_energy_threshold,
                 phrase_time_limit=phrase_time_limit,
-                record_timeout=record_timeout,
                 label="speaker",
             )
         except Exception:

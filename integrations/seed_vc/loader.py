@@ -47,6 +47,11 @@ def remap_campplus_state(supplied):
     return result
 
 
+def use_graphs():
+    """Windows only for now, as with RVC: Linux has not been tried with them."""
+    return sys.platform == 'win32'
+
+
 class LocalModelLoader:
     def __init__(self, assets, engine_root):
         self.assets = assets
@@ -62,6 +67,7 @@ class LocalModelLoader:
         from audio_modules.hifigan.f0_predictor import ConvRNNF0Predictor
         from audio_modules.audio import mel_spectrogram
         from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Model
+        from . import graphs
 
         def weights(repo, name):
             return torch.load(self.assets.file(repo, name), map_location='cpu', weights_only=True)
@@ -73,7 +79,7 @@ class LocalModelLoader:
             return result
 
         config = yaml.safe_load(self.assets.file(
-            'Plachta/Seed-VC', 'config_dit_mel_seed_uvit_xlsr_tiny.yml').read_text())
+            'Plachta/Seed-VC', 'config_dit_mel_seed_uvit_xlsr_tiny.yml').read_text(encoding='utf-8'))
         params = recursive_munch(config['model_params'])
         if params.vocoder.type != 'hifigan' or params.speech_tokenizer.type != 'xlsr':
             raise ValueError('unsupported_model_family')
@@ -95,7 +101,7 @@ class LocalModelLoader:
         campplus = CAMPPlus(feat_dim=80, embedding_size=192)
         self.checkpoints['campplus'] = complete('campplus', campplus,
             remap_campplus_state(weights('funasr/campplus', 'campplus_cn_common.bin')))
-        hift_config = yaml.safe_load((self.engine_root / 'configs/hifigan.yml').read_text())
+        hift_config = yaml.safe_load((self.engine_root / 'configs/hifigan.yml').read_text(encoding='utf-8'))
         hift = HiFTGenerator(**hift_config['hift'],
             f0_predictor=ConvRNNF0Predictor(**hift_config['f0_predictor']))
         self.checkpoints['hift'] = complete('hift', hift,
@@ -110,8 +116,11 @@ class LocalModelLoader:
         self.checkpoints['xlsr'] = {'missing': 0, 'unused': len(info['unexpected_keys'])}
         xlsr.encoder.layers = xlsr.encoder.layers[:params.speech_tokenizer.output_layer]
         xlsr.eval().to(engine.device).half()
+        encode = graphs.graph_semantic(xlsr) if use_graphs() else None
 
         def semantic_fn(waves_16k):
+            if encode is not None:
+                return encode(waves_16k)
             inputs = feature([x.cpu().numpy() for x in waves_16k], return_tensors='pt',
                 return_attention_mask=True, padding=True, sampling_rate=16000).to(engine.device)
             with torch.no_grad():
@@ -126,6 +135,9 @@ class LocalModelLoader:
         def to_mel(x):
             return mel_spectrogram(x, **mel_args)
 
+        if use_graphs():
+            from audio_modules import diffusion_transformer
+            hift = graphs.install(model, hift, diffusion_transformer)
         return model, semantic_fn, hift, campplus, to_mel, mel_args
 
     def load_vad(self, engine):
@@ -133,7 +145,7 @@ class LocalModelLoader:
         import yaml
         from funasr import AutoModel
 
-        config = yaml.safe_load(self.assets.file('funasr/fsmn-vad', 'config.yaml').read_text())
+        config = yaml.safe_load(self.assets.file('funasr/fsmn-vad', 'config.yaml').read_text(encoding='utf-8'))
         config['frontend_conf']['cmvn_file'] = str(self.assets.file('funasr/fsmn-vad', 'am.mvn'))
         # model_conf bypasses all hub resolution. Build without init_param because
         # FunASR's checkpoint loader silently fills absent weights from random init.
@@ -150,7 +162,7 @@ class LocalModelLoader:
 def create_engine(engine_root, assets_root, reference):
     # No heavy imports before consented inputs have been checked in full.
     metadata = validate_reference(reference)
-    assets = OfflineAssets(json.loads(DEFAULT_MANIFEST.read_text()), assets_root)
+    assets = OfflineAssets(json.loads(DEFAULT_MANIFEST.read_text(encoding='utf-8')), assets_root)
     engine_root = Path(engine_root).resolve()
     os.environ['HF_HUB_OFFLINE'] = '1'
     os.environ['TRANSFORMERS_OFFLINE'] = '1'

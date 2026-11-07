@@ -194,6 +194,10 @@ class AudioTranscriber:
         elif transcription_engine != "Google":
             raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_ENGINE_UNAVAILABLE)
 
+    def releaseModel(self) -> None:
+        """Drop the Whisper model once no worker will transcribe with this object."""
+        self.whisper_model = None
+
     def setAudioSource(self, source: Any) -> None:
         """Bind PCM format after the recognizer is ready, before listening."""
         self.audio_sources = {

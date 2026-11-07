@@ -157,7 +157,7 @@ sequenceDiagram
 ```
 
 - スピーカー側（聞き取り）は同じ流れで、相手の言語で認識し、自分の言語へ訳す。VRChatへ送るのは「受信したメッセージをVRChatに送信する」がオンのときだけで、通知は`/run/transcription_receive_speaker_message`になる。
-- Linuxでは、マイク入力のスイッチがリアルタイム音声認識を始め、結果は`/run/realtime_caption`で届く。
+- Linuxと、リアルタイム字幕で同梱サーバーを選んだWindowsでは、マイク入力のスイッチがリアルタイム音声認識を始め、結果は`/run/realtime_caption`で届く。
 
 ## 読み上げと停止
 
@@ -190,7 +190,7 @@ sequenceDiagram
   R-->>UI: 200
   UI->>R: /run/mute_voice
   R-->>UI: 200 {pending: true}
-  Note over S: 管理対象の経路では仮想マイクの出力を止める（読み上げとRVCの両方）
+  Note over S: 読み上げとRVCの両方を止める（管理対象の経路は仮想マイクの出力、Windowsは出力デバイスへの音声）
 ```
 
 ## APIキーの登録

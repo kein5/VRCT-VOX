@@ -16,10 +16,22 @@ from models.builtin_model_pins import MODEL_PINS
 from models.legacy_model_downloads import download_directory, verified_directory
 
 # Model loading is optional; integrity checks do not load native models.
-try:
-    from faster_whisper import WhisperModel  # noqa: F401
-except Exception:
-    WhisperModel = None  # type: ignore
+# faster_whisper also imports av and huggingface_hub, so it waits for the first
+# model. None means it is not installed, which differs from _UNLOADED.
+_UNLOADED = object()
+WhisperModel = _UNLOADED
+
+
+def _loadWhisperModelClass():
+    global WhisperModel
+    if WhisperModel is _UNLOADED:
+        try:
+            from faster_whisper import WhisperModel as model_class
+        except Exception:
+            model_class = None
+        WhisperModel = model_class
+    return WhisperModel
+
 
 logger = logging.getLogger('faster_whisper')
 logger.setLevel(logging.CRITICAL)
@@ -72,7 +84,7 @@ def getWhisperModel(
         ValueError: when VRAM shortage is detected (wrapped from RuntimeError)
         Exception: other loading errors are propagated.
     """
-    if WhisperModel is None:
+    if _loadWhisperModelClass() is None:
         raise RuntimeError("faster_whisper is not installed")
     path = os_path.join(root, "weights", "whisper", weight_type)
     if not checkWhisperWeight(root, weight_type):

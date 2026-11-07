@@ -145,6 +145,8 @@ if __name__ == "__main__":
     parser.add_argument("--seven-zip", default="7z")
     parser.add_argument("--allow-internal-links", action="store_true",
                         help="Linux onedir trees only: allow links to regular files within each root")
+    parser.add_argument("--windows-voice", metavar="INTERNAL",
+                        help="also require the speech engine, voice workers and notices in this _internal tree")
     args = parser.parse_args()
     if not args.paths and not args.nsis:
         parser.error("at least one artifact is required")
@@ -156,6 +158,10 @@ if __name__ == "__main__":
         else:
             check(args.paths)
         check_nsis(args.nsis, args.seven_zip)
+        if args.windows_voice:
+            from windows_voice_resources import missing_files
+            if missing := missing_files(args.windows_voice):
+                raise ValueError(f"Missing from the Windows build: {', '.join(missing)}")
     except (ValueError, OSError) as exc:
         parser.exit(1, f"{exc}\n")
     print(f"PASS: inspected {len(args.paths)} tree/ZIP input(s), {len(args.nsis)} NSIS installer(s)")

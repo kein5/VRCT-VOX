@@ -89,7 +89,7 @@ def test_unavailable_engine_selection_is_kept(isolated, engine):
 def fake_session(engine):
     # Execute the production startup method without importing/initializing the app.
     path = Path(__file__).resolve().parents[1] / "model.py"
-    tree = ast.parse(path.read_text())
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "_AudioDeviceSession")
     cls.body = [node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name == "_start"]
     namespace = dict(Optional=Optional, TranscriptionStartError=TranscriptionStartError, ErrorCode=ErrorCode)

@@ -5,7 +5,9 @@ import { SectionLabelComponent } from "../_components/section_label_component/Se
 import styles from "./VoiceSettings.module.scss";
 import { useI18n } from "@useI18n";
 import { useVoice, sourceKey as key } from "../../../../../../logics/voice/useVoice";
+import { directRouteReady, usesOutputDevice } from "../../../../../../logics/voice/routeState";
 import { ModelDownloads } from "./ModelDownloads";
+import { VcRuntimeSetup } from "./VcRuntimeSetup";
 import { StatusLine } from "./StatusLine";
 import { SetupSection } from "../_components/setup_section/SetupSection";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
@@ -54,6 +56,8 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
     const sources = directSources.sources || [];
     const source = sources.find(item => key(item.id) === selected);
     const managed = settings?.routing === "managed";
+    const deviceRoute = usesOutputDevice(directState);
+    const routeReady = directRouteReady(settings, directState);
     const unavailable = directSources.error || directError || directState.error;
     const converted = draft.mode === "converted";
     const rvc = draft.engine === "rvc";
@@ -71,14 +75,14 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
         directState.conversion_state === "idle" ? "voice.vc_idle" :
             directState.conversion_verified ? "voice.vc_active" : "voice.vc_ready";
     // The first thing start waits for, as a voice_ui key, or null when it can start.
-    const startBlocked = !managed ? "start_needs_mic" : !source ? "start_needs_input" : !complete ? "start_needs_setup" :
+    const startBlocked = !routeReady ? (deviceRoute ? "start_needs_output" : "start_needs_mic") : !source ? "start_needs_input" : !complete ? "start_needs_setup" :
         dirty || saving || needsSelection(draft) ? "start_needs_save" : !route.ready || route.pending || !directState.observation_id ? "start_waiting_route" :
         directSources.error ? "start_input_unavailable" : busy ? "start_running" : null;
     const savedPaths = directState.settings || {};
     const setupStatus = [
         ...(converted ? [t(rvc ? (savedPaths.rvc_runtime ? "voice_ui.runtime_set" : "voice_ui.runtime_unset") : (savedPaths.runtime ? "voice_ui.runtime_set" : "voice_ui.runtime_unset")),
             t((rvc ? /\.pth$/i.test(savedPaths.rvc_model || "") : !!savedPaths.reference) ? "speech_servers.model_set" : "speech_servers.model_unset")] : []),
-        t(managed ? "voice_ui.mic_ready" : "voice_ui.mic_unready"),
+        t(deviceRoute ? (routeReady ? "voice_ui.output_ready" : "voice_ui.output_unready") : managed ? "voice_ui.mic_ready" : "voice_ui.mic_unready"),
     ].join(" · ");
     const tone = status === "voice.input_failed" ? "failed" : status === "voice.input_pending" ? "pending" :
         ["voice.input_active", "voice.vc_idle", "voice.vc_active", "voice.vc_ready"].includes(status) ? "active" : "idle";
@@ -115,7 +119,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
         {converted && rvc && !validNumbers(draft) && <p id={numbersErrorId} role="alert">{t("voice_ui.invalid_rvc_numbers")}</p>}
         {converted && rvc && draft.rvc_index_rate > 0 && !draft.rvc_index && <p role="alert">{t("voice_ui.rvc_index_required")}</p>}
         </fieldset>
-        <FormRow label={t("voice.input_source")} description={t("voice.input_selection_hint")}
+        <FormRow label={t("voice.input_source")} description={t(deviceRoute ? "voice.input_selection_hint_device" : "voice.input_selection_hint")}
             actions={<button type="button" onClick={() => send("/get/data/direct_voice_sources")}>{t("voice.refresh_inputs")}</button>}>
             <select aria-label={t("voice.input_source")} value={selected} disabled={busy} onChange={e => setSelected(e.target.value)}>
                 <option value="">{t("voice.select_input")}</option>
@@ -123,7 +127,7 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
                 {sources.map(item => <option key={key(item.id)} value={key(item.id)}>{item.label}</option>)}
             </select>
         </FormRow>
-        {managed && <VoiceRouteControls />}
+        {(managed || deviceRoute) && <VoiceRouteControls />}
         <div className={styles.actions}>
             <button type="button" className="primary" disabled={!!startBlocked} aria-describedby={startBlocked ? reasonId : undefined}
                 onClick={() => send("/run/start_direct_voice", converted ? {
@@ -142,11 +146,15 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
                         onChange={e => setDraft({ ...draft, [name]: e.target.value })} />
                 </label>)}
             </fieldset>}
+            {converted && <VcRuntimeSetup engine={rvc ? "rvc" : "seed-vc"} current={rvc ? draft.rvc_runtime : draft.runtime} disabled={busy || saving}
+                onUse={path => setDraft({ ...draft, [rvc ? "rvc_runtime" : "runtime"]: path })} />}
             {/* Other unsaved edits survive an apply; only edited model or index paths conflict. */}
             {rvc && <ModelDownloads targets={["rvc"]} blocked={busy || saving ? "busy" :
                 draft.rvc_model !== saved.rvc_model || draft.rvc_index !== saved.rvc_index ? "edited" : false}
                 expected={{ rvc: { model: directState.settings?.rvc_model || "", index: directState.settings?.rvc_index || "" } }} />}
-            {!managed && <><Description text={t("voice.input_requires_managed")} />
+            {deviceRoute && !routeReady && <Description text={t("voice.input_requires_output")} />}
+            {/* The route is unknown until the first state arrives, and Windows has no microphone to prepare. */}
+            {directState.observation_id && !managed && !deviceRoute && <><Description text={t("voice.input_requires_managed")} />
                 <button type="button" disabled={!settings || busy || saving}
                     onClick={() => send("/set/data/voice_settings", { ...settings, routing: "managed" })}>{t("voice.prepare_microphone")}</button>
                 {error && <p role="alert">{t([`voice_setup_errors.${error}`, `voice_ui.errors.${error}`], { defaultValue: error })}</p>}

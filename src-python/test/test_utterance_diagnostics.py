@@ -177,7 +177,7 @@ class PipelineDiagnosticsTests(unittest.TestCase):
             recorder = module.BaseVadAndAudioRecorder(source, 3, label="mic")
             method = "listen_with_segmenter_in_background"
         else:
-            recorder = module.BaseEnergyAndAudioRecorder(source, 100, False, 3, 3, label="mic")
+            recorder = module.BaseEnergyAndAudioRecorder(source, 100, False, 3, label="mic")
             method = "listen_energy_and_audio_in_background"
         listener = MagicMock(return_value=(MagicMock(), MagicMock(), MagicMock()))
         setattr(recorder.recorder, method, listener)

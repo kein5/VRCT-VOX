@@ -99,7 +99,7 @@ _INTRO_FRONT_DISTANCE_M = 0.7  # 正面に出す距離 (目から)
 _INTRO_FRONT_FOLLOW_PER_SEC = 8.0  # 正面にいる間、視線へ追いつく速さ (大きいほど速い。1/秒)
 _LAUNCHER_INTRO_SEC = 4.8
 # ランチャーを見失わないための限度。手首から離れすぎたり、小さすぎ・大きすぎにしたりして放すと、手首へ吸い寄せて初期の位置と大きさに戻す。
-# 位置は手首の基準からの差 (m)。大きさは横幅 (m)。初期値は src-python/config.py の DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
+# 位置は手首の基準からの差 (m)。大きさは保存する ui_scaling の値。初期値は src-python/config.py の DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 _LAUNCHER_REACH_M = 0.15
 _LAUNCHER_WIDTH_RANGE_M = (0.12, 1.0)
 _LAUNCHER_RETURN_SEC = 0.3  # 吸い寄せて戻る長さ
@@ -112,13 +112,13 @@ _COLOR_GRABBING = (0xB7 / 255, 0xDE / 255, 0xD8 / 255)
 try:
     from . import overlay_utils as utils
     from . import window_capture
-    from .overlay_tooltip import LAUNCHER_WIDTH_PX, marker_matches, tooltip_mask, validate_tooltip
+    from .overlay_tooltip import LAUNCHER_SAVED_WIDTH_PX, LAUNCHER_WIDTH_PX, marker_matches, tooltip_mask, validate_tooltip
 except ImportError:
     import overlay_utils as utils
     import window_capture
-    from overlay_tooltip import LAUNCHER_WIDTH_PX, marker_matches, tooltip_mask, validate_tooltip
+    from overlay_tooltip import LAUNCHER_SAVED_WIDTH_PX, LAUNCHER_WIDTH_PX, marker_matches, tooltip_mask, validate_tooltip
 
-# VR UI: Tauriの "VRCT VR Panel" ウィンドウ1枚に複数のウィンドウ (ログ・ランチャー) を並べて描き、
+# VR UI: Tauriの "VRCT-VOX VR Panel" ウィンドウ1枚に複数のウィンドウ (ログ・ランチャー) を並べて描き、
 # 1回だけ撮影して、オーバーレイごとにその一部 (領域) を切り出して表示する。
 # settings のキー。PANEL はログウィンドウ (位置は OVERLAY_VR_PANEL_SETTINGS に保存)
 PANEL = "panel"
@@ -157,7 +157,8 @@ def computeVrLayout(width: int, height: int) -> Dict[str, Any]:
     VR画面 (React) はこの結果を受け取って描く。既定の大きさでは src-ui/views/vr/vr_layout.json と一致する
     (test_overlay_grab_move で確認)。
     """
-    right_x = max(width, LAUNCHER_WIDTH_PX + 10) + 8  # ログの右の列は、ランチャーより右に置く
+    # ログの右の列は、ランチャーと既定の大きさのログより右に置く (ログを既定より縮めても右の列は動かさない)
+    right_x = max(width, PANEL_DEFAULT_SIZE[0], LAUNCHER_WIDTH_PX + 10) + 8
     return {
         "atlas": (right_x + 720, max(height + 8 + 128, 880)),
         "regions": {
@@ -1774,7 +1775,7 @@ class Overlay:
             self.invalidateOverlayState()
         self.settings[size]["ui_scaling"] = ui_scaling
         if self.initialized or (self._constructing and self.owner_thread_id == get_ident()):
-            self.submitOverlay("setOverlayWidthInMeters", self.handle[size], self.settings[size]["ui_scaling"])
+            self.submitOverlay("setOverlayWidthInMeters", self.handle[size], self.regionWidthM(size))
 
     def updatePosition(self, x_pos: float, y_pos: float, z_pos: float, x_rotation: float, y_rotation: float, z_rotation: float, tracker: str, size: str) -> None:
         """
@@ -1903,6 +1904,9 @@ class Overlay:
         """VR画面の領域のオーバーレイの横幅 (m)。操作バーはログの大きさによらず固定。"""
         if size == TOOLBAR:
             return VR_REGIONS[TOOLBAR][2] * _TOOLBAR_M_PER_PX
+        if size == LAUNCHER:
+            # 保存値は LAUNCHER_SAVED_WIDTH_PX の帯の幅。実際の帯は短いので、1px あたりの大きさを保って換算する
+            return self.settings[LAUNCHER]["ui_scaling"] * LAUNCHER_WIDTH_PX / LAUNCHER_SAVED_WIDTH_PX
         return self.settings[size]["ui_scaling"]
 
     def regionWorldPose(self, size: str, poseOf: Callable[[int], Optional[np.ndarray]]) -> Optional[np.ndarray]:
@@ -2925,6 +2929,7 @@ class Overlay:
         keys = ("x_pos", "y_pos", "z_pos", "x_rotation", "y_rotation", "z_rotation")
         try:
             # ui_scaling はオーバーレイの幅(m)。設定値への換算は呼び出し側で行う
+            # (ランチャーだけは settings の値が保存値そのもの。実際の幅は regionWidthM)
             self.position_changed_callback(size, {
                 **{k: self.settings[size][k] for k in keys},
                 "ui_scaling": self.settings[size]["ui_scaling"],

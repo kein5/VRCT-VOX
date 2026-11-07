@@ -35,7 +35,7 @@ def test_report_cannot_pass_before_owned_context_cleanup(tmp_path, broken):
             if broken:
                 raise OSError('owned audio cleanup failed')
     report = {'status': 'failed'}
-    source = (ROOT / 'tests/platform/test_native_voice_measurement.py').read_text()
+    source = (ROOT / 'tests/platform/test_native_voice_measurement.py').read_text(encoding="utf-8")
     env = dict(cleanup=Cleanup, report=report, tmp_path=tmp_path, json=json)
     if broken:
         with pytest.raises(OSError, match='owned audio cleanup failed'):

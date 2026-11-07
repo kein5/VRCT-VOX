@@ -28,6 +28,9 @@ SIDECAR = "vrct-vox-sidecar.exe"
 PACKAGE = "VRCT-VOX.zip"
 UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\VRCT-VOX"
 PRODUCT_KEY = r"Software\kein5\VRCT-VOX"
+# No single ANSI code page holds all of these characters.
+NON_ANSI_FOLDER = "ユーザー 한글 😀"
+ARCHIVE_TIME = (2026, 1, 1, 0, 0, 0)
 
 
 def payload_files(version):
@@ -41,10 +44,11 @@ def payload_files(version):
 
 
 def archive_bytes(files):
+    """The same files give the same bytes: writestr(name) would stamp the current time."""
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w", zipfile.ZIP_STORED) as archive:
         for name, value in files.items():
-            archive.writestr(name, value)
+            archive.writestr(zipfile.ZipInfo(name, date_time=ARCHIVE_TIME), value)
     return stream.getvalue()
 
 
@@ -305,6 +309,14 @@ def silent_scenarios(installer, work, server):
     expect_updated(updated, before)
     print("PASS update success and user data retention", flush=True)
 
+    non_ansi = work / NON_ANSI_FOLDER
+    non_ansi.mkdir()
+    directory = non_ansi / "install"
+    shutil.copytree(baseline, directory)
+    run_install(installer, directory, "new", non_ansi / "temp", True)
+    expect_updated(directory, before)
+    print("PASS update with temp and install folders outside the ANSI code page", flush=True)
+
     for version in ("checksum-404", "invalid-checksum", "hash-mismatch", "corrupt", "partial", "no-exe", "no-internal"):
         directory = clone(version)
         run_install(installer, directory, version, work / f"temp-{version}", False)
@@ -413,12 +425,17 @@ def gui_scenario(installer, work):
             process.wait(timeout=10)
 
 
+def system_tar():
+    # The installer's tar, not one that a tool put earlier on PATH.
+    return str(Path(os.environ["SystemRoot"]) / "System32/tar.exe")
+
+
 def verify_partial_fixture(work):
     archive = work / "partial-fixture.zip"
     archive.write_bytes(payloads()["partial"])
     destination = work / "partial-probe"
     destination.mkdir()
-    result = subprocess.run(["tar", "-xvf", str(archive), "-C", str(destination)],
+    result = subprocess.run([system_tar(), "-xvf", str(archive), "-C", str(destination)],
                             capture_output=True, timeout=30, check=False)
     (work / "partial-probe.log").write_bytes(result.stdout + result.stderr)
     assert result.returncode != 0, "Fixture must cause a real tar extraction error"
@@ -426,9 +443,36 @@ def verify_partial_fixture(work):
     assert (destination / "_internal/shared.txt").is_file(), "Fixture must partially extract dependencies"
 
 
+def extract_like_installer(staging, data):
+    """The installer's call: the working directory is the only non-ASCII input."""
+    target = staging / "new"
+    target.mkdir(parents=True)
+    (staging / PACKAGE).write_bytes(data)
+    result = subprocess.run([system_tar(), "-xvf", "..\\" + PACKAGE], cwd=target,
+                            capture_output=True, timeout=30, check=False)
+    return target, result
+
+
+def verify_extraction_outside_ansi(work):
+    folder = work / NON_ANSI_FOLDER / "tar-probe"
+    target, result = extract_like_installer(folder / "good", payloads()["new"])
+    assert result.returncode == 0, result.stdout + result.stderr
+    for name, value in payload_files("new").items():
+        assert (target / name).read_bytes() == value, name
+    print("PASS tar unpacks into a folder outside the ANSI code page", flush=True)
+    for version in ("corrupt", "partial"):
+        _target, result = extract_like_installer(folder / version, payloads()[version])
+        assert result.returncode != 0, f"{version}: tar must still report a bad archive"
+    print("PASS tar reports bad archives from a folder outside the ANSI code page", flush=True)
+    # Not asserted: a later tar or a UTF-8 system locale may accept these paths.
+    long_paths = subprocess.run([system_tar(), "-xvf", str(folder / "good" / PACKAGE), "-C", str(target)],
+                                capture_output=True, timeout=30, check=False)
+    print(f"NOTE long paths as arguments exit with {long_paths.returncode} here", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("prepare", "silent", "gui"), required=True)
+    parser.add_argument("--mode", choices=("prepare", "tar", "silent", "gui"), required=True)
     parser.add_argument("--port", type=int, default=18765)
     parser.add_argument("--installer", type=Path)
     parser.add_argument("--work-dir", type=Path, default=ROOT / ".review/tmp/windows-update")
@@ -438,10 +482,13 @@ def main():
         return
     if os.name != "nt":
         parser.error("Real installer scenarios require Windows")
-    if args.installer is None or not args.installer.is_file():
+    if args.mode != "tar" and (args.installer is None or not args.installer.is_file()):
         parser.error("--installer must name the built NSIS executable")
     work = args.work_dir.resolve() / args.mode
     work.mkdir(parents=True, exist_ok=False)
+    if args.mode == "tar":
+        verify_extraction_outside_ansi(work)
+        return
     with serve(args.port, work / "http-requests.json") as server:
         if args.mode == "silent":
             verify_partial_fixture(work)

@@ -19,6 +19,7 @@ import { ResetButton } from "@common_components";
 import {
     useVr,
 } from "@logics_configs";
+import { useIsOpenedConfigPage } from "@logics_common";
 import { useStdoutToPython } from "@useStdoutToPython";
 
 import RedoSvg from "@images/redo.svg?react";
@@ -667,33 +668,36 @@ const VrUiBetaContainer = () => {
 const SendSampleTextToggleButton = () => {
     const { t } = useI18n();
     const { sendTextToOverlay } = useVr();
+    const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
     const [is_started, setIsStarted] = useState(false);
+    // Closing settings only hides this page; it stays mounted, so stop the
+    // samples here. Reopening settings does not restart them: only this button
+    // starts sending. The button follows is_sending, the same value as the
+    // interval, so it never says "stop" while nothing is being sent.
+    const is_settings_open = currentIsOpenedConfigPage.data === true;
+    const is_sending = is_started && is_settings_open;
 
     useEffect(() => {
-        let interval_id;
+        if (!is_settings_open) setIsStarted(false);
+    }, [is_settings_open]);
 
-        if (is_started) {
-            interval_id = setInterval(() => {
-                const text_data = Array.from(
-                    { length: randomIntMinMax(1, 5) },
-                    () => t("config_page.vr.sample_text_button.sample_text")
-                ).join(" ");
-                sendTextToOverlay(text_data);
-            }, 1000);
-        };
-
-        return () => {
-            if (interval_id) {
-                clearInterval(interval_id);
-            }
-        };
-    }, [is_started]);
+    useEffect(() => {
+        if (!is_sending) return undefined;
+        const interval_id = setInterval(() => {
+            const text_data = Array.from(
+                { length: randomIntMinMax(1, 5) },
+                () => t("config_page.vr.sample_text_button.sample_text")
+            ).join(" ");
+            sendTextToOverlay(text_data);
+        }, 1000);
+        return () => clearInterval(interval_id);
+    }, [is_sending]);
 
     const toggleFunction = () => {
-        setIsStarted(!is_started);
+        setIsStarted(is_settings_open && !is_started);
     };
 
-    const label = is_started
+    const label = is_sending
         ? t("config_page.vr.sample_text_button.stop")
         : t("config_page.vr.sample_text_button.start");
 
@@ -701,11 +705,11 @@ const SendSampleTextToggleButton = () => {
         <div className={styles.sample_text_button_wrapper}>
             <button
                 type="button"
-                className={clsx(styles.sample_text_button, { [styles.is_started]: is_started })}
+                className={clsx(styles.sample_text_button, { [styles.is_started]: is_sending })}
                 onClick={toggleFunction}
                 aria-label={label.replace(/\n/g, "")}
             >
-                {is_started ? (
+                {is_sending ? (
                     <SquareSvg className={styles.sample_text_button_square_svg} />
                 ) : (
                     <TriangleSvg className={styles.sample_text_button_triangle_svg} />

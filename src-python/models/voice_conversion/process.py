@@ -3,23 +3,60 @@
 Capture delivery never waits for inference. Only validated, fresh worker output
 reaches the explicitly bound managed sink. No original-audio fallback exists.
 """
-import os
+from collections import deque
 from queue import Empty, Full, Queue
-import select
 import subprocess
 from threading import Lock, Thread, current_thread
 import time
 from uuid import uuid4
 
-from models.audio_routing.devices_pipewire import PipeWireOutput
+try:
+    from models.audio_routing.devices_pipewire import PipeWireOutput
+except ImportError:  # fcntl. Windows writes through its device route instead.
+    PipeWireOutput = None
 from models.audio_routing.pipewire_graph import graph_source
 from models.audio_routing.monitor_output import MonitorTee, parse_monitor
 from models.audio_routing.source_bridge import _read_graph, _sink, select_source
 from models.transcription.capture_pipewire import (
     CaptureError, PipeWireCapture, _validate, capture_error_code,
 )
+from models.owned_child import PipeWriter
 from models.tts.speechcpp_tts import CancelToken, SpeechError
 from . import protocol as p
+
+
+# Device route: a block older than this is dropped instead of sent. More than half
+# of six seconds of blocks late means this PC cannot keep up, and the voice stops.
+LATE_NS = 240_000_000
+LATE_WINDOW = 75
+
+
+class _PipeWireRoute:
+    """The managed sink; its OS gate owns mute, so writes need no gating here."""
+    gates_output = False
+    ready_timeout = 60
+    input_blocks = 1
+    drops_late_blocks = False
+
+    def observe(self):
+        return graph_source().subscribe()
+
+    def bind(self, source, *, wait=True):
+        return _binding(source, wait=wait)
+
+    def output(self, sink):
+        return _output(sink)
+
+    def capture(self, source, on_audio, on_error):
+        return PipeWireCapture(source, 'mic', on_audio, on_error)
+
+
+def _route(output):
+    if output is None:
+        return _PipeWireRoute()
+    from models.audio_routing.windows_route import WindowsRoute
+    return WindowsRoute(output)
+
 
 def _binding(source, *, wait=True):
     graph = _read_graph(wait=wait)
@@ -54,8 +91,9 @@ class _Deadline:
 
 
 class VCProcess:
-    def __init__(self, *, engine, monitor=None):
+    def __init__(self, *, engine, monitor=None, output=None):
         self.engine = engine
+        self._route = _route(output)
         # Optional local copy of the converted output; never on its critical path.
         self._monitor_choice = parse_monitor(monitor)
         self._monitor = None
@@ -66,11 +104,12 @@ class VCProcess:
         self._monitor_retiring = False
         self._monitor_sink = None
         self._lock = Lock()
-        self._queue = Queue(maxsize=1)
+        self._queue = Queue(maxsize=self._route.input_blocks)
         self._partial = bytearray()
-        self._first = self._last = self._sequence = 0
+        self._first = self._last = self._sequence = self._sent = 0
+        self._late = deque(maxlen=LATE_WINDOW)
         self._token = CancelToken()
-        self._thread = self._capture = self._child = self._output = None
+        self._thread = self._capture = self._child = self._output = self._stdin = None
         self._requested = self._active = self._verified = self._pending = False
         self._error = None
         self._cleanup_ok = True
@@ -155,6 +194,12 @@ class VCProcess:
             if self._monitor is not None:
                 self._monitor.offer(converted, p.RATE, 1)
 
+    def _audible(self, converted):
+        if not self._route.gates_output:
+            return converted
+        with self._monitor_lock:
+            return bytes(len(converted)) if self._monitor_muted else converted
+
     def _create_monitor(self):
         choice = self._monitor_choice
         if choice is None or self._monitor_sink is None:
@@ -196,7 +241,8 @@ class VCProcess:
                     try:
                         self._queue.put_nowait((info, bytes(self._partial)))
                     except Full:
-                        fault = 'vc_capture_overrun'
+                        if not self._route.drops_late_blocks or self._replace_oldest(info):
+                            fault = 'vc_capture_overrun'
                     self._sequence += 1
                     self._partial.clear()
         if fault:
@@ -204,17 +250,46 @@ class VCProcess:
             return False
         return True
 
+    def _too_late(self, late):
+        self._late.append(late)
+        return sum(self._late) > LATE_WINDOW // 2
+
+    def _replace_oldest(self, info):
+        # Capture thread, the only producer, holding the lock.
+        try:
+            self._queue.get_nowait()
+        except Empty:
+            pass
+        self._queue.put_nowait((info, bytes(self._partial)))
+        return self._too_late(True)
+
+    def _next_block(self, info):
+        """Device route: this block as the worker's next one, or None if it came too late.
+
+        A stall on a busy PC costs a gap in the voice rather than the whole session.
+        The worker checks that sequence numbers run on, so they are given here.
+        """
+        with self._lock:
+            late = time.monotonic_ns() - info['end_ns'] > LATE_NS
+            if self._too_late(late):
+                raise p.ProtocolError('vc_capture_overrun')
+            if late:
+                return None
+            info = dict(info, sequence=self._sent)
+            self._sent += 1
+            return info
+
     def _send(self, info, pcm, deadline):
         wire = memoryview(p.encode_packet(info, pcm))
         while wire:
             deadline.check()
             if self._child.poll() is not None:
                 raise p.ProtocolError('vc_worker_eof')
-            if not select.select([], [self._child.stdin], [], .02)[1]:
+            if not self._stdin.wait(.02):
                 continue
             deadline.check()
             try:
-                count = os.write(self._child.stdin.fileno(), wire)
+                count = self._stdin.write(wire)
                 if count <= 0:
                     raise p.ProtocolError('vc_worker_eof')
                 wire = wire[count:]
@@ -224,21 +299,21 @@ class VCProcess:
     def _run(self, source):
         observer = None
         try:
-            observer = graph_source().subscribe()
-            sink = _binding(source)
+            observer = self._route.observe()
+            sink = self._route.bind(source)
             self._token.check()
             self._child = self._launch_worker()
-            os.set_blocking(self._child.stdin.fileno(), False)
-            info, pcm = p.read_packet(self._child.stdout, timeout=60, check=self._token.check)
+            self._stdin = PipeWriter(self._child.stdin)
+            info, pcm = p.read_packet(self._child.stdout, timeout=self._route.ready_timeout,
+                                      check=self._token.check)
             p.require_ready(info, pcm, self._session, engine=self.engine)
             self._token.check()
-            if _binding(source) != sink:
+            if self._route.bind(source) != sink:
                 raise p.ProtocolError('vc_sink_changed')
-            self._output = _output(sink)
+            self._output = self._route.output(sink)
             self._open_monitor(sink)
             self._token.check()
-            capture = PipeWireCapture(source, 'mic', self._audio,
-                                      self._capture_failed)
+            capture = self._route.capture(source, self._audio, self._capture_failed)
             with self._lock:
                 self._capture = capture
                 if self._token.is_set():
@@ -249,7 +324,7 @@ class VCProcess:
                 self._token.check()
                 self._active, self._pending, self._state = True, False, 'ready'
             def check_binding():
-                if _binding(source, wait=False) != sink:
+                if self._route.bind(source, wait=False) != sink:
                     raise p.ProtocolError('vc_sink_changed')
 
             while True:
@@ -261,13 +336,17 @@ class VCProcess:
                     info, pcm = self._queue.get(timeout=.02)
                 except Empty:
                     continue
+                if self._route.drops_late_blocks:
+                    info = self._next_block(info)
+                    if info is None:
+                        continue
                 deadline = _Deadline(self._token, info['end_ns'], check_binding)
                 deadline.check()
                 self._send(info, pcm, deadline)
                 result, converted = p.read_packet(self._child.stdout, timeout=1, check=deadline.check)
                 state = p.require_output(result, converted, info, pcm, time.monotonic_ns())
                 deadline.check()
-                self._output.write(converted, deadline)
+                self._output.write(self._audible(converted), deadline)
                 # Queue only, after the managed write: the same block, no added wait.
                 self._offer_monitor(converted, info['start_ns'])
                 deadline.check()
@@ -329,5 +408,7 @@ class VCProcess:
                         self._child.kill()
                         self._child.wait(.5)
             finally:
+                if self._stdin is not None:
+                    self._stdin.close()
                 self._child.stdin.close()
                 self._child.stdout.close()

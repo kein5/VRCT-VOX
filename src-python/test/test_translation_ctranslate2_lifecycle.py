@@ -21,7 +21,7 @@ NLLB = "nllb-200-distilled-600M-ct2-int8"
 @pytest.fixture
 def local_models(monkeypatch, tmp_path):
     loadTranslationLanguages(str(Path(__file__).resolve().parents[2]))
-    state = SimpleNamespace(live=[], loads=[], calls=[], fail=False)
+    state = SimpleNamespace(live=[], loads=[], calls=[], beam_sizes=[], fail=False)
 
     class Tokenizer(FakeTokenizer):
         def __init__(self, weight):
@@ -53,6 +53,7 @@ def local_models(monkeypatch, tmp_path):
             assert self.loaded
             assert target_prefix == [["jpn_Jpan" if self.weight == NLLB else "__ja__"]]
             state.calls.append(self.weight)
+            state.beam_sizes.append(kwargs.get("beam_size"))
             return [FakeHypothesis([target_prefix[0][0], self.weight, "</s>"])]
 
     monkeypatch.setattr(module, "ctranslate2", SimpleNamespace(Translator=Engine))
@@ -68,6 +69,12 @@ def local_models(monkeypatch, tmp_path):
 
 def translate(translator, weight):
     return translator.translate("CTranslate2", weight, "English", "Japanese", "Japan", "hello")
+
+
+@pytest.mark.parametrize("weight,beam_size", [(M2M, 5), (M2M_LARGE, 5), (NLLB, None)])
+def test_m2m100_uses_the_beam_size_of_its_generation_config(local_models, weight, beam_size):
+    assert translate(local_models.translator, weight) == weight
+    assert local_models.beam_sizes == [beam_size]
 
 
 @pytest.mark.parametrize("weight", [NLLB, M2M_LARGE])

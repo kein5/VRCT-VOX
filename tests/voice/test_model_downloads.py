@@ -111,6 +111,23 @@ def test_verified_completion_does_not_apply_or_load_and_can_be_applied_explicitl
     assert m.state()["jobs"][entry.id]["phase"] == "applied"
 
 
+def test_download_finishes_under_a_japanese_windows_locale(setup, monkeypatch):
+    """Catalog text has "·", which cp932 cannot write: every download failed at the very end."""
+    m, entry, _, _ = setup
+    m.entries[entry.id] = replace(entry, name="PP-OCRv6 small · Japanese")
+    locale_default = Path.write_text
+
+    def write_text(self, data, encoding=None, errors=None, newline=None):
+        return locale_default(self, data, encoding=encoding or "cp932", errors=errors, newline=newline)
+
+    monkeypatch.setattr(Path, "write_text", write_text)
+    start(m)
+    job = finish(m)
+    assert job["phase"] == "ready", job
+    receipt = Path(job["paths"]["model"]).with_name("receipt.json")
+    assert "·" in receipt.read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize(
     "data,code",
     [

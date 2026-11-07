@@ -86,7 +86,8 @@ export const StopActions = () => {
     // Only a reported state makes a toggle; without one this is a plain mute action.
     const known = typeof route.requested_muted === "boolean";
     const muted = known && route.requested_muted;
-    const mute = t(route.managed ? "voice_ui.topbar_mute_mic" : "voice_ui.topbar_mute_speech");
+    const coversVoice = route.managed || route.covers_direct;
+    const mute = t(coversVoice ? "voice_ui.topbar_mute_mic" : "voice_ui.topbar_mute_speech");
     return <div className={styles.stop_actions} role="group" aria-label={t("voice_ui.stop_actions")}>
         {/* Narrow windows show the short words, which stay part of the accessible name. */}
         <button type="button" className={clsx(styles.stop, { [styles.is_attention]: speaking })} title={t("voice.stop")}
@@ -95,7 +96,7 @@ export const StopActions = () => {
             <span className={styles.short} aria-hidden="true">{stopShort}</span>
         </button>
         <button type="button" className={clsx(styles.stop, { [styles.is_pressed]: muted })} aria-label={mute}
-            aria-pressed={known ? muted : undefined} title={t(route.managed ? "voice.mute_scope_managed" : "voice.mute_scope_external")}
+            aria-pressed={known ? muted : undefined} title={t(route.managed ? "voice.mute_scope_managed" : route.covers_direct ? "voice.mute_scope_device" : "voice.mute_scope_external")}
             disabled={muted && (!route.ready || route.pending)}
             onClick={() => send(muted ? "/run/resume_voice" : "/run/mute_voice")}>
             <span className={styles.long} aria-hidden="true">{mute}</span>

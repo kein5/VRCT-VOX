@@ -1,7 +1,9 @@
 import atexit
+import importlib
 import os
 import sys
 
+import startup_timing
 from models.network_policy import scrub_network_environment
 scrub_network_environment()
 
@@ -48,8 +50,17 @@ warnings.filterwarnings(
     category=FutureWarning,
 )
 
+startup_timing.mark("bootstrap")
+# The controller imports these first anyway. Importing them here times them
+# apart: the first one also lists the audio devices.
+for _stage, _module in (("import_audio_devices", "device_manager"), ("import_config", "config"), ("import_model", "model")):
+    importlib.import_module(_module)
+    startup_timing.mark(_stage)
+
 from controller import Controller  # noqa: E402
 from utils import printLog, printResponse, errorLogging, encodeBase64, isQuietPoll, openTraceLog # noqa: E402
+
+startup_timing.mark("import_controller")
 
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
@@ -620,6 +631,10 @@ mapping = {
     "/run/start_model_download": {"status": True, "variable":controller.startModelDownload},
     "/run/cancel_model_download": {"status": True, "variable":controller.cancelModelDownload},
     "/run/apply_model_download": {"status": True, "variable":controller.applyModelDownload},
+    "/get/data/vc_runtime_catalog": {"status": True, "variable":controller.getVcRuntimeCatalog},
+    "/get/data/vc_runtime_state": {"status": True, "variable":controller.getVcRuntimeState},
+    "/run/start_vc_runtime_setup": {"status": True, "variable":controller.startVcRuntimeSetup},
+    "/run/cancel_vc_runtime_setup": {"status": True, "variable":controller.cancelVcRuntimeSetup},
     "/get/data/speech_server_settings": {"status": True, "variable":controller.getSpeechServerSettings},
     "/set/data/speech_server_settings": {"status": True, "variable":controller.setSpeechServerSettings},
     "/get/data/speech_server_state": {"status": True, "variable":controller.getSpeechServerState},
@@ -740,10 +755,14 @@ _INIT_MAPPING_EXCLUDED_ENDPOINTS = frozenset({
     "/get/data/ocr_readiness",
     # Runtime-only state; the OCR page polls it while shown.
     "/get/data/ocr_capture_status",
+    # Asks the speech server over HTTP. Windows takes 2 s to refuse a closed local
+    # port, and a stalled server takes 5 s. The UI requests it after startup.
+    "/get/data/realtime_asr_models",
 })
 
 init_mapping = {
-    key: value for key, value in mapping.items()
+    key: {**value, "variable": startup_timing.timed(key, value["variable"])}
+    for key, value in mapping.items()
     if key.startswith("/get/data/") and key not in _INIT_MAPPING_EXCLUDED_ENDPOINTS
 }
 controller.setInitMapping(init_mapping)
@@ -767,6 +786,7 @@ _ENDPOINT_LOCKED_MAX_RETRIES = 300  # 0.1s × 300 ≈ 30s (初期化完了を待
 # 場合でもプロセスは30秒で確実に終了するが、config保存やtelemetry送信
 # が間に合わない可能性がある。
 _WATCHDOG_GRACE_PERIOD_SEC = 30
+_WATCHDOG_FEED_ENDPOINT = "/run/feed_watchdog"
 
 def _request_error_result(endpoint: str, data: Any, result: Any, status: int) -> Any:
     """Identify a failed legacy download without echoing arbitrary request data.
@@ -923,6 +943,7 @@ class Main:
         # 正規化関数をインスタンスに保存
         self._canonical_lock_key = _canonical_lock_key
         self.queue = _EndpointQueue(self._canonical_lock_key, self._endpoint_locks)
+        self._feed_queue: Queue = Queue()
 
     def receiver(self) -> None:
         """Read lines from stdin, parse JSON and enqueue requests.
@@ -931,11 +952,15 @@ class Main:
         """
         while not self._stop_event.is_set():
             try:
-                line = sys.stdin.readline()
+                line = sys.stdin.readline() if sys.stdin is not None else ""
                 if not line:
-                    # EOF reached; sleep briefly and re-check stop event
-                    time.sleep(0.1)
-                    continue
+                    if self._stop_event.is_set():
+                        return
+                    # EOF は戻らない。UI (Tauri) が終わって入力が閉じたので、ウォッチドッグの
+                    # 期限 (60秒以上) を待たずに、設定を保存して終わる
+                    printLog("stdin closed; shutting down")
+                    self.escalateShutdown()
+                    return
                 received_data = json.loads(line.strip())
 
                 if received_data:
@@ -944,6 +969,11 @@ class Main:
                     data = encodeBase64(data) if data is not None else None
                     if not isQuietPoll(endpoint):
                         printLog(endpoint, {"receive_data": data})
+                    if endpoint == _WATCHDOG_FEED_ENDPOINT:
+                        # 3本のワーカーが重い処理で埋まっていても生存の知らせが遅れないよう、
+                        # 専用のスレッドで処理する (遅れるとウォッチドッグが健全なアプリを止める)
+                        self._feed_queue.put(data)
+                        continue
                     if endpoint in {"/run/stop_voice", "/run/disable_tts", "/run/mute_voice", "/run/resume_voice", "/run/stop_direct_voice", "/run/stop_realtime_asr", "/run/stop_speech_server"}:
                         # These requests only signal workers; they do not
                         # join, infer, or close a driver here. Busy ordinary
@@ -1045,12 +1075,29 @@ class Main:
                 # 応答まで終わってから次の同一ロック要求を起こす。
                 self.queue.finish(request, lock, retry)
 
+    def feedHandler(self) -> None:
+        """/run/feed_watchdog だけを、ふつうのワーカーとは別に順に処理する。"""
+        while not self._stop_event.is_set():
+            try:
+                data = self._feed_queue.get(timeout=0.5)
+            except Empty:
+                continue
+            result, status = self._call_handler(_WATCHDOG_FEED_ENDPOINT, data)
+            if not isQuietPoll(_WATCHDOG_FEED_ENDPOINT, status):
+                printLog(_WATCHDOG_FEED_ENDPOINT, {"status": status, "send_data": result})
+            printResponse(status, _WATCHDOG_FEED_ENDPOINT, result)
+
     def startHandler(self) -> None:
         for i in range(max(1, self._worker_count)):
             th_handler = Thread(target=self.handler, name=f"main_handler_{i}")
             th_handler.daemon = True
             th_handler.start()
             self._threads.append(th_handler)
+
+    def startFeedHandler(self) -> None:
+        th_feed = Thread(target=self.feedHandler, name="main_watchdog_feed", daemon=True)
+        th_feed.start()
+        self._threads.append(th_feed)
 
     def start(self) -> None:
         """Start the main loop to keep the program running."""
@@ -1123,9 +1170,15 @@ main_instance = Main(controller_instance=controller, mapping_data=mapping)
 if __name__ == "__main__":
     main_instance.startReceiver()
     main_instance.startHandler()
+    main_instance.startFeedHandler()
 
     main_instance.controller.setWatchdogCallback(main_instance.escalateShutdown)
+    from config import config
+    from models.sdk_clients import preloadSavedEngines
+    preloadSavedEngines(config.AUTH_KEYS, config.TRANSCRIPTION_AUTH_KEYS)
+    startup_timing.mark("import_saved_engine_sdks")
     main_instance.controller.init()
+    startup_timing.finish()
 
     # mappingのすべてのstatusをTrueにする
     for key in mapping.keys():

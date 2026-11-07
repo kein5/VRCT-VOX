@@ -826,6 +826,10 @@ class _AudioDeviceSession:
                 # the new transcription pipeline fail with None.
                 if self._transcriber is transcriber:
                     self._transcriber = None
+                # sendTranscript and this function keep the transcriber in a
+                # reference cycle, so without this each mic toggle left a whole
+                # Whisper model and its threads behind until the next full GC.
+                transcriber.releaseModel()
                 # 明示 gc.collect() は呼ばない: ActiveEndpointTracker が別スレッド
                 # (CoInitialize 済み apartment) で保持している comtypes の COM
                 # ポインタが、この _print_transcript スレッド (CoInitialize
@@ -983,7 +987,6 @@ class MicSession(_AudioDeviceSession):
             energy_threshold=config.MIC_THRESHOLD,
             dynamic_energy_threshold=config.MIC_AUTOMATIC_THRESHOLD,
             phrase_time_limit=record_timeout,
-            record_timeout=record_timeout,
         )
 
     def _create_transcriber(self) -> AudioTranscriber:
@@ -1042,7 +1045,6 @@ class SpeakerSession(_AudioDeviceSession):
             energy_threshold=config.SPEAKER_THRESHOLD,
             dynamic_energy_threshold=config.SPEAKER_AUTOMATIC_THRESHOLD,
             phrase_time_limit=record_timeout,
-            record_timeout=record_timeout,
         )
 
     def _create_transcriber(self) -> AudioTranscriber:

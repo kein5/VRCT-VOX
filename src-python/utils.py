@@ -15,6 +15,8 @@ from collections import OrderedDict
 from logging.handlers import RotatingFileHandler
 
 import requests
+import startup_timing
+from runtime_paths import limit_openmp_spinning
 from models.network_policy import redact_urls
 from models.diagnostics import exception_provider, redact_diagnostic_text
 import ipaddress
@@ -74,6 +76,9 @@ _registerBundledCudaLibraries()
 # ここに置いているのは、ctranslate2 を最初に import するのがこのファイルで、
 # 警告は import 時に出てしまうため。
 os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
+
+# Also before the first ctranslate2 import, for the same reason.
+limit_openmp_spinning()
 
 # Optional runtime dependencies. `None` fallback lets non-GPU / no-ctranslate2
 # environments keep the app running with reduced feature set.
@@ -922,6 +927,7 @@ def printLog(log: str, data: Any = None) -> None:
     process_logger.info(response)
     serialized = json.dumps(response)
     _enqueueLogLine(serialized)
+    startup_timing.note(log)
 
 # High-rate pointer data and private captions are IPC only. Final transcript
 # persistence is handled by the explicitly enabled message logger, not this
@@ -941,6 +947,7 @@ POLLED_ENDPOINTS = frozenset({
     "/get/data/realtime_asr_state",
     "/get/data/model_download_state",
     "/get/data/model_download_hardware",
+    "/get/data/vc_runtime_state",
 })
 
 

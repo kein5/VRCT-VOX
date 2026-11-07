@@ -205,7 +205,7 @@ def test_upstream_post_search_blending_failure_cannot_be_swallowed(monkeypatch):
         i18n=lambda x: x,
         printt=lambda *args: None,
     )
-    code = (Path(__file__).parent / "fixtures/rvc_retrieval.py").read_text()
+    code = (Path(__file__).parent / "fixtures/rvc_retrieval.py").read_text(encoding="utf-8")
     with pytest.raises(ValueError, match="vc_index_failed"):
         exec(compile(code, "pinned-rvc-retrieval", "exec"), scope)
     assert engine.index.calls == 1  # Search succeeded; the failure occurred afterward.

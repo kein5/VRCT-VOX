@@ -120,9 +120,22 @@ class TestLocalWhisperProvider(unittest.TestCase):
             avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
         )
 
-        self.assertEqual(text, "good ")
+        self.assertEqual(text, "good")
         self.assertEqual(confidence, 0.95)
         self.assertTrue(is_definitive)  # force_language=True なので常に definitive
+
+    def test_segment_spacing_does_not_reach_the_message(self) -> None:
+        """Whisper のセグメントは " Hello" のように始まる。実機で先頭の空白がチャットボックスまで届いた。"""
+        for segments, expected in (([" Hello everyone.", " Nice day."], "Hello everyone. Nice day."), ([" "], "")):
+            with self.subTest(expected=expected):
+                whisper_model = MagicMock()
+                whisper_model.transcribe.return_value = (
+                    [_segment(text) for text in segments], SimpleNamespace(language="en", language_probability=0.9))
+                text, *_ = LocalWhisperProvider(whisper_model).transcribe(
+                    self._make_audio_data(), "English", "United States",
+                    avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
+                )
+                self.assertEqual(text, expected)
 
     def test_forces_language_only_when_single_candidate(self) -> None:
         whisper_model = MagicMock()
@@ -203,6 +216,18 @@ class TestOpenAICompatibleTranscriptionProvider(unittest.TestCase):
         self.assertEqual(data, b"RIFF....WAVEfmt ")
         self.assertEqual(content_type, "audio/wav")
 
+    def test_segment_spacing_does_not_reach_the_message(self) -> None:
+        for response, expected in ((SimpleNamespace(text=" hello", language="en", segments=[_segment(" hello")]), "hello"),
+                                   (SimpleNamespace(text=" spoken "), "spoken"), (SimpleNamespace(text="  "), "")):
+            with self.subTest(expected=expected):
+                provider = self._make_provider()
+                provider._client.audio.transcriptions.create.return_value = response
+                text, *_ = provider.transcribe(
+                    self._make_audio_data(), "English", "United States",
+                    avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
+                )
+                self.assertEqual(text, expected)
+
     def test_sends_json_for_gpt_transcribe_models_and_stops_after_one_call(self) -> None:
         provider = self._make_provider()
         provider.model = "gpt-4o-transcribe"
@@ -267,7 +292,7 @@ class TestOpenAICompatibleTranscriptionProvider(unittest.TestCase):
             avg_logprob=-0.8, no_speech_prob=0.6, no_repeat_ngram_size=0, force_language=True,
         )
 
-        self.assertEqual(text, "good ")
+        self.assertEqual(text, "good")
         self.assertAlmostEqual(confidence, math.exp(-0.1))
         self.assertTrue(is_definitive)
 

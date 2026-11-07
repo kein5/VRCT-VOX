@@ -13,7 +13,7 @@
 from models.diagnostics import provider_errors
 from utils import errorLogging
 
-from openai import OpenAI
+from models.sdk_clients import OpenAI
 from models.network_policy import fetch_openai_models
 
 # OpenAICompatibleTranscriptionProvider を base_url/model の差し替えだけで

@@ -1,5 +1,6 @@
-"""Source contracts for the Windows transaction; real execution lives in installer/."""
+"""Source contracts for the Windows installer; real execution lives in installer/."""
 
+import json
 from pathlib import Path
 import re
 import unittest
@@ -27,13 +28,40 @@ class NsisStagedUpdateTests(unittest.TestCase):
     def test_extraction_is_staged_and_validated(self):
         install = block("Section", "Install")
         tar = next(line for line in install.splitlines() if "-xvf" in line)
-        self.assertIn('-C "$INSTDIR\\.upd\\new"', tar)
         validated = install.split(tar, 1)[1].split("attempt_failed:", 1)[0]
         self.assertIn('${If} $0 == 0', validated)
         self.assertIn('${FileExists} "$INSTDIR\\.upd\\new\\${MAINBINARYNAME}.exe"', validated)
         self.assertIn('${FileExists} "$INSTDIR\\.upd\\new\\_internal\\*.*"', validated)
         self.assertEqual(install.count("Call CheckAppIsRunning"), 2)
         self.assertNotIn("!insertmacro CheckIfAppIsRunning", install)
+
+    def test_tar_arguments_stay_ascii_without_8dot3_names(self):
+        # tar.exe reads its arguments in the ANSI code page, and a volume may
+        # have no 8.3 names. Only the working directory can carry Unicode.
+        self.assertNotIn("GetFullPathName /SHORT", SOURCE)
+        install = block("Section", "Install")
+        tar = next(line for line in install.splitlines() if "-xvf" in line)
+        self.assertEqual(tar.strip(), """nsExec::ExecToLog '"$SYSDIR\\tar.exe" -xvf "..\\$file_name"'""")
+        for name in ('SOFTWARE_DOWNLOAD_FILENAME "', 'SOFTWARE_DOWNLOAD_FILENAME_GPU "'):
+            self.assertTrue(install.split(name, 1)[1].split('"', 1)[0].isascii())
+        before, after = install.split(tar, 1)
+        before = before.rsplit('DetailPrint "Extracting', 1)[1]
+        self.assertRegex(before, r'Rename "\$TEMP\\\$file_name" "\$INSTDIR\\\.upd\\\$file_name"\n\s*IfErrors attempt_failed')
+        # A failed SetOutPath must not let tar unpack into the old directory.
+        self.assertRegex(before, r'SetOutPath "\$INSTDIR\\\.upd\\new"\n\s*\$\{IfNot\} \$\{Errors\}')
+        # Leave the staging tree before retrying, committing or removing it.
+        self.assertLess(after.index('SetOutPath "$TEMP"'), after.index("${If} $0 == 0"))
+        # A retry must not trip over an archive that could not be moved back.
+        attempt = install.split("install_attempt:", 1)[1].split("${If} $dl_parallel", 1)[0]
+        self.assertIn('Delete "$INSTDIR\\.upd\\$file_name"', attempt)
+        failed = after.split("attempt_failed:", 1)[0]
+        self.assertIn('Rename "$INSTDIR\\.upd\\$file_name" "$TEMP\\$file_name"', failed)
+
+    def test_install_volume_budgets_the_archive_on_another_drive(self):
+        install = block("Section", "Install")
+        self.assertIn("IntOp $R4 $req_dl_mb + $req_extract_mb", install)
+        separate = install.split("${If} $R0 == $R1", 1)[1].split("${Else}", 1)[1].split("A fork installer", 1)[0]
+        self.assertIn("${AndIf} $R3 < $R4", separate)
 
     def test_transaction_renames_check_errors(self):
         for name in ("CommitStagedEntry", "RollbackInstall", "DiscardInstalledEntry"):
@@ -110,6 +138,36 @@ class NsisStagedUpdateTests(unittest.TestCase):
         # old-location removal and registry changes.
         self.assertLess(commit.index('Delete "$INSTDIR\\.upd\\committing"'),
                         commit.index('$deferred_kind == "nsis"'))
+
+
+class NsisAppProcessAndDataTests(unittest.TestCase):
+    def test_running_check_also_stops_the_sidecar(self):
+        conf = json.loads((ROOT / "src-tauri/tauri.conf.json").read_text(encoding="utf-8"))
+        sidecar = Path(conf["bundle"]["externalBin"][0]).name
+        self.assertIn(f'!define SIDECARBINARYNAME "{sidecar}"', SOURCE)
+        macro = SOURCE.split("\n!macro CheckIfAppIsRunning\n", 1)[1].split("\n!macroend", 1)[0]
+        # Killing vrct-vox.exe skips the shell plugin's exit handler, which
+        # is what normally stops the sidecar.
+        after_app = macro.split("app_check_done:", 1)[1]
+        for call in ("FindProcessCurrentUser", "KillProcessCurrentUser", "FindProcess", "KillProcess"):
+            self.assertIn(f'nsis_tauri_utils::{call} "${{SIDECARBINARYNAME}}.exe"', after_app)
+        self.assertIn('Abort "$(failedToKillApp)"', after_app)
+        uninstall = block("Section", "Uninstall")
+        self.assertLess(uninstall.index("!insertmacro CheckIfAppIsRunning"), uninstall.index("Delete "))
+
+    def test_no_components_page(self):
+        # Every section is required; the page let users skip the app or WebView2.
+        code = [line for line in SOURCE.splitlines() if not line.lstrip().startswith(";")]
+        self.assertFalse([line for line in code if "MUI_PAGE_COMPONENTS" in line])
+
+    def test_delete_app_data_covers_state_next_to_config(self):
+        uninstall = block("Section", "Uninstall")
+        opted_in = uninstall.split("${If} $DeleteAppDataCheckboxState == 1", 1)[1].split("${EndIf}", 1)[0]
+        for line in ('RmDir /r "$INSTDIR\\downloaded_models"', 'Delete "$INSTDIR\\voice_mute_state.json"',
+                     'Delete "$INSTDIR\\config.json"', 'RmDir /r "$INSTDIR\\weights"'):
+            self.assertIn(line, opted_in)
+            # Kept when the box is not ticked, e.g. when an update moves the install.
+            self.assertEqual(uninstall.count(line), 1)
 
 
 if __name__ == "__main__":

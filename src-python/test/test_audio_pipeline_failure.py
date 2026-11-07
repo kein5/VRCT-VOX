@@ -46,6 +46,9 @@ class _FakeTranscriber:
     def getAudioWaitTimeout(self):
         return None  # no pending phrase: wait for audio, stop or an error
 
+    def releaseModel(self) -> None:
+        pass
+
     def getTranscript(self) -> dict:
         return {"text": "", "language": None}
 

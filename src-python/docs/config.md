@@ -237,7 +237,7 @@ _debounce_time: int = 2  # デバウンス時間（秒）
 - `OVERLAY_VR_PANEL_SETTINGS`: VR UI のログウィンドウの位置・幅 (m)・不透明度・固定先と、`width` / `height` (論理px、600x400〜1400x1000。角を掴んで伸ばす)。VR内で掴んで動かした結果を保存し、足りないキーは今の値で補う
 - `OVERLAY_VR_PANEL_LOCKED`: VR UI のログウィンドウのロック (掴めなくする)
 - `OVERLAY_VR_PANEL_FONT_SIZE`: VR UI のログの文字の大きさ (14〜28px、既定 17。デスクトップのログの文字サイズとは別)
-- `OVERLAY_VR_LAUNCHER_SETTINGS`: VR UI のランチャーの位置・大きさ・付ける手 (tracker)
+- `OVERLAY_VR_LAUNCHER_SETTINGS`: VR UI のランチャーの位置・大きさ・付ける手 (tracker)。`ui_scaling` は帯が 952px 幅だとしたときの横幅 (m) で、左端のマークを外した後も意味を変えていない。実際の 880px の帯の横幅はこの値の 880/952 倍
 - `OVERLAY_VR_LAUNCHER_AUTO_HIDE`: ランチャーを手首を見たときだけ出す (既定 ON)
 
 **その他設定**

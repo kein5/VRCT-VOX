@@ -30,7 +30,7 @@ import {
     AppErrorBoundary,
 } from "./others";
 
-import { useIsBackendReady, useIsSoftwareUpdating, WindowGeometryController } from "@logics_common";
+import { useIsBackendReady, useIsSoftwareUpdating, WindowGeometryController, WindowCloseController } from "@logics_common";
 import { useBackendStartup } from "../../logics/common/useBackendStartup";
 import { StartupFailedComponent } from "./others/splash_component/StartupFailedComponent";
 
@@ -44,6 +44,7 @@ export const App = () => {
             <AppErrorBoundary >
                 <KeyEventController />
                 <StartPythonController />
+                <WindowCloseController />
                 <GlobalHotKeyController />
                 <QuickChatController />
                 <UiLanguageController />

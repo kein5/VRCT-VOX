@@ -11,16 +11,28 @@ import time
 from models.audio_routing.source_bridge import Endpoint, SourceBridge, _source_id, parse_source
 
 
-def create_converted_process(options, monitor=None):
+def create_passthrough(output=None):
+    if output is None:
+        return SourceBridge()
+    from models.audio_routing.windows_route import WindowsBridge
+    return WindowsBridge(output)
+
+
+def create_converted_process(options, monitor=None, output=None):
     from .isolated import IsolatedVCProcess
-    return IsolatedVCProcess(options) if monitor is None else IsolatedVCProcess(options, monitor=monitor)
+    extra = {} if monitor is None else {'monitor': monitor}
+    if output is not None:
+        extra['output'] = output
+    return IsolatedVCProcess(options, **extra)
 
 
-def create_worker_process(options, monitor=None):
-    # Linux-only optional backend is loaded only after an explicit converted Start.
+def create_worker_process(options, monitor=None, output=None):
+    # The optional backend is loaded only after an explicit converted Start.
     from .settings import start_options
     options = start_options('converted', options)
     extra = {} if monitor is None else {'monitor': monitor}
+    if output is not None:
+        extra['output'] = output
     if options.get('engine') == 'rvc':
         from .rvc_process import RVCProcess
         return RVCProcess(options, **extra)
@@ -29,7 +41,7 @@ def create_worker_process(options, monitor=None):
 
 
 class DirectVoice:
-    def __init__(self, *, passthrough_factory=SourceBridge, converted_factory=None):
+    def __init__(self, *, passthrough_factory=create_passthrough, converted_factory=None):
         self._original = passthrough_factory
         self._converted = converted_factory
         self._lock = Lock()
@@ -42,16 +54,31 @@ class DirectVoice:
         self._error = None
         self._monitor_muted = True
         self._monitor_enabled = False
+        self._suppressed = False
+
+    def _send_mute(self):
+        if self._requested and self._monitor_enabled:
+            self._backend.set_monitor_muted(self._monitor_muted or self._suppressed)
 
     def set_monitor_muted(self, muted):
         """Latch route intent, including before Start; never toggle either producer."""
         with self._lock:
             self._monitor_muted = bool(muted)
-            if self._requested and self._monitor_enabled:
-                self._backend.set_monitor_muted(self._monitor_muted)
+            self._send_mute()
 
-    def start(self, *, source, expected_generation, mode='passthrough', options=None, monitor=None):
-        """monitor applies to converted output only; it is fixed for this Start."""
+    def set_suppressed(self, suppressed):
+        """Device route: translated speech replaces the voice, which an OS gate does on Linux."""
+        with self._lock:
+            self._suppressed = bool(suppressed)
+            self._send_mute()
+
+    def start(self, *, source, expected_generation, mode='passthrough', options=None, monitor=None,
+              output=None):
+        """monitor applies to converted output only; it is fixed for this Start.
+
+        output names a device to write to when no managed route exists. Mute is
+        then this owner's job, since there is no OS gate behind the device.
+        """
         if not isinstance(source, Endpoint):
             raise ValueError('source_bridge_source_invalid')
         parse_source(_source_id(source))
@@ -77,18 +104,18 @@ class DirectVoice:
                 self._backend = None
             self._generation += 1
             self._source, self._mode, self._options = source, mode, choices
-            self._monitor_enabled = mode == 'converted' and monitor is not None
+            self._monitor_enabled = output is not None or (mode == 'converted' and monitor is not None)
             self._error = None
             try:
+                extra = {} if output is None else {'output': output}
                 if mode == 'passthrough':
-                    self._backend = self._original()
+                    self._backend = self._original(**extra)
                 elif monitor is None:
-                    self._backend = self._converted(deepcopy(choices))
+                    self._backend = self._converted(deepcopy(choices), **extra)
                 else:
-                    self._backend = self._converted(deepcopy(choices), monitor=dict(monitor))
+                    self._backend = self._converted(deepcopy(choices), monitor=dict(monitor), **extra)
                 self._requested = True
-                if self._monitor_enabled:
-                    self._backend.set_monitor_muted(self._monitor_muted)
+                self._send_mute()
                 self._backend.start(source=source)
             except Exception:
                 self._requested = False

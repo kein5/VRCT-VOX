@@ -212,7 +212,7 @@ class StdoutBacklogTests(_StdoutWriterTestCase):
 
     def test_mainloop_run_marks_only_notifications(self):
         # アプリの import/起動なしで、実際の入口を検証する。
-        tree = ast.parse((Path(utils.__file__).parent / "mainloop.py").read_text())
+        tree = ast.parse((Path(utils.__file__).parent / "mainloop.py").read_text(encoding="utf-8"))
         run = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "run")
         response = Mock()
         namespace = {"printResponse": response, "Any": object}

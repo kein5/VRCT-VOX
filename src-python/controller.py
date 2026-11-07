@@ -44,11 +44,13 @@ from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, 
 from models.model_downloads.manager import Downloads
 from models.model_downloads.catalog import SPEECH_FIELDS as SPEECH_DOWNLOAD_FIELDS
 from models.model_downloads.hardware import HardwareProbe
+from models.voice_conversion.runtime_setup import RuntimeSetup
 from models.ocr import ocr_capture, ocr_chatbox_detector, ocr_languages, ocr_models
 from models.ocr import ocr_engine_rapidocr as ocr_engine
 from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
 from models.tts.message_hook import chat_event, microphone_event
 from models.audio_routing.audio_router import enumerate_outputs
+from models.audio_routing.devices_windows import carries_own_voice, same_output
 from models.audio_routing.managed_route import VoiceRoute
 from models.audio_routing.monitor_output import monitor_spec
 from models.audio_routing.mute_state import MuteState
@@ -427,13 +429,20 @@ class Controller:
         self._tts_attempts = set()
         self._tts_waiting = 0
         voice_settings = getattr(self._config, "VOICE_SETTINGS", {})
-        self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings if isinstance(voice_settings, dict) else {}),
+        voice_settings = voice_settings if isinstance(voice_settings, dict) else {}
+        if voice_settings.get("routing") == "managed" and not sys.platform.startswith("linux"):
+            # Carried over from Linux. No such route exists here, and its mute could
+            # never be confirmed, so the setting could not be left afterwards.
+            voice_settings = {**voice_settings, "routing": "external", "mode": "off", "mic_mode": "off"}
+            self._config.VOICE_SETTINGS = voice_settings
+        self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings),
                                           resolve_server=self._ttsSpeechServer, enabled=False,
                                           on_monitor_error=self._voiceMonitorFailed)
         config_path = getattr(self._config, '_PATH_CONFIG', 'config.json')
         if not isinstance(config_path, (str, Path)):
             config_path = 'config.json'
         self.model_downloads = Downloads(Path(config_path).absolute().parent / 'downloaded_models')
+        self.vc_runtimes = RuntimeSetup(Path(config_path).absolute().parent / 'vc_runtimes')
         self.legacy_downloads = LegacyDownloads()
         self.model_hardware = HardwareProbe()
         self.direct_voice = DirectVoice(converted_factory=create_converted_process)
@@ -443,6 +452,7 @@ class Controller:
         self.voice_route.configure(self.voice_events.settings.routing == 'managed',
             suppress_direct=(self.voice_events.settings.mic_mode == 'translated'
                              and self.voice_events.settings.direct_policy == 'suppress'))
+        self._applyDirectPolicy(self.voice_events.settings)
         self._voice_settings_lock = Lock()
         self._language_settings_lock = RLock()
         direct = getattr(self._config, 'DIRECT_VOICE_SETTINGS', {})
@@ -498,6 +508,30 @@ class Controller:
         if (not isinstance(data, dict) or set(data) != required
                 or any(not isinstance(data[key], str) or not data[key] for key in ('id', 'job_id'))):
             raise ValueError('download_request_invalid')
+
+    def getVcRuntimeCatalog(self, *args, **kwargs):
+        return {'status': 200, 'result': self.vc_runtimes.catalog()}
+
+    def getVcRuntimeState(self, *args, **kwargs):
+        return {'status': 200, 'result': self.vc_runtimes.state()}
+
+    @staticmethod
+    def _vcRuntimeFailure(error):
+        conflict = {'vc_runtime_busy', 'vc_runtime_closed', 'stale_job'}
+        return {'status': 409 if str(error) in conflict else 400, 'result': {'error_code': str(error)}}
+
+    def startVcRuntimeSetup(self, data, *args, **kwargs):
+        try:
+            return {'status': 200, 'result': self.vc_runtimes.start(data)}
+        except ValueError as error:
+            return self._vcRuntimeFailure(error)
+
+    def cancelVcRuntimeSetup(self, data, *args, **kwargs):
+        try:
+            self._modelDownloadRequest(data)
+            return {'status': 200, 'result': self.vc_runtimes.cancel(data['id'], data['job_id'])}
+        except ValueError as error:
+            return self._vcRuntimeFailure(error)
 
     def startModelDownload(self, data, *args, **kwargs):
         try:
@@ -757,8 +791,8 @@ class Controller:
             source = self._realtimeSource(data)
         except ValueError:
             return {"status": 400, "result": {"error_code": "realtime_source_invalid"}}
-        if sys.platform != "linux":
-            return {"status": 200, "result": {"source": source, "endpoints": [], "error_code": "realtime_linux_only"}}
+        if sys.platform not in ("linux", "win32"):
+            return {"status": 200, "result": {"source": source, "endpoints": [], "error_code": "realtime_platform_unsupported"}}
         try:
             rows = [{"endpoint": endpoint_dict(row["endpoint"]), "label": row["label"]}
                     for row in enumerate_endpoints(source)]
@@ -855,11 +889,15 @@ class Controller:
     # A started server enforces its own START_TIMEOUT; this only bounds the
     # toggle's wait if that end state is somehow never published.
     _ASR_SERVER_WAIT = SPEECH_START_TIMEOUT + 5
-    _ASR_START_FAILURES = ("speech_server_out_of_memory", "speech_server_start_timeout")
+    _ASR_START_FAILURES = ("speech_server_out_of_memory", "speech_server_start_timeout",
+                           "speech_server_vulkan_missing")
 
-    @staticmethod
-    def _realtimeToggles():
-        return sys.platform == "linux"
+    def _realtimeToggles(self):
+        if sys.platform == "linux":
+            return True
+        # Windows keeps the legacy recorder until the user picks the bundled server.
+        settings = getattr(self, "_realtime_settings", None) or {}
+        return sys.platform == "win32" and settings.get("server") == "bundled"
 
     def _realtimeActiveLocked(self, source):
         owner = self._realtime_owners[source]
@@ -873,7 +911,8 @@ class Controller:
 
     def _publishRealtimeToggle(self, source, reason=None):
         """Show the realtime state as the Linux toggle; reason explains a stop nobody asked for."""
-        if not self._realtimeToggles():
+        # Moving off the bundled server on Windows still has to clear a shown ON.
+        if not self._realtimeToggles() and not self._realtime_toggle_shown[source]:
             return
         direction = "send" if source == "mic" else "receive"
         with self._realtime_toggle_lock:
@@ -969,10 +1008,12 @@ class Controller:
             settings = normalize_realtime_settings(self._realtime_settings)
         row = settings[source]
         try:
-            if realtime_endpoint(settings, source) is None:
-                default_endpoint(source)  # Fail before loading a model for a missing device.
+            # Fail before loading a model for a missing device or one that cannot be read.
+            endpoint = realtime_endpoint(settings, source) or default_endpoint(source)
         except ValueError as exc:
             return str(exc), None
+        if self._carriesOwnVoice(endpoint):
+            return "realtime_endpoint_feedback", None
         if not self._realtimeStartCurrent(source, expected):
             return "realtime_stale_start", None
         if settings["server"] == "bundled":
@@ -1058,6 +1099,10 @@ class Controller:
         except (KeyError, TypeError, AttributeError):
             return None
 
+    def _carriesOwnVoice(self, endpoint):
+        return (self._directUsesOutputDevice()
+                and carries_own_voice(endpoint.name, self.voice_events.settings.output_device))
+
     def _startRealtime(self, source, expected, prepared=None):
         """prepared: SessionOptions that a main toggle already checked with the server."""
         def failure(code, status=409):
@@ -1066,8 +1111,8 @@ class Controller:
         def precheck():
             if self._realtime_closed or expected != self._realtime_generation[source]:
                 return failure("realtime_stale_start")
-            if sys.platform != "linux":
-                return failure("realtime_linux_only")
+            if sys.platform not in ("linux", "win32"):
+                return failure("realtime_platform_unsupported")
             if self._realtime_requested[source]:
                 owner = self._realtime_owners[source]
                 if owner is None or owner[0].health()["state"] not in ("closed", "failed"):
@@ -1099,6 +1144,8 @@ class Controller:
                         endpoint = default
                     if endpoint is None:
                         raise ValueError("realtime_endpoint_required")
+                    if self._carriesOwnVoice(endpoint):
+                        raise ValueError("realtime_endpoint_feedback")
                     if prepared is not None:
                         options = prepared
                     else:
@@ -1148,11 +1195,14 @@ class Controller:
             try:
                 setattr(config, "ENABLE_TRANSCRIPTION_" + direction, False)
                 setattr(config, "ENABLE_CHECK_ENERGY_" + direction, False)
-                # Realtime is Linux-only, and there the Mic/Speaker toggles show
-                # realtime itself; turning them off here would undo this start.
                 self.run(200, "/set/disable/check_" + source + "_threshold", False)
                 if model.stopCaptureForRealtime(source) is not True:
                     return fail_start("realtime_legacy_stop_failed")
+                # Where the Mic/Speaker toggles show realtime itself, turning them
+                # off here would undo this start. Elsewhere they showed the
+                # legacy recorder that just stopped.
+                if not self._realtimeToggles():
+                    self.run(200, "/set/disable/transcription_" + direction.lower(), False)
             except Exception:
                 return fail_start("realtime_legacy_stop_failed")
 
@@ -1342,13 +1392,15 @@ class Controller:
         model.message_delivery.close()
         model.requestOSCShutdown()
         # Signal both owners before either close can wait on a worker or lock.
-        for owner in (getattr(self, 'model_downloads', None),
+        for owner in (getattr(self, 'model_downloads', None), getattr(self, 'vc_runtimes', None),
                       getattr(self, 'legacy_downloads', None)):
             if owner is not None:
                 owner.request_close()
         if getattr(self, 'model_downloads', None) is not None:
             if not self.model_downloads.close():
                 printLog('[models] download/apply shutdown pending')
+        if getattr(self, 'vc_runtimes', None) is not None and not self.vc_runtimes.close():
+            printLog('[voice] runtime setup shutdown pending')
         if getattr(self, 'legacy_downloads', None) is not None:
             if not self.legacy_downloads.close():
                 printLog('[models] legacy download cancellation pending; publication is disabled')
@@ -2494,15 +2546,20 @@ class Controller:
             except (ValueError, TypeError):
                 return {"status": 400, "result": {"error_code": "VOICE_SETTINGS_INVALID",
                         "message": "Invalid voice settings; select an output and local server.", "data": None}}
-            if settings.routing != self.voice_events.settings.routing:
+            current = self.voice_events.settings
+            device_route = self._directUsesOutputDevice()
+            if (settings.routing != current.routing
+                    or (device_route and settings.output_device != current.output_device)):
                 direct = self.direct_voice.health()
                 if direct['requested'] or direct['pending'] or direct.get('stopping'):
                     return {'status': 409, 'result': {'error_code': 'direct_voice_stop_required'}}
             try:
-                if settings.routing != 'managed':
+                # On Windows direct voice writes to the external output device.
+                if settings.routing != 'managed' and not device_route:
                     self.direct_voice.stop()
                 self.voice_route.configure(settings.routing == 'managed',
                     suppress_direct=(settings.mic_mode == 'translated' and settings.direct_policy == 'suppress'))
+                self._applyDirectPolicy(settings)
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
             config.VOICE_SETTINGS = settings.to_dict()
@@ -2545,7 +2602,8 @@ class Controller:
     _TTS_SERVER_WAIT = SPEECH_START_TIMEOUT + 5
     # Server failures with their own next step; the rest share a generic code.
     _TTS_START_FAILURES = ('speech_server_out_of_memory', 'speech_server_start_timeout',
-                           'speech_server_low_latency_requires_gpu_irodori')
+                           'speech_server_low_latency_requires_gpu_irodori',
+                           'speech_server_vulkan_missing')
 
     def enableTts(self, data, *args, **kwargs) -> dict:
         if (not isinstance(data, dict) or set(data) != {'generation'}
@@ -2712,21 +2770,58 @@ class Controller:
         self._releaseTtsServers(cancel=True)
         return self.getVoiceStatus()
 
+    @staticmethod
+    def _directUsesOutputDevice():
+        return sys.platform == 'win32'
+
+    def _applyDirectPolicy(self, settings):
+        # The managed route does this with an OS gate; a device route has none.
+        self.direct_voice.set_suppressed(self._directUsesOutputDevice() and settings.mic_mode == 'translated'
+                                         and settings.direct_policy == 'suppress')
+
+    def _directOutput(self, mode, options):
+        """Device for a Windows Start; None on Linux, where the managed route decides."""
+        settings = self.voice_events.settings
+        if not self._directUsesOutputDevice():
+            if not sys.platform.startswith('linux'):
+                raise RuntimeError('source_bridge_linux_only')
+            if settings.routing != 'managed':
+                raise RuntimeError('source_bridge_managed_required')
+            return None
+        if not settings.output_device:
+            raise RuntimeError('source_bridge_output_required')
+        return settings.output_device
+
     def getDirectVoiceSources(self, *args, **kwargs) -> dict:
         try:
             sources, error = enumerate_sources(), None
         except Exception:
             sources = []
-            error = ('source_bridge_linux_only' if not sys.platform.startswith('linux')
+            error = ('source_bridge_devices_unavailable' if self._directUsesOutputDevice()
+                     else 'source_bridge_linux_only' if not sys.platform.startswith('linux')
                      else 'source_bridge_graph_unavailable')
-        # The Device page Mic choice is the default RVC input; the UI applies it
-        # only while the user has not picked another input on the RVC page.
-        preferred = None
-        if getattr(config, 'SELECTED_MIC_HOST', None) == PIPEWIRE_MIC_HOST:
-            selected = getattr(config, 'SELECTED_MIC_DEVICE', None)
-            preferred = next((item['id'] for item, name in zip(sources, microphone_names(sources))
-                              if name == selected), None)
-        return {'status': 200, 'result': {'sources': sources, 'error': error, 'preferred': preferred}}
+        return {'status': 200, 'result': {'sources': sources, 'error': error,
+                                          'preferred': self._preferredDirectSource(sources)}}
+
+    def _preferredDirectSource(self, sources):
+        """The Device page Mic choice is the default RVC input; the UI applies it
+        only while the user has not picked another input on the RVC page."""
+        selected = getattr(config, 'SELECTED_MIC_DEVICE', None)
+        names = microphone_names(sources)
+        if not self._directUsesOutputDevice():
+            if getattr(config, 'SELECTED_MIC_HOST', None) != PIPEWIRE_MIC_HOST:
+                return None
+            return next((item['id'] for item, name in zip(sources, names) if name == selected), None)
+        # The Device page defaults to MME; its choice is the same hardware under a cut name.
+        match = next((item['id'] for item, name in zip(sources, names)
+                      if isinstance(selected, str) and same_output(name, selected)), None)
+        if match is not None or not sources:
+            return match
+        try:
+            default = default_endpoint('mic').name
+        except ValueError:
+            return None
+        return next((item['id'] for item in sources if item['id']['name'] == default), None)
 
     def getDirectVoiceState(self, *args, **kwargs) -> dict:
         state = self.direct_voice.health()
@@ -2735,7 +2830,8 @@ class Controller:
         if code and code != getattr(self, '_vc_monitor_logged', None):
             self._voiceMonitorFailed(code)
         self._vc_monitor_logged = code
-        return {'status': 200, 'result': dict(state, settings=self._direct_settings.to_dict())}
+        return {'status': 200, 'result': dict(state, settings=self._direct_settings.to_dict(),
+                                              output_route='device' if self._directUsesOutputDevice() else 'managed')}
 
     def setDirectVoiceSettings(self, data, *args, **kwargs) -> dict:
         try:
@@ -2763,16 +2859,14 @@ class Controller:
             return {'status': 400, 'result': {'error_code': 'source_bridge_source_invalid'}}
         with self._voice_settings_lock:
             try:
-                if not sys.platform.startswith('linux'):
-                    raise RuntimeError('source_bridge_linux_only')
                 if self._direct_voice_closed:
                     raise RuntimeError('source_bridge_closed')
-                if self.voice_events.settings.routing != 'managed':
-                    raise RuntimeError('source_bridge_managed_required')
+                output = self._directOutput(mode, options)
                 # One monitor setting covers TTS and converted voice; passthrough is never monitored.
                 monitor = monitor_spec(self.voice_events.settings.monitor_choice) if mode == 'converted' else None
+                extra = {} if output is None else {'output': output}
                 self.direct_voice.start(source=source, expected_generation=data['_direct_generation'],
-                                        mode=mode, options=options, monitor=monitor)
+                                        mode=mode, options=options, monitor=monitor, **extra)
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
         return self.getDirectVoiceState()
@@ -2783,7 +2877,8 @@ class Controller:
         return self.getDirectVoiceState()
 
     def getVoiceRoute(self, *args, **kwargs) -> dict:
-        return {'status': 200, 'result': self.voice_route.status()}
+        return {'status': 200, 'result': dict(self.voice_route.status(),
+                                              covers_direct=self._directUsesOutputDevice())}
 
     def muteVoice(self, *args, **kwargs) -> dict:
         self.voice_route.mute()
@@ -2798,7 +2893,8 @@ class Controller:
 
     def getVoiceOutputDevices(self, *args, **kwargs) -> dict:
         try:
-            devices = enumerate_outputs()
+            settings = self.voice_events.settings
+            devices = enumerate_outputs((settings.output_device, settings.monitor_device))
             return {"status": 200, "result": {"devices": devices, "error": None}}
         except Exception:
             return {"status": 200, "result": {"devices": [], "error": "audio_devices_unavailable"}}
@@ -4821,7 +4917,8 @@ class Controller:
     def setDisableTranscriptionSend(self, data=None, *args, **kwargs) -> dict:
         if not (isinstance(data, dict) and data.get("reason") == "settings_pause"):
             model.message_delivery.revoke("mic")
-        if self._realtimeToggles():
+        # A legacy recorder started before the server choice changed still stops as one.
+        if self._realtimeToggles() and not config.ENABLE_TRANSCRIPTION_SEND:
             return self._disableRealtimeToggle("mic")
         with self._audioLock("mic"):
             self._audioGeneration("mic", advance=True)
@@ -4850,7 +4947,7 @@ class Controller:
     def setDisableTranscriptionReceive(self, data=None, *args, **kwargs) -> dict:
         if not (isinstance(data, dict) and data.get("reason") == "settings_pause"):
             model.message_delivery.revoke("speaker")
-        if self._realtimeToggles():
+        if self._realtimeToggles() and not config.ENABLE_TRANSCRIPTION_RECEIVE:
             return self._disableRealtimeToggle("speaker")
         with self._audioLock("speaker"):
             self._audioGeneration("speaker", advance=True)
@@ -6408,8 +6505,9 @@ class Controller:
     def _onOverlayPositionChanged(self, size: str, position: dict) -> None:
         """VR内の掴み移動・拡大縮小で確定した位置と大きさを保存し、UIへ通知する (オーバーレイスレッドから呼ばれる)。
 
-        position["ui_scaling"] はオーバーレイの幅(m)。small は幅=設定値、large は幅=設定値*0.25
-        (Model.init参照)。設定画面のスライダーの範囲 (src-ui/logics/ui_configs.js の
+        position["ui_scaling"] は保存する設定値。small と large ではオーバーレイの幅(m) に対応し、
+        small は幅=設定値、large は幅=設定値*0.25 (Model.init参照)。ランチャーは旧来の帯の幅で
+        保存するので実際の幅とは異なる (regionWidthM参照)。設定画面のスライダーの範囲 (src-ui/logics/ui_configs.js の
         ui_scaling: 40〜200%) に収めてから保存し、収めた値をオーバーレイにも戻す。
         """
         def clamp(value: float) -> float:

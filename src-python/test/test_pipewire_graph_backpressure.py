@@ -166,7 +166,7 @@ def test_receiver_starts_before_start_request_on_both_entries(shared, monkeypatc
     else:
         path = Path(__file__).resolve().parents[1] / 'mainloop.py'
         namespace = dict(__name__='__main__', sys=SimpleNamespace(argv=['sidecar', '--voice-router-worker']))
-    tree = ast.parse(path.read_text())
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     dispatch = next(n for n in tree.body if isinstance(n, ast.If) and '__main__' in ast.unparse(n.test))
     try:
         with pytest.raises(SystemExit) as result:

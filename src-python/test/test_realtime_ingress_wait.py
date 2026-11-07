@@ -4,16 +4,28 @@ import asyncio
 from queue import Queue
 from statistics import median
 from threading import Lock, Thread
-from time import monotonic_ns, perf_counter
+from time import monotonic_ns, perf_counter, sleep
 import unittest
 from unittest.mock import Mock, patch
 
 from models.transcription import realtime_audio as audio
 from models.voice_events import AudioFrame
-from test.asr_wait_fakes import run_async
+from asr_wait_fakes import run_async
 
 
 FRAME = AudioFrame(b"\0\0" * 480, 24000)
+_last_stamp = [0]
+
+
+def next_stamp():
+    """A capture time later than the previous one. The ingress rejects a repeated
+    stamp, and Windows' monotonic clock ticks every ~15.6 ms before Python 3.13."""
+    stamp = monotonic_ns()
+    while stamp <= _last_stamp[0]:
+        sleep(0.001)
+        stamp = monotonic_ns()
+    _last_stamp[0] = stamp
+    return stamp
 
 
 class FakeConverter:
@@ -101,8 +113,9 @@ class TestRealtimeIngressWait(unittest.TestCase):
             def producer():
                 try:
                     for _ in range(50):
+                        stamp = next_stamp()
                         started[0] = perf_counter()
-                        self.assertTrue(ingress.push(FRAME, monotonic_ns()))
+                        self.assertTrue(ingress.push(FRAME, stamp))
                         acknowledgements.get(timeout=1)
                 except Exception as error:
                     failures.append(error)
@@ -167,9 +180,9 @@ class TestRealtimeIngressWait(unittest.TestCase):
 
             client.feed = feed
             task = await start_pump(ingress, client)
-            self.assertTrue(ingress.push(FRAME, monotonic_ns()))
+            self.assertTrue(ingress.push(FRAME, next_stamp()))
             await asyncio.wait_for(feeding.wait(), 0.5)
-            self.assertTrue(ingress.push(FRAME, monotonic_ns()))
+            self.assertTrue(ingress.push(FRAME, next_stamp()))
             thread = Thread(target=ingress.close)
             thread.start()
             await asyncio.wait_for(task, 0.5)

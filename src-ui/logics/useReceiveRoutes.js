@@ -8,6 +8,7 @@ import * as configs from "@logics_configs";
 import * as voice from "./voice/useVoice";
 import * as speech from "./voice/useSpeechServers";
 import * as downloads from "./voice/useModelDownloads";
+import * as vcRuntimes from "./voice/useVcRuntimes";
 import { _useBackendErrorHandling } from "./_useBackendErrorHandling";
 import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import { useStdoutToPython } from "@useStdoutToPython";
@@ -29,6 +30,10 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/run/start_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
     { endpoint: "/run/cancel_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
     { endpoint: "/run/apply_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
+    { endpoint: "/get/data/vc_runtime_catalog", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "updateCatalog" },
+    { endpoint: "/get/data/vc_runtime_state", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "updateState" },
+    { endpoint: "/run/start_vc_runtime_setup", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "acknowledge" },
+    { endpoint: "/run/cancel_vc_runtime_setup", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "acknowledge" },
     { endpoint: "/get/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
     { endpoint: "/set/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
     { endpoint: "/get/data/speech_server_state", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
@@ -238,6 +243,13 @@ export const useReceiveRoutes = () => {
         const timer = setTimeout(() => updateDownloadError("request_unconfirmed"), 10000);
         return () => clearTimeout(timer);
     }, [downloadPending, updateDownloadError]);
+    const { state: runtimeState, pending: runtimePending, send: sendRuntime, updateError: updateRuntimeError, reset: resetRuntimes, backendStopped: stopRuntimePending } = vcRuntimes.useVcRuntimes();
+    const runtimeActive = runtimePending || Object.values(runtimeState.jobs).some(job => vcRuntimes.activeSetupPhases.includes(job.phase));
+    useEffect(() => {
+        if (!runtimeActive) return;
+        const timer = setInterval(() => !store.backend_stopped && sendRuntime("/get/data/vc_runtime_state"), 750);
+        return () => clearInterval(timer);
+    }, [runtimeActive, sendRuntime]);
     const { state: realtimeState, send: sendRealtime, updateError: updateRealtimeError, reset: resetRealtime, backendStopped: stopRealtimePending } = realtime.useRealtimeASR();
     const realtimeActive = Object.values(realtimeState).some(value => value.requested);
     useEffect(() => {
@@ -286,8 +298,18 @@ export const useReceiveRoutes = () => {
     );
 
 
+    // Speech that waited too long is skipped without any other sign, so warn when
+    // the backend's count rises. The first reading and a restarted backend do not.
+    const noticeExpiredSpeech = expired => {
+        if (!Number.isSafeInteger(expired)) return;
+        if (store.expired_speech !== null && expired > store.expired_speech)
+            showNotification_Warning(t("voice_ui.speech_expired"), { category_id: "speech_expired" });
+        store.expired_speech = expired;
+    };
+
     const receiveRoutes = (parsed_data) => {
         const { endpoint = "", status, result } = parsed_data;
+        if (endpoint === "/get/data/voice_status" && status === 200) noticeExpiredSpeech(result?.expired);
         if (status !== 200 && (isBackendUpdate(endpoint) || endpoint === "/run/shutdown")) {
             rejectExpectedExit(store.backend_session, endpoint);
             if (isBackendUpdate(endpoint)) updateIsSoftwareUpdating(false);
@@ -299,6 +321,10 @@ export const useReceiveRoutes = () => {
             hook_results.useMessage.failSentMessageLog(result?.data ?? result);
         }
         if (status === 500 && featureResyncReads[endpoint]) asyncStdoutToPython(featureResyncReads[endpoint]);
+        if (status !== 200 && endpoint.includes("vc_runtime")) {
+            updateRuntimeError(result?.error_code || "vc_runtime_failed");
+            return;
+        }
         if (status !== 200 && endpoint.includes("model_download")) {
             updateDownloadError(result?.error_code || "download_failed", endpoint);
             return;
@@ -350,6 +376,7 @@ export const useReceiveRoutes = () => {
             resetDownloads();
             sendDownload("/get/data/model_download_catalog");
             sendDownload("/get/data/model_download_state");
+            resetRuntimes();
             resetVoice();
             sendVoice("/get/data/voice_settings");
             sendVoice("/get/data/direct_voice_sources");
@@ -359,6 +386,7 @@ export const useReceiveRoutes = () => {
             resetRealtime();
             sendRealtime("/get/data/realtime_asr_settings");
             sendRealtime("/get/data/realtime_asr_state");
+            sendRealtime("/get/data/realtime_asr_models");
             for (const source of ["mic", "speaker"]) sendRealtime("/get/data/realtime_asr_endpoints", { source });
             const failedFields = applyInitializationFields(result, routes, INIT_FIELD_VALIDATORS, handleInvalidEndpoint);
             updateIsBackendReady(true);
@@ -455,6 +483,7 @@ export const useReceiveRoutes = () => {
         stopVoicePending();
         stopSpeechPending();
         stopDownloadPending();
+        stopRuntimePending();
         stopRealtimePending();
     };
     return { receiveRoutes, backendStopped };

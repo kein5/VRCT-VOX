@@ -1,7 +1,7 @@
 from models.diagnostics import provider_errors
 from utils import errorLogging
 from models.network_policy import validate_api_url, without_tracing
-from openai import OpenAI
+from models.sdk_clients import OpenAI
 
 try:
     from .translation_languages import translation_lang

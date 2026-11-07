@@ -41,14 +41,24 @@ class TestInitMappingExcludesNetworkEndpoints(unittest.TestCase):
         self.assertIn("/get/data/ocr_readiness", mapping)
         self.assertNotIn("/get/data/ocr_readiness", init_mapping)
 
+    def test_realtime_models_are_not_collected_at_startup(self) -> None:
+        """音声サーバーへ HTTP で問い合わせるので、起動時には集めない。
+
+        既定の接続先が動いていないと、Windows は閉じたポートの拒否に 2 秒かかる。
+        UI 側は /run/initialization_complete の後に自分で要求する。
+        """
+        self.assertIn("/get/data/realtime_asr_models", mapping)
+        self.assertNotIn("/get/data/realtime_asr_models", init_mapping)
+
     def test_other_get_data_endpoints_are_still_collected(self) -> None:
-        """除外は available_releases、ocr_readiness、ocr_capture_status だけで、他は従来どおり集められること。
+        """除外は次の 4 つだけで、他は従来どおり集められること。
 
         ocr_capture_status は実行中の状態で、チャット読み取りの設定を開いている間だけ UI が読む。
         """
         get_data_keys = {k for k in mapping if k.startswith("/get/data/")}
         self.assertEqual(get_data_keys - set(init_mapping),
-                         {"/get/data/available_releases", "/get/data/ocr_readiness", "/get/data/ocr_capture_status"})
+                         {"/get/data/available_releases", "/get/data/ocr_readiness", "/get/data/ocr_capture_status",
+                          "/get/data/realtime_asr_models"})
 
 
 class TestUpdateConfigSettingsIsolatesFailures(unittest.TestCase):

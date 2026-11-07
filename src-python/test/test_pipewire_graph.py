@@ -290,7 +290,7 @@ def test_managed_and_direct_simulation_dumps_per_minute(monkeypatch, direct):
 def test_mainloop_shutdown_always_closes_graph_source(shared):
     import ast
     path = Path(__file__).resolve().parents[1] / 'mainloop.py'
-    module = ast.parse(path.read_text())
+    module = ast.parse(path.read_text(encoding="utf-8"))
     main = next(n for n in module.body if isinstance(n, ast.ClassDef) and n.name == 'Main')
     stop = next(n for n in main.body if isinstance(n, ast.FunctionDef) and n.name == 'stop')
     source, backend = shared

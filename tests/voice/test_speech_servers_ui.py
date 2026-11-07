@@ -65,8 +65,10 @@ def ui(tmp_path):
         browser = stack.enter_context(sync_playwright()).chromium.launch(executable_path=os.environ['VRCT_TEST_CHROMIUM'], headless=True)
         stack.callback(browser.close)
         page = browser.new_page(viewport={'width': 1200, 'height': 1600})
-        stack.callback(lambda: (tmp_path / 'page.html').write_text(page.content()))
+        stack.callback(lambda: (tmp_path / 'page.html').write_text(page.content(), encoding='utf-8'))
         page.set_default_timeout(4000)
+        # A cold Vite compiles every module on the first load, which takes longer than this on Windows.
+        page.set_default_navigation_timeout(30000)
         peer = SimpleNamespace(settings=normalize_settings({}), voice=VoiceSettings().to_dict(), asr=asr_settings({}),
                                state={name: dict(state='stopped', generation=0, base_url=None, error_code=None) for name in ('japanese', 'multilingual', 'asr')},
                                sent=[], replies=[], errors=[], reply_id=0, hold_start=False, reject_save=False)

@@ -100,6 +100,9 @@ def _select(graph, name, source):
 
 def enumerate_endpoints(source):
     """Explicit microphone sources or speaker sinks; never resolve a default."""
+    if sys.platform == 'win32':
+        from .capture_windows import enumerate_endpoints as enumerate_windows
+        return enumerate_windows(source)
     if sys.platform != 'linux' or source not in ('mic', 'speaker'):
         raise ValueError('asr_capture_source_invalid')
     graph = _read_graph()
@@ -127,6 +130,9 @@ def default_endpoint(source):
     its mix the default sink), use the configured default instead: capturing
     VRCT's output would transcribe its own speech.
     """
+    if sys.platform == 'win32':
+        from .capture_windows import default_endpoint as default_windows
+        return default_windows(source)
     if sys.platform != 'linux' or source not in ('mic', 'speaker'):
         raise ValueError('asr_capture_source_invalid')
     try:
@@ -159,6 +165,14 @@ def default_endpoint(source):
         except (RuntimeError, KeyError, TypeError):
             continue
     raise ValueError('realtime_default_endpoint_feedback' if blocked else 'realtime_default_endpoint_missing')
+
+
+def open_capture(endpoint, source, on_audio, on_error):
+    """The capture for this platform; both honor the same start/stop contract."""
+    if sys.platform == 'win32':
+        from .capture_windows import WindowsCapture
+        return WindowsCapture(endpoint, source, on_audio, on_error)
+    return PipeWireCapture(endpoint, source, on_audio, on_error)
 
 
 class PipeWireCapture:

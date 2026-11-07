@@ -68,6 +68,7 @@ export const isRelayAllowed = (path) => typeof path === "string"
     && !path.startsWith("/run/download_")
     && !path.startsWith("/run/update_") // update_software と update_cuda_software (インストーラーを起動して終了する)
     && !path.includes("model_download")
+    && !path.includes("vc_runtime")
     && !/auth_key|auth_token/.test(path)
     && !/^\/set\/data\/[a-z_]*_url$/.test(path);
 

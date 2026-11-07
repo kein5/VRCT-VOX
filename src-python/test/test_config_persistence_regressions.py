@@ -191,7 +191,7 @@ def test_serialization_failure_preserves_last_good_file_and_recovers(isolated, v
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
 def test_ipc_nonfinite_result_uses_parseable_500_fallback(value):
     path = SOURCE / "utils.py"
-    tree = ast.parse(path.read_text())
+    tree = ast.parse(path.read_text(encoding="utf-8"))
     tree.body = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in {"printResponse", "_shapeOf"}]
     lines = []
     ns = dict(Any=object, json=json, redact_urls=redact_urls, process_logger=Mock(), errorLogging=Mock(),
@@ -683,7 +683,9 @@ def test_process_writers_serialize_and_release_lock_after_exit(isolated, termina
 import ast, contextlib, errno, json, os, stat, sys, tempfile, threading
 from pathlib import Path
 source, destination, value = sys.argv[1:]
-tree = ast.parse(Path(source).read_text())
+sys.path.insert(0, str(Path(source).parent))
+import exclusive_tempfile  # stdlib only, used by saveConfigToFile
+tree = ast.parse(Path(source).read_text(encoding="utf-8"))
 cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "Config")
 methods = {"_configFileLock", "saveConfigToFile", "_saveFailureReason", "_saveFailedLocked"}
 cls.body = [node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name in methods]

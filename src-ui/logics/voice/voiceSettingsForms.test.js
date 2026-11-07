@@ -1,3 +1,4 @@
+import * as routeState from "./routeState.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { hooks, loadModule, stubGlobals, eventTarget, find } from "../test/hookHarness.js";
@@ -30,6 +31,7 @@ async function setup(context) {
         });
         const components = await loadModule(new URL(`../../views/app/config_page/setting_section/setting_box/${file}`, import.meta.url), runtime, {
             "@store": {}, "../../../../../../logics/voice/useVoice": { useVoice: () => state },
+            "../../../../../../logics/voice/routeState": routeState,
             "../../../../../../logics/voice/useSettingsDraft": draft,
             "../tts/GenerationOptions": { validGenerationOptions: () => true }, "../device/VoiceRouteSettings": {},
             "./StatusLine": {}, "../_components/description/Description": {},

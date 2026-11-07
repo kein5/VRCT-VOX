@@ -1,6 +1,4 @@
 """Fixed transport entry: capture/inference/output never share the UI heap."""
-import os
-import select
 import sys
 import time
 
@@ -8,6 +6,7 @@ from .direct_voice import create_worker_process
 from .router_protocol import Reader, encode, validate_monitor_control
 from models.audio_routing.monitor_output import parse_monitor
 from models.audio_routing.source_bridge import parse_source
+from models.owned_child import PipeWriter, wait_readable
 
 
 def main():
@@ -22,14 +21,19 @@ def main():
         request = reader.read(timeout=5)
         if (not isinstance(request, dict) or request.get('kind') != 'start'
                 or not {'kind', 'source', 'options'} <= set(request)
-                or set(request) - {'kind', 'source', 'options', 'monitor', 'monitor_control'}):
+                or set(request) - {'kind', 'source', 'options', 'monitor', 'monitor_control', 'output'}):
             raise ValueError('vc_router_request_invalid')
         monitor = parse_monitor(request.get('monitor'))
+        output = request.get('output')
+        if output is not None and (not isinstance(output, str) or not output or len(output) > 512):
+            raise ValueError('vc_router_request_invalid')
+        # With a device route the mute intent gates the main output, not only a monitor.
+        controlled = monitor is not None or output is not None
         muted, revision = validate_monitor_control(request.get('monitor_control',
             dict(kind='monitor_mute', muted=True, revision=0)))
         # Drain controls already sent during launch, including EOF/Stop, before
         # creating any capture or inference resources.
-        while reader.pending or select.select([sys.stdin.buffer], [], [], 0)[0]:
+        while reader.pending or wait_readable(sys.stdin.buffer, 0):
             try:
                 muted, updated = validate_monitor_control(reader.read(timeout=1))
             except EOFError:
@@ -38,21 +42,23 @@ def main():
                 raise ValueError('vc_router_request_invalid')
             revision = updated
         source = parse_source(request['source'])
-        process = (create_worker_process(request['options']) if monitor is None
-                   else create_worker_process(request['options'], monitor=monitor))
-        if monitor is not None:
+        extra = {} if monitor is None else {'monitor': monitor}
+        if output is not None:
+            extra['output'] = output
+        process = create_worker_process(request['options'], **extra)
+        if controlled:
             process.set_monitor_muted(muted)
         process.start(source=source)
-        os.set_blocking(sys.stdout.fileno(), False)
+        health = PipeWriter(sys.stdout)
         while True:
-            if reader.pending or select.select([sys.stdin.buffer], [], [], .05)[0]:
+            if reader.pending or wait_readable(sys.stdin.buffer, .05):
                 try:
                     muted, updated = validate_monitor_control(reader.read(timeout=1))
                 except EOFError:
                     return 0  # Closing the owned control pipe is Stop.
                 if updated <= revision:
                     raise ValueError('vc_router_request_invalid')
-                if monitor is not None:
+                if controlled:
                     process.set_monitor_muted(muted)
                 revision = updated
             state = process.health()
@@ -64,10 +70,11 @@ def main():
             if len(frame) > 4096:
                 return 1
             try:
-                os.write(sys.stdout.fileno(), frame)
+                health.write(frame)
             except BlockingIOError:
                 pass
             if state['error']:
+                health.flush(.2)
                 return 1
     except (EOFError, OSError, ValueError, RuntimeError):
         return 1

@@ -5,6 +5,36 @@ import { useStore_IsBreakPoint } from "@store";
 import { useAppearance } from "@logics_configs";
 import { store } from "@store";
 
+// Time the backend gets to save the settings after /run/shutdown. Closing the
+// window ends the app, and the shell plugin then kills the backend.
+const SHUTDOWN_WAIT_MS = 2000;
+let closing = null;
+let releaseCloseRequest = null;
+
+// Every way of closing the main window (the title bar button, Alt+F4, the
+// taskbar) asks the backend to shut down once, waits, then destroys the window.
+// Closing without it lost the settings changed in the last two seconds.
+const closeAfterShutdown = (appWindow, sendToPython) => {
+    if (closing) return closing;
+    closing = (async () => {
+        try {
+            sendToPython("/run/shutdown");
+        } catch (error) {
+            console.error("Could not ask the backend to shut down:", error);
+        }
+        await new Promise(resolve => setTimeout(resolve, SHUTDOWN_WAIT_MS));
+        try {
+            await appWindow.destroy();
+        } catch (error) {
+            // Without our close-requested listener the window closes as usual.
+            console.error("Could not destroy the window; closing it instead:", error);
+            releaseCloseRequest?.();
+            await appWindow.close();
+        }
+    })();
+    return closing;
+};
+
 export const useWindow = () => {
     const { asyncStdoutToPython } = useStdoutToPython();
     const { currentUiScaling } = useAppearance();
@@ -93,8 +123,12 @@ export const useWindow = () => {
 
     const asyncUpdateBreakPoint = async () => {
         const size = await appWindow.innerSize();
+        // innerSize is in physical pixels; the breakpoint, like the CSS
+        // (max-width: 800px) queries, is in CSS pixels. At 150% display
+        // scaling an 800px-wide window is 1200 physical pixels.
+        const width = size.width / (globalThis.devicePixelRatio || 1);
         const dynamicBreakPoint = 800 * (currentUiScaling.data / 100);
-        const narrow = size.width <= dynamicBreakPoint;
+        const narrow = width <= dynamicBreakPoint;
         // Every update re-renders whatever reads IsBreakPoint, so only send changes.
         if (document.documentElement.hasAttribute("data-narrow") === narrow) return;
         updateIsBreakPoint(narrow);
@@ -116,11 +150,7 @@ export const useWindow = () => {
         await appWindow.minimize();
     };
 
-    const asyncCloseApp = async () => {
-        asyncStdoutToPython("/run/shutdown");
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        await appWindow.close();
-    };
+    const asyncCloseApp = () => closeAfterShutdown(appWindow, asyncStdoutToPython);
 
     return {
         asyncSaveWindowGeometry,
@@ -172,6 +202,39 @@ export const WindowGeometryController = () => {
             unlistenMove.then(dispose => dispose());
             clearTimeout(resizeTimeout);
             clearTimeout(moveTimeout);
+        };
+    }, []);
+
+    return null;
+};
+
+// Routes a close the window system asks for (Alt+F4, the taskbar) through the
+// same shutdown as the title bar button. While this listener is registered,
+// Tauri leaves the closing to it.
+export const WindowCloseController = () => {
+    const { asyncStdoutToPython } = useStdoutToPython();
+    const latest = useRef(asyncStdoutToPython);
+    latest.current = asyncStdoutToPython;
+
+    useEffect(() => {
+        const appWindow = store.appWindow;
+        let active = true, dispose = null;
+        const release = () => {
+            active = false;
+            dispose?.();
+            dispose = null;
+        };
+        appWindow.onCloseRequested(event => {
+            event.preventDefault();
+            closeAfterShutdown(appWindow, (...args) => latest.current(...args));
+        }).then(unlisten => {
+            dispose = unlisten;
+            if (!active) release();
+        });
+        releaseCloseRequest = release;
+        return () => {
+            release();
+            if (releaseCloseRequest === release) releaseCloseRequest = null;
         };
     }, []);
 

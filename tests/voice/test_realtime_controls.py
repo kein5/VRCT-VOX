@@ -395,13 +395,13 @@ def test_explicit_model_and_endpoint_lists_and_safe_errors(app, monkeypatch):
         "models": [],
         "error_code": "realtime_models_unavailable",
     }
-    monkeypatch.setattr(m.sys, "platform", "win32")
+    monkeypatch.setattr(m.sys, "platform", "darwin")
     assert (
         c.getRealtimeASREndpoints({"source": "mic"})["result"]["error_code"]
-        == "realtime_linux_only"
+        == "realtime_platform_unsupported"
     )
     assert (
-        c.startRealtimeASR(request(c))["result"]["error_code"] == "realtime_linux_only"
+        c.startRealtimeASR(request(c))["result"]["error_code"] == "realtime_platform_unsupported"
     )
     assert not made
 

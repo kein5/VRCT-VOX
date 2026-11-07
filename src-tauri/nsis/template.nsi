@@ -28,6 +28,8 @@ ${StrLoc}
 !define HEADERIMAGE "{{header_image}}"
 !define MAINBINARYNAME "{{main_binary_name}}"
 !define MAINBINARYSRCPATH "{{main_binary_path}}"
+; The Python sidecar from tauri.conf.json bundle.externalBin ("bin/vrct-vox-sidecar").
+!define SIDECARBINARYNAME "vrct-vox-sidecar"
 !define BUNDLEID "{{bundle_id}}"
 !define COPYRIGHT "{{copyright}}"
 !define OUTFILE "{{out_file}}"
@@ -243,7 +245,8 @@ FunctionEnd
 ; latest release of the channel this installer itself was published for,
 ; with no extra decisions to make.
 
-!insertmacro MUI_PAGE_COMPONENTS
+; No components page: EarlyChecks, WebView2 and Install are all required.
+; The page only let a user untick the WebView2 runtime or the app itself.
 
 ; 4-4. Custom page to ask user if he wants to reinstall/uninstall
 ;    only if a previous installtion was detected
@@ -742,6 +745,36 @@ SectionEnd
         Abort "$(appRunning)"
   ${EndIf}
   app_check_done:
+  ; Killing the main process skips the shell plugin's exit handler, so the
+  ; Python sidecar keeps running until its own watchdog stops it (1-2 min).
+  ; Meanwhile its exe and loaded libraries cannot be deleted, and its final
+  ; save can write config.json again. The main app is gone at this point:
+  ; it was not running, or the user agreed to stop it above.
+  !if "${INSTALLMODE}" == "currentUser"
+    nsis_tauri_utils::FindProcessCurrentUser "${SIDECARBINARYNAME}.exe"
+  !else
+    nsis_tauri_utils::FindProcess "${SIDECARBINARYNAME}.exe"
+  !endif
+  Pop $R0
+  ${If} $R0 = 0
+    !if "${INSTALLMODE}" == "currentUser"
+      nsis_tauri_utils::KillProcessCurrentUser "${SIDECARBINARYNAME}.exe"
+    !else
+      nsis_tauri_utils::KillProcess "${SIDECARBINARYNAME}.exe"
+    !endif
+    Pop $R0
+    Sleep 500
+    ${If} $R0 <> 0
+      ; Its watchdog may have ended it between the two calls.
+      !if "${INSTALLMODE}" == "currentUser"
+        nsis_tauri_utils::FindProcessCurrentUser "${SIDECARBINARYNAME}.exe"
+      !else
+        nsis_tauri_utils::FindProcess "${SIDECARBINARYNAME}.exe"
+      !endif
+      Pop $R0
+      ${IfThen} $R0 = 0 ${|} Abort "$(failedToKillApp)" ${|}
+    ${EndIf}
+  ${EndIf}
 !macroend
 
 Function CheckAppIsRunning
@@ -788,7 +821,7 @@ Section Install
   ; Free-space budget (MiB) per edition. The compressed archive is written to
   ; %TEMP%, the new tree to $INSTDIR\.upd\new. The old installation stays
   ; on disk until commit finishes. These are additional FREE-space budgets:
-  ; a same-drive install needs DOWNLOAD + EXTRACT beyond the existing tree.
+  ; the install drive needs DOWNLOAD + EXTRACT beyond the existing tree.
   ; Measured 2026-08: VRCT.zip ~485MB / ~1.5GB unpacked; VRCT_cuda.zip
   ; ~3461MB / ~5757MB unpacked. Values below add headroom -- re-measure and
   ; bump them when the packages grow.
@@ -835,7 +868,8 @@ Section Install
 
   ; --- Pre-flight: refuse to start if either target volume is too small ---
   ; $TEMP holds the download; $INSTDIR\.upd holds the staged app alongside
-  ; the old installation. On one volume both additional allocations must fit.
+  ; the old installation, and the archive while tar reads it. So the install
+  ; volume needs both allocations whether or not $TEMP is on it.
   ; DriveSpace returns "" on failure -> treat as "unknown" and don't block.
   ${GetRoot} "$TEMP" $R0
   ${GetRoot} "$INSTDIR" $R1
@@ -844,8 +878,8 @@ Section Install
   ${IfThen} $R2 == "" ${|} StrCpy $R2 -1 ${|}
   ${IfThen} $R3 == "" ${|} StrCpy $R3 -1 ${|}
 
+  IntOp $R4 $req_dl_mb + $req_extract_mb
   ${If} $R0 == $R1
-    IntOp $R4 $req_dl_mb + $req_extract_mb
     ${If} $R2 >= 0
     ${AndIf} $R2 < $R4
       DetailPrint "Aborted: need $R4 MB free on $R0, only $R2 MB available"
@@ -860,9 +894,9 @@ Section Install
       Abort
     ${EndIf}
     ${If} $R3 >= 0
-    ${AndIf} $R3 < $req_extract_mb
-      DetailPrint "Aborted: need $req_extract_mb MB free on install drive $R1, only $R3 MB available"
-      MessageBox MB_OK|MB_ICONSTOP "Not enough free space on the install drive $R1 for the $SelectedEdition version.$\r$\n$\r$\nRequired: about $req_extract_mb MB$\r$\nAvailable: $R3 MB$\r$\n$\r$\nFree up space (or choose another drive) and run the installer again." /SD IDOK
+    ${AndIf} $R3 < $R4
+      DetailPrint "Aborted: need $R4 MB free on install drive $R1, only $R3 MB available"
+      MessageBox MB_OK|MB_ICONSTOP "Not enough free space on the install drive $R1 for the $SelectedEdition version.$\r$\n$\r$\nRequired: about $R4 MB$\r$\nAvailable: $R3 MB$\r$\n$\r$\nFree up space (or choose another drive) and run the installer again." /SD IDOK
       Abort
     ${EndIf}
   ${EndIf}
@@ -1007,6 +1041,7 @@ Section Install
     ClearErrors
     CreateDirectory "$INSTDIR\.upd\new"
     IfErrors attempt_failed
+    Delete "$INSTDIR\.upd\$file_name"
     Delete "$TEMP\$file_name"
     Delete "$TEMP\$file_name.p0"
     Delete "$TEMP\$file_name.p1"
@@ -1218,16 +1253,37 @@ Section Install
     ; entries, ~5.8GB unpacked). -v prints each file as it is written so the
     ; details view scrolls during extraction instead of sitting on
     ; "Extracting ..." until done.
-    ${DisableX64FSRedirection}
-    nsExec::ExecToLog '"$SYSDIR\tar.exe" -xvf "$TEMP\$file_name" -C "$INSTDIR\.upd\new"'
-    Pop $0
-    ${EnableX64FSRedirection}
+    ;
+    ; tar.exe converts its arguments to the ANSI code page. A character outside
+    ; it (a Japanese user name on an English Windows, for example) becomes "?",
+    ; and tar can open neither the archive nor a -C folder. The working
+    ; directory is no argument and stays Unicode, so run tar inside the staging
+    ; folder and pass only a relative ASCII path. $file_name is ASCII, and the
+    ; archive sits beside that folder for this step. Rename also moves a file
+    ; to another volume; the pre-flight check budgets for it there.
+    ClearErrors
+    Rename "$TEMP\$file_name" "$INSTDIR\.upd\$file_name"
+    IfErrors attempt_failed
+    StrCpy $0 "not started"
+    ClearErrors
+    SetOutPath "$INSTDIR\.upd\new"
+    ${IfNot} ${Errors}
+      ${DisableX64FSRedirection}
+      nsExec::ExecToLog '"$SYSDIR\tar.exe" -xvf "..\$file_name"'
+      Pop $0
+      ${EnableX64FSRedirection}
+    ${EndIf}
+    ; Never hold a working directory inside the tree being replaced.
+    SetOutPath "$TEMP"
     ${If} $0 == 0
     ${AndIf} ${FileExists} "$INSTDIR\.upd\new\${MAINBINARYNAME}.exe"
     ${AndIf} ${FileExists} "$INSTDIR\.upd\new\_internal\*.*"
+      Delete "$INSTDIR\.upd\$file_name"
       Goto install_ready
     ${EndIf}
     DetailPrint "Unpack failed (tar exit $0; $INSTDIR\.upd\new package incomplete) -- archive likely corrupt"
+    ; Retries and the kept .bad archive both work from $TEMP.
+    Rename "$INSTDIR\.upd\$file_name" "$TEMP\$file_name"
 
   attempt_failed:
     Call StopPackageTransfers
@@ -1613,12 +1669,17 @@ Section Uninstall
     Delete "$INSTDIR\\{{this}}"
   {{/each}}
 
-  ; ユーザーデータ (config.json / ログ / weights) は既定では保持する。
+  ; ユーザーデータ (config.json / ログ / weights / downloaded_models) は既定では保持する。
   ; 別の保存先への更新後に既存 uninstaller を呼ぶ場合にも
   ; この Section が実行されるため、無条件削除すると全設定が失われる。
   ; 完全削除は「Delete AppData」チェックが入った場合のみ。
+  ; config.json の隣に置くファイルは docs/spec/data-and-persistence.md の表を参照。
   ${If} $DeleteAppDataCheckboxState == 1
     Delete "$INSTDIR\config.json"
+    Delete "$INSTDIR\config.json.unreadable-*"
+    Delete "$INSTDIR\voice_mute_state.json"
+    RmDir /r "$INSTDIR\downloaded_models"
+    RmDir /r "$INSTDIR\vc_runtimes"
     Delete "$INSTDIR\process.log"
     Delete "$INSTDIR\error.log"
     Delete "$INSTDIR\crash_trace.log"

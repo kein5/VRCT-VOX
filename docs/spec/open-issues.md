@@ -4,7 +4,6 @@
 
 | ID | 内容 | 根拠 | 状態 |
 |---|---|---|---|
-| OI-01 | VRパネルのウィンドウ名が一致しない可能性がある。Rustは`VRCT-VOX VR Panel`という名前でウィンドウを作るが、Windowsのオーバーレイは`FindWindowW`で`VRCT VR Panel`（`vr.html`の`<title>`）を探す。WebView2が文書の題名をウィンドウ名に写さなければ、Windowsでは取り込めない | `src-tauri/src/lib.rs`（ウィンドウ作成）、`src-python/models/overlay/window_capture.py` | Windowsの実機で未確認 |
 | OI-03 | VRChatへ送る文に長さの上限や分割の処理がない。VRChatのチャットボックスに表示されるのは144文字まで | `src-python/models/osc/osc.py`、`src-ui/logics/common/chatboxLength.js` | 切り詰めと分割はしないと決めた（2026-11-03）。入力が144文字を超えたら、メイン画面の入力欄とQuick Chatの入力欄のそばに警告を出す。翻訳を付けて送る文の長さは数えていない |
 | OI-06 | `/run/enable_ai_models`を受けて更新する`IsVrctAvailable`を読む画面がない。いまはお知らせを出すだけである | `src-ui/logics/common/useIsVrctAvailable.jsx` | 未決 |
 | OI-07 | UIだけにあるルートが57件ある。多くは`ui_config_setter.js`の定義が機械的に作るもので、使われない | [IPCエンドポイント一覧](reference/ipc-endpoints.md)の「UIだけにあるルート」 | 整理するか未決 |
@@ -16,6 +15,7 @@
 
 仕様書を作る途中で見つけ、同じ時期に直したもの。
 
+- VRパネルのウィンドウ名が一致していなかった（OI-01）。RustはVRパネルを`VRCT-VOX VR Panel`という名前で作るが、Windowsのオーバーレイは`FindWindowW`で`VRCT VR Panel`を探していた。Tauri 2.12とwry 0.57は、ハンドラを登録しない限り文書の`<title>`をウィンドウ名に写さないため、WindowsではVRパネルを撮影できなかった。Python・`vr.html`の名前をRustに合わせ、`tests/devtools/test_vr_panel_title.py`で一致を確かめる。Windowsの実機では未確認。
 - VRの設定の「サンプルテキストをOverlayに送信する」（開始している間くり返し送る）と「ランチャーの位置と大きさを初期に戻す」は、サイドカーの応答（200）にUIの受け先がなく、送るたびにコンソールへ`Invalid endpoint`を出していた（OI-04）。応答を受け取るだけの受け先を足した。
 - LinuxのビルドでPython依存のハッシュを確かめていなかった（OI-15）。`uv sync --frozen`でロックのハッシュを照合し、ハッシュのないアーカイブや完全なcommit SHAで固定していないGit依存は同期前に拒否するようにした。
 - OBSブラウザソースが認証なしでWebSocketのトークンを返していた（OI-12、SEC-01）。ページのURLにも同じトークンを必須にし、設定画面にURLのコピーし直しを案内した。

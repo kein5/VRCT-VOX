@@ -89,6 +89,7 @@ for (const language of ["en", "ja"]) {
             "../_templates/Templates": { RadioButtonContainer: "radio", CheckboxContainer: "checkbox", ActionButtonContainer: "action" },
             "@common_components": { ResetButton: "reset" }, "@utils": { randomIntMinMax: () => 0 },
             "@logics_configs": { useVr: () => ({ currentOverlaySmallLogSettings: { data: settings }, currentOverlayLargeLogSettings: {} }) },
+            "@logics_common": { useIsOpenedConfigPage: () => ({ currentIsOpenedConfigPage: { data: true } }) },
         });
         const root = runtime.render(Vr);
         const overlay = find(root, node => node.props?.id === "overlay_settings_small");

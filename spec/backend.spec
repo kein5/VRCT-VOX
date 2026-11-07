@@ -4,8 +4,10 @@ import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(SPECPATH).resolve().parent / "tools"))
+ROOT = Path(SPECPATH).resolve().parent
+sys.path.insert(0, str(ROOT / "tools"))
 from distribution_policy import filter_toc
+from windows_voice_resources import notice_toc, voice_toc
 
 # UPX compression roughly doubles the PyInstaller collect step and adds
 # a few seconds to sidecar startup. Default to disabled so ordinary
@@ -39,7 +41,10 @@ a = Analysis(
         ('./../.venv/Lib/site-packages/rapidocr/config.yaml', 'rapidocr/'),
         ('./../.venv/Lib/site-packages/rapidocr/default_models.yaml', 'rapidocr/'),
         ],
-    hiddenimports=['faster_whisper.vad', 'models.transcription.audio_pipeline', 'rapidocr', 'rapidocr.inference_engine.onnxruntime', 'cv2', 'models.ocr', 'windows_capture'],
+    hiddenimports=['faster_whisper.vad', 'rapidocr', 'rapidocr.inference_engine.onnxruntime', 'cv2', 'models.ocr', 'windows_capture',
+                   'soxr', 'pyaudiowpatch', 'models.transcription.capture_windows', 'models.audio_routing.windows_route',
+                   'models.voice_conversion.router_worker', 'models.voice_conversion.rvc_process',
+                   'models.voice_conversion.seed_process'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -49,6 +54,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+a.datas += voice_toc(ROOT) + notice_toc()
 # Exclude all OCR weights (including RapidOCR hooks), retain attribution.
 # Inspect both source and destination names in the expanded TOC.
 a.datas = filter_toc(a.datas)

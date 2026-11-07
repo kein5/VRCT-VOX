@@ -17,6 +17,13 @@
       "url": "https://github.com/nyosegawa/speech.cpp/releases/download/v0.10.0/speech-0.10.0-linux-x64-vulkan.zip",
       "size": 32277366,
       "sha256": "5f52ac8afbfb3502634b1ef71c5dd86628bf9631393748ef50e7c65277af4af4"
+    },
+    "windows-x64-vulkan": {
+      "id": "windows-x64-vulkan",
+      "name": "speech-0.10.0-windows-x64-vulkan.zip",
+      "url": "https://github.com/nyosegawa/speech.cpp/releases/download/v0.10.0/speech-0.10.0-windows-x64-vulkan.zip",
+      "size": 29413279,
+      "sha256": "2f88eb9e29242f1846a80bd2d418553bb0b17637254092b66b73803380a94ab4"
     }
   },
   "notices": [
@@ -58,8 +65,8 @@
     },
     {
       "path": "NOTICE.md",
-      "size": 2016,
-      "sha256": "6cddc4db8fa5470047f4b97692284e0b1d8b33e25b15b41059571ae2a906e857",
+      "size": 2347,
+      "sha256": "1ff4339459e5aecc0bc2f911ba0fab92b3c3c8804d3b4a35854b445903af06ef",
       "source_url": "local packaging attribution"
     }
   ]

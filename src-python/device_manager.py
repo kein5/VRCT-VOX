@@ -6,6 +6,7 @@ from audio_device_identity import capture_key, device_id
 from typing import Callable, Dict, List, Optional, Any
 from time import monotonic, sleep
 from threading import Thread, Lock, Event
+from pyaudio_lock import pyaudio_op_lock
 
 # Optional, Windows-specific dependencies. Guard imports so module can be imported on non-Windows systems.
 try:
@@ -39,15 +40,6 @@ from active_endpoint_tracker import ActiveEndpointTracker
 # (COM 呼び出し自体は止められない) ため完全な解決ではないが、少なくとも
 # ハンドラワーカーを解放してアプリの他機能を無応答にしないための緩和策。
 _PAUSE_BARRIER_TIMEOUT_SEC = 5.0
-
-# WASAPI/PortAudio 操作 (デバイス列挙・ストリーム open/close) を
-# 直列化するためのプロセス共通ロック。
-# 別スレッドから同一 WASAPI エンドポイントに対して並行にオペレーションを
-# 発行すると PortAudio 内部で待ち合ってデッドロックすることがある
-# (例: monitoring 側の update() でループバックデバイス列挙中に、
-# transcription 側で同じデバイスの loopback stream を open すると hang)。
-# device_manager.update() と recorder の Microphone open で共通に使う。
-pyaudio_op_lock: Lock = Lock()
 
 
 @dataclass(frozen=True)
@@ -156,6 +148,8 @@ class DeviceManager:
             default_mic_device={"host": {"index": -1, "name": "NoHost"}, "device": {"index": -1, "name": "NoDevice"}},
             speaker_devices=[{"index": -1, "name": "NoDevice"}],
             default_speaker_device={"device": {"index": -1, "name": "NoDevice"}},
+            # NoDevice rows need no endpoint IDs; asking Windows costs 0.5 s or more.
+            endpoint_ids={},
         )
 
         # Initialize previous state trackers

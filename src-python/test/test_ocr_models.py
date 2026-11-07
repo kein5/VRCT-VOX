@@ -85,7 +85,7 @@ class TestResolve(_Root):
         spec = resolveModelSpec("auto")
         keys = Path(resolveModelFiles(self.root, spec).keys)
         before = keys.stat()
-        with patch.object(ocr_models.tempfile, "mkstemp", side_effect=AssertionError("rewrote valid keys")), \
+        with patch.object(ocr_models, "exclusive_mkstemp", side_effect=AssertionError("rewrote valid keys")), \
                 patch.object(ocr_models.os, "replace", side_effect=AssertionError("replaced valid keys")):
             self.assertEqual(resolveModelFiles(self.root, spec).keys, str(keys))
         after = keys.stat()
@@ -173,7 +173,7 @@ class TestResolve(_Root):
         base = self.install(BASE_MODEL_ID)
         files = resolveModelFiles(self.root, spec)
         self.assertEqual(files.det, str(base / "det.onnx"))
-        self.assertTrue(files.rec.endswith("ppocrv5-korean/" + "e" * 40 + "/rec.onnx"))
+        self.assertTrue(Path(files.rec).as_posix().endswith("ppocrv5-korean/" + "e" * 40 + "/rec.onnx"))
 
     def test_tampered_file_is_rejected(self) -> None:
         self.install(BASE_MODEL_ID, corrupt="rec.onnx")
