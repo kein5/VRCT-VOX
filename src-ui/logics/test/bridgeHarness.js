@@ -41,7 +41,7 @@ const stubApi = (values = {}) => new Proxy({ __esModule: true, ...values }, {
     get: (target, key) => key in target ? target[key] : typeof key === "string" && key.startsWith("use") ? () => stubApi() : noop,
 });
 
-export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = null, modelDownloads = null, voiceStatus = () => ({})) => {
+export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = null, modelDownloads = null) => {
     const subject = await loadBridgeStore();
     const { runtime, stores, jotai } = subject;
     const notices = [], reads = [];
@@ -85,7 +85,7 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
         "./transcription/useTranscriptionConsent": transcriptionConsent,
     });
     const feature = values => stubApi({ send, reset: noop, backendStopped: noop, ...values });
-    const voice = { useVoice: () => feature({ settings: null, status: voiceStatus() }) };
+    const voice = { useVoice: () => feature({ settings: null, status: {} }) };
     const speech = { useSpeechServers: () => feature({ state: {}, pending: {} }) };
     const downloads = modelDownloads ?? { useModelDownloads: () => feature({ state: { jobs: {} }, hardware: {}, pending: null }) };
     const realtime = { useRealtimeASR: () => feature({ state: {} }) };
@@ -103,6 +103,5 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
         "./common/settingsWriteResponses.js": settingsResponses,
         "./main/languageMutations": { receiveLanguageMutation: noop, resetLanguageMutations: noop, isLanguageMutation: () => false },
     });
-    return { ...subject, notices, reads, rerender: () => runtime.render(routes.useReceiveRoutes),
-        ...runtime.render(routes.useReceiveRoutes) };
+    return { ...subject, notices, reads, ...runtime.render(routes.useReceiveRoutes) };
 };

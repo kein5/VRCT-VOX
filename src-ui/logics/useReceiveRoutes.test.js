@@ -14,20 +14,18 @@ test("blocked config loading shows the persistent load-failure notice", async ()
 });
 
 test("skipped speech warns when the backend count rises, not for earlier counts", async () => {
-    const status = { expired: 2 };
-    const s = await loadBridgeRoutes(undefined, null, null, () => status);
-    s.rerender();
+    const s = await loadBridgeRoutes();
+    const status = expired => s.receiveRoutes({ endpoint: "/get/data/voice_status", status: 200, result: { expired } });
+    status(2);
+    status(2);
     assert.deepEqual(s.notices, []);
-    status.expired = 3;
-    s.rerender();
+    status(3);
     assert.deepEqual(s.notices, [{ type: "warning", key: "voice_ui.speech_expired", options: { category_id: "speech_expired" } }]);
-    s.rerender();
+    status(3);
     assert.equal(s.notices.length, 1);
-    status.expired = 0; // a restarted backend counts from zero
-    s.rerender();
+    status(0); // a restarted backend counts from zero
     assert.equal(s.notices.length, 1);
-    status.expired = 1;
-    s.rerender();
+    status(1);
     assert.equal(s.notices.length, 2);
 });
 

@@ -1,5 +1,5 @@
 import { store } from "@store";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useI18n } from "@useI18n";
 import * as realtime from "./transcription/useRealtimeASR";
 import * as common from "@logics_common";
@@ -213,16 +213,6 @@ export const useReceiveRoutes = () => {
         const timer = setInterval(poll, 1000);
         return () => clearInterval(timer);
     }, [voiceConnected, sendVoice]);
-    // Speech that waited too long is skipped without any other sign, so warn when
-    // the backend's count rises. The first reading and a restarted backend do not.
-    const expiredSpeech = useRef(null);
-    useEffect(() => {
-        const expired = voiceStatus.expired;
-        if (!Number.isSafeInteger(expired)) return;
-        if (expiredSpeech.current !== null && expired > expiredSpeech.current)
-            showNotification_Warning(t("voice_ui.speech_expired"), { category_id: "speech_expired" });
-        expiredSpeech.current = expired;
-    }, [voiceStatus.expired]);
     const { state: speechState, pending: speechPending, send: sendSpeech, updateError: updateSpeechError, reset: resetSpeech, backendStopped: stopSpeechPending } = speech.useSpeechServers();
     const speechActive = Object.values(speechState).some(row => ["preparing", "ready", "stopping"].includes(row.state)) || Object.keys(speechPending).length > 0
         || voiceStatus.tts_server_starting === true;
@@ -296,8 +286,18 @@ export const useReceiveRoutes = () => {
     );
 
 
+    // Speech that waited too long is skipped without any other sign, so warn when
+    // the backend's count rises. The first reading and a restarted backend do not.
+    const noticeExpiredSpeech = expired => {
+        if (!Number.isSafeInteger(expired)) return;
+        if (store.expired_speech !== null && expired > store.expired_speech)
+            showNotification_Warning(t("voice_ui.speech_expired"), { category_id: "speech_expired" });
+        store.expired_speech = expired;
+    };
+
     const receiveRoutes = (parsed_data) => {
         const { endpoint = "", status, result } = parsed_data;
+        if (endpoint === "/get/data/voice_status" && status === 200) noticeExpiredSpeech(result?.expired);
         if (status !== 200 && (isBackendUpdate(endpoint) || endpoint === "/run/shutdown")) {
             rejectExpectedExit(store.backend_session, endpoint);
             if (isBackendUpdate(endpoint)) updateIsSoftwareUpdating(false);
