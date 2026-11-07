@@ -4,6 +4,7 @@ import importlib
 import io
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import time
 import zipfile
@@ -90,7 +91,7 @@ class World:
 
     def open(self, url, *, hosts):
         self.requests.append(url)
-        assert 'github.com' in hosts
+        assert hosts == rs.SOURCE_HOSTS
         if url == rs.UV_URL:
             return Response(self.tool)
         return Response(source_zip(self.source) if url.endswith('engine.zip') else self.asset)
@@ -232,6 +233,28 @@ def test_a_new_lock_makes_a_finished_runtime_stale(world, tmp_path):
     (tmp_path / 'worker/requirements.lock').write_text('newer\n')
     rs.version_of.cache_clear()
     assert world.setup.state()['installed'] == {}
+
+
+@pytest.mark.parametrize('damage', ['venv/Scripts/python.exe', 'engine', 'assets'])
+def test_a_damaged_runtime_can_be_set_up_again(world, damage):
+    world.start()
+    world.finish()
+    folder = world.setup.folder(world.runtime)
+    path = folder / damage
+    shutil.rmtree(path) if path.is_dir() else path.unlink()
+    assert world.setup.state()['installed'] == {}
+    world.start()
+    assert world.finish()['installed'] == {'rvc': str(folder)}
+    assert (folder / 'venv/Scripts/python.exe').is_file()
+    assert (folder / 'engine/infer.py').is_file() and (folder / 'assets/base/model.bin').is_file()
+
+
+def test_the_driver_check_only_looks_for_the_file(tmp_path, monkeypatch):
+    monkeypatch.setenv('SystemRoot', str(tmp_path))
+    assert rs.nvidia_driver() is False
+    (tmp_path / 'System32').mkdir()
+    (tmp_path / 'System32/nvcuda.dll').write_bytes(b'')
+    assert rs.nvidia_driver() is True
 
 
 def test_the_catalog_says_what_will_be_fetched_and_where(world):

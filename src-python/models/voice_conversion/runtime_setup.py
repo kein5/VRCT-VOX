@@ -170,12 +170,7 @@ def version_of(runtime):
 
 def nvidia_driver():
     """The CUDA builds of Torch need this driver; it is present with any NVIDIA GPU."""
-    import ctypes
-    try:
-        ctypes.WinDLL('nvcuda.dll')
-        return True
-    except (OSError, AttributeError):
-        return False
+    return (Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/nvcuda.dll').is_file()
 
 
 def unpack_source(archive, target):
@@ -229,9 +224,14 @@ def apply_patch(root, text):
         path.write_bytes(newline.join(lines).encode('utf-8'))
 
 
+def _new_digest(size, sha256, blob):
+    if blob and not sha256:
+        return hashlib.sha1(f'blob {size}\0'.encode(), usedforsecurity=False)
+    return hashlib.sha256()
+
+
 def _file_digest(path, asset, check):
-    digest = (hashlib.sha256() if asset.sha256
-              else hashlib.sha1(f'blob {asset.size}\0'.encode(), usedforsecurity=False))
+    digest = _new_digest(asset.size, asset.sha256, asset.blob)
     with path.open('rb') as stream:
         while block := stream.read(CHUNK):
             check()
@@ -266,8 +266,10 @@ class RuntimeSetup:
             receipt = json.loads((folder / 'receipt.json').read_text(encoding='utf-8'))
         except (OSError, ValueError):
             return False
+        # What the worker refuses to start without, so a damaged runtime can be set up again.
         return (isinstance(receipt, dict) and receipt.get('version') == version_of(runtime)
-                and runtime_python(folder).is_file())
+                and runtime_python(folder).is_file()
+                and (folder / 'engine').is_dir() and (folder / 'assets').is_dir())
 
     def catalog(self):
         rows = []
@@ -329,8 +331,7 @@ class RuntimeSetup:
     def _fetch(self, url, target, event, job=None, *, size=None, sha256='', blob='', limit=None):
         part = target.with_name(target.name + '.part')
         target.parent.mkdir(parents=True, exist_ok=True)
-        digest = (hashlib.sha256() if sha256 or not blob
-                  else hashlib.sha1(f'blob {size}\0'.encode(), usedforsecurity=False))
+        digest = _new_digest(size, sha256, blob)
         received = 0
         with self.transport(url, hosts=SOURCE_HOSTS) as response, part.open('wb') as output:
             with self.lock:
@@ -467,6 +468,8 @@ class RuntimeSetup:
                 marker.write_text(json.dumps(finished), encoding='utf-8')
             self._checkpoint(event)
             (folder / 'receipt.json').write_text(json.dumps({'version': version, 'id': runtime.id}), encoding='utf-8')
+            # Steps resume a setup, not a finished runtime: a repair must run them again.
+            marker.unlink(missing_ok=True)
             shutil.rmtree(folder / '.cache', ignore_errors=True)
             terminal = dict(phase='ready', path=str(folder), error_code=None)
         except Cancelled:
