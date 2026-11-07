@@ -38,7 +38,8 @@ def marked_pixels(layout, state, scale=1):
 def overlay_fixture():
     settings = {"tracker": "Playspace", "ui_scaling": 0.88, "x_pos": 0, "y_pos": 0,
                 "z_pos": 0, "x_rotation": 0, "y_rotation": 0, "z_rotation": 0}
-    overlay = Overlay({LAUNCHER: settings.copy(), PANEL: settings.copy()})
+    # ランチャーの保存値は 952px 幅のときの幅なので、これで 1px が 1mm になる
+    overlay = Overlay({LAUNCHER: {**settings, "ui_scaling": 0.952}, PANEL: settings.copy()})
     overlay.overlay = MagicMock(spec=openvr.IVROverlay)
     overlay.overlay_system = MagicMock()
     overlay.tooltip_handle = 90

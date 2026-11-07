@@ -8,6 +8,9 @@ from PIL import Image, ImageDraw
 # ランチャーの横幅 (論理px)。吹き出しの押す位置の範囲と、VR画面の並び (overlay.py computeVrLayout / vr_layout.json) の基準。
 # ボタン7つと区切り (VrLauncher.module.scss) が入る幅。以前あった左端の VRCT のマークの分 (72px) は除いた
 LAUNCHER_WIDTH_PX = 880
+# 保存する ui_scaling の基準の幅 (論理px)。ui_scaling は「帯がこの幅だとしたときの横幅 (m)」のまま変えない。
+# 左端のマークがあった頃の保存値がそのままの意味で読めるので、保存値を書き換えずにボタンの大きさを保てる
+LAUNCHER_SAVED_WIDTH_PX = 952
 
 
 def _finite_number(value: object) -> bool:

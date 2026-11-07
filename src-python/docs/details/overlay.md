@@ -719,7 +719,7 @@ Python (src-python/models/overlay/)
 ### ランチャー
 
 - 手首（左右は設定）に付く。`launcher_auto_hide` が ON なら、手首を見たときだけ出る（面の向き 45° 以内かつ視線 40° 以内が 0.05 秒続いたら出す。外れて 0.3 秒で消す。0.1 秒でフェード）。レーザーを当てている間は消さない。出始めの 0.2 秒は押せない。
-- ランチャーの領域は 880×128px（`LAUNCHER_WIDTH_PX`。ボタン7つと区切り）。以前は左端に VRCT のマーク（吹き出し）を出して 952px 幅だったが、外した。横幅は `ui_scaling`（m）で、既定は 0.1834（`DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS`。ボタンの大きさは 952px 幅で 0.1984 のときと同じ）。
+- ランチャーの領域は 880×128px（`LAUNCHER_WIDTH_PX`。ボタン7つと区切り）。以前は左端に VRCT のマーク（吹き出し）を出して 952px 幅だったが、外した。大きさは `ui_scaling`（m）で、既定は 0.1984（`DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS`）。`ui_scaling` は「帯が 952px 幅だとしたときの横幅」（`LAUNCHER_SAVED_WIDTH_PX`）のままで、実際のオーバーレイの横幅は `regionWidthM` が 880/952 倍して求める（既定で 0.1834m）。マークがあった頃の保存値を書き換えずに、ボタンの大きさを保つためである。`_LAUNCHER_WIDTH_RANGE_M`（0.12〜1.0）も保存値で比べる。
 - **見失い対策**: 掴んで手首から 15cm より遠くへ置く、または横幅を 0.12〜1.0m の外にして放すと、手首から一番近い限度の内側の点（方向は変えない）へ、0.3 秒、だんだん速く吸い寄せる（`updateLauncherReturn` / `launcherNearestInReach`）。向き・付けている手・範囲内の大きさは変えず、範囲外の大きさだけ範囲の端に収める。保存された値が範囲の外だったときも、起動時に同じように寄せる（`Model.init`）。PC 側の設定の「ランチャーの位置と大きさを初期に戻す」（`/run/vr_launcher_reset`）も同じ動きで、手は左手に戻る。戻している間は出し続け、押せない。
 - ログボタンの 600ms 長押しで、見失ったログを目の前へ呼び戻す (`/run/vr_panel_recall_log`)。
 - **操作の吹き出し**（`OVERLAY_VR_TOOLTIP`、既定 ON）: 別のオーバーレイ（`VRCT_tooltip`）。VR 画面が描いた吹き出しを撮影し、画像に埋めた世代 marker（epoch 48bit / revision 32bit の 80 セル）が現在の要求と一致したときだけ表示する（古い撮影結果が混ざらないため）。

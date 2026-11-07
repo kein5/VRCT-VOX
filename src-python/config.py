@@ -307,7 +307,9 @@ DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS = {
     "display_duration": 5,
     "fadeout_duration": 0,  # 常に表示
     "opacity": 1.0,
-    "ui_scaling": 0.1834,  # 横幅(m)。880x128px の帯。ボタンの大きさは、左端のマークがあった 952px 幅で 0.1984m のときと同じ
+    # 帯が 952px 幅だとしたときの横幅(m) (LAUNCHER_SAVED_WIDTH_PX)。実際の 880px の帯は 0.1834m になる。
+    # 左端のマークがあった頃と同じ意味なので、保存済みの値は書き換えなくても同じ大きさで出る
+    "ui_scaling": 0.1984,
     "tracker": "LeftHand",
 }
 

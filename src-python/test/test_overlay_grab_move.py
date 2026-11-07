@@ -831,7 +831,7 @@ class LauncherHandTest(unittest.TestCase):
         overlay.updateLauncherIntroFlight(away, 10.0)
         start = np.array(move.call_args[0][2].m)
         np.testing.assert_allclose(start[:, 3], overlay.launcher_intro_front[:3, 3], atol=1e-6)  # 最初は正面の位置
-        wrist_width = overlay.settings[LAUNCHER]["ui_scaling"]
+        wrist_width = overlay.regionWidthM(LAUNCHER)
         self.assertAlmostEqual(width.call_args[0][1], wrist_width * 5.0)  # 正面では大きめに出す
         overlay.updateLauncherIntroFlight(away, 10.0 + 1.3 + 0.4)
         self.assertLess(width.call_args[0][1], wrist_width * 5.0)  # 飛んでいる途中
@@ -993,6 +993,23 @@ class LauncherReturnTest(unittest.TestCase):
         overlay.position_changed_callback = MagicMock()
         return overlay
 
+    def test_a_saved_width_keeps_the_button_size_and_is_not_rewritten(self):
+        from config import DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
+        from models.overlay.overlay import LAUNCHER
+        from models.overlay.overlay_tooltip import LAUNCHER_SAVED_WIDTH_PX, LAUNCHER_WIDTH_PX
+
+        overlay = self._overlay()
+        for saved in (DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS["ui_scaling"], 0.25):  # 左端のマークがあった頃の既定と、変えた人の値
+            overlay.updateUiScaling(saved, LAUNCHER)
+            width = overlay.overlay.setOverlayWidthInMeters.call_args[0][1]
+            # ボタンは 1px あたりの大きさで決まる。帯が短くなっても同じ大きさのまま
+            self.assertAlmostEqual(width / LAUNCHER_WIDTH_PX, saved / LAUNCHER_SAVED_WIDTH_PX)
+            overlay.notifyPosition(LAUNCHER)
+            self.assertEqual(overlay.position_changed_callback.call_args[0][1]["ui_scaling"], saved)  # 保存する値は増減しない
+        self.assertEqual(DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS["ui_scaling"], 0.1984)
+        overlay.updateUiScaling(0.1984, LAUNCHER)
+        self.assertAlmostEqual(overlay.regionWidthM(LAUNCHER), 0.1834, places=4)
+
     def test_out_of_reach_is_far_or_too_small_or_too_big(self):
         from models.overlay.overlay import launcherOutOfReach
 
@@ -1049,12 +1066,13 @@ class LauncherReturnTest(unittest.TestCase):
         self.assertEqual(overlay.settings[LAUNCHER]["x_pos"], 0.0)  # 目標は初期の位置
         overlay.updateLauncherReturn(pose, 10.2)
         width = overlay.overlay.setOverlayWidthInMeters.call_args[0][1]
-        self.assertTrue(0.303 < width < 1.0)  # 大きさも途中
+        final_width = overlay.regionWidthM(LAUNCHER)
+        self.assertTrue(final_width < width < 1.0)  # 大きさも途中
         start = np.array(overlay.overlay.setOverlayTransformAbsolute.call_args[0][2].m)[:, 3]
         self.assertTrue(0.0 < np.linalg.norm(start) < 1.8)  # 位置も途中 (1.73m の遠くから、手首 (原点) へ)
         overlay.updateLauncherReturn(pose, 10.4)
         self.assertIsNone(overlay.launcher_return)  # 着いた
-        self.assertAlmostEqual(overlay.overlay.setOverlayWidthInMeters.call_args[0][1], 0.303)
+        self.assertAlmostEqual(overlay.overlay.setOverlayWidthInMeters.call_args[0][1], final_width)
         position = overlay.position_changed_callback.call_args[0]
         self.assertEqual(position[0], LAUNCHER)
         self.assertEqual(position[1]["x_pos"], 0.0)  # 保存と UI への通知は着いたとき
