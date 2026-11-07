@@ -4,6 +4,7 @@
 No inference dependencies are imported until source and asset checks pass.
 The supplied runtime is executable software, not an untrusted plugin sandbox.
 """
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -11,10 +12,27 @@ import sys
 from types import SimpleNamespace
 
 COMMIT = '81eed5e8f68b6bed1789f682fe78cdd324495afc'
+# source_digest of COMMIT's Python files with their committed line endings.
+SOURCE_DIGEST = '9778a961cda108fd3145f36ae14d7ba9401308e610920157903bc219231f93fd'
+
+
+def source_digest(root):
+    """Every Python file in one hash, so a checkout needs no Git to be verified."""
+    root = Path(root)
+    digest = hashlib.sha256()
+    for name in sorted(file.relative_to(root).as_posix() for file in root.rglob('*.py')):
+        digest.update(name.encode() + b'\0' + hashlib.sha256((root / name).read_bytes()).digest())
+    return digest.hexdigest()
 
 
 def require_source(root):
     root = Path(root).resolve()
+    try:
+        if source_digest(root) == SOURCE_DIGEST:
+            return
+    except OSError:
+        raise ValueError('vc_source_unverified') from None
+    # A checkout that Git converted to CRLF differs from the digest but is still clean.
     def git(*args):
         return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.DEVNULL,
                                        timeout=10).decode().strip()
@@ -48,6 +66,14 @@ def load_complete_state(model, supplied):
             or not torch.isfinite(selected[k]).all() for k, v in expected.items())):
         raise ValueError('vc_checkpoint_incomplete')
     model.load_state_dict(selected, strict=True)
+
+
+def read_index(path):
+    """faiss opens its own file through the narrow C runtime, which cannot reach a
+    Windows path outside the code page. A Japanese user name is enough for that."""
+    import faiss
+    import numpy as np
+    return faiss.deserialize_index(np.fromfile(path, dtype=np.uint8))
 
 
 def configure_index_search(index):
@@ -139,7 +165,9 @@ def create_engine(engine_path, assets, model, index, pitch, index_rate):
     for key in ('HF_HUB_OFFLINE', 'TRANSFORMERS_OFFLINE', 'HF_HUB_DISABLE_TELEMETRY',
                 'TORCH_FORCE_WEIGHTS_ONLY_LOAD'):
         os.environ[key] = '1'
-    os.environ['RVC_CUDA_GRAPH'] = '0'
+    # A block is hundreds of small kernels. Replaying them as a graph took a block from
+    # 70 ms to 18 ms on a laptop CPU with no change in the voice. Not yet tried on Linux.
+    os.environ['RVC_CUDA_GRAPH'] = '1' if sys.platform == 'win32' else '0'
     sys.path.insert(0, str(engine_path))
     # Upstream i18n resolves locale JSON against cwd. No application process chdir.
     os.chdir(engine_path)
@@ -162,6 +190,7 @@ def create_engine(engine_path, assets, model, index, pitch, index_rate):
         return model.eval().to(device)
     rtrvc.load_hubert_model = load_hubert
     rtrvc.get_synthesizer = _synthesizer
+    rtrvc.faiss = SimpleNamespace(read_index=read_index)  # Its only use in the pinned module.
     enforce_retrieval_errors(rtrvc)
     vc = rtrvc.RVC(pitch, 0, str(model), str(index), index_rate, config)
     require_engine(vc)

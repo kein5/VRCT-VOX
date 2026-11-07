@@ -1,5 +1,7 @@
 """Real FAISS sparse IVF regression; optional runtime, no weights or audio."""
 import importlib.util
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
 
@@ -15,6 +17,16 @@ class RetrievalProbeTests(unittest.TestCase):
         index.is_trained = True
         index.add(np.array([[1, 1]] + [[100+i, 100] for i in range(12)], dtype='float32'))
         return index
+
+    def test_an_index_reads_from_a_path_outside_the_code_page(self):
+        import faiss
+        from integrations.rvc.loader import read_index
+        index = self.sparse_index()
+        with TemporaryDirectory() as root:
+            folder = Path(root) / 'ユーザー 한글 😀'
+            folder.mkdir()
+            faiss.serialize_index(index).tofile(folder / 'model.index')
+            self.assertEqual(read_index(folder / 'model.index').ntotal, index.ntotal)
 
     def test_sparse_list_gets_complete_neighbors_after_configuration(self):
         import numpy as np
