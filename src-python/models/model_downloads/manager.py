@@ -163,7 +163,9 @@ class Downloads:
                         raise ValueError('size_mismatch')
                     if digest.hexdigest() != artifact.sha256:
                         raise ValueError('hash_mismatch')
-                (staging / 'receipt.json').write_text(json.dumps(asdict(entry), ensure_ascii=False, indent=2))
+                # The locale encoding is cp932 on Japanese Windows, which cannot write the "·" in entries.
+                (staging / 'receipt.json').write_text(json.dumps(asdict(entry), ensure_ascii=False, indent=2),
+                                                      encoding='utf-8')
             # Cancellation and publication have one linearization point.
             with self.lock:
                 self._checkpoint(event)

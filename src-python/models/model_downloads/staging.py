@@ -41,7 +41,7 @@ class RootLease:
 def mark_owned(path, entry):
     data = dict(product='VRCT-VOX-model-download-v1', id=entry.id, revision=entry.revision,
                 files=[a.filename for a in entry.artifacts], directory=path.name)
-    with (path / 'owner.json').open('x') as out:
+    with (path / 'owner.json').open('x', encoding='utf-8') as out:
         json.dump(data, out); out.flush(); os.fsync(out.fileno())
 
 
@@ -54,7 +54,7 @@ def recover_owned(root, entries, *, extra_files=()):
         try:
             if not stat.S_ISREG(marker.lstat().st_mode) or marker.stat().st_size > 4096:
                 continue
-            data = json.loads(marker.read_text())
+            data = json.loads(marker.read_text(encoding='utf-8'))
             entry = entries.get(data.get('id'))
             if (entry is None or data != dict(product='VRCT-VOX-model-download-v1', id=entry.id,
                     revision=entry.revision, files=[a.filename for a in entry.artifacts], directory=path.name)):

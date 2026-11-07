@@ -34,7 +34,7 @@ def bundled_binary():
         if (BUNDLE.is_symlink() or not stat.S_ISREG(meta.lstat().st_mode) or meta.stat().st_size>65536
                 or not stat.S_ISREG(binary.lstat().st_mode) or not os.access(binary,os.X_OK)):
             raise ValueError()
-        data=json.loads(meta.read_text())
+        data=json.loads(meta.read_text(encoding='utf-8'))
         if type(data['schema']) is not int or data['schema']!=1 or data['version']!='0.10.0':
             raise ValueError()
         expected=HASHES[data['variant']]
