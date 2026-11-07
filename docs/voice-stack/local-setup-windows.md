@@ -84,6 +84,10 @@ RVC本体は[README](../../integrations/rvc/README.md)のコミットのもの�
 
 `asr_capture_stream_create_failed`は、マイクを開けなかったことを示します。ほかのアプリの占有と、Windowsの設定の「プライバシーとセキュリティ」→「マイク」を確かめます。
 
+一部のWindows（確認したのはInsider Beta build 26220）は、デスクトップアプリごとにマイクの許可を確認します。初めて開くときに確認の画面が出て、答えるまで開く処理が止まります。VRCT-VOXは120秒待ち、それでも答えがなければ`asr_capture_start_timeout`で止まります。確認の画面はデスクトップに出るので、VRのヘッドセットの中からは見えません。
+
+答えないままプロセスが終わると、同じ場所のexeは次から確認なしで拒否され、`asr_capture_stream_create_failed`になります。MME、DirectSound、WASAPIのどれでも同じです。別の場所のexeには、改めて確認が出ます。開発中に`python.exe`から試すときも同じ扱いです。
+
 ## モデル不要のテスト
 
 ```powershell

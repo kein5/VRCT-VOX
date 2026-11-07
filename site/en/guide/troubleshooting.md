@@ -17,6 +17,12 @@ On that feature's page, download the model and press "Apply model path" (see [Mo
 3. Check that the bundled server is running. Servers are stopped again after you restart the app.
 4. VRChat's microphone test records briefly and then plays back. Start the test while the input meter is moving.
 
+## The microphone cannot be opened (Windows)
+
+Some Windows versions ask whether VRCT-VOX may use the microphone the first time it does. Allow it, then start again.
+
+If VRCT-VOX closes before that question is answered, Windows refuses from then on without asking. Check Settings → Privacy & security → Microphone.
+
 ## Text is spoken twice
 
 Turn off any other tool that reads the same chat, such as VRCT-TTS.
