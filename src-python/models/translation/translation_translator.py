@@ -38,6 +38,9 @@ except Exception:
 _WEB_TRANSLATOR_TIMEOUT_SECONDS = 10
 _CTRANSLATE2_MAX_INPUT_LENGTH = 1024
 _CTRANSLATE2_MAX_DECODING_LENGTH = 256
+# The num_beams of the model's own generation_config.json. CTranslate2's default
+# of 2 gave worse sentences ("we will meet our friends" for 友達に会います).
+_M2M100_BEAM_SIZE = 5
 
 import warnings
 from threading import RLock
@@ -561,16 +564,18 @@ class Translator:
                         self.ctranslate2_tokenizer.encode(message, truncation=False))
                     if len(source) > _CTRANSLATE2_MAX_INPUT_LENGTH:
                         return False
+                    decoding = {}
                     match weight_type:
                         case "m2m100_418M-ct2-int8" | "m2m100_1.2B-ct2-int8":
                             target_prefix = [self.ctranslate2_tokenizer.lang_code_to_token[target_language]]
+                            decoding["beam_size"] = _M2M100_BEAM_SIZE
                         case "nllb-200-distilled-600M-ct2-int8" | "nllb-200-distilled-1.3B-ct2-int8" | "nllb-200-3.3B-ct2-int8":
                             target_prefix = [target_language]
                         case _:
                             return False
                     results = self.ctranslate2_translator.translate_batch(
                         [source], target_prefix=[target_prefix], max_input_length=0,
-                        max_decoding_length=_CTRANSLATE2_MAX_DECODING_LENGTH, return_end_token=True,
+                        max_decoding_length=_CTRANSLATE2_MAX_DECODING_LENGTH, return_end_token=True, **decoding,
                     )
                     target = results[0].hypotheses[0]
                     if not target or target[-1] != self.ctranslate2_tokenizer.eos_token:
