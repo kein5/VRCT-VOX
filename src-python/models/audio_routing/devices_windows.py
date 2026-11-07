@@ -1,9 +1,15 @@
-"""PyAudioWPatch devices. Never use the OS default device for TTS or converted voice."""
+"""PyAudioWPatch devices. Never use the OS default device for TTS or converted voice.
+
+PortAudio crashes when threads set it up or tear it down at once, so every PyAudio
+here is made, opened and ended under pyaudio_op_lock.
+"""
+from contextlib import contextmanager
 import json
 import re
 from zlib import crc32
 
 from models.tts.speechcpp_tts import SpeechError
+from pyaudio_lock import pyaudio_op_lock
 from .source_bridge import Endpoint
 
 # Drivers that connect a playback device straight to a recording device.
@@ -19,6 +25,19 @@ def prepare_audio_thread():
     import ctypes
     if hasattr(ctypes, 'windll'):
         ctypes.windll.ole32.CoInitializeEx(None, 0)  # Already set up is not an error.
+
+
+@contextmanager
+def _query():
+    """A PyAudio for a short look at the device list."""
+    import pyaudiowpatch as audio
+    prepare_audio_thread()
+    with pyaudio_op_lock:
+        pa = audio.PyAudio()
+        try:
+            yield pa, audio
+        finally:
+            pa.terminate()
 
 
 def _identity(pa, info):
@@ -57,31 +76,23 @@ def is_virtual_cable(identity):
 
 
 def enumerate_outputs():
-    import pyaudiowpatch as audio
-    pa = audio.PyAudio()
-    try:
+    with _query() as (pa, _):
         result = []
         for i in range(pa.get_device_count()):
             info = pa.get_device_info_by_index(i)
             if info["maxOutputChannels"] > 0 and not info.get("isLoopbackDevice", False):
                 result.append({"id": _identity(pa, info), "label": _identity(pa, info)})
         return result
-    finally:
-        pa.terminate()
 
 
 def default_output():
     """Identity of the OS default output. Monitor only: TTS never uses a default."""
-    import pyaudiowpatch as audio
-    pa = audio.PyAudio()
-    try:
+    with _query() as (pa, _):
         try:
             info = pa.get_default_output_device_info()
         except (OSError, LookupError) as exc:
             raise SpeechError("output_missing") from exc
         return _identity(pa, info)
-    finally:
-        pa.terminate()
 
 
 def _endpoint(identity, source):
@@ -106,28 +117,21 @@ def _endpoint_rows(pa, audio, source):
 
 def enumerate_endpoints(source):
     """WASAPI microphones or speakers. Other host APIs repeat the same hardware."""
-    import pyaudiowpatch as audio
-    pa = audio.PyAudio()
-    try:
+    with _query() as (pa, audio):
         return [{'endpoint': _endpoint(_identity(pa, info), source), 'label': info['name']}
                 for info in _endpoint_rows(pa, audio, source)]
-    finally:
-        pa.terminate()
 
 
 def default_endpoint(source):
-    import pyaudiowpatch as audio
-    pa = audio.PyAudio()
     try:
-        host = _wasapi(pa, audio)
-        index = host['defaultInputDevice' if source == 'mic' else 'defaultOutputDevice']
-        if index < 0:
-            raise ValueError('realtime_default_endpoint_missing')
-        identity = _identity(pa, pa.get_device_info_by_index(index))
+        with _query() as (pa, audio):
+            host = _wasapi(pa, audio)
+            index = host['defaultInputDevice' if source == 'mic' else 'defaultOutputDevice']
+            if index < 0:
+                raise ValueError('realtime_default_endpoint_missing')
+            identity = _identity(pa, pa.get_device_info_by_index(index))
     except (OSError, LookupError):
         raise ValueError('realtime_default_endpoint_missing') from None
-    finally:
-        pa.terminate()
     # Speaker capture hears the room's output either way; a cable as the default
     # microphone would transcribe or convert VRCT-VOX's own speech.
     if source == 'mic' and is_virtual_cable(identity):
@@ -150,10 +154,14 @@ class WindowsOutput:
         prepare_audio_thread()
         # A monitor tolerates a stalled server's gap; the virtual mic reports it.
         self.strict_underflow = strict_underflow
-        self.pa = audio.PyAudio()
         self.stream = None
         self.channels = self.device_channels = channels
         self._resampler = None
+        with pyaudio_op_lock:
+            self.pa = audio.PyAudio()
+            self._start(audio, device, rate, channels)
+
+    def _start(self, audio, device, rate, channels):
         try:
             matches = [i for i in range(self.pa.get_device_count())
                        if self.pa.get_device_info_by_index(i)["maxOutputChannels"] >= channels
@@ -207,10 +215,11 @@ class WindowsOutput:
         # PortAudio owns the final hardware buffer. Immediate device abort and
         # hot-unplug timing must be measured on WASAPI; do not promise zero ms.
         try:
-            try:
-                if drain and not token.is_set():
-                    self.stream.stop_stream()
-            finally:
-                self.stream.close()
+            if drain and not token.is_set():
+                self.stream.stop_stream()  # Waits for the last audio; never under the lock.
         finally:
-            self.pa.terminate()
+            with pyaudio_op_lock:
+                try:
+                    self.stream.close()
+                finally:
+                    self.pa.terminate()

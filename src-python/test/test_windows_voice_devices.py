@@ -109,6 +109,25 @@ def speaker_endpoint():
     return dw._endpoint(identity(SPEAKER), 'speaker')
 
 
+def test_portaudio_is_only_touched_under_the_shared_lock(audio, monkeypatch):
+    """Setting PortAudio up on two threads at once crashed the sidecar during startup."""
+    held = []
+    real_init = FakePyAudio.__call__
+
+    def noted(self):
+        held.append(dw.pyaudio_op_lock.locked())
+        return real_init(self)
+
+    monkeypatch.setattr(FakePyAudio, '__call__', noted)
+    dw.enumerate_outputs()
+    dw.enumerate_endpoints('mic')
+    dw.default_endpoint('speaker')
+    output = dw.WindowsOutput(identity(SPEAKER), 48000, 1)
+    output.close(drain=True, token=CancelToken())
+    assert held and all(held)
+    assert not dw.pyaudio_op_lock.locked()
+
+
 def test_endpoints_list_each_device_once_and_keep_a_stable_identity(audio):
     mics = dw.enumerate_endpoints('mic')
     assert [row['label'] for row in mics] == ['Mic (USB)']

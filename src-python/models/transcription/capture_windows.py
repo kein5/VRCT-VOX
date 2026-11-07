@@ -16,6 +16,7 @@ from models.audio_routing.devices_windows import (
     prepare_audio_thread,
 )
 from models.voice_events import AudioFrame
+from pyaudio_lock import pyaudio_op_lock
 from .capture_pipewire import CaptureError, _validate, capture_error_code
 from .realtime_audio import CapturedAudio
 
@@ -145,12 +146,6 @@ class WindowsCapture:
         try:
             import pyaudiowpatch as audio
             prepare_audio_thread()
-            pa = audio.PyAudio()
-            try:
-                info = capture_device(pa, audio, self.endpoint, self.source)
-            except (LookupError, OSError):
-                raise CaptureError('asr_capture_endpoint_missing') from None
-            rate, channels = int(info['defaultSampleRate']), int(info['maxInputChannels'])
             buffers = Queue(maxsize=64)
 
             def queued(data, _count, _time, _status):
@@ -166,12 +161,19 @@ class WindowsCapture:
                         pass
                 return None, audio.paContinue
 
-            try:
-                stream = pa.open(format=audio.paInt16, channels=channels, rate=rate, input=True,
-                                 input_device_index=int(info['index']), frames_per_buffer=max(1, rate // 100),
-                                 stream_callback=queued)
-            except OSError:
-                raise CaptureError('asr_capture_stream_create_failed') from None
+            with pyaudio_op_lock:
+                pa = audio.PyAudio()
+                try:
+                    info = capture_device(pa, audio, self.endpoint, self.source)
+                except (LookupError, OSError):
+                    raise CaptureError('asr_capture_endpoint_missing') from None
+                rate, channels = int(info['defaultSampleRate']), int(info['maxInputChannels'])
+                try:
+                    stream = pa.open(format=audio.paInt16, channels=channels, rate=rate, input=True,
+                                     input_device_index=int(info['index']), frames_per_buffer=max(1, rate // 100),
+                                     stream_callback=queued)
+                except OSError:
+                    raise CaptureError('asr_capture_stream_create_failed') from None
             self._pump(stream, buffers, FrameBuilder(rate, channels))
         except Exception as exc:
             if not self._stop.is_set():
@@ -183,11 +185,12 @@ class WindowsCapture:
                     pass
         finally:
             self.request_stop()
-            try:
-                if stream is not None:
-                    stream.stop_stream()
-                    stream.close()
-            except OSError:
-                pass  # An unplugged device has nothing left to stop.
-            if pa is not None:
-                pa.terminate()
+            with pyaudio_op_lock:
+                try:
+                    if stream is not None:
+                        stream.stop_stream()
+                        stream.close()
+                except OSError:
+                    pass  # An unplugged device has nothing left to stop.
+                if pa is not None:
+                    pa.terminate()
