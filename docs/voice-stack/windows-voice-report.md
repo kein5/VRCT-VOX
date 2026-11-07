@@ -15,7 +15,20 @@ TTS、同梱のspeech.cppサーバー、リアルタイム字幕、RVC、Seed-VC
 
 実マイクとスピーカーは使っていません。音声はSteamの無音の仮想出力へ書き、WASAPIのループバックで読み戻しました。RVCの試験では、開けない仮想マイクの代わりにループバックを入力へ当てています。入力デバイスを開く部分だけが試験用です。
 
-内蔵マイクでの試験は利用者の許可を得て試みましたが、できませんでした。このPCの試験環境では、録音デバイスの`IAudioClient::Initialize`が3台とも`E_ACCESSDENIED`を返します（MMEとDirectSoundでも開けません）。Windowsのプライバシー設定は許可で、ポリシーの制限も画面ロックもなく、理由は未確定です。Steamの仮想マイクが開けなかったのも同じ現象でした。試験はどれもClaudeデスクトップアプリの子プロセスから動かしています。アプリのターミナルでも結果は同じでした。このアプリの外から起動した場合は確かめていません。
+内蔵マイクでの試験は利用者の許可を得て試みましたが、`IAudioClient::Initialize`が3台とも`E_ACCESSDENIED`を返して開けませんでした（MMEとDirectSoundでも同じ）。Steamの仮想マイクが開けなかったのも同じ現象です。
+
+原因は、このPCのInsider Beta build 26220にある、デスクトップアプリごとのマイクの許可でした。Windowsの全体の設定は許可でも、次のように扱いが分かれます。
+
+| 開いたプログラム | 結果 |
+|---|---|
+| Windows付属で署名のある`powershell.exe` | 確認なしで成功 |
+| 未署名のexeの1回目 | `PickerHost.exe`の確認の画面が出て、答えるまで止まる。バージョン情報がないと「Allow   to access your microphone?」と名前が空欄になる |
+| 同じexeの2回目（1回目に答えないまま終了） | 確認なしで`E_ACCESSDENIED`。30分後も同じ |
+| 同じ中身のexeを別の場所へコピー | 改めて確認が出る |
+| ファイアウォールの確認が開いている間のexe | 確認なしで`E_ACCESSDENIED`。閉じれば確認が出て、拒否は残らない |
+| `FileDescription`のある未署名のexe | 「Allow VRCT-VOX Probe to access your microphone?」と名前が出る |
+
+`python.exe`も配布版のサイドカーも、最初の確認に答えなかったので拒否されていました。記録は`ConsentStore\microphone\NonPackaged`の一覧には現れません。サイドカーにはバージョン情報を入れ、確認の画面にVRCT-VOXの名前が出るようにしました。設定の画面から許可し直せるかは確かめていません。
 
 ## 結果
 

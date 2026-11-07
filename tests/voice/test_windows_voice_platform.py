@@ -27,6 +27,30 @@ SOURCE = Endpoint(1, 0, '["Windows WASAPI", "Microphone (USB)"]', 'Audio/Source'
 windows = pytest.mark.skipif(sys.platform != 'win32', reason='Windows process behaviour')
 
 
+@pytest.mark.parametrize('spec', ['backend.spec', 'backend_cuda.spec'])
+def test_both_windows_builds_name_the_sidecar_for_the_microphone_question(spec):
+    assert 'version=sidecar_version(ROOT)' in (ROOT / 'spec' / spec).read_text(encoding='utf-8')
+
+
+def test_the_sidecar_version_carries_the_app_name(tmp_path):
+    resources = importlib.import_module('tools.windows_voice_resources')
+    (tmp_path / 'package.json').write_text('{"version": "1.2.3-beta.4"}', encoding='utf-8')
+    path = resources.sidecar_version(tmp_path)
+    text = Path(path).read_text(encoding='utf-8')
+    assert 'filevers=(1, 2, 3, 4)' in text
+    assert "StringStruct('FileDescription', 'VRCT-VOX')" in text
+    assert "StringStruct('FileVersion', '1.2.3-beta.4')" in text
+
+
+def test_pyinstaller_reads_the_sidecar_version_file(tmp_path):
+    versioninfo = pytest.importorskip('PyInstaller.utils.win32.versioninfo')
+    resources = importlib.import_module('tools.windows_voice_resources')
+    (tmp_path / 'package.json').write_text('{"version": "1.2.3"}', encoding='utf-8')
+    info = versioninfo.load_version_info_from_text_file(resources.sidecar_version(tmp_path))
+    assert info.ffi.fileVersionMS == (1 << 16) | 2 and info.ffi.fileVersionLS == 3 << 16
+    assert 'VRCT-VOX' in str(info)
+
+
 def test_a_rejected_seed_setting_gives_its_graphs_back(monkeypatch):
     monkeypatch.setitem(sys.modules, 'torch', SimpleNamespace(cuda=SimpleNamespace(empty_cache=lambda: None)))
     try:

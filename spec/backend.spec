@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(SPECPATH).resolve().parent
 sys.path.insert(0, str(ROOT / "tools"))
 from distribution_policy import filter_toc
-from windows_voice_resources import notice_toc, voice_toc
+from windows_voice_resources import notice_toc, sidecar_version, voice_toc
 
 # UPX compression roughly doubles the PyInstaller collect step and adds
 # a few seconds to sidecar startup. Default to disabled so ordinary
@@ -78,6 +78,7 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=[],
+    version=sidecar_version(ROOT),
 )
 coll = COLLECT(
     exe,

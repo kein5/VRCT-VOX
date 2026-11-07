@@ -7,9 +7,11 @@ folder: the worker runs from it, and _internal holds the sidecar's Python 3.11 e
 modules, which would shadow the standard library of the worker's own Python.
 """
 import importlib.metadata
+import json
 from pathlib import Path
+import re
 
-CONTRACT = ('__init__.py', 'owned_child.py', 'voice_conversion/__init__.py',
+CONTRACT =('__init__.py', 'owned_child.py', 'voice_conversion/__init__.py',
             'voice_conversion/protocol.py', 'voice_conversion/settings.py')
 WORKER = 'voice_worker'
 ENGINES = ('rvc', 'seed_vc')
@@ -71,6 +73,28 @@ def notice_toc():
             if source.is_file() and '..' not in file.parts and not file.is_absolute():
                 rows.append((f'licenses/python/{name}/{Path(file).as_posix()}', str(source), 'DATA'))
     return rows
+
+
+def sidecar_version(root):
+    """The name Windows shows when it asks whether this exe may use the microphone.
+
+    With no version resource the question reads "Allow   to access your microphone?".
+    Someone who leaves that unanswered is refused from then on, with no further question.
+    Returns the path of a PyInstaller version file.
+    """
+    root = Path(root)
+    version = json.loads((root / 'package.json').read_text(encoding='utf-8'))['version']
+    numbers = tuple(int(part) for part in re.findall(r'\d+', version)[:4])
+    numbers += (0,) * (4 - len(numbers))
+    strings = (('FileDescription', 'VRCT-VOX'), ('ProductName', 'VRCT-VOX'), ('FileVersion', version),
+               ('ProductVersion', version), ('OriginalFilename', 'vrct-vox-sidecar.exe'))
+    rows = ', '.join(f'StringStruct({name!r}, {value!r})' for name, value in strings)
+    path = root / 'build/sidecar-version.txt'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"VSVersionInfo(ffi=FixedFileInfo(filevers={numbers}, prodvers={numbers}), "
+                    f"kids=[StringFileInfo([StringTable('040904B0', [{rows}])]), "
+                    f"VarFileInfo([VarStruct('Translation', [1033, 1200])])])\n", encoding='utf-8')
+    return str(path)
 
 
 def missing_files(internal):

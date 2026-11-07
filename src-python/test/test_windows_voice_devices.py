@@ -270,8 +270,53 @@ def test_a_slow_start_reports_the_timeout_and_not_the_slow_teardown(audio, monke
     """Reporting consumer_busy here hid why a microphone never delivered."""
     release = threading.Event()
     capture = cw.WindowsCapture(mic_endpoint(), 'mic', lambda frame: True, lambda code: None)
-    monkeypatch.setattr(cw, '_START_TIMEOUT_S', .01)
+    monkeypatch.setattr(cw, '_OPEN_TIMEOUT_S', .01)
     monkeypatch.setattr(capture, '_run', lambda: release.wait(5))
+    original = threading.Thread.join
+    monkeypatch.setattr(cw.Thread, 'join', lambda self, timeout=None: original(self, .01))
+    with pytest.raises(cw.CaptureError, match='asr_capture_start_timeout'):
+        capture.start()
+    release.set()
+
+
+def test_an_open_held_by_the_microphone_question_is_waited_for(audio, monkeypatch):
+    """Giving up here ends the router, and Windows then refuses that exe for good."""
+    capture = cw.WindowsCapture(mic_endpoint(), 'mic', lambda frame: True, lambda code: None)
+    monkeypatch.setattr(cw, '_START_TIMEOUT_S', .01)
+
+    def answered_late():
+        time.sleep(.1)
+        capture._opened.set()
+        capture._ready.set()
+
+    monkeypatch.setattr(capture, '_run', answered_late)
+    capture.start()
+
+
+def test_stopping_ends_the_wait_for_the_microphone_question(audio, monkeypatch):
+    release = threading.Event()
+    capture = cw.WindowsCapture(mic_endpoint(), 'mic', lambda frame: True, lambda code: None)
+    monkeypatch.setattr(capture, '_run', lambda: release.wait(5))
+    original = threading.Thread.join
+    monkeypatch.setattr(cw.Thread, 'join', lambda self, timeout=None: original(self, .01))
+    threading.Timer(.05, capture.request_stop).start()
+    started = time.monotonic()
+    with pytest.raises(cw.CaptureError):
+        capture.start()
+    assert time.monotonic() - started < 2
+    release.set()
+
+
+def test_a_microphone_that_opens_but_stays_silent_still_times_out(audio, monkeypatch):
+    capture = cw.WindowsCapture(mic_endpoint(), 'mic', lambda frame: True, lambda code: None)
+    monkeypatch.setattr(cw, '_START_TIMEOUT_S', .01)
+    release = threading.Event()
+
+    def silent():
+        capture._opened.set()
+        release.wait(5)
+
+    monkeypatch.setattr(capture, '_run', silent)
     original = threading.Thread.join
     monkeypatch.setattr(cw.Thread, 'join', lambda self, timeout=None: original(self, .01))
     with pytest.raises(cw.CaptureError, match='asr_capture_start_timeout'):
