@@ -31,12 +31,27 @@ except Exception:  # pragma: no cover
     def printLog(*args, **kwargs):
         print(*args, **kwargs)
 
-try:
-    from rapidocr import EngineType, LangRec, ModelType, OCRVersion, RapidOCR  # type: ignore
-except Exception:  # pragma: no cover
-    RapidOCR = None  # type: ignore
-    EngineType = LangRec = ModelType = OCRVersion = None  # type: ignore
-    errorLogging()
+# RapidOCR brings onnxruntime, OpenCV, Shapely and omegaconf, so it waits for
+# the first reader. None means it failed to import, which differs from _UNLOADED.
+_UNLOADED = object()
+RapidOCR = _UNLOADED
+EngineType = LangRec = ModelType = OCRVersion = None  # type: ignore
+_import_lock = Lock()
+
+
+def _loadRapidOCR():
+    global RapidOCR, EngineType, LangRec, ModelType, OCRVersion
+    with _import_lock:
+        if RapidOCR is _UNLOADED:
+            try:
+                from rapidocr import EngineType, LangRec, ModelType, OCRVersion, RapidOCR as engine_class  # type: ignore
+            except Exception:  # pragma: no cover
+                engine_class = None
+                errorLogging()
+            else:
+                _blockImplicitDownloads()
+            RapidOCR = engine_class
+    return RapidOCR
 
 
 class ImplicitDownloadBlocked(RuntimeError):
@@ -64,9 +79,6 @@ def _blockImplicitDownloads() -> bool:
     return True
 
 
-if RapidOCR is not None:
-    _blockImplicitDownloads()
-
 # 吹き出しの切り出しは小さい(短辺100px前後のこともある)。RapidOCRの既定は
 # 短辺を736pxまで拡大する設定 (limit_type="min") なので、そのままだと7倍に
 # 引き伸ばして1枚2秒近くかかる。320に下げると実測で2倍以上速くなり、
@@ -85,7 +97,7 @@ _read_failures = OcrFailureLog("OCR engine", lambda: errorLogging(), lambda mess
 
 
 def isAvailable() -> bool:
-    return RapidOCR is not None
+    return _loadRapidOCR() is not None
 
 
 def getReader(spec: OcrModelSpec, files: Optional[OcrModelFiles] = None) -> Optional[object]:
@@ -95,7 +107,7 @@ def getReader(spec: OcrModelSpec, files: Optional[OcrModelFiles] = None) -> Opti
     推論器は作らない。RapidOCR はパスを渡されないモデルを自分でダウンロードしに行く
     (パッケージのフォルダへ、同意なしで) ので、それを起こさないため。
     """
-    if RapidOCR is None or spec is None or files is None:
+    if spec is None or files is None or _loadRapidOCR() is None:
         return None
     key = (spec, files)
     with _engine_lock:

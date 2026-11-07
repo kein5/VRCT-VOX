@@ -148,6 +148,8 @@ class DeviceManager:
             default_mic_device={"host": {"index": -1, "name": "NoHost"}, "device": {"index": -1, "name": "NoDevice"}},
             speaker_devices=[{"index": -1, "name": "NoDevice"}],
             default_speaker_device={"device": {"index": -1, "name": "NoDevice"}},
+            # NoDevice rows need no endpoint IDs; asking Windows costs 0.5 s or more.
+            endpoint_ids={},
         )
 
         # Initialize previous state trackers

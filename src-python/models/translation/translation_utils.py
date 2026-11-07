@@ -12,10 +12,21 @@ from models.model_downloads.manager import directory
 from models.model_downloads.staging import RootLease
 
 # Tokenizer loading is optional; integrity checks do not load native models.
-try:
-    import transformers  # noqa: F401
-except Exception:
-    transformers = None  # type: ignore
+# Transformers takes over a second to import, so it waits for the first
+# tokenizer. None means it is not installed, which differs from UNLOADED.
+UNLOADED = object()
+transformers = UNLOADED
+
+
+def loadTransformers():
+    global transformers
+    if transformers is UNLOADED:
+        try:
+            import transformers as module
+        except Exception:
+            module = None
+        transformers = module
+    return transformers
 
 
 # License metadata is shown next to each weight in Config -> Translation, and
@@ -156,7 +167,7 @@ def downloadCTranslate2Tokenizer(path: str, weight_type: str = "m2m100_418M-ct2-
     # Both families already include their tokenizer assets in the pinned CT2
     # bundle. Never delegate acquisition to Transformers or trust its hub cache.
     weight_path = resolveCTranslate2Weight(path, weight_type)
-    if transformers is None or weight_path is None:
+    if weight_path is None or loadTransformers() is None:
         raise MissingCTranslate2Tokenizer(weight_type)
     try:
         tokenizer_class = (transformers.M2M100Tokenizer if weight_type.startswith("m2m100")

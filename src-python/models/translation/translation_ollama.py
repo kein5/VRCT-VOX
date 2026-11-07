@@ -1,7 +1,7 @@
 from models.diagnostics import provider_errors
 from utils import errorLogging
 from models.network_policy import without_tracing, api_request, discovery
-from langchain_ollama import ChatOllama
+from models.sdk_clients import ChatOllama
 
 try:
     from .translation_languages import translation_lang

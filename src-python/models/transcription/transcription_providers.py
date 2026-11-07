@@ -23,14 +23,6 @@ from typing import List, Optional, Protocol, Tuple
 import numpy as np
 import requests
 from httpx import Timeout
-from openai import (
-    APIConnectionError,
-    APIStatusError,
-    APITimeoutError,
-    AuthenticationError,
-    OpenAI,
-    RateLimitError,
-)
 import speech_recognition as _speech_recognition
 from speech_recognition import AudioData, Recognizer, UnknownValueError
 
@@ -41,6 +33,7 @@ from models.transcription.transcription_openai_compatible import transcriptionRe
 from utils import errorLogging
 from models.diagnostics import provider_errors
 from models.network_policy import api_http_client, explicit_request_auth
+from models.sdk_clients import OpenAI
 
 
 # speech_recognition builds the Google Web Speech URL with plain HTTP, which
@@ -240,6 +233,7 @@ class LocalWhisperProvider:
 
 
 def _map_openai_exception(exc: Exception) -> ErrorCode:
+    from openai import APIConnectionError, APIStatusError, APITimeoutError, AuthenticationError, RateLimitError
     if isinstance(exc, AuthenticationError):
         return ErrorCode.TRANSCRIPTION_API_AUTH_FAILED
     if isinstance(exc, RateLimitError):

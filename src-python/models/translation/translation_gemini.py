@@ -2,8 +2,7 @@ from models.diagnostics import provider_errors
 from utils import errorLogging
 from models.network_policy import without_tracing, discovery, GEMINI_BASE_URL, DISCOVERY_TIMEOUT, own_discovery_client, check_discovery_deadline
 import logging
-from google import genai
-from langchain_google_genai import ChatGoogleGenerativeAI
+from models.sdk_clients import ChatGoogleGenerativeAI, genai
 
 try:
     from .translation_languages import translation_lang

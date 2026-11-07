@@ -1,8 +1,7 @@
 from models.diagnostics import provider_errors
 from utils import errorLogging
 from models.network_policy import without_tracing, chat_http_clients, api_request, discovery, validate_api_url
-from langchain_openai import ChatOpenAI
-from pydantic import SecretStr
+from models.sdk_clients import ChatOpenAI, SecretStr
 
 try:
     from .translation_languages import translation_lang
