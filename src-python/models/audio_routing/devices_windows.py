@@ -13,7 +13,9 @@ from pyaudio_lock import pyaudio_op_lock
 from .source_bridge import Endpoint
 
 # Drivers that connect a playback device straight to a recording device.
-_CABLE_DRIVERS = ('cable', 'virtual', 'streaming', 'voicemeeter')
+_CABLE_DRIVERS = ('cable', 'virtual', 'steam streaming', 'voicemeeter')
+# Streams a headset's audio. Its microphone is the headset's, not a loop of its speakers.
+_HEADSET_DRIVERS = ('virtual desktop',)
 _MME_NAME_LIMIT = 31
 
 
@@ -60,6 +62,11 @@ def _driver(name):
     return match[1].strip().lower() if match else ''
 
 
+def _cable_driver(driver):
+    return (any(word in driver for word in _CABLE_DRIVERS)
+            and not any(word in driver for word in _HEADSET_DRIVERS))
+
+
 def same_virtual_cable(first, second):
     """Whether audio written to one device comes back out of the other.
 
@@ -69,11 +76,11 @@ def same_virtual_cable(first, second):
     """
     one, other = _driver(device_name(first)), _driver(device_name(second))
     return (bool(one) and bool(other) and (one.startswith(other) or other.startswith(one))
-            and any(word in one for word in _CABLE_DRIVERS))
+            and _cable_driver(one))
 
 
 def is_virtual_cable(identity):
-    return any(word in _driver(device_name(identity)) for word in _CABLE_DRIVERS)
+    return _cable_driver(_driver(device_name(identity)))
 
 
 def same_output(first, second):

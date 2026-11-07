@@ -90,7 +90,10 @@ class QueuedOutput:
                 except Empty:
                     pass
         self._thread.join(1)
-        self._output.close(drain=drain, token=token)
+        # A write stuck in the driver would hang this close under PortAudio's lock,
+        # and every other device in the process waits on that lock.
+        if not self._thread.is_alive():
+            self._output.close(drain=drain, token=token)
 
 
 class WindowsRoute:

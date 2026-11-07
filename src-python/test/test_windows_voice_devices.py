@@ -163,9 +163,23 @@ def test_speaker_capture_opens_the_loopback_twin(audio):
     ('["Windows WASAPI", "Microphone (Realtek Audio)"]', '["Windows WASAPI", "Speakers (Realtek Audio)"]', False),
     ('["Windows WASAPI", "Microphone (Realtek Audio)"]',
      '["Windows WASAPI", "CABLE Input (VB-Audio Virtual Cable)"]', False),
+    ('["Windows WASAPI", "Microphone (Virtual Desktop Audio)"]',
+     '["Windows WASAPI", "Speakers (Virtual Desktop Audio)"]', False),
+    ('["Windows WASAPI", "Microphone Array (Pico Streaming Speaker)"]',
+     '["Windows WASAPI", "Speakers (Pico Streaming Speaker)"]', False),
 ])
 def test_only_two_ends_of_one_virtual_cable_count_as_feedback(first, second, expected):
     assert dw.same_virtual_cable(first, second) is expected
+
+
+@pytest.mark.parametrize('name,expected', [
+    ('Microphone (Virtual Desktop Audio)', False),
+    ('Microphone Array (Pico Streaming Speaker', False),
+    ('Microphone (Steam Streaming Microphone)', True),
+    ('CABLE Output (VB-Audio Virtual Cable)', True),
+])
+def test_a_headset_streamed_to_the_pc_keeps_its_own_microphone(name, expected):
+    assert dw.is_virtual_cable(json.dumps(['Windows WASAPI', name])) is expected
 
 
 def test_mono_speech_is_written_as_stereo(audio):
@@ -305,6 +319,36 @@ def test_queued_output_never_blocks_the_caller_and_keeps_the_newest(audio):
         assert output._output.written[-1] == bytes([39])
         output.close(drain=False, token=token)
     finally:
+        wr.WindowsOutput = original
+
+
+def test_a_write_stuck_in_the_driver_is_left_alone_at_close():
+    release = threading.Event()
+    closed = []
+
+    class Stuck:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def write(self, pcm, token):
+            release.wait(5)
+
+        def close(self, *, drain, token):
+            closed.append(True)
+
+    original = wr.WindowsOutput
+    wr.WindowsOutput = Stuck
+    try:
+        output = wr.QueuedOutput('device')
+        token = CancelToken()
+        output.write(b'\0\0', token)
+        deadline = time.monotonic() + 2
+        while not output._queue.empty() and time.monotonic() < deadline:
+            time.sleep(.005)
+        output.close(drain=True, token=token)
+        assert closed == []
+    finally:
+        release.set()
         wr.WindowsOutput = original
 
 
