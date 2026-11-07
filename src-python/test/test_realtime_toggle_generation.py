@@ -374,6 +374,8 @@ def test_cancelled_enable_preserves_a_server_used_elsewhere(app, dispatch, monke
 @pytest.mark.parametrize("source,direction", [("mic", "Send"), ("speaker", "Receive")])
 def test_legacy_enable_ignores_realtime_stamp(app, dispatch, monkeypatch, source, direction):
     monkeypatch.setattr(module.sys, "platform", "win32")
+    # Windows keeps the legacy recorder unless the bundled server is chosen.
+    monkeypatch.setattr(app.c, "_realtime_settings", dict(app.c._realtime_settings, server="external"))
     start = MagicMock(return_value=True)
     monkeypatch.setattr(app.c, "_startTranscription" + direction + "MessageLocked", start)
     request = queued_enable(dispatch, source)

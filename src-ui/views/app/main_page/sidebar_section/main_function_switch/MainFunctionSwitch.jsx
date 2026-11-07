@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { useVoice, sourceKey, directRouteReady, usesOutputDevice } from "../../../../../logics/voice/useVoice";
+import { useVoice, sourceKey } from "../../../../../logics/voice/useVoice";
+import { directRouteReady, usesOutputDevice } from "../../../../../logics/voice/routeState";
 import { useNotificationStatus } from "../../../../../logics/common/useNotificationStatus";
 import { useI18n } from "@useI18n";
 import { useIsBackendReady } from "@logics_common";

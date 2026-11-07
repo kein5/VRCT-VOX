@@ -1,3 +1,4 @@
+import * as routeState from "../../../../../../logics/voice/routeState.js";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { hooks, loadModule, find } from "../../../../../../logics/test/hookHarness.js";
@@ -75,6 +76,7 @@ for (const [pitch, rate] of [[25, 0.5], [0, -1], [NaN, NaN]]) test(`RVC numeric 
         rvc_runtime: "", rvc_model: "", rvc_index: "" };
     const { DirectVoiceSettings } = await loadModule(new URL("../advanced_settings/DirectVoiceSettings.jsx", import.meta.url), runtime, {
         "../../../../../../logics/voice/useSettingsDraft": { useSettingsDraft: () => ({ draft }) },
+        "../../../../../../logics/voice/routeState": routeState,
         "../../../../../../logics/voice/useVoice": { useVoice: () => ({ directState: { settings: draft }, directSources: {},
             settings: { routing: "managed" }, route: {}, send: () => {}, setDirectDraftBlocked: () => {} }), sourceKey: value => value },
         "../device/VoiceRouteSettings": { VoiceRouteSummary: "route", VoiceRouteControls: "controls" },

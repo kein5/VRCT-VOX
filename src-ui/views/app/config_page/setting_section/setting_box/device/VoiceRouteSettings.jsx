@@ -1,7 +1,8 @@
 import { useEffect } from "react";
 import { useI18n } from "@useI18n";
 import { useStore_SelectedConfigTabId } from "@store";
-import { useVoice, usesOutputDevice } from "../../../../../../logics/voice/useVoice";
+import { useVoice } from "../../../../../../logics/voice/useVoice";
+import { usesOutputDevice } from "../../../../../../logics/voice/routeState";
 import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
 import { SectionLabelComponent } from "../_components/section_label_component/SectionLabelComponent";
 import styles from "../advanced_settings/VoiceSettings.module.scss";

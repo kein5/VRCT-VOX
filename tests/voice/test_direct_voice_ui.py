@@ -152,7 +152,7 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         expect(start).to_be_enabled()
         start.click()
         reply('/run/start_direct_voice', {'error_code': 'source_bridge_stale_start'}, 409)
-        expect(page.get_by_role('alert').filter(has_text='source_bridge_stale_start')).to_be_visible()
+        expect(page.get_by_role('alert').filter(has_text='The input changed while starting')).to_be_visible()
         expect(page.get_by_text('Input forwarding stopped', exact=True)).to_be_visible()
         mode = page.get_by_role('combobox', name='Direct voice mode', exact=True)
         mode.select_option('converted')
@@ -222,7 +222,7 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         sources.update(sources=[], error='source_bridge_linux_only')
         page.get_by_role('button', name='Refresh inputs', exact=True).click()
         # The code is shown as its message (voice.input_errors in locales/).
-        expect(page.get_by_role('alert').filter(has_text='Input forwarding is available on Linux only.')).to_be_visible()
+        expect(page.get_by_role('alert').filter(has_text='Input forwarding is not available on this system.')).to_be_visible()
         expect(start).to_be_disabled()
         assert len([r for r in sent if r['endpoint'] == '/run/start_direct_voice']) == 4
         assert not any(r['endpoint'] == '/run/resume_voice' for r in sent)

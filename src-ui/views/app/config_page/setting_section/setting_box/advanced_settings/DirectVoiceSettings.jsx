@@ -4,7 +4,8 @@ import { VoiceRouteSummary, VoiceRouteControls } from "../device/VoiceRouteSetti
 import { SectionLabelComponent } from "../_components/section_label_component/SectionLabelComponent";
 import styles from "./VoiceSettings.module.scss";
 import { useI18n } from "@useI18n";
-import { useVoice, sourceKey as key, directRouteReady, usesOutputDevice } from "../../../../../../logics/voice/useVoice";
+import { useVoice, sourceKey as key } from "../../../../../../logics/voice/useVoice";
+import { directRouteReady, usesOutputDevice } from "../../../../../../logics/voice/routeState";
 import { ModelDownloads } from "./ModelDownloads";
 import { StatusLine } from "./StatusLine";
 import { SetupSection } from "../_components/setup_section/SetupSection";

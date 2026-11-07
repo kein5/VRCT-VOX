@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { hooks, loadModule, find } from "../../../logics/test/hookHarness.js";
 import { loadBridgeStore } from "../../../logics/test/bridgeHarness.js";
 import { chunkArray } from "../../../logics/utils.js";
+import * as routeState from "../../../logics/voice/routeState.js";
 
 const icon = () => null;
 const keydown = (control, key, repeat = false) => {
@@ -21,6 +22,7 @@ const loadSwitches = async (b, voice = {}) => {
         "@logics_common": { useIsBackendReady: b.stores.useStore_IsBackendReady },
         "../../../../../logics/common/useNotificationStatus": { useNotificationStatus: () => ({ showNotification_Error() {} }) },
         "../../../../../logics/voice/useVoice": { useVoice: () => voice },
+        "../../../../../logics/voice/routeState": routeState,
         "@logics_main": { ...main, useIsMainPageCompactMode: () => ({ currentIsMainPageCompactMode: { data: false } }) },
         "../../../../common_components/toggle_switch/ToggleSwitch": { ToggleSwitch: icon },
     });

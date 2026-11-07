@@ -18,7 +18,6 @@ const directDraftBlockedAtom = atom(false);
 const inputOwner = (mode, engine) => mode === "converted" ? engine || "seed-vc" : "passthrough";
 // Keep the complete backend identity. Refresh never rebinds a selected name.
 export const sourceKey = id => JSON.stringify([id.cookie, id.serial, id.name, id.media_class]);
-export { directRouteReady, usesOutputDevice } from "./routeState";
 
 export const useVoice = () => {
     const atoms = useStore();
