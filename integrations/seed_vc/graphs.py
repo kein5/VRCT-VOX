@@ -15,6 +15,7 @@ import torch
 LIGHTER = ((3.0, 10), (2.0, 10), (2.0, 8), (1.5, 6))
 # Of the 80 ms, the worker's own resampling and pipes took about 7 ms on a laptop CPU.
 BLOCK_BUDGET_MS = 68
+_replays = []
 
 
 class Replay:
@@ -22,6 +23,7 @@ class Replay:
     def __init__(self, function):
         self.function = function
         self.entries = {}
+        _replays.append(self)
 
     def _capture(self, inputs):
         static = tuple(value.clone() for value in inputs)
@@ -134,6 +136,13 @@ def release_search_memory():
     torch.cuda.empty_cache()
 
 
+def forget_graphs():
+    """Each graph keeps its own GPU memory, and a rejected setting never runs again."""
+    for replay in _replays:
+        replay.entries.clear()
+    release_search_memory()
+
+
 def fit_block(engine, session, silence):
     """Settle on the first setting that leaves the worker time inside a block.
 
@@ -141,7 +150,9 @@ def fit_block(engine, session, silence):
     word, so a slower GPU trades some likeness to the reference for keeping up. Silence
     costs the same as speech here: the model runs either way. Returns what was chosen.
     """
-    for prompt, steps in LIGHTER:
+    for level, (prompt, steps) in enumerate(LIGHTER):
+        if level:
+            forget_graphs()
         engine.config.max_prompt_length, engine.config.diffusion_steps = prompt, steps
         times = []
         for index in range(8):

@@ -27,6 +27,27 @@ SOURCE = Endpoint(1, 0, '["Windows WASAPI", "Microphone (USB)"]', 'Audio/Source'
 windows = pytest.mark.skipif(sys.platform != 'win32', reason='Windows process behaviour')
 
 
+def test_a_rejected_seed_setting_gives_its_graphs_back(monkeypatch):
+    monkeypatch.setitem(sys.modules, 'torch', SimpleNamespace(cuda=SimpleNamespace(empty_cache=lambda: None)))
+    try:
+        graphs = importlib.import_module('integrations.seed_vc.graphs')
+        replay = graphs.Replay(None)
+        engine = SimpleNamespace(config=SimpleNamespace(max_prompt_length=0, diffusion_steps=0))
+        now = [0.]
+        monkeypatch.setattr(graphs, 'time', SimpleNamespace(perf_counter=lambda: now[0]))
+
+        class Session:
+            def convert(self, _):
+                replay.entries[engine.config.max_prompt_length] = True
+                now[0] += .1 if engine.config.max_prompt_length == 3.0 else .01
+                return b''
+
+        assert graphs.fit_block(engine, Session(), None) == (2.0, 10)
+        assert list(replay.entries) == [2.0]
+    finally:
+        sys.modules.pop('integrations.seed_vc.graphs', None)
+
+
 def test_speech_command_line_matches_the_linux_helper(monkeypatch):
     calls = []
     monkeypatch.setattr(rt, 'launch_owned', lambda args, **kwargs: calls.append((args, kwargs)))
