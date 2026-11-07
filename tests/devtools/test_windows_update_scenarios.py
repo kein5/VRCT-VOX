@@ -6,8 +6,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import threading
+import time
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 import zipfile
 
 
@@ -25,6 +26,12 @@ class WindowsUpdateFixtureTests(unittest.TestCase):
                 self.assertEqual({name.split("/")[0] for name in archive.namelist()},
                                  {scenarios.APP, scenarios.SIDECAR, "_internal"})
                 self.assertIsNone(archive.testzip())
+
+    def test_archive_bytes_do_not_depend_on_the_clock(self):
+        files = {"a.txt": b"a"}
+        first = scenarios.archive_bytes(files)
+        with patch("zipfile.time.time", return_value=time.time() + 3600):
+            self.assertEqual(scenarios.archive_bytes(files), first)
 
     def test_partial_archive_breaks_after_main_and_some_dependencies(self):
         with zipfile.ZipFile(io.BytesIO(scenarios.payloads()["partial"])) as archive:

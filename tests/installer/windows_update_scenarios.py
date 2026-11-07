@@ -30,6 +30,7 @@ UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\VRCT-VOX"
 PRODUCT_KEY = r"Software\kein5\VRCT-VOX"
 # No single ANSI code page holds all of these characters.
 NON_ANSI_FOLDER = "ユーザー 한글 😀"
+ARCHIVE_TIME = (2026, 1, 1, 0, 0, 0)
 
 
 def payload_files(version):
@@ -43,10 +44,11 @@ def payload_files(version):
 
 
 def archive_bytes(files):
+    """The same files give the same bytes: writestr(name) would stamp the current time."""
     stream = io.BytesIO()
     with zipfile.ZipFile(stream, "w", zipfile.ZIP_STORED) as archive:
         for name, value in files.items():
-            archive.writestr(name, value)
+            archive.writestr(zipfile.ZipInfo(name, date_time=ARCHIVE_TIME), value)
     return stream.getvalue()
 
 
