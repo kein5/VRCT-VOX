@@ -27,7 +27,9 @@ export const VoiceRouteControls = () => {
             <button type="button" disabled={!route.ready || route.pending || !route.requested_muted} onClick={() => send("/run/resume_voice")}>{t("voice.resume")}</button>
         </FormRow>
         <EnvReadout tone={route.error ? "failed" : route.preparing || route.pending || !route.ready || route.observed_muted == null ? "neutral" : route.observed_muted ? "warning" : "active"}>
-            <p>{t(route.preparing ? "voice.preparing_microphone" : route.error ? "voice.gate_error" : route.pending ? "voice.gate_pending" : !route.ready || route.observed_muted == null ? "voice.gate_unknown" : route.observed_muted ? "voice.gate_muted" : "voice.gate_open")}</p>
+            {/* A device route has no OS gate to read back, so it cannot say "confirmed". */}
+            <p>{t(route.preparing ? "voice.preparing_microphone" : route.error ? "voice.gate_error" : route.pending ? "voice.gate_pending" : !route.ready || route.observed_muted == null ? "voice.gate_unknown" :
+                `voice.gate_${route.observed_muted ? "muted" : "open"}${route.covers_direct ? "_device" : ""}`)}</p>
         </EnvReadout>
         {problem && <p role="alert">{t(`voice_setup_errors.${problem}`, { defaultValue: problem })}</p>}
     </>;

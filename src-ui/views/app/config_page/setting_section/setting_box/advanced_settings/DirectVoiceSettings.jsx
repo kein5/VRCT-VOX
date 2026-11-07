@@ -150,7 +150,8 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
                 draft.rvc_model !== saved.rvc_model || draft.rvc_index !== saved.rvc_index ? "edited" : false}
                 expected={{ rvc: { model: directState.settings?.rvc_model || "", index: directState.settings?.rvc_index || "" } }} />}
             {deviceRoute && !routeReady && <Description text={t("voice.input_requires_output")} />}
-            {!managed && !deviceRoute && <><Description text={t("voice.input_requires_managed")} />
+            {/* The route is unknown until the first state arrives, and Windows has no microphone to prepare. */}
+            {directState.observation_id && !managed && !deviceRoute && <><Description text={t("voice.input_requires_managed")} />
                 <button type="button" disabled={!settings || busy || saving}
                     onClick={() => send("/set/data/voice_settings", { ...settings, routing: "managed" })}>{t("voice.prepare_microphone")}</button>
                 {error && <p role="alert">{t([`voice_setup_errors.${error}`, `voice_ui.errors.${error}`], { defaultValue: error })}</p>}
