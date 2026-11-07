@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useI18n } from "@useI18n";
 import { useStore_SelectedConfigTabId } from "@store";
-import { useVoice } from "../../../../../../logics/voice/useVoice";
+import { useVoice, usesOutputDevice } from "../../../../../../logics/voice/useVoice";
 import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
 import { SectionLabelComponent } from "../_components/section_label_component/SectionLabelComponent";
 import styles from "../advanced_settings/VoiceSettings.module.scss";
@@ -21,7 +21,7 @@ export const VoiceRouteControls = () => {
     const { route, error, send } = useVoice();
     const problem = error || route.error;
     return <>
-        <FormRow group label={t("voice_ui.mute_row")} description={t("voice_ui.mute_row_description", { scope: t(route.managed ? "voice.mute_scope_managed" : "voice.mute_scope_external") })}>
+        <FormRow group label={t("voice_ui.mute_row")} description={t("voice_ui.mute_row_description", { scope: t(route.managed ? "voice.mute_scope_managed" : route.covers_direct ? "voice.mute_scope_device" : "voice.mute_scope_external") })}>
             <button type="button" onClick={() => send("/run/mute_voice")}>{t("voice.mute")}</button>
             <button type="button" disabled={!route.ready || route.pending || !route.requested_muted} onClick={() => send("/run/resume_voice")}>{t("voice.resume")}</button>
         </FormRow>
@@ -41,11 +41,12 @@ export const VoiceRouteSettings = () => {
     useEffect(() => { send("/get/data/voice_settings"); }, [send]);
     return <section className={styles.container} aria-label={t("voice.routing")} data-setting-id="voice_route">
         <SectionLabelComponent label={t("voice.routing")} />
-        <p>{t("voice_ui.route_hint")}</p>
+        <p>{t(usesOutputDevice(directState) ? "voice_ui.route_hint_device" : "voice_ui.route_hint")}</p>
         {form.draft && <form onSubmit={e => { e.preventDefault(); if (!busy && form.dirty) form.submit(value => send("/set/data/voice_settings", value)); }}>
             <label>{t("voice.routing")}<select aria-label={t("voice.routing")} value={form.draft.routing} disabled={busy || form.saving}
                 onChange={e => form.setDraft({ ...form.draft, routing: e.target.value })}>
-                <option value="external">{t("voice.routing_external")}</option><option value="managed">{t("voice.routing_managed")}</option>
+                <option value="external">{t("voice.routing_external")}</option>
+                {!usesOutputDevice(directState) && <option value="managed">{t("voice.routing_managed")}</option>}
             </select></label>
             {form.draft.routing === "managed" && <p>{t("voice.managed_hint")}</p>}
         </form>}
