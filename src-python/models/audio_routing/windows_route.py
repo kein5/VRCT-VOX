@@ -14,6 +14,9 @@ from .devices_windows import WindowsOutput, enumerate_outputs, same_virtual_cabl
 from .source_bridge import Endpoint, _source_id
 
 RATE = 48000
+# A device that took nothing for this long is gone, not slow. A write to an
+# unplugged device may never return, so no error would come from the stream.
+OUTPUT_STALL_S = 2
 
 
 class _NoObserver:
@@ -22,10 +25,19 @@ class _NoObserver:
 
 
 def _check_devices(source, output):
-    if output not in [row['id'] for row in enumerate_outputs()]:
+    if output not in [row['id'] for row in enumerate_outputs((output,))]:
         raise RuntimeError('vc_output_missing')
     if same_virtual_cable(source.name, output):
         raise RuntimeError('vc_feedback_blocked')
+
+
+def _replace_oldest(queue, item):
+    """Speech that old is worth less than speech on time."""
+    try:
+        queue.get_nowait()
+        queue.put_nowait(item)
+    except (Empty, Full):
+        pass
 
 
 class QueuedOutput:
@@ -33,14 +45,14 @@ class QueuedOutput:
 
     A PortAudio write blocks for about the length of the audio, so writing inside
     the conversion loop adds a block's duration to every block and overruns capture.
-    The queue also absorbs a late block. When it is full the oldest block goes:
-    speech that old is worth less than speech on time.
+    The queue also absorbs a late block. When it is full the oldest block goes.
     """
     def __init__(self, device):
         self._output = WindowsOutput(device, RATE, 1, strict_underflow=False)
         self._queue = Queue(maxsize=4)
         self._token = CancelToken()
         self._failed = False
+        self._written = time.monotonic()
         self._thread = Thread(target=self._run, name='vrct-vc-output', daemon=True)
         self._thread.start()
 
@@ -51,6 +63,7 @@ class QueuedOutput:
                 if pcm is None:
                     return
                 self._output.write(pcm, self._token)
+                self._written = time.monotonic()
         except Exception:
             self._failed = True
 
@@ -61,11 +74,9 @@ class QueuedOutput:
         try:
             self._queue.put_nowait(pcm)
         except Full:
-            try:
-                self._queue.get_nowait()
-                self._queue.put_nowait(pcm)
-            except (Empty, Full):
-                pass
+            if time.monotonic() - self._written > OUTPUT_STALL_S:
+                raise SpeechError('vc_output_failed') from None
+            _replace_oldest(self._queue, pcm)
 
     def close(self, *, drain, token):
         self._token.cancel()
@@ -124,6 +135,7 @@ class WindowsBridge:
         self._muted = True
         self._error = None
         self._observation = 0
+        self._written = time.monotonic()
 
     def set_monitor_muted(self, muted):
         with self._lock:
@@ -172,11 +184,14 @@ class WindowsBridge:
     def _audio(self, captured):
         try:
             self._queue.put_nowait(captured.audio.pcm)
-            return True
         except Full:
-            # The device stopped taking audio. Holding more only adds delay.
-            self._fail('source_bridge_output_failed')
-            return False
+            if time.monotonic() - self._written > OUTPUT_STALL_S:
+                self._fail('source_bridge_output_failed')
+                return False
+            # Python runs this bridge, so a busy PC can hold it up. Lose a little
+            # audio and carry on: a stall of this size must not end the voice.
+            _replace_oldest(self._queue, captured.audio.pcm)
+        return True
 
     def _run(self):
         from models.transcription.capture_windows import WindowsCapture
@@ -193,6 +208,7 @@ class WindowsBridge:
             with self._lock:
                 self._token.check()
                 self._active, self._pending = True, False
+            self._written = time.monotonic()
             while True:
                 self._token.check()
                 try:
@@ -202,6 +218,7 @@ class WindowsBridge:
                 with self._lock:
                     muted = self._muted
                 output.write(bytes(len(pcm)) if muted else pcm, self._token)
+                self._written = time.monotonic()
         except RuntimeError as exc:
             code = str(exc)
             self._fail(code if code.startswith(('vc_', 'source_bridge_')) else 'source_bridge_output_failed')

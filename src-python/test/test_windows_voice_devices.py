@@ -1,6 +1,7 @@
 """Windows device list, playback and capture against a stand-in for PyAudioWPatch."""
 import json
 import sys
+import threading
 import time
 from types import SimpleNamespace
 
@@ -348,7 +349,7 @@ def test_bridge_writes_silence_while_muted_and_voice_after_resume(monkeypatch):
 
 
 def test_bridge_reports_a_cable_looped_onto_itself(monkeypatch):
-    monkeypatch.setattr(wr, 'enumerate_outputs', lambda: [{'id': '["Windows WASAPI", "CABLE Input (VB-Audio Virtual Cable)"]'}])
+    monkeypatch.setattr(wr, 'enumerate_outputs', lambda keep=(): [{'id': '["Windows WASAPI", "CABLE Input (VB-Audio Virtual Cable)"]'}])
     bridge = wr.WindowsBridge('["Windows WASAPI", "CABLE Input (VB-Audio Virtual Cable)"]')
     bridge.start(source=Endpoint(1, 0, '["Windows WASAPI", "CABLE Output (VB-Audio Virtual Cable)"]', 'Audio/Source'))
     deadline = time.monotonic() + 2
@@ -356,3 +357,89 @@ def test_bridge_reports_a_cable_looped_onto_itself(monkeypatch):
         time.sleep(.01)
     assert bridge.health()['error'] == 'vc_feedback_blocked'
     assert bridge.close(timeout=2)
+
+
+def captured(pcm):
+    return SimpleNamespace(audio=SimpleNamespace(pcm=pcm))
+
+
+def test_bridge_rides_out_a_short_stall_and_keeps_the_newest_audio():
+    """Python carries this audio, so a busy PC can hold it up for longer than the queue."""
+    bridge = wr.WindowsBridge('out')
+    for value in range(bridge._queue.maxsize + 3):
+        assert bridge._audio(captured(bytes([value])))
+    assert bridge.health()['error'] is None
+    assert bridge._queue.get_nowait() == bytes([3])
+
+
+def test_bridge_gives_up_on_a_device_that_takes_nothing(monkeypatch):
+    bridge = wr.WindowsBridge('out')
+    bridge._requested = True
+    for value in range(bridge._queue.maxsize):
+        assert bridge._audio(captured(bytes([value])))
+    monkeypatch.setattr(wr.time, 'monotonic', lambda: bridge._written + wr.OUTPUT_STALL_S + 1)
+    assert bridge._audio(captured(b'late')) is False
+    assert bridge.health()['error'] == 'source_bridge_output_failed'
+
+
+def test_converted_voice_reports_a_device_that_takes_nothing(audio, monkeypatch):
+    release = threading.Event()
+    output = wr.QueuedOutput(identity(SPEAKER))
+    monkeypatch.setattr(output._output, 'write', lambda pcm, token: release.wait(5))
+    token = CancelToken()
+    output.write(b'\0\0', token)  # Taken by the writer, which then never returns.
+    for _ in range(output._queue.maxsize):
+        output.write(b'\0\0', token)
+    start = output._written
+    monkeypatch.setattr(wr.time, 'monotonic', lambda: start + wr.OUTPUT_STALL_S + 1)
+    deadline = time.perf_counter() + 2
+    with pytest.raises(SpeechError, match='vc_output_failed'):
+        while time.perf_counter() < deadline:
+            output.write(b'\0\0', token)
+    release.set()
+    output.close(drain=False, token=token)
+
+
+def test_outputs_list_each_device_once_and_keep_a_saved_choice_from_another_host(audio):
+    mme = dict(index=4, name='Speakers (Sound)', hostApi=0, maxInputChannels=0, maxOutputChannels=2,
+               defaultSampleRate=44100.0)
+    audio.devices.append(mme)
+    assert dw.enumerate_outputs() == [{'id': identity(SPEAKER), 'label': 'Speakers (Sound)'}]
+    assert dw.enumerate_outputs((identity(mme),)) == [
+        {'id': identity(SPEAKER), 'label': 'Speakers (Sound)'}, {'id': identity(mme), 'label': 'Speakers (Sound) (MME)'}]
+
+
+def test_the_default_output_is_the_wasapi_one(audio):
+    assert dw.default_output() == identity(SPEAKER)
+
+
+@pytest.mark.parametrize('first,second,expected', [
+    ('["MME", "CABLE Input (VB-Audio Virtual C"]', '["Windows WASAPI", "CABLE Input (VB-Audio Virtual Cable)"]', True),
+    ('["Windows DirectSound", "Speakers (Sound)"]', '["Windows WASAPI", "Speakers (Sound)"]', True),
+    ('Mic (USB)', '["Windows WASAPI", "Mic (USB)"]', True),
+    ('["Windows WASAPI", "Speakers (Sound)"]', '["Windows WASAPI", "Speakers (Other)"]', False),
+    # Only a name cut at MME's limit may match as a prefix.
+    ('["Windows WASAPI", "Speakers"]', '["Windows WASAPI", "Speakers (Sound)"]', False),
+])
+def test_one_device_is_recognised_across_hosts(first, second, expected):
+    assert dw.same_output(first, second) is expected
+
+
+@pytest.mark.parametrize('endpoint,expected', [
+    ('["Windows WASAPI", "CABLE Output (VB-Audio Virtual Cable)"]', True),
+    ('["Windows WASAPI", "CABLE Input (VB-Audio Virtual Cable)"]', True),
+    ('["Windows WASAPI", "Hi-Fi Cable Output (VB-Audio Hi-Fi Cable)"]', False),
+    ('["Windows WASAPI", "Microphone (USB)"]', False),
+])
+def test_captions_refuse_only_the_cable_that_carries_the_voice(endpoint, expected):
+    assert dw.carries_own_voice(endpoint, '["Windows WASAPI", "CABLE Input (VB-Audio Virtual Cable)"]') is expected
+    assert dw.carries_own_voice(endpoint, '') is False
+
+
+def test_a_monitor_on_the_voice_output_is_refused_under_any_host(monkeypatch):
+    from models.audio_routing import monitor_output as mo
+    monkeypatch.setattr(mo.sys, 'platform', 'win32')
+    voice = '["Windows WASAPI", "CABLE Input (VB-Audio Virtual Cable)"]'
+    with pytest.raises(SpeechError, match='feedback_blocked'):
+        mo.check_monitor_target('["MME", "CABLE Input (VB-Audio Virtual C"]', (voice,))
+    assert mo.check_monitor_target('["Windows WASAPI", "Speakers (Sound)"]', (voice,))

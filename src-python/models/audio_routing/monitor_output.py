@@ -18,10 +18,17 @@ VIRTUAL_PREFIXES = ('vrct.managed.', 'vrct.source-bridge.')
 MONITOR_NODE = 'vrct.tts.monitor'
 
 
+def _same_device(first, second):
+    if sys.platform != 'win32':
+        return first == second
+    from .devices_windows import same_output
+    return same_output(first, second)
+
+
 def check_monitor_target(target, exclude=()):
     if not target:
         raise SpeechError('output_missing')
-    if target.startswith(VIRTUAL_PREFIXES) or target in exclude:
+    if target.startswith(VIRTUAL_PREFIXES) or any(_same_device(target, device) for device in exclude):
         raise SpeechError('feedback_blocked')
     return target
 

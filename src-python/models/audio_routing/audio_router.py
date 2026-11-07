@@ -6,10 +6,11 @@ from models.tts.speechcpp_tts import SpeechError
 from .gc_guard import defer_cyclic_gc
 
 
-def enumerate_outputs():
+def enumerate_outputs(keep=()):
+    """keep: saved Windows choices from a host the list no longer shows."""
     if sys.platform == "win32":
         from .devices_windows import enumerate_outputs as enumerate_windows
-        return enumerate_windows()
+        return enumerate_windows(keep)
     if sys.platform.startswith("linux"):
         from .devices_pipewire import enumerate_outputs as enumerate_pipewire
         return enumerate_pipewire()

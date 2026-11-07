@@ -381,3 +381,75 @@ def test_main_toggles_follow_the_server_choice_on_windows(controller_module, mon
     monkeypatch.setattr(controller_module.sys, 'platform', platform)
     controller = SimpleNamespace(_realtime_settings=dict(server=server))
     assert controller_module.Controller._realtimeToggles(controller) is expected
+
+
+@pytest.mark.parametrize('platform,allowed', [('win32', True), ('linux', False)])
+def test_silencing_the_voice_for_translated_speech_needs_no_managed_route_on_windows(monkeypatch, platform, allowed):
+    from models.tts import settings as tts
+    monkeypatch.setattr(tts.sys, 'platform', platform)
+    values = dict(routing='external', output_device=DEVICE, mic_mode='translated', direct_policy='suppress')
+    if allowed:
+        assert tts.VoiceSettings.from_dict(values).direct_policy == 'suppress'
+    else:
+        with pytest.raises(ValueError, match='managed routing'):
+            tts.VoiceSettings.from_dict(values)
+
+
+def sources():
+    return [{'id': dict(cookie=1, serial=0, name='["Windows WASAPI", "Surface Stereo Microphones (Surface High Definition Audio)"]',
+                        media_class='Audio/Source'),
+             'label': 'Surface Stereo Microphones (Surface High Definition Audio)'},
+            {'id': dict(cookie=2, serial=0, name='["Windows WASAPI", "Mic (USB)"]', media_class='Audio/Source'),
+             'label': 'Mic (USB)'}]
+
+
+@pytest.mark.parametrize('host,selected,index', [
+    ('MME', 'Surface Stereo Microphones (Sur', 0), ('Windows WASAPI', 'Mic (USB)', 1), ('MME', 'Mic (USB)', 1),
+    ('Windows DirectSound', 'Surface Stereo Microphones (Surface High Definition Audio)', 0)])
+def test_the_device_page_mic_is_the_voice_input_whichever_host_it_came_from(
+        controller_module, monkeypatch, host, selected, index):  # noqa: F811
+    monkeypatch.setattr(controller_module, 'config', SimpleNamespace(SELECTED_MIC_HOST=host, SELECTED_MIC_DEVICE=selected))
+    controller = SimpleNamespace(_directUsesOutputDevice=lambda: True)
+    rows = sources()
+    assert controller_module.Controller._preferredDirectSource(controller, rows) == rows[index]['id']
+
+
+def test_an_unknown_device_page_mic_falls_back_to_the_system_default(controller_module, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(controller_module, 'config', SimpleNamespace(SELECTED_MIC_HOST='MME', SELECTED_MIC_DEVICE='NoDevice'))
+    rows = sources()
+    monkeypatch.setattr(controller_module, 'default_endpoint',
+                        lambda source: SimpleNamespace(name=rows[1]['id']['name']))
+    controller = SimpleNamespace(_directUsesOutputDevice=lambda: True)
+    assert controller_module.Controller._preferredDirectSource(controller, rows) == rows[1]['id']
+
+    def feedback(source):
+        raise ValueError('realtime_default_endpoint_feedback')
+
+    monkeypatch.setattr(controller_module, 'default_endpoint', feedback)
+    assert controller_module.Controller._preferredDirectSource(controller, rows) is None
+
+
+def test_saved_outputs_reach_the_device_list(controller_module, monkeypatch):  # noqa: F811
+    seen = []
+    monkeypatch.setattr(controller_module, 'enumerate_outputs', lambda keep=(): seen.append(keep) or [])
+    settings = SimpleNamespace(output_device='["MME", "CABLE Input (VB-Audio Virtual C"]', monitor_device='')
+    controller = SimpleNamespace(voice_events=SimpleNamespace(settings=settings))
+    assert controller_module.Controller.getVoiceOutputDevices(controller)['status'] == 200
+    assert seen == [(settings.output_device, '')]
+
+
+def test_leaving_the_bundled_server_clears_a_toggle_shown_on(controller_module, monkeypatch):  # noqa: F811
+    from threading import Lock, RLock
+    monkeypatch.setattr(controller_module.sys, 'platform', 'win32')
+    sent = []
+    controller = SimpleNamespace(
+        _realtime_settings=dict(server='external'), _realtime_toggle_shown=dict(mic=True, speaker=False),
+        _realtime_toggle_lock=RLock(), _realtime_lock=Lock(), _realtimeActiveLocked=lambda source: False,
+        _releaseAsrServer=lambda: sent.append('released'),
+        run=lambda status, endpoint, result: sent.append((status, endpoint, result)))
+    controller._realtimeToggles = lambda: controller_module.Controller._realtimeToggles(controller)
+    controller_module.Controller._publishRealtimeToggle(controller, 'mic')
+    assert sent == [(200, '/set/disable/transcription_send', False), 'released']
+    sent.clear()
+    controller_module.Controller._publishRealtimeToggle(controller, 'speaker')
+    assert sent == []

@@ -13,7 +13,8 @@ from pyaudio_lock import pyaudio_op_lock
 from .source_bridge import Endpoint
 
 # Drivers that connect a playback device straight to a recording device.
-_CABLE_DRIVERS = ('cable', 'virtual', 'steam streaming', 'voicemeeter')
+_CABLE_DRIVERS = ('cable', 'virtual', 'streaming', 'voicemeeter')
+_MME_NAME_LIMIT = 31
 
 
 def prepare_audio_thread():
@@ -75,25 +76,48 @@ def is_virtual_cable(identity):
     return any(word in _driver(device_name(identity)) for word in _CABLE_DRIVERS)
 
 
-def enumerate_outputs():
-    with _query() as (pa, _):
+def same_output(first, second):
+    """Whether two names or identities are one device, whichever host lists them."""
+    short, long = sorted((device_name(first), device_name(second)), key=len)
+    return short == long or (len(short) == _MME_NAME_LIMIT and long.startswith(short))
+
+
+def carries_own_voice(endpoint, output):
+    """Whether capturing this endpoint would hear what is written to the output device."""
+    return bool(output) and (same_output(endpoint, output) or same_virtual_cable(endpoint, output))
+
+
+def enumerate_outputs(keep=()):
+    """WASAPI outputs. Other hosts repeat the same hardware, and MME cuts its names.
+
+    keep holds saved choices from those hosts, which stay listed while they exist.
+    """
+    with _query() as (pa, audio):
+        wasapi = _wasapi(pa, audio)['index']
         result = []
         for i in range(pa.get_device_count()):
             info = pa.get_device_info_by_index(i)
-            if info["maxOutputChannels"] > 0 and not info.get("isLoopbackDevice", False):
+            if info["maxOutputChannels"] <= 0 or info.get("isLoopbackDevice", False):
+                continue
+            identity = _identity(pa, info)
+            if int(info["hostApi"]) == wasapi:
+                result.append({"id": identity, "label": info["name"]})
+            elif identity in keep:
                 host = pa.get_host_api_info_by_index(int(info["hostApi"]))["name"]
-                result.append({"id": _identity(pa, info), "label": f'{info["name"]} ({host})'})
+                result.append({"id": identity, "label": f'{info["name"]} ({host})'})
         return result
 
 
 def default_output():
     """Identity of the OS default output. Monitor only: TTS never uses a default."""
-    with _query() as (pa, _):
+    with _query() as (pa, audio):
         try:
-            info = pa.get_default_output_device_info()
+            index = _wasapi(pa, audio)['defaultOutputDevice']
+            if index < 0:
+                raise LookupError('default output')
+            return _identity(pa, pa.get_device_info_by_index(index))
         except (OSError, LookupError) as exc:
             raise SpeechError("output_missing") from exc
-        return _identity(pa, info)
 
 
 def _endpoint(identity, source):

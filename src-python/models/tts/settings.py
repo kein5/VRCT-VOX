@@ -1,6 +1,7 @@
 """Validated speech settings. Chat and microphone speech are separately opt-in."""
 from dataclasses import asdict, dataclass
 import re
+import sys
 from urllib.parse import urlsplit
 
 
@@ -110,7 +111,9 @@ class VoiceSettings:
             raise ValueError("Monitor output must differ from the virtual microphone output")
         if (settings.mode != "off" or settings.mic_mode != "off") and not settings.playback_device.strip():
             raise ValueError("Select a virtual microphone output before enabling TTS")
-        if settings.mic_mode != "off" and settings.direct_policy == "suppress" and settings.routing != "managed":
+        # Windows has no managed route: its output device silences the voice itself.
+        if (settings.mic_mode != "off" and settings.direct_policy == "suppress"
+                and settings.routing != "managed" and sys.platform != "win32"):
             raise ValueError("Direct voice suppression requires managed routing")
         return settings
 

@@ -49,6 +49,7 @@ from models.ocr import ocr_engine_rapidocr as ocr_engine
 from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
 from models.tts.message_hook import chat_event, microphone_event
 from models.audio_routing.audio_router import enumerate_outputs
+from models.audio_routing.devices_windows import carries_own_voice, same_output
 from models.audio_routing.managed_route import VoiceRoute
 from models.audio_routing.monitor_output import monitor_spec
 from models.audio_routing.mute_state import MuteState
@@ -427,7 +428,13 @@ class Controller:
         self._tts_attempts = set()
         self._tts_waiting = 0
         voice_settings = getattr(self._config, "VOICE_SETTINGS", {})
-        self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings if isinstance(voice_settings, dict) else {}),
+        voice_settings = voice_settings if isinstance(voice_settings, dict) else {}
+        if voice_settings.get("routing") == "managed" and not sys.platform.startswith("linux"):
+            # Carried over from Linux. No such route exists here, and its mute could
+            # never be confirmed, so the setting could not be left afterwards.
+            voice_settings = {**voice_settings, "routing": "external", "mode": "off", "mic_mode": "off"}
+            self._config.VOICE_SETTINGS = voice_settings
+        self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings),
                                           resolve_server=self._ttsSpeechServer, enabled=False,
                                           on_monitor_error=self._voiceMonitorFailed)
         config_path = getattr(self._config, '_PATH_CONFIG', 'config.json')
@@ -878,7 +885,8 @@ class Controller:
 
     def _publishRealtimeToggle(self, source, reason=None):
         """Show the realtime state as the Linux toggle; reason explains a stop nobody asked for."""
-        if not self._realtimeToggles():
+        # Moving off the bundled server on Windows still has to clear a shown ON.
+        if not self._realtimeToggles() and not self._realtime_toggle_shown[source]:
             return
         direction = "send" if source == "mic" else "receive"
         with self._realtime_toggle_lock:
@@ -1104,6 +1112,9 @@ class Controller:
                         endpoint = default
                     if endpoint is None:
                         raise ValueError("realtime_endpoint_required")
+                    if self._directUsesOutputDevice() and carries_own_voice(
+                            endpoint.name, self.voice_events.settings.output_device):
+                        raise ValueError("realtime_endpoint_feedback")
                     if prepared is not None:
                         options = prepared
                     else:
@@ -2758,15 +2769,28 @@ class Controller:
             error = ('source_bridge_devices_unavailable' if self._directUsesOutputDevice()
                      else 'source_bridge_linux_only' if not sys.platform.startswith('linux')
                      else 'source_bridge_graph_unavailable')
-        # The Device page Mic choice is the default RVC input; the UI applies it
-        # only while the user has not picked another input on the RVC page.
-        preferred = None
-        host = getattr(config, 'SELECTED_MIC_HOST', None)
-        if host == PIPEWIRE_MIC_HOST or (self._directUsesOutputDevice() and host == 'Windows WASAPI'):
-            selected = getattr(config, 'SELECTED_MIC_DEVICE', None)
-            preferred = next((item['id'] for item, name in zip(sources, microphone_names(sources))
-                              if name == selected), None)
-        return {'status': 200, 'result': {'sources': sources, 'error': error, 'preferred': preferred}}
+        return {'status': 200, 'result': {'sources': sources, 'error': error,
+                                          'preferred': self._preferredDirectSource(sources)}}
+
+    def _preferredDirectSource(self, sources):
+        """The Device page Mic choice is the default RVC input; the UI applies it
+        only while the user has not picked another input on the RVC page."""
+        selected = getattr(config, 'SELECTED_MIC_DEVICE', None)
+        names = microphone_names(sources)
+        if not self._directUsesOutputDevice():
+            if getattr(config, 'SELECTED_MIC_HOST', None) != PIPEWIRE_MIC_HOST:
+                return None
+            return next((item['id'] for item, name in zip(sources, names) if name == selected), None)
+        # The Device page defaults to MME; its choice is the same hardware under a cut name.
+        match = next((item['id'] for item, name in zip(sources, names)
+                      if isinstance(selected, str) and same_output(name, selected)), None)
+        if match is not None or not sources:
+            return match
+        try:
+            default = default_endpoint('mic').name
+        except ValueError:
+            return None
+        return next((item['id'] for item in sources if item['id']['name'] == default), None)
 
     def getDirectVoiceState(self, *args, **kwargs) -> dict:
         state = self.direct_voice.health()
@@ -2838,7 +2862,8 @@ class Controller:
 
     def getVoiceOutputDevices(self, *args, **kwargs) -> dict:
         try:
-            devices = enumerate_outputs()
+            settings = self.voice_events.settings
+            devices = enumerate_outputs((settings.output_device, settings.monitor_device))
             return {"status": 200, "result": {"devices": devices, "error": None}}
         except Exception:
             return {"status": 200, "result": {"devices": [], "error": "audio_devices_unavailable"}}
