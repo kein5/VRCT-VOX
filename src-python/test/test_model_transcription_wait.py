@@ -193,7 +193,7 @@ class TestTranscriptionWait(unittest.TestCase):
         for recorder_cls in (BaseEnergyAndAudioRecorder, BaseVadAndAudioRecorder):
             with self.subTest(recorder=recorder_cls.__name__):
                 if recorder_cls is BaseEnergyAndAudioRecorder:
-                    recorder = recorder_cls(FakeRecorder(), 300, False, 3, 5)
+                    recorder = recorder_cls(FakeRecorder(), 300, False, 3)
                     listener = "listen_energy_and_audio_in_background"
                 else:
                     recorder = recorder_cls(FakeRecorder(), record_timeout=5, label="mic")

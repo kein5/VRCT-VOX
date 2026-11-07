@@ -983,7 +983,6 @@ class MicSession(_AudioDeviceSession):
             energy_threshold=config.MIC_THRESHOLD,
             dynamic_energy_threshold=config.MIC_AUTOMATIC_THRESHOLD,
             phrase_time_limit=record_timeout,
-            record_timeout=record_timeout,
         )
 
     def _create_transcriber(self) -> AudioTranscriber:
@@ -1042,7 +1041,6 @@ class SpeakerSession(_AudioDeviceSession):
             energy_threshold=config.SPEAKER_THRESHOLD,
             dynamic_energy_threshold=config.SPEAKER_AUTOMATIC_THRESHOLD,
             phrase_time_limit=record_timeout,
-            record_timeout=record_timeout,
         )
 
     def _create_transcriber(self) -> AudioTranscriber:
