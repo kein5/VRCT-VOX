@@ -29,6 +29,19 @@ def test_importing_the_controller_leaves_heavy_libraries_unloaded(tmp_path):
     assert json.loads(result.stdout.splitlines()[-1]) == []
 
 
+def test_lmstudio_client_is_built_at_startup_without_loading_langchain(tmp_path):
+    # With a saved URL, Controller.init() builds this client on every start.
+    code = ("import json, sys, controller\n"
+            "from models.translation.translation_lmstudio import LMStudioClient\n"
+            "LMStudioClient(root_path='.')\n"
+            "print(json.dumps([n for n in ('langsmith', 'langchain_core') if n in sys.modules]))")
+    result = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1],
+                            env=dict(os.environ, VRCT_CONFIG_DIR=str(tmp_path)),
+                            capture_output=True, text=True, encoding="utf-8", timeout=180, check=False)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout.splitlines()[-1]) == []
+
+
 def module_with(name, **attributes):
     module = ModuleType(name)
     module.__dict__.update(attributes)

@@ -60,7 +60,6 @@ class LMStudioClient(RecentModelList):
     """
     provider_name = "LMStudio"
 
-    @without_tracing
     def __init__(self, base_url: str | None = None, root_path: str = None):
         self.api_key = "lmstudio"
         self.model = None
