@@ -16,6 +16,7 @@ from logging.handlers import RotatingFileHandler
 
 import requests
 import startup_timing
+from runtime_paths import limit_openmp_spinning
 from models.network_policy import redact_urls
 from models.diagnostics import exception_provider, redact_diagnostic_text
 import ipaddress
@@ -75,6 +76,9 @@ _registerBundledCudaLibraries()
 # ここに置いているのは、ctranslate2 を最初に import するのがこのファイルで、
 # 警告は import 時に出てしまうため。
 os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
+
+# Also before the first ctranslate2 import, for the same reason.
+limit_openmp_spinning()
 
 # Optional runtime dependencies. `None` fallback lets non-GPU / no-ctranslate2
 # environments keep the app running with reduced feature set.

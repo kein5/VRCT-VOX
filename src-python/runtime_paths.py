@@ -49,8 +49,28 @@ def bootstrap_linux_frozen():
     os.chdir(dirs["data"])
 
 
+_backend_only_env = set()
+
+
+def limit_openmp_spinning():
+    """Stop CTranslate2's OpenMP threads from spinning between parallel regions.
+
+    Intel OpenMP keeps idle threads busy for 200 ms by default. On a PC with more
+    runnable threads than cores (VRChat, a game) those spinners take the CPU from
+    the threads that still have work, and one Whisper call went from 1 s to minutes.
+    Sleeping at once costs nothing measurable on an idle PC.
+
+    Call this before ctranslate2 loads. A value the user set is kept.
+    """
+    if "KMP_BLOCKTIME" not in os.environ:
+        os.environ["KMP_BLOCKTIME"] = "0"
+        _backend_only_env.add("KMP_BLOCKTIME")
+
+
 def external_process_env():
     env = dict(os.environ)
+    for name in _backend_only_env:
+        env.pop(name, None)
     if is_linux_frozen():
         original = env.pop("LD_LIBRARY_PATH_ORIG", None)
         if original:
