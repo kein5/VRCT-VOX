@@ -81,7 +81,8 @@ def enumerate_outputs():
         for i in range(pa.get_device_count()):
             info = pa.get_device_info_by_index(i)
             if info["maxOutputChannels"] > 0 and not info.get("isLoopbackDevice", False):
-                result.append({"id": _identity(pa, info), "label": _identity(pa, info)})
+                host = pa.get_host_api_info_by_index(int(info["hostApi"]))["name"]
+                result.append({"id": _identity(pa, info), "label": f'{info["name"]} ({host})'})
         return result
 
 
