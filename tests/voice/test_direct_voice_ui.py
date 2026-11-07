@@ -49,6 +49,8 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         stack.callback(browser.close)
         page = browser.new_page(viewport={'width': 1200, 'height': 1200})
         page.set_default_timeout(4000)
+        # A cold Vite compiles every module on the first load, which takes longer than this on Windows.
+        page.set_default_navigation_timeout(30000)
         errors, sent, replies = [], [], []
         page.on('pageerror', lambda e: errors.append(str(e)))
         sources = {'sources': [{'id': ID, 'label': 'External voice'}], 'error': None}
@@ -76,7 +78,8 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
                 state.update(settings=saved, observation_id=str(int(state['observation_id'])+10))
                 reply(endpoint, dict(state))
             elif endpoint == '/set/data/voice_settings':
-                saved = VoiceSettings.from_dict(json.loads(base64.b64decode(request['data']))).to_dict()
+                # The form sends only changed fields; the real setter merges them.
+                saved = VoiceSettings.from_dict({**voice_settings, **json.loads(base64.b64decode(request['data']))}).to_dict()
                 voice_settings.clear()
                 voice_settings.update(saved)
                 reply(endpoint, saved)
@@ -218,7 +221,8 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         expect(engine).to_be_enabled()
         sources.update(sources=[], error='source_bridge_linux_only')
         page.get_by_role('button', name='Refresh inputs', exact=True).click()
-        expect(page.get_by_role('alert').filter(has_text='source_bridge_linux_only')).to_be_visible()
+        # The code is shown as its message (voice.input_errors in locales/).
+        expect(page.get_by_role('alert').filter(has_text='Input forwarding is available on Linux only.')).to_be_visible()
         expect(start).to_be_disabled()
         assert len([r for r in sent if r['endpoint'] == '/run/start_direct_voice']) == 4
         assert not any(r['endpoint'] == '/run/resume_voice' for r in sent)
