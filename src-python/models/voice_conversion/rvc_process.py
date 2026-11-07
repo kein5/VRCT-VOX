@@ -18,13 +18,20 @@ def runtime_python(runtime):
     return runtime / ('venv/Scripts/python.exe' if sys.platform == 'win32' else 'venv/bin/python')
 
 
+def worker_root():
+    """Where -m finds the worker. A frozen _internal has Python 3.11 modules that would
+    shadow the standard library of the runtime's own Python, so it stays off sys.path."""
+    folder = ROOT / 'voice_worker'
+    return folder if folder.is_dir() else ROOT
+
+
 def _launch_owned(runtime, options, session):
     """The arguments the Linux helper builds, under a kill-on-close job."""
     return launch_owned([str(runtime_python(runtime)), '-u', '-m', 'integrations.rvc.live_worker',
         '--engine', str(runtime / 'engine'), '--assets', str(runtime / 'assets'),
         '--model', options['model'], '--session', session, '--index', options['index'],
         '--pitch', str(options['pitch']), '--index-rate', str(options['index_rate'])],
-        env=external_process_env(), cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        env=external_process_env(), cwd=worker_root(), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL, realtime=True)
 
 

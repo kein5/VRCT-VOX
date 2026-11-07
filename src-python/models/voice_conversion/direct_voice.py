@@ -54,13 +54,23 @@ class DirectVoice:
         self._error = None
         self._monitor_muted = True
         self._monitor_enabled = False
+        self._suppressed = False
+
+    def _send_mute(self):
+        if self._requested and self._monitor_enabled:
+            self._backend.set_monitor_muted(self._monitor_muted or self._suppressed)
 
     def set_monitor_muted(self, muted):
         """Latch route intent, including before Start; never toggle either producer."""
         with self._lock:
             self._monitor_muted = bool(muted)
-            if self._requested and self._monitor_enabled:
-                self._backend.set_monitor_muted(self._monitor_muted)
+            self._send_mute()
+
+    def set_suppressed(self, suppressed):
+        """Device route: translated speech replaces the voice, which an OS gate does on Linux."""
+        with self._lock:
+            self._suppressed = bool(suppressed)
+            self._send_mute()
 
     def start(self, *, source, expected_generation, mode='passthrough', options=None, monitor=None,
               output=None):
@@ -105,8 +115,7 @@ class DirectVoice:
                 else:
                     self._backend = self._converted(deepcopy(choices), monitor=dict(monitor), **extra)
                 self._requested = True
-                if self._monitor_enabled:
-                    self._backend.set_monitor_muted(self._monitor_muted)
+                self._send_mute()
                 self._backend.start(source=source)
             except Exception:
                 self._requested = False

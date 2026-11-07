@@ -443,6 +443,7 @@ class Controller:
         self.voice_route.configure(self.voice_events.settings.routing == 'managed',
             suppress_direct=(self.voice_events.settings.mic_mode == 'translated'
                              and self.voice_events.settings.direct_policy == 'suppress'))
+        self._applyDirectPolicy(self.voice_events.settings)
         self._voice_settings_lock = Lock()
         self._language_settings_lock = RLock()
         direct = getattr(self._config, 'DIRECT_VOICE_SETTINGS', {})
@@ -2514,6 +2515,7 @@ class Controller:
                     self.direct_voice.stop()
                 self.voice_route.configure(settings.routing == 'managed',
                     suppress_direct=(settings.mic_mode == 'translated' and settings.direct_policy == 'suppress'))
+                self._applyDirectPolicy(settings)
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
             config.VOICE_SETTINGS = settings.to_dict()
@@ -2727,6 +2729,11 @@ class Controller:
     @staticmethod
     def _directUsesOutputDevice():
         return sys.platform == 'win32'
+
+    def _applyDirectPolicy(self, settings):
+        # The managed route does this with an OS gate; a device route has none.
+        self.direct_voice.set_suppressed(self._directUsesOutputDevice() and settings.mic_mode == 'translated'
+                                         and settings.direct_policy == 'suppress')
 
     def _directOutput(self, mode, options):
         """Device for a Windows Start; None on Linux, where the managed route decides."""

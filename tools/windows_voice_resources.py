@@ -2,12 +2,15 @@
 
 The fixed speech.cpp bundle comes from speechcpp_bundle.py. External inference
 interpreters cannot read the frozen sidecar's PYZ, so the RVC adapter and its small,
-dependency-free contract modules ship as ordinary files.
+dependency-free contract modules ship as ordinary files. They get their own folder:
+the worker runs from it, and _internal holds the sidecar's Python 3.11 extension
+modules, which would shadow the standard library of the worker's own Python.
 """
 from pathlib import Path
 
 CONTRACT = ('__init__.py', 'owned_child.py', 'voice_conversion/__init__.py',
             'voice_conversion/protocol.py', 'voice_conversion/settings.py')
+WORKER = 'voice_worker'
 
 
 def voice_toc(root):
@@ -25,8 +28,8 @@ def voice_datas(root):
         pairs += [(str(file), 'build/speechcpp/notices') for file in (bundle / 'notices').iterdir() if file.is_file()]
     for file in (root / 'integrations/rvc').iterdir():
         if file.is_file() and (file.suffix == '.py' or file.name.startswith(('LICENSE', 'README'))):
-            pairs.append((str(file), 'integrations/rvc'))
+            pairs.append((str(file), f'{WORKER}/integrations/rvc'))
     for name in CONTRACT:
         target = Path('src-python/models') / name
-        pairs.append((str(root / target), target.parent.as_posix()))
+        pairs.append((str(root / target), f'{WORKER}/{target.parent.as_posix()}'))
     return pairs

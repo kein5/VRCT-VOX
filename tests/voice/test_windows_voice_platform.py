@@ -134,11 +134,19 @@ def test_windows_resources_carry_the_engine_and_the_worker_contract(tmp_path):
     pairs = {(Path(source).name, target) for source, target in m.voice_datas(tmp_path)}
     assert ('speech.exe', 'build/speechcpp') in pairs
     assert ('NOTICE.md', 'build/speechcpp/notices') in pairs
-    assert ('live_worker.py', 'integrations/rvc') in pairs
-    assert ('LICENSE.upstream', 'integrations/rvc') in pairs
-    assert ('requirements.lock', 'integrations/rvc') not in pairs
-    assert ('owned_child.py', 'src-python/models') in pairs
-    assert ('protocol.py', 'src-python/models/voice_conversion') in pairs
+    assert ('live_worker.py', 'voice_worker/integrations/rvc') in pairs
+    assert ('LICENSE.upstream', 'voice_worker/integrations/rvc') in pairs
+    assert ('requirements.lock', 'voice_worker/integrations/rvc') not in pairs
+    assert ('owned_child.py', 'voice_worker/src-python/models') in pairs
+    assert ('protocol.py', 'voice_worker/src-python/models/voice_conversion') in pairs
+
+
+def test_a_frozen_worker_does_not_start_inside_the_sidecars_python(tmp_path, monkeypatch):
+    """-m puts the working directory first, and _internal holds 3.11 extension modules."""
+    monkeypatch.setattr(rvc_process, 'ROOT', tmp_path)
+    assert rvc_process.worker_root() == tmp_path
+    (tmp_path / 'voice_worker').mkdir()
+    assert rvc_process.worker_root() == tmp_path / 'voice_worker'
 
 
 def test_every_module_the_worker_imports_ships_with_it():
@@ -219,6 +227,43 @@ def test_direct_voice_hands_the_device_to_both_producers_and_forwards_mute():
     voice.start(source=SOURCE, expected_generation=voice.health()['generation'], mode='converted',
                 options=options, output=DEVICE)
     assert calls[-1] == ('converted', {'output': DEVICE})
+    voice.close()
+
+
+def test_translated_speech_can_silence_the_voice_on_a_device_route():
+    backends = []
+
+    class Backend:
+        def __init__(self, **kwargs):
+            self.muted = []
+            backends.append(self)
+
+        def set_monitor_muted(self, muted):
+            self.muted.append(muted)
+
+        def start(self, *, source):
+            pass
+
+        def stop(self):
+            pass
+
+        def close(self, timeout=3):
+            return True
+
+        def health(self):
+            return dict(requested=True, active=True)
+
+    voice = dv.DirectVoice(passthrough_factory=lambda **kwargs: Backend(**kwargs))
+    voice.set_monitor_muted(False)
+    voice.set_suppressed(True)
+    voice.start(source=SOURCE, expected_generation=0, output=DEVICE)
+    assert backends[0].muted == [True]
+    voice.set_suppressed(False)
+    assert backends[0].muted == [True, False]
+    voice.set_monitor_muted(True)
+    voice.set_suppressed(True)
+    voice.set_monitor_muted(False)  # Resuming does not lift the suppression.
+    assert backends[0].muted[-1] is True
     voice.close()
 
 
