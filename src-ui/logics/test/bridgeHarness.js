@@ -89,11 +89,12 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
     const speech = { useSpeechServers: () => feature({ state: {}, pending: {} }) };
     const downloads = modelDownloads ?? { useModelDownloads: () => feature({ state: { jobs: {} }, hardware: {}, pending: null }) };
     const realtime = { useRealtimeASR: () => feature({ state: {} }) };
+    const runtimes = { activeSetupPhases: [], useVcRuntimes: () => feature({ state: { jobs: {} }, pending: false }) };
     const routes = await loadModule(new URL("../useReceiveRoutes.js", import.meta.url), runtime, {
         "@useI18n": { useI18n: () => i18n ? { t: i18n.t.bind(i18n), i18n } : { t: key => key } },
         "@store": stores, "@logics_common": common, "@logics_main": main, "@logics_configs": configs,
         "./transcription/useRealtimeASR": realtime, "./voice/useVoice": voice,
-        "./voice/useSpeechServers": speech, "./voice/useModelDownloads": downloads,
+        "./voice/useSpeechServers": speech, "./voice/useModelDownloads": downloads, "./voice/useVcRuntimes": runtimes,
         "./_useBackendErrorHandling": errors,
         "./configs/config_page_setter/ui_config_setter": settings,
         "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython: send }) },

@@ -1,0 +1,508 @@
+"""Consent-gated setup of an external voice conversion runtime (Windows).
+
+Torch and the engines stay out of the application. This process fetches pinned files,
+runs a pinned uv over the hash-locked requirements, and never imports the result.
+A failed or cancelled setup keeps each finished step and continues from there.
+"""
+from dataclasses import asdict, dataclass
+import errno
+from functools import lru_cache
+import hashlib
+import json
+import os
+from pathlib import Path, PurePosixPath
+import re
+import shutil
+import subprocess
+import sys
+from threading import Event, RLock, Thread
+import time
+from urllib.parse import quote
+from uuid import uuid4
+import zipfile
+
+from models.model_downloads.staging import RootLease
+from models.model_downloads.transport import HOSTS, open_public
+from models.owned_child import launch_owned
+from runtime_paths import external_process_env
+
+CHUNK = 1024 * 1024
+ACTIVE = ('queued', 'tools', 'python', 'packages', 'engine', 'assets', 'verifying', 'cancelling')
+STEPS = ('tools', 'python', 'packages', 'engine', 'assets', 'verifying')
+# The step that failed says what the user can do about it.
+STEP_ERRORS = {'tools': 'vc_runtime_tools_failed', 'python': 'vc_runtime_python_failed',
+               'packages': 'vc_runtime_packages_failed', 'engine': 'vc_runtime_source_failed',
+               'assets': 'vc_runtime_assets_failed', 'verifying': 'vc_runtime_gpu_unusable'}
+
+UV_VERSION = '0.13.7'
+UV_URL = f'https://github.com/astral-sh/uv/releases/download/{UV_VERSION}/uv-x86_64-pc-windows-msvc.zip'
+UV_SIZE = 15236317
+UV_SHA256 = '0cdc5b38fe5a8168ed6a25814f5ba43c21d313dd3187314fccb37b7cec46e021'
+# GitHub serves releases and source archives from these hosts. uv itself fetches Python
+# and packages, and checks them against what it pins and the lock files.
+SOURCE_HOSTS = HOSTS | {'github.com', 'codeload.github.com', 'objects.githubusercontent.com',
+                        'release-assets.githubusercontent.com'}
+SOURCE_LIMIT = 64 * 1024 * 1024
+CUDA_INDEX = 'https://download.pytorch.org/whl/cu128'
+CUDA_CHECK = 'import sys, torch; sys.exit(0 if torch.cuda.is_available() else 3)'
+RVC_REPO, RVC_REVISION = 'lj1995/VoiceConversionWebUI', 'e6d0c1a17da07c33557852f9dfa2bd44cc75737d'
+RVC_COMMIT = '81eed5e8f68b6bed1789f682fe78cdd324495afc'
+SEED_COMMIT = '58d0ca372cc76f60a798d9f84611f053f9029f3a'
+SEED_DIGEST = '106613138abf328fd382ba211709675399f11e76f720abfd4ab54eb2bac2b755'  # After the patch.
+SEED_MANIFEST = 'docs/voice-stack/seed-vc-poc-artifacts.json'
+HUNK = re.compile(r'@@ -(\d+)(?:,\d+)? \+\d+(?:,\d+)? @@')
+
+
+def runtime_python(folder):
+    return folder / 'venv/Scripts/python.exe'
+
+
+def worker_file(path):
+    # Importing the process stack waits until a setup page needs it, not app start.
+    from .rvc_process import worker_root
+    return worker_root() / path
+
+
+class Cancelled(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class Asset:
+    url: str
+    path: str  # Under the runtime's assets folder.
+    size: int
+    sha256: str = ''
+    blob: str = ''  # Git blob id, for small files whose source lists no SHA-256.
+
+
+@dataclass(frozen=True)
+class Runtime:
+    id: str
+    name: str
+    python: str
+    locks: tuple  # (path under the worker root, package index or '').
+    source_url: str
+    source_digest: str
+    patch: str  # Path under the worker root, or ''.
+    assets: tuple
+    license: str
+    licenses: tuple
+    notice: str
+    download_bytes: int
+    disk_bytes: int
+
+
+def hf_url(repo, revision, path):
+    return f'https://huggingface.co/{repo}/resolve/{revision}/{quote(path, safe="/")}'
+
+
+RVC = Runtime(
+    'rvc', 'RVC', '3.12',
+    (('integrations/rvc/requirements-cuda-windows.lock', CUDA_INDEX), ('integrations/rvc/requirements-windows.lock', '')),
+    f'https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/archive/{RVC_COMMIT}.zip',
+    '9778a961cda108fd3145f36ae14d7ba9401308e610920157903bc219231f93fd', '',
+    (Asset(hf_url(RVC_REPO, RVC_REVISION, 'hubert_base/config.json'), 'hubert_base/config.json', 1492,
+           '0346950779dfb7f9316fa74ed846e2b8a22a08eedfdc5387b73f327cb1a4a7cf'),
+     Asset(hf_url(RVC_REPO, RVC_REVISION, 'hubert_base/preprocessor_config.json'), 'hubert_base/preprocessor_config.json', 225,
+           '7c1976a680fb7acc757cd36fb08eef878fa36c70b4c9d2d595df9c608bbbbf0e'),
+     Asset(hf_url(RVC_REPO, RVC_REVISION, 'hubert_base/pytorch_model.bin'), 'hubert_base/pytorch_model.bin', 189206711,
+           'cc8c20f4b90a520757260197a3ff2505705a7adbd20ad9eeaa4e1a9b38442ef5'),
+     Asset(hf_url(RVC_REPO, RVC_REVISION, 'rmvpe.pt'), 'rmvpe/rmvpe.pt', 181184272,
+           '6d62215f4306e3ca278246188607209f09af3dc77ed4232efdd069798c4ec193')),
+    'MIT, BSD-3-Clause, GPL-3.0, NVIDIA CUDA EULA',
+    (f'https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/blob/{RVC_COMMIT}/LICENSE',
+     f'https://huggingface.co/{RVC_REPO}', 'https://github.com/pytorch/pytorch/blob/main/LICENSE',
+     'https://docs.nvidia.com/cuda/eula/index.html'),
+    'rvc', 3_600_000_000, 12_000_000_000)
+
+
+def seed_assets(manifest):
+    """The reviewed Seed-VC files, in the layout its offline loader reads."""
+    rows = []
+    for item in manifest['files']:
+        lfs = item.get('lfs') or {}
+        rows.append(Asset(hf_url(item['repo'], item['revision'], item['rfilename']),
+                          f"{item['repo']}/{item['revision']}/{item['rfilename']}", item['size'],
+                          lfs.get('sha256', ''), '' if lfs else item['blobId']))
+    return tuple(rows)
+
+
+def seed_runtime():
+    manifest = json.loads(worker_file(SEED_MANIFEST).read_text(encoding='utf-8'))
+    return Runtime(
+        'seed-vc', 'Seed-VC', '3.11', (('integrations/seed_vc/requirements-windows.lock', ''),),
+        f'https://github.com/jiaheguo521/seed-vc-realtime/archive/{SEED_COMMIT}.zip', SEED_DIGEST,
+        'integrations/seed_vc/offline-loader.patch', seed_assets(manifest),
+        'GPL-3.0, Apache-2.0, BSD-3-Clause, NVIDIA CUDA EULA',
+        (f'https://github.com/jiaheguo521/seed-vc-realtime/blob/{SEED_COMMIT}/LICENSE',
+         'https://huggingface.co/Plachta/Seed-VC', 'https://huggingface.co/funasr/fsmn-vad',
+         'https://huggingface.co/funasr/campplus', 'https://huggingface.co/FunAudioLLM/CosyVoice-300M',
+         'https://huggingface.co/facebook/wav2vec2-xls-r-300m', 'https://github.com/pytorch/pytorch/blob/main/LICENSE',
+         'https://docs.nvidia.com/cuda/eula/index.html'),
+        'seed', 5_000_000_000, 14_000_000_000)
+
+
+def runtimes():
+    """What this platform can set up."""
+    if sys.platform != 'win32':
+        return ()
+    return (RVC, seed_runtime())
+
+
+def source_digest(root):
+    """integrations.rvc.loader.source_digest, which the sidecar cannot import when frozen."""
+    root = Path(root)
+    digest = hashlib.sha256()
+    for name in sorted(file.relative_to(root).as_posix() for file in root.rglob('*.py')):
+        digest.update(name.encode() + b'\0' + hashlib.sha256((root / name).read_bytes()).digest())
+    return digest.hexdigest()
+
+
+@lru_cache(maxsize=None)
+def version_of(runtime):
+    """Changes with anything the user consented to or that changes the install."""
+    digest = hashlib.sha256(json.dumps([asdict(runtime), UV_VERSION, UV_SHA256], sort_keys=True).encode())
+    for path, _ in runtime.locks:
+        digest.update(hashlib.sha256(worker_file(path).read_bytes()).digest())
+    return digest.hexdigest()[:16]
+
+
+def nvidia_driver():
+    """The CUDA builds of Torch need this driver; it is present with any NVIDIA GPU."""
+    import ctypes
+    try:
+        ctypes.WinDLL('nvcuda.dll')
+        return True
+    except (OSError, AttributeError):
+        return False
+
+
+def unpack_source(archive, target):
+    """A GitHub archive without its one top folder."""
+    with zipfile.ZipFile(archive) as source:
+        for entry in source.infolist():
+            parts = PurePosixPath(entry.filename).parts[1:]
+            if entry.is_dir() or not parts:
+                continue
+            if '..' in parts or re.search(r'[:\\]', entry.filename):
+                raise ValueError('source_path_unsafe')
+            path = target.joinpath(*parts)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with source.open(entry) as reader, path.open('wb') as writer:
+                shutil.copyfileobj(reader, writer)
+
+
+def apply_patch(root, text):
+    """A unified diff whose context must match exactly. A Windows PC has no patch tool."""
+    rows = text.split('\n')
+    index = 0
+    while index < len(rows):
+        if not rows[index].startswith('+++ b/'):
+            index += 1
+            continue
+        path = root / rows[index][6:].strip()
+        data = path.read_bytes().decode('utf-8')
+        newline = '\r\n' if '\r\n' in data else '\n'
+        lines = data.split(newline)
+        index += 1
+        moved = 0
+        while index < len(rows) and (match := HUNK.match(rows[index])):
+            at = int(match[1]) - 1 + moved
+            index += 1
+            while index < len(rows) and rows[index][:1] in (' ', '+', '-', '\\'):
+                kind, line = rows[index][:1], rows[index][1:]
+                index += 1
+                if kind == '\\':
+                    continue
+                if kind == '+':
+                    lines.insert(at, line)
+                    at, moved = at + 1, moved + 1
+                    continue
+                if at >= len(lines) or lines[at] != line:
+                    raise ValueError('patch_mismatch')
+                if kind == '-':
+                    del lines[at]
+                    moved -= 1
+                else:
+                    at += 1
+        path.write_bytes(newline.join(lines).encode('utf-8'))
+
+
+def _file_digest(path, asset, check):
+    digest = (hashlib.sha256() if asset.sha256
+              else hashlib.sha1(f'blob {asset.size}\0'.encode(), usedforsecurity=False))
+    with path.open('rb') as stream:
+        while block := stream.read(CHUNK):
+            check()
+            digest.update(block)
+    return digest.hexdigest()
+
+
+class RuntimeSetup:
+    def __init__(self, root, *, transport=open_public, launcher=launch_owned, entries=None, gpu_check=nvidia_driver):
+        self.root = Path(root).expanduser().absolute()
+        self._entries = None if entries is None else {runtime.id: runtime for runtime in entries}
+        self.transport, self.launcher, self.gpu_check = transport, launcher, gpu_check
+        self.lock = RLock()
+        self.closing = Event()
+        self.closed = False
+        self.jobs = {}
+        self.thread = self.cancel_event = self.response = self.child = None
+
+    @property
+    def entries(self):
+        # Reading these needs the worker's files, so it waits until a setup page opens.
+        if self._entries is None:
+            self._entries = {runtime.id: runtime for runtime in runtimes()}
+        return self._entries
+
+    def folder(self, runtime):
+        return self.root / runtime.id
+
+    def _installed(self, runtime):
+        folder = self.folder(runtime)
+        try:
+            receipt = json.loads((folder / 'receipt.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            return False
+        return (isinstance(receipt, dict) and receipt.get('version') == version_of(runtime)
+                and runtime_python(folder).is_file())
+
+    def catalog(self):
+        rows = []
+        gpu = self.gpu_check() if self.entries else False
+        for runtime in self.entries.values():
+            rows.append(dict(id=runtime.id, name=runtime.name, version=version_of(runtime), license=runtime.license,
+                             licenses=list(runtime.licenses), notice=runtime.notice, download_bytes=runtime.download_bytes,
+                             disk_bytes=runtime.disk_bytes, destination=str(self.folder(runtime)), gpu_ready=gpu))
+        return {'runtimes': rows}
+
+    def state(self):
+        with self.lock:
+            return {'observation_id': str(time.monotonic_ns()), 'jobs': {key: dict(job) for key, job in self.jobs.items()},
+                    'installed': {runtime.id: str(self.folder(runtime)) for runtime in self.entries.values()
+                                  if self._installed(runtime)}}
+
+    def start(self, request):
+        if not isinstance(request, dict) or set(request) != {'id', 'consent', 'version'}:
+            raise ValueError('vc_runtime_request_invalid')
+        if request['consent'] is not True:
+            raise ValueError('consent_required')
+        runtime = self.entries.get(request['id']) if isinstance(request['id'], str) else None
+        if runtime is None or request['version'] != version_of(runtime):
+            raise ValueError('vc_runtime_changed')
+        with self.lock:
+            if self.closed or self.closing.is_set():
+                raise ValueError('vc_runtime_closed')
+            if any(job['phase'] in ACTIVE for job in self.jobs.values()):
+                raise ValueError('vc_runtime_busy')
+            event = Event()
+            self.jobs[runtime.id] = dict(job_id=uuid4().hex, phase='queued', step=0, steps=len(STEPS), received_bytes=0,
+                                         total_bytes=0, error_code=None, path=None)
+            self.cancel_event = event
+            self.thread = Thread(target=self._install, args=(runtime, event, self.thread), daemon=True, name='vc-runtime-setup')
+            self.thread.start()
+            return self.state()
+
+    def cancel(self, id, job_id):
+        with self.lock:
+            job = self.jobs.get(id)
+            if job is None or job['job_id'] != job_id:
+                raise ValueError('stale_job')
+            if job['phase'] in ACTIVE:
+                self.cancel_event.set()
+                job['phase'] = 'cancelling'
+                self._interrupt()
+            return self.state()
+
+    def _interrupt(self):
+        if self.response is not None and hasattr(self.response, 'abort'):
+            self.response.abort()
+        if self.child is not None:
+            self.child.kill()
+
+    def _checkpoint(self, event):
+        if event.is_set() or self.closing.is_set():
+            raise Cancelled()
+
+    def _fetch(self, url, target, event, job=None, *, size=None, sha256='', blob='', limit=None):
+        part = target.with_name(target.name + '.part')
+        target.parent.mkdir(parents=True, exist_ok=True)
+        digest = (hashlib.sha256() if sha256 or not blob
+                  else hashlib.sha1(f'blob {size}\0'.encode(), usedforsecurity=False))
+        received = 0
+        with self.transport(url, hosts=SOURCE_HOSTS) as response, part.open('wb') as output:
+            with self.lock:
+                self.response = response
+                self._checkpoint(event)
+            while block := response.read(CHUNK):
+                self._checkpoint(event)
+                received += len(block)
+                if received > (size if size is not None else limit):
+                    raise ValueError('size_mismatch')
+                output.write(block)
+                digest.update(block)
+                if job is not None:
+                    with self.lock:
+                        job['received_bytes'] += len(block)
+        with self.lock:
+            self.response = None
+        if (size is not None and received != size) or digest.hexdigest() != (sha256 or blob or digest.hexdigest()):
+            part.unlink(missing_ok=True)
+            raise ValueError('hash_mismatch')
+        os.replace(part, target)
+
+    def _uv(self):
+        return self.root / f'.uv-{UV_VERSION}' / 'uv.exe'
+
+    def _run(self, runtime, event, args):
+        folder = self.folder(runtime)
+        env = external_process_env()
+        env.pop('VIRTUAL_ENV', None)
+        env.update(UV_CACHE_DIR=str(folder / '.cache'), UV_PYTHON_INSTALL_DIR=str(folder / 'python'), UV_NO_PROGRESS='1')
+        with (folder / 'setup.log').open('ab') as log:
+            child = self.launcher([str(value) for value in args], stdin=subprocess.DEVNULL, stdout=log,
+                                  stderr=subprocess.STDOUT, env=env, cwd=str(folder))
+            with self.lock:
+                self.child = child
+            try:
+                while True:
+                    try:
+                        code = child.wait(.2)
+                        break
+                    except subprocess.TimeoutExpired:
+                        if event.is_set() or self.closing.is_set():
+                            child.kill()
+                            child.wait()
+                            raise Cancelled() from None
+            finally:
+                with self.lock:
+                    self.child = None
+        self._checkpoint(event)
+        if code:
+            raise ValueError('step_failed')
+
+    def _tools(self, runtime, event, job):
+        uv = self._uv()
+        if uv.is_file():
+            return
+        archive = uv.with_name('uv.zip')
+        self._fetch(UV_URL, archive, event, size=UV_SIZE, sha256=UV_SHA256)
+        with zipfile.ZipFile(archive) as source:
+            uv.with_suffix('.part').write_bytes(source.read('uv.exe'))
+        os.replace(uv.with_suffix('.part'), uv)
+        archive.unlink()
+
+    def _python(self, runtime, event, job):
+        self._run(runtime, event, [self._uv(), 'venv', '--no-config', '--managed-python', '--clear',
+                                   '--python', runtime.python, self.folder(runtime) / 'venv'])
+
+    def _packages(self, runtime, event, job):
+        python = runtime_python(self.folder(runtime))
+        for path, index in runtime.locks:
+            args = [self._uv(), 'pip', 'install', '--no-config', '--python', python, '--require-hashes']
+            self._run(runtime, event, args + (['--index-url', index] if index else []) + ['-r', worker_file(path)])
+
+    def _engine(self, runtime, event, job):
+        folder = self.folder(runtime)
+        archive, staging, target = folder / 'engine.zip', folder / 'engine.part', folder / 'engine'
+        shutil.rmtree(staging, ignore_errors=True)
+        self._fetch(runtime.source_url, archive, event, limit=SOURCE_LIMIT)
+        unpack_source(archive, staging)
+        if runtime.patch:
+            apply_patch(staging, worker_file(runtime.patch).read_text(encoding='utf-8'))
+        if source_digest(staging) != runtime.source_digest:
+            raise ValueError('hash_mismatch')
+        shutil.rmtree(target, ignore_errors=True)
+        os.replace(staging, target)
+        archive.unlink()
+
+    def _assets(self, runtime, event, job):
+        with self.lock:
+            job['total_bytes'] = sum(asset.size for asset in runtime.assets)
+        for asset in runtime.assets:
+            target = self.folder(runtime) / 'assets' / asset.path
+            if (target.is_file() and target.stat().st_size == asset.size
+                    and _file_digest(target, asset, lambda: self._checkpoint(event)) == (asset.sha256 or asset.blob)):
+                with self.lock:
+                    job['received_bytes'] += asset.size
+                continue
+            self._fetch(asset.url, target, event, job, size=asset.size, sha256=asset.sha256, blob=asset.blob)
+
+    def _verifying(self, runtime, event, job):
+        self._run(runtime, event, [runtime_python(self.folder(runtime)), '-c', CUDA_CHECK])
+
+    def _install(self, runtime, event, previous=None):
+        if previous is not None:
+            previous.join()
+        job = self.jobs[runtime.id]
+        folder = self.folder(runtime)
+        marker = folder / '.steps.json'
+        version = version_of(runtime)
+        lease = RootLease(self.root)
+        terminal, step = None, 'tools'
+        try:
+            self.root.mkdir(parents=True, exist_ok=True)
+            lease.acquire()
+            folder.mkdir(exist_ok=True)
+            self._uv().parent.mkdir(exist_ok=True)
+            try:
+                finished = json.loads(marker.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                finished = {}
+            if not isinstance(finished, dict) or finished.get('version') != version:
+                finished = {'version': version, 'steps': []}
+            if not finished['steps'] and shutil.disk_usage(self.root).free < runtime.disk_bytes:
+                raise OSError(errno.ENOSPC, 'space')
+            for number, step in enumerate(STEPS, 1):
+                self._checkpoint(event)
+                with self.lock:
+                    if job['phase'] != 'cancelling':
+                        job.update(phase=step, step=number, received_bytes=0, total_bytes=0)
+                if step in finished['steps']:
+                    continue
+                getattr(self, '_' + step)(runtime, event, job)
+                finished['steps'].append(step)
+                marker.write_text(json.dumps(finished), encoding='utf-8')
+            self._checkpoint(event)
+            (folder / 'receipt.json').write_text(json.dumps({'version': version, 'id': runtime.id}), encoding='utf-8')
+            shutil.rmtree(folder / '.cache', ignore_errors=True)
+            terminal = dict(phase='ready', path=str(folder), error_code=None)
+        except Cancelled:
+            terminal = dict(phase='cancelled')
+        except Exception as error:
+            code = STEP_ERRORS[step]
+            if str(error) == 'download_busy':
+                code = 'vc_runtime_busy'
+            elif isinstance(error, OSError) and error.errno == errno.ENOSPC:
+                code = 'vc_runtime_space'
+            terminal = (dict(phase='cancelled') if event.is_set() or self.closing.is_set()
+                        else dict(phase='failed', error_code=code))
+        finally:
+            lease.close()
+            with self.lock:
+                self.response = self.child = None
+                job.update(terminal or dict(phase='failed', error_code='vc_runtime_failed'))
+
+    def request_close(self):
+        """Signal cancellation without waiting for a worker."""
+        self.closing.set()
+        event = self.cancel_event
+        if event is not None:
+            event.set()
+
+    def close(self, timeout=2):
+        deadline = time.monotonic() + max(0, timeout)
+        self.request_close()
+        if not self.lock.acquire(timeout=max(0, timeout)):
+            return False
+        try:
+            self.closed = True
+            self._interrupt()
+            thread = self.thread
+        finally:
+            self.lock.release()
+        if thread is not None:
+            thread.join(max(0, deadline - time.monotonic()))
+        return thread is None or not thread.is_alive()

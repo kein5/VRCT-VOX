@@ -7,6 +7,7 @@ import { useI18n } from "@useI18n";
 import { useVoice, sourceKey as key } from "../../../../../../logics/voice/useVoice";
 import { directRouteReady, usesOutputDevice } from "../../../../../../logics/voice/routeState";
 import { ModelDownloads } from "./ModelDownloads";
+import { VcRuntimeSetup } from "./VcRuntimeSetup";
 import { StatusLine } from "./StatusLine";
 import { SetupSection } from "../_components/setup_section/SetupSection";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
@@ -145,6 +146,8 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
                         onChange={e => setDraft({ ...draft, [name]: e.target.value })} />
                 </label>)}
             </fieldset>}
+            {converted && <VcRuntimeSetup engine={rvc ? "rvc" : "seed-vc"} current={rvc ? draft.rvc_runtime : draft.runtime} disabled={busy || saving}
+                onUse={path => setDraft({ ...draft, [rvc ? "rvc_runtime" : "runtime"]: path })} />}
             {/* Other unsaved edits survive an apply; only edited model or index paths conflict. */}
             {rvc && <ModelDownloads targets={["rvc"]} blocked={busy || saving ? "busy" :
                 draft.rvc_model !== saved.rvc_model || draft.rvc_index !== saved.rvc_index ? "edited" : false}

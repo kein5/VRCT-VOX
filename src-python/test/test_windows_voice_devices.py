@@ -252,6 +252,19 @@ def test_a_lost_stream_is_reported(audio):
         capture.run(stream, Queue(), cw.FrameBuilder(48000, 2))
 
 
+def test_a_slow_start_reports_the_timeout_and_not_the_slow_teardown(audio, monkeypatch):
+    """Reporting consumer_busy here hid why a microphone never delivered."""
+    release = threading.Event()
+    capture = cw.WindowsCapture(mic_endpoint(), 'mic', lambda frame: True, lambda code: None)
+    monkeypatch.setattr(cw, '_START_TIMEOUT_S', .01)
+    monkeypatch.setattr(capture, '_run', lambda: release.wait(5))
+    original = threading.Thread.join
+    monkeypatch.setattr(cw.Thread, 'join', lambda self, timeout=None: original(self, .01))
+    with pytest.raises(cw.CaptureError, match='asr_capture_start_timeout'):
+        capture.start()
+    release.set()
+
+
 def test_a_stream_that_cannot_open_fails_start_with_its_code(audio):
     audio.rejected_rates.add(44100)
     errors = []

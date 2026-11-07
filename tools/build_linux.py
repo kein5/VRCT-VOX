@@ -94,6 +94,11 @@ def copy_adapters(resources):
                 target = resources / 'integrations' / engine / file.name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(file, target)
+    # The Seed-VC adapter reads its reviewed file list through these two paths.
+    for name in ('tools/seedvc_artifacts.py', 'docs/voice-stack/seed-vc-poc-artifacts.json'):
+        target = resources / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / name, target)
     # External inference interpreters cannot read the frozen sidecar's PYZ.
     # Ship only their small, dependency-free contract modules as ordinary files.
     for name in ('__init__.py', 'owned_child.py', 'voice_conversion/__init__.py',

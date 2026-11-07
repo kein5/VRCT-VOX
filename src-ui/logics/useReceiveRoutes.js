@@ -8,6 +8,7 @@ import * as configs from "@logics_configs";
 import * as voice from "./voice/useVoice";
 import * as speech from "./voice/useSpeechServers";
 import * as downloads from "./voice/useModelDownloads";
+import * as vcRuntimes from "./voice/useVcRuntimes";
 import { _useBackendErrorHandling } from "./_useBackendErrorHandling";
 import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import { useStdoutToPython } from "@useStdoutToPython";
@@ -29,6 +30,10 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/run/start_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
     { endpoint: "/run/cancel_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
     { endpoint: "/run/apply_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
+    { endpoint: "/get/data/vc_runtime_catalog", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "updateCatalog" },
+    { endpoint: "/get/data/vc_runtime_state", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "updateState" },
+    { endpoint: "/run/start_vc_runtime_setup", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "acknowledge" },
+    { endpoint: "/run/cancel_vc_runtime_setup", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "acknowledge" },
     { endpoint: "/get/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
     { endpoint: "/set/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
     { endpoint: "/get/data/speech_server_state", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
@@ -238,6 +243,13 @@ export const useReceiveRoutes = () => {
         const timer = setTimeout(() => updateDownloadError("request_unconfirmed"), 10000);
         return () => clearTimeout(timer);
     }, [downloadPending, updateDownloadError]);
+    const { state: runtimeState, pending: runtimePending, send: sendRuntime, updateError: updateRuntimeError, reset: resetRuntimes, backendStopped: stopRuntimePending } = vcRuntimes.useVcRuntimes();
+    const runtimeActive = runtimePending || Object.values(runtimeState.jobs).some(job => vcRuntimes.activeSetupPhases.includes(job.phase));
+    useEffect(() => {
+        if (!runtimeActive) return;
+        const timer = setInterval(() => !store.backend_stopped && sendRuntime("/get/data/vc_runtime_state"), 750);
+        return () => clearInterval(timer);
+    }, [runtimeActive, sendRuntime]);
     const { state: realtimeState, send: sendRealtime, updateError: updateRealtimeError, reset: resetRealtime, backendStopped: stopRealtimePending } = realtime.useRealtimeASR();
     const realtimeActive = Object.values(realtimeState).some(value => value.requested);
     useEffect(() => {
@@ -309,6 +321,10 @@ export const useReceiveRoutes = () => {
             hook_results.useMessage.failSentMessageLog(result?.data ?? result);
         }
         if (status === 500 && featureResyncReads[endpoint]) asyncStdoutToPython(featureResyncReads[endpoint]);
+        if (status !== 200 && endpoint.includes("vc_runtime")) {
+            updateRuntimeError(result?.error_code || "vc_runtime_failed");
+            return;
+        }
         if (status !== 200 && endpoint.includes("model_download")) {
             updateDownloadError(result?.error_code || "download_failed", endpoint);
             return;
@@ -360,6 +376,7 @@ export const useReceiveRoutes = () => {
             resetDownloads();
             sendDownload("/get/data/model_download_catalog");
             sendDownload("/get/data/model_download_state");
+            resetRuntimes();
             resetVoice();
             sendVoice("/get/data/voice_settings");
             sendVoice("/get/data/direct_voice_sources");
@@ -466,6 +483,7 @@ export const useReceiveRoutes = () => {
         stopVoicePending();
         stopSpeechPending();
         stopDownloadPending();
+        stopRuntimePending();
         stopRealtimePending();
     };
     return { receiveRoutes, backendStopped };

@@ -140,6 +140,38 @@ def test_windows_resources_carry_the_engine_and_the_worker_contract(tmp_path):
     assert ('protocol.py', 'voice_worker/src-python/models/voice_conversion') in pairs
 
 
+def test_windows_resources_carry_what_the_runtime_setup_and_seed_worker_read():
+    m = importlib.import_module('tools.windows_voice_resources')
+    pairs = {(Path(source).name, target) for source, target in m.voice_datas(ROOT)}
+    assert ('requirements-cuda-windows.lock', 'voice_worker/integrations/rvc') in pairs
+    assert ('requirements-windows.lock', 'voice_worker/integrations/rvc') in pairs
+    assert ('requirements-windows.lock', 'voice_worker/integrations/seed_vc') in pairs
+    assert ('offline-loader.patch', 'voice_worker/integrations/seed_vc') in pairs
+    assert ('graphs.py', 'voice_worker/integrations/seed_vc') in pairs
+    assert ('seedvc_artifacts.py', 'voice_worker/tools') in pairs
+    assert ('seed-vc-poc-artifacts.json', 'voice_worker/docs/voice-stack') in pairs
+    assert ('requirements.lock', 'voice_worker/integrations/seed_vc') not in pairs
+
+
+def test_the_build_check_names_what_a_windows_tree_lacks(tmp_path):
+    m = importlib.import_module('tools.windows_voice_resources')
+    assert 'build/speechcpp/speech.exe' in m.missing_files(tmp_path)
+    assert 'licenses/python' in m.missing_files(tmp_path)
+    for name in m.REQUIRED:
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text('x')
+    (tmp_path / 'licenses/python/soxr-1.1.0').mkdir(parents=True)
+    (tmp_path / 'licenses/python/soxr-1.1.0/COPYING').write_text('x')
+    assert m.missing_files(tmp_path) == []
+
+
+def test_the_build_collects_the_license_texts_notice_md_promises():
+    m = importlib.import_module('tools.windows_voice_resources')
+    rows = m.notice_toc()
+    assert all(target.startswith('licenses/python/') and kind == 'DATA' for target, _, kind in rows)
+    assert all(Path(source).is_file() for _, source, _ in rows)
+
+
 def test_a_frozen_worker_does_not_start_inside_the_sidecars_python(tmp_path, monkeypatch):
     """-m puts the working directory first, and _internal holds 3.11 extension modules."""
     monkeypatch.setattr(rvc_process, 'ROOT', tmp_path)
@@ -352,7 +384,7 @@ def stub(controller_module):  # noqa: F811
                                               _directUsesOutputDevice=lambda: True), settings
 
 
-def test_windows_start_needs_an_output_and_refuses_seed_vc(stub):
+def test_windows_start_needs_an_output_for_every_engine(stub):
     module, controller, settings = stub
     start = module.Controller._directOutput
     with pytest.raises(RuntimeError, match='source_bridge_output_required'):
@@ -360,8 +392,31 @@ def test_windows_start_needs_an_output_and_refuses_seed_vc(stub):
     settings.output_device = DEVICE
     assert start(controller, 'converted', {'engine': 'rvc'}) == DEVICE
     assert start(controller, 'passthrough', {}) == DEVICE
-    with pytest.raises(RuntimeError, match='vc_engine_linux_only'):
-        start(controller, 'converted', {'runtime': 'r', 'reference': 'x'})
+    assert start(controller, 'converted', {'runtime': 'r', 'reference': 'x'}) == DEVICE
+
+
+def test_seed_worker_arguments_match_its_parser(monkeypatch):
+    from models.voice_conversion import seed_process
+    calls = []
+    monkeypatch.setattr(seed_process, 'launch_owned', lambda args, **kwargs: calls.append((args, kwargs)))
+    monkeypatch.setattr(seed_process.sys, 'platform', 'win32')
+    seed_process._launch(Path('R'), Path('voice.wav'), 'a' * 32)
+    args, kwargs = calls[0]
+    assert args[1:4] == ['-u', '-m', 'integrations.seed_vc.live_worker']
+    assert args[args.index('--reference') + 1] == 'voice.wav' and args[args.index('--session') + 1] == 'a' * 32
+    assert kwargs['realtime'] is True and kwargs['stderr'] == subprocess.DEVNULL
+
+
+def test_seed_process_takes_the_output_device(tmp_path):
+    from models.voice_conversion import seed_process
+    python = rvc_process.runtime_python(tmp_path)
+    python.parent.mkdir(parents=True)
+    python.write_text('')
+    (tmp_path / 'engine').mkdir()
+    (tmp_path / 'assets').mkdir()
+    (tmp_path / 'voice.wav').write_text('')
+    process = seed_process.SeedProcess(dict(runtime=str(tmp_path), reference=str(tmp_path / 'voice.wav')), output=DEVICE)
+    assert process._route.device == DEVICE
 
 
 def test_linux_start_still_needs_the_managed_route(stub, monkeypatch):

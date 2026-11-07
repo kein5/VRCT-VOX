@@ -44,6 +44,7 @@ from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, 
 from models.model_downloads.manager import Downloads
 from models.model_downloads.catalog import SPEECH_FIELDS as SPEECH_DOWNLOAD_FIELDS
 from models.model_downloads.hardware import HardwareProbe
+from models.voice_conversion.runtime_setup import RuntimeSetup
 from models.ocr import ocr_capture, ocr_chatbox_detector, ocr_languages, ocr_models
 from models.ocr import ocr_engine_rapidocr as ocr_engine
 from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
@@ -441,6 +442,7 @@ class Controller:
         if not isinstance(config_path, (str, Path)):
             config_path = 'config.json'
         self.model_downloads = Downloads(Path(config_path).absolute().parent / 'downloaded_models')
+        self.vc_runtimes = RuntimeSetup(Path(config_path).absolute().parent / 'vc_runtimes')
         self.legacy_downloads = LegacyDownloads()
         self.model_hardware = HardwareProbe()
         self.direct_voice = DirectVoice(converted_factory=create_converted_process)
@@ -506,6 +508,30 @@ class Controller:
         if (not isinstance(data, dict) or set(data) != required
                 or any(not isinstance(data[key], str) or not data[key] for key in ('id', 'job_id'))):
             raise ValueError('download_request_invalid')
+
+    def getVcRuntimeCatalog(self, *args, **kwargs):
+        return {'status': 200, 'result': self.vc_runtimes.catalog()}
+
+    def getVcRuntimeState(self, *args, **kwargs):
+        return {'status': 200, 'result': self.vc_runtimes.state()}
+
+    @staticmethod
+    def _vcRuntimeFailure(error):
+        conflict = {'vc_runtime_busy', 'vc_runtime_closed', 'stale_job'}
+        return {'status': 409 if str(error) in conflict else 400, 'result': {'error_code': str(error)}}
+
+    def startVcRuntimeSetup(self, data, *args, **kwargs):
+        try:
+            return {'status': 200, 'result': self.vc_runtimes.start(data)}
+        except ValueError as error:
+            return self._vcRuntimeFailure(error)
+
+    def cancelVcRuntimeSetup(self, data, *args, **kwargs):
+        try:
+            self._modelDownloadRequest(data)
+            return {'status': 200, 'result': self.vc_runtimes.cancel(data['id'], data['job_id'])}
+        except ValueError as error:
+            return self._vcRuntimeFailure(error)
 
     def startModelDownload(self, data, *args, **kwargs):
         try:
@@ -1361,13 +1387,15 @@ class Controller:
         model.message_delivery.close()
         model.requestOSCShutdown()
         # Signal both owners before either close can wait on a worker or lock.
-        for owner in (getattr(self, 'model_downloads', None),
+        for owner in (getattr(self, 'model_downloads', None), getattr(self, 'vc_runtimes', None),
                       getattr(self, 'legacy_downloads', None)):
             if owner is not None:
                 owner.request_close()
         if getattr(self, 'model_downloads', None) is not None:
             if not self.model_downloads.close():
                 printLog('[models] download/apply shutdown pending')
+        if getattr(self, 'vc_runtimes', None) is not None and not self.vc_runtimes.close():
+            printLog('[voice] runtime setup shutdown pending')
         if getattr(self, 'legacy_downloads', None) is not None:
             if not self.legacy_downloads.close():
                 printLog('[models] legacy download cancellation pending; publication is disabled')
@@ -2755,8 +2783,6 @@ class Controller:
             if settings.routing != 'managed':
                 raise RuntimeError('source_bridge_managed_required')
             return None
-        if mode == 'converted' and options.get('engine') != 'rvc':
-            raise RuntimeError('vc_engine_linux_only')
         if not settings.output_device:
             raise RuntimeError('source_bridge_output_required')
         return settings.output_device

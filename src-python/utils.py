@@ -947,6 +947,7 @@ POLLED_ENDPOINTS = frozenset({
     "/get/data/realtime_asr_state",
     "/get/data/model_download_state",
     "/get/data/model_download_hardware",
+    "/get/data/vc_runtime_state",
 })
 
 

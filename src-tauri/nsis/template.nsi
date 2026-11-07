@@ -1679,6 +1679,7 @@ Section Uninstall
     Delete "$INSTDIR\config.json.unreadable-*"
     Delete "$INSTDIR\voice_mute_state.json"
     RmDir /r "$INSTDIR\downloaded_models"
+    RmDir /r "$INSTDIR\vc_runtimes"
     Delete "$INSTDIR\process.log"
     Delete "$INSTDIR\error.log"
     Delete "$INSTDIR\crash_trace.log"

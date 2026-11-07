@@ -15,7 +15,14 @@ conversion/failure/bypass status and preserves VAD onset history between short
 blocks. Neural model architecture is unchanged. Keep the original upstream
 copyright/license notices.
 
-Use an isolated **Linux x86-64 Python 3.11** environment with uv. The lock is
+On Windows the app sets up this runtime after consent; see the
+[Windows guide](../../docs/voice-stack/local-setup-windows.md). It uses
+`requirements-windows.lock`, applies the patch, and turns on the CUDA graphs in
+`graphs.py`. Those took a block from 327 ms to 72 ms on a laptop CPU, and the worker
+then picks the lightest fit from `graphs.LIGHTER` if a block would still run late.
+Linux has not been tried with them.
+
+Elsewhere, use an isolated **Linux x86-64 Python 3.11** environment with uv. The lock is
 platform-specific; it pins the three CUDA wheels by official URL/hash and the
 remaining dependencies by version/hash. Do not subsequently install upstream's
 original requirements, which request torch 2.4 while naming the CUDA 12.8 index.

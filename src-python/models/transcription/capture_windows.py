@@ -23,6 +23,7 @@ from .realtime_audio import CapturedAudio
 RATE = 48000
 FRAME_BYTES = 1920
 _STALL_NS = 2_000_000_000
+_START_TIMEOUT_S = 5
 _SILENCE_AFTER_NS = 60_000_000
 # time.monotonic_ns() advances in ~16 ms ticks here. A stamp must never read
 # later than the clock, or the first check that compares them rejects the frame.
@@ -86,11 +87,9 @@ class WindowsCapture:
                 raise CaptureError('asr_capture_single_use')
             self._thread = Thread(target=self._run, name='asr-capture', daemon=True)
             self._thread.start()
-        if not self._ready.wait(5):
-            self.stop()
-            raise CaptureError('asr_capture_start_timeout')
-        if self._error or self._stop.is_set():
-            error = self._error
+        started = self._ready.wait(_START_TIMEOUT_S)
+        if not started or self._error or self._stop.is_set():
+            error = self._error if started else 'asr_capture_start_timeout'
             try:
                 self.stop()
             except CaptureError:

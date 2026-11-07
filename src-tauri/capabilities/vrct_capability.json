@@ -41,7 +41,11 @@
             "allow": [
                 { "url": "https://huggingface.co/**" },
                 { "url": "https://creativecommons.org/licenses/by/4.0/" },
-                { "url": "https://www.apache.org/licenses/LICENSE-2.0" }
+                { "url": "https://www.apache.org/licenses/LICENSE-2.0" },
+                { "url": "https://github.com/RVC-Project/**" },
+                { "url": "https://github.com/jiaheguo521/**" },
+                { "url": "https://github.com/pytorch/**" },
+                { "url": "https://docs.nvidia.com/cuda/eula/**" }
             ]
         },
         "shell:allow-open",
