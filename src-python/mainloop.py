@@ -1,7 +1,9 @@
 import atexit
+import importlib
 import os
 import sys
 
+import startup_timing
 from models.network_policy import scrub_network_environment
 scrub_network_environment()
 
@@ -48,8 +50,17 @@ warnings.filterwarnings(
     category=FutureWarning,
 )
 
+startup_timing.mark("bootstrap")
+# The controller imports these first anyway. Importing them here times them
+# apart: the first one also lists the audio devices.
+for _stage, _module in (("import_audio_devices", "device_manager"), ("import_config", "config"), ("import_model", "model")):
+    importlib.import_module(_module)
+    startup_timing.mark(_stage)
+
 from controller import Controller  # noqa: E402
 from utils import printLog, printResponse, errorLogging, encodeBase64, isQuietPoll, openTraceLog # noqa: E402
+
+startup_timing.mark("import_controller")
 
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
@@ -746,7 +757,8 @@ _INIT_MAPPING_EXCLUDED_ENDPOINTS = frozenset({
 })
 
 init_mapping = {
-    key: value for key, value in mapping.items()
+    key: {**value, "variable": startup_timing.timed(key, value["variable"])}
+    for key, value in mapping.items()
     if key.startswith("/get/data/") and key not in _INIT_MAPPING_EXCLUDED_ENDPOINTS
 }
 controller.setInitMapping(init_mapping)
@@ -1158,6 +1170,7 @@ if __name__ == "__main__":
 
     main_instance.controller.setWatchdogCallback(main_instance.escalateShutdown)
     main_instance.controller.init()
+    startup_timing.finish()
 
     # mappingのすべてのstatusをTrueにする
     for key in mapping.keys():

@@ -15,6 +15,7 @@ from collections import OrderedDict
 from logging.handlers import RotatingFileHandler
 
 import requests
+import startup_timing
 from models.network_policy import redact_urls
 from models.diagnostics import exception_provider, redact_diagnostic_text
 import ipaddress
@@ -922,6 +923,7 @@ def printLog(log: str, data: Any = None) -> None:
     process_logger.info(response)
     serialized = json.dumps(response)
     _enqueueLogLine(serialized)
+    startup_timing.note(log)
 
 # High-rate pointer data and private captions are IPC only. Final transcript
 # persistence is handled by the explicitly enabled message logger, not this
