@@ -270,6 +270,7 @@ main_page:
 
     translator_selector:
         is_selected_same_language: "You are selecting the same language for '{{your_language}}' and '{{target_language}}' so only '{{ctranslate2}}' is available."
+        unavailable_hint: "Engines you can't select don't work with these languages or your current settings. Check API keys and other setup in Settings > Translation."
 
     message_log:
         region_label: "Message log"

@@ -270,6 +270,7 @@ main_page:
 
     translator_selector:
         is_selected_same_language: "「{{your_language}}」と「{{target_language}}」に同じ言語が選択がされているため、「{{ctranslate2}}」のみが使用できます。"
+        unavailable_hint: "選べないエンジンは、この言語や現在の設定では使えません。APIキーなどは設定の「翻訳」で確認できます。"
 
     message_log:
         region_label: "会話ログ"

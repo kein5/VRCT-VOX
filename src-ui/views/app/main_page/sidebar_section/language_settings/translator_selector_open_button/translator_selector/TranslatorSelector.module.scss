@@ -17,6 +17,13 @@
     height: 100%;
 }
 
+.unavailable_hint {
+    padding: 1.2rem 1.2rem 0;
+    font-size: 1.2rem;
+    line-height: 1.6;
+    color: var(--dark_550_color);
+}
+
 .wrapper {
     padding: 2rem 0;
     display: flex;

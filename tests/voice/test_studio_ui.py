@@ -215,6 +215,31 @@ def test_settings_top_bar_stops_speech_and_mutes_without_starting_anything(studi
     expect(stop).to_be_visible()
 
 
+def test_unavailable_translators_say_why_and_stay_out_of_the_tab_order(studio):
+    from playwright.sync_api import expect
+
+    page, peer = studio
+    peer.replies.append(dict(endpoint="/get/data/selectable_translation_engines", result=["CTranslate2"], status=200))
+    opener = page.locator('[role="button"][aria-expanded]').filter(has_text="翻訳エンジン")
+    opener.focus()
+    page.keyboard.press("Enter")
+    group = page.get_by_role("group", name="翻訳エンジン", exact=True)
+    available = group.get_by_role("button").filter(has_text="CTranslate2")
+    unavailable = group.get_by_role("button", name="Google", exact=True)
+    expect(available).to_have_attribute("aria-disabled", "false")
+    # The keyboard never lands on an unavailable engine, so the reason is on screen.
+    reason = "選べないエンジンは、この言語や現在の設定では使えません。APIキーなどは設定の「翻訳」で確認できます。"
+    expect(group.get_by_text(reason, exact=True)).to_be_visible()
+    expect(group).to_have_accessible_description(reason)
+    expect(unavailable).to_have_accessible_description(reason)
+    expect(unavailable).to_have_attribute("aria-disabled", "true")
+    screenshot(page, "translator-selector-ja")
+    page.keyboard.press("Tab")
+    expect(available).to_be_focused()
+    page.keyboard.press("Tab")
+    assert not group.evaluate("node => node.contains(document.activeElement)")
+
+
 def test_translation_model_setup_is_folded_with_its_status(studio):
     from playwright.sync_api import expect
 

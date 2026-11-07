@@ -1,3 +1,4 @@
+import { useId } from "react";
 import clsx from "clsx";
 import styles from "./TranslatorSelector.module.scss";
 import { useI18n } from "@useI18n";
@@ -9,10 +10,18 @@ import { useLanguageSettings } from "@logics_main";
 export const TranslatorSelector = ({selected_id, translation_engines, is_selected_same_language}) => {
     const { t } = useI18n();
     const columns = chunkArray(translation_engines, 2);
+    // Unavailable engines leave the tab order, so their reason cannot wait for
+    // focus: it is on screen, and it describes the group the keyboard enters.
+    const reason_id = useId();
+    const has_unavailable = translation_engines.some(engine => !engine.is_available);
 
     return (
         <div className={styles.container}>
-            <div className={styles.relative_container}>
+            <div className={styles.relative_container} role="group" aria-label={t("main_page.translator")}
+                aria-describedby={has_unavailable || is_selected_same_language ? reason_id : undefined}>
+                {has_unavailable && !is_selected_same_language &&
+                    <p id={reason_id} className={styles.unavailable_hint}>{t("main_page.translator_selector.unavailable_hint")}</p>
+                }
                 <div className={styles.wrapper}>
                     {columns.map((column, column_index) => (
                         <div className={styles.column_wrapper} key={`column_${column_index}`}>
@@ -24,6 +33,7 @@ export const TranslatorSelector = ({selected_id, translation_engines, is_selecte
                                     is_available={is_available}
                                     is_default={is_default}
                                     is_selected={(id === selected_id)}
+                                    reason_id={reason_id}
                                 />
                             ))}
                         </div>
@@ -31,7 +41,7 @@ export const TranslatorSelector = ({selected_id, translation_engines, is_selecte
                 </div>
                 {is_selected_same_language ?
                     <div className={styles.is_selected_same_language_wrapper}>
-                        <p className={styles.is_selected_same_language_text}>
+                        <p id={reason_id} className={styles.is_selected_same_language_text}>
                             {t("main_page.translator_selector.is_selected_same_language", {
                                 your_language: t("main_page.your_language"),
                                 target_language: t("main_page.target_language"),
@@ -75,6 +85,7 @@ const TranslatorBox = (props) => {
     // Like a disabled button, an unavailable engine leaves the tab order.
     return (
         <div className={box_class_name} aria-disabled={isLanguageSettingsBusy || !props.is_available} onClick={selectTranslator}
+            aria-describedby={props.is_available ? undefined : props.reason_id}
             role="button" tabIndex={props.is_available ? 0 : -1} aria-pressed={!!props.is_selected} onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (event.repeat) return; selectTranslator(); } }}>
             <p className={styles.translator_name}>{props.label}</p>
             {props.is_default && <p className={label_default_class_name}>{t("common.default_label")}</p>}
