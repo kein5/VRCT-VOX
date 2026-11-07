@@ -80,17 +80,21 @@ def sidecar_version(root):
 
     With no version resource the question reads "Allow   to access your microphone?".
     Someone who leaves that unanswered is refused from then on, with no further question.
+    Returns the path of a PyInstaller version file.
     """
-    from PyInstaller.utils.win32 import versioninfo as v
-    version = json.loads((Path(root) / 'package.json').read_text(encoding='utf-8'))['version']
+    root = Path(root)
+    version = json.loads((root / 'package.json').read_text(encoding='utf-8'))['version']
     numbers = tuple(int(part) for part in re.findall(r'\d+', version)[:4])
     numbers += (0,) * (4 - len(numbers))
     strings = (('FileDescription', 'VRCT-VOX'), ('ProductName', 'VRCT-VOX'), ('FileVersion', version),
                ('ProductVersion', version), ('OriginalFilename', 'vrct-vox-sidecar.exe'))
-    return v.VSVersionInfo(
-        ffi=v.FixedFileInfo(filevers=numbers, prodvers=numbers),
-        kids=[v.StringFileInfo([v.StringTable('040904B0', [v.StringStruct(*row) for row in strings])]),
-              v.VarFileInfo([v.VarStruct('Translation', [1033, 1200])])])
+    rows = ', '.join(f'StringStruct({name!r}, {value!r})' for name, value in strings)
+    path = root / 'build/sidecar-version.txt'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"VSVersionInfo(ffi=FixedFileInfo(filevers={numbers}, prodvers={numbers}), "
+                    f"kids=[StringFileInfo([StringTable('040904B0', [{rows}])]), "
+                    f"VarFileInfo([VarStruct('Translation', [1033, 1200])])])\n", encoding='utf-8')
+    return str(path)
 
 
 def missing_files(internal):
