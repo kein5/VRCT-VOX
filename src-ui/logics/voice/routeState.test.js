@@ -1,11 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { newerRoute, newerDirectState } from "./routeState.js";
+import { directRouteReady, newerRoute, newerDirectState, usesOutputDevice } from "./routeState.js";
 
 const muted = { observation_id: "100", generation: 4, requested_muted: true, observed_muted: true, pending: false, ready: true };
 const resuming = { ...muted, observation_id: "101", generation: 5, requested_muted: false, pending: true };
 const open = { ...resuming, observation_id: "102", observed_muted: false, pending: false };
 
+test("the managed route needs managed routing, and the device route an output device", () => {
+    const managedRoute = { output_route: "managed" }, deviceRoute = { output_route: "device" };
+    assert.equal(directRouteReady({ routing: "managed" }, managedRoute), true);
+    assert.equal(directRouteReady({ routing: "external", output_device: "cable" }, managedRoute), false);
+    assert.equal(directRouteReady({ routing: "external", output_device: "cable" }, deviceRoute), true);
+    assert.equal(directRouteReady({ routing: "external", output_device: "" }, deviceRoute), false);
+    assert.equal(directRouteReady(null, deviceRoute), false);
+    assert.equal(usesOutputDevice({}), false);
+});
 test("late confirmed mute cannot overwrite a resume or open state", () => {
     assert.equal(newerRoute(resuming, muted), resuming);
     assert.equal(newerRoute(open, muted), open);

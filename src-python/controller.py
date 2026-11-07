@@ -6442,8 +6442,9 @@ class Controller:
     def _onOverlayPositionChanged(self, size: str, position: dict) -> None:
         """VR内の掴み移動・拡大縮小で確定した位置と大きさを保存し、UIへ通知する (オーバーレイスレッドから呼ばれる)。
 
-        position["ui_scaling"] はオーバーレイの幅(m)。small は幅=設定値、large は幅=設定値*0.25
-        (Model.init参照)。設定画面のスライダーの範囲 (src-ui/logics/ui_configs.js の
+        position["ui_scaling"] は保存する設定値。small と large ではオーバーレイの幅(m) に対応し、
+        small は幅=設定値、large は幅=設定値*0.25 (Model.init参照)。ランチャーは旧来の帯の幅で
+        保存するので実際の幅とは異なる (regionWidthM参照)。設定画面のスライダーの範囲 (src-ui/logics/ui_configs.js の
         ui_scaling: 40〜200%) に収めてから保存し、収めた値をオーバーレイにも戻す。
         """
         def clamp(value: float) -> float:

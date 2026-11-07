@@ -67,7 +67,9 @@ def test_pyinstaller_filters_restricted_weight_from_expanded_toc(spec_name):
     analyze = MagicMock(return_value=analysis)
     scope = {"SPECPATH": str(root / "spec"), "Analysis": analyze, "PYZ": MagicMock(), "EXE": MagicMock(), "COLLECT": collect}
     exec(compile((root / "spec" / spec_name).read_text(encoding="utf-8"), spec_name, "exec"), scope)
-    assert [entry[0] for entry in analysis.datas] == ["ocr_onnx/LICENSE.txt", "faster_whisper/assets/silero_vad_v6.onnx"]
+    voice = ("build/speechcpp/", "integrations/", "src-python/")  # Added by the voice resources; no weights.
+    assert [entry[0] for entry in analysis.datas if not entry[0].startswith(voice)] == [
+        "ocr_onnx/LICENSE.txt", "faster_whisper/assets/silero_vad_v6.onnx"]
     assert collect.call_args.args[2] == analysis.datas
     assert collect.call_args.args[1] == [("runtime.dll", "dependency/runtime.dll", "BINARY")]
     assert ("./../LICENSE", "licenses/VRCT/") in analyze.call_args.kwargs["datas"]

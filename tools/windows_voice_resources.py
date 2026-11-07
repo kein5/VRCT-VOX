@@ -16,14 +16,13 @@ def voice_toc(root):
 
 
 def voice_datas(root):
-    """PyInstaller (source, destination directory) pairs. Raises if the bundle is missing."""
+    """PyInstaller (source, destination directory) pairs. The build scripts stage the bundle."""
     root = Path(root)
     bundle = root / 'build/speechcpp'
-    if not (bundle / 'speech.exe').is_file():
-        raise SystemExit('build/speechcpp is missing: run tools/speechcpp_bundle.py '
-                         '--variant windows-x64-vulkan --download --output build/speechcpp')
-    pairs = [(str(file), 'build/speechcpp') for file in bundle.iterdir() if file.is_file()]
-    pairs += [(str(file), 'build/speechcpp/notices') for file in (bundle / 'notices').iterdir() if file.is_file()]
+    pairs = []
+    if bundle.is_dir():
+        pairs += [(str(file), 'build/speechcpp') for file in bundle.iterdir() if file.is_file()]
+        pairs += [(str(file), 'build/speechcpp/notices') for file in (bundle / 'notices').iterdir() if file.is_file()]
     for file in (root / 'integrations/rvc').iterdir():
         if file.is_file() and (file.suffix == '.py' or file.name.startswith(('LICENSE', 'README'))):
             pairs.append((str(file), 'integrations/rvc'))

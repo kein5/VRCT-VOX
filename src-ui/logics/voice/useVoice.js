@@ -18,10 +18,7 @@ const directDraftBlockedAtom = atom(false);
 const inputOwner = (mode, engine) => mode === "converted" ? engine || "seed-vc" : "passthrough";
 // Keep the complete backend identity. Refresh never rebinds a selected name.
 export const sourceKey = id => JSON.stringify([id.cookie, id.serial, id.name, id.media_class]);
-// Windows has no managed virtual microphone; voice goes to the chosen output device.
-export const usesOutputDevice = directState => directState?.output_route === "device";
-export const directRouteReady = (settings, directState) =>
-    usesOutputDevice(directState) ? !!settings?.output_device : settings?.routing === "managed";
+export { directRouteReady, usesOutputDevice } from "./routeState";
 
 export const useVoice = () => {
     const atoms = useStore();

@@ -53,6 +53,7 @@ voice:
         source_bridge_managed_required: "To forward an input, set the audio route to \"Managed virtual microphone (Linux)\"."
         source_bridge_graph_unavailable: "Can't read the input list from PipeWire. Check that PipeWire is running."
         source_bridge_linux_only: "Input forwarding is not available on this system."
+        source_bridge_stale_start: "The input changed while starting. Try again."
         source_bridge_output_required: "Choose an output device on the TTS page first."
         source_bridge_devices_unavailable: "Can't read the list of audio devices. Check your audio devices, then refresh."
         source_bridge_output_failed: "Writing to the output device failed. Check the device and start again."

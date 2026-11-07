@@ -17,7 +17,8 @@ def prepare_audio_thread():
     on another thread then fails to start WASAPI with "Unanticipated host error".
     """
     import ctypes
-    ctypes.windll.ole32.CoInitializeEx(None, 0)  # Already set up is not an error.
+    if hasattr(ctypes, 'windll'):
+        ctypes.windll.ole32.CoInitializeEx(None, 0)  # Already set up is not an error.
 
 
 def _identity(pa, info):

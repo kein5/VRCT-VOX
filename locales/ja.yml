@@ -53,6 +53,7 @@ voice:
         source_bridge_managed_required: "入力を転送するには、音声経路を「管理対象の仮想マイク（Linux）」にしてください。"
         source_bridge_graph_unavailable: "PipeWireから入力の一覧を取得できません。PipeWireが動いているか確認してください。"
         source_bridge_linux_only: "このシステムでは入力の転送を使えません。"
+        source_bridge_stale_start: "開始の途中で入力が変わりました。もう一度開始してください。"
         source_bridge_output_required: "先にTTSの設定で出力デバイスを選んでください。"
         source_bridge_devices_unavailable: "音声デバイスの一覧を読めません。デバイスを確認してから更新してください。"
         source_bridge_output_failed: "出力デバイスへ書き込めませんでした。デバイスを確認して、もう一度開始してください。"

@@ -123,8 +123,6 @@ def test_windows_bundle_keeps_only_the_executable_and_the_notices(tmp_path):
 
 def test_windows_resources_carry_the_engine_and_the_worker_contract(tmp_path):
     m = importlib.import_module('tools.windows_voice_resources')
-    with pytest.raises(SystemExit):
-        m.voice_datas(tmp_path)
     bundle = tmp_path / 'build/speechcpp'
     (bundle / 'notices').mkdir(parents=True)
     (bundle / 'speech.exe').write_bytes(b'x')

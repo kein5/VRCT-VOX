@@ -1,5 +1,10 @@
 import { sameSnapshot, sameValue } from "../common/polledState.js";
 
+// Windows has no managed virtual microphone; voice goes to the chosen output device.
+export const usesOutputDevice = directState => directState?.output_route === "device";
+export const directRouteReady = (settings, directState) =>
+    usesOutputDevice(directState) ? !!settings?.output_device : settings?.routing === "managed";
+
 // Call acceptObservation before reducing: the rendered ID may lag equal polls.
 export const newerRoute = (previous, incoming) => {
     if (!incoming || typeof incoming.observation_id !== "string" || !/^\d+$/.test(incoming.observation_id)) return previous;
