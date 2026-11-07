@@ -150,6 +150,43 @@ def test_settings_checkboxes_are_reachable_from_the_keyboard(studio):
     expect(box).to_be_focused()
 
 
+def test_vr_sample_text_stops_with_settings_and_only_the_button_restarts_it(studio):
+    from playwright.sync_api import expect
+
+    page, peer = studio
+
+    def sends():
+        return len([ep for ep, _ in peer.sent if ep == "/run/send_text_overlay"])
+
+    settings = page.get_by_role("button", name="設定を開く", exact=True)
+    settings.click()
+    page.get_by_role("button", name="VR", exact=True).click()
+    start = page.get_by_role("button", name="サンプルテキストをOverlayに送信する", exact=True)
+    stop = page.get_by_role("button", name="送信を停止", exact=True)
+    start.click()
+    expect(stop).to_be_visible()
+    for _ in range(40):
+        if sends():
+            break
+        page.wait_for_timeout(50)
+    assert sends()
+    page.get_by_role("button", name="戻る", exact=True).click()
+    expect(settings).to_be_visible()
+    sent = sends()
+    page.wait_for_timeout(1500)
+    assert sends() == sent
+    settings.click()
+    # The VR page was only hidden, so this is the same button: it says start and nothing runs.
+    expect(start).to_be_visible()
+    expect(stop).to_have_count(0)
+    page.wait_for_timeout(1500)
+    assert sends() == sent
+    start.click()
+    expect(stop).to_be_visible()
+    stop.click()
+    expect(start).to_be_visible()
+
+
 def test_settings_top_bar_stops_speech_and_mutes_without_starting_anything(studio):
     from playwright.sync_api import expect
 

@@ -93,20 +93,38 @@ test("closing settings stops the overlay sample text, and reopening does not res
     active = runtimes.button;
     const button = () => find(runtimes.button.render(sample.type, {}), item => item.type === "button");
 
+    const START = "config_page.vr.sample_text_button.start", STOP = "config_page.vr.sample_text_button.stop";
     button().props.onClick();
-    button();
+    assert.equal(button().props["aria-label"], STOP);
     context.mock.timers.tick(2000);
     assert.equal(sent.length, 2);
 
     open = false;
-    button();
+    // The first render after closing already matches what is being sent.
+    assert.equal(button().props["aria-label"], START);
+    context.mock.timers.tick(5000);
+    assert.equal(sent.length, 2);
+
+    // The closed page is inert; even so, nothing can start while it is closed.
+    button().props.onClick();
+    assert.equal(button().props["aria-label"], START);
     context.mock.timers.tick(5000);
     assert.equal(sent.length, 2);
 
     open = true;
-    assert.equal(button().props["aria-label"], "config_page.vr.sample_text_button.start");
+    assert.equal(button().props["aria-label"], START);
     context.mock.timers.tick(5000);
     assert.equal(sent.length, 2);
+
+    // Only the button starts it again, and it stops the same way.
+    button().props.onClick();
+    assert.equal(button().props["aria-label"], STOP);
+    context.mock.timers.tick(1000);
+    assert.equal(sent.length, 3);
+    button().props.onClick();
+    assert.equal(button().props["aria-label"], START);
+    context.mock.timers.tick(5000);
+    assert.equal(sent.length, 3);
 });
 
 test("restoring all VR defaults cancels the editor's pending position write", async context => {
