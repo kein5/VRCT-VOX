@@ -4,8 +4,10 @@ import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(SPECPATH).resolve().parent / "tools"))
+ROOT = Path(SPECPATH).resolve().parent
+sys.path.insert(0, str(ROOT / "tools"))
 from distribution_policy import filter_toc
+from windows_voice_resources import voice_toc
 
 _use_upx = os.environ.get("VRCT_PYINSTALLER_UPX") == "1"
 
@@ -43,7 +45,9 @@ a = Analysis(
     # 同じDLL群が torch 経由で収集されていた)。実行時のDLL検索パス登録は
     # src-python/utils.py の _registerBundledCudaLibraries が行う。
     hiddenimports=['faster_whisper.vad', 'models.transcription.audio_pipeline', 'rapidocr', 'rapidocr.inference_engine.onnxruntime', 'cv2', 'models.ocr', 'windows_capture',
-                   'nvidia.cublas', 'nvidia.cudnn'],
+                   'nvidia.cublas', 'nvidia.cudnn',
+                   'soxr', 'pyaudiowpatch', 'models.transcription.capture_windows', 'models.audio_routing.windows_route',
+                   'models.voice_conversion.router_worker', 'models.voice_conversion.rvc_process'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -53,6 +57,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+a.datas += voice_toc(ROOT)
 a.datas = filter_toc(a.datas)
 a.binaries = filter_toc(a.binaries)
 pyz = PYZ(a.pure)

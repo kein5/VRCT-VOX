@@ -5,16 +5,17 @@ import json
 import os
 from pathlib import Path
 import re
-import select
 import socket
 import stat
 import subprocess
+import sys
 from runtime_paths import resource_root, external_process_env
 from threading import Event, Lock, Thread, Timer, current_thread, get_native_id
 import time
 
 from .settings import PROFILES
 from .low_latency import LowLatencyStandby
+from models.owned_child import launch_owned, wait_readable
 from models.tts.listener_monitor import listener_monitors
 
 ROOT=resource_root()
@@ -22,15 +23,20 @@ BUNDLE=ROOT/'build/speechcpp'
 HELPER=ROOT/'build/vrct-vc-worker'
 START_TIMEOUT=120.0
 HASHES={'linux-x64-cpu':'7a9c6caa705f56bd52db1fa1a2d8317e5e07da6a291d2dfa37f4e9bb0e55654a',
-        'linux-x64-vulkan':'410edfb9fd1e74112627d17a33ca0d30cb24ac88890f8fc3bcfb8e7a3ad8d1bc'}
+        'linux-x64-vulkan':'410edfb9fd1e74112627d17a33ca0d30cb24ac88890f8fc3bcfb8e7a3ad8d1bc',
+        'windows-x64-vulkan':'fa787d70ce3c9d83b11aacd06024d2bfa89fccf0e4e34995245ef0cd341981b7'}
 READY=re.compile(rb'API at http://127\.0\.0\.1:([0-9]{1,5})/v1(?:;|$)')
 ANSI=re.compile(rb'\x1b\[[0-9;]*m')
+EXECUTABLE='speech.exe' if sys.platform=='win32' else 'speech'
+# The loader reports a missing import as this NTSTATUS. Only vulkan-1.dll can be
+# missing: the executable's other imports are all part of Windows.
+DLL_NOT_FOUND=0xC0000135
 
 
 def bundled_binary():
     """Integrity check for the fixed package resource; no executable PATH lookup."""
     try:
-        meta=BUNDLE/'bundle.json'; binary=BUNDLE/'speech'
+        meta=BUNDLE/'bundle.json'; binary=BUNDLE/EXECUTABLE
         if (BUNDLE.is_symlink() or not stat.S_ISREG(meta.lstat().st_mode) or meta.stat().st_size>65536
                 or not stat.S_ISREG(binary.lstat().st_mode) or not os.access(binary,os.X_OK)):
             raise ValueError()
@@ -118,7 +124,18 @@ class SpeechServer:
         if thread and thread is not current_thread(): thread.join(max(0,timeout))
         return (thread is None or not thread.is_alive()) and self._cleanup_ok
 
+    def _launch_windows(self,binary):
+        # The same command line the Linux helper builds, under a kill-on-close job.
+        row=self.options
+        args=[str(binary),'serve',row['model']]
+        if row['vad_model']: args.append(row['vad_model'])
+        args+=['--host','127.0.0.1','--port','0','--device',row['device']]
+        if row['voice_file']: args+=['--add-voice','custom='+row['voice_file']]
+        return launch_owned(args,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,env=dict(external_process_env(),NO_COLOR='1'))
+
     def _launch(self,binary):
+        if sys.platform=='win32': return self._launch_windows(binary)
         owner=os.pidfd_open(get_native_id(),os.O_EXCL)
         try:
             row=self.options
@@ -159,16 +176,21 @@ class SpeechServer:
             binary=Path(self.binary) if self.binary else bundled_binary()
             if self._stop.is_set(): return
             self._child=self._launch(binary)
-            os.set_blocking(self._child.stderr.fileno(),False)
+            if sys.platform!='win32': os.set_blocking(self._child.stderr.fileno(),False)
             pending=bytearray()
             while not self._stop.is_set():
                 exited=self._child.poll() is not None
                 if not exited and self.health()['state']!='ready' and time.monotonic()>=deadline:
                     raise _Failure('speech_server_start_timeout')
-                if not exited and not select.select([self._child.stderr],[],[],.05)[0]: continue
+                if not exited and not wait_readable(self._child.stderr,.05): continue
+                if exited and sys.platform=='win32' and self._child.returncode==DLL_NOT_FOUND:
+                    exit_error='speech_server_vulkan_missing'
                 # A fast failure can exit before our first read. Drain a bounded
                 # amount from the nonblocking pipe, including its final partial line.
-                try: data=os.read(self._child.stderr.fileno(),65536 if exited else 8192)
+                # Windows pipes block instead, so read only what select's stand-in saw.
+                try:
+                    data=(os.read(self._child.stderr.fileno(),65536 if exited else 8192)
+                          if sys.platform!='win32' or wait_readable(self._child.stderr,0) else b'')
                 except BlockingIOError: data=b''
                 if not data and not exited: continue
                 pending.extend(data)
@@ -176,7 +198,7 @@ class SpeechServer:
                 while b'\n' in pending:
                     line,_,tail=pending.partition(b'\n');pending=bytearray(tail)
                     if len(line)>65536: raise _Failure('speech_server_protocol')
-                    line=ANSI.sub(b'',line)
+                    line=ANSI.sub(b'',line).rstrip(b'\r')
                     # Only map the fixed engine's error category. Never publish
                     # raw stderr, which can contain local model paths or input.
                     if line.startswith(b'speech: out_of_memory:'):

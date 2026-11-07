@@ -16,11 +16,11 @@ import sys
 try:
     from .check_python_lock import validate_lock
     from .linux_package import check_tree, inventory, normalize_modes, pack
-    from .speechcpp_bundle import VARIANTS, stage_bundle, fetch_archive, load_manifest, verify_bundle
+    from .speechcpp_bundle import LINUX_VARIANTS, stage_bundle, fetch_archive, load_manifest, verify_bundle
 except ImportError:
     from check_python_lock import validate_lock
     from linux_package import check_tree, inventory, normalize_modes, pack
-    from speechcpp_bundle import VARIANTS, stage_bundle, fetch_archive, load_manifest, verify_bundle
+    from speechcpp_bundle import LINUX_VARIANTS, stage_bundle, fetch_archive, load_manifest, verify_bundle
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -96,7 +96,7 @@ def copy_adapters(resources):
                 shutil.copyfile(file, target)
     # External inference interpreters cannot read the frozen sidecar's PYZ.
     # Ship only their small, dependency-free contract modules as ordinary files.
-    for name in ('__init__.py', 'voice_conversion/__init__.py',
+    for name in ('__init__.py', 'owned_child.py', 'voice_conversion/__init__.py',
                  'voice_conversion/protocol.py', 'voice_conversion/settings.py'):
         source = ROOT / 'src-python/models' / name
         target = resources / 'src-python/models' / name
@@ -139,7 +139,7 @@ def main():
     parser.add_argument('--work-dir', type=Path, default=ROOT / 'build/linux')
     parser.add_argument('--output-dir', type=Path, default=ROOT / 'build/linux/artifacts')
     parser.add_argument('--python', default='3.11', help='uv interpreter selector for the isolated build venv')
-    parser.add_argument('--variant', choices=VARIANTS, default='linux-x64-vulkan')
+    parser.add_argument('--variant', choices=LINUX_VARIANTS, default='linux-x64-vulkan')
     source = parser.add_mutually_exclusive_group()
     source.add_argument('--speech-archive', type=Path)
     source.add_argument('--download-speech', action='store_true', help='fetch only the pinned engine binary, never weights')

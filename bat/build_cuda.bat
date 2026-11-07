@@ -8,6 +8,10 @@ if exist src-tauri\bin\_internal\.vrct-dev-placeholder (
     )
 )
 call .venv_cuda/Scripts/activate
+if not exist build\speechcpp\speech.exe (
+    python tools/speechcpp_bundle.py --variant windows-x64-vulkan --download --output build/speechcpp
+    if errorlevel 1 exit /b 1
+)
 if "%VRCT_PYINSTALLER_CLEAN%"=="1" (
     pyinstaller spec/backend_cuda.spec --distpath src-tauri/bin --clean --noconfirm --log-level ERROR
 ) else (

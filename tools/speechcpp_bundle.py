@@ -22,10 +22,19 @@ DEFAULT_MANIFEST = ROOT/'docs/voice-stack/speechcpp-bundle-artifacts.json'
 NOTICES = ROOT/'licenses/speech.cpp'
 VERSION = '0.10.0'
 COMMIT = '06590811a90041f935a470ba0e2b85346d2fc041'
-VARIANTS = ('linux-x64-cpu', 'linux-x64-vulkan')
+LINUX_VARIANTS = ('linux-x64-cpu', 'linux-x64-vulkan')
+VARIANTS = (*LINUX_VARIANTS, 'windows-x64-vulkan')
 NOTICE_NAMES = frozenset(('NOTICE.md', 'speech.cpp-LICENSE', 'ggml-LICENSE',
     'cpp-httplib-LICENSE', 'miniaudio-LICENSE', 'GCC-COPYING3', 'GCC-COPYING.RUNTIME'))
 INVENTORY = frozenset({'speech', *('notices/'+name for name in NOTICE_NAMES)})
+
+
+def executable_name(variant):
+    return 'speech.exe' if variant.startswith('windows-') else 'speech'
+
+
+def inventory(variant):
+    return INVENTORY - {'speech'} | {executable_name(variant)}
 
 
 def _require(condition, code='manifest'):
@@ -146,7 +155,8 @@ def stage_bundle(archive, output, asset, *, notice_root=NOTICES):
     created = False
     try:
         with _verified_archive(archive, asset) as source:
-            entries = [entry for entry in source.infolist() if entry.filename == 'speech']
+            name = executable_name(asset['id'])
+            entries = [entry for entry in source.infolist() if entry.filename == name]
             _require(len(entries) == 1, 'executable')
             entry = entries[0]
             mode = stat.S_IFMT(entry.external_attr >> 16)
@@ -154,7 +164,7 @@ def stage_bundle(archive, output, asset, *, notice_root=NOTICES):
                      and 0 < entry.file_size <= 128*1024*1024, 'executable')
             output.mkdir(parents=True, exist_ok=False)
             created = True
-            executable = output/'speech'
+            executable = output/name
             with source.open(entry) as src, executable.open('xb') as out:
                 shutil.copyfileobj(src, out, length=1024*1024)
             executable.chmod(0o755)
@@ -166,7 +176,7 @@ def stage_bundle(archive, output, asset, *, notice_root=NOTICES):
             _record(target, row)
         result = dict(schema=1, component='speech.cpp', version=VERSION, source_commit=COMMIT,
             variant=asset['id'], archive={k: asset[k] for k in ('name', 'size', 'sha256', 'url')},
-            files=[dict(path=name, **_record(output/name)) for name in sorted(INVENTORY)])
+            files=[dict(path=path, **_record(output/path)) for path in sorted(inventory(asset['id']))])
         with (output/'bundle.json').open('x') as out:
             json.dump(result, out, indent=2)
             out.write('\n')
@@ -183,8 +193,10 @@ def verify_bundle(root):
     _require(root.is_dir() and not root.is_symlink(), 'inventory')
     entries = list(root.rglob('*'))
     _require(all(not p.is_symlink() for p in entries), 'inventory')
+    executable = 'speech.exe' if (root/'speech.exe').exists() else 'speech'
+    expected = INVENTORY - {'speech'} | {executable}
     _require({p.relative_to(root).as_posix() for p in entries if not p.is_dir()}
-             == INVENTORY | {'bundle.json'}, 'inventory')
+             == expected | {'bundle.json'}, 'inventory')
     _require(stat.S_ISREG((root/'bundle.json').lstat().st_mode), 'inventory')
     _require((root/'bundle.json').stat().st_size <= 64*1024, 'inventory')
     try:
@@ -193,14 +205,15 @@ def verify_bundle(root):
         _require(value['component'] == 'speech.cpp' and value['version'] == VERSION
                  and value['source_commit'] == COMMIT, 'inventory')
         _asset(dict(value['archive'], id=value['variant']))
-        _require(len(value['files']) == len(INVENTORY), 'inventory')
-        _require({row['path'] for row in value['files']} == INVENTORY, 'inventory')
+        _require(executable_name(value['variant']) == executable, 'inventory')
+        _require(len(value['files']) == len(expected), 'inventory')
+        _require({row['path'] for row in value['files']} == expected, 'inventory')
         for row in value['files']:
             _identity(row)
             _record(root/row['path'], row)
         for row in load_manifest()['notices']:
             _record(root/'notices'/row['path'], row)
-        _require(bool((root/'speech').stat().st_mode & 0o111), 'executable')
+        _require(bool((root/executable).stat().st_mode & 0o111), 'executable')
         return value
     except (KeyError, TypeError, AttributeError, json.JSONDecodeError):
         raise ValueError('speech_bundle_inventory') from None
