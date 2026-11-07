@@ -31,6 +31,13 @@ class _Job:
         self._kernel.OpenProcess.restype = wintypes.HANDLE
         self._kernel.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
         self._kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
+        self._kernel.SetProcessInformation.argtypes = (
+            wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD)
+
+        class Throttling(ctypes.Structure):
+            _fields_ = [('version', wintypes.ULONG), ('control', wintypes.ULONG), ('state', wintypes.ULONG)]
+
+        self._throttling = Throttling
 
         class Basic(ctypes.Structure):
             _fields_ = [('per_process_time', ctypes.c_int64), ('per_job_time', ctypes.c_int64),
@@ -55,16 +62,24 @@ class _Job:
             self.close()
             raise error
 
-    def hold(self, pid):
+    def _no_throttling(self, process):
+        """Best effort: an older Windows runs the child, just without this hint."""
+        ctypes = self._ctypes
+        state = self._throttling(1, 1, 0)  # Control execution speed; state 0 turns throttling off.
+        self._kernel.SetProcessInformation(process, 4, ctypes.byref(state), ctypes.sizeof(state))
+
+    def hold(self, pid, realtime=False):
         """Assign a suspended process and let it run; it cannot escape before it starts."""
         ctypes = self._ctypes
-        # PROCESS_TERMINATE | PROCESS_SET_QUOTA | PROCESS_SUSPEND_RESUME
-        process = self._kernel.OpenProcess(0x0001 | 0x0100 | 0x0800, False, pid)
+        # PROCESS_TERMINATE | PROCESS_SET_QUOTA | PROCESS_SET_INFORMATION | PROCESS_SUSPEND_RESUME
+        process = self._kernel.OpenProcess(0x0001 | 0x0100 | 0x0200 | 0x0800, False, pid)
         if not process:
             raise ctypes.WinError(ctypes.get_last_error())
         try:
             if not self._kernel.AssignProcessToJobObject(self._handle, process):
                 raise ctypes.WinError(ctypes.get_last_error())
+            if realtime:
+                self._no_throttling(process)
             ntdll = ctypes.WinDLL('ntdll')
             ntdll.NtResumeProcess.argtypes = (ctypes.c_void_p,)
             if ntdll.NtResumeProcess(process) != 0:
@@ -84,21 +99,22 @@ class _Job:
 def launch_owned(args, *, stdin=None, stdout=None, stderr=None, env=None, cwd=None, realtime=False):
     """Windows only. The returned Popen keeps its job for as long as it lives.
 
-    realtime lifts the child above normal priority: an audio block has a fixed
-    deadline, and a busy game otherwise takes the CPU it needs to feed the GPU.
+    realtime opts out of power throttling. Windows treats a process without a window
+    as background work and keeps it on efficiency cores, where one RVC block took
+    150 ms instead of 65 ms on an i7-1255U, far past its 80 ms. Raising the priority
+    class made no difference there.
     """
     job = _Job()
     try:
         # A console-less sidecar would otherwise open a window for each child.
         child = subprocess.Popen(
             args, stdin=stdin, stdout=stdout, stderr=stderr, env=env, cwd=cwd, bufsize=0,
-            creationflags=(subprocess.CREATE_NO_WINDOW | 0x00000004  # CREATE_SUSPENDED
-                           | (subprocess.ABOVE_NORMAL_PRIORITY_CLASS if realtime else 0)))
+            creationflags=subprocess.CREATE_NO_WINDOW | 0x00000004)  # CREATE_SUSPENDED
     except BaseException:
         job.close()
         raise
     try:
-        job.hold(child.pid)
+        job.hold(child.pid, realtime)
     except BaseException:
         child.kill()
         child.wait()

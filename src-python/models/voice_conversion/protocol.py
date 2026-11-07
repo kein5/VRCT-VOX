@@ -17,9 +17,9 @@ RATE = 48000
 FRAMES = 3840
 PCM_BYTES = FRAMES * 2
 BLOCK_NS = 80_000_000
-# Windows reads its clock in 16 ms ticks and schedules GPU work with more jitter:
-# one late block there is routine, and the input queue still bounds the delay.
-MAX_AGE_NS = 400_000_000 if os.name == 'nt' else 160_000_000
+# Windows reads its clock in 16 ms ticks and schedules GPU work with more jitter. Its
+# route drops a late block before sending it, so this only catches a stalled worker.
+MAX_AGE_NS = 1_000_000_000 if os.name == 'nt' else 160_000_000
 PREFIX = struct.Struct('<4sI')
 
 

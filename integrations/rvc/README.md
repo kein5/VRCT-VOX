@@ -66,8 +66,7 @@ strict live deadline and is not claimed to be realtime.
 Streaming adapts upstream's resampling and SOLA: 48 kHz input/output, 80 ms input
 blocks, 40 ms overlap, 10 ms search, 2 s left history. These are **configuration
 values, not a measured latency**. A fixed-size history does not itself imply a
-2 s output delay. At startup the worker times a few blocks and falls back to 1 s or
-0.5 s of history when 2 s does not leave room in the 80 ms block on this GPU. No VAD/denoise/RMS envelope controls are included in this first
+2 s output delay. No VAD/denoise/RMS envelope controls are included in this first
 profile. Stop/mute is the existing OS route's responsibility. Nothing falls back
 to the original voice. Future measured profiles may require different settings;
 the current 160 ms post-block freshness deadline has not been relaxed.

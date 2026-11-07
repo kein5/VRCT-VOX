@@ -233,6 +233,49 @@ def test_a_managed_route_keeps_its_gate_and_a_device_route_silences_the_voice():
     assert device._audible(b'\1\2') == b'\1\2'
 
 
+def block(process, end_ns, sequence=0):
+    from models.voice_conversion import protocol as p
+    return dict(p.input_info(process._session, sequence, end_ns - p.BLOCK_NS), pcm_bytes=p.PCM_BYTES)
+
+
+def test_device_route_drops_a_late_block_and_keeps_worker_sequence_contiguous():
+    process = vp.VCProcess(engine='rvc', output=DEVICE)
+    now = time.monotonic_ns()
+    first = process._next_block(block(process, now, 7))
+    late = process._next_block(block(process, now - vp.LATE_NS - 100_000_000, 8))
+    second = process._next_block(block(process, now, 9))
+    assert first['sequence'] == 0 and late is None and second['sequence'] == 1
+
+
+def test_device_route_stops_only_when_most_recent_blocks_are_late():
+    process = vp.VCProcess(engine='rvc', output=DEVICE)
+    stale = time.monotonic_ns() - vp.LATE_NS - 100_000_000
+    for _ in range(vp.LATE_WINDOW // 2):
+        assert process._next_block(block(process, stale)) is None
+    with pytest.raises(vp.p.ProtocolError, match='vc_capture_overrun'):
+        process._next_block(block(process, stale))
+
+
+def test_device_route_recovers_after_a_stall():
+    process = vp.VCProcess(engine='rvc', output=DEVICE)
+    stale = time.monotonic_ns() - vp.LATE_NS - 100_000_000
+    for _ in range(30):
+        process._next_block(block(process, stale))
+    for _ in range(vp.LATE_WINDOW):
+        assert process._next_block(block(process, time.monotonic_ns())) is not None
+    assert sum(process._late) == 0
+
+
+def test_a_full_input_queue_keeps_the_newest_block_on_the_device_route():
+    process = vp.VCProcess(engine='rvc', output=DEVICE)
+    for value in range(process._queue.maxsize):
+        process._queue.put_nowait(({'n': value}, b''))
+    process._partial.extend(b'x' * 4)
+    assert process._replace_oldest({'n': 99}) is False
+    items = [process._queue.get_nowait()[0]['n'] for _ in range(process._queue.maxsize)]
+    assert items == [1, 2, 3, 99]
+
+
 def test_device_route_checks_devices_at_start_but_not_for_every_block(monkeypatch):
     route = importlib.import_module('models.audio_routing.windows_route')
     calls = []

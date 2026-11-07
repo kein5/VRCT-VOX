@@ -62,6 +62,8 @@ voice:
         vc_output_failed: "Writing to the output device failed. Check the device and start again."
         vc_feedback_blocked: "The input and output are the two ends of one virtual cable, which would feed the voice back into itself. Choose your real microphone as the input."
         vc_engine_linux_only: "Seed-VC is available on Linux only. On Windows, use RVC."
+        vc_capture_overrun: "Conversion could not keep up and stopped. Set the retrieval blend to 0, or close other apps that use the GPU or CPU, then start again."
+        vc_block_expired: "Conversion fell too far behind and stopped. Close other apps that use the GPU or CPU, then start again."
         direct_voice_stop_required: "Stop input forwarding before changing the audio route."
     routing: "Audio route"
     routing_external: "Existing external cable"

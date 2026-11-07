@@ -132,7 +132,7 @@ class SpeechServer:
         args+=['--host','127.0.0.1','--port','0','--device',row['device']]
         if row['voice_file']: args+=['--add-voice','custom='+row['voice_file']]
         return launch_owned(args,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,env=dict(external_process_env(),NO_COLOR='1'))
+            stderr=subprocess.PIPE,env=dict(external_process_env(),NO_COLOR='1'),realtime=True)
 
     def _launch(self,binary):
         if sys.platform=='win32': return self._launch_windows(binary)

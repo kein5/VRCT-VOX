@@ -3,6 +3,7 @@
 Capture delivery never waits for inference. Only validated, fresh worker output
 reaches the explicitly bound managed sink. No original-audio fallback exists.
 """
+from collections import deque
 from queue import Empty, Full, Queue
 import subprocess
 from threading import Lock, Thread, current_thread
@@ -24,11 +25,18 @@ from models.tts.speechcpp_tts import CancelToken, SpeechError
 from . import protocol as p
 
 
+# Device route: a block older than this is dropped instead of sent. More than half
+# of six seconds of blocks late means this PC cannot keep up, and the voice stops.
+LATE_NS = 240_000_000
+LATE_WINDOW = 75
+
+
 class _PipeWireRoute:
     """The managed sink; its OS gate owns mute, so writes need no gating here."""
     gates_output = False
     ready_timeout = 60
     input_blocks = 1
+    drops_late_blocks = False
 
     def observe(self):
         return graph_source().subscribe()
@@ -98,7 +106,8 @@ class VCProcess:
         self._lock = Lock()
         self._queue = Queue(maxsize=self._route.input_blocks)
         self._partial = bytearray()
-        self._first = self._last = self._sequence = 0
+        self._first = self._last = self._sequence = self._sent = 0
+        self._late = deque(maxlen=LATE_WINDOW)
         self._token = CancelToken()
         self._thread = self._capture = self._child = self._output = self._stdin = None
         self._requested = self._active = self._verified = self._pending = False
@@ -232,13 +241,43 @@ class VCProcess:
                     try:
                         self._queue.put_nowait((info, bytes(self._partial)))
                     except Full:
-                        fault = 'vc_capture_overrun'
+                        if not self._route.drops_late_blocks or self._replace_oldest(info):
+                            fault = 'vc_capture_overrun'
                     self._sequence += 1
                     self._partial.clear()
         if fault:
             self._fail(fault)
             return False
         return True
+
+    def _too_late(self, late):
+        self._late.append(late)
+        return sum(self._late) > LATE_WINDOW // 2
+
+    def _replace_oldest(self, info):
+        # Capture thread, the only producer, holding the lock.
+        try:
+            self._queue.get_nowait()
+        except Empty:
+            pass
+        self._queue.put_nowait((info, bytes(self._partial)))
+        return self._too_late(True)
+
+    def _next_block(self, info):
+        """Device route: this block as the worker's next one, or None if it came too late.
+
+        A stall on a busy PC costs a gap in the voice rather than the whole session.
+        The worker checks that sequence numbers run on, so they are given here.
+        """
+        with self._lock:
+            late = time.monotonic_ns() - info['end_ns'] > LATE_NS
+            if self._too_late(late):
+                raise p.ProtocolError('vc_capture_overrun')
+            if late:
+                return None
+            info = dict(info, sequence=self._sent)
+            self._sent += 1
+            return info
 
     def _send(self, info, pcm, deadline):
         wire = memoryview(p.encode_packet(info, pcm))
@@ -297,6 +336,10 @@ class VCProcess:
                     info, pcm = self._queue.get(timeout=.02)
                 except Empty:
                     continue
+                if self._route.drops_late_blocks:
+                    info = self._next_block(info)
+                    if info is None:
+                        continue
                 deadline = _Deadline(self._token, info['end_ns'], check_binding)
                 deadline.check()
                 self._send(info, pcm, deadline)

@@ -87,8 +87,8 @@ class WindowsRoute:
     gates_output = True
     # Loading Torch took 53 s here with warm caches; a real-time scan adds more.
     ready_timeout = 180
-    # Rides out a slow block. Sustained slowness still fills it and stops the voice.
     input_blocks = 4
+    drops_late_blocks = True
 
     def __init__(self, output):
         self.device = output
