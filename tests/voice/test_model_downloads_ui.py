@@ -65,6 +65,8 @@ def ui(tmp_path):
         stack.callback(browser.close)
         page = browser.new_page(viewport={"width": 1200, "height": 1600})
         page.set_default_timeout(5000)
+        # A cold Vite compiles every module on the first load, which takes longer than this on Windows.
+        page.set_default_navigation_timeout(30000)
         peer = SimpleNamespace(
             sent=[],
             replies=[],
