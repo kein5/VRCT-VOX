@@ -139,11 +139,14 @@ def test_settings_checkboxes_are_reachable_from_the_keyboard(studio):
 
     page, _ = studio
     page.get_by_role("button", name="設定を開く", exact=True).click()
-    page.get_by_role("button", name="その他", exact=True).click()
+    page.get_by_role("button", name="VRChat", exact=True).click()
     # The drawn box replaces the native one, but the input stays in the tab order.
     box = page.get_by_role("checkbox").first
     expect(box).to_be_attached()
-    box.focus()
+    for _ in range(60):
+        page.keyboard.press("Tab")
+        if box.evaluate("node => node === document.activeElement"):
+            break
     expect(box).to_be_focused()
 
 
