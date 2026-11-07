@@ -24,6 +24,9 @@ RATE = 48000
 FRAME_BYTES = 1920
 _STALL_NS = 2_000_000_000
 _START_TIMEOUT_S = 5
+# Windows can hold the open until someone answers its microphone question. A process that
+# ends first counts as refused from then on, so this leaves time to find and read it.
+_OPEN_TIMEOUT_S = 120
 _SILENCE_AFTER_NS = 60_000_000
 # time.monotonic_ns() advances in ~16 ms ticks here. A stamp must never read
 # later than the clock, or the first check that compares them rejects the frame.
@@ -76,6 +79,7 @@ class WindowsCapture:
         self.endpoint, self.source = endpoint, source
         self._on_audio, self._on_error = on_audio, on_error
         self._stop = Event()
+        self._opened = Event()
         self._ready = Event()
         self._lock = Lock()
         self._thread = None
@@ -87,7 +91,7 @@ class WindowsCapture:
                 raise CaptureError('asr_capture_single_use')
             self._thread = Thread(target=self._run, name='asr-capture', daemon=True)
             self._thread.start()
-        started = self._ready.wait(_START_TIMEOUT_S)
+        started = self._opened.wait(_OPEN_TIMEOUT_S) and self._ready.wait(_START_TIMEOUT_S)
         if not started or self._error or self._stop.is_set():
             error = self._error if started else 'asr_capture_start_timeout'
             try:
@@ -99,6 +103,7 @@ class WindowsCapture:
     def request_stop(self):
         """Invalidate pending startup/delivery without joining or touching a driver."""
         self._stop.set()
+        self._opened.set()
         self._ready.set()
 
     def stop(self):
@@ -173,6 +178,7 @@ class WindowsCapture:
                                      stream_callback=queued)
                 except OSError:
                     raise CaptureError('asr_capture_stream_create_failed') from None
+            self._opened.set()
             self._pump(stream, buffers, FrameBuilder(rate, channels))
         except Exception as exc:
             if not self._stop.is_set():
