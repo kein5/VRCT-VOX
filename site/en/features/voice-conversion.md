@@ -4,8 +4,8 @@ Converts your microphone with an RVC or Seed-VC runtime you prepare, and sends i
 
 ![Settings → RVC](/screenshots/en/rvc.webp)
 
-::: warning Linux only for now
-Voice conversion uses the managed virtual microphone (PipeWire), so it works on Linux only for now.
+::: tip On Windows
+To reach VRChat, install a virtual cable such as VB-CABLE. Choose its playback end as the output device, and its recording end as VRChat's microphone. You can fetch the runtime from the settings page. An NVIDIA GPU is required.
 :::
 
 ## RVC
@@ -34,7 +34,7 @@ As a default model, you can get Saisho Utane's RVC v2 model (CC BY 4.0, about 0.
 
 ## Seed-VC
 
-Under Settings → "Advanced" → "Input forwarding (Linux)", set "Direct voice mode" to "Voice conversion (experimental)". Enter the Seed-VC runtime you installed and a reference WAV you are allowed to use.
+Under Settings → "Advanced" → "Input forwarding", set "Direct voice mode" to "Voice conversion (experimental)". Enter the Seed-VC runtime and a reference WAV you are allowed to use.
 
 Seed-VC is a GPL-3.0 engine and needs a supported NVIDIA GPU.
 

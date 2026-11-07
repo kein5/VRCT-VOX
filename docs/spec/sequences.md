@@ -190,7 +190,7 @@ sequenceDiagram
   R-->>UI: 200
   UI->>R: /run/mute_voice
   R-->>UI: 200 {pending: true}
-  Note over S: 管理対象の経路では仮想マイクの出力を止める（読み上げとRVCの両方）
+  Note over S: 読み上げとRVCの両方を止める（管理対象の経路は仮想マイクの出力、Windowsは出力デバイスへの音声）
 ```
 
 ## APIキーの登録

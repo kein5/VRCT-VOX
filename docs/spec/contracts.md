@@ -31,7 +31,7 @@
 | CT-20 | 停止の要求（`stop_voice`、`mute_voice`など）は、ほかの処理を待たずにすぐ処理する | `PRODUCT.md`、`DESIGN.md` | `tests/voice/test_priority_cancel.py` |
 | CT-21 | 「読み上げ停止」は読み上げだけを止め、読み上げのオンオフとミュートは変えない。停止の前に積まれた音声はあとで鳴らない | `docs/superpowers/specs/2026-10-27-managed-voice-route-design.md` | `tests/voice/test_managed_route.py`、`tests/voice/test_tts_toggle.py` |
 | CT-22 | 読み上げ（TTS）とRVCは独立したスイッチで、片方の操作がもう片方を止めない | `AGENTS.md`「停止と独立した制御」 | `tests/voice/test_direct_voice_controller.py` |
-| CT-23 | ミュートは再開の確認が済むまで解除しない。管理対象の経路では読み上げと変換音声、そのスピーカーモニターを止め、再起動後もミュートを保つ。モニターの待機音声は捨て、解除後に古い音声を鳴らさない。TTS・RVCのスイッチと変換ワーカーはミュートで変えない | `docs/voice-stack/adr-005-managed-microphone-lifetime.md`、[停止とミュート](cross-cutting.md#停止とミュート) | `tests/voice/test_managed_route.py`、`tests/voice/test_mute_state.py`、`tests/voice/test_pipewire_gate.py`、`tests/voice/test_vc_monitor_mute.py`、`src-python/test/test_voice_route_monitor_mute.py` |
+| CT-23 | ミュートは再開の確認が済むまで解除しない。管理対象の経路とWindowsの出力デバイスでは読み上げと変換音声、そのスピーカーモニターを止め、再起動後もミュートを保つ。モニターの待機音声は捨て、解除後に古い音声を鳴らさない。TTS・RVCのスイッチと変換ワーカーはミュートで変えない | `docs/voice-stack/adr-005-managed-microphone-lifetime.md`、[停止とミュート](cross-cutting.md#停止とミュート) | `tests/voice/test_managed_route.py`、`tests/voice/test_mute_state.py`、`tests/voice/test_pipewire_gate.py`、`tests/voice/test_vc_monitor_mute.py`、`src-python/test/test_voice_route_monitor_mute.py` |
 | CT-24 | Quick Chat、VRパネル、ホットキーの振る舞いを保つ | `AGENTS.md`、`PRODUCT.md` | `tests/voice/test_quick_chat_ui.py`、`src-ui/logics/common/vrPanelWire.test.js`、手動 |
 
 ## 秘密情報と安全

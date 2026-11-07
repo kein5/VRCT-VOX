@@ -10,7 +10,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - UIの受信先: 200の応答を処理するUIのフック（`useReceiveRoutes.js`の静的ルートと`ui_config_setter.js`の定義から生成）。「—」は受信先がない。
 - ログで伏せる: `process.log`で値を`***MASKED***`に置き換える（`SENSITIVE_ENDPOINT_MARKERS`）。stdoutのIPCそのものは伏せない。
 
-## 要求（395件: 削除 11、取得 175、実行 35、有効化 38、無効化 38、設定 98）
+## 要求（399件: 削除 11、取得 177、実行 37、有効化 38、無効化 38、設定 98）
 
 | エンドポイント | 種別 | 処理（controller） | 初期化前 | UIの受信先 | 備考 |
 |---|---|---|---|---|---|
@@ -319,6 +319,10 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/run/start_model_download` | 実行 | `startModelDownload` | 可 | useModelDownloads.acknowledge |  |
 | `/run/cancel_model_download` | 実行 | `cancelModelDownload` | 可 | useModelDownloads.acknowledge |  |
 | `/run/apply_model_download` | 実行 | `applyModelDownload` | 可 | useModelDownloads.acknowledge |  |
+| `/get/data/vc_runtime_catalog` | 取得 | `getVcRuntimeCatalog` | 可 | useVcRuntimes.updateCatalog |  |
+| `/get/data/vc_runtime_state` | 取得 | `getVcRuntimeState` | 可 | useVcRuntimes.updateState |  |
+| `/run/start_vc_runtime_setup` | 実行 | `startVcRuntimeSetup` | 可 | useVcRuntimes.acknowledge |  |
+| `/run/cancel_vc_runtime_setup` | 実行 | `cancelVcRuntimeSetup` | 可 | useVcRuntimes.acknowledge |  |
 | `/get/data/speech_server_settings` | 取得 | `getSpeechServerSettings` | 可 | useSpeechServers.updateSettings |  |
 | `/set/data/speech_server_settings` | 設定 | `setSpeechServerSettings` | 可 | useSpeechServers.updateSettings |  |
 | `/get/data/speech_server_state` | 取得 | `getSpeechServerState` | 可 | useSpeechServers.updateState |  |

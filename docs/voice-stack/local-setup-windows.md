@@ -1,23 +1,26 @@
 # Windowsで音声機能を使う
 
-Windowsでは、TTS、同梱のspeech.cppサーバー、リアルタイム字幕、RVCを使えます。Linuxと違い、アプリは仮想マイクを作れません。VRChatへ声を届けるには、別途インストールした仮想ケーブルを使います。
+Windowsでは、TTS、同梱のspeech.cppサーバー、リアルタイム字幕、RVC、Seed-VCを使えます。Linuxと違い、アプリは仮想マイクを作れません。VRChatへ声を届けるには、別途インストールした仮想ケーブルを使います。
 
-この手順の実機確認の記録は[Windows音声の検証記録](windows-voice-report.md)にあります。実マイク、VRChatの画面、実機のケーブル製品での確認はまだ終わっていません。
+この手順の実機確認の記録は[Windows音声の検証記録](windows-voice-report.md)にあります。実マイク、VRChatの画面、実物のケーブル製品での確認はまだ終わっていません。
 
 ## 必要なもの
 
-- GPUドライバー。同梱のspeech.cppはVulkan版で、ドライバーが入れる`vulkan-1.dll`を使います。ないとサーバーは起動しません。
+- GPUドライバー。同梱のspeech.cppはVulkan版で、ドライバーが入れる`vulkan-1.dll`を使います。ないとサーバーは起動しません。speech.cppのWindows版にCPU専用の配布はありません。
 - 仮想ケーブル。VB-CABLEなど、再生側と録音側の組になった製品を手動で入れます。アプリは入れません。
 - モデル。音声モデルは設定画面の取得欄から、ライセンスとサイズを確認して取得します。
+- RVCとSeed-VCには、NVIDIAのGPU。
 
 ## 音声の経路
 
 1. 設定の「TTS」で、出力デバイスにケーブルの**再生側**（例: CABLE Input）を選びます。
 2. VRChatのマイクに、ケーブルの**録音側**（例: CABLE Output）を選びます。
 
-TTSとRVCは、どちらもこの出力デバイスに書き込みます。Windowsの音声エンジンが2つの音を混ぜます。物理マイクをケーブルへ直接つながないでください。入力にケーブルの録音側を選ぶと、声が自分に戻るので開始を拒否します（`vc_feedback_blocked`）。
+出力デバイスの一覧はWASAPIの機器だけを表示します。以前の版で保存したMMEやDirectSoundの選択は、その機器がある間は一覧に残り、そのまま動きます。
 
-ミュートは、TTSと、出力デバイスへ送る声の両方に効きます。OS側に遮断の仕組みがないので、アプリが無音に置き換えて書き込みます。ストリームは動き続けます。
+TTSとRVCは、どちらもこの出力デバイスに書き込みます。Windowsの音声エンジンが2つの音を混ぜます。物理マイクをケーブルへ直接つながないでください。入力にケーブルの録音側を選ぶと、声が自分に戻るので開始を拒否します（`vc_feedback_blocked`）。字幕も、声の出力先のケーブルを読もうとすると拒否します（`realtime_endpoint_feedback`）。別の用途のケーブルは字幕に使えます。
+
+ミュートは、TTSと、出力デバイスへ送る声の両方に効きます。OS側に遮断の仕組みがないので、アプリが無音に置き換えて書き込みます。ストリームは動き続けます。マイクの訳文読み上げで「直接音声を止める」を選ぶと、同じ方法で声を無音にします。
 
 ## TTS
 
@@ -29,19 +32,43 @@ TTSとRVCは、どちらもこの出力デバイスに書き込みます。Windo
 
 聞き取りはWASAPIのループバックで、選んだスピーカーに流れる音を読みます。何も再生していない間は、無音として扱います。
 
-## RVC
+## RVCとSeed-VC
 
-RVCの実行環境はアプリに含みません。次の構成のフォルダーを用意し、RVCの設定で指定します。NVIDIAのGPUが必要です。CPUでは実時間に間に合いません。
+RVCの設定画面、または「高度な設定」の入力の転送にある「実行環境」の欄から、実行環境を取得できます。ライセンス、サイズ、保存先を確認して同意すると、次を自動で行います。Gitも開発環境もいりません。
+
+1. 固定版の`uv`を取得します。
+2. Pythonと、ハッシュを固定した依存を入れます。
+3. エンジン本体を取得して、内容を検証します。Seed-VCには同梱のパッチを当てます。
+4. 基礎モデルを取得して、ハッシュを検証します。
+5. GPUで動くことを確かめます。
+
+| | RVC | Seed-VC |
+|---|---|---|
+| 通信量の目安 | 約3.6 GB | 約5 GB |
+| 必要な空き容量 | 約12 GB | 約14 GB |
+| 完了後の大きさ | 約5.5 GB | 約6.9 GB |
+| 依存のPython | 3.12 | 3.11 |
+
+保存先はアプリのデータフォルダーの`vc_runtimes`です。途中で失敗したり中止したりしても、終わった手順は次回に飛ばします。終わったら「この実行環境を使う」を押して保存します。消したいときはこのフォルダーを削除します。アンインストーラーの「データを削除」でも消えます。
+
+声のモデルは別です。RVCの設定画面の取得欄から取得するか、権利を確認したものを指定します。Seed-VCには、利用が許可された参照音声（1〜30秒のWAV）を指定します。
+
+開始にはTorchの読み込みで数十秒から数分かかるので、開始直後は準備中のままになります（上限は180秒です）。
+
+RVCを止めている間も声を届けたいときは、入力の転送を使います。マイクの音をそのまま出力デバイスへ送ります。Pythonが音声を運ぶので、PCが一瞬詰まると短く途切れることがあります。出力デバイスが2秒以上音声を受け取らないときは、外れたものとして止めます。
+
+変換の速さはGPUとCPUの空きに左右されます。1ブロックは80 msに収める必要があります。一時的に遅れたブロックは捨てて続け、声が短く途切れます。直近の半分以上が遅れると、`vc_capture_overrun`で停止します。声の代わりに原音を流すことはありません。Seed-VCは開始時に処理時間を測り、間に合わないときは参照音声の長さと拡散ステップを段階的に減らします。測定は[検証記録](windows-voice-report.md)にあります。
+
+### 手動で用意する場合
+
+開発者向けです。次の構成のフォルダーを用意して、設定で指定します。
 
 ```text
 runtime\
   venv\Scripts\python.exe
-  engine\                 RVC本体のGitチェックアウト（コミット固定）
-  assets\hubert_base\     config.json、preprocessor_config.json、pytorch_model.bin
-  assets\rmvpe\rmvpe.pt
+  engine\                 エンジン本体（コミット固定）
+  assets\                 RVC: hubert_base\、rmvpe\rmvpe.pt
 ```
-
-依存はハッシュ固定のWindows用ロックから、アプリのvenvとは別のvenvへ入れます。
 
 ```powershell
 uv venv --python 3.12 runtime\venv
@@ -51,21 +78,11 @@ uv pip install --python runtime\venv\Scripts\python.exe --require-hashes `
   -r integrations\rvc\requirements-windows.lock
 ```
 
-RVC本体は[README](../../integrations/rvc/README.md)のコミットで取得します。作業ツリーの検証に`git`が必要で、改行を変えないよう`core.autocrlf=false`で取得してください。
+RVC本体は[README](../../integrations/rvc/README.md)のコミットのものを使います。GitHubのアーカイブを展開するだけで検証に通ります。Gitで取得して改行が変わった場合だけ、検証に`git`が必要です。
 
-```powershell
-git init runtime\engine
-git -C runtime\engine remote add origin https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI.git
-git -C runtime\engine config core.autocrlf false
-git -C runtime\engine fetch --depth 1 origin 81eed5e8f68b6bed1789f682fe78cdd324495afc
-git -C runtime\engine checkout FETCH_HEAD
-```
+## マイクが開けないとき
 
-基礎モデルと声のモデルは、権利を確認してから用意します。起動にはTorchの読み込みで数十秒から数分かかるので、開始直後は準備中のままになります（上限は180秒です）。
-
-RVCを止めている間も声を届けたいときは、入力の転送を使います。マイクの音をそのまま出力デバイスへ送ります。Seed-VCはWindowsでは使えません。
-
-変換の速さはGPUとCPUの空きに左右されます。1ブロックは80 msに収める必要があります。一時的に遅れたブロックは捨てて続け、声が短く途切れます。直近の半分以上が遅れると、`vc_capture_overrun`で停止します。声の代わりに原音を流すことはありません。検索ブレンドはCPUを多く使います。測定は[検証記録](windows-voice-report.md)にあります。
+`asr_capture_stream_create_failed`は、マイクを開けなかったことを示します。ほかのアプリの占有と、Windowsの設定の「プライバシーとセキュリティ」→「マイク」を確かめます。
 
 ## モデル不要のテスト
 

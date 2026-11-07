@@ -4,9 +4,9 @@ Turns your voice and other players' voices into text. The settings are under Set
 
 ![Settings → Transcription](/screenshots/en/transcription.webp)
 
-## Realtime captions (Linux)
+## Realtime captions
 
-On Linux, captions come from the bundled speech.cpp speech recognition (ASR) server. They appear in the message log and in the large overlay if you enable it.
+Captions come from the bundled speech.cpp speech recognition (ASR) server. They appear in the message log and in the large overlay if you enable it.
 
 - **Microphone captions**: transcribe your microphone.
 - **Game audio captions**: transcribe VRChat's audio. Choose an output dedicated to the game; a shared output also includes other apps' sound.
@@ -35,4 +35,4 @@ Add words you want recognized, and how to write them, under "Term dictionary". C
 
 ## Speech recognition on Windows
 
-Windows uses the speech recognition inherited from upstream VRCT (Google, Whisper). Choose it under "Transcription Engines". Realtime captions are Linux only for now.
+On Windows you can choose the speech recognition inherited from upstream VRCT (Google, Whisper) under "Transcription Engines". Realtime captions work too: choose "Bundled" as the server under "Realtime captions", and the main screen's microphone and speaker switches use them.

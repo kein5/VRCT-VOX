@@ -7,9 +7,10 @@ required. One Linux/RTX 4080 SUPER environment has passed real-model inference,
 private PipeWire, 60-second continuous operation and native GUI tests using a
 user-supplied model. See [validation report](../../docs/voice-stack/rvc-mia-validation-2026-10-29.md).
 That private model is not included. Listening, physical mic/VRChat and
-long-duration mixed-load acceptance remain open. Windows uses `venv\Scripts\python.exe`,
-hash-locked `requirements-cuda-windows.lock` and `requirements-windows.lock`, and a
-user-installed virtual cable; see the [Windows guide](../../docs/voice-stack/local-setup-windows.md).
+long-duration mixed-load acceptance remain open. On Windows the app can set up this
+runtime after consent, from hash-locked `requirements-cuda-windows.lock` and
+`requirements-windows.lock`, and voice goes to a user-installed virtual cable; see the
+[Windows guide](../../docs/voice-stack/local-setup-windows.md).
 
 Expected runtime folder:
 
