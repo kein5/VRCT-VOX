@@ -50,21 +50,29 @@ def bootstrap_linux_frozen():
 
 
 _backend_only_env = set()
+_OPENMP_WAIT_SETTINGS = {"KMP_BLOCKTIME": "0", "KMP_USE_YIELD": "0"}
 
 
 def limit_openmp_spinning():
-    """Stop CTranslate2's OpenMP threads from spinning between parallel regions.
+    """Make CTranslate2's OpenMP threads sleep instead of spinning or yielding.
 
-    Intel OpenMP keeps idle threads busy for 200 ms by default. On a PC with more
-    runnable threads than cores (VRChat, a game) those spinners take the CPU from
-    the threads that still have work, and one Whisper call went from 1 s to minutes.
-    Sleeping at once costs nothing measurable on an idle PC.
+    With more runnable threads than cores (VRChat, a game) one Whisper call went
+    from 1 s to minutes. Intel OpenMP spins for 200 ms between parallel regions,
+    which takes the CPU from threads that still have work. It also waits in a
+    SwitchToThread loop: each poll gives a whole time slice to another process, and
+    a waiting thread then shows as Ready with almost no CPU time.
+
+    Both settings are needed. With KMP_BLOCKTIME alone, two models in one process
+    still stalled for minutes; with KMP_USE_YIELD alone a call still took 18 s.
+    The price on an idle PC is about 0.08 s per translated sentence. Whisper did not
+    get slower.
 
     Call this before ctranslate2 loads. A value the user set is kept.
     """
-    if "KMP_BLOCKTIME" not in os.environ:
-        os.environ["KMP_BLOCKTIME"] = "0"
-        _backend_only_env.add("KMP_BLOCKTIME")
+    for name, value in _OPENMP_WAIT_SETTINGS.items():
+        if name not in os.environ:
+            os.environ[name] = value
+            _backend_only_env.add(name)
 
 
 def external_process_env():
