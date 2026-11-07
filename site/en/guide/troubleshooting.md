@@ -21,6 +21,8 @@ On that feature's page, download the model and press "Apply model path" (see [Mo
 
 Some Windows versions ask whether VRCT-VOX may use the microphone the first time it does. Allow it, then start again.
 
+Windows also refuses while another of its questions is open, such as the firewall's. Close it, then start again.
+
 If VRCT-VOX closes before that question is answered, Windows refuses from then on without asking. Check Settings → Privacy & security → Microphone.
 
 ## Text is spoken twice

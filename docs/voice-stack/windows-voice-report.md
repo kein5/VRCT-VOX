@@ -23,9 +23,12 @@ TTS、同梱のspeech.cppサーバー、リアルタイム字幕、RVC、Seed-VC
 |---|---|
 | Windows付属で署名のある`powershell.exe` | 確認なしで成功 |
 | 未署名のexeの1回目 | `PickerHost.exe`の確認の画面が出て、答えるまで止まる。バージョン情報がないと「Allow   to access your microphone?」と名前が空欄になる |
-| 同じexeの2回目（1回目に答えないまま終了） | 確認なしで`E_ACCESSDENIED` |
+| 同じexeの2回目（1回目に答えないまま終了） | 確認なしで`E_ACCESSDENIED`。30分後も同じ |
+| 同じ中身のexeを別の場所へコピー | 改めて確認が出る |
+| ファイアウォールの確認が開いている間のexe | 確認なしで`E_ACCESSDENIED`。閉じれば確認が出て、拒否は残らない |
+| `FileDescription`のある未署名のexe | 「Allow VRCT-VOX Probe to access your microphone?」と名前が出る |
 
-`python.exe`も配布版のサイドカーも、最初の確認に答えなかったので拒否されていました。記録は`ConsentStore\microphone\NonPackaged`の一覧には現れません。サイドカーにはバージョン情報を入れ、確認の画面にVRCT-VOXの名前が出るようにしました。
+`python.exe`も配布版のサイドカーも、最初の確認に答えなかったので拒否されていました。記録は`ConsentStore\microphone\NonPackaged`の一覧には現れません。サイドカーにはバージョン情報を入れ、確認の画面にVRCT-VOXの名前が出るようにしました。設定の画面から許可し直せるかは確かめていません。
 
 ## 結果
 
