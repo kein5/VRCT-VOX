@@ -17,7 +17,7 @@
 | `monitor_output_missing` / `monitor_output_disconnected` / `monitor_pipewire_unavailable` | モニター出力（自分のスピーカーで聞く）だけの問題。仮想マイクへの読み上げは続く。TTSページでモニター出力先を選び直す |
 | `monitor_feedback_blocked` | モニター出力先に仮想マイクやTTSの出力先は選べない。スピーカーかヘッドホンを選ぶ |
 | 二重発声 | 外部の読み上げツール（上流作者のVRCT-TTSなど）をOFF。同じ文でも別IDの新規送信は別発声 |
-| 待機中だが発声なし | キューoverflow/5秒超過は破棄。`/get/data/voice_status`のdroppedを確認 |
+| 待機中だが発声なし | キューoverflow/5秒超過は破棄。`/get/data/voice_status`のdroppedを確認。5秒超過はexpiredにも数え、増えるとUIが警告を出す |
 | VRChatメーターは動くがテストは無音 | マイクテストは短く録音して再生するため、入力が来ている間に`New Test`を開始。メニュー音、VRChat Master/マイク音量、OS出力のミュートも確認 |
 
 TTSが無効/失敗しても既存の文字送信を維持する。受信/マイク/OCRをP1のTTSへは送らない。

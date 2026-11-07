@@ -13,6 +13,24 @@ test("blocked config loading shows the persistent load-failure notice", async ()
         options: { hide_duration: null, category_id: "config_save_failed" } }]);
 });
 
+test("skipped speech warns when the backend count rises, not for earlier counts", async () => {
+    const status = { expired: 2 };
+    const s = await loadBridgeRoutes(undefined, null, null, () => status);
+    s.rerender();
+    assert.deepEqual(s.notices, []);
+    status.expired = 3;
+    s.rerender();
+    assert.deepEqual(s.notices, [{ type: "warning", key: "voice_ui.speech_expired", options: { category_id: "speech_expired" } }]);
+    s.rerender();
+    assert.equal(s.notices.length, 1);
+    status.expired = 0; // a restarted backend counts from zero
+    s.rerender();
+    assert.equal(s.notices.length, 1);
+    status.expired = 1;
+    s.rerender();
+    assert.equal(s.notices.length, 2);
+});
+
 test("failed required initialization maps and scalars retain renderable defaults and warn", async context => {
     const errors = context.mock.method(console, "error", () => {});
     const s = await loadBridgeRoutes();

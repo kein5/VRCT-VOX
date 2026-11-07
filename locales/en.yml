@@ -1238,6 +1238,7 @@ voice_ui:
     discard_leave: "Discard and leave"
     input_conflict: "Another direct input engine is running. Stop it on its settings page before switching."
     check_settings: "Check {{page}} settings."
+    speech_expired: "A message was skipped and not read aloud because it waited more than 5 seconds for its turn."
     errors:
         backend_unavailable: "Cannot reach the VRCT-VOX engine."
         voice_request_unconfirmed: "The request wasn't confirmed. Wait a moment, then check the status."

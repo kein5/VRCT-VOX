@@ -68,7 +68,9 @@ class VoiceEventBus:
         self._observation_id = 0
         self._epoch = 0
         self._source_epochs = {}
-        self._stats = {"accepted": 0, "completed": 0, "dropped": 0, "duplicates": 0,
+        # expired counts speech that waited past max_age. It is also in dropped;
+        # the UI warns when it grows, because the user sees no other sign.
+        self._stats = {"accepted": 0, "completed": 0, "dropped": 0, "expired": 0, "duplicates": 0,
                        "cancelled": 0, "errors": 0, "last_error": None,
                        "last_first_write_ms": None, "sample_rate": None, "monitor_error": None}
 
@@ -247,6 +249,7 @@ class VoiceEventBus:
                 del self._queue[next_chat]
                 if monotonic_ns() - event.timestamp_ns > self.max_age * 1e9:
                     self._stats["dropped"] += 1
+                    self._stats["expired"] += 1
                     continue
                 deadline = event.timestamp_ns / 1e9 + self.max_age if event.source == "mic" else None
                 token = self._active = CancelToken(start_deadline=deadline)

@@ -1238,6 +1238,7 @@ voice_ui:
     discard_leave: "破棄して移動"
     input_conflict: "別の直接音声エンジンが動作中です。切り替える前に、その設定ページで停止してください。"
     check_settings: "{{page}}設定を確認してください。"
+    speech_expired: "読み上げの順番を5秒以上待ったメッセージは、読み上げずに飛ばしました。"
     errors:
         backend_unavailable: "VRCT-VOXの処理部分に接続できません。"
         voice_request_unconfirmed: "要求への応答を確認できませんでした。しばらく待ってから状態を確かめてください。"
