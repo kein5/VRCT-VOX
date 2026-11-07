@@ -83,8 +83,13 @@ def same_output(first, second):
 
 
 def carries_own_voice(endpoint, output):
-    """Whether capturing this endpoint would hear what is written to the output device."""
-    return bool(output) and (same_output(endpoint, output) or same_virtual_cable(endpoint, output))
+    """Whether this endpoint is the cable that carries the voice.
+
+    Only a cable counts. Someone who listens to their speech on their own headphones
+    also captions other players from them, and that is a normal setup.
+    """
+    return (bool(output) and is_virtual_cable(output)
+            and (same_output(endpoint, output) or same_virtual_cable(endpoint, output)))
 
 
 def enumerate_outputs(keep=()):

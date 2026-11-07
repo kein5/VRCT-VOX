@@ -449,6 +449,12 @@ def test_captions_refuse_only_the_cable_that_carries_the_voice(endpoint, expecte
     assert dw.carries_own_voice(endpoint, '') is False
 
 
+def test_captions_may_read_the_headphones_the_voice_plays_on():
+    """Choosing real headphones as the output is a documented setup, and other players are on them too."""
+    headphones = '["Windows WASAPI", "Headphones (USB Audio)"]'
+    assert dw.carries_own_voice(headphones, headphones) is False
+
+
 def test_a_monitor_on_the_voice_output_is_refused_under_any_host(monkeypatch):
     from models.audio_routing import monitor_output as mo
     monkeypatch.setattr(mo.sys, 'platform', 'win32')
