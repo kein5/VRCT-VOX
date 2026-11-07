@@ -451,6 +451,7 @@ config_page:
         label_device: "デバイス"
         mic_host_device:
             label: "マイク（デバイス）"
+            desc: "通常の音声認識で使うマイクです。選んだマイクはRVCの入力の初期値にもなります（RVCはトップ画面のRVCスイッチで開始）。リアルタイム音声認識のマイクは音声認識の設定で選びます。"
             desc_pipewire: "LinuxではPipeWireの入力デバイスを表示します。選んだマイクがRVCの入力の初期値になります（RVCはトップ画面のRVCスイッチで開始）。リアルタイム音声認識のマイクは音声認識の設定で選びます。"
         mic_dynamic_energy_threshold:
             label: "マイク入力感度の調整"

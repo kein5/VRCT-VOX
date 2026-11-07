@@ -451,6 +451,7 @@ config_page:
         label_device: "Device"
         mic_host_device:
             label: "Mic Device"
+            desc: "The mic used for standard transcription. The selected mic is also the default RVC input (Start RVC from the RVC switch). Realtime transcription uses the mic chosen in Transcription settings."
             desc_pipewire: "On Linux this list shows PipeWire inputs. The selected mic is the default RVC input (Start RVC from the RVC switch). Realtime transcription uses the mic chosen in Transcription settings."
         mic_dynamic_energy_threshold:
             label: "Mic Sensitivity Settings"
