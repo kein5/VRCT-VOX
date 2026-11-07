@@ -33,6 +33,10 @@ jobs:
           shared-key: windows-installer-tests
       - name: Install build dependencies
         run: npm ci
+      - name: Windows tar outside the ANSI code page
+        run: |
+          python tests/installer/windows_update_scenarios.py --mode tar
+          exit $LASTEXITCODE
       - name: Prepare disposable checkout and build stubs
         run: python tests/installer/windows_update_scenarios.py --mode prepare --port 18765
       - name: Build real NSIS installer

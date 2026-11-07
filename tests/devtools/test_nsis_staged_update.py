@@ -28,19 +28,40 @@ class NsisStagedUpdateTests(unittest.TestCase):
     def test_extraction_is_staged_and_validated(self):
         install = block("Section", "Install")
         tar = next(line for line in install.splitlines() if "-xvf" in line)
-        self.assertIn('-xvf "$tar_archive" -C "$tar_target"', tar)
-        # tar.exe reads its arguments in the ANSI code page; pass 8.3 paths,
-        # and keep the long path when the volume has none.
-        prepare = install.split(tar, 1)[0].rsplit('DetailPrint "Extracting', 1)[1]
-        for variable, path in (("tar_archive", "$TEMP\\$file_name"), ("tar_target", "$INSTDIR\\.upd\\new")):
-            self.assertIn(f'GetFullPathName /SHORT ${variable} "{path}"', prepare)
-            self.assertIn(f'${{IfThen}} ${variable} == "" ${{|}} StrCpy ${variable} "{path}" ${{|}}', prepare)
         validated = install.split(tar, 1)[1].split("attempt_failed:", 1)[0]
         self.assertIn('${If} $0 == 0', validated)
         self.assertIn('${FileExists} "$INSTDIR\\.upd\\new\\${MAINBINARYNAME}.exe"', validated)
         self.assertIn('${FileExists} "$INSTDIR\\.upd\\new\\_internal\\*.*"', validated)
         self.assertEqual(install.count("Call CheckAppIsRunning"), 2)
         self.assertNotIn("!insertmacro CheckIfAppIsRunning", install)
+
+    def test_tar_arguments_stay_ascii_without_8dot3_names(self):
+        # tar.exe reads its arguments in the ANSI code page, and a volume may
+        # have no 8.3 names. Only the working directory can carry Unicode.
+        self.assertNotIn("GetFullPathName /SHORT", SOURCE)
+        install = block("Section", "Install")
+        tar = next(line for line in install.splitlines() if "-xvf" in line)
+        self.assertEqual(tar.strip(), """nsExec::ExecToLog '"$SYSDIR\\tar.exe" -xvf "..\\$file_name"'""")
+        for name in ('SOFTWARE_DOWNLOAD_FILENAME "', 'SOFTWARE_DOWNLOAD_FILENAME_GPU "'):
+            self.assertTrue(install.split(name, 1)[1].split('"', 1)[0].isascii())
+        before, after = install.split(tar, 1)
+        before = before.rsplit('DetailPrint "Extracting', 1)[1]
+        self.assertRegex(before, r'Rename "\$TEMP\\\$file_name" "\$INSTDIR\\\.upd\\\$file_name"\n\s*IfErrors attempt_failed')
+        # A failed SetOutPath must not let tar unpack into the old directory.
+        self.assertRegex(before, r'SetOutPath "\$INSTDIR\\\.upd\\new"\n\s*\$\{IfNot\} \$\{Errors\}')
+        # Leave the staging tree before retrying, committing or removing it.
+        self.assertLess(after.index('SetOutPath "$TEMP"'), after.index("${If} $0 == 0"))
+        # A retry must not trip over an archive that could not be moved back.
+        attempt = install.split("install_attempt:", 1)[1].split("${If} $dl_parallel", 1)[0]
+        self.assertIn('Delete "$INSTDIR\\.upd\\$file_name"', attempt)
+        failed = after.split("attempt_failed:", 1)[0]
+        self.assertIn('Rename "$INSTDIR\\.upd\\$file_name" "$TEMP\\$file_name"', failed)
+
+    def test_install_volume_budgets_the_archive_on_another_drive(self):
+        install = block("Section", "Install")
+        self.assertIn("IntOp $R4 $req_dl_mb + $req_extract_mb", install)
+        separate = install.split("${If} $R0 == $R1", 1)[1].split("${Else}", 1)[1].split("A fork installer", 1)[0]
+        self.assertIn("${AndIf} $R3 < $R4", separate)
 
     def test_transaction_renames_check_errors(self):
         for name in ("CommitStagedEntry", "RollbackInstall", "DiscardInstalledEntry"):

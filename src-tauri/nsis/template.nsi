@@ -821,7 +821,7 @@ Section Install
   ; Free-space budget (MiB) per edition. The compressed archive is written to
   ; %TEMP%, the new tree to $INSTDIR\.upd\new. The old installation stays
   ; on disk until commit finishes. These are additional FREE-space budgets:
-  ; a same-drive install needs DOWNLOAD + EXTRACT beyond the existing tree.
+  ; the install drive needs DOWNLOAD + EXTRACT beyond the existing tree.
   ; Measured 2026-08: VRCT.zip ~485MB / ~1.5GB unpacked; VRCT_cuda.zip
   ; ~3461MB / ~5757MB unpacked. Values below add headroom -- re-measure and
   ; bump them when the packages grow.
@@ -856,8 +856,6 @@ Section Install
   Var /GLOBAL package_hash_available
   Var /GLOBAL expected_package_hash
   Var /GLOBAL actual_package_hash
-  Var /GLOBAL tar_archive
-  Var /GLOBAL tar_target
   ${If} $SelectedEdition == "gpu"
     StrCpy $file_name "${SOFTWARE_DOWNLOAD_FILENAME_GPU}"
     StrCpy $req_dl_mb ${REQ_DOWNLOAD_MB_GPU}
@@ -870,7 +868,8 @@ Section Install
 
   ; --- Pre-flight: refuse to start if either target volume is too small ---
   ; $TEMP holds the download; $INSTDIR\.upd holds the staged app alongside
-  ; the old installation. On one volume both additional allocations must fit.
+  ; the old installation, and the archive while tar reads it. So the install
+  ; volume needs both allocations whether or not $TEMP is on it.
   ; DriveSpace returns "" on failure -> treat as "unknown" and don't block.
   ${GetRoot} "$TEMP" $R0
   ${GetRoot} "$INSTDIR" $R1
@@ -879,8 +878,8 @@ Section Install
   ${IfThen} $R2 == "" ${|} StrCpy $R2 -1 ${|}
   ${IfThen} $R3 == "" ${|} StrCpy $R3 -1 ${|}
 
+  IntOp $R4 $req_dl_mb + $req_extract_mb
   ${If} $R0 == $R1
-    IntOp $R4 $req_dl_mb + $req_extract_mb
     ${If} $R2 >= 0
     ${AndIf} $R2 < $R4
       DetailPrint "Aborted: need $R4 MB free on $R0, only $R2 MB available"
@@ -895,9 +894,9 @@ Section Install
       Abort
     ${EndIf}
     ${If} $R3 >= 0
-    ${AndIf} $R3 < $req_extract_mb
-      DetailPrint "Aborted: need $req_extract_mb MB free on install drive $R1, only $R3 MB available"
-      MessageBox MB_OK|MB_ICONSTOP "Not enough free space on the install drive $R1 for the $SelectedEdition version.$\r$\n$\r$\nRequired: about $req_extract_mb MB$\r$\nAvailable: $R3 MB$\r$\n$\r$\nFree up space (or choose another drive) and run the installer again." /SD IDOK
+    ${AndIf} $R3 < $R4
+      DetailPrint "Aborted: need $R4 MB free on install drive $R1, only $R3 MB available"
+      MessageBox MB_OK|MB_ICONSTOP "Not enough free space on the install drive $R1 for the $SelectedEdition version.$\r$\n$\r$\nRequired: about $R4 MB$\r$\nAvailable: $R3 MB$\r$\n$\r$\nFree up space (or choose another drive) and run the installer again." /SD IDOK
       Abort
     ${EndIf}
   ${EndIf}
@@ -1042,6 +1041,7 @@ Section Install
     ClearErrors
     CreateDirectory "$INSTDIR\.upd\new"
     IfErrors attempt_failed
+    Delete "$INSTDIR\.upd\$file_name"
     Delete "$TEMP\$file_name"
     Delete "$TEMP\$file_name.p0"
     Delete "$TEMP\$file_name.p1"
@@ -1256,24 +1256,34 @@ Section Install
     ;
     ; tar.exe converts its arguments to the ANSI code page. A character outside
     ; it (a Japanese user name on an English Windows, for example) becomes "?",
-    ; and tar can open neither the archive nor the -C folder. Pass the 8.3
-    ; short paths instead. A volume without 8.3 names returns the long path,
-    ; which is what was passed before.
-    GetFullPathName /SHORT $tar_archive "$TEMP\$file_name"
-    ${IfThen} $tar_archive == "" ${|} StrCpy $tar_archive "$TEMP\$file_name" ${|}
-    GetFullPathName /SHORT $tar_target "$INSTDIR\.upd\new"
-    ${IfThen} $tar_target == "" ${|} StrCpy $tar_target "$INSTDIR\.upd\new" ${|}
+    ; and tar can open neither the archive nor a -C folder. The working
+    ; directory is no argument and stays Unicode, so run tar inside the staging
+    ; folder and pass only a relative ASCII path. $file_name is ASCII, and the
+    ; archive sits beside that folder for this step. Rename also moves a file
+    ; to another volume; the pre-flight check budgets for it there.
     ClearErrors
-    ${DisableX64FSRedirection}
-    nsExec::ExecToLog '"$SYSDIR\tar.exe" -xvf "$tar_archive" -C "$tar_target"'
-    Pop $0
-    ${EnableX64FSRedirection}
+    Rename "$TEMP\$file_name" "$INSTDIR\.upd\$file_name"
+    IfErrors attempt_failed
+    StrCpy $0 "not started"
+    ClearErrors
+    SetOutPath "$INSTDIR\.upd\new"
+    ${IfNot} ${Errors}
+      ${DisableX64FSRedirection}
+      nsExec::ExecToLog '"$SYSDIR\tar.exe" -xvf "..\$file_name"'
+      Pop $0
+      ${EnableX64FSRedirection}
+    ${EndIf}
+    ; Never hold a working directory inside the tree being replaced.
+    SetOutPath "$TEMP"
     ${If} $0 == 0
     ${AndIf} ${FileExists} "$INSTDIR\.upd\new\${MAINBINARYNAME}.exe"
     ${AndIf} ${FileExists} "$INSTDIR\.upd\new\_internal\*.*"
+      Delete "$INSTDIR\.upd\$file_name"
       Goto install_ready
     ${EndIf}
     DetailPrint "Unpack failed (tar exit $0; $INSTDIR\.upd\new package incomplete) -- archive likely corrupt"
+    ; Retries and the kept .bad archive both work from $TEMP.
+    Rename "$INSTDIR\.upd\$file_name" "$TEMP\$file_name"
 
   attempt_failed:
     Call StopPackageTransfers
