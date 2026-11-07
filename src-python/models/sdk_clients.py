@@ -44,3 +44,27 @@ class _Genai:
 
 
 genai = _Genai()
+
+
+_OPENAI_STYLE_ENGINES = frozenset({"OpenAI_API", "OpenAI_Compatible", "Groq_API", "OpenRouter_API", "Plamo_API",
+                                   "Groq_Whisper", "OpenAI_Whisper", "Custom_Whisper"})
+
+
+def preloadSavedEngines(*auth_keys):
+    """Import the SDKs that the saved keys will use during startup.
+
+    Controller.init() checks every saved key within a time limit. On a busy PC the
+    imports alone can use that limit up, and the engine would start unavailable.
+    Without a saved key this does nothing, which is the common case.
+    """
+    engines = {engine for keys in auth_keys for engine, key in keys.items() if key}
+    try:
+        if engines & _OPENAI_STYLE_ENGINES:
+            import langchain_openai  # noqa: F401
+            import openai  # noqa: F401
+        if "Gemini_API" in engines:
+            from google import genai as _module  # noqa: F401
+            import langchain_google_genai  # noqa: F401
+    except Exception:
+        # The client that needs the SDK reports this through its own path.
+        pass

@@ -1169,6 +1169,10 @@ if __name__ == "__main__":
     main_instance.startFeedHandler()
 
     main_instance.controller.setWatchdogCallback(main_instance.escalateShutdown)
+    from config import config
+    from models.sdk_clients import preloadSavedEngines
+    preloadSavedEngines(config.AUTH_KEYS, config.TRANSCRIPTION_AUTH_KEYS)
+    startup_timing.mark("import_saved_engine_sdks")
     main_instance.controller.init()
     startup_timing.finish()
 

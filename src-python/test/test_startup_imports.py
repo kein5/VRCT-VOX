@@ -1,5 +1,6 @@
 """The backend must start without importing libraries a default setup never uses."""
 
+import builtins
 import json
 import os
 from pathlib import Path
@@ -47,6 +48,33 @@ def test_genai_client_uses_the_loaded_module(monkeypatch):
     monkeypatch.setitem(sys.modules, "google", google)
     assert sdk_clients.genai.Client(api_key="key") == "built"
     client.assert_called_once_with(api_key="key")
+
+
+@pytest.mark.parametrize("keys,expected", [
+    ({"OpenAI_API": "key"}, {"openai", "langchain_openai"}),
+    ({"Groq_Whisper": "key"}, {"openai", "langchain_openai"}),
+    ({"Gemini_API": "key"}, {"google", "langchain_google_genai"}),
+    ({"OpenAI_API": None, "Gemini_API": ""}, set()),
+    ({"DeepL_API": "key"}, set()),
+])
+def test_only_saved_keys_load_their_sdk_before_the_engine_checks(monkeypatch, keys, expected):
+    loaded = set()
+    real_import = builtins.__import__
+
+    def recording(name, *args, **kwargs):
+        if name.split(".")[0] in {"openai", "langchain_openai", "google", "langchain_google_genai"}:
+            loaded.add(name.split(".")[0])
+            return Mock()
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", recording)
+    sdk_clients.preloadSavedEngines(keys, {})
+    assert loaded == expected
+
+
+def test_a_broken_sdk_does_not_stop_startup(monkeypatch):
+    monkeypatch.setitem(sys.modules, "openai", None)
+    sdk_clients.preloadSavedEngines({"OpenAI_API": "key"})
 
 
 def test_transformers_loads_once_and_a_missing_package_is_remembered(monkeypatch):
