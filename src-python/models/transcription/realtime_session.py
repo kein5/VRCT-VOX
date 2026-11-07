@@ -7,7 +7,7 @@ from threading import Event, Lock, Thread, current_thread
 from time import monotonic_ns
 
 from models.tts.speechcpp_tts import CancelToken
-from .capture_pipewire import PipeWireCapture, _validate
+from .capture_pipewire import _validate, open_capture
 from .realtime_audio import RealtimeIngress
 from .realtime_settings import SessionOptions, language_supported
 from .asr_vocabulary import request_options
@@ -27,7 +27,7 @@ class RealtimeSession:
         options,
         endpoint,
         *,
-        capture_factory=PipeWireCapture,
+        capture_factory=open_capture,
         client_factory=SpeechCppRealtime,
         snapshot_voice=None,
     ):

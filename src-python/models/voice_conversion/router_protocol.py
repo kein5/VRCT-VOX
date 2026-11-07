@@ -1,9 +1,10 @@
-"""Bounded metadata-only control for the isolated Linux VC transport."""
+"""Bounded metadata-only control for the isolated VC transport."""
 import json
 import os
 import re
-import select
 import time
+
+from models.owned_child import wait_readable
 
 LIMIT = 32768
 BASE_STATE = dict(requested=False, active=False, pending=False, stopping=False,
@@ -59,7 +60,7 @@ class Reader:
                 raise ValueError('vc_router_frame_invalid')
             if time.monotonic() >= deadline:
                 raise TimeoutError('vc_router_timeout')
-            if not select.select([self.stream], [], [], .02)[0]:
+            if not wait_readable(self.stream, .02):
                 continue
             part = os.read(self.stream.fileno(), min(4096, LIMIT-len(self.pending)))
             if not part:

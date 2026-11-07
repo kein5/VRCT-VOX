@@ -127,11 +127,11 @@ def test_bad_input_request_does_not_open_audio(app, bad):
     assert not b.children and not c.direct_voice.health()['requested']
 
 
-def test_windows_and_enumeration_failure_are_explicit(app, monkeypatch):
+def test_unsupported_platform_and_enumeration_failure_are_explicit(app, monkeypatch):
     c, b, *_ = app
     b.query_error = True
     assert c.getDirectVoiceSources()['result'] == {'sources': [], 'error': 'source_bridge_graph_unavailable', 'preferred': None}
-    monkeypatch.setattr(module().sys, 'platform', 'win32')
+    monkeypatch.setattr(module().sys, 'platform', 'darwin')
     assert c.getDirectVoiceSources()['result'] == {'sources': [], 'error': 'source_bridge_linux_only', 'preferred': None}
     assert c.startDirectVoice(request(c))['result']['error_code'] == 'source_bridge_linux_only'
     assert not b.children

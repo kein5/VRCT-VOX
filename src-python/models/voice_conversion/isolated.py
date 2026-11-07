@@ -1,7 +1,6 @@
 """Control-only owner of a fixed, separately executed VC transport process."""
 import os
 from pathlib import Path
-import select
 import subprocess
 from runtime_paths import resource_root, external_process_env
 import sys
@@ -10,15 +9,31 @@ import time
 
 from models.audio_routing.monitor_output import parse_monitor
 from models.audio_routing.source_bridge import _source_id
+from models.owned_child import PipeWriter, launch_owned
 from models.transcription.capture_pipewire import _validate
 from .router_protocol import BASE_STATE, Reader, encode, validate_health
 from .settings import start_options
 
 ROOT = resource_root()
 HELPER = ROOT / 'build/vrct-vc-worker'
+# A Windows router pays for its Python imports before its first health frame.
+OWNED_ROUTER_START = 30
 
 
-def _launch(source):
+def _launch_owned():
+    """The Windows router: no helper or graph feed, a job holds its lifetime."""
+    env = external_process_env()
+    frozen = bool(getattr(sys, 'frozen', False))
+    if not frozen:
+        env['PYTHONPATH'] = str(ROOT / 'src-python') + os.pathsep + str(ROOT)
+    command = ['--voice-router-worker'] if frozen else ['-u', '-m', 'models.voice_conversion.router_worker']
+    return launch_owned([sys.executable, *command], env=env, cwd=ROOT, stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, realtime=True)
+
+
+def _launch(source, output=None):
+    if output is not None:
+        return _launch_owned()
     from models.audio_routing.pipewire_graph_pipe import GraphFeed, _ENV
     from models.audio_routing.pipewire_gate import VC_SINK
     feed = GraphFeed((source.name, VC_SINK))
@@ -49,17 +64,21 @@ def _launch_with_graph(feed, key):
 
 
 class IsolatedVCProcess:
-    def __init__(self, options, monitor=None):
+    def __init__(self, options, monitor=None, output=None):
         from .direct_voice import create_worker_process
         self.options = start_options('converted', options)
         self.monitor = parse_monitor(monitor)
+        self.output = output
+        # A device route has no OS gate, so mute travels this channel as well.
+        self._controlled = self.monitor is not None or output is not None
+        self._router_seen = output is None
         for key in ('runtime', 'reference', 'model', 'index'):
             if self.options.get(key):
                 self.options[key] = str(Path(self.options[key]).expanduser().resolve())
         create_worker_process(self.options)  # Existing local path checks; no capture/model load.
         self._state = dict(BASE_STATE)
         self._lock, self._stop = Lock(), Event()
-        self._thread = self._child = None
+        self._thread = self._child = self._stdin = None
         self._cleanup_ok = True
         self._monitor_muted = True
         self._monitor_revision = 0
@@ -83,7 +102,11 @@ class IsolatedVCProcess:
             if self._thread is not None or self._stop.is_set():
                 raise RuntimeError('vc_single_use')
             if self.monitor is not None:
-                request.update(monitor=self.monitor, monitor_control=self._monitor_control())
+                request.update(monitor=self.monitor)
+            if self.output is not None:
+                request.update(output=self.output)
+            if self._controlled:
+                request.update(monitor_control=self._monitor_control())
             self._sent_monitor_revision = self._monitor_revision
             request = encode(request)
             self._state.update(requested=True, pending=True, state='preparing')
@@ -113,7 +136,7 @@ class IsolatedVCProcess:
 
     def _check_control(self):
         self._check()
-        if self.monitor is None:
+        if not self._controlled:
             return
         now = time.monotonic()
         with self._lock:
@@ -123,39 +146,42 @@ class IsolatedVCProcess:
                 frame = encode(self._monitor_control())
                 # This small frame fits PIPE_BUF: EAGAIN leaves it wholly unsent.
                 try:
-                    count = os.write(self._child.stdin.fileno(), frame)
+                    count = self._stdin.write(frame)
                     if count != len(frame):
                         raise OSError('vc_router_failed')
                     self._sent_monitor_revision = self._monitor_revision
                 except BlockingIOError:
                     pass
-            if self._monitor_pending_since is not None and now - self._monitor_pending_since >= 1:
+            limit = 1 if self._router_seen else OWNED_ROUTER_START
+            if self._monitor_pending_since is not None and now - self._monitor_pending_since >= limit:
                 raise TimeoutError('vc_router_timeout')
 
     def _run(self, request, source):
         child = None
         try:
             self._check()
-            child = self._child = _launch(source)
-            os.set_blocking(child.stdin.fileno(), False)
+            child = self._child = _launch(source) if self.output is None else _launch(source, self.output)
+            self._stdin = PipeWriter(child.stdin)
             pending, deadline = memoryview(request), time.monotonic()+5
             while pending:
                 self._check()
                 if time.monotonic() >= deadline:
                     raise TimeoutError('vc_router_timeout')
-                if select.select([], [child.stdin], [], .02)[1]:
+                if self._stdin.wait(.02):
                     try:
-                        count = os.write(child.stdin.fileno(), pending)
+                        count = self._stdin.write(pending)
                         if count <= 0:
                             raise EOFError
                         pending = pending[count:]
                     except BlockingIOError:
                         pass
             reader = Reader(child.stdout)
-            if self.monitor is not None:
+            if self._controlled:
                 self._monitor_pending_since = time.monotonic()
             while True:
-                state = validate_health(reader.read(timeout=1, check=self._check_control))
+                state = validate_health(reader.read(timeout=1 if self._router_seen else OWNED_ROUTER_START,
+                                                    check=self._check_control))
+                self._router_seen = True
                 with self._lock:
                     self._check()
                     if state['monitor_revision'] > self._sent_monitor_revision:
@@ -175,6 +201,11 @@ class IsolatedVCProcess:
             self.stop()
             if child is not None:
                 try:
+                    # A write still in progress would hold this close on Windows.
+                    if self._stdin is not None and not self._stdin.flush(.2):
+                        child.terminate()
+                    if self._stdin is not None:
+                        self._stdin.close()
                     child.stdin.close()  # EOF requests cooperative audio cleanup.
                     try:
                         result = child.wait(timeout=2.2)

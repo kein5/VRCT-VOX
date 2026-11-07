@@ -4,6 +4,8 @@
 SOLA algorithm credited upstream to yxlllc/DDSP-SVC. See LICENSE.upstream.
 No audio device ownership, GUI, downloads or original-audio branch.
 """
+import time
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -12,8 +14,13 @@ from torchaudio.transforms import Resample
 
 class BlockSession:
     RATE, FRAMES, OVERLAP, SEARCH, HISTORY = 48000, 3840, 1920, 480, 96000
+    # Longest first: context helps quality, but a block must fit its 80 ms with room
+    # to spare, or capture overruns. Slower GPUs give up context, not the voice.
+    HISTORIES = (96000, 48000, 24000)
+    BUDGET_SECONDS = .056
 
-    def __init__(self, engine):
+    def __init__(self, engine, history=None):
+        self.HISTORY = history or self.HISTORY
         if (engine.tgt_sr not in (32000, 40000, 48000) or engine.version not in ('v1', 'v2')
                 or engine.if_f0 not in (0, 1)):
             raise ValueError('vc_engine_format_invalid')
@@ -42,7 +49,7 @@ class BlockSession:
         self.input16[:-block16] = self.input16[block16:].clone()
         # Keep 20 ms of preceding input for the resampler; discard its first 10 ms.
         self.input16[-block16-160:] = self.resample_in(self.input[-self.FRAMES-960:])[160:]
-        output = self.engine.infer(self.input16, block16, 200, 13, 'rmvpe')
+        output = self.engine.infer(self.input16, block16, self.HISTORY // 480, 13, 'rmvpe')
         if self.engine.index_rate:
             self.engine.index.require_success()
         expected = self.engine.tgt_sr * 13 // 100
@@ -64,3 +71,19 @@ class BlockSession:
         if not np.isfinite(result).all():
             raise ValueError('vc_conversion_invalid')
         return result
+
+
+def fit_session(engine, clock=time.perf_counter):
+    """Warm the engine and pick the longest history this GPU can run in real time."""
+    tone = (.1 * np.sin(np.arange(BlockSession.FRAMES) * (2*np.pi*220/BlockSession.RATE))).astype(np.float32)
+    for history in BlockSession.HISTORIES:
+        session = BlockSession(engine, history)
+        for _ in range(3):
+            session.convert(tone)
+        started = clock()
+        for _ in range(8):
+            session.convert(tone)
+        if (clock() - started) / 8 <= BlockSession.BUDGET_SECONDS:
+            break
+    session.reset()
+    return session

@@ -137,6 +137,6 @@ def test_default_input_and_unavailable_graph(monkeypatch):
     monkeypatch.setattr(m, '_read_graph', unavailable)
     with pytest.raises(ValueError, match='realtime_default_endpoint_missing'):
         m.default_endpoint('mic')
-    monkeypatch.setattr(m.sys, 'platform', 'win32')
+    monkeypatch.setattr(m.sys, 'platform', 'darwin')
     with pytest.raises(ValueError):
         m.default_endpoint('speaker')

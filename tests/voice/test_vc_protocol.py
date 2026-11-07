@@ -66,7 +66,7 @@ def test_mismatched_output_cannot_reach_audio(key, value):
 def test_expired_or_future_blocks_and_original_passthrough_are_rejected():
     source, raw = input_packet()
     info, pcm = output_packet()
-    for clock in (STAMP - 1, STAMP + 240_000_001):
+    for clock in (STAMP - 1, STAMP + p.BLOCK_NS + p.MAX_AGE_NS + 1):
         with pytest.raises(p.ProtocolError):
             p.require_input(source, raw, SESSION, 0, clock)
         with pytest.raises(p.ProtocolError):

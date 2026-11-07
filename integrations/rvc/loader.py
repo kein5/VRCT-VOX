@@ -23,7 +23,7 @@ def require_source(root):
             raise ValueError()
         git('diff', '--no-ext-diff', '--quiet', 'HEAD', '--')
         tracked = set(git('ls-files', '*.py').splitlines())
-        if any(str(file.relative_to(root)) not in tracked for file in root.rglob('*.py')):
+        if any(file.relative_to(root).as_posix() not in tracked for file in root.rglob('*.py')):
             raise ValueError()
     except (ValueError, OSError, subprocess.SubprocessError):
         raise ValueError('vc_source_unverified') from None

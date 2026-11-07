@@ -48,14 +48,9 @@ def main():
     output = sys.stdout.buffer
     with redirect_stdout(sys.stderr):
         from .loader import create_engine
-        import numpy as np
         engine = create_engine(args.engine, args.assets, args.model, args.index, args.pitch, args.index_rate)
-        from .blocks import BlockSession
-        vc = BlockSession(engine)
-        tone = (.1 * np.sin(np.arange(p.FRAMES) * (2*np.pi*220/p.RATE))).astype(np.float32)
-        for _ in range(3):
-            vc.convert(tone)
-        vc.reset()
+        from .blocks import fit_session
+        vc = fit_session(engine)
         _write(output, ready)
         sequence = 0
         while True:
