@@ -181,7 +181,7 @@ def main():
     verify_bundle(resources / 'build/speechcpp')
     copy_adapters(resources)
     shutil.copytree(ROOT / 'config/pipewire', resources / 'config/pipewire')
-    (resources / 'docs').mkdir()
+    (resources / 'docs').mkdir(exist_ok=True)  # copy_adapters may have made it.
     for name in ('local-setup-linux.md', 'licensing.md', 'linux-build-pipeline.md'):
         shutil.copyfile(ROOT / 'docs/voice-stack' / name, resources / 'docs' / name)
     run([python, Path(__file__).resolve(), '--collect-environment', resources])
