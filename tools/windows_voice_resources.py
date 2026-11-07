@@ -7,9 +7,11 @@ folder: the worker runs from it, and _internal holds the sidecar's Python 3.11 e
 modules, which would shadow the standard library of the worker's own Python.
 """
 import importlib.metadata
+import json
 from pathlib import Path
+import re
 
-CONTRACT = ('__init__.py', 'owned_child.py', 'voice_conversion/__init__.py',
+CONTRACT =('__init__.py', 'owned_child.py', 'voice_conversion/__init__.py',
             'voice_conversion/protocol.py', 'voice_conversion/settings.py')
 WORKER = 'voice_worker'
 ENGINES = ('rvc', 'seed_vc')
@@ -71,6 +73,24 @@ def notice_toc():
             if source.is_file() and '..' not in file.parts and not file.is_absolute():
                 rows.append((f'licenses/python/{name}/{Path(file).as_posix()}', str(source), 'DATA'))
     return rows
+
+
+def sidecar_version(root):
+    """The name Windows shows when it asks whether this exe may use the microphone.
+
+    With no version resource the question reads "Allow   to access your microphone?".
+    Someone who leaves that unanswered is refused from then on, with no further question.
+    """
+    from PyInstaller.utils.win32 import versioninfo as v
+    version = json.loads((Path(root) / 'package.json').read_text(encoding='utf-8'))['version']
+    numbers = tuple(int(part) for part in re.findall(r'\d+', version)[:4])
+    numbers += (0,) * (4 - len(numbers))
+    strings = (('FileDescription', 'VRCT-VOX'), ('ProductName', 'VRCT-VOX'), ('FileVersion', version),
+               ('ProductVersion', version), ('OriginalFilename', 'vrct-vox-sidecar.exe'))
+    return v.VSVersionInfo(
+        ffi=v.FixedFileInfo(filevers=numbers, prodvers=numbers),
+        kids=[v.StringFileInfo([v.StringTable('040904B0', [v.StringStruct(*row) for row in strings])]),
+              v.VarFileInfo([v.VarStruct('Translation', [1033, 1200])])])
 
 
 def missing_files(internal):
