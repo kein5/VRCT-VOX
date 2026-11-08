@@ -88,7 +88,9 @@ RVC本体は[README](../../integrations/rvc/README.md)のコミットのもの�
 
 答えないままプロセスが終わると、同じ場所のexeは次から確認なしで拒否され、`asr_capture_stream_create_failed`になります。MME、DirectSound、WASAPIのどれでも同じです。別の場所のexeには、改めて確認が出ます。開発中に`python.exe`から試すときも同じ扱いです。
 
-ファイアウォールの確認など、別のシステムの確認が開いている間も、確認なしで拒否されます。こちらは記録に残らないので、閉じてから開始し直せば確認が出ます。新しい場所のサイドカーは起動時にファイアウォールの確認を出すので、最初の開始で重なることがあります。
+ファイアウォールの確認など、別のシステムの確認が開いている間も、確認なしで拒否されます。こちらは記録に残らないので、その確認に答えてから開始し直せば確認が出ます。新しい場所のサイドカーは起動時にファイアウォールの確認を出すので、最初の開始で重なることがあります。
+
+ファイアウォールの確認は、OSCQueryの公開に使うzeroconfが全インターフェースのUDP 5353番で待ち受けるために出ます。VRChatから見つけてもらう仕組みなので、待ち受けの場所は変えていません。Microsoftの説明では、確認をキャンセルしたり閉じたりすると、そのプログラムの受信をブロックする規則がTCPとUDPに1つずつできます（[Windows Firewall rules](https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules)）。試験では許可を選びます。規則が同じPCのVRChatからの発見を妨げるかは確かめていません。
 
 ## モデル不要のテスト
 
