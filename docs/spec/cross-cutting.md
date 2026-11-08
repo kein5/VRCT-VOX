@@ -10,7 +10,7 @@
 |---|---|---|---|
 | 要求への400応答 | `{"status": 400, "result": {"error_code", "message", "data", …}}` | 設定値の検証、APIキーの拒否 | `errorHandling_Backend`（`src-ui/logics/_useBackendErrorHandling.js`）が`data`で画面の値を戻し、翻訳した文言を通知で出す |
 | サイドカーからの400通知 | 同じ形で`/run/error_…`などに届く | VRAM不足、入力デバイスなし、翻訳エンジンの上限 | 同上。オンにした機能を自動でオフにした場合は、そのスイッチの表示も戻す |
-| 認識エラーの通知 | 200の`/run/transcription_recognition_error`に`{error_code, stage, source, message, recoverable}` | 音声認識の失敗 | 会話ログにシステムメッセージとして残す |
+| 認識エラーの通知 | 200の`/run/transcription_recognition_error`に`{error_code, stage, source, message, recoverable}` | 音声認識の失敗 | 会話ログにシステムメッセージとして残す。`backend_errors.<コード>`の文言があればそれを出し、`<コード>_mic`・`<コード>_speaker`があれば`source`に合うほうを使う。文言がなければ英語の`message`を出す |
 | 機能ごとのエラー状態 | 409などで`{"error_code": …}` | 読み上げ、RVC、音声サーバー、モデル取得、リアルタイム音声認識 | 各設定画面の状態欄に、`error_code`に対応する文言を出す |
 
 - 404・423・500と送信失敗では、通常の制御の待機を解除して最後に確認した値へ戻す。500では対応する読み取り先から状態を再取得する。書き込みの自動再送や、時間だけを根拠にした待機解除は追加しない。専用の対応づけを持つ言語・音声・モデル取得とサイドカー終了時の扱いは[IPCプロトコル](ipc-protocol.md#失敗した要求の待機を解除する)を参照する。
