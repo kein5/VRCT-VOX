@@ -1,4 +1,5 @@
 from threading import Event
+from time import monotonic, sleep
 
 import pytest
 
@@ -122,8 +123,16 @@ def route():
     bus.close()
 
 
-def ready(control):
-    until(lambda: control.status()['ready'] and not control.status()['pending'])
+def ready(control, timeout=10):
+    # The worker's first round includes an fsync'd write. A loaded Windows runner
+    # once took more than 2 s; a route that never gets ready still says why.
+    deadline = monotonic() + timeout
+    while monotonic() < deadline:
+        status = control.status()
+        if status['ready'] and not status['pending']:
+            return
+        sleep(.005)
+    raise AssertionError(f'voice route not ready: {control.status()}')
 
 
 def test_managed_attachment_prepares_without_blocking_or_auto_resume(route):
