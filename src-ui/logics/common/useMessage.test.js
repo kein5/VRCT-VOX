@@ -1,17 +1,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
+import i18next from "i18next";
+import yaml from "js-yaml";
 import { find, hooks, loadModule } from "../test/hookHarness.js";
 import { loadBridgeRoutes, deferred, flush } from "../test/bridgeHarness.js";
 import { keepRecentLogs } from "./messageLogLimit.js";
 import * as chatboxLength from "./chatboxLength.js";
 import { decodeLogUpdate, encodeLogUpdate } from "./vrPanelWire.js";
 
-async function setup(send = async () => true, reset = async () => true) {
+async function setup(send = async () => true, reset = async () => true, i18n = null) {
     let useMessage;
     const writes = [], typingWrites = [], endpoints = [];
     const subject = await loadBridgeRoutes(async ({ runtime, stores }) => {
         ({ useMessage } = await loadModule(new URL("./useMessage.js", import.meta.url), runtime, {
             "@store": stores,
+            ...i18n && { "@useI18n": { useI18n: () => ({ t: i18n.t.bind(i18n), i18n }) } },
             "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython: (...args) => {
                 endpoints.push(args[0]);
                 if (args[0] !== "/run/send_message_box") {
@@ -25,7 +29,7 @@ async function setup(send = async () => true, reset = async () => true) {
             "./messageLogLimit": { keepRecentLogs },
         }));
         return { useMessage };
-    });
+    }, i18n);
     return { ...subject, writes, typingWrites, endpoints, message: subject.runtime.render(useMessage),
         rows: () => subject.runtime.store.get(subject.stores.Atom_MessageLogs).data,
         receive: (status, result) => subject.receiveRoutes({ endpoint: "/run/send_message_box", status, result }),
@@ -269,6 +273,34 @@ test("output failure warns without failing or resending a successful message row
     assert.equal(subject.notices[0].type, "warning");
     assert.equal(subject.notices[0].options.category_id, "MESSAGE_OUTPUT_FAILED.overlay_large");
     assert.equal(subject.writes.length, 1);
+    assert.deepEqual(subject.reads, []);
+});
+
+const locale = language => yaml.load(readFileSync(new URL(`../../../locales/${language}.yml`, import.meta.url), "utf8"));
+// Every code the sidecar puts on /run/transcription_recognition_error.
+const RECOGNITION_FAILURES = ["AUDIO_OPEN_ERROR", "AUDIO_READ_ERROR", "VAD_INFERENCE_ERROR",
+    "TRANSCRIBER_INIT_ERROR", "ASR_ERROR", "CLEANUP_TIMEOUT"];
+
+for (const language of ["en", "ja"]) test(`${language}: recognition failures are logged in the UI language, naming the Windows question for the microphone`, async () => {
+    const translation = locale(language);
+    const i18n = i18next.createInstance();
+    await i18n.init({ lng: language, resources: { [language]: { translation } }, interpolation: { escapeValue: false } });
+    const subject = await setup(undefined, undefined, i18n);
+    const log = result => subject.receiveRoutes({ status: 200, endpoint: "/run/transcription_recognition_error", result });
+    const failure = (error_code, source) => ({ error_code, stage: "recording", source, message: "English default", recoverable: false });
+    log(failure("AUDIO_OPEN_ERROR", "mic"));
+    log(failure("AUDIO_OPEN_ERROR", "speaker"));
+    log(failure("ASR_ERROR", "mic"));
+    log({ message: "Mic speech recognition request failed. Check your network connection.", data: null });
+    log(failure("NOT_A_CODE", "mic"));
+    const errors = translation.backend_errors;
+    assert.deepEqual(subject.rows().map(row => [row.category, row.messages.original.message]), [
+        ["system", errors.AUDIO_OPEN_ERROR_mic], ["system", errors.AUDIO_OPEN_ERROR_speaker], ["system", errors.ASR_ERROR],
+        ["system", "Mic speech recognition request failed. Check your network connection."], ["system", "English default"],
+    ]);
+    assert.match(errors.AUDIO_OPEN_ERROR_mic, /Windows/);
+    assert.doesNotMatch(errors.AUDIO_OPEN_ERROR_speaker, /Windows/);
+    for (const code of RECOGNITION_FAILURES) assert.ok(errors[code], code);
     assert.deepEqual(subject.reads, []);
 });
 

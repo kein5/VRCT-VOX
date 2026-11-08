@@ -11,10 +11,12 @@ import { applyRealtimeCaption } from "../transcription/realtimeCaptionState";
 import { keepRecentLogs } from "./messageLogLimit";
 
 import { useStdoutToPython } from "@useStdoutToPython";
+import { useI18n } from "@useI18n";
 
 const COOLDOWN = 2000; // 2 seconds
 
 export const useMessage = () => {
+    const { t, i18n } = useI18n();
     const { currentMessageLogs, updateMessageLogs } = useStore_MessageLogs();
     const { currentMessageInputValue, updateMessageInputValue } = useStore_MessageInputValue();
     const { asyncStdoutToPython } = useStdoutToPython();
@@ -77,8 +79,14 @@ export const useMessage = () => {
         });
     };
 
+    // A recognition failure names its code; the sidecar's `message` is English.
+    // The context picks the microphone or speaker wording when there is one.
     const addSystemMessageLog_FromBackend = (payload) => {
-        addSystemMessageLog(payload.message);
+        const code = payload?.error_code;
+        const key = `backend_errors.${code}`;
+        addSystemMessageLog(typeof code === "string" && i18n?.exists(key)
+            ? t(key, { context: payload.source })
+            : payload?.message);
     };
 
     const updateSentMessageLogById = (payload) => {
