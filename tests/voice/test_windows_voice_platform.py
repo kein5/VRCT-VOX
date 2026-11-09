@@ -377,6 +377,42 @@ def test_device_route_stops_only_when_most_recent_blocks_are_late():
         process._next_block(block(process, stale))
 
 
+def test_a_stop_records_how_late_the_blocks_were(monkeypatch):
+    logged = []
+    monkeypatch.setattr(vp, 'printLog', lambda log, data=None: logged.append((log, data)))
+    process = vp.VCProcess(engine='rvc', output=DEVICE)
+    stale = time.monotonic_ns() - vp.LATE_NS - 100_000_000
+    for _ in range(vp.LATE_WINDOW // 2):
+        process._next_block(block(process, stale))
+    process._rounds.extend([20_000_000, 30_000_000, 400_000_000])
+    process._fail('vc_capture_overrun')
+    [(name, data)] = logged
+    assert name == 'voice conversion stopped'
+    assert data['error'] == 'vc_capture_overrun'
+    assert data['late_blocks'] == vp.LATE_WINDOW // 2 and data['window'] == vp.LATE_WINDOW // 2
+    assert data['block_age_ms']['max'] >= 340
+    assert data['round_trip_ms'] == dict(median=30.0, max=400.0)
+
+
+def test_only_the_first_failure_is_recorded(monkeypatch):
+    logged = []
+    monkeypatch.setattr(vp, 'printLog', lambda log, data=None: logged.append(data))
+    process = vp.VCProcess(engine='rvc', output=DEVICE)
+    process._fail('vc_worker_eof')
+    process._fail('vc_capture_overrun')
+    assert [row['error'] for row in logged] == ['vc_worker_eof']
+    assert logged[0]['block_age_ms'] is None and logged[0]['round_trip_ms'] is None
+
+
+def test_a_stop_the_user_asked_for_records_nothing(monkeypatch):
+    logged = []
+    monkeypatch.setattr(vp, 'printLog', lambda log, data=None: logged.append(data))
+    process = vp.VCProcess(engine='rvc', output=DEVICE)
+    process.stop()
+    process._fail('cancelled')
+    assert logged == []
+
+
 def test_device_route_recovers_after_a_stall():
     process = vp.VCProcess(engine='rvc', output=DEVICE)
     stale = time.monotonic_ns() - vp.LATE_NS - 100_000_000

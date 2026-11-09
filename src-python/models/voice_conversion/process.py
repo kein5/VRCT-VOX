@@ -24,11 +24,24 @@ from models.owned_child import PipeWriter
 from models.tts.speechcpp_tts import CancelToken, SpeechError
 from . import protocol as p
 
+try:
+    from utils import printLog
+except ImportError:
+    def printLog(log, data=None):
+        pass
+
 
 # Device route: a block older than this is dropped instead of sent. More than half
 # of six seconds of blocks late means this PC cannot keep up, and the voice stops.
 LATE_NS = 240_000_000
 LATE_WINDOW = 75
+
+
+def _summary_ms(values):
+    if not values:
+        return None
+    ordered = sorted(values)
+    return dict(median=round(ordered[len(ordered) // 2] / 1e6, 1), max=round(ordered[-1] / 1e6, 1))
 
 
 class _PipeWireRoute:
@@ -108,6 +121,9 @@ class VCProcess:
         self._partial = bytearray()
         self._first = self._last = self._sequence = self._sent = 0
         self._late = deque(maxlen=LATE_WINDOW)
+        # Numbers only, so a stop can be explained afterwards. Never audio.
+        self._ages = deque(maxlen=LATE_WINDOW)
+        self._rounds = deque(maxlen=LATE_WINDOW)
         self._token = CancelToken()
         self._thread = self._capture = self._child = self._output = self._stdin = None
         self._requested = self._active = self._verified = self._pending = False
@@ -211,11 +227,17 @@ class VCProcess:
             self._monitor_failed('monitor_output_error')
 
     def _fail(self, code):
+        summary = None
         with self._lock:
             if not self._token.is_set():
                 self._error = code
                 self._state = 'failed'
+                summary = dict(error=code, late_blocks=sum(self._late), window=len(self._late),
+                               block_age_ms=_summary_ms(self._ages), round_trip_ms=_summary_ms(self._rounds),
+                               converted_blocks=self._blocks)
         self.stop()
+        if summary is not None:
+            printLog('voice conversion stopped', summary)
 
     def _capture_failed(self, code):
         safe = capture_error_code(code)
@@ -270,7 +292,9 @@ class VCProcess:
         The worker checks that sequence numbers run on, so they are given here.
         """
         with self._lock:
-            late = time.monotonic_ns() - info['end_ns'] > LATE_NS
+            age = time.monotonic_ns() - info['end_ns']
+            self._ages.append(age)
+            late = age > LATE_NS
             if self._too_late(late):
                 raise p.ProtocolError('vc_capture_overrun')
             if late:
@@ -342,8 +366,11 @@ class VCProcess:
                         continue
                 deadline = _Deadline(self._token, info['end_ns'], check_binding)
                 deadline.check()
+                sent_at = time.monotonic_ns()
                 self._send(info, pcm, deadline)
                 result, converted = p.read_packet(self._child.stdout, timeout=1, check=deadline.check)
+                with self._lock:
+                    self._rounds.append(time.monotonic_ns() - sent_at)
                 state = p.require_output(result, converted, info, pcm, time.monotonic_ns())
                 deadline.check()
                 self._output.write(self._audible(converted), deadline)
