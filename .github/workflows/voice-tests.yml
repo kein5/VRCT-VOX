@@ -51,6 +51,11 @@ jobs:
           version: '0.13.5'
       - run: uv sync --frozen
       - run: uv run --no-project python tools/dev.py check --scope backend --python .venv/Scripts/python.exe
+      # mainloop sends faulthandler to this file, so a native crash prints nothing to the job log.
+      - name: Show the native crash trace
+        if: failure()
+        shell: pwsh
+        run: if (Test-Path crash_trace.log) { Get-Content crash_trace.log -Tail 200 }
   commit-conventions:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
