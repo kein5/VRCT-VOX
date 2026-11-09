@@ -30,7 +30,7 @@ def bundle(tmp_path, monkeypatch, request):
     return tmp_path, weight, path, bodies
 
 
-@pytest.mark.parametrize("loading", ["inference", "availability", "acquisition"])
+@pytest.mark.parametrize("loading", ["inference", "acquisition"])
 def test_only_verified_tokenizer_files_reach_local_loader(bundle, monkeypatch, loading):
     root, weight, path, bodies = bundle
     calls = []
@@ -56,11 +56,21 @@ def test_only_verified_tokenizer_files_reach_local_loader(bundle, monkeypatch, l
         instance = translator.Translator()
         instance.changeCTranslate2Model(str(root), weight, compute_type="int8")
         assert instance.isLoadedCTranslate2Model()
-    elif loading == "availability":
-        assert model_module.Model.checkTranslatorCTranslate2ModelWeight(None, weight)
     else:
         model_module.Model.downloadCTranslate2ModelTokenizer(None, weight)
     assert len(calls) == 1
+
+
+def test_availability_needs_the_hashes_but_not_transformers(bundle, monkeypatch):
+    root, weight, path, bodies = bundle
+    load = Mock()
+    monkeypatch.setattr(utils, "loadTransformers", load)
+    monkeypatch.setattr(model_module, "config", SimpleNamespace(PATH_DATA=str(root)))
+    assert model_module.Model.checkTranslatorCTranslate2ModelWeight(None, weight) is True
+    filename = "vocab.json" if weight.startswith("m2m100") else "tokenizer.json"
+    (path / filename).write_bytes(b"x" * len(bodies[filename]))
+    assert model_module.Model.checkTranslatorCTranslate2ModelWeight(None, weight) is False
+    load.assert_not_called()
 
 
 def test_missing_or_mismatched_tokenizer_rejects_before_parser(bundle, monkeypatch):
@@ -84,7 +94,6 @@ def test_missing_tokenizer_maps_enable_to_model_missing(bundle, monkeypatch):
     monkeypatch.setattr(translator, "transformers", Mock())
     monkeypatch.setattr(translator, "ctranslate2", Mock())
     monkeypatch.setattr(model_module, "config", SimpleNamespace(PATH_DATA=str(root)))
-    assert model_module.Model.checkTranslatorCTranslate2ModelWeight(None, weight) is False
     instance = translator.Translator()
     backend = Mock()
     backend.isLoadedCTranslate2Model.return_value = False
