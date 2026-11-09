@@ -254,7 +254,7 @@ def test_stopped_query_never_creates_a_browser_or_applies_a_late_result():
 
 
 def test_shutdown_during_startup_is_bounded_and_late_resources_are_closed():
-    with fake_transports(), patch.object(osc, "OSC_STOP_TIMEOUT_SECONDS", 0.02):
+    with fake_transports():
         handler = osc.OSCHandler()
         entered, release = threading.Event(), threading.Event()
         original = osc.LocalOSCQueryService.start
@@ -270,14 +270,17 @@ def test_shutdown_during_startup_is_bounded_and_late_resources_are_closed():
             server = handler.osc_server
             before = time.monotonic()
             try:
-                with pytest.raises(RuntimeError, match="startup"):
+                # Only the refused stop is bounded here. The cleanup after the
+                # release runs with the normal limit, or a slow machine reports
+                # a cleanup timeout in place of the shutdown.
+                with patch.object(osc, "OSC_STOP_TIMEOUT_SECONDS", 0.02), pytest.raises(RuntimeError, match="startup"):
                     handler.oscServerStop()
                 assert time.monotonic() - before < 0.5
                 assert handler.osc_server is server
             finally:
                 release.set()
             with pytest.raises(RuntimeError, match="shut down"):
-                start.result(2)
+                start.result(5)
         assert not handler.getIsOscQueryEnabled()
         assert all(s.closed for s in FakeServer.instances)
         assert all(z.closed for z in FakeZeroconf.instances)

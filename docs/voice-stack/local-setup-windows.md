@@ -2,7 +2,7 @@
 
 Windowsでは、TTS、同梱のspeech.cppサーバー、リアルタイム字幕、RVC、Seed-VCを使えます。Linuxと違い、アプリは仮想マイクを作れません。VRChatへ声を届けるには、別途インストールした仮想ケーブルを使います。
 
-この手順の実機確認の記録は[Windows音声の検証記録](windows-voice-report.md)にあります。実マイク、VRChatの画面、実物のケーブル製品での確認はまだ終わっていません。
+この手順の実機確認の記録は[Windows音声の検証記録](windows-voice-report.md)にあります。実マイクはSurfaceの内蔵マイクでだけ確かめました。VRChatの画面、実物のケーブル製品での確認はまだ終わっていません。
 
 ## 必要なもの
 
@@ -96,7 +96,7 @@ RVC本体は[README](../../integrations/rvc/README.md)のコミットのもの�
 
 ファイアウォールの確認など、別のシステムの確認が開いている間も、確認なしで拒否されます。こちらは記録に残らないので、その確認に答えてから開始し直せば確認が出ます。新しい場所のサイドカーは起動時にファイアウォールの確認を出すので、最初の開始で重なることがあります。
 
-ファイアウォールの確認は、OSCQueryの公開に使うzeroconfが全インターフェースのUDP 5353番で待ち受けるために出ます。VRChatから見つけてもらう仕組みなので、待ち受けの場所は変えていません。Microsoftの説明では、確認をキャンセルしたり閉じたりすると、そのプログラムの受信をブロックする規則がTCPとUDPに1つずつできます（[Windows Firewall rules](https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules)）。試験では許可を選びます。規則が同じPCのVRChatからの発見を妨げるかは確かめていません。
+ファイアウォールの確認は、OSCQueryの公開に使うzeroconfが全インターフェースのUDP 5353番で待ち受けるために出ます。VRChatから見つけてもらう仕組みなので、待ち受けの場所は変えていません。Microsoftの説明では、確認をキャンセルしたり閉じたりすると、そのプログラムの受信をブロックする規則がTCPとUDPに1つずつできます（[Windows Firewall rules](https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules)）。試験では許可を選びます。VRChatを`--no-vr`で起動して、許可の規則があるexeとブロックの規則があるexeを比べたところ（2026-11-09）、どちらもOSCQueryの公開は有効になり、別のプロセスからサービスが見えました。ブロックの規則があるexeがVRChatのmDNSを受け取れるか、つまりVRCT-VOXの側からVRChatを見つけられるかは、差が見える信号がなく、確かめられていません。
 
 ## モデル不要のテスト
 
