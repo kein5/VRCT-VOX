@@ -2,7 +2,7 @@
 
 Windowsでは、TTS、同梱のspeech.cppサーバー、リアルタイム字幕、RVC、Seed-VCを使えます。Linuxと違い、アプリは仮想マイクを作れません。VRChatへ声を届けるには、別途インストールした仮想ケーブルを使います。
 
-この手順の実機確認の記録は[Windows音声の検証記録](windows-voice-report.md)にあります。実マイク、VRChatの画面、実物のケーブル製品での確認はまだ終わっていません。
+この手順の実機確認の記録は[Windows音声の検証記録](windows-voice-report.md)にあります。実マイクはSurfaceの内蔵マイクでだけ確かめました。VRChatの画面、実物のケーブル製品での確認はまだ終わっていません。
 
 ## 必要なもの
 
