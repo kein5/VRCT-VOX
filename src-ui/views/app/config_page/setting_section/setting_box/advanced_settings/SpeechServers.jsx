@@ -15,7 +15,7 @@ const serverTone = (owner, pending) => pending || ["preparing", "stopping"].incl
 
 export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }) => {
     const { t } = useI18n();
-    const { settings, state, pending, error, send, updateError } = useSpeechServers();
+    const { settings, state, devices, pending, error, send, updateError } = useSpeechServers();
     // Paths are ["profiles", name, key]; a page shows only its own profiles.
     const label = ([, name, key]) => `${t(`speech_servers.${name}`)}: ${t(`speech_servers.${key}`, { defaultValue: key })}`;
     const form = useSettingsDraft(settings, error, updateError, { label,
@@ -28,6 +28,7 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
     useEffect(() => {
         send("/get/data/speech_server_settings");
         send("/get/data/speech_server_state");
+        send("/get/data/speech_server_devices");
     }, [send]);
     useEffect(() => {
         if (!Object.keys(pending).length) return;
@@ -37,6 +38,9 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
     const field = (name, key, value) => setDraft(previous => ({ ...previous,
         profiles: { ...previous.profiles, [name]: { ...previous.profiles[name], [key]: value } } }));
     const stateText = name => t(`speech_servers.state_${pending[name] ? "pending" : state[name]?.state ?? "unknown"}`);
+    // A saved GPU stays selectable after it is unplugged, so saving never changes it silently.
+    const namedDevices = current => [...devices.map(row => [row.name, t("speech_servers.device_named", { label: row.label, name: row.name })]),
+        ...(["auto", "cpu", "gpu", ...devices.map(row => row.name)].includes(current) ? [] : [[current, t("speech_servers.device_missing", { name: current })]])];
     const configured = name => {
         const saved = settings?.profiles?.[name];
         return !!saved?.model?.trim() && (name !== "asr" || !!saved?.vad_model?.trim());
@@ -72,7 +76,9 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                     <label>{t("speech_servers.device")}<select aria-label={t("speech_servers.device")} value={row.device} disabled={busy}
                         onChange={event => field(name, "device", event.target.value)}>
                         {["auto", "cpu", "gpu"].map(device => <option key={device} value={device}>{t(`speech_servers.${device}`)}</option>)}
+                        {namedDevices(row.device).map(([value, text]) => <option key={value} value={value}>{text}</option>)}
                     </select></label>
+                    {devices.length > 0 && <Description text={t("speech_servers.device_help")} />}
                     {name === "japanese" && <>
                         <FormRow label={t("speech_servers.low_latency")} description={t("speech_servers.low_latency_help")}>
                             <input type="checkbox" checked={!!row.low_latency} disabled={busy}

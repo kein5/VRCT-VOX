@@ -40,7 +40,7 @@ from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
 from models.tts.speechcpp_tts import SpeechError, SpeechCppTTS
-from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, SpeechServers
+from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, SpeechServers, list_gpus
 from models.model_downloads.manager import Downloads
 from models.model_downloads.catalog import SPEECH_FIELDS as SPEECH_DOWNLOAD_FIELDS
 from models.model_downloads.hardware import HardwareProbe
@@ -604,6 +604,9 @@ class Controller:
             self._config.SPEECH_SERVER_SETTINGS = settings
             self._speech_settings = settings
         return self.getSpeechServerSettings()
+
+    def getSpeechServerDevices(self, *args, **kwargs):
+        return {"status": 200, "result": {"devices": list_gpus()}}
 
     def getSpeechServerState(self, *args, **kwargs):
         return {"status": 200, "result": self.speech_servers.state()}

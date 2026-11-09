@@ -637,6 +637,7 @@ mapping = {
     "/run/cancel_vc_runtime_setup": {"status": True, "variable":controller.cancelVcRuntimeSetup},
     "/get/data/speech_server_settings": {"status": True, "variable":controller.getSpeechServerSettings},
     "/set/data/speech_server_settings": {"status": True, "variable":controller.setSpeechServerSettings},
+    "/get/data/speech_server_devices": {"status": True, "variable":controller.getSpeechServerDevices},
     "/get/data/speech_server_state": {"status": True, "variable":controller.getSpeechServerState},
     "/run/start_speech_server": {"status": True, "variable":controller.startSpeechServer},
     "/run/stop_speech_server": {"status": True, "variable":controller.stopSpeechServer},

@@ -31,6 +31,7 @@ HASHES={'linux-x64-cpu':'7a9c6caa705f56bd52db1fa1a2d8317e5e07da6a291d2dfa37f4e9b
         'windows-x64-vulkan':'fa787d70ce3c9d83b11aacd06024d2bfa89fccf0e4e34995245ef0cd341981b7'}
 READY=re.compile(rb'API at http://127\.0\.0\.1:([0-9]{1,5})/v1(?:;|$)')
 ANSI=re.compile(rb'\x1b\[[0-9;]*m')
+DEVICE_LINE=re.compile(r'(Vulkan[0-9]{1,2})\s+(igpu|gpu)\s+(.+?),\s+[0-9.]+ GB,')
 EXECUTABLE='speech.exe' if sys.platform=='win32' else 'speech'
 # The loader reports a missing import as this NTSTATUS. Only vulkan-1.dll can be
 # missing: the executable's other imports are all part of Windows.
@@ -55,6 +56,24 @@ def bundled_binary():
         return binary.resolve()
     except (OSError,ValueError,TypeError,KeyError):
         raise RuntimeError('speech_bundle_missing_or_invalid') from None
+
+
+def parse_devices(text):
+    """The GPUs in `speech devices` output; the CPU is a choice of its own."""
+    return [dict(name=found[1],kind=found[2],label=found[3])
+            for found in map(DEVICE_LINE.match,text.splitlines()) if found]
+
+
+def list_gpus(platform=sys.platform):
+    """The GPUs a server can be told to use. Only Windows can start one with a name."""
+    if platform!='win32': return []
+    try:
+        done=subprocess.run([str(bundled_binary()),'devices'],stdin=subprocess.DEVNULL,capture_output=True,timeout=15,
+            env=dict(external_process_env(),NO_COLOR='1'),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+    except (OSError,RuntimeError,subprocess.SubprocessError):
+        return []
+    if done.returncode: return []
+    return parse_devices((done.stdout+done.stderr).decode('utf-8','replace'))
 
 
 class _Failure(Exception):
