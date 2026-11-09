@@ -38,6 +38,16 @@ def test_child_processes_do_not_inherit_our_settings(clean_env):
     assert not set(NAMES) & set(child)
 
 
+def test_voice_workers_get_the_settings(clean_env):
+    runtime_paths.limit_openmp_spinning()
+    assert [runtime_paths.voice_worker_env()[name] for name in NAMES] == ["0", "0"]
+
+
+def test_voice_workers_keep_a_value_the_user_set(clean_env, monkeypatch):
+    monkeypatch.setenv("KMP_BLOCKTIME", "50")
+    assert runtime_paths.voice_worker_env()["KMP_BLOCKTIME"] == "50"
+
+
 def test_it_applies_before_ctranslate2_loads():
     code = ("import sys, runtime_paths; calls = []; original = runtime_paths.limit_openmp_spinning\n"
             "runtime_paths.limit_openmp_spinning = lambda: calls.append('ctranslate2' in sys.modules) or original()\n"
