@@ -1,4 +1,5 @@
 """Legacy capture ownership under controlled interleavings; no audio/COM calls."""
+import sys
 from threading import Event, Lock, RLock, Thread
 from types import MethodType, SimpleNamespace
 from unittest.mock import Mock
@@ -233,6 +234,20 @@ def test_explicit_open_failure_uses_identified_alternate(rig):
     assert r.session._active_device == r.b
     assert getattr(r.config, r.id_key) == 'endpoint-b'
     assert len([e for _, e, _ in r.calls if e == '/run/audio_device_switched']) == 1
+
+
+def test_open_failure_records_why_the_device_was_skipped(rig, monkeypatch):
+    r = rig
+    logged = []
+    monkeypatch.setattr(model_module, 'errorLogging', lambda: logged.append(str(sys.exc_info()[1])))
+    create = r.session._create_recorder
+    def fail_a(device):
+        if device['id'] == 'endpoint-a':
+            raise OSError('busy')
+        return create(device)
+    r.session._create_recorder = fail_a
+    assert r.enable('energy')['result'] is True
+    assert logged == ['busy']
 
 
 def test_duplicate_labels_resolve_by_id_and_legacy_names_only_when_unique(rig):
