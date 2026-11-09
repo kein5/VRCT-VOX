@@ -15,13 +15,17 @@ import time
 
 from .settings import PROFILES
 from .low_latency import LowLatencyStandby
+from .warmup import warm_up
 from models.owned_child import launch_owned, wait_readable
 from models.tts.listener_monitor import listener_monitors
+from models.tts.speechcpp_tts import CancelToken
 
 ROOT=resource_root()
 BUNDLE=ROOT/'build/speechcpp'
 HELPER=ROOT/'build/vrct-vc-worker'
 START_TIMEOUT=120.0
+# What a warm-up leaves of START_TIMEOUT, so it cannot be what fails the start.
+WARM_UP_MARGIN=2.0
 HASHES={'linux-x64-cpu':'7a9c6caa705f56bd52db1fa1a2d8317e5e07da6a291d2dfa37f4e9bb0e55654a',
         'linux-x64-vulkan':'410edfb9fd1e74112627d17a33ca0d30cb24ac88890f8fc3bcfb8e7a3ad8d1bc',
         'windows-x64-vulkan':'fa787d70ce3c9d83b11aacd06024d2bfa89fccf0e4e34995245ef0cd341981b7'}
@@ -96,6 +100,7 @@ class SpeechServer:
         self._cleanup_ok=True
         self._standby=None
         self._listener=None
+        self._warmup=self._warm_token=None
         self._state=dict(state='stopped',base_url=None,error_code=None)
 
     def health(self):
@@ -117,6 +122,8 @@ class SpeechServer:
             self._stop.set();self._state['base_url']=None
             if self._state['state'] in ('preparing','ready'):
                 self._state['state']='stopping'
+            token=self._warm_token
+        if token is not None: token.cancel()
 
     def close(self,timeout=3):
         self.stop()
@@ -163,10 +170,31 @@ class SpeechServer:
                     or speech.get('device','CPU').lower()=='cpu'):
                 raise _Failure('speech_server_low_latency_requires_gpu_irodori')
             self._standby=LowLatencyStandby(f'http://127.0.0.1:{port}')
-            if not self._stop.is_set(): self._standby.start()
+        # The caller has to keep reading the child's output and watching for its
+        # exit while the warm-up runs, and that can take many seconds.
+        self._warmup=Thread(target=self._finish_start,args=(port,models['data'],deadline),
+                            name='vrct-speech-warm-'+self.profile,daemon=True)
+        self._warmup.start()
+
+    def _finish_start(self,port,models,deadline):
+        url=f'http://127.0.0.1:{port}'
+        token=CancelToken()
         with self._lock:
+            self._warm_token=token
+            stopping=self._stop.is_set()
+        if stopping: token.cancel()
+        try: warm_up(self.profile,url,models,token,deadline-time.monotonic()-WARM_UP_MARGIN)
+        except Exception: pass  # Only the first real request pays for this.
+        if self._standby is not None and not self._stop.is_set(): self._standby.start()
+        with self._lock:
+            self._warm_token=None
             if not self._stop.is_set() and self._child.poll() is None:
-                self._state.update(state='ready',base_url=f'http://127.0.0.1:{port}')
+                self._state.update(state='ready',base_url=url)
+
+    def _end_warm_up(self):
+        with self._lock: token=self._warm_token
+        if token is not None: token.cancel()
+        if self._warmup is not None: self._warmup.join(1)
 
     def _run(self):
         failure=None
@@ -220,6 +248,7 @@ class SpeechServer:
         except Exception:
             failure='speech_server_launch_failed'
         finally:
+            self._end_warm_up()
             if self._listener is not None:
                 listener_monitors.forget(self._listener)
             if self._standby is not None and not self._standby.close(): self._cleanup_ok=False
