@@ -1138,6 +1138,7 @@ realtime_toggle:
   realtime_language_unsupported: "このASRモデルは選んだ言語を認識できません。設定 → 音声認識 → リアルタイム字幕で、モデルが対応する言語を選んでください。"
   realtime_language_auto_unsupported: "このASRモデルは言語を自動判定できません。設定 → 音声認識 → リアルタイム字幕で話されている言語を選ぶか、自動判定できるQwen3-ASRを取得してください。"
   realtime_capture_failed: "音声の取り込みが止まりました。デバイスが外れたか変わった可能性があります。確認してから、もう一度オンにしてください。"
+  realtime_asr_timeout: "音声認識サーバーから結果が時間内に返りませんでした。もう一度オンにしてください。続くときは、ほかのGPUアプリを止めるか、設定 → 音声認識 → 同梱speech.cppサーバー → ASR + VADで別の推論デバイスを選んでください。"
 
 speech_servers:
     setup_title: "モデルとサーバー"

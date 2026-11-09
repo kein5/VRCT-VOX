@@ -120,8 +120,10 @@ class Dependencies:
                             )
                             is False
                         ):
+                            on_error("asr_capture_consumer_closed")
                             break
 
+                self.on_error = on_error
                 self.thread = Thread(target=feed, daemon=True)
                 self.thread.start()
 
@@ -218,6 +220,53 @@ def test_updates_keep_namespace_source_and_stop_discards_queued_results(monkeypa
         )
         with pytest.raises(RuntimeError):
             s.start()
+    finally:
+        s.close()
+
+
+@pytest.mark.parametrize(
+    "server_code,reported",
+    [
+        ("utterance_timeout", "realtime_asr_timeout"),
+        ("commit_ack_timeout", "realtime_asr_timeout"),
+        ("stream_failed", "realtime_session_failed"),
+    ],
+)
+def test_a_server_failure_is_not_reported_as_the_device(monkeypatch, server_code, reported):
+    realtime = importlib.import_module("models.transcription.speechcpp_realtime")
+    s, d = session(monkeypatch)
+    try:
+        s.start()
+        eventually(lambda: s.health()["state"] == "ready")
+        c = d.clients[0]
+        eventually(lambda: c.feed_count > 0)
+        c.incoming.put(realtime.RealtimeError(server_code))
+        eventually(lambda: s.health()["state"] == "failed")
+        assert s.health()["error_code"] == reported
+    finally:
+        s.close()
+
+
+def test_a_capture_that_only_saw_the_session_close_reports_nothing(monkeypatch):
+    s, d = session(monkeypatch)
+    try:
+        s.start()
+        eventually(lambda: s.health()["state"] == "ready")
+        d.captures[0].on_error("asr_capture_consumer_closed")
+        time.sleep(0.05)
+        assert s.health()["state"] == "ready" and s.health()["error_code"] is None
+    finally:
+        s.close()
+
+
+def test_a_device_failure_is_still_reported_as_the_device(monkeypatch):
+    s, d = session(monkeypatch)
+    try:
+        s.start()
+        eventually(lambda: s.health()["state"] == "ready")
+        d.captures[0].on_error("asr_capture_stream_disconnected")
+        eventually(lambda: s.health()["state"] == "failed")
+        assert s.health()["error_code"] == "realtime_capture_failed"
     finally:
         s.close()
 

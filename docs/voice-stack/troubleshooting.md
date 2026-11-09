@@ -7,6 +7,7 @@
 | `expected_pcm` / `invalid_sample_rate` | `/v1/audio/speech`がaudio/pcmと正しいX-Sample-Rateを返すか |
 | `transport_error` / `request_timeout` | localhostのポート・サーバー稼働・GPU負荷。途中からの自動再送はしない |
 | `first_audio_timeout` | 応答ヘッダ＋最初のPCMが10秒内に届かなかった。モデルwarmup、文の長さ、GPU負荷を確認。接続/後続readは2秒、要求全体は30秒 |
+| `realtime_asr_timeout` | リアルタイム字幕の結果が届かなかった。接続の最初の結果は120秒、以降は15秒まで待つ。GPU負荷と推論デバイスを確認。自動再接続はしないので、スイッチを入れ直す |
 | `language_or_text_unavailable` | 自分の言語、選択した翻訳先、有効な訳文、他言語サーバーの別ポート |
 | `audio_devices_unavailable` | WindowsはPyAudioWPatch、Linuxはpw-dumpとユーザーのPipeWireセッション |
 | `speech_server_vulkan_missing` | Windowsで`vulkan-1.dll`が見つからない。GPUドライバーを入れるか更新する |
