@@ -252,6 +252,7 @@ def test_rvc_worker_arguments_match_the_linux_helper(monkeypatch):
     assert args[1:5] == ['-u', '-m', 'integrations.rvc.live_worker', '--engine']
     assert args[args.index('--pitch') + 1] == '-2' and args[args.index('--index-rate') + 1] == '0.5'
     assert kwargs['realtime'] is True and kwargs['stderr'] == subprocess.DEVNULL
+    assert {'KMP_BLOCKTIME', 'KMP_USE_YIELD'} <= set(kwargs['env'])
 
 
 def test_source_check_compares_git_paths_on_every_platform(tmp_path, monkeypatch):
@@ -486,6 +487,7 @@ def test_seed_worker_arguments_match_its_parser(monkeypatch):
     assert args[1:4] == ['-u', '-m', 'integrations.seed_vc.live_worker']
     assert args[args.index('--reference') + 1] == 'voice.wav' and args[args.index('--session') + 1] == 'a' * 32
     assert kwargs['realtime'] is True and kwargs['stderr'] == subprocess.DEVNULL
+    assert {'KMP_BLOCKTIME', 'KMP_USE_YIELD'} <= set(kwargs['env'])
 
 
 def test_seed_process_takes_the_output_device(tmp_path):

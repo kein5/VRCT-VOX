@@ -28,6 +28,10 @@
 
 VRChatと同時に試すときは、VRChatを`--no-vr`で起動してから、環境変数`VOX_NO_OSC_LISTENER=1`を付けて実行します。VRChatがOSCのポートを持っているからです。
 
+変換の既定はRVCです。Seed-VCを試すときは、`VOX_VC_ENGINE=seed-vc`に加えて、実行環境のフォルダーを`VOX_SEED_RUNTIME`に、参照音声のWAVを`VOX_SEED_REFERENCE`に指定します。
+
+ブロックの処理時間は、ふだんは変換が止まったときにしかログに残りません。`VOX_VC_PROBE`にファイルのパスを指定すると、直近75ブロックの往復時間、ブロックの遅れ、遅れたブロックの数を5秒ごとに書き足します。
+
 GPUのキャッシュが空の状態を試すときは、`VOX_SHADER_CACHE`に空のフォルダーを指定します。RTXでは効きますが、Iris Xeで効くかは確かめていません。
 
 結果は`summary.json`、`samples.csv`、`gpu-memory.json`、`results.jsonl`に残ります。

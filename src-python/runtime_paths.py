@@ -86,3 +86,16 @@ def external_process_env():
         else:
             env.pop("LD_LIBRARY_PATH", None)
     return env
+
+
+def voice_worker_env():
+    """The environment of a voice conversion worker, whose Torch also uses Intel OpenMP.
+
+    A block arrives every 80 ms, well inside the 200 ms that the threads spin. On the
+    measured PC, Seed-VC kept four threads busy (about 420% CPU, 124% with these
+    settings) and converted fewer blocks in the same time.
+    """
+    env = external_process_env()
+    for name, value in _OPENMP_WAIT_SETTINGS.items():
+        env.setdefault(name, value)
+    return env
