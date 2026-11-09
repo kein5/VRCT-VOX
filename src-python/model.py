@@ -703,6 +703,8 @@ class _AudioDeviceSession:
                     except OSError:
                         if candidate is candidates[-1]:
                             raise
+                        # process.log is cleared at startup; keep why the selection moved.
+                        errorLogging()
             except Exception as error:  # noqa: BLE001 - convert to safe UI error
                 start_failure = self._make_pipeline_failure(
                     ErrorCode.AUDIO_OPEN_ERROR,
