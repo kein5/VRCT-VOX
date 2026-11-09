@@ -58,8 +58,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(200); self.send_header('Content-Type','application/json')
         self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body)
     def do_POST(self):
-        data=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-        assert data['input']=='あ。' and data['seed']==0 and data['voice']=='none'
+        raw=self.rfile.read(int(self.headers['Content-Length']))
+        if self.path=='/v1/audio/transcriptions':
+            body=b'{"text":""}'
+            self.send_response(200);self.send_header('Content-Type','application/json')
+            self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
+            return
+        data=json.loads(raw)
+        assert data['voice']=='none' and (data['input']!='あ。' or data['seed']==0)
         body=b'\\x01\\x00'*480
         self.send_response(200);self.send_header('Content-Type','audio/pcm')
         self.send_header('X-Sample-Rate','48000');self.send_header('Content-Length',str(len(body)))
