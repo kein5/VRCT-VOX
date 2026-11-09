@@ -90,8 +90,10 @@ def ui(tmp_path):
                 if peer.reject_save:
                     reply(endpoint, dict(error_code='speech_server_settings_invalid'), 400)
                 else:
-                    peer.settings = normalize_settings(data)
+                    peer.settings = normalize_settings(data, platform='win32')
                     reply(endpoint, peer.settings)
+            elif endpoint == '/get/data/speech_server_devices':
+                reply(endpoint, dict(devices=[]))
             elif endpoint == '/get/data/speech_server_state':
                 reply(endpoint, peer.state)
             elif endpoint == '/run/start_speech_server':
@@ -206,6 +208,36 @@ def test_memory_error_explains_cpu_retry_and_preserves_saved_device(ui):
     expect(start).to_be_enabled()
     assert peer.settings['profiles']['japanese']['device'] == 'cpu'
     assert not any(ep == '/run/start_speech_server' for ep, _ in peer.sent)
+
+
+def test_a_named_gpu_can_be_chosen_when_the_pc_reports_one(ui):
+    from playwright.sync_api import expect
+    page, peer, reply = ui
+    group = page.get_by_role('group', name='Japanese TTS', exact=True)
+    device = group.get_by_label('Inference device', exact=True)
+    help_text = group.get_by_text('Auto and GPU may use either one', exact=False)
+    expect(device.locator('option')).to_have_count(3)
+    expect(help_text).to_have_count(0)
+    reply('/get/data/speech_server_devices', dict(devices=[dict(name='Vulkan1', kind='gpu', label='Example GPU')]))
+    expect(device.locator('option')).to_have_count(4)
+    expect(help_text).to_be_visible()
+    device.select_option(label='Example GPU (Vulkan1)')
+    page.get_by_role('button', name='Save changes', exact=True).click()
+    expect(page.get_by_role('button', name='Save changes', exact=True)).to_be_disabled()
+    assert peer.settings['profiles']['japanese']['device'] == 'Vulkan1'
+    assert not any(ep == '/run/start_speech_server' for ep, _ in peer.sent)
+
+
+def test_a_saved_gpu_that_is_gone_stays_selected(ui):
+    from playwright.sync_api import expect
+    page, peer, reply = ui
+    group = page.get_by_role('group', name='Japanese TTS', exact=True)
+    device = group.get_by_label('Inference device', exact=True)
+    peer.settings['profiles']['japanese']['device'] = 'Vulkan9'
+    reply('/get/data/speech_server_settings', peer.settings)
+    expect(device).to_have_value('Vulkan9')
+    expect(device.locator('option', has_text='Vulkan9 (not found)')).to_have_count(1)
+    expect(page.get_by_role('button', name='Save changes', exact=True)).to_be_disabled()
 
 
 def test_asr_requires_vad_and_save_errors_allow_retry(ui):

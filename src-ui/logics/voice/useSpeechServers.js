@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { sameValue } from "../common/polledState.js";
 
-const settingsAtom = atom(null), stateAtom = atom({}), pendingAtom = atom({}), errorAtom = atom(null);
+const settingsAtom = atom(null), stateAtom = atom({}), pendingAtom = atom({}), errorAtom = atom(null), devicesAtom = atom([]);
 const phases = { stopped: 0, preparing: 1, ready: 2, stopping: 3, failed: 4 };
 const profiles = ["japanese", "multilingual", "asr"];
 
@@ -11,6 +11,7 @@ export const useSpeechServers = () => {
     const atoms = useStore();
     const [settings, setSettings] = useAtom(settingsAtom);
     const [state] = useAtom(stateAtom);
+    const [devices, setDevices] = useAtom(devicesAtom);
     const [pending] = useAtom(pendingAtom);
     const [error, setError] = useAtom(errorAtom);
     const { asyncStdoutToPython } = useStdoutToPython();
@@ -19,6 +20,7 @@ export const useSpeechServers = () => {
         if (value) atoms.set(pendingAtom, {});
     }, [atoms, setError]);
     const updateSettings = useCallback(value => { setSettings(value); setError(null); }, [setSettings, setError]);
+    const updateDevices = useCallback(value => { if (Array.isArray(value?.devices)) setDevices(value.devices); }, [setDevices]);
     const updateState = useCallback(value => {
         const current = atoms.get(stateAtom), pending = atoms.get(pendingAtom);
         let next = current, waiting = pending;
@@ -49,9 +51,10 @@ export const useSpeechServers = () => {
         atoms.set(stateAtom, {});
         atoms.set(pendingAtom, {});
         atoms.set(errorAtom, null);
+        atoms.set(devicesAtom, []);
     }, [atoms]);
     const send = useCallback(async (endpoint, data) => {
-        if (endpoint !== "/get/data/speech_server_state") setError(null);
+        if (!["/get/data/speech_server_state", "/get/data/speech_server_devices"].includes(endpoint)) setError(null);
         if (["/run/start_speech_server", "/run/stop_speech_server"].includes(endpoint)) {
             const generation = atoms.get(stateAtom)[data.profile]?.generation ?? -1;
             atoms.set(pendingAtom, { ...atoms.get(pendingAtom), [data.profile]: { generation } });
@@ -60,5 +63,5 @@ export const useSpeechServers = () => {
         if (response === false) updateError("backend_unavailable");
         return response;
     }, [atoms, setError, updateError]);
-    return { settings, state, pending, error, send, updateSettings, updateState, updateError, reset, backendStopped };
+    return { settings, state, devices, pending, error, send, updateSettings, updateState, updateDevices, updateError, reset, backendStopped };
 };

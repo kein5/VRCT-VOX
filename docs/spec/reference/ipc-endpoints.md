@@ -10,7 +10,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - UIの受信先: 200の応答を処理するUIのフック（`useReceiveRoutes.js`の静的ルートと`ui_config_setter.js`の定義から生成）。「—」は受信先がない。
 - ログで伏せる: `process.log`で値を`***MASKED***`に置き換える（`SENSITIVE_ENDPOINT_MARKERS`）。stdoutのIPCそのものは伏せない。
 
-## 要求（399件: 削除 11、取得 177、実行 37、有効化 38、無効化 38、設定 98）
+## 要求（400件: 削除 11、取得 178、実行 37、有効化 38、無効化 38、設定 98）
 
 | エンドポイント | 種別 | 処理（controller） | 初期化前 | UIの受信先 | 備考 |
 |---|---|---|---|---|---|
@@ -325,6 +325,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/run/cancel_vc_runtime_setup` | 実行 | `cancelVcRuntimeSetup` | 可 | useVcRuntimes.acknowledge |  |
 | `/get/data/speech_server_settings` | 取得 | `getSpeechServerSettings` | 可 | useSpeechServers.updateSettings |  |
 | `/set/data/speech_server_settings` | 設定 | `setSpeechServerSettings` | 可 | useSpeechServers.updateSettings |  |
+| `/get/data/speech_server_devices` | 取得 | `getSpeechServerDevices` | 可 | useSpeechServers.updateDevices |  |
 | `/get/data/speech_server_state` | 取得 | `getSpeechServerState` | 可 | useSpeechServers.updateState |  |
 | `/run/start_speech_server` | 実行 | `startSpeechServer` | 可 | useSpeechServers.updateState |  |
 | `/run/stop_speech_server` | 実行 | `stopSpeechServer` | 可 | useSpeechServers.updateState | 即時（キューを通らない） |

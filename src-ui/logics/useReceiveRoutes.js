@@ -36,6 +36,7 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/run/cancel_vc_runtime_setup", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "acknowledge" },
     { endpoint: "/get/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
     { endpoint: "/set/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
+    { endpoint: "/get/data/speech_server_devices", ns: speech, hook_name: "useSpeechServers", method_name: "updateDevices" },
     { endpoint: "/get/data/speech_server_state", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
     { endpoint: "/run/start_speech_server", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
     { endpoint: "/run/stop_speech_server", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
