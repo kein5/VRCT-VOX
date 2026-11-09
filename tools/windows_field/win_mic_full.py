@@ -19,7 +19,7 @@ import win_e2e as e  # noqa: E402
 import win_frozen  # noqa: E402
 
 ROOT = win_frozen.ROOT
-win_frozen.FROZEN = ROOT / 'build/frozen-mic2/vrct-vox-sidecar-x86_64-pc-windows-msvc.exe'
+win_frozen.FROZEN = ROOT / 'build' / (os.environ.get('VOX_FROZEN') or 'frozen-mic2') / 'vrct-vox-sidecar-x86_64-pc-windows-msvc.exe'
 OUT = ROOT / 'build/model-test/win-mic-full'
 BASE = next((p for p in (ROOT / 'build/model-test').iterdir() if (p / 'vc_runtimes').is_dir()), None)
 M = ROOT / 'build/model-test/win-voice'
@@ -30,6 +30,7 @@ SENTENCE = '今日はとても良い天気ですね。一緒に散歩に行き�
 LABEL = os.environ.get('VOX_MIC_LABEL') or 'Surface'
 CLASSIC = '/run/transcription_send_mic_message'
 CAPTION = '/run/realtime_caption'
+DEFAULT_THRESHOLD = 300
 
 
 def say(text):
@@ -96,9 +97,9 @@ def classic(app):
     settings['server'] = 'external'  # The saved settings of an earlier run would pick the realtime path.
     app.record('classic: path selected', app.call('/set/data/realtime_asr_settings', settings)['status'] == 200, settings['server'])
     choose_mic(app)
-    if 'low' in sys.argv:
-        event = app.call('/set/data/mic_threshold', 40)
-        app.record('classic: threshold lowered', event['status'] == 200, event.get('result'))
+    # Always set it: the saved settings of an earlier 'low' run would carry over.
+    event = app.call('/set/data/mic_threshold', 40 if 'low' in sys.argv else DEFAULT_THRESHOLD)
+    app.record('classic: threshold', event['status'] == 200, event.get('result'))
     mark = len(app.seen)
     started = time.monotonic()
     say('開始しています。')
