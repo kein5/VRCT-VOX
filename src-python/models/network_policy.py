@@ -227,3 +227,9 @@ def api_request(method, url, **kwargs):
         session.auth = explicit_request_auth
         own_discovery_client(session)
         return session.request(method, url, allow_redirects=False, **kwargs)
+
+
+def nothing_answered(error):
+    """True for a failed connection, which is what a stopped local engine gives."""
+    import requests
+    return isinstance(error, requests.ConnectionError)

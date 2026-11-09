@@ -1,6 +1,6 @@
 from models.diagnostics import provider_errors
 from utils import errorLogging
-from models.network_policy import without_tracing, api_request, discovery
+from models.network_policy import without_tracing, api_request, discovery, nothing_answered
 from models.sdk_clients import ChatOllama
 
 try:
@@ -31,8 +31,10 @@ def _authentication_check(base_url: str | None = None) -> bool:
             return True
         else:
             return False
-    except Exception:
-        errorLogging(provider="Ollama")
+    except Exception as error:
+        # Most people never start Ollama, so this runs and fails at every launch.
+        if not nothing_answered(error):
+            errorLogging(provider="Ollama")
         return False
 
 @provider_errors("Ollama")
