@@ -175,6 +175,7 @@ def test_llm_discovery_failure_is_safely_logged(module_name, class_name, attr, m
     client = object.__new__(getattr(module, class_name))
     client.api_key = "configured-key"
     client.base_url = "https://service.example"
+    client.authenticationCheck = lambda: True  # Reach the discovery call without a real connection.
     monkeypatch.setattr(module, "_get_available_text_models", Mock(
         side_effect=ValueError("UNSAVED_KEY PRIVATE_CONVERSATION")))
     try:

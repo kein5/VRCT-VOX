@@ -1,6 +1,6 @@
 from models.diagnostics import provider_errors
 from utils import errorLogging
-from models.network_policy import without_tracing, chat_http_clients, api_request, discovery, validate_api_url
+from models.network_policy import without_tracing, chat_http_clients, api_request, discovery, nothing_answered, validate_api_url
 from models.sdk_clients import ChatOpenAI, SecretStr
 
 try:
@@ -31,8 +31,10 @@ def _authentication_check(base_url: str | None = None) -> bool:
             return True
         else:
             return False
-    except Exception:
-        errorLogging(provider="LMStudio")
+    except Exception as error:
+        # Most people never start LM Studio, so this runs and fails at every launch.
+        if not nothing_answered(error):
+            errorLogging(provider="LMStudio")
         return False
 
 @provider_errors("LMStudio")
