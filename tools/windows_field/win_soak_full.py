@@ -43,6 +43,7 @@ SPEAKERS = '["Windows WASAPI", "Speakers (Steam Streaming Speakers)"]'
 CABLE = '["Windows WASAPI", "Speakers (Steam Streaming Microphone)"]'
 M = ROOT / 'build/model-test/win-voice'
 RUNTIME, MODEL = str(ROOT / 'build/rvc-runtime'), str(M / 'rvc-saisho/model.pth')
+VC_ENGINE = os.environ.get('VOX_VC_ENGINE') or 'rvc'
 TTS_MODEL = str(M / 'irodori-v41-q8/Irodori-TTS-866M-MF-v4.1-Q8_0.gguf')
 ASR_MODEL = str(M / 'qwen3-asr-06b-q8/Qwen3-ASR-0.6B-Q8_0.gguf')
 VAD_MODEL = str(M / 'silero-vad-v62/silero-vad-309K-v6.2-F32.gguf')
@@ -264,18 +265,26 @@ def start_tts(app):
                f"{time.monotonic() - started:.1f}s {str(result(event))[:160]}")
 
 
-def start_rvc(app):
+def conversion_request():
+    """The saved settings and the start options of the engine under test."""
+    if VC_ENGINE == 'seed-vc':
+        options = dict(runtime=os.environ['VOX_SEED_RUNTIME'], reference=os.environ['VOX_SEED_REFERENCE'])
+        return dict(options, mode='converted', engine='seed-vc'), options
     settings = dict(mode='converted', runtime='', reference='', engine='rvc', rvc_runtime=RUNTIME, rvc_model=MODEL,
                     rvc_index='', rvc_pitch=0, rvc_index_rate=0.0)
-    app.record('rvc settings', app.call('/set/data/direct_voice_settings', settings)['status'] == 200)
+    return settings, dict(engine='rvc', runtime=RUNTIME, model=MODEL, index='', pitch=0, index_rate=0.0)
+
+
+def start_conversion(app):
+    settings, options = conversion_request()
+    app.record('conversion settings', app.call('/set/data/direct_voice_settings', settings)['status'] == 200, VC_ENGINE)
     sources = result(app.call('/get/data/direct_voice_sources'))
     source = next(s['id'] for s in sources['sources'] if 'Steam Streaming Microphone' in s['label'])
     started = time.monotonic()
-    event = app.call('/run/start_direct_voice', {'source': source, 'mode': 'converted', 'options': dict(
-        engine='rvc', runtime=RUNTIME, model=MODEL, index='', pitch=0, index_rate=0.0)})
-    app.record('rvc start accepted', event['status'] == 200, f"{event['status']} {str(result(event))[:160]}")
+    event = app.call('/run/start_direct_voice', {'source': source, 'mode': 'converted', 'options': options})
+    app.record('conversion start accepted', event['status'] == 200, f"{event['status']} {str(result(event))[:160]}")
     state = wait_direct(app, lambda s: s.get('active') or s.get('error'), 195)
-    app.record('rvc active', state.get('active') is True and not state.get('error'),
+    app.record('conversion active', state.get('active') is True and not state.get('error'),
                f"{time.monotonic() - started:.1f}s {state.get('conversion_state')} {state.get('error')}")
     return state.get('active') is True
 
@@ -367,7 +376,7 @@ def main():
         speaker = Speaker()
         time.sleep(.5)
         start_tts(app)
-        rvc = start_rvc(app)
+        rvc = start_conversion(app)
         recognition = start_asr(app)
         if not (rvc and recognition):
             return
@@ -426,7 +435,7 @@ def main():
         (OUT / 'gpu-memory.json').write_text(json.dumps(dict(start=adapters_start, end=adapters_end), ensure_ascii=False, indent=1), encoding='utf-8')
         overlay_state = overlays('end')
         state = wait_direct(app, lambda s: True, 2)
-        app.record('rvc still healthy at the end', state.get('active') is True and not state.get('error'), {k: state.get(k) for k in ('active', 'error', 'conversion_state', 'conversion_verified')})
+        app.record('conversion still healthy at the end',state.get('active') is True and not state.get('error'), {k: state.get(k) for k in ('active', 'error', 'conversion_state', 'conversion_verified')})
         app.call('/run/stop_direct_voice')
         wait_direct(app, lambda s: not s.get('requested') and not s.get('stopping'), 15)
         app.call('/run/disable_tts', timeout=30)
