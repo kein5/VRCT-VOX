@@ -1138,6 +1138,7 @@ realtime_toggle:
   realtime_language_unsupported: "The ASR model does not recognize the selected language. Choose a language it lists in Settings → Transcription → Realtime captions."
   realtime_language_auto_unsupported: "This ASR model cannot detect the language. In Settings → Transcription → Realtime captions, choose the language that is spoken, or download Qwen3-ASR for automatic detection."
   realtime_capture_failed: "Audio capture stopped. The device may have been unplugged or changed; check it and turn this on again."
+  realtime_asr_timeout: "The speech recognition server did not return a result in time. Turn this on again. If it keeps happening, close other GPU apps or choose another inference device in Settings → Transcription → Bundled speech.cpp servers → ASR + VAD."
 
 speech_servers:
     setup_title: "Models and servers"

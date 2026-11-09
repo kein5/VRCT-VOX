@@ -18,6 +18,9 @@ from .realtime_events import TranscriptEvents
 from .utterance_diagnostics import utterance_diagnostics
 
 PENDING_TIMEOUT = 15.0
+# The first result of a connection can wait for the GPU driver to build its kernels,
+# which took 25.7 s on an RTX 3060 Ti with an empty driver cache.
+FIRST_RESULT_TIMEOUT = 120.0
 MAX_EVENT = 1024 * 1024
 
 
@@ -60,6 +63,7 @@ class SpeechCppRealtime:
         self._ws = self._reader = self._starting = None
         self._sending = False
         self._pending_since = {}
+        self._first_result_seen = False
         self._commit_sent_at = None
 
     def _settings(self):
@@ -208,8 +212,9 @@ class SpeechCppRealtime:
                     and monotonic() - self._commit_sent_at > PENDING_TIMEOUT
                 ):
                     raise RealtimeError("commit_ack_timeout")
+                limit = PENDING_TIMEOUT if self._first_result_seen else FIRST_RESULT_TIMEOUT
                 if any(
-                    monotonic() - stamp > PENDING_TIMEOUT
+                    monotonic() - stamp > limit
                     for stamp in self._pending_since.values()
                 ):
                     raise RealtimeError("utterance_timeout")
@@ -221,8 +226,10 @@ class SpeechCppRealtime:
                 if event["type"] == "session.updated":
                     self._check_config(event)
                 previous_pending = self._events.pending_ids
+                first_result = False
                 for update in self._events.accept(event):
                     if update.is_final:
+                        first_result = first_result or not self._first_result_seen
                         started = self._pending_since.get(update.item_id)
                         stages = {} if started is None else {"realtime_pending_ms": (monotonic() - started) * 1000}
                         pending = f"{stages['realtime_pending_ms']:.1f}ms" if stages else "unknown"
@@ -241,9 +248,13 @@ class SpeechCppRealtime:
                     and event["item_id"] not in previous_pending
                 ):
                     self._commit_sent_at = None
+                now = monotonic()
+                # Items queued behind the first result waited for the same kernels.
                 self._pending_since = {
-                    item: self._pending_since.get(item, monotonic()) for item in pending
+                    item: now if first_result else self._pending_since.get(item, now)
+                    for item in pending
                 }
+                self._first_result_seen = self._first_result_seen or first_result
                 if (
                     event["type"] == "input_audio_buffer.cleared"
                     and self.state == "clearing"

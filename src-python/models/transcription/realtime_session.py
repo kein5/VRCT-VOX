@@ -12,12 +12,20 @@ from .realtime_audio import RealtimeIngress
 from .realtime_settings import SessionOptions, language_supported
 from .asr_vocabulary import request_options
 from .speechcpp_asr import SpeechCppASR
-from .speechcpp_realtime import SpeechCppRealtime
+from .speechcpp_realtime import RealtimeError, SpeechCppRealtime
 from .utterance_diagnostics import utterance_diagnostics
 
 
 class SessionError(RuntimeError):
     """Fixed diagnostic code only."""
+
+
+def _failure_code(exc):
+    if isinstance(exc, SessionError):
+        return str(exc)
+    if isinstance(exc, RealtimeError) and str(exc) in ("utterance_timeout", "commit_ack_timeout"):
+        return "realtime_asr_timeout"
+    return "realtime_session_failed"
 
 
 class RealtimeSession:
@@ -173,7 +181,10 @@ class RealtimeSession:
         ingress = RealtimeIngress(48000, 1)
 
         def capture_error(code):
-            self._fail("realtime_capture_failed")
+            # A closed ingress is this session no longer listening, not the device
+            # failing. Whatever closed it reports the reason from _serve.
+            if code != "asr_capture_consumer_closed":
+                self._fail("realtime_capture_failed")
 
         with self._lock:
             if self._stop.is_set():
@@ -228,11 +239,7 @@ class RealtimeSession:
             pass
         except Exception as exc:
             if not self._stop.is_set():
-                self._fail(
-                    str(exc)
-                    if isinstance(exc, SessionError)
-                    else "realtime_session_failed"
-                )
+                self._fail(_failure_code(exc))
         finally:
             self.request_stop()
             if self._client:
