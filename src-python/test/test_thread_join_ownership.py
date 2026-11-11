@@ -109,7 +109,7 @@ def test_watchdog_keeps_timed_out_worker_and_refuses_second_instance():
     old = owner.th_watchdog = PendingWatchdog()
     owner.watchdog = Mock()
     owner._armFreezeDump = Mock()
-    with patch.object(model_module.faulthandler, 'cancel_dump_traceback_later'), \
+    with patch.object(model_module._freeze_dump, 'cancel'), \
             patch.object(model_module, 'printLog') as log, patch.object(threadFnc, 'start') as spawn:
         owner.stopWatchdog()
         owner.stopWatchdog()
