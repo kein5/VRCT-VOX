@@ -27,9 +27,13 @@ class WatchdogAvailableDuringInitTests(unittest.TestCase):
             seen["feed"] = m.feedWatchdog()
             raise _Sentinel()
 
-        with patch.object(model_module, "MicSession", side_effect=stall_in_init):
+        # feedWatchdog() はフリーズダンプのタイマーを掛ける。掛けたまま残すと、35 秒後に、
+        # 別のテストが動いている最中のスタックを書き出しに来る。
+        with patch.object(model_module._freeze_dump, "arm") as arm, \
+                patch.object(model_module, "MicSession", side_effect=stall_in_init):
             with self.assertRaises(_Sentinel):
                 m.init()
+        arm.assert_called_once()
 
         self.assertIn("feed", seen)  # AttributeError にならず通る
 

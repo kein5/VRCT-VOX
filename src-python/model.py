@@ -1,6 +1,5 @@
 import atexit
 import copy
-import faulthandler
 import hashlib
 import json
 from subprocess import Popen
@@ -67,6 +66,7 @@ from models.ocr.ocr_models import resolveModelFiles, OcrModelsMissing
 from models.ocr import ocr_engine_rapidocr as ocr_engine
 from models.telemetry import Telemetry
 from utils import ConversationLogger, errorLogging, printLog, openTraceLog
+from freeze_dump import FreezeDump
 from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, OcrStartError, TranscriptionStartError
 
 TRANSCRIPT_STOP_JOIN_TIMEOUT = 15
@@ -84,15 +84,16 @@ _HTTP_TIMEOUT = (10, 60)
 # ネイティブフォルト (access violation 等) 発生時にしか全スレッドの
 # コールスタックを記録しない。今回問題になっている「クラッシュではなく
 # 無応答のまま固まる」ケースはネイティブフォルトを伴わないため、それとは
-# 別に dump_traceback_later でタイムアウト検知のスタックダンプを取る。
+# 別にタイムアウト検知のスタックダンプを取る (freeze_dump.FreezeDump)。
 # feedWatchdog() が呼ばれるたびにタイマーを再武装し (呼び出しは
 # フロントエンドから ~WATCHDOG_INTERVAL 秒ごとに来る)、その周期を超えて
 # 次の feed が来なければ、その時点の全スレッドスタックを
-# freeze_trace.log に書き出す (exit=False なのでプロセスは落とさない)。
-# faulthandler は enable/dump_traceback_later 時点で fd を掴むため
+# freeze_trace.log に書き出す (プロセスは落とさない)。
+# faulthandler は書き出す時点で fd を掴むため
 # 遅延 open できず、フリーズ無しの通常終了でも 0 バイトのファイルが
 # 残る。運用上のゴミ化を避けるため atexit で「書き込みが無ければ削除」する。
 _freeze_trace_path, _freeze_trace_file = openTraceLog("freeze_trace.log")
+_freeze_dump = FreezeDump(_freeze_trace_file)
 _FREEZE_DUMP_MARGIN_SEC = 15
 # watchdog スレッドの join 上限。Watchdog.start() 末尾の
 # time.sleep(interval) (既定20秒) は中断できないため、ここを無期限にすると
@@ -3065,13 +3066,11 @@ class Model:
     def _armFreezeDump(self):
         """次の feed が freeze 判定になるより前に、全スレッドスタックを
         freeze_trace.log へ書き出すタイマーを (再) 武装する。呼ぶたびに
-        以前のタイマーは自動的に上書きされる (faulthandler の仕様)。
+        以前の期限は置き換わる。
         """
         timeout = self.watchdog.interval + _FREEZE_DUMP_MARGIN_SEC
         try:
-            faulthandler.dump_traceback_later(
-                timeout, repeat=False, file=_freeze_trace_file, exit=False
-            )
+            _freeze_dump.arm(timeout)
         except Exception:
             errorLogging()
 
@@ -3125,9 +3124,9 @@ class Model:
             # shutdown() 側の _stopServiceForShutdown が5秒で諦めた時点で
             # 一度も実行されず、「正常終了なのに freeze_trace.log へダンプが出る」
             # という当初直したかった現象がそのまま残っていた (実機ログで確認)。
-            # 解除自体はスレッドと独立した faulthandler の操作なので先に行える。
+            # 解除自体は watchdog のスレッドと独立した操作なので先に行える。
             try:
-                faulthandler.cancel_dump_traceback_later()
+                _freeze_dump.cancel()
             except Exception:
                 errorLogging()
             if isinstance(self.th_watchdog, threadFnc):

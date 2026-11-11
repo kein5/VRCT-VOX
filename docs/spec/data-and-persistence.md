@@ -205,7 +205,7 @@ HTTPでプライベートLANやリンクローカルのアドレスへ接続す�
 
 | ファイル | 置き場所 | 内容 |
 |---|---|---|
-| `process.log`、`error.log`、`freeze_trace.log`、`crash_trace.log` | `$VRCT_CONFIG_DIR/logs/`（なければ作業フォルダ） | 診断ログ。`process.log`と`error.log`は10MBで切り詰め、`process.log`は起動のたびに空にする。`crash_trace.log`と`freeze_trace.log`（faulthandlerのスタックダンプ）は、起動のときに10MBを超えていたら新しい1MBだけを残す |
+| `process.log`、`error.log`、`freeze_trace.log`、`crash_trace.log` | `$VRCT_CONFIG_DIR/logs/`（なければ作業フォルダ） | 診断ログ。`process.log`と`error.log`は10MBで切り詰め、`process.log`は起動のたびに空にする。`crash_trace.log`と`freeze_trace.log`（faulthandlerのスタックダンプ）は、起動のときに10MBを超えていたら新しい1MBだけを残す。`freeze_trace.log`には、フロントエンドからのfeedが`WATCHDOG_INTERVAL`＋15秒のあいだ来なかったときに、全スレッドのスタックを1回書く（プロセスは終了しない）。書くのはGILを持ったPythonのスレッドである。GILが返らない固まり方のときだけ、さらに30秒後にfaulthandlerのCのスレッドが書く（`src-python/freeze_dump.py`） |
 | `startup_timing.log` | 同上 | 起動1回につき1行のJSON。段階ごとの実時間とCPU時間、遅かった`/get/data/…`、起動中のPC全体のCPU使用率を残す。`process.log`と違って次の起動でも消えない。段階名、エンドポイント名、数値だけで、パスやデバイス名は書かない。256KBを超えたら起動のときに新しい64KBだけを残す |
 | `startup.log` | 同上（Tauri側） | ウィンドウの起動記録 |
 | 会話ログ `YYYY-MM-DD_HH-MM-SS.log` | `PATH_LOGS` | 「会話ログを自動的に保存する」がオンのときだけ。行頭は`[SENT]`、`[RECEIVED]`、`[OCR]`、`[CHAT]`。画面は新しい1,000件しか残さないが、ファイルには古いものも残る |

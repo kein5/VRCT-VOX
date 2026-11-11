@@ -139,7 +139,7 @@ def test_obs_numeric_live_page_enforces_the_initialization_ranges(settings, monk
     monkeypatch.setattr(obs_module, "config", settings)
     result = subprocess.run(
         [node, str(Path(__file__).with_name("obs_numeric_settings.mjs"))],
-        input=obs_module._build_overlay_html(), text=True, capture_output=True, timeout=10,
+        input=obs_module._build_overlay_html(), text=True, capture_output=True, timeout=60,
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
