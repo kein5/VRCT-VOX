@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import {
-    createSharedWindowActions, endedNotice, INITIAL_SHARED_WINDOW, nextRestoreToken, shareErrorKey,
-    sharedWindowView, shouldStopSharing, startErrorKey,
+    createSharedWindowActions, endedNotice, INITIAL_SHARED_WINDOW, nextRestoreToken, RESTORE_LIMIT_MS, shareErrorKey,
+    sharedWindowView, shouldRestoreSharing, shouldStopSharing, startErrorKey,
 } from "./ocrSharedWindow.js";
 
 const locale = name => yaml.load(readFileSync(new URL(`../../../locales/${name}.yml`, import.meta.url), "utf8"));
@@ -185,4 +185,89 @@ test("only window-not-found reads differently where a window can be shared", () 
     assert.equal(startErrorKey("OCR_DISABLED_WINDOW_NOT_FOUND", elsewhere), null);
     assert.equal(startErrorKey("OCR_DISABLED_WINDOW_NOT_FOUND", null), null);
     assert.equal(startErrorKey("OCR_DISABLED_MODEL_MISSING", wayland), null);
+});
+
+test("the remembered window is shared again only when chat reading found nothing to read and nothing is shared", () => {
+    const idle = { ...INITIAL_SHARED_WINDOW, supported: true };
+    assert.equal(shouldRestoreSharing("OCR_DISABLED_WINDOW_NOT_FOUND", idle, "saved"), true);
+    assert.equal(shouldRestoreSharing("OCR_DISABLED_CAPTURE_UNAVAILABLE", idle, "saved"), true);
+    // Never shared before, or the desktop's answer is used up: the user shares from the settings.
+    assert.equal(shouldRestoreSharing("OCR_DISABLED_WINDOW_NOT_FOUND", idle, ""), false);
+    assert.equal(shouldRestoreSharing("OCR_DISABLED_WINDOW_NOT_FOUND", idle, null), false);
+    // Not a desktop that can share, a window already shared, or a request still waiting.
+    assert.equal(shouldRestoreSharing("OCR_DISABLED_WINDOW_NOT_FOUND", { ...idle, supported: false }, "saved"), false);
+    assert.equal(shouldRestoreSharing("OCR_DISABLED_WINDOW_NOT_FOUND", { ...idle, supported: null }, "saved"), false);
+    assert.equal(shouldRestoreSharing("OCR_DISABLED_WINDOW_NOT_FOUND", { ...idle, active: true }, "saved"), false);
+    assert.equal(shouldRestoreSharing("OCR_DISABLED_WINDOW_NOT_FOUND", { ...idle, busy: true }, "saved"), false);
+    assert.equal(shouldRestoreSharing("OCR_DISABLED_WINDOW_NOT_FOUND", null, "saved"), false);
+    // Other reasons chat reading cannot start have nothing to do with the window.
+    for (const code of ["OCR_DISABLED_MODEL_MISSING", "OCR_DISABLED_UNKNOWN", undefined]) {
+        assert.equal(shouldRestoreSharing(code, idle, "saved"), false);
+    }
+});
+
+test("restoring sends the saved token, keeps the new one, and reports that a window is shared", async () => {
+    const timers = [];
+    const page = { state: { ...INITIAL_SHARED_WINDOW, supported: true }, token: "saved", calls: [], saved: [] };
+    const actions = createSharedWindowActions({
+        invoke: async (command, args) => { page.calls.push([command, args]); return { restore_token: "next" }; },
+        read: () => page.state, write: next => { page.state = next; },
+        token: () => page.token, saveToken: value => { page.saved.push(value); page.token = value; },
+        later: (run, ms) => { timers.push({ run, ms, cancelled: false }); return timers.length - 1; },
+        cancel: handle => { timers[handle].cancelled = true; },
+    });
+    assert.equal(await actions.restore(), true);
+    assert.deepEqual(page.calls, [["screencast_start", { restoreToken: "saved" }]]);
+    assert.deepEqual(page.saved, ["next"]);
+    assert.equal(page.state.active, true);
+    assert.equal(page.state.busy, false);
+    // The limit was armed for the request and disarmed when the desktop answered.
+    assert.deepEqual(timers.map(({ ms, cancelled }) => [ms, cancelled]), [[RESTORE_LIMIT_MS, true]]);
+});
+
+test("restoring never asks the desktop without a saved choice or while another request waits", async () => {
+    const none = harness({ token: "", state: { supported: true } });
+    assert.equal(await none.actions.restore(), false);
+    const waiting = harness({ token: "saved", state: { supported: true, busy: true } });
+    assert.equal(await waiting.actions.restore(), false);
+    assert.deepEqual([...none.page.calls, ...waiting.page.calls], []);
+});
+
+test("a desktop that asks instead of restoring is given a limit, then the request is withdrawn", async () => {
+    const timers = [];
+    let reject;
+    const page = { state: { ...INITIAL_SHARED_WINDOW, supported: true }, token: "saved", calls: [], saved: [] };
+    const actions = createSharedWindowActions({
+        invoke: (command, args) => {
+            page.calls.push([command, args]);
+            if (command === "screencast_start") return new Promise((_, fail) => { reject = fail; });
+            if (command === "screencast_stop") reject("portal_cancelled");
+            return Promise.resolve(command === "screencast_support" ? { supported: true, active: false } : undefined);
+        },
+        read: () => page.state, write: next => { page.state = next; },
+        token: () => page.token, saveToken: value => { page.saved.push(value); page.token = value; },
+        later: (run, ms) => { timers.push({ run, ms }); return timers.length - 1; },
+        cancel: () => {},
+    });
+    const restoring = actions.restore({ limit: 5000 });
+    await Promise.resolve();
+    assert.equal(page.state.busy, true);
+    assert.equal(timers[0].ms, 5000);
+    timers[0].run();
+    assert.equal(await restoring, false);
+    assert.deepEqual(page.calls.map(([command]) => command), ["screencast_start", "screencast_stop", "screencast_support"]);
+    // The desktop did not restore from the token, so it is not sent again.
+    assert.deepEqual(page.saved, [""]);
+    assert.equal(page.state.active, false);
+    assert.equal(page.state.busy, false);
+    // Withdrawing is not an error to show in the settings.
+    assert.equal(sharedWindowView(page.state).errorKey, null);
+});
+
+test("a failed restore leaves the reason in the settings and the token for the next try", async () => {
+    const { page, actions } = harness({ token: "saved", state: { supported: true },
+        commands: { screencast_start: new Error("screencast_stream_timeout"), screencast_support: { supported: true, active: false } } });
+    assert.equal(await actions.restore(), false);
+    assert.deepEqual(page.saved, []);
+    assert.equal(sharedWindowView(page.state).errorKey, "config_page.ocr.shared_window.error_timeout");
 });

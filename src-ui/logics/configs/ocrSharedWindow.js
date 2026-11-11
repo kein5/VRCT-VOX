@@ -1,8 +1,10 @@
 // Pure helpers for sharing a window with Chat Transcribe (Linux, Wayland).
 //
 // The desktop's ScreenCast portal lets the user pick a window; the Tauri side
-// (`screencast_start`) asks it and the backend reads the frames. Nothing here
-// asks on its own: the page calls `screencast_start` only from the button.
+// (`screencast_start`) asks it and the backend reads the frames. The page calls
+// `screencast_start` in two places only: from the button, and when the user turns
+// chat reading on, no VRChat window is found by its name, and the desktop still
+// remembers the window shared before (`restore`). Never at start-up.
 
 export const INITIAL_SHARED_WINDOW = Object.freeze({ supported: null, active: false, busy: false, error: null });
 
@@ -49,6 +51,20 @@ export const sharedWindowView = state => {
 export const startErrorKey = (error_code, state) => error_code === "OCR_DISABLED_WINDOW_NOT_FOUND" && state?.supported === true
     ? "common_error.ocr_window_not_found_wayland" : null;
 
+// How long sharing the remembered window again may take when chat reading is turned on. The
+// desktop restores a remembered window without asking; if it shows its dialog instead, the
+// request is given up after this long and the user shares from the settings.
+export const RESTORE_LIMIT_MS = 15000;
+
+// Turning chat reading on found no VRChat window to read by its name, or no X11 session to look
+// in (`error_code`). Share the window the desktop remembers instead of failing? Only where a
+// window was shared before (`token`), nothing is shared now, and no request is waiting for the
+// desktop.
+const RESTORABLE_START_ERRORS = ["OCR_DISABLED_WINDOW_NOT_FOUND", "OCR_DISABLED_CAPTURE_UNAVAILABLE"];
+export const shouldRestoreSharing = (error_code, state, token) => RESTORABLE_START_ERRORS.includes(error_code)
+    && state?.supported === true && state.active !== true && state.busy !== true
+    && typeof token === "string" && token !== "";
+
 // Turning chat reading off ends the sharing. A start that failed never was "on",
 // and waiting for the backend's answer (pending) changes nothing.
 export const shouldStopSharing = (wasOn, isOn, active) => wasOn === true && isOn === false && active === true;
@@ -62,7 +78,9 @@ export const endedNotice = reason => reason === "ended"
 //   invoke(command, args)  the Tauri command call
 //   read() / write(state)  the shared-window atom
 //   token() / saveToken(v) the saved restore token (config key OCR_PORTAL_RESTORE_TOKEN)
-export const createSharedWindowActions = ({ invoke, read, write, token, saveToken }) => {
+//   later(fn, ms) / cancel(handle)  a timer, for the limit on `restore`
+export const createSharedWindowActions = ({ invoke, read, write, token, saveToken,
+    later = (run, ms) => setTimeout(run, ms), cancel = handle => clearTimeout(handle) }) => {
     const patch = change => write({ ...INITIAL_SHARED_WINDOW, ...read(), ...change });
     const support = async () => {
         try {
@@ -72,6 +90,25 @@ export const createSharedWindowActions = ({ invoke, read, write, token, saveToke
             return { supported: false, active: false };
         }
     };
+    // One request to the desktop. `sent` is the token to restore from ("" makes the desktop ask).
+    const start = async (sent, saved) => {
+        patch({ busy: true, error: null });
+        try {
+            const started = await invoke("screencast_start", { restoreToken: sent || null });
+            const next = nextRestoreToken(saved, { ok: true, token: started?.restore_token });
+            if (next !== saved) saveToken(next);
+            patch({ supported: true, active: true, busy: false, error: null });
+            return true;
+        } catch (error) {
+            const code = typeof error === "string" && error ? error : "screencast_failed";
+            // A token that was not sent (the user asked to choose) is still good.
+            const next = sent ? nextRestoreToken(saved, { ok: false, code }) : saved;
+            if (next !== saved) saveToken(next);
+            // A sharing that was running may have been replaced by this request: ask what is true now.
+            patch({ ...(await support()), busy: false, error: code });
+            return false;
+        }
+    };
     return {
         // Is there a button to show on this desktop, and is a window shared already?
         refresh: async () => patch(await support()),
@@ -79,21 +116,20 @@ export const createSharedWindowActions = ({ invoke, read, write, token, saveToke
         // desktop shows its dialog: the way to pick a different window.
         share: async ({ choose = false } = {}) => {
             if (read()?.busy) return;
-            patch({ busy: true, error: null });
             const saved = token() ?? "";
-            const sent = choose ? "" : saved;
+            await start(choose ? "" : saved, saved);
+        },
+        // Chat reading was turned on and the VRChat window was not found by its name: share the
+        // window the desktop remembers. Resolves to whether a window is shared now. A desktop
+        // that asks instead of restoring is given `limit` ms, then the request is withdrawn.
+        restore: async ({ limit = RESTORE_LIMIT_MS } = {}) => {
+            const saved = token() ?? "";
+            if (read()?.busy || !saved) return false;
+            const timer = later(() => { invoke("screencast_stop").catch(() => { /* already answered */ }); }, limit);
             try {
-                const started = await invoke("screencast_start", { restoreToken: sent || null });
-                const next = nextRestoreToken(saved, { ok: true, token: started?.restore_token });
-                if (next !== saved) saveToken(next);
-                patch({ supported: true, active: true, busy: false, error: null });
-            } catch (error) {
-                const code = typeof error === "string" && error ? error : "screencast_failed";
-                // A token that was not sent (the user asked to choose) is still good.
-                const next = sent ? nextRestoreToken(saved, { ok: false, code }) : saved;
-                if (next !== saved) saveToken(next);
-                // A sharing that was running may have been replaced by this request: ask what is true now.
-                patch({ ...(await support()), busy: false, error: code });
+                return await start(saved, saved);
+            } finally {
+                cancel(timer);
             }
         },
         stop: async () => {

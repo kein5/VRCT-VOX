@@ -858,7 +858,7 @@ config_page:
             capture_unavailable: "Window capture is not available in this session. On Linux, VRChat has to run as an X11/XWayland window (the Proton default), or you share its window under Capture target below."
         shared_window:
             label: "Share a window (Wayland)"
-            desc: "A VRChat window that is native Wayland (for example inside gamescope, or with Wine's Wayland driver) cannot be found by its name. Share it here and Chat Transcribe reads the shared window instead. Your desktop asks which window to share and remembers the answer. Sharing ends when you turn Chat Transcribe off or close VRCT-VOX."
+            desc: "A VRChat window that is native Wayland (for example inside gamescope, or with Wine's Wayland driver) cannot be found by its name. Share it here and Chat Transcribe reads the shared window instead. Your desktop asks which window to share and remembers the answer. Sharing ends when you turn Chat Transcribe off or close VRCT-VOX. When you turn Chat Transcribe on again and no VRChat window is found by its name, the window your desktop remembers is shared again."
             share: "Share a window…"
             share_another: "Choose another window…"
             stop: "Stop sharing"

@@ -23,6 +23,8 @@ import {
 
     useOcr,
     ocrStartErrorKey,
+    ocrShouldRestoreSharedWindow,
+    useOcrSharedWindow,
 
     useAdvancedSettings,
 } from "@logics_configs";
@@ -77,8 +79,9 @@ export const _useBackendErrorHandling = () => {
         updateSpeakerMaxWords,
     } = transcription;
 
-    const { updateTranslationStatus, updateTranscriptionSendStatus, updateTranscriptionReceiveStatus, updateOcrCaptureStatus } = useMainFunction();
+    const { updateTranslationStatus, updateTranscriptionSendStatus, updateTranscriptionReceiveStatus, updateOcrCaptureStatus, setOcrCapture } = useMainFunction();
     const { updateOcrSourceLanguage } = useOcr();
+    const { restore: restoreSharedWindow } = useOcrSharedWindow();
 
     const {
         updateDeepLAuthKey,
@@ -261,7 +264,7 @@ export const _useBackendErrorHandling = () => {
             case "OCR_DISABLED_MODEL_MISSING":
             case "OCR_DISABLED_WINDOW_NOT_FOUND":
             case "OCR_DISABLED_CAPTURE_UNAVAILABLE":
-            case "OCR_DISABLED_UNKNOWN":
+            case "OCR_DISABLED_UNKNOWN": {
                 // 理由ごとに、次に何をすればよいか (モデルのダウンロード、VRChatの起動) を出す
                 if (endpoint === "/set/data/ocr_source_language") {
                     updateOcrSourceLanguage(data);
@@ -269,8 +272,16 @@ export const _useBackendErrorHandling = () => {
                     updateOcrCaptureStatus(data);
                 }
                 // On a Wayland desktop the window may exist and still not be found by name: that notice says how to share it.
-                showNotification_Error(t(ocrStartErrorKey(error_code) ?? OCR_ERROR_KEYS[error_code], { defaultValue: message }), { category_id: error_code });
+                const notify = () => showNotification_Error(t(ocrStartErrorKey(error_code) ?? OCR_ERROR_KEYS[error_code], { defaultValue: message }), { category_id: error_code });
+                // The user turned chat reading on and a window was shared before: share the window the
+                // desktop remembers, then turn chat reading on once more. A second failure is reported.
+                if (endpoint !== "/set/data/ocr_source_language" && ocrShouldRestoreSharedWindow(error_code)) {
+                    Promise.resolve(restoreSharedWindow()).then(shared => shared === true ? setOcrCapture(true) : notify(), notify);
+                    return;
+                }
+                notify();
                 return;
+            }
 
             // ============================================================================
             // ウェイトダウンロード関連エラー (WEIGHT_*)
