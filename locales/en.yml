@@ -205,7 +205,7 @@ backend_errors:
     TRANSCRIPTION_ENGINE_UNAVAILABLE: "The selected speech recognition engine could not start. Check the engine settings, then turn transcription on again."
     WEIGHT_DOWNLOAD_CONSENT_REQUIRED: "{{model}} was not downloaded. Review its license and size in Settings > Translation or Transcription and agree before downloading. If the model version changed, review it again."
     OVERLAY_RUNTIME_FAILED: "The VR overlay stopped after a rendering or capture failure. Check SteamVR and the VR window, then turn the overlay on again."
-    OVERLAY_VR_PANEL_UNSUPPORTED: "The VR UI is only available on Windows for now. Subtitle overlays are not affected."
+    OVERLAY_VR_PANEL_UNSUPPORTED: "The VR UI is not available in this environment. Subtitle overlays are not affected."
     MESSAGE_OUTPUT_FAILED: "The message could not be sent to {{output}}. It was sent to the other outputs. If you resend it, those outputs may receive it twice."
     TRANSLATION_VRAM_ENABLE: "Not enough GPU memory to start AI translation. Choose CPU as the device under Settings → Translation, or close other GPU apps."
     TRANSLATION_DISABLED_VRAM: "Translation was turned off because GPU memory ran out."

@@ -19,5 +19,5 @@ Turn it on with "Overlay(VR)" at the top of the main screen to show translations
 "Show the VR UI" shows a wrist launcher and windows in VR for turning features on and off and for the log, languages and settings. It works separately from the subtitle overlay. If you lose the launcher, press "Reset the launcher position and size"; it returns to your left wrist.
 
 ::: warning Testing status
-VR features have not been tested in depth in VRCT-VOX. In particular, they have not been checked on Linux. The VR UI captures windows with a Windows feature.
+VR features have not been tested in depth in VRCT-VOX. On Linux, the VR UI has only been checked against a simulated SteamVR, not with a real headset.
 :::

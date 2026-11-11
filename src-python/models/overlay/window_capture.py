@@ -51,6 +51,11 @@ class _BITMAPINFOHEADER(ctypes.Structure):
     ]
 
 
+def available() -> bool:
+    """この OS で VR画面を撮影・操作できるか (Windows だけ。Linux は window_capture_linux)。"""
+    return _user32 is not None
+
+
 def findWindow(title: str = VR_PANEL_TITLE) -> Optional[int]:
     hwnd = _user32.FindWindowW(None, title)
     return hwnd or None

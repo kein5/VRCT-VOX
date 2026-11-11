@@ -1679,11 +1679,11 @@ class CaptureJobTest(unittest.TestCase):
 class WindowStreamTakeTest(unittest.TestCase):
     """画面キャプチャの画像から、クライアント領域を切り出す範囲を付けて返す。"""
 
-    def test_linux_native_panel_capture_remains_explicitly_unsupported(self):
+    def test_panel_texture_is_refused_where_the_vr_page_cannot_be_captured(self):
         overlay = Overlay({PANEL: {}})
-        with patch.object(overlay_module, "os", SimpleNamespace(name="posix")), \
+        with patch.object(overlay_module, "vrPanelSupported", return_value=False), \
              patch.dict("sys.modules", {"glfw": None}):
-            with self.assertRaisesRegex(RuntimeError, "Windows only"):
+            with self.assertRaisesRegex(RuntimeError, "not available"):
                 overlay.initPanelTexture()
         self.assertIsNone(overlay.gl)
 

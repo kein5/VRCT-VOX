@@ -12,7 +12,7 @@
 | コード | 分類 | 既定メッセージ | 重大度 | 利用者の対処 | UIの個別処理 |
 |---|---|---|---|---|---|
 | `OVERLAY_RUNTIME_FAILED` | general | The VR overlay stopped after a rendering or capture failure. Check SteamVR and the VR window, then enable it again. | error | 要 | あり |
-| `OVERLAY_VR_PANEL_UNSUPPORTED` | general | The VR UI is only available on Windows for now. Subtitle overlays are not affected. | error |  | あり |
+| `OVERLAY_VR_PANEL_UNSUPPORTED` | general | The VR UI is not available in this environment. Subtitle overlays are not affected. | error |  | あり |
 | `MESSAGE_OUTPUT_FAILED` | general | One message output failed; other outputs continued. Resending may duplicate delivery. | warning |  | あり |
 | `DEVICE_NO_MIC` | device | No mic device detected | error | 要 | あり |
 | `DEVICE_NO_SPEAKER` | device | No speaker device detected | error | 要 | あり |

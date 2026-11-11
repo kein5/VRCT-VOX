@@ -181,7 +181,7 @@ Python sidecarはshell pluginのstdin/stdoutでつなぐ。UIはPythonのHTTPサ
 | コマンド | 呼べるウィンドウ | 働き |
 |---|---|---|
 | `get_font_list` | `main` | システムのフォント名の一覧 |
-| `set_vr_panel_window` | `main` | VRパネルのウィンドウを作る・消す |
+| `set_vr_panel_window` | `main` | VRパネルのウィンドウを作る・消す。Linuxでは、作ったウィンドウを表示せず、中のページをデスクトップに出ない場所へ移してバックエンドへ渡す（[VR画面の受け渡し](use-cases.md)） |
 | `quick_chat_show`、`quick_chat_configure`、`quick_chat_take`、`quick_chat_finish`、`quick_chat_shortcut_platform` | `main` | 小窓を開く、設定を渡す、送信要求を受け取る、結果を返す、ホットキーの登録方法を調べる |
 | `quick_chat_context`、`quick_chat_submit`、`quick_chat_hide` | `quick_chat` | 設定を読む、送信を頼む、隠す |
 | `portal_shortcuts_bind` | `main` | Waylandでホットキーを登録する（180秒で打ち切り） |

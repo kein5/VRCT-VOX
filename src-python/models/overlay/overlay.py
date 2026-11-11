@@ -109,13 +109,20 @@ _COLOR_NORMAL = (1.0, 1.0, 1.0)
 _COLOR_POINTER = (0x61 / 255, 0xB4 / 255, 0xA7 / 255)
 _COLOR_GRABBING = (0xB7 / 255, 0xDE / 255, 0xD8 / 255)
 
+# VR画面の撮影と入力は OS ごとに別の実装。関数の名前と戻り値は同じ
 try:
     from . import overlay_utils as utils
-    from . import window_capture
+    if sys.platform == "linux":
+        from . import window_capture_linux as window_capture
+    else:
+        from . import window_capture
     from .overlay_tooltip import LAUNCHER_SAVED_WIDTH_PX, LAUNCHER_WIDTH_PX, marker_matches, tooltip_mask, validate_tooltip
 except ImportError:
     import overlay_utils as utils
-    import window_capture
+    if sys.platform == "linux":
+        import window_capture_linux as window_capture
+    else:
+        import window_capture
     from overlay_tooltip import LAUNCHER_SAVED_WIDTH_PX, LAUNCHER_WIDTH_PX, marker_matches, tooltip_mask, validate_tooltip
 
 # VR UI: Tauriの "VRCT-VOX VR Panel" ウィンドウ1枚に複数のウィンドウ (ログ・ランチャー) を並べて描き、
@@ -259,8 +266,8 @@ def uvToPixel(u: float, v: float, width: int, height: int) -> tuple:
 
 
 def vrPanelSupported() -> bool:
-    """VR UI を作れる OS か。VR画面の取り込みとポインタの入力に Windows の機能を使う。"""
-    return os.name == "nt"
+    """VR UI を作れるか。Windows は画面外のウィンドウを撮る。Linux は Tauri が VR画面を渡す場所を用意したときだけ。"""
+    return bool(window_capture.available())
 
 
 def raiseThreadPriority() -> None:
@@ -1075,7 +1082,7 @@ class Overlay:
     def initPanelTexture(self) -> None:
         """VRパネル用のOpenGLコンテキストとテクスチャを作る (オーバーレイのスレッドで呼ぶこと)。"""
         if not vrPanelSupported():
-            raise RuntimeError("VR panel capture is Windows only")
+            raise RuntimeError("VR panel capture is not available here")
         import glfw
         from OpenGL import GL
 

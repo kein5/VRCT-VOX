@@ -59,7 +59,7 @@ Linux候補をビルド済みなら、`build/linux/resources/build/speechcpp`を
 
 Windows専用の3依存（PyAudioWPatch、windows-capture、pycaw）は`pyproject.toml`のOS markerで選択する。チャット読み取りのRapidOCRはLinuxにも入る。
 `opencv-python`は`tool.uv.exclude-dependencies`で除き、同じ`cv2`を提供する2種類のOpenCVの同時導入を避ける。
-Linuxのチャット読み取りは、VRChatのウィンドウをX11/XWayland経由で取り込む。Waylandネイティブのウィンドウ、VRヘッドセットの画面、従来ASRの録音、VRパネルのcaptureは未対応。
+Linuxのチャット読み取りは、VRChatのウィンドウをX11/XWayland経由で取り込む。Waylandネイティブのウィンドウ、VRヘッドセットの画面、従来ASRの録音は未対応。
 この手順はPython依存のみを取得し、ASR/TTS/VC重みの取得スクリプトは実行しない。
 Pythonの取得・package通信にはネットワークが必要。システムのGTK/WebKitGTK依存は
 [Tauri公式の準備手順](https://v2.tauri.app/start/prerequisites/)を参照。

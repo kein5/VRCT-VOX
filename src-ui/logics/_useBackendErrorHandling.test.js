@@ -162,7 +162,7 @@ for (const language of ["en", "ja"]) test(`${language}: a VR UI that this system
     await i18n.init({ lng: language, resources: { [language]: { translation } } });
     const s = await loadBridgeRoutes(undefined, i18n);
     s.receiveRoutes({ status: 400, endpoint: "/set/enable/overlay_vr_panel", result: {
-        error_code: "OVERLAY_VR_PANEL_UNSUPPORTED", data: false, message: "The VR UI is only available on Windows for now.",
+        error_code: "OVERLAY_VR_PANEL_UNSUPPORTED", data: false, message: "The VR UI is not available in this environment.",
     } });
     assert.deepEqual(s.notices, [{ type: "error", key: translation.backend_errors.OVERLAY_VR_PANEL_UNSUPPORTED,
         options: { category_id: "OVERLAY_VR_PANEL_UNSUPPORTED" } }]);

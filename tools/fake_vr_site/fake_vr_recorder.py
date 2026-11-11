@@ -8,7 +8,9 @@
 操作 (control.json を書き換えると、次の確認で1回だけ反映する):
     {"aim": {"device": "right", "overlay": "VRCT0", "at": [0.0, 0.0], "distance": 0.4},
      "press": {"right": ["trigger"]}, "release": {"right": ["trigger"]},
+     "stick": {"right": [0.0, -1.0]},
      "steamvr_running": true, "quit": false}
+stick はスティックの傾き (x, y)。離すまで保つので、止めるときは [0, 0] を書く。
 """
 
 from __future__ import annotations
@@ -148,6 +150,8 @@ class Recorder:
             for action in ("press", "release"):
                 for device, buttons in (control.get(action) or {}).items():
                     getattr(vr.devices[_DEVICES[device]], action)(*(_BUTTONS[b] for b in buttons))
+            for device, (x, y) in (control.get("stick") or {}).items():
+                vr.devices[_DEVICES[device]].axes[0] = (float(x), float(y))
         _log(f"control applied: {sorted(control)}")
 
     def write(self) -> None:
