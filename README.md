@@ -13,13 +13,13 @@ VRCT-VOX is a desktop app for VRChat that combines speech recognition (ASR), tex
 
 - **Translated speech.** Speak your chat input and confirmed translations with [speech.cpp](https://github.com/nyosegawa/speech.cpp) TTS (Irodori for Japanese, Qwen3-TTS for other languages) into a virtual microphone that VRChat uses. Voice output and OSC chat text are configured independently, so you can, for example, keep your own voice while translated speech and text are added.
 - **Hear yourself.** Optionally play the same speech on your own speakers or headphones.
-- **Voice conversion.** Convert your microphone with an external RVC or Seed-VC runtime. On Windows the app can fetch the runtime for you after showing its license and size; an NVIDIA GPU is required.
+- **Voice conversion.** Convert your microphone with an external RVC or Seed-VC runtime. On Windows and Linux the app can fetch the runtime for you after showing its license and size; an NVIDIA GPU is required.
 - **Realtime captions.** Transcribe your microphone and other players with bundled speech.cpp ASR servers.
 - **Bundled servers.** Save, start and stop speech.cpp servers from the settings.
 - **Model downloads.** Download fixed Irodori, Qwen3-TTS, Haas-ja (Japanese ASR) and RVC models from Hugging Face. Each download asks for consent after showing its license and size. Files are checked by size and SHA-256 and applied separately. GPU/VRAM guidance suggests standard or lighter variants; it is a guide, not a guarantee.
 - **Linux desktop.** Global shortcuts on Wayland (XDG portal), a managed PipeWire virtual microphone, PipeWire microphone selection, and Japanese input methods (fcitx/Mozc, ibus) in the AppImage.
 
-RVC also needs its runtime, HuBERT and RMVPE. See [model downloads](/docs/voice-stack/model-downloads.md) and, for Windows, [voice features on Windows](/docs/voice-stack/local-setup-windows.md).
+RVC also needs its runtime, HuBERT and RMVPE. See [model downloads](/docs/voice-stack/model-downloads.md), [voice features on Windows](/docs/voice-stack/local-setup-windows.md) and [the Linux setup notes](/docs/voice-stack/local-setup-linux.md).
 
 ## Status and downloads
 
