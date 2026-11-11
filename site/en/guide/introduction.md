@@ -24,6 +24,6 @@ VRCT-VOX is not endorsed by the VRCT authors or VRChat. Send questions and bug r
 
 VRCT-VOX is in beta. Versions count from 0.1.0, separately from VRCT (3.x). Betas are published from the `develop` branch and stable releases from `main`.
 
-The Linux build has been tested with real models on CachyOS (KDE Plasma, Wayland). The Windows build has only been built and package-checked automatically; it has not been tested on a real Windows PC yet.
+The Linux build has been tested with real models on CachyOS (KDE Plasma, Wayland). The Windows build has been tested with real models on a Windows 11 PC.
 
 Next, see [Install](./install).

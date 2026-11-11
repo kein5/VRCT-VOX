@@ -44,8 +44,8 @@ AppImageとtar.gzのどちらで起動しても、同じ場所を使います。
 | ZIP（CPU版） | `VRCT-VOX.zip` |
 | ZIP（CUDA版） | `VRCT-VOX_cuda.zip` |
 
-::: warning Windows版はまだ実機で試していません
-Windows版は自動ビルドと配布物の検査を通ったものです。実際のWindowsのPCでの動作はまだ確かめていません。また、コード署名をしていないため、初めて起動するときにSmartScreenの警告が出ます。
+::: warning 初めて起動するときにSmartScreenの警告が出ます
+Windows版はコード署名をしていないため、初めて起動するときにSmartScreenの警告が出ます。
 :::
 
 ## ダウンロードを確かめる
