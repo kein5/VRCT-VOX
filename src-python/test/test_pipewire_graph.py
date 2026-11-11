@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from models.audio_routing import devices_windows
 from models.audio_routing import pipewire_graph as pg
 from models.audio_routing import pipewire_gate as gate_module
 from models.audio_routing import source_bridge as bridge_module
@@ -201,12 +202,17 @@ def test_shutdown_reaps_with_users_and_prevents_restart(shared):
 
 def test_non_linux_reads_never_launch(monkeypatch, shared):
     _, backend = shared
+    # Windows lists its own endpoints instead of refusing; it must not reach PipeWire either.
+    monkeypatch.setattr(devices_windows, 'enumerate_endpoints', lambda source: [])
     for platform in ('win32', 'darwin'):
         monkeypatch.setattr(pg.sys, 'platform', platform)
         with pytest.raises(RuntimeError, match='managed_route_linux_only'):
             gate_module.PipeWireGate().inspect_pair()
-        with pytest.raises(RuntimeError, match='source_bridge_linux_only'):
-            bridge_module.enumerate_sources()
+        if platform == 'win32':
+            assert bridge_module.enumerate_sources() == []
+        else:
+            with pytest.raises(RuntimeError, match='source_bridge_linux_only'):
+                bridge_module.enumerate_sources()
         with pytest.raises(RuntimeError, match='source_bridge_graph_unavailable'):
             bridge_module._read_graph()
     assert not backend.children
