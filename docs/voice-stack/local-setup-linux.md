@@ -46,6 +46,7 @@ python tools/speechcpp_bundle.py --variant linux-x64-vulkan --archive /path/to/s
 
 `build_voice_gate.py`は、`build/vrct-voice-gate`、`vrct-source-bridge`、`vrct-vc-worker`、`vrct-asr-capture`をビルドする。`libpipewire-0.3-dev`が必要。
 `vrct-vc-worker`がないと、同梱サーバーの起動は`speech_server_launch_failed`で止まる。
+`vrct-vc-worker`は推論デバイスとして、`auto`、`cpu`、`gpu`と、`speech devices`が表示するGPUの名前（`Vulkan0`など）を受け付ける。設定でGPUを名前で選ぶ機能より前にビルドしたヘルパーは名前を拒否するので、作り直す。
 
 `speechcpp_bundle.py`は、版とSHA-256を固定した書庫から、`speech`本体と同梱のライセンス文書を`build/speechcpp`に置く。
 書庫が手元になければ、`--archive`の代わりに`--download`を指定すると取得する。通信するのは`--download`を指定したときだけ。
