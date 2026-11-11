@@ -1,4 +1,6 @@
-use tauri::{Manager, PhysicalPosition, Runtime, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+#[cfg(not(target_os = "linux"))]
+use tauri::PhysicalPosition;
+use tauri::{Manager, Runtime, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::{Error, Write};
 use std::path::{Path, PathBuf};
@@ -7,6 +9,8 @@ mod quick_chat;
 mod single_instance;
 #[cfg(target_os = "linux")]
 mod portal_shortcuts;
+#[cfg(target_os = "linux")]
+mod vr_panel_surface;
 #[cfg(not(target_os = "linux"))]
 mod portal_shortcuts {
     //! The XDG GlobalShortcuts portal exists only on Linux desktops.
@@ -23,9 +27,9 @@ mod portal_shortcuts {
 // 隠れたウィンドウの描画停止を無効にする (VRパネルは画面外に置いて撮影するため)。
 const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --disable-renderer-backgrounding";
 
-// VRオーバーレイに映す画面。Python側 (models/overlay) がタイトルで見つけて撮影・入力する。
+// VRオーバーレイに映す画面。Python側 (models/overlay) が撮影・入力する (Windows はタイトルで見つける)。
 // VR UI が ON の間だけ作る (set_vr_panel_window)。OFF の間も動かしておくと、使わない人にも負荷がかかる
-fn create_vr_panel_window<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Result<()> {
+fn create_vr_panel_window<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Result<tauri::WebviewWindow<R>> {
     let window = WebviewWindowBuilder::new(manager, "vr_panel", WebviewUrl::App("vr.html".into()))
         .title("VRCT-VOX VR Panel")
         // 既定の並び (src-ui/views/vr/vr_layout.json の atlas)。ログの大きさを変えると Python が合わせて変える
@@ -38,10 +42,14 @@ fn create_vr_panel_window<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Resu
         .additional_browser_args(BROWSER_ARGS)
         .build()?;
     // 画面外に置く。Windows ではビルダーの .position() が効かず既定の位置 (画面内) に出るため、
-    // 作ってから動かし、動かした後で表示する (撮影のため、表示状態で画面外に置いておく)
-    window.set_position(PhysicalPosition::new(-10000, -10000))?;
-    window.show()?;
-    Ok(())
+    // 作ってから動かし、動かした後で表示する (撮影のため、表示状態で画面外に置いておく)。
+    // Linux ではウィンドウを表示せず、中のページだけを画面に出ない場所へ移す (vr_panel_surface)。
+    #[cfg(not(target_os = "linux"))]
+    {
+        window.set_position(PhysicalPosition::new(-10000, -10000))?;
+        window.show()?;
+    }
+    Ok(window)
 }
 
 fn startup_log_path(executable_path: &Path) -> PathBuf {
@@ -84,6 +92,11 @@ fn startup_log(message: &str) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     startup_log("VRCT startup began");
+    // Before the backend starts: it learns from its environment where the VR page will be served.
+    #[cfg(target_os = "linux")]
+    if vr_panel_surface::prepare().is_none() {
+        startup_log("VR panel surface unavailable: no runtime directory");
+    }
     let context = tauri::generate_context!();
     #[cfg(target_os = "linux")]
     let context = {
@@ -165,6 +178,8 @@ pub fn run() {
             quick_chat::quick_chat_show, quick_chat::quick_chat_shortcut_platform,
             portal_shortcuts::portal_shortcuts_bind])
         .run(context);
+    #[cfg(target_os = "linux")]
+    vr_panel_surface::cleanup();
     match result {
         Ok(()) => startup_log("VRCT event loop ended"),
         Err(error) => {
@@ -190,11 +205,25 @@ async fn set_vr_panel_window(window: tauri::WebviewWindow, app: tauri::AppHandle
     }
     let _guard = VR_PANEL_LOCK.lock().await;
     match (open, app.get_webview_window("vr_panel")) {
-        (true, None) => create_vr_panel_window(&app).map_err(|error| {
-            startup_log(&format!("VR panel window creation failed: {error}"));
-            error.to_string()
-        }),
+        (true, None) => {
+            let created = create_vr_panel_window(&app).map_err(|error| {
+                startup_log(&format!("VR panel window creation failed: {error}"));
+                error.to_string()
+            })?;
+            #[cfg(target_os = "linux")]
+            if let Err(error) = vr_panel_surface::attach(&created).await {
+                startup_log(&format!("VR panel surface failed: {error}"));
+                vr_panel_surface::detach(&app).await;
+                let _ = created.destroy();
+                return Err(error);
+            }
+            #[cfg(not(target_os = "linux"))]
+            let _ = created;
+            Ok(())
+        }
         (false, Some(window)) => {
+            #[cfg(target_os = "linux")]
+            vr_panel_surface::detach(&app).await;
             window.destroy().map_err(|error| error.to_string())?;
             // 消えるのを待つ (最大2秒)。待たずに戻ると、次の ON がまだ残っているウィンドウを見てしまう
             for _ in 0..40 {

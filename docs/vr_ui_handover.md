@@ -670,3 +670,14 @@ epochは現在のOverlay生成時にrandom47bitで始まり、その同じinstan
 - 戻す限度 (15cm / 0.12〜1.0m) は、掴んで拡大縮小できる範囲 (0.05〜3.0m) より狭い。広げて放すと戻るのは意図どおりだが、掴み中に警告は出ない。違和感が出たら限度を調整する。
 - 掴んでいる・大きさを変えている・起動演出で飛ばしている間の依頼は、終わるまで待つ。吸い寄せ中の再依頼は続ける。手首 (コントローラ) が繋がっていないと位置を戻せないので、繋がるまで隠す。
 - 実機で確認する: 吸い寄せの動きの見え方、掴んで遠くへ置いて放したとき・ボタンで戻したときの両方、右手に付けていたときの戻り先（左手）。
+
+## 24. Linux での VR UI（2026-11-11・Claude Code）
+
+- **仕組み**: Wayland では、ウィンドウを画面外に置くことも、ほかのウィンドウを撮ることもできない。Tauri が VR画面の WebView を `GtkOffscreenWindow` へ移し（`src-tauri/src/vr_panel_surface.rs`）、描き直し（`damage-event`）のたびに画素を `$XDG_RUNTIME_DIR/vrct-vox/vr-panel-<pid>/frame` へ書く（33ms に1回まで）。バックエンドは `models/overlay/window_capture_linux.py` でそれを読み、ポインタの操作を同じ場所の `input.sock` へ送る。Tauri はそれを GDK のイベントにして WebKit へ渡すので、ホバーや押下の見た目も Windows と同じに出る。場所は起動時に決め、環境変数 `VRCT_VR_PANEL_DIR` でバックエンドへ渡す。関数の名前と戻り値は Windows の `window_capture.py` と同じで、overlay.py は OS で読み込む実装を切り替えるだけ。
+- **確定した罠**:
+  - `GtkOffscreenWindow` には OpenGL の描画先がない。WebKitGTK（2.54）は GPU で合成するページをここへ入れると、`GDK is not able to create a GL context` で**アプリごと**終了する。ハードウェアアクセラレーションの設定（`hardware-acceleration-policy`）を NEVER にしても、すでに動いている Web プロセスには効かない。Tauri はウィンドウを作ると同時に読み込みを始めるので、設定を変えたあとで Web プロセスを終了し、移してから読み込み直す（VR UI を ON にするたびに VR画面を2回読み込む）。
+  - Web プロセスの終了は、WebKit の WebDriver には「ページのクラッシュ」に見え、セッションが切れる。VR UI を ON にする試験は WebDriver を使えない。
+  - Unix ソケットのパスは107バイトまで。`$XDG_RUNTIME_DIR` の下に置く。
+  - 画像は表示倍率にかかわらず論理ピクセルで書く（並びの計算が論理ピクセルのため）。倍率が1でないディスプレイでは縮小されるので、文字がぼやける可能性がある（未確認）。
+- **試験**: ヘッドセットなしで `tests/platform/test_native_vr_ui.py` を実行する（`VRCT_TEST_NATIVE_GUI=1`、`VRCT_TEST_APP` に UI を埋め込んだビルド）。偽の SteamVR（`tools/fake_vr_site`）へ渡ったオーバーレイの画像を見て、偽のコントローラ（`control.json`。スティックの傾きは `stick`）で操作する。
+- **実機で確認が残る項目**: 実際の SteamVR（Linux）が OpenGL のテクスチャを受け取るか、ヘッドセットでの見え方と遅れ、表示倍率が1でないディスプレイ、GNOME・X11 のセッション、AppImage。

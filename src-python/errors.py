@@ -319,7 +319,7 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
     },
     ErrorCode.OVERLAY_VR_PANEL_UNSUPPORTED: {
         "category": ErrorCategory.GENERAL,
-        "message": "The VR UI is only available on Windows for now. Subtitle overlays are not affected.",
+        "message": "The VR UI is not available in this environment. Subtitle overlays are not affected.",
         "severity": "error",
         "user_action_required": False,
     },
