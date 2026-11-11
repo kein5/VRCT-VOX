@@ -212,7 +212,7 @@ export const { atomInstance: Atom_OcrCaptureStatus, useHook: useStore_OcrCapture
 export const { atomInstance: Atom_ForegroundStatus, useHook: useStore_ForegroundStatus } = createAtomWithHook(false, "ForegroundStatus", {is_state_ok: true});
 // Linux (Wayland): the window the user shares with chat reading. See logics/configs/ocrSharedWindow.js.
 export const { atomInstance: Atom_OcrSharedWindow, useHook: useStore_OcrSharedWindow } = createAtomWithHook(
-    { supported: null, active: false, busy: false, error: null }, "OcrSharedWindow", {is_state_ok: true});
+    { supported: null, active: false, busy: false, error: null, restoring: false }, "OcrSharedWindow", {is_state_ok: true});
 
 export const { atomInstance: Atom_SelectedPresetTabNumber, useHook: useStore_SelectedPresetTabNumber } = createAtomWithHook("1", "SelectedPresetTabNumber");
 export const { atomInstance: Atom_LanguageMutation, useHook: useStore_LanguageMutation } = createAtomWithHook(

@@ -6,7 +6,8 @@
 // chat reading on, no VRChat window is found by its name, and the desktop still
 // remembers the window shared before (`restore`). Never at start-up.
 
-export const INITIAL_SHARED_WINDOW = Object.freeze({ supported: null, active: false, busy: false, error: null });
+// `restoring`: the remembered window is being shared again because chat reading was turned on.
+export const INITIAL_SHARED_WINDOW = Object.freeze({ supported: null, active: false, busy: false, error: null, restoring: false });
 
 // Codes after which the token that was sent is used up: the desktop showed its
 // dialog instead of restoring (and the user cancelled), or refused the request.
@@ -64,6 +65,11 @@ const RESTORABLE_START_ERRORS = ["OCR_DISABLED_WINDOW_NOT_FOUND", "OCR_DISABLED_
 export const shouldRestoreSharing = (error_code, state, token) => RESTORABLE_START_ERRORS.includes(error_code)
     && state?.supported === true && state.active !== true && state.busy !== true
     && typeof token === "string" && token !== "";
+
+// While the remembered window is being shared again, chat reading's switch keeps waiting: the
+// failed start that set this off has already put it back to off, and the second start has not
+// been sent yet. Without this the switch would read "off" until the desktop answers.
+export const shouldHoldSwitch = (state, settled, on) => state?.restoring === true && settled === true && on === false;
 
 // Turning chat reading off ends the sharing. A start that failed never was "on",
 // and waiting for the backend's answer (pending) changes nothing.
@@ -126,10 +132,12 @@ export const createSharedWindowActions = ({ invoke, read, write, token, saveToke
             const saved = token() ?? "";
             if (read()?.busy || !saved) return false;
             const timer = later(() => { invoke("screencast_stop").catch(() => { /* already answered */ }); }, limit);
+            patch({ restoring: true });
             try {
                 return await start(saved, saved);
             } finally {
                 cancel(timer);
+                patch({ restoring: false });
             }
         },
         stop: async () => {

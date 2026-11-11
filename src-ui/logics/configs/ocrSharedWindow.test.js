@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import {
     createSharedWindowActions, endedNotice, INITIAL_SHARED_WINDOW, nextRestoreToken, RESTORE_LIMIT_MS, shareErrorKey,
-    sharedWindowView, shouldRestoreSharing, shouldStopSharing, startErrorKey,
+    sharedWindowView, shouldHoldSwitch, shouldRestoreSharing, shouldStopSharing, startErrorKey,
 } from "./ocrSharedWindow.js";
 
 const locale = name => yaml.load(readFileSync(new URL(`../../../locales/${name}.yml`, import.meta.url), "utf8"));
@@ -86,7 +86,7 @@ test("sharing sends the saved token and keeps the new one", async () => {
     await actions.share();
     assert.deepEqual(page.calls, [["screencast_start", { restoreToken: "old" }]]);
     assert.deepEqual(page.saved, ["new"]);
-    assert.deepEqual(page.state, { supported: true, active: true, busy: false, error: null });
+    assert.deepEqual(page.state, { supported: true, active: true, busy: false, error: null, restoring: false });
 });
 
 test("the first sharing has no token to send, and an unchanged token is not saved again", async () => {
@@ -112,7 +112,7 @@ test("a cancelled dialog leaves no error, and spends only a token that was sent"
     const restored = harness({ token: "old", state: { supported: true }, commands });
     await restored.actions.share();
     assert.deepEqual(restored.page.saved, [""]);
-    assert.deepEqual(restored.page.state, { supported: true, active: false, busy: false, error: "portal_cancelled" });
+    assert.deepEqual(restored.page.state, { supported: true, active: false, busy: false, error: "portal_cancelled", restoring: false });
     assert.equal(sharedWindowView(restored.page.state).errorKey, null);
     // "Choose another window…" sent no token, so the saved one still restores the earlier window.
     const chosen = harness({ token: "old", state: { supported: true, active: true }, commands });
@@ -139,7 +139,7 @@ test("a second press while the dialog is open asks nothing", async () => {
 test("refresh and stop report what the app says", async () => {
     const { page, actions } = harness({ commands: { screencast_support: { supported: true, active: true } } });
     await actions.refresh();
-    assert.deepEqual(page.state, { supported: true, active: true, busy: false, error: null });
+    assert.deepEqual(page.state, { supported: true, active: true, busy: false, error: null, restoring: false });
     await actions.stop();
     assert.deepEqual(page.calls.at(-1), ["screencast_stop", undefined]);
     assert.equal(page.state.active, false);
@@ -252,6 +252,7 @@ test("a desktop that asks instead of restoring is given a limit, then the reques
     const restoring = actions.restore({ limit: 5000 });
     await Promise.resolve();
     assert.equal(page.state.busy, true);
+    assert.equal(page.state.restoring, true);
     assert.equal(timers[0].ms, 5000);
     timers[0].run();
     assert.equal(await restoring, false);
@@ -260,6 +261,7 @@ test("a desktop that asks instead of restoring is given a limit, then the reques
     assert.deepEqual(page.saved, [""]);
     assert.equal(page.state.active, false);
     assert.equal(page.state.busy, false);
+    assert.equal(page.state.restoring, false);
     // Withdrawing is not an error to show in the settings.
     assert.equal(sharedWindowView(page.state).errorKey, null);
 });
@@ -270,4 +272,16 @@ test("a failed restore leaves the reason in the settings and the token for the n
     assert.equal(await actions.restore(), false);
     assert.deepEqual(page.saved, []);
     assert.equal(sharedWindowView(page.state).errorKey, "config_page.ocr.shared_window.error_timeout");
+});
+
+test("chat reading's switch waits only while the remembered window is being shared again", () => {
+    const restoring = { ...INITIAL_SHARED_WINDOW, supported: true, busy: true, restoring: true };
+    // The failed first start has put the switch back to off: hold it.
+    assert.equal(shouldHoldSwitch(restoring, true, false), true);
+    // Already waiting, or on: nothing to hold.
+    assert.equal(shouldHoldSwitch(restoring, false, false), false);
+    assert.equal(shouldHoldSwitch(restoring, true, true), false);
+    // The button in the settings does not touch the switch.
+    assert.equal(shouldHoldSwitch({ ...restoring, restoring: false }, true, false), false);
+    assert.equal(shouldHoldSwitch(null, true, false), false);
 });
