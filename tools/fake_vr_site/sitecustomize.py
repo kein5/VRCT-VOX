@@ -20,6 +20,10 @@ def _activate() -> None:
     root = Path(__file__).resolve().parents[2]
     # models.process_check を mainloop より先に読み込んで差し替えるため、src-python を先に足す
     sys.path.insert(0, str(root / "src-python"))
+    # 偽物は numpy を使う。製品は numpy を読み込む前に OpenBLAS のスレッド数を決める (mainloop.py) ので、
+    # ここでも先に決める。そうしないと、偽物をつないだときだけ OpenBLAS の待機スレッドが CPU を使い続ける
+    import runtime_paths
+    runtime_paths.limit_blas_threads()
     spec = importlib.util.spec_from_file_location("fake_openvr", root / "src-python/test/fake_openvr.py")
     fake_openvr = importlib.util.module_from_spec(spec)
     sys.modules["fake_openvr"] = fake_openvr

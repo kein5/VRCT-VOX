@@ -75,6 +75,24 @@ def limit_openmp_spinning():
             _backend_only_env.add(name)
 
 
+def limit_blas_threads():
+    """Keep numpy's OpenBLAS from starting worker threads in the backend.
+
+    The backend's only linear algebra is on 4x4 matrices (the overlay's poses), where
+    one thread is as fast as many. OpenBLAS still starts a worker per core, and each
+    worker spins in sched_yield for a while after every call. The VR overlay makes such
+    a call on every pass, so the workers never get to sleep: with the overlay running
+    on Linux (subtitles alone, 24 logical cores), three threads stayed at 97% CPU each.
+    With one thread there are no workers and nothing spins.
+
+    Call this before numpy loads. A value the user set is kept. Programs the backend
+    starts (voice conversion runtimes with their own numpy and Torch) do not get it.
+    """
+    if "OPENBLAS_NUM_THREADS" not in os.environ:
+        os.environ["OPENBLAS_NUM_THREADS"] = "1"
+        _backend_only_env.add("OPENBLAS_NUM_THREADS")
+
+
 def external_process_env():
     env = dict(os.environ)
     for name in _backend_only_env:

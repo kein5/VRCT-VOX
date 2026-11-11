@@ -7,8 +7,10 @@ import startup_timing
 from models.network_policy import scrub_network_environment
 scrub_network_environment()
 
-from runtime_paths import bootstrap_linux_frozen
+from runtime_paths import bootstrap_linux_frozen, limit_blas_threads
 bootstrap_linux_frozen()
+# Before anything imports numpy.
+limit_blas_threads()
 
 # The frozen sidecar doubles as the fixed lightweight transport entry. Dispatch
 # before importing Controller, UI services or their long-lived object graphs.
