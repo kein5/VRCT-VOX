@@ -1,6 +1,6 @@
 #[cfg(not(target_os = "linux"))]
 use tauri::PhysicalPosition;
-use tauri::{Manager, Runtime, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{Manager, RunEvent, Runtime, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::{Error, Write};
 use std::path::{Path, PathBuf};
@@ -10,7 +10,28 @@ mod single_instance;
 #[cfg(target_os = "linux")]
 mod portal_shortcuts;
 #[cfg(target_os = "linux")]
+mod portal_screencast;
+#[cfg(target_os = "linux")]
 mod vr_panel_surface;
+#[cfg(not(target_os = "linux"))]
+mod portal_screencast {
+    //! Sharing a window through the XDG ScreenCast portal exists only on Linux desktops.
+    #[derive(Default)]
+    pub struct Screencast;
+    #[tauri::command]
+    pub fn screencast_support() -> serde_json::Value {
+        serde_json::json!({ "supported": false, "active": false })
+    }
+    #[tauri::command]
+    pub fn screencast_start() -> Result<(), String> {
+        Err("screencast_unavailable".into())
+    }
+    #[tauri::command]
+    pub fn screencast_stop() -> Result<(), String> {
+        Ok(())
+    }
+    pub fn shutdown<R: tauri::Runtime>(_app: &tauri::AppHandle<R>) {}
+}
 #[cfg(not(target_os = "linux"))]
 mod portal_shortcuts {
     //! The XDG GlobalShortcuts portal exists only on Linux desktops.
@@ -172,12 +193,21 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(quick_chat::QuickChatState::default())
         .manage(portal_shortcuts::PortalShortcuts::default())
+        .manage(portal_screencast::Screencast::default())
         .invoke_handler(tauri::generate_handler![get_font_list, set_vr_panel_window, main_window_restore,
             quick_chat::quick_chat_context, quick_chat::quick_chat_configure, quick_chat::quick_chat_submit,
             quick_chat::quick_chat_take, quick_chat::quick_chat_finish, quick_chat::quick_chat_hide,
             quick_chat::quick_chat_show, quick_chat::quick_chat_shortcut_platform,
-            portal_shortcuts::portal_shortcuts_bind])
-        .run(context);
+            portal_shortcuts::portal_shortcuts_bind,
+            portal_screencast::screencast_support, portal_screencast::screencast_start,
+            portal_screencast::screencast_stop])
+        .build(context)
+        .map(|app| app.run(|app, event| {
+            // A shared window must not stay shared after the app is gone.
+            if let RunEvent::Exit = event {
+                portal_screencast::shutdown(app);
+            }
+        }));
     #[cfg(target_os = "linux")]
     vr_panel_surface::cleanup();
     match result {

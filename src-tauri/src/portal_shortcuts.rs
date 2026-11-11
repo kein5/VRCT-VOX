@@ -22,18 +22,18 @@ use zbus::{Connection, MatchRule, MessageStream, Proxy};
 // zbus is pinned; its macro support re-export avoids adding a new dependency.
 use zbus::export::futures_core::Stream;
 #[path = "portal_shortcut_worker.rs"]
-mod worker;
+pub(crate) mod worker;
 use worker::{Backend, Mailbox, Operation, Worker};
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
 /// Must match a desktop file the portal can find; see `ensure_desktop_file`.
-const APP_ID: &str = "io.github.kein5.vrct-vox";
-const DESTINATION: &str = "org.freedesktop.portal.Desktop";
-const DESKTOP: &str = "/org/freedesktop/portal/desktop";
+pub(crate) const APP_ID: &str = "io.github.kein5.vrct-vox";
+pub(crate) const DESTINATION: &str = "org.freedesktop.portal.Desktop";
+pub(crate) const DESKTOP: &str = "/org/freedesktop/portal/desktop";
 const INTERFACE: &str = "org.freedesktop.portal.GlobalShortcuts";
 /// The desktop's own portal processes (`...desktop.kde`, `...desktop.gnome`). They hold the
 /// dialog and the key grabs; the frontend keeps its name and our session when one restarts.
-const BACKENDS: &str = "org.freedesktop.impl.portal.desktop";
+pub(crate) const BACKENDS: &str = "org.freedesktop.impl.portal.desktop";
 const MARKER: &str = "X-VRCT-VOX-Generated=true";
 /// The desktop may show a confirmation dialog while binding.
 const BIND_TIMEOUT: Duration = Duration::from_secs(180);
@@ -67,7 +67,7 @@ struct Activation {
     activation_token: Option<String>,
 }
 
-fn failure(code: &str) -> impl Fn(zbus::Error) -> String + '_ {
+pub(crate) fn failure(code: &str) -> impl Fn(zbus::Error) -> String + '_ {
     move |_| code.to_owned()
 }
 
@@ -175,7 +175,7 @@ fn quote(path: &str) -> String {
 
 /// The portal identifies a host app only by an installed desktop file. Write
 /// one for this executable unless a packager or the user already provides it.
-fn ensure_desktop_file() -> Result<(), String> {
+pub(crate) fn ensure_desktop_file() -> Result<(), String> {
     let data = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())
@@ -226,7 +226,7 @@ struct Portal {
     retired: bool,
 }
 
-async fn next<S: Stream + Unpin>(stream: &mut S) -> Option<S::Item> {
+pub(crate) async fn next<S: Stream + Unpin>(stream: &mut S) -> Option<S::Item> {
     poll_fn(|context| Pin::new(&mut *stream).poll_next(context)).await
 }
 
@@ -472,7 +472,7 @@ impl Drop for Portal {
 
 /// Whether a `NameOwnerChanged` means the portal that holds our shortcuts went away or was
 /// replaced. A name that only appears (no old owner) took nothing with it.
-fn portal_owner_lost(name: &str, old_owner: &str) -> bool {
+pub(crate) fn portal_owner_lost(name: &str, old_owner: &str) -> bool {
     let backend = name.strip_prefix(BACKENDS).is_some_and(|rest| rest.is_empty() || rest.starts_with('.'));
     (name == DESTINATION || backend) && !old_owner.is_empty()
 }
