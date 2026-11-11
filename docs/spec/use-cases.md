@@ -84,7 +84,7 @@
 ## UC-07 自分の声を変換してVRChatに流す
 
 - きっかけ: RVCのページで実行環境とモデルを用意し、「入力の転送を開始」を押す。
-- 主な流れ: 選んだマイクの声をRVCで変換し、仮想マイク（Windowsでは出力デバイス）へ流す。読み上げとは独立して動く。Windowsでは、RVCのページから実行環境を取得できる。
+- 主な流れ: 選んだマイクの声をRVCで変換し、仮想マイク（Windowsでは出力デバイス）へ流す。読み上げとは独立して動く。WindowsとLinux（x86-64）では、RVCのページから実行環境を取得できる。
 - 関係: `/run/start_direct_voice`、`/run/stop_direct_voice`、`docs/superpowers/specs/2026-10-29-rvc-integration-design.md`。
 
 ## UC-08 声と読み上げをすぐ止める
@@ -111,8 +111,8 @@
 ## UC-11 モデルを取得する
 
 - きっかけ: TTS、音声認識、RVCのページ、またはVRChatページのチャット読み取りで「取得内容を確認」を押す。
-- 主な流れ: 提供元、サイズ、ライセンス、保存先を見て、同意にチェックして開始する。進み具合を表示し、完了後に検証する。使うモデルとして反映するのは別の操作である。Windowsでは、RVCとSeed-VCの実行環境も同じ流れで取得する。中止や失敗のあとは、終わった手順を飛ばして再開する。
-- 関係: `/run/start_model_download`、`/get/data/model_download_state`、`/run/start_vc_runtime_setup`、`/get/data/vc_runtime_state`、`docs/voice-stack/model-downloads.md`、`docs/voice-stack/local-setup-windows.md`。
+- 主な流れ: 提供元、サイズ、ライセンス、保存先を見て、同意にチェックして開始する。進み具合を表示し、完了後に検証する。使うモデルとして反映するのは別の操作である。WindowsとLinux（x86-64）では、RVCとSeed-VCの実行環境も同じ流れで取得する。中止や失敗のあとは、終わった手順を飛ばして再開する。
+- 関係: `/run/start_model_download`、`/get/data/model_download_state`、`/run/start_vc_runtime_setup`、`/get/data/vc_runtime_state`、`docs/voice-stack/model-downloads.md`、`docs/voice-stack/local-setup-windows.md`、`docs/voice-stack/local-setup-linux.md`。
 
 ## UC-12 設定を変えて保存する、またはやめる
 

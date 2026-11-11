@@ -5,7 +5,7 @@ Converts your microphone with an RVC or Seed-VC runtime you prepare, and sends i
 ![Settings → RVC](/screenshots/en/rvc.webp)
 
 ::: tip On Windows
-To reach VRChat, install a virtual cable such as VB-CABLE. Choose its playback end as the output device, and its recording end as VRChat's microphone. You can fetch the runtime from the settings page. An NVIDIA GPU is required.
+To reach VRChat, install a virtual cable such as VB-CABLE. Choose its playback end as the output device, and its recording end as VRChat's microphone.
 :::
 
 ## RVC
@@ -20,7 +20,11 @@ An RVC model alone is not enough. You also need:
 - HuBERT and RMVPE
 - a trained model you are allowed to use (`.pth`) and, if needed, its retrieval index (`.index`)
 
-How to set up the runtime is in [integrations/rvc/README.md](https://github.com/kein5/VRCT-VOX/blob/develop/integrations/rvc/README.md) in the repository. The app does not download these for you.
+The settings page can fetch the runtime, HuBERT and RMVPE. Under "RVC runtime", press "Review download", check the license, size and destination, and agree. Nothing is downloaded before you agree. When it finishes, press "Use this runtime" and save.
+
+Fetching needs an NVIDIA GPU and its driver. Expect a download of about 3.6 GB and 12 GB of free space on Windows, and about 4.9 GB and 16 GB on Linux.
+
+To build the runtime yourself, see [integrations/rvc/README.md](https://github.com/kein5/VRCT-VOX/blob/develop/integrations/rvc/README.md) in the repository.
 
 As a default model, you can get Saisho Utane's RVC v2 model (CC BY 4.0, about 0.31 GiB) with "Download a default model". Credit the author when you use it in published work or streams.
 
@@ -34,7 +38,7 @@ As a default model, you can get Saisho Utane's RVC v2 model (CC BY 4.0, about 0.
 
 ## Seed-VC
 
-Under Settings → "Advanced" → "Input forwarding", set "Direct voice mode" to "Voice conversion (experimental)". Enter the Seed-VC runtime and a reference WAV you are allowed to use.
+Under Settings → "Advanced" → "Input forwarding", set "Direct voice mode" to "Voice conversion (experimental)". Enter the Seed-VC runtime and a reference WAV you are allowed to use. "Seed-VC runtime" on the same page can fetch the runtime: about 5 GB and 14 GB of free space on Windows, and about 6.4 GB and 18 GB on Linux.
 
 Seed-VC is a GPL-3.0 engine and needs a supported NVIDIA GPU.
 

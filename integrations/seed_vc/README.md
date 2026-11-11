@@ -22,7 +22,10 @@ On Windows the app sets up this runtime after consent; see the
 then picks the lightest fit from `graphs.LIGHTER` if a block would still run late.
 Linux has not been tried with them.
 
-Elsewhere, use an isolated **Linux x86-64 Python 3.11** environment with uv. The lock is
+On Linux (x86-64) the app sets the runtime up the same way from `requirements.lock`; see
+the [Linux notes](../../docs/voice-stack/local-setup-linux.md).
+
+To build it by hand, use an isolated **Linux x86-64 Python 3.11** environment with uv. The lock is
 platform-specific; it pins the three CUDA wheels by official URL/hash and the
 remaining dependencies by version/hash. Do not subsequently install upstream's
 original requirements, which request torch 2.4 while naming the CUDA 12.8 index.

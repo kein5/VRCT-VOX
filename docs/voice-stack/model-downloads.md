@@ -58,7 +58,7 @@ RVCのmetadataはv2/48 kHz/f0=1。初期の短時間試験後、長めのミュ�
 
 修正版AppImage `b8050d10c7243da5d57dda92d09784912947ad6516eccde152d11e4ef3bb4fe0` の `native-rvc-fixed-strict-3` は1 PASS（45.82秒）。ミュート中の全合成音声入力（非ゼロ138フレーム）に対し出力増分0、入力完了後の新鮮な稼働状態と同じgenerationを確認。解除後にも別の全入力を完了し、第三の入力中の停止と再起動OFFを確認した。無音判定はS16絶対値64以下、停止後2秒継続であり、全バイトゼロや知覚的な音質を確認した試験とは区別する。詳細は[実機検証記録](model-downloads-integration-report.md)を参照。
 
-RVC音声モデル/indexだけでは動作しない。別途runtimeのengine、Python環境、HuBERT設定/重み、RMVPEが必要（integrations/rvc/README.md参照）。この取得機能はruntimeを入れず、pickleも読まない。Windowsでは別の同意画面からruntimeを取得できる（`models/voice_conversion/runtime_setup.py`、[Windowsの音声機能](local-setup-windows.md)）。
+RVC音声モデル/indexだけでは動作しない。別途runtimeのengine、Python環境、HuBERT設定/重み、RMVPEが必要（integrations/rvc/README.md参照）。この取得機能はruntimeを入れず、pickleも読まない。WindowsとLinux（x86-64）では別の同意画面からruntimeを取得できる（`models/voice_conversion/runtime_setup.py`、[Windowsの音声機能](local-setup-windows.md)、[Linuxの手順](local-setup-linux.md#rvcとseed-vcの実行環境)）。
 
 ## GPU・空きVRAMによる案内
 
