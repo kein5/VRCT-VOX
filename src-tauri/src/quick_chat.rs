@@ -317,7 +317,7 @@ fn wayland_session() -> bool {
             || std::env::var("XDG_SESSION_TYPE").as_deref() == Ok("wayland"))
 }
 
-fn native_wayland() -> bool {
+pub(crate) fn native_wayland() -> bool {
     wayland_session() && std::env::var("GDK_BACKEND").as_deref() != Ok("x11")
 }
 

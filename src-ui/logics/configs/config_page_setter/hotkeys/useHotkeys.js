@@ -21,6 +21,10 @@ const shortcutPlatform = () => {
 };
 let portalHandler = null;
 let portalPaused = true; // Like the plugin's unregisterAll while settings are open.
+// A Wayland client is never told that it is minimized, so isMinimized() stays false there.
+// Remember that the hotkey minimized the window; getting the focus back means it is up again.
+let minimizedByHotkey = false;
+let focusWatch = null;
 let registrationGeneration = 0;
 let registrationOwner = null;
 let disposed = false;
@@ -127,13 +131,21 @@ export const useHotkeys = () => {
                 break;
             }
             case "toggle_vrct_visibility": {
-                const minimized = await appWindow.isMinimized();
+                const wayland = await currentPlatform() === "wayland";
+                if (wayland) focusWatch ??= appWindow.onFocusChanged?.(({ payload: focused }) => { if (focused) minimizedByHotkey = false; });
+                const minimized = wayland ? minimizedByHotkey : await appWindow.isMinimized();
                 if (minimized) {
-                    await appWindow.unminimize();
-                    await appWindow.setFocus();
+                    minimizedByHotkey = false;
+                    // The desktop gives a portal shortcut no right to raise a window; Rust asks KWin.
+                    if (wayland) await invoke("main_window_restore");
+                    else {
+                        await appWindow.unminimize();
+                        await appWindow.setFocus();
+                    }
                     store.text_area_ref.current?.focus();
                 } else {
                     await appWindow.minimize();
+                    minimizedByHotkey = wayland;
                 }
                 break;
             }
