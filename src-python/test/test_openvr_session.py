@@ -211,7 +211,8 @@ class OpenvrSessionSharingTests(unittest.TestCase):
 
         overlay_ref = openvr_session.acquire()  # Overlay already running
         capture = OpenVRMirrorCapture()
-        with patch.object(OpenVRMirrorCapture, "isAvailable", return_value=True):
+        with patch.object(OpenVRMirrorCapture, "isAvailable", return_value=True), \
+             patch("models.ocr.ocr_capture_openvr.sys.platform", "win32"):
             self.assertTrue(capture._init())
 
         self.assertIsNotNone(overlay_ref)
