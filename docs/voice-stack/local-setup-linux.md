@@ -44,7 +44,8 @@ python tools/build_voice_gate.py
 python tools/speechcpp_bundle.py --variant linux-x64-vulkan --archive /path/to/speech-0.10.0-linux-x64-vulkan.zip --output build/speechcpp
 ```
 
-`build_voice_gate.py`は、`build/vrct-voice-gate`、`vrct-source-bridge`、`vrct-vc-worker`、`vrct-asr-capture`をビルドする。`libpipewire-0.3-dev`が必要。
+`build_voice_gate.py`は、`build/vrct-voice-gate`、`vrct-source-bridge`、`vrct-vc-worker`、`vrct-asr-capture`、`vrct-screen-capture`をビルドする。`libpipewire-0.3-dev`が必要。
+`vrct-screen-capture`がないと、チャット読み取りの「ウィンドウを共有…」は`screencast_helper_missing`で止まる。
 `vrct-vc-worker`がないと、同梱サーバーの起動は`speech_server_launch_failed`で止まる。
 `vrct-vc-worker`は推論デバイスとして、`auto`、`cpu`、`gpu`と、`speech devices`が表示するGPUの名前（`Vulkan0`など）を受け付ける。設定でGPUを名前で選ぶ機能より前にビルドしたヘルパーは名前を拒否するので、作り直す。
 
@@ -59,7 +60,7 @@ Linux候補をビルド済みなら、`build/linux/resources/build/speechcpp`を
 
 Windows専用の3依存（PyAudioWPatch、windows-capture、pycaw）は`pyproject.toml`のOS markerで選択する。チャット読み取りのRapidOCRはLinuxにも入る。
 `opencv-python`は`tool.uv.exclude-dependencies`で除き、同じ`cv2`を提供する2種類のOpenCVの同時導入を避ける。
-Linuxのチャット読み取りは、VRChatのウィンドウをX11/XWayland経由で取り込む。SteamVRが動いている間は、ヘッドセットの映像をOpenGLで読む（偽のSteamVRでだけ確認）。Waylandネイティブのウィンドウと従来ASRの録音は未対応。
+Linuxのチャット読み取りは、VRChatのウィンドウをX11/XWayland経由で取り込む。SteamVRが動いている間は、ヘッドセットの映像をOpenGLで読む（偽のSteamVRでだけ確認）。Waylandネイティブのウィンドウは、利用者が設定の「チャット読み取り」で共有すると読み取れる（XDG ScreenCast portal。開発ビルドは`build/vrct-screen-capture`を使う）。従来ASRの録音は未対応。
 この手順はPython依存のみを取得し、ASR/TTS/VC重みの取得スクリプトは実行しない。
 Pythonの取得・package通信にはネットワークが必要。システムのGTK/WebKitGTK依存は
 [Tauri公式の準備手順](https://v2.tauri.app/start/prerequisites/)を参照。

@@ -159,12 +159,13 @@ HTTPでプライベートLANやリンクローカルのアドレスへ接続す�
 
 `/get/data/ocr_capture_region`と`/set/data/ocr_capture_region`は引き続きウィンドウ用の矩形を扱う。VR用は`/get/data/ocr_vr_capture_region`と`/set/data/ocr_vr_capture_region`で同じ形を扱う。
 
-`/get/data/ocr_capture_status`は次の状態を200の応答にまとめて返す。`active`は有効化済みで停止していないワーカーがあるかを示す。`source`は直近の取り込み結果の元で、画像がないときや停止中は`null`。Linuxでは`available_sources`は`["window"]`となる。
+`/get/data/ocr_capture_status`は次の状態を200の応答にまとめて返す。`active`は有効化済みで停止していないワーカーがあるかを示す。`source`は直近の取り込み結果の元で、画像がないときや停止中は`null`。Linuxでは`available_sources`は`["window"]`となる。`shared_window`はLinuxで利用者が共有したウィンドウの扱いを示す。共有されたウィンドウを読んでいる間は`"active"`、読んでいた共有が終わり、名前で探せるウィンドウもない間は`"ended"`、それ以外と停止中は`null`。共有されたウィンドウを読んでいる間も`source`は`"window"`のままとする。
 
 ```json
 {
   "active": true,
   "source": "window",
+  "shared_window": null,
   "available_sources": ["window", "vr"],
   "state": "reading",
   "stage": null,
@@ -252,6 +253,7 @@ ASR/翻訳5,000ms、従来のtotal 10,000ms。
 | `VRCT_VOICE_TRACE`、`VRCT_VOICE_GC_DIAGNOSTICS` | 読み上げの時間計測とGCの記録（診断用） |
 | `WAYLAND_DISPLAY`、`XDG_SESSION_TYPE`、`GDK_BACKEND` | Quick Chatとホットキーの登録方法の判定 |
 | `DISPLAY` | X11でのOCRのキャプチャ |
+| `VRCT_VR_PANEL_DIR` | Tauriが起動時に決める、このプロセス専用の場所（`$XDG_RUNTIME_DIR/vrct-vox/vr-panel-<pid>`、Linux）。バックエンドはここでVR画面の画素（`frame`）と、共有されたウィンドウの画素（`screen-frame`）を読む。利用者が設定するものではない |
 | `APPIMAGE`と`WEBKIT_DISABLE_DMABUF_RENDERER=1` | NVIDIA環境のAppImageでメインウィンドウを不透明にする |
 
 `HF_HUB_OFFLINE`などのオフライン用の変数は、アプリは読まない。`tools/dev.py`が開発用の子プロセスに設定する。

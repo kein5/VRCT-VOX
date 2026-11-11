@@ -31,8 +31,21 @@ With "Use the chatbox detector (recommended when installed)" on, VRCT-VOX's own 
 
 ## Supported environments
 
-- **Linux**: captures the VRChat window through X11/XWayland. With Proton's defaults VRChat runs under XWayland, so this works as is. Native Wayland windows cannot be captured yet. While SteamVR runs, the headset view is read as well; this has only been checked against a simulated SteamVR.
+- **Linux**: captures the VRChat window through X11/XWayland. With Proton's defaults VRChat runs under XWayland, so this works as is. A native Wayland window is read after you share it (see below). While SteamVR runs, the headset view is read as well; this has only been checked against a simulated SteamVR.
 - **Windows**: captures the VRChat window.
+
+## Sharing a native Wayland window (Linux)
+
+When VRChat runs as a native Wayland window (inside gamescope, or with Wine's Wayland driver), it cannot be found by its name. On a Wayland desktop, the Chat Transcribe page then offers "Share a window (Wayland)" under "Capture target".
+
+1. Press "Share a window…". Your desktop opens its own dialog; pick the VRChat window there.
+2. Turn on Chat Transcribe. It reads the shared window instead of looking for one by name.
+
+- VRCT-VOX asks only when you press the button. It does not ask at start-up or on its own.
+- The desktop remembers your choice if you leave that option checked in its dialog, so the next "Share a window…" needs no dialog. "Choose another window…" opens the dialog again.
+- Sharing ends when you press "Stop sharing", turn Chat Transcribe off, or close VRCT-VOX.
+- If the shared window is closed, or you stop sharing from the desktop, VRCT-VOX tells you. Share a window again and reading continues.
+- The picture stays on this computer. A few frames per second are copied, and the desktop is asked to leave the mouse pointer out.
 
 ::: tip If the window is not found
 "Window name" is `VRChat` by default. If your client has a different title, change it here.

@@ -37,14 +37,14 @@ flowchart LR
 | 要素 | 場所 | 役割 |
 |---|---|---|
 | UI | `src-ui/` | 画面、設定、ホットキー、VRパネルとQuick Chatの窓口。状態はサイドカーから受け取る |
-| Tauri | `src-tauri/` | ウィンドウ、サイドカーの起動、Quick Chat、ホットキーの登録、権限 |
+| Tauri | `src-tauri/` | ウィンドウ、サイドカーの起動、Quick Chat、ホットキーの登録、ウィンドウの共有（Linux）、権限 |
 | サイドカー | `src-python/` | 設定の保存、翻訳、音声認識、OCR、OSC、WebSocket、OBS、オーバーレイ、読み上げとRVCの制御 |
 | 受付と振り分け | `src-python/mainloop.py` | エンドポイントと処理の対応表（`mapping`）、通知の名前（`run_mapping`）、キューとロック |
 | 処理の本体 | `src-python/controller.py`、`model.py`、`models/` | 各機能 |
 | 設定 | `src-python/config.py` | 設定の宣言、検証、保存 |
 | エラー | `src-python/errors.py` | エラーコードと既定の文言 |
 | 音声 | `src-python/models/tts`、`audio_routing`、`voice_conversion`、`speech_server` | 読み上げ、音声経路、RVC、同梱サーバー |
-| ネイティブの補助 | `native/`、`build/` | `vrct-vc-worker`、speech.cppのバイナリ |
+| ネイティブの補助 | `native/`、`build/` | `vrct-vc-worker`、`vrct-screen-capture`（Linuxのウィンドウ共有）、speech.cppのバイナリ |
 
 ## 画面
 
