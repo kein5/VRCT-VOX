@@ -341,6 +341,7 @@ _SIMPLE_CONFIG_GETTERS = {
     "getOcrVrCaptureRegion": "OCR_VR_CAPTURE_REGION",
     "getOcrChatboxFilter": "OCR_CHATBOX_FILTER",
     "getOcrUseChatboxDetector": "OCR_USE_CHATBOX_DETECTOR",
+    "getOcrPortalRestoreToken": "OCR_PORTAL_RESTORE_TOKEN",
 }
 
 # 起動時のエンジンの確認で、選んだモデルの設定とクライアントの生成に使う Model のメソッド名 (モデル一覧を持つエンジン)
@@ -5378,9 +5379,21 @@ class Controller:
         return {"status": 200, "result": {
             "active": active,
             "source": getattr(capture, "source", None),
+            # Linux: "active" while a window the user shares is read, "ended" once it is gone.
+            "shared_window": getattr(capture, "sharedWindow", None),
             "available_sources": ocr_capture.availableCaptureSources(),
             **runtime,
         }}
+
+    @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
+    def setOcrPortalRestoreToken(data, *args, **kwargs) -> dict:
+        """Remember what restores the shared window (Linux). The page sends what the desktop gave it.
+
+        Saving it starts nothing: the portal is only asked when the user presses the button.
+        """
+        config.OCR_PORTAL_RESTORE_TOKEN = data
+        return {"status": 200, "result": config.OCR_PORTAL_RESTORE_TOKEN}
 
     def getOcrReadiness(self, *args, **kwargs) -> dict:
         """What chat reading still needs before it can start (models, window).

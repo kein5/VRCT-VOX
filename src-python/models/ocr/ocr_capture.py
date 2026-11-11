@@ -2,7 +2,9 @@
 
 The desktop window backend is HWND/PrintWindow on Windows and X11/XWayland
 (ocr_capture_x11.py) on Linux. The OpenVR mirror is read through D3D11 on
-Windows and OpenGL on Linux.
+Windows and OpenGL on Linux. On Linux, a window the user shares through the
+desktop's ScreenCast portal (ocr_capture_portal.py) is read instead of the one
+found by name for as long as it is shared; nothing here starts that sharing.
 
 Contract: get() returns a BGR ndarray or None. It never raises. The
 facade rechecks SteamVR periodically so the backend follows the user
@@ -24,6 +26,7 @@ from ..process_check import isProcessRunning
 
 from .ocr_capture_hwnd import HwndCapture, _find_vrchat_hwnd, isFrameBlank
 from .ocr_capture_openvr import OpenVRMirrorCapture
+from .ocr_capture_portal import SharedWindowCapture
 from .ocr_capture_x11 import X11WindowCapture
 from .ocr_failure import OcrFailureLog
 
@@ -46,6 +49,10 @@ CAPTURE_WINDOW_NOT_FOUND = "window_not_found"
 CAPTURE_UNAVAILABLE = "capture_unavailable"
 
 
+class SharedWindowEnded(RuntimeError):
+    """The window the user shared is gone and none can be read by name in its place."""
+
+
 def availableCaptureSources() -> list[str]:
     return ["window", "vr"] if OpenVRMirrorCapture().isAvailable() else ["window"]
 
@@ -61,18 +68,27 @@ def _windowCapture(window_title: str):
     return OcrCapture.BACKEND_X11, X11WindowCapture(window_title=window_title)
 
 
+def _sharedWindow() -> Optional[SharedWindowCapture]:
+    """The reader for a window shared through the portal; only Linux has one."""
+    return SharedWindowCapture() if sys.platform.startswith("linux") else None
+
+
 def probeCapture(window_title: str) -> str:
     """Can the window be read right now? Opens and closes everything it uses.
 
     Run before the worker starts so the toggle can say why reading cannot
     begin (no X11 / XWayland session, or VRChat is not running) instead of
-    starting a loop that silently reads nothing.
+    starting a loop that silently reads nothing. A window the user is sharing
+    counts as readable; this never asks for one.
     """
     # The headset view needs no window: VRChat's desktop window may be minimized in VR.
     if _isSteamvrRunning() and OpenVRMirrorCapture().isAvailable():
         return CAPTURE_OK
     if sys.platform == "win32":
         return CAPTURE_OK if _find_vrchat_hwnd(window_title) is not None else CAPTURE_WINDOW_NOT_FOUND
+    shared = _sharedWindow()
+    if shared is not None and shared.isActive():
+        return CAPTURE_OK
     capture = X11WindowCapture(window_title=window_title)
     try:
         if not capture.isAvailable():
@@ -90,11 +106,16 @@ class OcrCapture:
 
     BACKEND_HWND = "hwnd"
     BACKEND_X11 = "x11"
+    BACKEND_PORTAL = "portal"
     BACKEND_OPENVR = "openvr_mirror"
     BACKEND_NONE = "none"
 
     def __init__(self, window_title: str = "VRChat") -> None:
         self._window_backend, self._window = _windowCapture(window_title)
+        self._shared = _sharedWindow()
+        # None, "active" while the shared window is read, "ended" once it is gone
+        # and no window found by name has taken its place.
+        self._shared_state: Optional[str] = None
         self._openvr: Optional[OpenVRMirrorCapture] = None
         self._backend = self.BACKEND_NONE
         # 実際にフレームが取れた経路。VRとデスクトップを5秒ごとに試し直すので、
@@ -129,6 +150,21 @@ class OcrCapture:
         self._backend = self._window_backend if self._window.isAvailable() else self.BACKEND_NONE
         return self._backend
 
+    def _sharedBackend(self, backend: str) -> str:
+        """Linux: the backend to read now, given the one chosen without the shared window."""
+        if self._shared.isActive():
+            self._shared_state = "active"
+            self._backend = self.BACKEND_PORTAL
+            return self._backend
+        if self._shared_state == "active":
+            # It was being read and is gone: the window was closed, or sharing was stopped.
+            self._shared_state = "ended"
+            printLog("OCR capture: the shared window is gone")
+        if backend == self.BACKEND_PORTAL:
+            self._backend = self._window_backend if self._window.isAvailable() else self.BACKEND_NONE
+            return self._backend
+        return backend
+
     def _noteSource(self, backend: str) -> None:
         self._frame_source = "vr" if backend == self.BACKEND_OPENVR else "window"
         if self._source != backend:
@@ -138,6 +174,11 @@ class OcrCapture:
     @property
     def backend(self) -> str:
         return self._backend
+
+    @property
+    def sharedWindow(self) -> Optional[str]:
+        """"active" while a window the user shares is read, "ended" when it is gone and nothing replaced it."""
+        return self._shared_state
 
     @property
     def source(self) -> Optional[str]:
@@ -167,16 +208,34 @@ class OcrCapture:
                 # next recheck instead of reading nothing.
                 self._backend = self._window_backend if self._window.isAvailable() else self.BACKEND_NONE
                 backend = self._backend
+            if self._shared is not None:
+                backend = self._sharedBackend(backend)
+            if backend == self.BACKEND_PORTAL:
+                frame = self._shared.capture()
+                # No picture yet, or a minimized window's last black one.
+                if isFrameBlank(frame):
+                    self._frame_source = None
+                    return None
+                self._noteSource(self.BACKEND_PORTAL)
+                self._failures.success()
+                return frame
             if backend == self._window_backend:
                 frame = self._window.capture()
                 # A minimized or occluded window keeps returning a stale black
                 # buffer, so the stricter thresholds earn their keep here.
                 if isFrameBlank(frame):
+                    if self._shared_state == "ended":
+                        raise SharedWindowEnded("The shared window is gone")
                     self._frame_source = None
                     return None
+                # A window found by name is readable: the lost one is no longer missed.
+                self._shared_state = None
                 self._noteSource(self._window_backend)
                 self._failures.success()
                 return frame
+            if self._shared_state == "ended":
+                # Say so instead of waiting for a picture that cannot come.
+                raise SharedWindowEnded("The shared window is gone")
         except Exception as exc:
             self._failures.failure(exc)
         self._frame_source = None
@@ -188,6 +247,9 @@ class OcrCapture:
             self._window.close()
         except Exception:
             pass
+        if self._shared is not None:
+            self._shared.close()
+        self._shared_state = None
         if self._openvr is not None:
             try:
                 self._openvr.close()

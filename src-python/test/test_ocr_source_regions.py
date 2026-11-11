@@ -273,7 +273,7 @@ def test_status_reports_worker_source_without_probing(subject, monkeypatch):
         for source in ("window", "vr", None):
             pipeline._capture.source = source
             assert controller.getOcrCaptureStatus() == {"status": 200, "result": {
-                "active": True, "source": source, "available_sources": ["window", "vr"],
+                "active": True, "source": source, "shared_window": None, "available_sources": ["window", "vr"],
                 "state": state, "stage": stage, "error_code": error.value if error else None,
                 "detector": "region"}}
     # A pending detector is not yet the detector actually used by the worker.
@@ -284,7 +284,7 @@ def test_status_reports_worker_source_without_probing(subject, monkeypatch):
     pipeline._runtimeState("reading")
     assert controller.getOcrCaptureStatus()["result"]["detector"] == "vrct-vox-chatbox"
     config.ENABLE_OCR_CAPTURE = False
-    stopped = {"active": False, "source": None, "available_sources": ["window", "vr"],
+    stopped = {"active": False, "source": None, "shared_window": None, "available_sources": ["window", "vr"],
                "state": "stopped", "stage": None, "error_code": None, "detector": None}
     assert controller.getOcrCaptureStatus()["result"] == stopped
     config.ENABLE_OCR_CAPTURE = True
