@@ -41,9 +41,10 @@ When VRChat runs as a native Wayland window (inside gamescope, or with Wine's Wa
 1. Press "Share a window…". Your desktop opens its own dialog; pick the VRChat window there.
 2. Turn on Chat Transcribe. It reads the shared window instead of looking for one by name.
 
-- VRCT-VOX asks only when you press the button. It does not ask at start-up or on its own.
+- VRCT-VOX asks the desktop when you press the button, and when you turn Chat Transcribe on again. It never asks at start-up.
 - The desktop remembers your choice if you leave that option checked in its dialog, so the next "Share a window…" needs no dialog. "Choose another window…" opens the dialog again.
 - Sharing ends when you press "Stop sharing", turn Chat Transcribe off, or close VRCT-VOX.
+- When you turn Chat Transcribe on again and no VRChat window is found by its name, the window your desktop remembers is shared again. If the desktop remembers it, no dialog appears. If a dialog stays open for 15 seconds, VRCT-VOX gives up and tells you; share from "Share a window…" in that case.
 - If the shared window is closed, or you stop sharing from the desktop, VRCT-VOX tells you. Share a window again and reading continues.
 - The picture stays on this computer. A few frames per second are copied, and the desktop is asked to leave the mouse pointer out.
 - The shared picture includes the window's title bar. The reading area is the same setting used when the window is found by name, applied to the picture with the title bar in it.
