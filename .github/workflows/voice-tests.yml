@@ -21,7 +21,13 @@ jobs:
       - run: uv export --frozen --no-header --no-annotate --format requirements-txt --no-emit-project --only-group voice-test --output-file voice-test-requirements.txt
       - run: uv pip sync --require-hashes voice-test-requirements.txt
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config gcc g++ meson ninja-build libsndfile1-dev libglib2.0-dev liblua5.4-dev
+        # The runner's package mirror sometimes cannot be resolved for a while. Try again before failing the job.
+        run: |
+          for attempt in 1 2 3 4; do
+            sudo apt-get update && sudo apt-get install -y pkg-config gcc g++ meson ninja-build libsndfile1-dev libglib2.0-dev liblua5.4-dev && break
+            if [ "$attempt" = 4 ]; then exit 1; fi
+            sleep $((attempt * 20))
+          done
       - name: Prepare tested PipeWire API in an isolated prefix
         if: runner.os == 'Linux'
         run: |
