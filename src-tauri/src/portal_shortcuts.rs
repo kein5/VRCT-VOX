@@ -31,6 +31,9 @@ const APP_ID: &str = "io.github.kein5.vrct-vox";
 const DESTINATION: &str = "org.freedesktop.portal.Desktop";
 const DESKTOP: &str = "/org/freedesktop/portal/desktop";
 const INTERFACE: &str = "org.freedesktop.portal.GlobalShortcuts";
+/// The desktop's own portal processes (`...desktop.kde`, `...desktop.gnome`). They hold the
+/// dialog and the key grabs; the frontend keeps its name and our session when one restarts.
+const BACKENDS: &str = "org.freedesktop.impl.portal.desktop";
 const MARKER: &str = "X-VRCT-VOX-Generated=true";
 /// The desktop may show a confirmation dialog while binding.
 const BIND_TIMEOUT: Duration = Duration::from_secs(180);
@@ -264,6 +267,13 @@ impl Portal {
             .add_arg(DESTINATION).map_err(failure("portal_unavailable"))?.build();
         let owners = self.wait(operation, MessageStream::for_match_rule(owner_rule, &self.connection, Some(8)))?
             .map_err(failure("portal_unavailable"))?;
+        let backend_rule = MatchRule::builder().msg_type(zbus::message::Type::Signal)
+            .sender("org.freedesktop.DBus").map_err(failure("portal_unavailable"))?
+            .interface("org.freedesktop.DBus").map_err(failure("portal_unavailable"))?
+            .member("NameOwnerChanged").map_err(failure("portal_unavailable"))?
+            .arg0ns(BACKENDS).map_err(failure("portal_unavailable"))?.build();
+        let backends = self.wait(operation, MessageStream::for_match_rule(backend_rule, &self.connection, Some(8)))?
+            .map_err(failure("portal_unavailable"))?;
         let reply = self.wait(operation, self.connection.call_method(
             Some("org.freedesktop.DBus"), "/org/freedesktop/DBus", Some("org.freedesktop.DBus"),
             "GetNameOwner", &(DESTINATION,),
@@ -275,7 +285,7 @@ impl Portal {
             .map_err(failure("portal_unavailable"))?;
         let (connection, session, alive) = (self.connection.clone(), self.session.clone(), self.alive.clone());
         self.listener = Some(std::thread::Builder::new().name("vrct-portal-signals".into())
-            .spawn(move || listen(connection, signals, owners, session, alive, app))
+            .spawn(move || listen(connection, signals, owners, backends, session, alive, app))
             .map_err(|_| "portal_unavailable")?);
         let version: u32 = self.wait(operation, async {
             Proxy::new(&self.connection, self.destination.as_str(), DESKTOP, INTERFACE).await?
@@ -460,7 +470,14 @@ impl Drop for Portal {
     fn drop(&mut self) { self.close(); }
 }
 
-fn listen(connection: Connection, mut signals: MessageStream, mut owners: MessageStream,
+/// Whether a `NameOwnerChanged` means the portal that holds our shortcuts went away or was
+/// replaced. A name that only appears (no old owner) took nothing with it.
+fn portal_owner_lost(name: &str, old_owner: &str) -> bool {
+    let backend = name.strip_prefix(BACKENDS).is_some_and(|rest| rest.is_empty() || rest.starts_with('.'));
+    (name == DESTINATION || backend) && !old_owner.is_empty()
+}
+
+fn listen(connection: Connection, mut signals: MessageStream, mut owners: MessageStream, mut backends: MessageStream,
     session: Arc<Mutex<Option<OwnedObjectPath>>>, alive: Arc<AtomicBool>, app: AppHandle) {
     struct InvalidateOnDrop(Arc<AtomicBool>);
     impl Drop for InvalidateOnDrop {
@@ -475,6 +492,7 @@ fn listen(connection: Connection, mut signals: MessageStream, mut owners: Messag
         }, poll_fn(|context| {
             if closed.as_mut().poll(context).is_ready() { return Poll::Ready(None); }
             if let Poll::Ready(message) = Pin::new(&mut owners).poll_next(context) { return Poll::Ready(message); }
+            if let Poll::Ready(message) = Pin::new(&mut backends).poll_next(context) { return Poll::Ready(message); }
             Pin::new(&mut signals).poll_next(context)
         }));
         let message = match message {
@@ -487,7 +505,7 @@ fn listen(connection: Connection, mut signals: MessageStream, mut owners: Messag
         let member = header.member().map(|name| name.as_str());
         if interface == Some("org.freedesktop.DBus") && member == Some("NameOwnerChanged") {
             if let Ok((name, old, _new)) = message.body().deserialize::<(String, String, String)>() {
-                if name == DESTINATION && !old.is_empty() { break; }
+                if portal_owner_lost(&name, &old) { break; }
             }
         } else if interface == Some("org.freedesktop.portal.Session") && member == Some("Closed") {
             if session.lock().is_ok_and(|current| current.as_ref().is_some_and(|path| Some(path.as_str()) == header.path().map(|path| path.as_str()))) {
@@ -631,6 +649,18 @@ mod tests {
         assert_eq!(qt_key(&keys(&["Ctrl", "+"])), None);
         assert_eq!(qt_text(100_663_377), "Ctrl+Shift+Q");
         assert_eq!(qt_text(QT_META | QT_ALT | 0x0100_0031), "Meta+Alt+F2");
+    }
+
+    #[test]
+    fn a_lost_or_replaced_portal_or_backend_ends_the_session() {
+        assert!(portal_owner_lost(DESTINATION, ":1.48"));
+        assert!(portal_owner_lost("org.freedesktop.impl.portal.desktop.kde", ":1.60"));
+        assert!(portal_owner_lost("org.freedesktop.impl.portal.desktop.gnome", ":1.61"));
+        // A name that appears for the first time took no session with it.
+        assert!(!portal_owner_lost(DESTINATION, ""));
+        assert!(!portal_owner_lost("org.freedesktop.impl.portal.desktop.kde", ""));
+        assert!(!portal_owner_lost("org.freedesktop.impl.portal.desktopx", ":1.62"));
+        assert!(!portal_owner_lost("org.kde.kglobalaccel", ":1.10"));
     }
 
     #[test]
