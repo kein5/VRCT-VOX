@@ -57,3 +57,43 @@ def test_it_applies_before_ctranslate2_loads():
                             capture_output=True, text=True, encoding="utf-8", timeout=120, check=False)
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines()[-1] == "[False]"
+
+
+BLAS = "OPENBLAS_NUM_THREADS"
+
+
+@pytest.fixture
+def blas_env(monkeypatch):
+    monkeypatch.delenv(BLAS, raising=False)
+    monkeypatch.setattr(runtime_paths, "_backend_only_env", set())
+
+
+def test_numpy_gets_one_blas_thread(blas_env):
+    runtime_paths.limit_blas_threads()
+    assert os.environ[BLAS] == "1"
+
+
+def test_a_blas_thread_count_the_user_set_is_kept(blas_env, monkeypatch):
+    monkeypatch.setenv(BLAS, "4")
+    runtime_paths.limit_blas_threads()
+    assert os.environ[BLAS] == "4"
+    assert runtime_paths.external_process_env()[BLAS] == "4"
+
+
+def test_started_programs_do_not_inherit_the_blas_limit(blas_env):
+    runtime_paths.limit_blas_threads()
+    assert BLAS not in runtime_paths.external_process_env()
+    assert BLAS not in runtime_paths.voice_worker_env()
+
+
+def test_the_blas_limit_applies_before_numpy_loads():
+    """mainloop sets it right after these imports; none of them may pull numpy in."""
+    source = (Path(__file__).resolve().parents[1] / "mainloop.py").read_text(encoding="utf-8")
+    head = source[:source.index("limit_blas_threads()\n")]
+    assert "import numpy" not in head and "from controller" not in head
+    code = head + "import sys; print('numpy' in sys.modules, os.environ.get('OPENBLAS_NUM_THREADS'))\nlimit_blas_threads(); print(os.environ['OPENBLAS_NUM_THREADS'])"
+    env = {k: v for k, v in os.environ.items() if k != BLAS}
+    result = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[1], env=env,
+                            capture_output=True, text=True, encoding="utf-8", timeout=120, check=False)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[-2:] == ["False None", "1"]
