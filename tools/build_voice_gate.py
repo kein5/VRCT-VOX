@@ -1,4 +1,4 @@
-"""Build the Linux PipeWire control helper using the installed system library."""
+"""Build the Linux native helpers (PipeWire control, capture, worker supervision) with the installed system library."""
 import argparse
 from pathlib import Path
 import shlex
@@ -15,7 +15,8 @@ def main():
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     flags = subprocess.check_output(['pkg-config', '--cflags', '--libs', 'libpipewire-0.3'], text=True)
-    for name, extra in [('voice-gate', shlex.split(flags)), ('source-bridge', []), ('vc-worker', []), ('asr-capture', shlex.split(flags) + ['-lm'])]:
+    for name, extra in [('voice-gate', shlex.split(flags)), ('source-bridge', []), ('vc-worker', []), ('asr-capture', shlex.split(flags) + ['-lm']),
+                        ('screen-capture', shlex.split(flags))]:
         destination = args.output_dir / f'vrct-{name}'
         subprocess.run(['cc', '-std=gnu11', '-O2', '-Wall', '-Wextra', '-Werror',
                         str(root / 'native' / name / 'main.c'), '-o', str(destination), *extra], check=True)
