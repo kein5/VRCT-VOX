@@ -26,7 +26,7 @@ RVC also needs its runtime, HuBERT and RMVPE. See [model downloads](/docs/voice-
 The current release is **[0.1.0-beta.4](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.4)**, a prerelease. Versions count from 0.1.0, separately from upstream VRCT 3.x. Betas are published from `develop`, stable releases from `main`.
 
 - **Linux:** AppImage and tar.gz (x64, Vulkan). These have been tested with real models on CachyOS (KDE Plasma Wayland).
-- **Windows:** installer and zip (CPU), and a CUDA zip. These come from automated builds and package checks only; they have not been tested on a real Windows PC yet. They are not code-signed, so SmartScreen warns on first launch.
+- **Windows:** installer and zip (CPU), and a CUDA zip. These have been tested with real models on a Windows 11 PC ([record](/docs/voice-stack/windows-voice-report.md)). They are not code-signed, so SmartScreen warns on first launch.
 
 Every file has a `.sha256` and `SHA256SUMS-*` for checking downloads; these are not signatures. The in-app updater is disabled. An AUR package is planned but not submitted.
 

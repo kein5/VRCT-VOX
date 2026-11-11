@@ -26,7 +26,7 @@ RVC には、音声モデルのほかに実行環境、HuBERT、RMVPE が必要�
 現在の版は **[0.1.0-beta.4](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.4)**（プレリリース）です。版番号は本家 VRCT（3.x）とは別に 0.1.0 から数えます。ベータ版は `develop` から、正式版は `main` から公開します。
 
 - **Linux**: AppImage と tar.gz（x64、Vulkan）。CachyOS（KDE Plasma Wayland）で実際のモデルを使って試験しています。
-- **Windows**: インストーラーと zip（CPU 版）、CUDA 版の zip。自動ビルドと配布物の検査だけで、Windows の実機ではまだ試していません。電子署名がないため、初回起動時に SmartScreen の警告が出ます。
+- **Windows**: インストーラーと zip（CPU 版）、CUDA 版の zip。Windows 11 の実機で、実際のモデルを使って試験しています（[検証記録](/docs/voice-stack/windows-voice-report.md)）。電子署名がないため、初回起動時に SmartScreen の警告が出ます。
 
 各ファイルの `.sha256` と `SHA256SUMS-*` で、ダウンロードしたファイルを確認できます（電子署名ではありません）。アプリ内の自動更新は無効です。AUR での配布は予定していますが、まだ登録していません。
 

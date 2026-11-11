@@ -9,7 +9,7 @@
 
 VRCT-VOX 是整合語音辨識（ASR）、語音合成（TTS）、變聲（RVC）、聊天讀取（OCR）與翻譯的 VRChat 桌面應用程式。由 kein5 以 [VRCT](https://github.com/misyaguziya/VRCT) 為基礎開發，並非 VRCT 官方版本，也未獲 VRCT 開發者或 VRChat 認可。
 
-目前版本為 [0.1.0-beta.4](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.4)（預發行版）。Linux 版（AppImage、tar.gz）已使用實際模型測試，Windows 版尚未在實機上測試。
+目前版本為 [0.1.0-beta.4](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.4)（預發行版）。Linux 版（AppImage、tar.gz）與 Windows 版皆已在實機上使用實際模型測試。
 
 - [功能、授權與原作者致謝（English）](/README.md)
 - [VRCT-VOX 發行頁](https://github.com/kein5/VRCT-VOX/releases)

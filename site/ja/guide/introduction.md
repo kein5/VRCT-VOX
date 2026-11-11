@@ -24,6 +24,6 @@ VRCT-VOXはVRCTの開発者やVRChatが承認したものではありません�
 
 VRCT-VOXはベータ版です。版はVRCT（3.x）とは別に0.1.0から数えます。ベータ版は`develop`ブランチから、正式版は`main`ブランチから出します。
 
-Linux版は、CachyOS（KDE Plasma、Wayland）で、実際のモデルを使って動作を確かめています。Windows版は自動ビルドと配布物の検査だけで、実際のWindowsのPCではまだ試していません。
+Linux版は、CachyOS（KDE Plasma、Wayland）で、実際のモデルを使って動作を確かめています。Windows版は、Windows 11のPCで、実際のモデルを使って動作を確かめています。
 
 次は[インストール](./install)へ進んでください。
