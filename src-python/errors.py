@@ -54,6 +54,7 @@ class ErrorCode(str, Enum):
     DEVICE_NO_SPEAKER = "DEVICE_NO_SPEAKER"
     MESSAGE_OUTPUT_FAILED = "MESSAGE_OUTPUT_FAILED"
     OVERLAY_RUNTIME_FAILED = "OVERLAY_RUNTIME_FAILED"
+    OVERLAY_VR_PANEL_UNSUPPORTED = "OVERLAY_VR_PANEL_UNSUPPORTED"
 
     # 音声入力から文字起こしまでの実行時エラー。これらは通常の
     # request/response エラーではなく、既存の
@@ -315,6 +316,12 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "The VR overlay stopped after a rendering or capture failure. Check SteamVR and the VR window, then enable it again.",
         "severity": "error",
         "user_action_required": True,
+    },
+    ErrorCode.OVERLAY_VR_PANEL_UNSUPPORTED: {
+        "category": ErrorCategory.GENERAL,
+        "message": "The VR UI is only available on Windows for now. Subtitle overlays are not affected.",
+        "severity": "error",
+        "user_action_required": False,
     },
     ErrorCode.MESSAGE_OUTPUT_FAILED: {
         "category": ErrorCategory.GENERAL,

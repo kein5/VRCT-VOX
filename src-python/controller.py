@@ -59,7 +59,7 @@ from models.audio_routing.source_bridge import PIPEWIRE_MIC_HOST, enumerate_sour
 from models.voice_conversion.direct_voice import DirectVoice, create_converted_process
 from models.voice_conversion.settings import DirectSettings, start_options
 from models.overlay.overlay_tooltip import validate_tooltip
-from models.overlay.overlay import PANEL_ANCHORS, computeVrLayout, clampPanelSize, mirrorHandPosition
+from models.overlay.overlay import PANEL_ANCHORS, computeVrLayout, clampPanelSize, mirrorHandPosition, vrPanelSupported
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -4679,10 +4679,12 @@ class Controller:
     @staticmethod
     def syncOverlayRunning() -> bool:
         """字幕 (一行 / 複数行) と VR UI のどれかがONならオーバーレイを動かし、全部OFFなら止める。"""
-        model.setVrPanelEnabled(config.OVERLAY_VR_PANEL)
+        # VR UI を作れない OS では、保存済みの ON を無視する。作ろうとすると失敗して字幕も止まる。
+        vr_panel = config.OVERLAY_VR_PANEL and vrPanelSupported()
+        model.setVrPanelEnabled(vr_panel)
         model.setVrPanelLocked(config.OVERLAY_VR_PANEL_LOCKED)
         model.setVrLauncherAutoHide(config.OVERLAY_VR_LAUNCHER_AUTO_HIDE)
-        if config.OVERLAY_SMALL_LOG or config.OVERLAY_LARGE_LOG or config.OVERLAY_VR_PANEL:
+        if config.OVERLAY_SMALL_LOG or config.OVERLAY_LARGE_LOG or vr_panel:
             return model.startOverlay()
         else:
             model.shutdownOverlay()
@@ -4733,6 +4735,9 @@ class Controller:
 
     @staticmethod
     def setEnableOverlayVrPanel(*args, **kwargs) -> dict:
+        if not vrPanelSupported():
+            # 動いている字幕には触れずに断る。
+            return VRCTError.create_error_response(ErrorCode.OVERLAY_VR_PANEL_UNSUPPORTED, data=False)
         if config.OVERLAY_VR_PANEL is False:
             config.OVERLAY_VR_PANEL = True
             if Controller.syncOverlayRunning() is False or not config.OVERLAY_VR_PANEL:
