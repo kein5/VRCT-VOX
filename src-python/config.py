@@ -519,6 +519,11 @@ def _ocr_capture_region_validator(val, inst):
             and x + w <= 1.0 + eps and y + h <= 1.0 + eps)
 
 
+def _ocr_portal_restore_token_validator(val, inst):
+    """Opaque text from the desktop: short, on one line. The portal decides whether it is still valid."""
+    return len(val) <= 512 and not any(ord(char) < 32 or ord(char) == 127 for char in val)
+
+
 def _main_window_geometry_validator(val, inst):
     if not (isinstance(val, dict) and set(val.keys()) == set(inst.MAIN_WINDOW_GEOMETRY.keys())):
         return None
@@ -1365,6 +1370,9 @@ class Config:
     OCR_VR_CAPTURE_REGION = ManagedProperty('OCR_VR_CAPTURE_REGION', type_=dict, allowed=_ocr_capture_region_validator)
     OCR_CHATBOX_FILTER = ManagedProperty('OCR_CHATBOX_FILTER', type_=bool)
     OCR_USE_CHATBOX_DETECTOR = ManagedProperty('OCR_USE_CHATBOX_DETECTOR', type_=bool)
+    # Linux: what the desktop's ScreenCast portal hands out so that sharing the same window
+    # again needs no dialog. The desktop replaces it on every use, so it is saved at once; "" means none.
+    OCR_PORTAL_RESTORE_TOKEN = ManagedProperty('OCR_PORTAL_RESTORE_TOKEN', type_=str, allowed=_ocr_portal_restore_token_validator, immediate_save=True)
 
     def init_config(self):
         self._initialized = False
@@ -1723,6 +1731,8 @@ class Config:
         # VRCT-VOX's chatbox detector is used whenever its verified download is present,
         # unless turned off here. Without the download this has no effect.
         self._OCR_USE_CHATBOX_DETECTOR = True
+        # Nothing to restore until the user has shared a window once.
+        self._OCR_PORTAL_RESTORE_TOKEN = ""
 
         # Finish defaults before reading resources or creating directories.
         loaded_translation_lang = loadTranslationLanguages(self.PATH_LOCAL)

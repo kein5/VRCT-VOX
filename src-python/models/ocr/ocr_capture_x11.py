@@ -22,8 +22,9 @@ the X server marks the display dead instead of exiting.
 Thread contract: the Display is opened, used and closed on the OCR worker
 thread only (OcrCapture is constructed there).
 
-Not covered: native Wayland windows (PROTON_ENABLE_WAYLAND=1, or a Wayland
-VRChat client). Those need the xdg-desktop-portal ScreenCast path; see
+Not covered: native Wayland windows (VRChat inside gamescope, Wine's Wayland
+driver, PROTON_ENABLE_WAYLAND=1). Those are read through the desktop's
+ScreenCast portal once the user shares the window (ocr_capture_portal.py); see
 src-python/docs/details/ocr-linux-capture.md.
 """
 

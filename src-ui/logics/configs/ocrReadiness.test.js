@@ -96,6 +96,27 @@ test("capture status combines the actual source with runtime and uses readiness 
     assert.deepEqual(stopped.params, { title: "VRChat" });
 });
 
+test("a shared window is named as the source, and losing it says what to do", () => {
+    const prefix = "config_page.ocr.";
+    const reading = captureStatusSummary({ active: true, source: "window", shared_window: "active", state: "reading" }, null);
+    assert.equal(reading.sourceKey, `${prefix}capture_source.shared`);
+    assert.equal(reading.key, `${prefix}runtime.reading`);
+    // Before the first frame there is no source yet, only the wait.
+    const waiting = captureStatusSummary({ active: true, source: null, shared_window: "active", state: "waiting", stage: "capture" }, null);
+    assert.equal(waiting.sourceKey, null);
+    assert.equal(waiting.key, `${prefix}runtime.waiting`);
+    const lost = captureStatusSummary(
+        { active: true, source: null, shared_window: "ended", state: "retrying", stage: "capture" }, null);
+    assert.equal(lost.key, `${prefix}runtime.shared_window_ended`);
+    assert.equal(lost.tone, "failed");
+    // Another stage failing is that stage's failure, and a window found by name is not "shared".
+    assert.equal(runtimeSummary({ state: "retrying", stage: "detector", shared_window: "ended" }).key, `${prefix}runtime.failed_detector`);
+    assert.equal(captureStatusSummary({ active: true, source: "window", shared_window: null, state: "reading" }, null).sourceKey,
+        `${prefix}capture_source.window`);
+    assert.equal(captureStatusSummary({ active: true, source: "vr", shared_window: "active", state: "reading" }, null).sourceKey,
+        `${prefix}capture_source.vr`);
+});
+
 test("source and stopped messages interpolate the runtime or readiness in both locales", () => {
     for (const language of ["en", "ja"]) {
         const strings = yaml.load(readFileSync(new URL(`../../../locales/${language}.yml`, import.meta.url), "utf8"));

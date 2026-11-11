@@ -107,6 +107,19 @@
     &:disabled { opacity: .6; cursor: not-allowed; }
 }
 
+// Sharing a window (Linux, Wayland): the status line, then the buttons, which wrap in a narrow window.
+.sharedStatus {
+    margin: 1.2rem 0 0;
+}
+
+.sharedActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .8rem;
+    .resetButton[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
+    .resetButton[aria-disabled="true"]:hover { background: var(--dark_850_color, #25364f); }
+}
+
 .resetButton:focus-visible {
     outline: .2rem solid var(--vox_focus, #a9ccff);
     outline-offset: .2rem;

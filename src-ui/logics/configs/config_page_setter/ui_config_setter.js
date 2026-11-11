@@ -889,6 +889,16 @@ export const SETTINGS_ARRAY = [
         base_endpoint_name: "ocr_use_chatbox_detector",
     },
     {
+        // Linux: restores the shared window without the desktop's dialog. Not shown;
+        // saved by useOcrSharedWindow after each sharing, so it has no "saved" notice.
+        Category: "Ocr",
+        Base_Name: "OcrPortalRestoreToken",
+        default_value: "",
+        ui_template_id: "custom",
+        logics_template_id: "get_only",
+        base_endpoint_name: "ocr_portal_restore_token",
+    },
+    {
         // Probes the window; requested by the OCR page, not at start-up.
         Category: "Ocr",
         Base_Name: "OcrReadiness",

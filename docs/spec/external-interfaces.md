@@ -186,10 +186,13 @@ Python sidecarはshell pluginのstdin/stdoutでつなぐ。UIはPythonのHTTPサ
 | `quick_chat_show`、`quick_chat_configure`、`quick_chat_take`、`quick_chat_finish`、`quick_chat_shortcut_platform` | `main` | 小窓を開く、設定を渡す、送信要求を受け取る、結果を返す、ホットキーの登録方法を調べる |
 | `quick_chat_context`、`quick_chat_submit`、`quick_chat_hide` | `quick_chat` | 設定を読む、送信を頼む、隠す |
 | `portal_shortcuts_bind` | `main` | Waylandでホットキーを登録する（180秒で打ち切り） |
+| `screencast_support` | `main` | `{supported, active}`。ウィンドウを共有できるデスクトップか（LinuxのWaylandセッション）、いま共有中か。何も始めない |
+| `screencast_start` | `main` | デスクトップにウィンドウの共有を頼む（[ウィンドウの共有](#ウィンドウの共有linux)）。引数は保存済みの`restoreToken`（なければ`null`）。成功すると`{restore_token}`を返す。共有中に呼ぶと、前の共有を終えてから頼む。選択画面の待ち時間は180秒 |
+| `screencast_stop` | `main` | 共有を終え、ヘルパーを止め、ポータルのセッションを閉じる |
 
 Quick Chatのコンテキストは、`ready`、`language`、`enter_to_send`、`clear_on_send`に加え、保存済みの`ui_scaling`（整数、40〜200%）と`font_family`（空白だけではなく、制御文字を含まない256文字以内のローカルフォント名）を持つ。Rustは呼び出し元と値を検証してから置き換える。新しい2項目を省略した要求は100%と`Yu Gothic UI`を使う。小窓はフォント名をCSSの文字列として扱い、既存のNoto／システムフォントへのフォールバックを保つ。設定ファイルのキーやPython側のIPC形式は変更しない。
 
-VRパネルの要求は`main`が中継する。中継しないのは、アプリの終了と更新、ファイルを開く操作、モデルの取得、認証キーとトークン、接続先（`*_url`、WebSocket・OBS・OSCのホストとポート）、音声の設定（読み上げ、直接の音声、音声サーバー、リアルタイム音声認識）である（`src-ui/logics/common/vrPanelWire.js`）。VRパネルへ写す状態にも、認証キーとトークンは入れない。
+VRパネルの要求は`main`が中継する。中継しないのは、アプリの終了と更新、ファイルを開く操作、モデルの取得、認証キーとトークン、接続先（`*_url`、WebSocket・OBS・OSCのホストとポート）、音声の設定（読み上げ、直接の音声、音声サーバー、リアルタイム音声認識）である（`src-ui/logics/common/vrPanelWire.js`）。VRパネルへ写す状態にも、認証キーとトークンは入れない。ウィンドウの共有を戻すトークン（`ocr_portal_restore_token`）も、中継と写しの対象から外す。
 
 ### ウィンドウ間の連携
 
@@ -209,6 +212,24 @@ VRパネルの要求は`main`が中継する。中継しないのは、アプリ
 VRパネルで会話ログを閉じている間も、`vr-panel-state`の受信とログの更新は続ける。閉じた領域は描画せず、操作も受け付けない。ログ本体の購読を外し、開き直すと保存した表示位置と末尾への追従状態を戻す。上へスクロールして読んでいた場合はその位置を保ち、それ以外は最新の末尾に追従する。保存中に古い行が保持上限を超えた場合は、通常のログ更新と同じように位置を補正する。
 
 レーザーの位置は最後の`vr-panel-pointer`を保持し、パネル内のスクロール、表示内容の差し替え、レイアウトの変更でもホバー対象を調べ直す。判定は1フレームに1回にまとめ、対象が変わらなければ`data-vr-hover`を書き換えない。ポインタがなくなったらホバー表示を解除する。
+
+### ウィンドウの共有（Linux）
+
+チャット読み取りのために、利用者が選んだウィンドウ1つの映像を受け取る（[UC-05](use-cases.md)）。`screencast_start`は、利用者が設定ページのボタンを押したときだけ呼ぶ。
+
+| 相手 | やりとり |
+|---|---|
+| XDG ScreenCast portal（`org.freedesktop.portal.ScreenCast`） | Tauriが専用のD-Bus接続で、アプリIDの登録、`CreateSession`、`SelectSources`、`Start`、`OpenPipeWireRemote`の順に呼ぶ。`SelectSources`にはウィンドウだけ（`types: 2`）、1つだけ（`multiple: false`）、ポインターを映さない（`cursor_mode: 1`、対応しているとき）、選んだ結果を覚える（`persist_mode: 2`、ポータルの版が4以上のとき）、保存済みの`restore_token`を渡す。ポータルの応答が1（取り消し）なら`portal_cancelled`、そのほかの失敗は`portal_request_failed`、ウィンドウの共有に対応していなければ`screencast_unsupported` |
+| `vrct-screen-capture`（`native/screen-capture`） | Tauriが`OpenPipeWireRemote`の接続を標準入力として渡して起動する。引数は親のプロセスID、PipeWireのノードID、フレームファイルの場所、間隔（250ミリ秒）。メモリーのバッファーだけを受け付け（DMA-BUFは使わない）、形式はBGRx、BGRA、RGBx、RGBA。デスクトップには最大で毎秒4枚を頼み、明らかに早く届いた分は捨てる。標準出力のパイプをTauriが閉じるか、Tauriが終了すると止まる。標準エラーに`streaming`と、止まった理由（`screen_capture_<理由>`）を1行ずつ出す |
+| フレームファイル | `$XDG_RUNTIME_DIR/vrct-vox/vr-panel-<pid>/screen-frame`（ディレクトリは0700、ファイルは0600）。先頭64バイトはリトルエンディアンで、目印`VRCTSCR1`、通し番号（書き換え中は奇数）、識別番号（共有が終わると0。上位32ビットはヘルパーのプロセスID）、幅、高さ、1行のバイト数、画素の並び（0: BGRx、1: BGRA、2: RGBx、3: RGBA）、フレームの時刻。続けて画素を置く。最後の行は幅×4バイトだけを持つ。バックエンドは通し番号が読む前後で同じ偶数のときだけ使い、ファイルがない、識別番号が0、ヘルパーのプロセスがない、のどれかなら共有は終わったとみなす |
+
+変化のないウィンドウは新しいフレームを送らないので、フレームが古いことだけでは共有の終わりと判断しない。
+
+| イベント | 向き | 内容 |
+|---|---|---|
+| `screencast-ended` | Rust → `main` | アプリが止めたのではない共有の終わり。`{reason}`は`ended`（ウィンドウが閉じた、デスクトップ側で共有を止めた）か`failed`（ヘルパーやポータルが止まった）。`main`は共有の表示を戻し、お知らせを出す |
+
+`RunEvent::Exit`で共有を終える。ヘルパーは親が消えたときにも止まるので、アプリが強制終了しても残らない。
 
 ### ホットキー
 

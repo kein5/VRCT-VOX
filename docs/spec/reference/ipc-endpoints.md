@@ -10,7 +10,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - UIの受信先: 200の応答を処理するUIのフック（`useReceiveRoutes.js`の静的ルートと`ui_config_setter.js`の定義から生成）。「—」は受信先がない。
 - ログで伏せる: `process.log`で値を`***MASKED***`に置き換える（`SENSITIVE_ENDPOINT_MARKERS`）。stdoutのIPCそのものは伏せない。
 
-## 要求（400件: 削除 11、取得 178、実行 37、有効化 38、無効化 38、設定 98）
+## 要求（402件: 削除 11、取得 179、実行 37、有効化 38、無効化 38、設定 99）
 
 | エンドポイント | 種別 | 処理（controller） | 初期化前 | UIの受信先 | 備考 |
 |---|---|---|---|---|---|
@@ -405,6 +405,8 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/set/enable/ocr_use_chatbox_detector` | 有効化 | `setEnableOcrUseChatboxDetector` | 可 | useOcr.setSuccessOcrUseChatboxDetector |  |
 | `/set/disable/ocr_use_chatbox_detector` | 無効化 | `setDisableOcrUseChatboxDetector` | 可 | useOcr.setSuccessOcrUseChatboxDetector |  |
 | `/get/data/ocr_readiness` | 取得 | `getOcrReadiness` | 可 | useOcr.updateFromBackendOcrReadiness |  |
+| `/get/data/ocr_portal_restore_token` | 取得 | `getOcrPortalRestoreToken` | 可 | useOcr.updateFromBackendOcrPortalRestoreToken | ログで伏せる |
+| `/set/data/ocr_portal_restore_token` | 設定 | `setOcrPortalRestoreToken` | 可 | useOcr.updateFromBackendOcrPortalRestoreToken | ログで伏せる |
 | `/get/data/osc_ip_address` | 取得 | `getOscIpAddress` | 可 | useAdvancedSettings.updateFromBackendOscIpAddress |  |
 | `/set/data/osc_ip_address` | 設定 | `setOscIpAddress` | 可 | useAdvancedSettings.setSuccessOscIpAddress |  |
 | `/get/data/osc_port` | 取得 | `getOscPort` | 可 | useAdvancedSettings.updateFromBackendOscPort |  |

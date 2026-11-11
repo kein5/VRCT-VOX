@@ -311,7 +311,7 @@ pub async fn quick_chat_show(
 }
 const TITLE: &str = "VRCT-VOX Quick Chat";
 
-fn wayland_session() -> bool {
+pub(crate) fn wayland_session() -> bool {
     cfg!(target_os = "linux")
         && (std::env::var_os("WAYLAND_DISPLAY").is_some()
             || std::env::var("XDG_SESSION_TYPE").as_deref() == Ok("wayland"))

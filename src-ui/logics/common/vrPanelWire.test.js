@@ -37,12 +37,14 @@ test("the VR panel cannot change where saved keys are sent or what runs", () => 
     for (const path of ["/set/data/openai_compatible_url", "/set/data/lmstudio_url", "/set/data/ollama_url", "/set/data/custom_whisper_url",
         "/set/data/websocket_host", "/set/data/websocket_port", "/set/data/obs_browser_source_port", "/set/data/osc_ip_address",
         "/set/data/osc_port", "/set/data/voice_settings", "/set/data/direct_voice_settings", "/set/data/speech_server_settings",
-        "/set/data/realtime_asr_settings"]) assert.equal(isRelayAllowed(path), false, path);
+        "/set/data/realtime_asr_settings", "/set/data/ocr_portal_restore_token",
+        "/get/data/ocr_portal_restore_token"]) assert.equal(isRelayAllowed(path), false, path);
     for (const path of ["/get/data/openai_compatible_url", "/set/data/selected_font_family"]) assert.equal(isRelayAllowed(path), true, path);
 });
 
 test("credentials are not mirrored to the VR panel", () => {
-    for (const name of ["DeepLAuthKey", "OpenAICompatibleAuthKey", "DeepgramAuthKey", "WebsocketAuthToken"]) assert.equal(isSecretAtomName(name), true, name);
+    for (const name of ["DeepLAuthKey", "OpenAICompatibleAuthKey", "DeepgramAuthKey", "WebsocketAuthToken",
+        "OcrPortalRestoreToken"]) assert.equal(isSecretAtomName(name), true, name);
     for (const name of ["SelectedFontFamily", "MessageLogs", "OpenAICompatibleUrl", "SelectedTranslationEngines"]) assert.equal(isSecretAtomName(name), false, name);
 });
 

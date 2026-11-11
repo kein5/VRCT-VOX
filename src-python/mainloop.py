@@ -726,6 +726,8 @@ mapping = {
     "/set/enable/ocr_use_chatbox_detector": {"status": True, "variable":controller.setEnableOcrUseChatboxDetector},
     "/set/disable/ocr_use_chatbox_detector": {"status": True, "variable":controller.setDisableOcrUseChatboxDetector},
     "/get/data/ocr_readiness": {"status": True, "variable":controller.getOcrReadiness},
+    "/get/data/ocr_portal_restore_token": {"status": True, "variable":controller.getOcrPortalRestoreToken},
+    "/set/data/ocr_portal_restore_token": {"status": True, "variable":controller.setOcrPortalRestoreToken},
 
     # Advanced Settings
     "/get/data/osc_ip_address": {"status": True, "variable":controller.getOscIpAddress},

@@ -51,7 +51,10 @@ export const readinessSummary = readiness => {
 
 export const runtimeSummary = runtime => {
     if (!runtime || runtime.state === "stopped") return null;
-    const state = runtime.state === "retrying"
+    // Linux: the window the user shared is gone and none is found by name. Say what to do
+    // instead of the general capture failure.
+    const lost = runtime.state === "retrying" && runtime.stage === "capture" && runtime.shared_window === "ended";
+    const state = lost ? "shared_window_ended" : runtime.state === "retrying"
         ? `failed_${["capture", "detector", "recognition"].includes(runtime.stage) ? runtime.stage : "tick"}`
         : runtime.state === "reading" ? "reading" : "waiting";
     const tone = runtime.state === "retrying" ? "failed" : state === "reading" ? "active" : "warning";
@@ -80,6 +83,8 @@ export const captureStatusSummary = (status, readiness) => {
         const summary = readinessSummary(readiness);
         return { ...summary, sourceKey: "config_page.ocr.capture_source.stopped", tone: summary.ok ? "neutral" : "warning" };
     }
-    const sourceKey = ["window", "vr"].includes(status.source) ? `config_page.ocr.capture_source.${status.source}` : null;
+    // A shared window is still the "window" source; the label tells which window is read.
+    const source = status.source === "window" && status.shared_window === "active" ? "shared" : status.source;
+    const sourceKey = ["window", "vr", "shared"].includes(source) ? `config_page.ocr.capture_source.${source}` : null;
     return { ...runtimeSummary(status), sourceKey };
 };

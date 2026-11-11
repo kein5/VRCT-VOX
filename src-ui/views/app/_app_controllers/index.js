@@ -8,3 +8,4 @@ export { FontFamilyController } from "./FontFamilyController";
 export { TransparencyController } from "./TransparencyController";
 export { CornerRadiusController } from "./CornerRadiusController";
 export { VrPanelSyncController } from "./VrPanelSyncController";
+export { OcrSharedWindowController } from "./OcrSharedWindowController";
