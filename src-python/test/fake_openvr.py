@@ -409,6 +409,74 @@ class FakeVRApplications(_Interface):
         return apps[appKey]
 
 
+class FakeVRCompositor(_Interface):
+    """ヘッドセットに映っている画像 (ミラー) を、OpenGL のテクスチャで渡す (Linux の OCR の VR の撮影)。
+
+    本物と同じく、テクスチャは lock と unlock の間だけ読める。読んだかどうかは偽物には分からないので、
+    lock・unlock・release の順番だけを確かめる。
+    """
+
+    def getLastFrameRenderer(self):
+        return self._check("getLastFrameRenderer").scene_pid
+
+    def getCurrentSceneFocusProcess(self):
+        return self._check("getCurrentSceneFocusProcess").scene_pid
+
+    def getMirrorTextureGL(self, eye):
+        vr = self._check("getMirrorTextureGL")
+        with vr.lock:
+            if vr.mirror is None:
+                raise_openvr_error(error_code.CompositorError_InvalidTexture, "fake openvr shows nothing in the headset")
+            texture = vr.make_mirror_texture(vr.mirror)
+            vr.next_handle += 1
+            vr.mirror_textures[vr.next_handle] = [texture, False]  # [テクスチャ番号, lock 中か]
+            return texture, vr.next_handle
+
+    def _entry(self, method: str, handle):
+        vr = self._check(method)
+        entry = vr.mirror_textures.get(int(getattr(handle, "value", handle) or 0))
+        if entry is None:
+            vr.misuse_of(f"{method} with an unknown shared texture handle")
+        return vr, entry
+
+    def lockGLSharedTextureForAccess(self, sharedTextureHandle) -> None:
+        vr, entry = self._entry("lockGLSharedTextureForAccess", sharedTextureHandle)
+        if entry[1]:
+            vr.misuse_of("lockGLSharedTextureForAccess twice")
+        entry[1] = True
+        vr.mirror_locks += 1
+
+    def unlockGLSharedTextureForAccess(self, sharedTextureHandle) -> None:
+        vr, entry = self._entry("unlockGLSharedTextureForAccess", sharedTextureHandle)
+        if not entry[1]:
+            vr.misuse_of("unlockGLSharedTextureForAccess without a lock")
+        entry[1] = False
+
+    def releaseSharedGLTexture(self, textureId, sharedTextureHandle):
+        vr, entry = self._entry("releaseSharedGLTexture", sharedTextureHandle)
+        if entry[1]:
+            vr.misuse_of("releaseSharedGLTexture while locked")
+        del vr.mirror_textures[int(getattr(sharedTextureHandle, "value", sharedTextureHandle))]
+        return True
+
+
+def gl_texture_from_rgb(image: np.ndarray) -> int:
+    """今の OpenGL の環境に、画像 (高さ, 幅, RGB。上の行が先) のテクスチャを作る。"""
+    from OpenGL import GL
+
+    height, width = image.shape[:2]
+    texture = int(GL.glGenTextures(1))
+    GL.glBindTexture(GL.GL_TEXTURE_2D, texture)
+    GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
+    GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+    GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
+    # OpenGL は下の行から並べる
+    GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGB8, width, height, 0, GL.GL_RGB, GL.GL_UNSIGNED_BYTE,
+                    np.ascontiguousarray(image[::-1, :, :3]).tobytes())
+    GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+    return texture
+
+
 class FakeOpenVR:
     """SteamVR の代わり。デバイスの姿勢・ボタン、オーバーレイの状態、イベントを持つ。
 
@@ -439,6 +507,12 @@ class FakeOpenVR:
         self.leaked: List[FakeOverlayState] = []  # shutdown の時点で消されていなかったオーバーレイ
         self.events: Deque[Tuple[int, int]] = deque()
         self.misuse: List[str] = []
+        # ヘッドセットに映っている画像 (高さ, 幅, RGB)。None の間はミラーを渡さない (IVRCompositor が無いのと同じ)
+        self.mirror: Optional[np.ndarray] = None
+        self.scene_pid = 0  # 今 SteamVR に映しているアプリのプロセス番号
+        self.make_mirror_texture: Callable[[np.ndarray], int] = gl_texture_from_rgb
+        self.mirror_textures: Dict[int, list] = {}
+        self.mirror_locks = 0
         self.connected = False
         self.connection = 0
         self.init_calls = 0
@@ -486,9 +560,10 @@ class FakeOpenVR:
             "IVRRenderModels": lambda: FakeVRRenderModels(self),
             "VRApplications": lambda: FakeVRApplications(self),
             "IVRApplications": lambda: FakeVRApplications(self),
-            # ミラー画面 (OCR の VR の撮影) は扱わない。呼ばれたら、つながらないときと同じ失敗にする
-            "VRCompositor": self.noCompositor,
-            "IVRCompositor": self.noCompositor,
+            # ミラー画面 (OCR の VR の撮影) は、mirror に画像を入れたときだけ渡す (OpenGL の読み取り。Linux)。
+            # 入れていなければ、つながらないときと同じ失敗にする
+            "VRCompositor": self.compositor,
+            "IVRCompositor": self.compositor,
         }
 
     def _patchSteamvrProcess(self, stack: ExitStack) -> None:
@@ -533,9 +608,11 @@ class FakeOpenVR:
             self.connected = False
             self.shutdown_calls += 1
 
-    def noCompositor(self):
+    def compositor(self):
         self.check_connected("IVRCompositor")
-        raise_openvr_error(error_code.InitError_Init_InterfaceNotFound, "fake openvr has no compositor")
+        if self.mirror is None:
+            raise_openvr_error(error_code.InitError_Init_InterfaceNotFound, "fake openvr has no compositor")
+        return FakeVRCompositor(self)
 
     def check_connected(self, name: str) -> None:
         if not self.connected:

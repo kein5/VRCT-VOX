@@ -91,14 +91,26 @@ def test_frame_source_selects_its_own_region_and_fallback_restores_window(captur
     assert capture.source is None
 
 
-def test_linux_never_attempts_vr_even_with_steamvr_running(captures, monkeypatch):
+def test_where_the_headset_view_cannot_be_read_it_is_never_attempted(captures, monkeypatch):
+    # For example Linux without the OpenGL libraries the reader needs.
     capture, _, vr, steamvr = captures
     monkeypatch.setattr(ocr_capture.sys, "platform", "linux")
+    vr.isAvailable.return_value = False
     steamvr.return_value = True
     assert ocr_capture.availableCaptureSources() == ["window"]
     assert capture.get() is not None
     assert capture.source == "window"
     vr.capture.assert_not_called()
+
+
+def test_linux_reads_the_headset_view_when_it_can(captures, monkeypatch):
+    capture, _, vr, steamvr = captures
+    monkeypatch.setattr(ocr_capture.sys, "platform", "linux")
+    steamvr.return_value = True
+    assert ocr_capture.availableCaptureSources() == ["window", "vr"]
+    capture._selectBackend(force=True)
+    assert capture.get() is not None
+    assert capture.source == "vr"
 
 
 def test_pending_regions_follow_replaced_capture_and_legacy_region_only_edits_window():
@@ -248,6 +260,9 @@ def test_detector_selection_is_in_the_same_transaction(subject):
 def test_status_reports_worker_source_without_probing(subject, monkeypatch):
     controller, backend = subject
     monkeypatch.setattr(ocr_capture.sys, "platform", "win32")
+    reader = Mock()
+    reader.isAvailable.return_value = True
+    monkeypatch.setattr(ocr_capture, "OpenVRMirrorCapture", Mock(return_value=reader))
     probe = Mock(side_effect=AssertionError("no capture probe"))
     monkeypatch.setattr(ocr_capture, "probeCapture", probe)
     pipeline = backend.ocr_pipeline
@@ -276,7 +291,7 @@ def test_status_reports_worker_source_without_probing(subject, monkeypatch):
     pipeline.requestShutdown()
     assert controller.getOcrCaptureStatus()["result"] == stopped
     backend.ocr_pipeline = None
-    monkeypatch.setattr(ocr_capture.sys, "platform", "linux")
+    reader.isAvailable.return_value = False  # The headset view cannot be read on this system.
     assert controller.getOcrCaptureStatus()["result"] == {**stopped, "available_sources": ["window"]}
     pipeline._capture.get.assert_not_called()
     probe.assert_not_called()

@@ -31,7 +31,7 @@ With "Use the chatbox detector (recommended when installed)" on, VRCT-VOX's own 
 
 ## Supported environments
 
-- **Linux**: captures the VRChat window through X11/XWayland. With Proton's defaults VRChat runs under XWayland, so this works as is. Native Wayland windows cannot be captured yet.
+- **Linux**: captures the VRChat window through X11/XWayland. With Proton's defaults VRChat runs under XWayland, so this works as is. Native Wayland windows cannot be captured yet. While SteamVR runs, the headset view is read as well; this has only been checked against a simulated SteamVR.
 - **Windows**: captures the VRChat window.
 
 ::: tip If the window is not found

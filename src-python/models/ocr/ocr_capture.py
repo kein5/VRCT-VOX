@@ -1,7 +1,8 @@
 """Capture backend facade for OCR: picks the desktop window vs OpenVR by SteamVR status.
 
 The desktop window backend is HWND/PrintWindow on Windows and X11/XWayland
-(ocr_capture_x11.py) on Linux.
+(ocr_capture_x11.py) on Linux. The OpenVR mirror is read through D3D11 on
+Windows and OpenGL on Linux.
 
 Contract: get() returns a BGR ndarray or None. It never raises. The
 facade rechecks SteamVR periodically so the backend follows the user
@@ -46,7 +47,7 @@ CAPTURE_UNAVAILABLE = "capture_unavailable"
 
 
 def availableCaptureSources() -> list[str]:
-    return ["window", "vr"] if sys.platform == "win32" else ["window"]
+    return ["window", "vr"] if OpenVRMirrorCapture().isAvailable() else ["window"]
 
 
 def _isSteamvrRunning() -> bool:
@@ -67,9 +68,10 @@ def probeCapture(window_title: str) -> str:
     begin (no X11 / XWayland session, or VRChat is not running) instead of
     starting a loop that silently reads nothing.
     """
+    # The headset view needs no window: VRChat's desktop window may be minimized in VR.
+    if _isSteamvrRunning() and OpenVRMirrorCapture().isAvailable():
+        return CAPTURE_OK
     if sys.platform == "win32":
-        if _isSteamvrRunning() and OpenVRMirrorCapture().isAvailable():
-            return CAPTURE_OK
         return CAPTURE_OK if _find_vrchat_hwnd(window_title) is not None else CAPTURE_WINDOW_NOT_FOUND
     capture = X11WindowCapture(window_title=window_title)
     try:
@@ -108,8 +110,7 @@ class OcrCapture:
             return self._backend
         self._last_check = now
 
-        # The D3D11 mirror is a Windows source; Linux only reads X11 windows.
-        want_openvr = sys.platform == "win32" and _isSteamvrRunning()
+        want_openvr = _isSteamvrRunning()
         if want_openvr:
             if self._openvr is None:
                 candidate = OpenVRMirrorCapture()
