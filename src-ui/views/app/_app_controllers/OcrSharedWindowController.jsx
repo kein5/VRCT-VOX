@@ -7,8 +7,9 @@ import { useOcrSharedWindow } from "@logics_configs";
 import { endedNotice, shouldStopSharing } from "../../../logics/configs/ocrSharedWindow";
 
 // The window shared with Chat Transcribe (Linux, Wayland) follows chat reading: turning it off
-// ends the sharing, and when the desktop or the window ends it, the user is told. Sharing itself
-// starts only from the button in the settings (OcrSharedWindow.jsx); nothing here starts it.
+// ends the sharing, and when the desktop or the window ends it, the user is told. Nothing here
+// starts sharing: that is the button in the settings (OcrSharedWindow.jsx), and the user turning
+// chat reading on again where a window was shared before (_useBackendErrorHandling.js).
 export const OcrSharedWindowController = () => {
     const { t } = useI18n();
     const { currentOcrCaptureStatus } = useMainFunction();

@@ -110,7 +110,7 @@ RapidOCR の `DownloadFile.run` は例外を投げるものに差し替えてあ
 利用者がウィンドウを選び、PipeWire で届く映像を読む。
 
 ```
-設定ページの「ウィンドウを共有…」(利用者が押したときだけ)
+設定ページの「ウィンドウを共有…」、またはチャット読み取りをオンにしたときの共有のやり直し (下記)
   └─ Tauri: screencast_start (src-tauri/src/portal_screencast.rs)
        ├─ org.freedesktop.portal.ScreenCast: CreateSession → SelectSources → Start → OpenPipeWireRemote
        └─ vrct-screen-capture (native/screen-capture) を起動。PipeWire の接続は標準入力で渡す
@@ -123,7 +123,7 @@ RapidOCR の `DownloadFile.run` は例外を投げるものに差し替えてあ
 
 | 部品 | 役割 | 持たないもの |
 |---|---|---|
-| UI (`OcrSharedWindow.jsx`、`useOcrSharedWindow.js`、`OcrSharedWindowController.jsx`) | ボタン、状態の表示、復元トークンの保存、チャット読み取りをオフにしたときの共有の終了、共有が終わったときのお知らせ | 自動で頼む処理 (起動時、ページを開いたとき、開始時、失敗時のどれでも頼まない) |
+| UI (`OcrSharedWindow.jsx`、`useOcrSharedWindow.js`、`OcrSharedWindowController.jsx`) | ボタン、状態の表示、復元トークンの保存、チャット読み取りをオフにしたときの共有の終了、オンにしたときの共有のやり直し、共有が終わったときのお知らせ | 利用者の操作によらずに頼む処理 (起動時、ページを開いたとき、動作中の失敗時のどれでも頼まない) |
 | Tauri (`portal_screencast.rs`) | ポータルとのやりとり、ヘルパーの起動と停止、セッションが閉じたことの検出 | 画素 |
 | ヘルパー (`native/screen-capture/main.c`) | PipeWire の映像を受け取り、フレームファイルへ書く | ポータル、D-Bus |
 | バックエンド (`ocr_capture_portal.py`、`ocr_capture.py`) | フレームファイルを読む。共有が終わったことを状態に出す | 共有を始める・終える処理 |
@@ -143,6 +143,13 @@ Request の Response 待ち、期限、取り消し、ポータルの再起動�
 - 共有中の「別のウィンドウを選ぶ…」はトークンを送らない。送ると同じウィンドウが黙って復元され、
   選び直せないため
 - アプリ ID の登録に失敗するポータル (古い版) でも共有はできるので、登録の失敗では止めない
+- オンにしたときの共有のやり直し (`_useBackendErrorHandling.js`、`ocrSharedWindow.js` の `shouldRestoreSharing` と
+  `restore`): チャット読み取りをオフにすると共有は終わる。利用者がオンにし直して、開始が
+  `OCR_DISABLED_WINDOW_NOT_FOUND` か `OCR_DISABLED_CAPTURE_UNAVAILABLE` で断られたとき、保存したトークンがあり、
+  共有中でも要求中でもなければ、そのトークンで `screencast_start` を呼び、成功したら `/set/enable/ocr_capture` を
+  もう一度送る。2 回目の開始では共有中なので、やり直しは繰り返さない。デスクトップが復元せずに選択画面を
+  出した場合に備えて 15 秒 (`RESTORE_LIMIT_MS`) で `screencast_stop` を呼び、要求を取り下げる (トークンは空になる)。
+  名前で見つかるウィンドウがあれば開始は成功するので、この処理は動かない
 
 ### ヘルパー
 
@@ -193,7 +200,8 @@ Request の Response 待ち、期限、取り消し、ポータルの再起動�
 - Python (`test_ocr_capture_portal.py`): フレームファイルの読み取り、ファサードの選択と復帰、状態、設定キー
 - ヘルパー (`tests/voice/test_screen_capture_native.py`): PipeWire なしでバッファーを渡し、書いたファイルを
   バックエンドの読み取りで確かめる。引数と記述子の検査
-- UI: `ocrSharedWindow.test.js` (状態とトークン)、`OcrSharedWindow.test.js`、`OcrSharedWindowController.test.js`
+- UI: `ocrSharedWindow.test.js` (状態とトークン、共有のやり直しの判定と期限)、`OcrSharedWindow.test.js`、
+  `OcrSharedWindowController.test.js`、`ocrLanguageErrors.test.js` (開始の失敗からのやり直しと、もう一度のオン)
 - 実機の確認は自動試験に入っていない。KDE のダイアログへの応答が要るため
 
 ### 実機での確認 (2026-11-11)

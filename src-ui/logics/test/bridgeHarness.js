@@ -42,7 +42,7 @@ const stubApi = (values = {}) => new Proxy({ __esModule: true, ...values }, {
     get: (target, key) => key in target ? target[key] : typeof key === "string" && key.startsWith("use") ? () => stubApi() : noop,
 });
 
-export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = null, modelDownloads = null) => {
+export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = null, modelDownloads = null, overrides = {}) => {
     const subject = await loadBridgeStore();
     const { runtime, stores, jotai } = subject;
     const notices = [], reads = [];
@@ -71,12 +71,13 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
     });
     const configs = stubApi({ ...Object.fromEntries([...new Set(settings.SETTINGS_ARRAY.map(setting => setting.Category))]
         .map(category => [`use${category}`, settings.createCategoryHook(category)])),
-        ocrStartErrorKey: code => sharedWindow.startErrorKey(code, runtime.store.get(stores.Atom_OcrSharedWindow).data) });
+        ocrStartErrorKey: code => sharedWindow.startErrorKey(code, runtime.store.get(stores.Atom_OcrSharedWindow).data),
+        ...overrides.configs });
     const languages = await loadModule(new URL("../main/useLanguageSettings.js", import.meta.url), runtime, {
         "@store": stores, "@ui_configs": { translator_status: [] },
         "./languageMutations": { canChangeLanguageSettings: () => true, createLanguageRequestId: () => "test" },
     });
-    const main = stubApi(languages);
+    const main = stubApi({ ...languages, ...overrides.main });
     const transcriptionConsent = await loadModule(new URL("../transcription/useTranscriptionConsent.js", import.meta.url), runtime);
     const errors = await loadModule(new URL("../_useBackendErrorHandling.js", import.meta.url), runtime, {
         "@logics_common": common, "@logics_main": main, "@logics_configs": configs,

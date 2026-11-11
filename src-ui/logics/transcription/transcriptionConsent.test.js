@@ -40,8 +40,8 @@ async function fixture(context) {
         pendingWhisperWeightTypeStatus: value => calls.push(["pending", value]),
         downloadWhisperWeightTypeStatus: value => calls.push(["/run/download_whisper_weight", value]),
     });
-    const configs = { useTranscription: () => transcription, ocrStartErrorKey: () => null };
-    for (const name of ["Translation", "Others", "Ocr", "AdvancedSettings"]) configs[`use${name}`] = () => api({});
+    const configs = { useTranscription: () => transcription, ocrStartErrorKey: () => null, ocrShouldRestoreSharedWindow: () => false };
+    for (const name of ["Translation", "Others", "Ocr", "OcrSharedWindow", "AdvancedSettings"]) configs[`use${name}`] = () => api({});
     const common = {};
     for (const name of ["NotificationStatus", "Volume", "LLMConnection", "IsSoftwareUpdating"]) common[`use${name}`] = () => api({});
     const errors = await loadModule(new URL("../_useBackendErrorHandling.js", import.meta.url), runtime, {

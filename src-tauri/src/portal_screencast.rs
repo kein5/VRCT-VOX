@@ -578,7 +578,8 @@ pub fn screencast_support(window: WebviewWindow, state: State<'_, Screencast>) -
     Ok(Support { supported: crate::quick_chat::wayland_session(), active: state.active() })
 }
 
-/// Asks the desktop to share one window with chat reading. Call only on the user's request.
+/// Asks the desktop to share one window with chat reading. Call only on the user's request: the
+/// button in the settings, or turning chat reading on where a window was shared before.
 /// A sharing that is already running is replaced.
 #[tauri::command]
 pub async fn screencast_start(window: WebviewWindow, app: AppHandle, state: State<'_, Screencast>, restore_token: Option<String>)
