@@ -28,7 +28,7 @@ def controller_module(monkeypatch, tmp_path):
         "models.translation.translation_providers": {"TRANSLATION_PROVIDER_REGISTRY": {}, "CONNECTION_PROVIDER_REGISTRY": {}},
         "models.transcription.transcription_openai_compatible": {"TRANSCRIPTION_MODEL_KEYWORDS": {}, "TRANSCRIPTION_API_ENGINES": ()},
         "models.overlay.overlay_tooltip": {"validate_tooltip": MagicMock()},
-        "models.overlay.overlay": {name: MagicMock() for name in ("PANEL_ANCHORS", "computeVrLayout", "clampPanelSize", "mirrorHandPosition")},
+        "models.overlay.overlay": {name: MagicMock() for name in ("PANEL_ANCHORS", "computeVrLayout", "clampPanelSize", "mirrorHandPosition", "vrPanelSupported")},
     }
     for name, attrs in stubs.items():
         module = ModuleType(name)

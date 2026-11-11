@@ -205,6 +205,7 @@ backend_errors:
     TRANSCRIPTION_ENGINE_UNAVAILABLE: "選択した音声認識エンジンを起動できませんでした。エンジンの設定を確認してから、文字起こしをもう一度オンにしてください。"
     WEIGHT_DOWNLOAD_CONSENT_REQUIRED: "{{model}} はダウンロードしていません。設定の「翻訳」または「音声認識」でライセンスと容量を確認し、同意してからダウンロードしてください。モデルの版が変わったときは、もう一度確認してください。"
     OVERLAY_RUNTIME_FAILED: "VRオーバーレイの描画または画面の取り込みに失敗したため、表示を止めました。SteamVRとVR画面の状態を確かめてから、もう一度オンにしてください。"
+    OVERLAY_VR_PANEL_UNSUPPORTED: "VR UIは、いまのところWindowsでだけ使えます。字幕オーバーレイには影響しません。"
     MESSAGE_OUTPUT_FAILED: "{{output}}にメッセージを送れませんでした。ほかの出力先には送っています。再送すると、ほかの出力先に同じメッセージが重ねて届くことがあります。"
     TRANSLATION_VRAM_ENABLE: "GPUのメモリーが足りず、AI翻訳を開始できませんでした。設定の「翻訳」で処理デバイスをCPUにするか、ほかのGPUアプリを止めてください。"
     TRANSLATION_DISABLED_VRAM: "GPUのメモリーが足りないため、翻訳をオフにしました。"

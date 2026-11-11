@@ -35,6 +35,7 @@ class VrPanelCaptureRecoveryTest(unittest.TestCase):
             OVERLAY_VR_PANEL_LOCKED=False, OVERLAY_VR_LAUNCHER_AUTO_HIDE=True,
         )
         self._patch("controller.model", self.model)
+        self._patch("controller.vrPanelSupported", lambda: True)  # 撮影は偽物なので、どの OS でも通す
         # Config の実ファイルへの保存を避け、Controller の切り替え経路を通す。
         self._patch("controller.config", settings)
         self._patch("models.overlay.overlay.errorLogging")

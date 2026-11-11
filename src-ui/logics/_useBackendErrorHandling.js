@@ -161,6 +161,11 @@ export const _useBackendErrorHandling = () => {
                 asyncStdoutToPython("/get/data/overlay_large_log");
                 asyncStdoutToPython("/get/data/overlay_vr_panel");
                 break;
+            case "OVERLAY_VR_PANEL_UNSUPPORTED":
+                // Nothing was started or stopped; only the switch has to show what is saved.
+                showNotification_Error(localized, { category_id: error_code });
+                asyncStdoutToPython("/get/data/overlay_vr_panel");
+                break;
             case "MESSAGE_OUTPUT_FAILED": {
                 const outputs = ["osc", "overlay_small", "overlay_large", "clipboard", "ui", "websocket", "logger", "history", "tts"];
                 const output = outputs.includes(data?.output) ? data.output : "unknown";

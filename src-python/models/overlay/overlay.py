@@ -258,6 +258,11 @@ def uvToPixel(u: float, v: float, width: int, height: int) -> tuple:
     return (min(max(int(x), 0), width - 1), min(max(int(y), 0), height - 1))
 
 
+def vrPanelSupported() -> bool:
+    """VR UI を作れる OS か。VR画面の取り込みとポインタの入力に Windows の機能を使う。"""
+    return os.name == "nt"
+
+
 def raiseThreadPriority() -> None:
     """このスレッドを通常より少し高い優先度にする (Windows のみ。失敗しても何もしない)。"""
     if os.name != "nt":
@@ -1069,7 +1074,7 @@ class Overlay:
 
     def initPanelTexture(self) -> None:
         """VRパネル用のOpenGLコンテキストとテクスチャを作る (オーバーレイのスレッドで呼ぶこと)。"""
-        if os.name != "nt":
+        if not vrPanelSupported():
             raise RuntimeError("VR panel capture is Windows only")
         import glfw
         from OpenGL import GL
