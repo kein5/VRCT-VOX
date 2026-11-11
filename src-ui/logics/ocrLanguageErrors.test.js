@@ -43,15 +43,15 @@ test("a capture failure keeps its own notice on Wayland", async () => {
 // Linux on Wayland: the user turned chat reading on, no window was found by name, and the desktop
 // remembers the window shared before. It is shared again and chat reading is turned on once more.
 const restoring = async (restored, wanted = true) => {
-    const enabled = [], asked = [];
+    const enabled = [], asked = [], settled = [];
     const s = await loadBridgeRoutes(undefined, null, null, {
         configs: {
             ocrShouldRestoreSharedWindow: code => { asked.push(code); return wanted; },
             useOcrSharedWindow: () => ({ restore: async () => { if (restored instanceof Error) throw restored; return restored; } }),
         },
-        main: { useMainFunction: () => ({ updateOcrCaptureStatus: () => {}, setOcrCapture: value => enabled.push(value) }) },
+        main: { useMainFunction: () => ({ updateOcrCaptureStatus: value => settled.push(value), setOcrCapture: value => enabled.push(value) }) },
     });
-    return { s, enabled, asked };
+    return { s, enabled, asked, settled };
 };
 const windowNotFound = endpoint => ({ endpoint, status: 400, result: { error_code: "OCR_DISABLED_WINDOW_NOT_FOUND", data: false } });
 
@@ -66,10 +66,12 @@ test("a remembered window is shared again and chat reading turned on once more, 
 
 for (const [name, outcome] of [["could not be shared", false], ["failed", new Error("screencast_failed")]]) {
     test(`when the remembered window ${name}, chat reading stays off and the usual notice is shown`, async () => {
-        const { s, enabled } = await restoring(outcome);
+        const { s, enabled, settled } = await restoring(outcome);
         s.receiveRoutes(windowNotFound("/set/enable/ocr_capture"));
         await flush();
         assert.deepEqual(enabled, []);
+        // Off from the failed start, then off again to end the switch's waiting.
+        assert.deepEqual(settled, [false, false]);
         assert.equal(s.notices.length, 1);
         assert.equal(s.notices[0].options.category_id, "OCR_DISABLED_WINDOW_NOT_FOUND");
     });

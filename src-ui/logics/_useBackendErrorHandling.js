@@ -276,7 +276,9 @@ export const _useBackendErrorHandling = () => {
                 // The user turned chat reading on and a window was shared before: share the window the
                 // desktop remembers, then turn chat reading on once more. A second failure is reported.
                 if (endpoint !== "/set/data/ocr_source_language" && ocrShouldRestoreSharedWindow(error_code)) {
-                    Promise.resolve(restoreSharedWindow()).then(shared => shared === true ? setOcrCapture(true) : notify(), notify);
+                    // The switch waits meanwhile (OcrSharedWindowController), so settle it when giving up.
+                    const giveUp = () => { updateOcrCaptureStatus(false); notify(); };
+                    Promise.resolve(restoreSharedWindow()).then(shared => shared === true ? setOcrCapture(true) : giveUp(), giveUp);
                     return;
                 }
                 notify();

@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useI18n } from "@useI18n";
 import { useNotificationStatus } from "@logics_common";
 import { useMainFunction } from "@logics_main";
 import { useOcrSharedWindow } from "@logics_configs";
-import { endedNotice, shouldStopSharing } from "../../../logics/configs/ocrSharedWindow";
+import { endedNotice, shouldHoldSwitch, shouldStopSharing } from "../../../logics/configs/ocrSharedWindow";
 
 // The window shared with Chat Transcribe (Linux, Wayland) follows chat reading: turning it off
 // ends the sharing, and when the desktop or the window ends it, the user is told. Nothing here
@@ -12,7 +12,7 @@ import { endedNotice, shouldStopSharing } from "../../../logics/configs/ocrShare
 // chat reading on again where a window was shared before (_useBackendErrorHandling.js).
 export const OcrSharedWindowController = () => {
     const { t } = useI18n();
-    const { currentOcrCaptureStatus } = useMainFunction();
+    const { currentOcrCaptureStatus, pendingOcrCaptureStatus } = useMainFunction();
     const { currentOcrSharedWindow, refresh, stop, ended } = useOcrSharedWindow();
     const { showNotification_Warning, showNotification_Error } = useNotificationStatus();
     const latest = useRef(null);
@@ -44,5 +44,12 @@ export const OcrSharedWindowController = () => {
         if (shouldStopSharing(wasOn.current, on, currentOcrSharedWindow.data?.active)) stop();
         wasOn.current = on;
     }, [on, settled]);
+
+    // Sharing the remembered window again: the switch waits instead of reading "off" in between.
+    // Before paint, so the "off" the failed first start reported is never shown.
+    const hold = shouldHoldSwitch(currentOcrSharedWindow.data, settled, on);
+    useLayoutEffect(() => {
+        if (hold) pendingOcrCaptureStatus();
+    }, [hold]);
     return null;
 };

@@ -22,7 +22,8 @@ const mount = async (context, { listenFails = false } = {}) => {
             showNotification_Warning: (message, options) => app.notices.push(["warning", message, options]),
             showNotification_Error: (message, options) => app.notices.push(["error", message, options]),
         }) },
-        "@logics_main": { useMainFunction: () => ({ currentOcrCaptureStatus: app.chatReading }) },
+        "@logics_main": { useMainFunction: () => ({ currentOcrCaptureStatus: app.chatReading,
+            pendingOcrCaptureStatus: () => { app.calls.push("pending"); app.chatReading = { ...app.chatReading, state: "pending" }; } }) },
         "@logics_configs": { useOcrSharedWindow: () => ({
             currentOcrSharedWindow: { data: app.shared },
             refresh: () => app.calls.push("refresh"),
@@ -96,4 +97,34 @@ test("the listener goes away with the controller, and a browser preview without 
     assert.equal(app.unlistened, 1);
     const preview = await mount(context, { listenFails: true });
     assert.deepEqual(preview.app.calls, ["refresh"]);
+});
+
+test("the switch waits while the remembered window is shared again, and only then", async context => {
+    const { app, render } = await mount(context);
+    // Chat reading was turned on, the start failed, and the remembered window is being shared again.
+    app.shared = { ...app.shared, busy: true, restoring: true };
+    app.chatReading = { data: false, state: "ok" };
+    render();
+    assert.deepEqual(app.calls, ["refresh", "pending"]);
+    // The backend's answer to the failed start arrives and says "off" once more.
+    app.chatReading = { data: false, state: "ok" };
+    render();
+    render();
+    assert.deepEqual(app.calls, ["refresh", "pending"]);
+    // Shared: the second start is sent by the error handler; nothing more is held here.
+    app.shared = { ...app.shared, busy: false, restoring: false, active: true };
+    app.chatReading = { data: false, state: "pending" };
+    render();
+    app.chatReading = { data: true, state: "ok" };
+    render();
+    assert.deepEqual(app.calls, ["refresh", "pending"]);
+});
+
+test("sharing from the button never puts the switch into waiting", async context => {
+    const { app, render } = await mount(context);
+    app.shared = { ...app.shared, busy: true };
+    render();
+    app.shared = { ...app.shared, busy: false, active: true };
+    render();
+    assert.deepEqual(app.calls, ["refresh"]);
 });
