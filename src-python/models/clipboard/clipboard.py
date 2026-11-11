@@ -170,7 +170,8 @@ def paste_via_ctrl_v(countdown: int = 0) -> bool:
     pyautogui の Windows 実装が呼んでいるのも同じ user32.keybd_event
     なので、挙動は変わらない。"""
     if sys.platform != 'win32':
-        printLog('paste: Ctrl+V の送出は Windows でのみ対応している')
+        # Linux は copy_and_paste が x11_paste で送る。ここへは来ない
+        printLog('paste: Ctrl+V の送出は、この OS では対応していない')
         return False
 
     for i in range(countdown, 0, -1):
@@ -202,7 +203,10 @@ class Clipboard:
         self._vr_monitor_thread = None
         self._stop_monitoring = False
         self.app_name = None
-        
+        # Linux: 貼り付けに使う X11 の接続。デスクトップが入力の操作を許可する単位が接続なので、使い回す
+        self._x11_paster = None
+        self._x11_lock = threading.Lock()
+
         self._initialize()
 
     def _initialize(self):
@@ -278,6 +282,9 @@ class Clipboard:
         # (which requires the right window to actually be focused, or it
         # would type into whatever else happens to have focus) is gated
         # on focus having actually succeeded.
+        if sys.platform.startswith('linux'):
+            return self._copy_and_paste_x11(message, window_name)
+
         focused = False
         if window_name is not None and sys.platform == 'win32':
             printLog(f"paste: attempting to focus window matching '{window_name}'")
@@ -315,6 +322,41 @@ class Clipboard:
 
         pasted = paste_via_ctrl_v(countdown)
         return bool(pasted)
+
+    def _copy_and_paste_x11(self, message: str, window_name: str|None) -> bool:
+        """Linux: コピーは常に行い、貼り付け先 (X11 / XWayland) が前面に出たときだけ Ctrl+V を送る。
+
+        KDE Plasma (Wayland) は、X11 のアプリが初めてキーを送るときに「Remote Control」の確認を出す。
+        許可は X11 の接続ごとなので、接続を使い回す (毎回つなぎ直すと、許可が届く前に接続が消える)。
+        """
+        copied = copy_to_clipboard(message)
+        if not copied:
+            printLog("copy_and_paste: failed to copy to clipboard")
+            return False
+        if window_name is None:
+            return False
+        with self._x11_lock:
+            try:
+                if self._x11_paster is None:
+                    from .x11_paste import X11Paster
+                    self._x11_paster = X11Paster()
+                paster = self._x11_paster
+                if not paster.isAvailable():
+                    printLog("copy_and_paste: X11 is not available; copying only")
+                    return False
+                window = paster.find(window_name)
+                if window is None or not paster.focus(window):
+                    printLog(f"copy_and_paste: could not focus a window matching '{window_name}'; copying only")
+                    return False
+                # 前面に出たウィンドウがクリップボードを読めるようになるまで、少し待つ
+                time.sleep(0.2)
+                return paster.paste()
+            except Exception as e:
+                printLog(f"copy_and_paste: paste failed: {e}")
+                paster, self._x11_paster = self._x11_paster, None
+                if paster is not None:
+                    paster.close()
+                return False
 
 if __name__ == '__main__':
     clipboard = Clipboard()
