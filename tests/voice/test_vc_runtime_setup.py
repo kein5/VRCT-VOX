@@ -184,7 +184,7 @@ def test_uv_is_unpacked_from_the_release_file_of_the_platform(world):
     assert uv.read_bytes() == b'uv' and [path.name for path in tools.iterdir()] == [uv.name]
     assert world.commands[0][0] == str(uv)
     if world.platform == 'linux' and os.name == 'posix':
-        assert os.access(uv, os.X_OK)
+        assert uv.stat().st_mode & 0o777 == 0o700
 
 
 def test_uv_runs_isolated_and_only_from_the_hash_locks(world):

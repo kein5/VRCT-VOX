@@ -476,7 +476,7 @@ class RuntimeSetup:
         else:
             with tarfile.open(archive, 'r:gz') as source, source.extractfile(tool.member) as reader:
                 part.write_bytes(reader.read())
-            part.chmod(0o755)
+            part.chmod(0o700)  # Only this user runs it.
         os.replace(part, uv)
         archive.unlink()
 
