@@ -19,11 +19,11 @@ VRCT-VOX は、音声認識（ASR）、読み上げ（TTS）、ボイスチェ�
 - **モデルの取得**: Irodori、Qwen3-TTS、Haas-ja（日本語の音声認識）、RVC の既定モデルを、ライセンスと容量を確認して同意したうえで Hugging Face から取得できます。サイズと SHA-256 を検証し、設定への適用は別の操作です。GPU と VRAM に応じて標準・軽量モデルの目安を出しますが、動作を保証するものではありません。
 - **Linux 対応**: Wayland でのグローバルショートカット（XDG portal）、PipeWire の仮想マイクとマイク選択、AppImage での日本語入力（fcitx/Mozc、ibus）に対応しています。
 
-RVC には、音声モデルのほかに実行環境、HuBERT、RMVPE が必要です。[モデル取得の仕様](/docs/voice-stack/model-downloads.md)を参照してください。
+RVC には、音声モデルのほかに実行環境、HuBERT、RMVPE が必要です。[モデル取得の仕様](/docs/voice-stack/model-downloads.md)と、Windows では [Windows で音声機能を使う](/docs/voice-stack/local-setup-windows.md)を参照してください。
 
 ## 配布状況
 
-現在の版は **[0.1.0-beta.1](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.1)**（プレリリース）です。版番号は本家 VRCT（3.x）とは別に 0.1.0 から数えます。ベータ版は `develop` から、正式版は `main` から公開します。
+現在の版は **[0.1.0-beta.4](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.4)**（プレリリース）です。版番号は本家 VRCT（3.x）とは別に 0.1.0 から数えます。ベータ版は `develop` から、正式版は `main` から公開します。
 
 - **Linux**: AppImage と tar.gz（x64、Vulkan）。CachyOS（KDE Plasma Wayland）で実際のモデルを使って試験しています。
 - **Windows**: インストーラーと zip（CPU 版）、CUDA 版の zip。自動ビルドと配布物の検査だけで、Windows の実機ではまだ試していません。電子署名がないため、初回起動時に SmartScreen の警告が出ます。
@@ -31,8 +31,7 @@ RVC には、音声モデルのほかに実行環境、HuBERT、RMVPE が必要�
 各ファイルの `.sha256` と `SHA256SUMS-*` で、ダウンロードしたファイルを確認できます（電子署名ではありません）。アプリ内の自動更新は無効です。AUR での配布は予定していますが、まだ登録していません。
 
 このベータ版の既知の制限:
-- Linux では、トップ画面の「マイク入力」と「聞き取り」のトグルが本家の録音方式のままで、Linux の音声入力に対応していません。設定画面のリアルタイム音声認識を使ってください。
-- チャット読み取り（OCR）は、OCR のモデルを同梱していないため使えません。
+- チャット読み取り（OCR）にはモデルが必要ですが、同梱していません。利用条件に同意したうえで、設定の「VRChat」の「チャット読み取り」で取得してください。Linux では、VRChat のウィンドウを XWayland 経由で読み取ります。Wayland ネイティブのウィンドウは、まだ読み取れません。
 - Google・Bing・Papago の Web 翻訳は使えません（ライセンスの項を参照）。
 
 不具合の報告や質問は **[Issues](https://github.com/kein5/VRCT-VOX/issues)** へ、OS・版・再現手順・個人情報を除いたログを添えてお寄せください。脆弱性は [SECURITY.md](/SECURITY.md) の手順で非公開に報告してください。VRCT-VOX についての問い合わせを本家 VRCT の開発者へ送らないでください。
