@@ -17,7 +17,7 @@ VRCT-VOX は、音声認識（ASR）、読み上げ（TTS）、ボイスチェ�
 - **リアルタイム字幕**: 同梱の speech.cpp の音声認識サーバーで、自分のマイクとほかのプレイヤーの声を文字にします。
 - **同梱サーバー**: speech.cpp のサーバーを設定画面から保存・起動・停止できます。
 - **モデルの取得**: Irodori、Qwen3-TTS、Haas-ja（日本語の音声認識）、RVC の既定モデルを、ライセンスと容量を確認して同意したうえで Hugging Face から取得できます。サイズと SHA-256 を検証し、設定への適用は別の操作です。GPU と VRAM に応じて標準・軽量モデルの目安を出しますが、動作を保証するものではありません。
-- **Linux 対応**: Wayland でのグローバルショートカット（XDG portal）、PipeWire の仮想マイクとマイク選択、AppImage での日本語入力（fcitx/Mozc、ibus）に対応しています。
+- **Linux 対応**: Wayland でのグローバルショートカット（XDG portal）、PipeWire の仮想マイクとマイク選択、AppImage での日本語入力（fcitx/Mozc、ibus）に対応しています。VR UI、Wayland ネイティブのウィンドウを共有するチャット読み取り、音声タイピングモードの貼り付け（X11/XWayland のウィンドウ）も使えます。
 
 RVC には、音声モデルのほかに実行環境、HuBERT、RMVPE が必要です。[モデル取得の仕様](/docs/voice-stack/model-downloads.md)と、Windows では [Windows で音声機能を使う](/docs/voice-stack/local-setup-windows.md)、Linux では [Linux の手順](/docs/voice-stack/local-setup-linux.md)を参照してください。
 
@@ -32,6 +32,7 @@ RVC には、音声モデルのほかに実行環境、HuBERT、RMVPE が必要�
 
 このベータ版の既知の制限:
 - チャット読み取り（OCR）にはモデルが必要ですが、同梱していません。利用条件に同意したうえで、設定の「VRChat」の「チャット読み取り」で取得してください。Linux では、VRChat のウィンドウを XWayland 経由で読み取ります。Wayland ネイティブのウィンドウ（gamescope の中の VRChat など）は、ウィンドウを共有すると読み取れます。設定の「VRChat」の「チャット読み取り」で「ウィンドウを共有…」を押すと、デスクトップのウィンドウ選択画面が開きます。
+- Linux の VR UI と、VR ヘッドセットの画面のチャット読み取りは、SteamVR の代わりになる試験用の仕組みでだけ確認しました。実際のヘッドセットでは確認していません。Linux 版の動作確認は KDE Plasma（Wayland）だけです。
 - Google・Bing・Papago の Web 翻訳は使えません（ライセンスの項を参照）。
 
 不具合の報告や質問は **[Issues](https://github.com/kein5/VRCT-VOX/issues)** へ、OS・版・再現手順・個人情報を除いたログを添えてお寄せください。脆弱性は [SECURITY.md](/SECURITY.md) の手順で非公開に報告してください。VRCT-VOX についての問い合わせを本家 VRCT の開発者へ送らないでください。

@@ -18,7 +18,7 @@ features:
   - title: 読み上げる
     details: 送った文章や翻訳を、同梱のspeech.cppで読み上げて仮想マイクへ流します。文字の送信とは別にオンとオフを切り替えられます。
     link: /ja/features/tts
-  - title: 字幕にする（Linux）
+  - title: 字幕にする
     details: 自分のマイクとほかのプレイヤーの声を、同梱の音声認識サーバーで文字にします。
     link: /ja/features/transcription
   - title: 同意してから取得する

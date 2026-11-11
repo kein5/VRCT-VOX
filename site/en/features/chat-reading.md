@@ -46,6 +46,7 @@ When VRChat runs as a native Wayland window (inside gamescope, or with Wine's Wa
 - Sharing ends when you press "Stop sharing", turn Chat Transcribe off, or close VRCT-VOX.
 - If the shared window is closed, or you stop sharing from the desktop, VRCT-VOX tells you. Share a window again and reading continues.
 - The picture stays on this computer. A few frames per second are copied, and the desktop is asked to leave the mouse pointer out.
+- The shared picture includes the window's title bar. The reading area is the same setting used when the window is found by name, applied to the picture with the title bar in it.
 
 ::: tip If the window is not found
 "Window name" is `VRChat` by default. If your client has a different title, change it here.

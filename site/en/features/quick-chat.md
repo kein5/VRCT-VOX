@@ -31,3 +31,5 @@ Under Settings → "Hotkeys" you can assign keys to:
 - opening Quick Chat
 
 Hotkeys are paused while the settings are open, so they don't fire by accident.
+
+On Wayland, a window minimized with the visibility hotkey comes back with the same key. Only KDE (KWin) can bring it in front of other windows.
