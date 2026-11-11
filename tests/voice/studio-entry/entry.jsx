@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { getDefaultStore } from "jotai";
-import { store, dynamicStoreRegistry, Atom_IsBreakPoint, Atom_SoftwareVersion } from "@store";
+import { store, dynamicStoreRegistry, Atom_IsBackendReady, Atom_IsBreakPoint, Atom_SoftwareVersion } from "@store";
 import { useReceiveRoutes } from "@useReceiveRoutes";
 import { MainPage } from "../../../src-ui/views/app/main_page/MainPage";
 import { ConfigPage } from "../../../src-ui/views/app/config_page/ConfigPage";
@@ -25,6 +25,8 @@ for (const key of ["SendMessageFormatParts", "ReceivedMessageFormatParts"]) {
     atoms.set(dynamicStoreRegistry[`Atom_${key}`], { state: "ok", data: { message: { prefix: "", suffix: "" }, separator: "\n", translation: { prefix: "", suffix: "", separator: "\n" }, translation_first: false } });
 }
 atoms.set(Atom_SoftwareVersion, { state: "ok", data: "3.6.0-beta.1" });
+// The sidecar peer answers from the start: without this every main switch reads "connection lost".
+atoms.set(Atom_IsBackendReady, { state: "ok", data: true });
 store.backend_subprocess = { write: line => window.sidecarWrite(line) };
 store.appWindow = { innerSize: async () => ({ width: innerWidth, height: innerHeight }), isMaximized: async () => false, maximize: async () => {}, minimize: async () => {}, close: async () => {} };
 function Studio() {

@@ -22,7 +22,7 @@ PAGES = {
     "device": {"ja": "デバイス", "en": "Device"},
     "translation": {"ja": "翻訳", "en": "Translation"},
     "transcription": {"ja": "音声認識", "en": "Transcription"},
-    # Chat reading lives on the VRChat page.
+    # Chat reading is a section further down the VRChat page (SECTIONS).
     "chat-reading": {"ja": "VRChat", "en": "VRChat"},
     "tts": {"ja": "TTS", "en": "TTS"},
     "rvc": {"ja": "RVC", "en": "RVC"},
@@ -30,6 +30,8 @@ PAGES = {
     "hotkeys": {"ja": "ホットキー", "en": "Hotkeys"},
     "advanced": {"ja": "高度な設定", "en": "Advanced"},
 }
+# File name -> the heading to bring to the top of the picture, where the page's top is another section.
+SECTIONS = {"chat-reading": {"ja": "VRChatチャット読み取り", "en": "VRChat Chat Transcribe"}}
 TITLE = {"ja": "ここから会話を始めましょう", "en": "Your conversation starts here"}
 OPEN_SETTINGS = {"ja": "設定を開く", "en": "Open settings"}
 # studio-entry shows a fixture version; the documentation shows the app's own.
@@ -72,4 +74,9 @@ def test_docs_screenshots(studio, lang):  # noqa: F811
     for name, labels in PAGES.items():
         page.get_by_role("button", name=labels[lang], exact=True).click()
         page.wait_for_timeout(300)
+        if name in SECTIONS:
+            heading = page.get_by_text(SECTIONS[name][lang], exact=True).first
+            heading.wait_for()
+            heading.evaluate("node => node.scrollIntoView({ block: 'start' })")
+            page.wait_for_timeout(300)
         save(page, out / f"{name}.webp")
