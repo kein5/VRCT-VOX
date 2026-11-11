@@ -64,9 +64,8 @@ def parse_devices(text):
             for found in map(DEVICE_LINE.match,text.splitlines()) if found]
 
 
-def list_gpus(platform=sys.platform):
-    """The GPUs a server can be told to use. Only Windows can start one with a name."""
-    if platform!='win32': return []
+def list_gpus():
+    """The GPUs a server can be told to use, by the names the bundled speech.cpp prints."""
     try:
         done=subprocess.run([str(bundled_binary()),'devices'],stdin=subprocess.DEVNULL,capture_output=True,timeout=15,
             env=dict(external_process_env(),NO_COLOR='1'),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))

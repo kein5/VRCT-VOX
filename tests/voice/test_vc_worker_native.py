@@ -229,11 +229,23 @@ def test_speech_supervisor_fixes_host_port_and_limits_arguments(tmp_path):
             "--add-voice",
             "custom=/voice.gguf",
         ]
+        # A GPU by the name `speech devices` prints, so a PC with two can say which.
+        named = subprocess.run(
+            [*args, "/model.gguf", "", "", "Vulkan12"],
+            pass_fds=(fd,),
+            capture_output=True,
+            timeout=3,
+            check=True,
+        )
+        assert json.loads(named.stdout)[-2:] == ["--device", "Vulkan12"]
         for values in [
             ("named-model", "", "", "auto"),
             ("/model", "", "", "--host"),
             ("/model", "vad", "", "auto"),
             ("/model", "", "voice", "auto"),
+            *[("/model", "", "", device) for device in (
+                "", "Vulkan", "Vulkan123", "vulkan1", "Vulkan-1", "Vulkan1 ", "Vulkan1x", "CUDA0", "GPU",
+            )],
         ]:
             denied = subprocess.run(
                 [*args, *values], pass_fds=(fd,), capture_output=True, timeout=3

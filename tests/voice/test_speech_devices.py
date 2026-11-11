@@ -36,20 +36,14 @@ def test_unexpected_output_lists_nothing(text):
     assert runtime().parse_devices(text) == []
 
 
-def test_a_named_gpu_is_kept_on_windows():
-    value = settings().normalize_settings(profiles("Vulkan1"), platform="win32")
+def test_a_named_gpu_is_kept():
+    value = settings().normalize_settings(profiles("Vulkan1"))
     assert value["profiles"]["japanese"]["device"] == "Vulkan1"
 
 
-def test_a_named_gpu_is_refused_where_the_launcher_cannot_pass_it():
-    with pytest.raises(ValueError, match="speech_server_settings_invalid"):
-        settings().normalize_settings(profiles("Vulkan1"), platform="linux")
-
-
 @pytest.mark.parametrize("device", ["auto", "cpu", "gpu"])
-@pytest.mark.parametrize("platform", ["win32", "linux"])
-def test_the_general_choices_stay_valid_everywhere(device, platform):
-    value = settings().normalize_settings(profiles(device), platform=platform)
+def test_the_general_choices_stay_valid(device):
+    value = settings().normalize_settings(profiles(device))
     assert value["profiles"]["japanese"]["device"] == device
 
 
@@ -58,7 +52,7 @@ def test_the_general_choices_stay_valid_everywhere(device, platform):
 )
 def test_anything_else_is_refused(device):
     with pytest.raises(ValueError, match="speech_server_settings_invalid"):
-        settings().normalize_settings(profiles(device), platform="win32")
+        settings().normalize_settings(profiles(device))
 
 
 def test_listing_asks_the_verified_binary(monkeypatch):
@@ -71,7 +65,7 @@ def test_listing_asks_the_verified_binary(monkeypatch):
         return SimpleNamespace(returncode=0, stdout=OUTPUT.encode(), stderr=b"")
 
     monkeypatch.setattr(module.subprocess, "run", run)
-    assert [row["name"] for row in module.list_gpus(platform="win32")] == ["Vulkan0", "Vulkan1"]
+    assert [row["name"] for row in module.list_gpus()] == ["Vulkan0", "Vulkan1"]
     [(args, kwargs)] = calls
     assert args == ["C:/x/speech.exe", "devices"]
     assert kwargs["timeout"] <= 15 and kwargs["stdin"] == subprocess.DEVNULL
@@ -84,7 +78,7 @@ def test_the_list_may_arrive_on_stderr(monkeypatch):
         module.subprocess, "run",
         lambda args, **kw: SimpleNamespace(returncode=0, stdout=b"", stderr=OUTPUT.encode()),
     )
-    assert len(module.list_gpus(platform="win32")) == 2
+    assert len(module.list_gpus()) == 2
 
 
 @pytest.mark.parametrize(
@@ -99,7 +93,7 @@ def test_a_listing_that_fails_lists_nothing(monkeypatch, failure):
         raise failure
 
     monkeypatch.setattr(module.subprocess, "run", run)
-    assert module.list_gpus(platform="win32") == []
+    assert module.list_gpus() == []
 
 
 def test_a_listing_that_exits_with_an_error_lists_nothing(monkeypatch):
@@ -109,14 +103,4 @@ def test_a_listing_that_exits_with_an_error_lists_nothing(monkeypatch):
         module.subprocess, "run",
         lambda args, **kw: SimpleNamespace(returncode=1, stdout=OUTPUT.encode(), stderr=b""),
     )
-    assert module.list_gpus(platform="win32") == []
-
-
-def test_other_systems_do_not_run_anything(monkeypatch):
-    module = runtime()
-
-    def run(*args, **kwargs):
-        raise AssertionError("must not run")
-
-    monkeypatch.setattr(module.subprocess, "run", run)
-    assert module.list_gpus(platform="linux") == []
+    assert module.list_gpus() == []

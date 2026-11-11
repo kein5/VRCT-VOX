@@ -2,19 +2,18 @@
 from pathlib import Path
 import re
 import stat
-import sys
 
 PROFILES = ('japanese', 'multilingual', 'asr')
 DEFAULT = dict(model='', vad_model='', voice_file='', device='auto', low_latency=False)
-# One of the names `speech devices` prints. The Linux launcher accepts only the general choices.
+# One of the names `speech devices` prints. native/vc-worker checks the same form on Linux.
 NAMED_GPU = re.compile(r'Vulkan[0-9]{1,2}')
 
 
-def _device_allowed(device, platform):
-    return device in ('auto', 'cpu', 'gpu') or (platform == 'win32' and NAMED_GPU.fullmatch(device) is not None)
+def _device_allowed(device):
+    return device in ('auto', 'cpu', 'gpu') or NAMED_GPU.fullmatch(device) is not None
 
 
-def normalize_settings(value, platform=sys.platform):
+def normalize_settings(value):
     if not isinstance(value, dict) or set(value)-{'version','profiles'}:
         raise ValueError('speech_server_settings_invalid')
     if type(value.get('version',1)) is not int or value.get('version',1)!=1:
@@ -32,7 +31,7 @@ def normalize_settings(value, platform=sys.platform):
                 any(not isinstance(v,str) or len(v)>4096 or any(ord(c)<32 for c in v)
                     for k,v in row.items() if k != 'low_latency')):
             raise ValueError('speech_server_settings_invalid')
-        if (not _device_allowed(row['device'],platform) or
+        if (not _device_allowed(row['device']) or
                 (row['voice_file'] if profile=='asr' else row['vad_model'])):
             raise ValueError('speech_server_settings_invalid')
         result['profiles'][profile]=row

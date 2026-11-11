@@ -90,7 +90,7 @@ def ui(tmp_path):
                 if peer.reject_save:
                     reply(endpoint, dict(error_code='speech_server_settings_invalid'), 400)
                 else:
-                    peer.settings = normalize_settings(data, platform='win32')
+                    peer.settings = normalize_settings(data)
                     reply(endpoint, peer.settings)
             elif endpoint == '/get/data/speech_server_devices':
                 reply(endpoint, dict(devices=[]))
