@@ -86,11 +86,17 @@ def environment_resources(destination):
     (destination / 'python-environment.json').write_text(json.dumps(rows, ensure_ascii=False, indent=2) + '\n')
 
 
+# The sidecar sets a runtime up from these; the requirements for Windows stay out.
+SETUP_FILES = {'rvc': ('requirements-cuda.lock', 'requirements.lock'),
+               'seed_vc': ('requirements.lock', 'offline-loader.patch')}
+
+
 def copy_adapters(resources):
     for engine in ('rvc', 'seed_vc'):
         source = ROOT / 'integrations' / engine
         for file in source.iterdir():
-            if file.is_file() and (file.suffix == '.py' or file.name.startswith(('LICENSE', 'README'))):
+            if file.is_file() and (file.suffix == '.py' or file.name.startswith(('LICENSE', 'README'))
+                                   or file.name in SETUP_FILES[engine]):
                 target = resources / 'integrations' / engine / file.name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(file, target)

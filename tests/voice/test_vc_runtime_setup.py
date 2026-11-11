@@ -1,11 +1,22 @@
-"""The runtime setup with fake transfers and a fake uv: consent, resume, cancel, failure."""
+"""The runtime setup with fake transfers and a fake uv: consent, resume, cancel, failure.
+
+Each setup test runs once per platform the app can set a runtime up on. Only
+runtime_setup.target is replaced, so both layouts are checked on Linux and on Windows.
+"""
+from dataclasses import replace
 import hashlib
 import importlib
 import io
 import json
+import os
 from pathlib import Path
+import re
 import shutil
+import signal
 import subprocess
+import sys
+import tarfile
+import textwrap
 import time
 import zipfile
 
@@ -25,11 +36,21 @@ def source_zip(files):
     return stream.getvalue()
 
 
-def tool_zip():
+def tool_archive(tool):
+    """The release file in the format of its platform, with uv where the pin says."""
     stream = io.BytesIO()
-    with zipfile.ZipFile(stream, 'w') as archive:
-        archive.writestr('uv.exe', b'uv')
+    if tool.url.endswith('.zip'):
+        with zipfile.ZipFile(stream, 'w') as archive:
+            archive.writestr(tool.member, b'uv')
+    else:
+        with tarfile.open(fileobj=stream, mode='w:gz') as archive:
+            member = tarfile.TarInfo(tool.member)
+            member.size = 2
+            archive.addfile(member, io.BytesIO(b'uv'))
     return stream.getvalue()
+
+
+PYTHON = {'win32': 'venv/Scripts/python.exe', 'linux': 'venv/bin/python'}
 
 
 class Response:
@@ -62,12 +83,15 @@ class Child:
 
 class World:
     """Serves the pinned files and records what would have run."""
-    def __init__(self, tmp_path, monkeypatch):
+    def __init__(self, tmp_path, monkeypatch, platform):
+        self.platform = platform
         self.source = {'infer.py': 'pass\n'}
         self.asset = b'weights'
-        self.tool = tool_zip()
-        monkeypatch.setattr(rs, 'UV_SIZE', len(self.tool))
-        monkeypatch.setattr(rs, 'UV_SHA256', hashlib.sha256(self.tool).hexdigest())
+        monkeypatch.setattr(rs, 'target', lambda: platform)
+        self.tool = tool_archive(rs.UV[platform])
+        monkeypatch.setitem(rs.UV, platform, replace(rs.UV[platform], size=len(self.tool),
+                                                     sha256=hashlib.sha256(self.tool).hexdigest()))
+        self.uv_url = rs.UV[platform].url
         source = tmp_path / 'digest'
         source.mkdir()
         (source / 'infer.py').write_bytes(b'pass\n')
@@ -92,7 +116,7 @@ class World:
     def open(self, url, *, hosts):
         self.requests.append(url)
         assert hosts == rs.SOURCE_HOSTS
-        if url == rs.UV_URL:
+        if url == self.uv_url:
             return Response(self.tool)
         return Response(source_zip(self.source) if url.endswith('engine.zip') else self.asset)
 
@@ -103,7 +127,7 @@ class World:
             self.child = Child(wait_forever=True)
             return self.child
         if 'venv' in args:
-            python = Path(args[-1]) / 'Scripts/python.exe'
+            python = Path(args[-1]).parent / PYTHON[self.platform]
             python.parent.mkdir(parents=True, exist_ok=True)
             python.write_text('')
         return Child(1 if self.fail_on and self.fail_on in args else 0)
@@ -120,11 +144,12 @@ class World:
         return self.setup.state()
 
 
-@pytest.fixture
-def world(tmp_path, monkeypatch):
-    item = World(tmp_path, monkeypatch)
+@pytest.fixture(params=['win32', 'linux'])
+def world(request, tmp_path, monkeypatch):
+    item = World(tmp_path, monkeypatch, request.param)
     yield item
     assert item.setup.close(2)
+    rs.version_of.cache_clear()
 
 
 def test_nothing_starts_without_consent_for_this_exact_version(world):
@@ -147,8 +172,19 @@ def test_a_full_setup_leaves_the_layout_the_worker_expects(world):
     assert state['installed'] == {'rvc': str(folder)}
     assert (folder / 'engine/infer.py').read_bytes() == b'pass\n'
     assert (folder / 'assets/base/model.bin').read_bytes() == world.asset
-    assert (folder / 'venv/Scripts/python.exe').is_file()
+    assert (folder / PYTHON[world.platform]).is_file()
     assert not (folder / 'engine.zip').exists() and not (folder / '.cache').exists()
+
+
+def test_uv_is_unpacked_from_the_release_file_of_the_platform(world):
+    world.start()
+    world.finish()
+    tools = world.setup.root / f'.uv-{rs.UV_VERSION}'
+    uv = tools / ('uv.exe' if world.platform == 'win32' else 'uv')
+    assert uv.read_bytes() == b'uv' and [path.name for path in tools.iterdir()] == [uv.name]
+    assert world.commands[0][0] == str(uv)
+    if world.platform == 'linux' and os.name == 'posix':
+        assert os.access(uv, os.X_OK)
 
 
 def test_uv_runs_isolated_and_only_from_the_hash_locks(world):
@@ -174,7 +210,7 @@ def test_a_failed_setup_names_its_step_and_resumes_after_what_finished(world):
     world.commands.clear(), world.requests.clear()
     world.start()
     assert world.finish()['jobs']['rvc']['phase'] == 'ready'
-    assert rs.UV_URL not in world.requests and not any('venv' in command for command in world.commands)
+    assert world.uv_url not in world.requests and not any('venv' in command for command in world.commands)
 
 
 def test_a_source_that_differs_from_the_pin_is_never_used(world):
@@ -235,25 +271,35 @@ def test_a_new_lock_makes_a_finished_runtime_stale(world, tmp_path):
     assert world.setup.state()['installed'] == {}
 
 
-@pytest.mark.parametrize('damage', ['venv/Scripts/python.exe', 'engine', 'assets'])
+@pytest.mark.parametrize('damage', ['python', 'engine', 'assets'])
 def test_a_damaged_runtime_can_be_set_up_again(world, damage):
     world.start()
     world.finish()
     folder = world.setup.folder(world.runtime)
-    path = folder / damage
+    path = folder / (PYTHON[world.platform] if damage == 'python' else damage)
     shutil.rmtree(path) if path.is_dir() else path.unlink()
     assert world.setup.state()['installed'] == {}
     world.start()
     assert world.finish()['installed'] == {'rvc': str(folder)}
-    assert (folder / 'venv/Scripts/python.exe').is_file()
+    assert (folder / PYTHON[world.platform]).is_file()
     assert (folder / 'engine/infer.py').is_file() and (folder / 'assets/base/model.bin').is_file()
 
 
 def test_the_driver_check_only_looks_for_the_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(rs, 'target', lambda: 'win32')
     monkeypatch.setenv('SystemRoot', str(tmp_path))
     assert rs.nvidia_driver() is False
     (tmp_path / 'System32').mkdir()
     (tmp_path / 'System32/nvcuda.dll').write_bytes(b'')
+    assert rs.nvidia_driver() is True
+
+
+def test_the_linux_driver_check_looks_for_what_the_kernel_driver_publishes(tmp_path, monkeypatch):
+    assert rs.LINUX_DRIVER == Path('/proc/driver/nvidia/version')
+    monkeypatch.setattr(rs, 'target', lambda: 'linux')
+    monkeypatch.setattr(rs, 'LINUX_DRIVER', tmp_path / 'version')
+    assert rs.nvidia_driver() is False
+    (tmp_path / 'version').write_text('NVRM version: NVIDIA UNIX Open Kernel Module for x86_64\n')
     assert rs.nvidia_driver() is True
 
 
@@ -264,9 +310,66 @@ def test_the_catalog_says_what_will_be_fetched_and_where(world):
     assert row['license'] == 'MIT' and row['licenses'] == ['https://license']
 
 
-def test_other_platforms_offer_no_setup(monkeypatch):
-    monkeypatch.setattr(rs.sys, 'platform', 'linux')
-    assert rs.runtimes() == ()
+@pytest.mark.parametrize('system, machine, expected', [
+    ('win32', 'AMD64', 'win32'), ('linux', 'x86_64', 'linux'), ('linux', 'aarch64', ''), ('darwin', 'x86_64', '')])
+def test_setup_is_offered_where_the_locked_wheels_fit(monkeypatch, system, machine, expected):
+    monkeypatch.setattr(rs.sys, 'platform', system)
+    monkeypatch.setattr(rs.platform, 'machine', lambda: machine)
+    assert rs.target() == expected
+    if not expected:
+        assert rs.runtimes() == ()
+
+
+LOCKS = {'win32': {'rvc': ['integrations/rvc/requirements-cuda-windows.lock', 'integrations/rvc/requirements-windows.lock'],
+                   'seed-vc': ['integrations/seed_vc/requirements-windows.lock']},
+         'linux': {'rvc': ['integrations/rvc/requirements-cuda.lock', 'integrations/rvc/requirements.lock'],
+                   'seed-vc': ['integrations/seed_vc/requirements.lock']}}
+
+
+@pytest.fixture(params=['win32', 'linux'])
+def platform(request, monkeypatch):
+    monkeypatch.setattr(rs, 'target', lambda: request.param)
+    rs.version_of.cache_clear()
+    yield request.param
+    rs.version_of.cache_clear()
+
+
+def test_each_platform_installs_from_its_own_hash_locked_files(platform):
+    offered = {runtime.id: runtime for runtime in rs.runtimes()}
+    assert {key: [path for path, _ in runtime.locks] for key, runtime in offered.items()} == LOCKS[platform]
+    assert [index for _, index in offered['rvc'].locks] == [rs.CUDA_INDEX, '']
+    for runtime in offered.values():
+        assert runtime.download_bytes > 2_000_000_000 and runtime.disk_bytes > runtime.download_bytes
+        for path, _ in runtime.locks:
+            # Every requirement names its hashes, or uv refuses the whole file.
+            entries = re.split(r'\n(?=[A-Za-z0-9])', (ROOT / path).read_text(encoding='utf-8'))
+            entries = [entry for entry in entries if not entry.startswith('#')]
+            assert len(entries) > 5 and all('--hash=sha256:' in entry or '#sha256=' in entry for entry in entries)
+
+
+def test_the_pinned_uv_is_the_release_file_of_each_platform(platform):
+    tool = rs.UV[platform]
+    name = {'win32': 'uv-x86_64-pc-windows-msvc.zip', 'linux': 'uv-x86_64-unknown-linux-gnu.tar.gz'}[platform]
+    assert tool.url == f'https://github.com/astral-sh/uv/releases/download/{rs.UV_VERSION}/{name}'
+    assert tool.size > 10_000_000 and re.fullmatch('[0-9a-f]{64}', tool.sha256)
+    assert transport.validate_url(tool.url, rs.SOURCE_HOSTS)
+
+
+def test_one_platforms_pins_do_not_change_what_the_other_consented_to(platform, monkeypatch):
+    other = 'linux' if platform == 'win32' else 'win32'
+    before = {runtime.id: rs.version_of(runtime) for runtime in rs.runtimes()}
+    monkeypatch.setitem(rs.UV, other, replace(rs.UV[other], sha256='0' * 64))
+    monkeypatch.setitem(rs.RVC_PLATFORM, other, (rs.RVC_PLATFORM[other][0], 1, 2))
+    rs.version_of.cache_clear()
+    assert {runtime.id: rs.version_of(runtime) for runtime in rs.runtimes()} == before
+    monkeypatch.setitem(rs.UV, platform, replace(rs.UV[platform], sha256='0' * 64))
+    rs.version_of.cache_clear()
+    assert all(rs.version_of(runtime) != before[runtime.id] for runtime in rs.runtimes())
+
+
+def test_setup_and_start_agree_on_the_python_of_this_platform(tmp_path):
+    from models.voice_conversion import rvc_process
+    assert rs.runtime_python(tmp_path) == rvc_process.runtime_python(tmp_path)
 
 
 def test_unpacking_refuses_to_leave_the_target(tmp_path):
@@ -337,13 +440,15 @@ def test_the_digest_matches_the_one_the_worker_checks(tmp_path):
     (tmp_path / 'infer').mkdir()
     (tmp_path / 'infer/module.py').write_text('pass\n')
     assert rs.source_digest(tmp_path) == loader.source_digest(tmp_path)
-    assert rs.RVC.source_digest == loader.SOURCE_DIGEST
     assert rs.RVC_COMMIT == loader.COMMIT
 
 
-def test_pinned_files_match_the_reviewed_records():
+def test_pinned_files_match_the_reviewed_records(platform):
+    loader = importlib.import_module('integrations.rvc.loader')
+    rvc = rs.rvc_runtime()
+    assert rvc.source_digest == loader.SOURCE_DIGEST
     record = json.loads((ROOT / 'docs/voice-stack/rvc-base-artifacts.proposal.json').read_text(encoding='utf-8'))
-    pinned = {asset.url.rsplit('/', 1)[-1]: asset for asset in rs.RVC.assets}
+    pinned = {asset.url.rsplit('/', 1)[-1]: asset for asset in rvc.assets}
     for item in record['files']:
         assert item['revision'] == rs.RVC_REVISION
         asset = pinned[item['rfilename'].rsplit('/', 1)[-1]]
@@ -358,3 +463,89 @@ def test_requests_for_other_hosts_stay_refused():
     assert transport.validate_url('https://github.com/engine.zip', rs.SOURCE_HOSTS)
     with pytest.raises(ValueError, match='download_url_rejected'):
         transport.validate_url('https://example.com/engine.zip', rs.SOURCE_HOSTS)
+
+
+def test_the_linux_bundle_carries_what_the_setup_installs_from(tmp_path, monkeypatch):
+    from tools.build_linux import copy_adapters
+    copy_adapters(tmp_path)
+    monkeypatch.setattr(rs, 'target', lambda: 'linux')
+    monkeypatch.setattr(rs, 'worker_file', lambda path: tmp_path / path)
+    rs.version_of.cache_clear()
+    try:
+        for runtime in rs.runtimes():
+            assert rs.version_of(runtime)
+            assert all((tmp_path / path).is_file() for path, _ in runtime.locks)
+            assert not runtime.patch or (tmp_path / runtime.patch).is_file()
+    finally:
+        rs.version_of.cache_clear()
+    names = {path.relative_to(tmp_path).as_posix() for path in tmp_path.rglob('*.lock')}
+    assert not any('windows' in name for name in names)
+    from tools.linux_package import RUNTIME
+    assert {'_internal/' + name for name in names} <= set(RUNTIME)
+    assert '_internal/integrations/seed_vc/offline-loader.patch' in RUNTIME
+
+
+linux_only = pytest.mark.skipif(sys.platform != 'linux', reason='the Linux launcher')
+
+
+def running(pid):
+    """False once the process is gone or only waits to be reaped."""
+    try:
+        return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[0] != 'Z'
+    except OSError:
+        return False
+
+
+@linux_only
+def test_cancelling_on_linux_also_stops_what_uv_started(tmp_path):
+    script = 'sleep 60 & echo $! > child; wait'
+    child = rs.launch_group(['/bin/sh', '-c', script], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, env=dict(os.environ), cwd=str(tmp_path))
+    try:
+        deadline = time.monotonic() + 5
+        while not (tmp_path / 'child').is_file() or not (tmp_path / 'child').read_text().strip():
+            assert time.monotonic() < deadline
+            time.sleep(.01)
+        grandchild = int((tmp_path / 'child').read_text())
+        assert os.getpgid(child.pid) == child.pid == os.getpgid(grandchild)
+        child.kill()
+        assert child.wait(5) == -signal.SIGKILL
+        deadline = time.monotonic() + 5
+        while running(grandchild):
+            assert time.monotonic() < deadline, 'what the child started outlived it'
+            time.sleep(.01)
+        child.kill()  # A finished child is left alone.
+    finally:
+        child.kill()
+
+
+@linux_only
+def test_a_linux_setup_child_does_not_outlive_the_app(tmp_path):
+    """The app here is a separate Python that starts the child from a thread and is then killed."""
+    program = textwrap.dedent('''
+        import subprocess, sys, threading, time
+        from models.voice_conversion import runtime_setup as rs
+
+        def work():
+            child = rs.launch_group(['/bin/sleep', '60'], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL, env=None, cwd=None)
+            print(child.pid, flush=True)
+            child.wait()
+
+        threading.Thread(target=work).start()
+        time.sleep(60)
+    ''')
+    app = subprocess.Popen([sys.executable, '-c', program], stdout=subprocess.PIPE, text=True,
+                           env=dict(os.environ, PYTHONPATH=str(ROOT / 'src-python')))
+    try:
+        pid = int(app.stdout.readline())
+        assert running(pid)
+        app.kill()
+        app.wait(5)
+        deadline = time.monotonic() + 5
+        while running(pid):
+            assert time.monotonic() < deadline, 'the child outlived the app'
+            time.sleep(.01)
+    finally:
+        app.kill()
+        app.wait(5)

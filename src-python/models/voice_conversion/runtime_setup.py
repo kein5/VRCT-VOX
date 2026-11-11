@@ -1,4 +1,4 @@
-"""Consent-gated setup of an external voice conversion runtime (Windows).
+"""Consent-gated setup of an external voice conversion runtime (Windows, Linux x86-64).
 
 Torch and the engines stay out of the application. This process fetches pinned files,
 runs a pinned uv over the hash-locked requirements, and never imports the result.
@@ -11,10 +11,13 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath
+import platform
 import re
 import shutil
+import signal
 import subprocess
 import sys
+import tarfile
 from threading import Event, RLock, Thread
 import time
 from urllib.parse import quote
@@ -34,10 +37,25 @@ STEP_ERRORS = {'tools': 'vc_runtime_tools_failed', 'python': 'vc_runtime_python_
                'packages': 'vc_runtime_packages_failed', 'engine': 'vc_runtime_source_failed',
                'assets': 'vc_runtime_assets_failed', 'verifying': 'vc_runtime_gpu_unusable'}
 
+
+
+@dataclass(frozen=True)
+class Tool:
+    """One platform's uv release file."""
+    url: str
+    size: int
+    sha256: str
+    member: str  # uv inside the archive.
+
+
 UV_VERSION = '0.13.7'
-UV_URL = f'https://github.com/astral-sh/uv/releases/download/{UV_VERSION}/uv-x86_64-pc-windows-msvc.zip'
-UV_SIZE = 15236317
-UV_SHA256 = '0cdc5b38fe5a8168ed6a25814f5ba43c21d313dd3187314fccb37b7cec46e021'
+UV_RELEASE = f'https://github.com/astral-sh/uv/releases/download/{UV_VERSION}/'
+# The hashes are the ones the release publishes next to each file.
+UV = {'win32': Tool(UV_RELEASE + 'uv-x86_64-pc-windows-msvc.zip', 15236317,
+                    '0cdc5b38fe5a8168ed6a25814f5ba43c21d313dd3187314fccb37b7cec46e021', 'uv.exe'),
+      'linux': Tool(UV_RELEASE + 'uv-x86_64-unknown-linux-gnu.tar.gz', 16671812,
+                    'c5221ff41b7892bfc223543883600125f6a47fe845093e0f5bdff4f359196d83',
+                    'uv-x86_64-unknown-linux-gnu/uv')}
 # GitHub serves releases and source archives from these hosts. uv itself fetches Python
 # and packages, and checks them against what it pins and the lock files.
 SOURCE_HOSTS = HOSTS | {'github.com', 'codeload.github.com', 'objects.githubusercontent.com',
@@ -51,10 +69,20 @@ SEED_COMMIT = '58d0ca372cc76f60a798d9f84611f053f9029f3a'
 SEED_DIGEST = '106613138abf328fd382ba211709675399f11e76f720abfd4ab54eb2bac2b755'  # After the patch.
 SEED_MANIFEST = 'docs/voice-stack/seed-vc-poc-artifacts.json'
 HUNK = re.compile(r'@@ -(\d+)(?:,\d+)? \+\d+(?:,\d+)? @@')
+# The NVIDIA kernel driver publishes this while it is loaded; nouveau does not.
+LINUX_DRIVER = Path('/proc/driver/nvidia/version')
+
+
+def target():
+    """The platform a runtime can be set up for, or ''. The Linux locks name x86-64 wheels."""
+    if sys.platform == 'win32':
+        return 'win32'
+    return 'linux' if sys.platform == 'linux' and platform.machine() == 'x86_64' else ''
 
 
 def runtime_python(folder):
-    return folder / 'venv/Scripts/python.exe'
+    """The same file rvc_process.runtime_python starts."""
+    return folder / ('venv/Scripts/python.exe' if target() == 'win32' else 'venv/bin/python')
 
 
 def worker_file(path):
@@ -97,24 +125,37 @@ def hf_url(repo, revision, path):
     return f'https://huggingface.co/{repo}/resolve/{revision}/{quote(path, safe="/")}'
 
 
-RVC = Runtime(
-    'rvc', 'RVC', '3.12',
-    (('integrations/rvc/requirements-cuda-windows.lock', CUDA_INDEX), ('integrations/rvc/requirements-windows.lock', '')),
-    f'https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/archive/{RVC_COMMIT}.zip',
-    '9778a961cda108fd3145f36ae14d7ba9401308e610920157903bc219231f93fd', '',
-    (Asset(hf_url(RVC_REPO, RVC_REVISION, 'hubert_base/config.json'), 'hubert_base/config.json', 1492,
-           '0346950779dfb7f9316fa74ed846e2b8a22a08eedfdc5387b73f327cb1a4a7cf'),
-     Asset(hf_url(RVC_REPO, RVC_REVISION, 'hubert_base/preprocessor_config.json'), 'hubert_base/preprocessor_config.json', 225,
-           '7c1976a680fb7acc757cd36fb08eef878fa36c70b4c9d2d595df9c608bbbbf0e'),
-     Asset(hf_url(RVC_REPO, RVC_REVISION, 'hubert_base/pytorch_model.bin'), 'hubert_base/pytorch_model.bin', 189206711,
-           'cc8c20f4b90a520757260197a3ff2505705a7adbd20ad9eeaa4e1a9b38442ef5'),
-     Asset(hf_url(RVC_REPO, RVC_REVISION, 'rmvpe.pt'), 'rmvpe/rmvpe.pt', 181184272,
-           '6d62215f4306e3ca278246188607209f09af3dc77ed4232efdd069798c4ec193')),
-    'MIT, BSD-3-Clause, GPL-3.0, NVIDIA CUDA EULA',
-    (f'https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/blob/{RVC_COMMIT}/LICENSE',
-     f'https://huggingface.co/{RVC_REPO}', 'https://github.com/pytorch/pytorch/blob/main/LICENSE',
-     'https://docs.nvidia.com/cuda/eula/index.html'),
-    'rvc', 3_600_000_000, 12_000_000_000)
+# What differs by platform: the lock files, then the download and free space shown before
+# consent. The sizes are rounded up from one measured setup on each platform.
+RVC_PLATFORM = {
+    'win32': ((('integrations/rvc/requirements-cuda-windows.lock', CUDA_INDEX),
+               ('integrations/rvc/requirements-windows.lock', '')), 3_600_000_000, 12_000_000_000),
+    'linux': ((('integrations/rvc/requirements-cuda.lock', CUDA_INDEX),
+               ('integrations/rvc/requirements.lock', '')), 4_900_000_000, 16_000_000_000)}
+SEED_PLATFORM = {
+    'win32': ((('integrations/seed_vc/requirements-windows.lock', ''),), 5_000_000_000, 14_000_000_000),
+    'linux': ((('integrations/seed_vc/requirements.lock', ''),), 6_400_000_000, 18_000_000_000)}
+
+
+def rvc_runtime():
+    locks, download, disk = RVC_PLATFORM[target()]
+    return Runtime(
+        'rvc', 'RVC', '3.12', locks,
+        f'https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/archive/{RVC_COMMIT}.zip',
+        '9778a961cda108fd3145f36ae14d7ba9401308e610920157903bc219231f93fd', '',
+        (Asset(hf_url(RVC_REPO, RVC_REVISION, 'hubert_base/config.json'), 'hubert_base/config.json', 1492,
+               '0346950779dfb7f9316fa74ed846e2b8a22a08eedfdc5387b73f327cb1a4a7cf'),
+         Asset(hf_url(RVC_REPO, RVC_REVISION, 'hubert_base/preprocessor_config.json'), 'hubert_base/preprocessor_config.json', 225,
+               '7c1976a680fb7acc757cd36fb08eef878fa36c70b4c9d2d595df9c608bbbbf0e'),
+         Asset(hf_url(RVC_REPO, RVC_REVISION, 'hubert_base/pytorch_model.bin'), 'hubert_base/pytorch_model.bin', 189206711,
+               'cc8c20f4b90a520757260197a3ff2505705a7adbd20ad9eeaa4e1a9b38442ef5'),
+         Asset(hf_url(RVC_REPO, RVC_REVISION, 'rmvpe.pt'), 'rmvpe/rmvpe.pt', 181184272,
+               '6d62215f4306e3ca278246188607209f09af3dc77ed4232efdd069798c4ec193')),
+        'MIT, BSD-3-Clause, GPL-3.0, NVIDIA CUDA EULA',
+        (f'https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/blob/{RVC_COMMIT}/LICENSE',
+         f'https://huggingface.co/{RVC_REPO}', 'https://github.com/pytorch/pytorch/blob/main/LICENSE',
+         'https://docs.nvidia.com/cuda/eula/index.html'),
+        'rvc', download, disk)
 
 
 def seed_assets(manifest):
@@ -130,8 +171,9 @@ def seed_assets(manifest):
 
 def seed_runtime():
     manifest = json.loads(worker_file(SEED_MANIFEST).read_text(encoding='utf-8'))
+    locks, download, disk = SEED_PLATFORM[target()]
     return Runtime(
-        'seed-vc', 'Seed-VC', '3.11', (('integrations/seed_vc/requirements-windows.lock', ''),),
+        'seed-vc', 'Seed-VC', '3.11', locks,
         f'https://github.com/jiaheguo521/seed-vc-realtime/archive/{SEED_COMMIT}.zip', SEED_DIGEST,
         'integrations/seed_vc/offline-loader.patch', seed_assets(manifest),
         'GPL-3.0, Apache-2.0, BSD-3-Clause, NVIDIA CUDA EULA',
@@ -140,14 +182,14 @@ def seed_runtime():
          'https://huggingface.co/funasr/campplus', 'https://huggingface.co/FunAudioLLM/CosyVoice-300M',
          'https://huggingface.co/facebook/wav2vec2-xls-r-300m', 'https://github.com/pytorch/pytorch/blob/main/LICENSE',
          'https://docs.nvidia.com/cuda/eula/index.html'),
-        'seed', 5_000_000_000, 14_000_000_000)
+        'seed', download, disk)
 
 
 def runtimes():
     """What this platform can set up."""
-    if sys.platform != 'win32':
+    if not target():
         return ()
-    return (RVC, seed_runtime())
+    return (rvc_runtime(), seed_runtime())
 
 
 def source_digest(root):
@@ -162,15 +204,52 @@ def source_digest(root):
 @lru_cache(maxsize=None)
 def version_of(runtime):
     """Changes with anything the user consented to or that changes the install."""
-    digest = hashlib.sha256(json.dumps([asdict(runtime), UV_VERSION, UV_SHA256], sort_keys=True).encode())
+    digest = hashlib.sha256(json.dumps([asdict(runtime), UV_VERSION, UV[target()].sha256], sort_keys=True).encode())
     for path, _ in runtime.locks:
         digest.update(hashlib.sha256(worker_file(path).read_bytes()).digest())
     return digest.hexdigest()[:16]
 
 
 def nvidia_driver():
-    """The CUDA builds of Torch need this driver; it is present with any NVIDIA GPU."""
-    return (Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/nvcuda.dll').is_file()
+    """The CUDA builds of Torch need this driver; it is present with any NVIDIA GPU.
+
+    Only a file is looked for. Torch answers for itself once the runtime is installed.
+    """
+    if target() == 'win32':
+        return (Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/nvcuda.dll').is_file()
+    return LINUX_DRIVER.is_file()
+
+
+class _Group(subprocess.Popen):
+    """uv and whatever it starts, such as a package's build, stopped together."""
+    def kill(self):
+        if self.poll() is None:
+            os.killpg(self.pid, signal.SIGKILL)
+
+
+def launch_group(args, *, stdin=None, stdout=None, stderr=None, env=None, cwd=None):
+    """Linux: a child that ends with this process, as the Windows job object promises.
+
+    The helper that owns the audio workers starts fixed programs only, so uv gets the
+    kernel's parent-death signal instead. It follows the thread that started the child,
+    which is the setup thread that also waits for it.
+    """
+    import ctypes
+    prctl = ctypes.CDLL(None, use_errno=True).prctl
+    prctl.argtypes = (ctypes.c_int,) + (ctypes.c_ulong,) * 4
+    parent, death_signal, kill = os.getpid(), 1, int(signal.SIGKILL)  # PR_SET_PDEATHSIG
+
+    def tie():
+        # Between fork and exec. The parent may already be gone by now.
+        if prctl(death_signal, kill, 0, 0, 0) != 0 or os.getppid() != parent:
+            os._exit(127)
+
+    return _Group(args, stdin=stdin, stdout=stdout, stderr=stderr, env=env, cwd=cwd,
+                  start_new_session=True, preexec_fn=tie)
+
+
+def launch(args, **options):
+    return (launch_owned if target() == 'win32' else launch_group)(args, **options)
 
 
 def unpack_source(archive, target):
@@ -240,7 +319,7 @@ def _file_digest(path, asset, check):
 
 
 class RuntimeSetup:
-    def __init__(self, root, *, transport=open_public, launcher=launch_owned, entries=None, gpu_check=nvidia_driver):
+    def __init__(self, root, *, transport=open_public, launcher=launch, entries=None, gpu_check=nvidia_driver):
         self.root = Path(root).expanduser().absolute()
         self._entries = None if entries is None else {runtime.id: runtime for runtime in entries}
         self.transport, self.launcher, self.gpu_check = transport, launcher, gpu_check
@@ -355,7 +434,7 @@ class RuntimeSetup:
         os.replace(part, target)
 
     def _uv(self):
-        return self.root / f'.uv-{UV_VERSION}' / 'uv.exe'
+        return self.root / f'.uv-{UV_VERSION}' / ('uv.exe' if target() == 'win32' else 'uv')
 
     def _run(self, runtime, event, args):
         folder = self.folder(runtime)
@@ -385,14 +464,20 @@ class RuntimeSetup:
             raise ValueError('step_failed')
 
     def _tools(self, runtime, event, job):
-        uv = self._uv()
+        uv, tool = self._uv(), UV[target()]
         if uv.is_file():
             return
-        archive = uv.with_name('uv.zip')
-        self._fetch(UV_URL, archive, event, size=UV_SIZE, sha256=UV_SHA256)
-        with zipfile.ZipFile(archive) as source:
-            uv.with_suffix('.part').write_bytes(source.read('uv.exe'))
-        os.replace(uv.with_suffix('.part'), uv)
+        packed = tool.url.endswith('.zip')
+        archive, part = uv.with_name('uv.zip' if packed else 'uv.tar.gz'), uv.with_name('uv.part')
+        self._fetch(tool.url, archive, event, size=tool.size, sha256=tool.sha256)
+        if packed:
+            with zipfile.ZipFile(archive) as source:
+                part.write_bytes(source.read(tool.member))
+        else:
+            with tarfile.open(archive, 'r:gz') as source, source.extractfile(tool.member) as reader:
+                part.write_bytes(reader.read())
+            part.chmod(0o755)
+        os.replace(part, uv)
         archive.unlink()
 
     def _python(self, runtime, event, job):
