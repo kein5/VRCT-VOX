@@ -21,7 +21,13 @@ async function setup() {
         export const hot = { data: {}, dispose: callback => state.disposers.push(callback) };
         export const useRef = value => state.runtime ? state.runtime.api.useRef(value) : ({ current: value });
         export const useEffect = (callback, deps) => state.runtime ? state.runtime.api.useEffect(callback, deps) : state.cleanups.push(callback());
-        export const store = { appWindow: {} };
+        export const store = { text_area_ref: { current: { focus: () => state.actions.push('focus-input') } }, appWindow: {
+            isMinimized: async () => state.minimized ?? false,
+            minimize: async () => { state.actions.push('minimize'); },
+            unminimize: async () => { state.actions.push('unminimize'); },
+            setFocus: async () => { state.actions.push('set-focus'); },
+            onFocusChanged: callback => { state.focusChanged = callback; return () => {}; },
+        } };
         export const Atom_IsOpenedConfigPage = 'settings', Atom_IsBackendReady = 'ready', Atom_IsSoftwareUpdating = 'updating', Atom_Hotkeys = 'hotkeys';
         export const getDefaultStore = () => ({ get: atom => ({ data: state[atom] }) });
         export const useStore_Hotkeys = () => ({ currentHotkeys: { data: state.hotkeys }, updateHotkeys: value => { state.hotkeys = value; }, pendingHotkeys() {} });
@@ -36,6 +42,7 @@ async function setup() {
             if (command === 'quick_chat_shortcut_platform') return state.platformGate ?? 'wayland';
             if (command === 'portal_shortcuts_bind') return state.bind?.(args) ?? {};
             if (command === 'quick_chat_show') state.actions.push('quick-chat');
+            if (command === 'main_window_restore') state.actions.push('restore');
         };
         export const listen = async (name, callback) => {
             state.handlers.add(callback);
@@ -370,4 +377,43 @@ test("a sent edit stays reserved until its acknowledgement even if the same acti
     gate.resolve(true);
     await first;
     assert.equal(subject.state.writes.length, 1);
+});
+
+test("on Wayland the visibility hotkey restores the window it minimized", async () => {
+    const subject = await setup();
+    const { state } = subject;
+    state.hotkeys = { toggle_vrct_visibility: ["Ctrl", "H"] };
+    const hook = await subject.load();
+    await hook.registerShortcuts();
+    await flush();
+    const press = async () => { for (const callback of state.handlers) callback({ payload: { id: "toggle_vrct_visibility" } }); await flush(); await flush(); };
+    await press();
+    assert.deepEqual(state.actions, ["minimize"]);
+    // Wayland never reports a window as minimized; the second press must still bring it back.
+    await press();
+    assert.deepEqual(state.actions, ["minimize", "restore", "focus-input"]);
+    await press();
+    assert.deepEqual(state.actions, ["minimize", "restore", "focus-input", "minimize"]);
+    // The user brought the window back by hand: the next press minimizes again.
+    state.focusChanged({ payload: true });
+    await press();
+    assert.deepEqual(state.actions, ["minimize", "restore", "focus-input", "minimize", "minimize"]);
+});
+
+test("elsewhere the visibility hotkey asks the window whether it is minimized", async () => {
+    const subject = await setup();
+    const { state } = subject;
+    state.platformGate = "native";
+    state.hotkeys = { toggle_vrct_visibility: ["Ctrl", "H"] };
+    const hook = await subject.load();
+    await hook.registerShortcuts();
+    await flush();
+    const [[, press]] = [...state.registered];
+    await press({ state: "Pressed" });
+    await flush();
+    state.minimized = true;
+    await press({ state: "Pressed" });
+    await flush();
+    assert.deepEqual(state.actions, ["minimize", "unminimize", "set-focus", "focus-input"]);
+    assert.ok(!state.calls.some(([command]) => command === "main_window_restore"));
 });

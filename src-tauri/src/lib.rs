@@ -172,7 +172,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(quick_chat::QuickChatState::default())
         .manage(portal_shortcuts::PortalShortcuts::default())
-        .invoke_handler(tauri::generate_handler![get_font_list, set_vr_panel_window,
+        .invoke_handler(tauri::generate_handler![get_font_list, set_vr_panel_window, main_window_restore,
             quick_chat::quick_chat_context, quick_chat::quick_chat_configure, quick_chat::quick_chat_submit,
             quick_chat::quick_chat_take, quick_chat::quick_chat_finish, quick_chat::quick_chat_hide,
             quick_chat::quick_chat_show, quick_chat::quick_chat_shortcut_platform,
@@ -189,6 +189,26 @@ pub fn run() {
     }
 }
 
+
+/// Brings the minimized main window back for the "minimize or restore" hotkey.
+///
+/// On native Wayland a client cannot raise itself without an activation token, and
+/// the portal that reports the hotkey gives none; KWin can do it on the user's behalf.
+#[tauri::command]
+async fn main_window_restore(window: tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("main_window_forbidden".into());
+    }
+    window.unminimize().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())?;
+    #[cfg(target_os = "linux")]
+    if quick_chat::native_wayland() {
+        portal_shortcuts::raise_with_kwin(MAIN_TITLE);
+    }
+    Ok(())
+}
+#[cfg(target_os = "linux")]
+const MAIN_TITLE: &str = "VRCT-VOX";
 
 // VR UI の ON/OFF に合わせて、VR画面のウィンドウを作る・消す (メイン画面が設定に合わせて呼ぶ)。
 // ウィンドウを作るので async にする (同期コマンドから作ると Windows で固まることがある)
