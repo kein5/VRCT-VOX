@@ -4,7 +4,7 @@
 
 - Start VRChat before turning on Chat Transcribe.
 - Check that "Window name" under Settings → "VRChat" matches your client's title. The default is `VRChat`.
-- On Linux, VRChat must run as an X11/XWayland window (Proton's default).
+- On Linux, VRChat is found by its window name when it runs as an X11/XWayland window (Proton's default). When it runs as a native Wayland window, inside gamescope for example, share the window first (see [Chat reading](../features/chat-reading)).
 
 ## It says models are missing
 
@@ -26,6 +26,16 @@ Windows also refuses while another of its questions is open, such as the firewal
 The firewall's question is about the port VRCT-VOX listens on so that VRChat can find it through OSCQuery. Choose Allow access. Cancelling or closing it makes Windows add rules that block VRCT-VOX's incoming traffic.
 
 If VRCT-VOX closes before that question is answered, Windows refuses from then on without asking. Check Settings → Privacy & security → Microphone.
+
+## Voice Typing Mode does not paste (Linux)
+
+- It pastes into apps that run as X11/XWayland windows, such as VRChat under Proton's defaults. It cannot paste into a native Wayland window. The text is still copied to the clipboard, so you can paste it yourself.
+- On KDE, the desktop asks once whether VRCT-VOX may control input devices when it first pastes. Allow it.
+- The paste goes to the window of the app that SteamVR is running. When SteamVR is not running, the text is only copied to the clipboard.
+
+## Starting it again does not open a new window
+
+Only one copy of VRCT-VOX runs. If you start it while it is running, the running window comes to the front.
 
 ## Text is spoken twice
 

@@ -18,7 +18,7 @@ features:
   - title: Speak it
     details: Reads your text or its translation with the bundled speech.cpp into a virtual microphone. It turns on and off separately from sending text.
     link: /en/features/tts
-  - title: Captions (Linux)
+  - title: Captions
     details: Transcribes your microphone and other players' voices with the bundled speech recognition server.
     link: /en/features/transcription
   - title: Downloads with consent

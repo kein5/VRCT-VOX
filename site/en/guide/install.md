@@ -40,7 +40,7 @@ The AppImage and the tar.gz use the same locations.
 
 | Kind | File |
 |---|---|
-| Installer | `VRCT-VOX_<version>_x64-setup.exe` |
+| Installer | `VRCT-VOX_setup.exe` |
 | ZIP (CPU) | `VRCT-VOX.zip` |
 | ZIP (CUDA) | `VRCT-VOX_cuda.zip` |
 
@@ -55,5 +55,11 @@ Every file has a `.sha256`, and `SHA256SUMS-*` lists them all. These check that 
 ## Updates
 
 The in-app updater is disabled. Install a new version from GitHub Releases. Your settings and downloaded models stay in the locations above.
+
+The Windows installer unpacks and checks the new version before it replaces the old one. If something fails on the way, it puts the old version back. Your settings, models and logs are kept.
+
+## One running copy
+
+If you start VRCT-VOX while it is already running, it brings the running window to the front instead of starting again.
 
 Next, see [First setup](./first-setup).

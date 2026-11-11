@@ -33,6 +33,14 @@ The bundled server loads one recognition model, shared by the microphone and gam
 
 Add words you want recognized, and how to write them, under "Term dictionary". Common VRChat terms are built in.
 
+## Voice Typing Mode
+
+"Voice Typing Mode" under Settings → "VR" pastes what you say, once transcribed, into an input field. It uses the clipboard. While SteamVR is running, it brings the window of the app SteamVR is running (VRChat, for example) to the front and pastes there. When SteamVR is not running, the text is only copied to the clipboard.
+
+On Linux it pastes into apps that run as X11/XWayland windows, such as VRChat under Proton. On KDE, the desktop asks once whether VRCT-VOX may control input devices when it first pastes. It cannot paste into a native Wayland window; the text is copied to the clipboard only.
+
 ## Speech recognition on Windows
 
-On Windows you can choose the speech recognition inherited from upstream VRCT (Google, Whisper) under "Transcription Engines". Realtime captions work too: choose "Bundled" as the server under "Realtime captions", and the main screen's microphone and speaker switches use them.
+On Windows you can choose the speech recognition inherited from upstream VRCT (Google, Whisper) under "Transcription Engines". If you turn transcription on before choosing an engine, a "Choose speech recognition" screen opens. Google sends your microphone or speaker audio to Google's speech service. Whisper recognizes audio on this PC. The app never switches from the engine you chose to another one on its own.
+
+Realtime captions work too: choose "Bundled" as the server under "Realtime captions", and the main screen's microphone and speaker switches use them.

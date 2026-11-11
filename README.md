@@ -17,7 +17,7 @@ VRCT-VOX is a desktop app for VRChat that combines speech recognition (ASR), tex
 - **Realtime captions.** Transcribe your microphone and other players with bundled speech.cpp ASR servers.
 - **Bundled servers.** Save, start and stop speech.cpp servers from the settings.
 - **Model downloads.** Download fixed Irodori, Qwen3-TTS, Haas-ja (Japanese ASR) and RVC models from Hugging Face. Each download asks for consent after showing its license and size. Files are checked by size and SHA-256 and applied separately. GPU/VRAM guidance suggests standard or lighter variants; it is a guide, not a guarantee.
-- **Linux desktop.** Global shortcuts on Wayland (XDG portal), a managed PipeWire virtual microphone, PipeWire microphone selection, and Japanese input methods (fcitx/Mozc, ibus) in the AppImage.
+- **Linux desktop.** Global shortcuts on Wayland (XDG portal), a managed PipeWire virtual microphone, PipeWire microphone selection, and Japanese input methods (fcitx/Mozc, ibus) in the AppImage. The VR UI, chat reading from a shared native Wayland window, and pasting in Voice Typing Mode (into X11/XWayland windows) work too.
 
 RVC also needs its runtime, HuBERT and RMVPE. See [model downloads](/docs/voice-stack/model-downloads.md), [voice features on Windows](/docs/voice-stack/local-setup-windows.md) and [the Linux setup notes](/docs/voice-stack/local-setup-linux.md).
 
@@ -32,6 +32,7 @@ Every file has a `.sha256` and `SHA256SUMS-*` for checking downloads; these are 
 
 Known limitations in this beta:
 - Chat reading (OCR) needs its models, which are not shipped: download them in Config → Chat Transcribe after agreeing to their terms. On Linux it reads the VRChat window through XWayland. A native Wayland window (VRChat inside gamescope, for example) is read after you share it: Config → Chat Transcribe → "Share a window…" opens your desktop's own window dialog.
+- On Linux, the VR UI and chat reading from the headset view have been checked only with a stand-in for SteamVR, not with a real headset. Linux builds have been checked on KDE Plasma (Wayland) only.
 - The Google, Bing and Papago web translators are unavailable (see License).
 
 Report bugs and ask questions on **[Issues](https://github.com/kein5/VRCT-VOX/issues)**, with OS, version, steps and redacted logs. Report vulnerabilities privately (see [SECURITY.md](SECURITY.md)). Do not send VRCT-VOX support requests to the VRCT maintainers.

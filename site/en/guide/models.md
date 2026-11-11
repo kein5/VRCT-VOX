@@ -30,7 +30,7 @@ Downloaded files are checked by size and SHA-256 before use. They come only from
 | Text recognition | PP-OCRv6 small (Japanese, English, Chinese, Latin) | about 30 MB | Apache-2.0 |
 | Text recognition | PP-OCRv5 mobile (Korean, Cyrillic, Thai, Arabic, Devanagari) | 8–14 MB each | Apache-2.0 |
 
-Translation models are downloaded under Settings → "Translation" (see [Translation](../features/translation)).
+Translation models are downloaded under Settings → "Translation", and Whisper models under Settings → "Transcription" (see [Translation](../features/translation)). In both places "Download" opens a screen showing the source, license and size. Nothing is downloaded until you tick the consent box.
 
 ## GPU and memory guidance
 
@@ -42,4 +42,4 @@ Downloaded models go to `downloaded_models` in the same folder as the settings f
 
 ## Downloading at startup
 
-"Download translation and transcription models at startup" under Settings → "Translation" or "Transcription" downloads missing built-in translation and transcription models at the next start. It is off by default. Models you already have work either way.
+"Download translation and transcription models at startup" under Settings → "Translation" or "Transcription" downloads missing built-in translation and transcription models at the next start. It only downloads models whose version you have agreed to before; for the others it shows a notice and downloads nothing. It is off by default. Models you already have work either way.
