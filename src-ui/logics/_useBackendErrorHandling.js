@@ -22,6 +22,7 @@ import {
     useOthers,
 
     useOcr,
+    ocrStartErrorKey,
 
     useAdvancedSettings,
 } from "@logics_configs";
@@ -267,7 +268,8 @@ export const _useBackendErrorHandling = () => {
                 } else {
                     updateOcrCaptureStatus(data);
                 }
-                showNotification_Error(t(OCR_ERROR_KEYS[error_code], { defaultValue: message }), { category_id: error_code });
+                // On a Wayland desktop the window may exist and still not be found by name: that notice says how to share it.
+                showNotification_Error(t(ocrStartErrorKey(error_code) ?? OCR_ERROR_KEYS[error_code], { defaultValue: message }), { category_id: error_code });
                 return;
 
             // ============================================================================

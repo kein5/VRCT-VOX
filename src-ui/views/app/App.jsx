@@ -13,6 +13,7 @@ import {
     TransparencyController,
     CornerRadiusController,
     VrPanelSyncController,
+    OcrSharedWindowController,
 } from "./_app_controllers";
 
 import styles from "./App.module.scss";
@@ -54,6 +55,7 @@ export const App = () => {
                 <TransparencyController />
                 <CornerRadiusController />
                 <VrPanelSyncController />
+                <OcrSharedWindowController />
 
                 {startupState === "failed"
                     ? <StartupFailedComponent />

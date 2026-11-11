@@ -1,4 +1,5 @@
 import * as legacyModelConsent from "../configs/legacyModelConsent.js";
+import * as sharedWindow from "../configs/ocrSharedWindow.js";
 import { atom } from "jotai/vanilla";
 import { hooks, loadModule } from "./hookHarness.js";
 import * as recovery from "../common/pendingRequestRecovery.js";
@@ -68,8 +69,9 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
             ctranslate2_weight_type_status: [], whisper_weight_type_status: [] },
         "./useSettingsLogics": settingsLogics,
     });
-    const configs = stubApi(Object.fromEntries([...new Set(settings.SETTINGS_ARRAY.map(setting => setting.Category))]
-        .map(category => [`use${category}`, settings.createCategoryHook(category)])));
+    const configs = stubApi({ ...Object.fromEntries([...new Set(settings.SETTINGS_ARRAY.map(setting => setting.Category))]
+        .map(category => [`use${category}`, settings.createCategoryHook(category)])),
+        ocrStartErrorKey: code => sharedWindow.startErrorKey(code, runtime.store.get(stores.Atom_OcrSharedWindow).data) });
     const languages = await loadModule(new URL("../main/useLanguageSettings.js", import.meta.url), runtime, {
         "@store": stores, "@ui_configs": { translator_status: [] },
         "./languageMutations": { canChangeLanguageSettings: () => true, createLanguageRequestId: () => "test" },

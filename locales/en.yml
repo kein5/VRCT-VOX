@@ -194,7 +194,8 @@ common_error:
     ocr_unsupported_language: "Chat Transcribe could not start: the selected source language is not supported."
     ocr_model_missing: "Chat Transcribe needs recognition models. Download them under Settings → VRChat → Chat Transcribe."
     ocr_window_not_found: "Chat Transcribe could not find the VRChat window. Start VRChat, then turn it on again."
-    ocr_capture_unavailable: "Chat Transcribe cannot capture windows in this session. On Linux, VRChat has to run as an X11/XWayland window."
+    ocr_window_not_found_wayland: "Chat Transcribe could not find the VRChat window. Start VRChat, then turn it on again. If VRChat runs as a native Wayland window (inside gamescope, for example), share its window first under Settings → VRChat → Chat Transcribe."
+    ocr_capture_unavailable: "Chat Transcribe cannot capture windows in this session. On Linux, VRChat has to run as an X11/XWayland window, or you share its window under Settings → VRChat → Chat Transcribe."
     ocr_unknown: "Chat Transcribe could not start because of an unexpected error."
 
 
@@ -800,6 +801,7 @@ config_page:
             checking: "Checking chat reading status…"
             stopped: "Chat reading is off. {{status}}"
             window: "Desktop window: {{status}}"
+            shared: "Shared window: {{status}}"
             vr: "SteamVR headset view (left eye): {{status}}"
         detection: "Where to read"
         region:
@@ -842,6 +844,7 @@ config_page:
             waiting: "Waiting for a usable frame from VRChat."
             reading: "Chat reading is running."
             failed_capture: "Window capture failed or the pixel format is unsupported. Reading is paused and will retry automatically."
+            shared_window_ended: "The shared window is gone: it was closed, or sharing was stopped. Share a window again under Capture target below; reading then continues by itself."
             failed_detector: "The chatbox detector failed. Reading is paused and will retry automatically."
             failed_recognition: "Text recognition failed. Reading is paused and will retry automatically."
             failed_tick: "Chat reading failed. Reading is paused and will retry automatically."
@@ -852,7 +855,21 @@ config_page:
             language_unsupported: "The selected source language is not supported."
             models_missing: "Download the recognition models below before turning on Chat Transcribe."
             window_not_found: "The '{{title}}' window was not found. Start VRChat, then turn on Chat Transcribe."
-            capture_unavailable: "Window capture is not available in this session. On Linux, VRChat has to run as an X11/XWayland window (the Proton default)."
+            capture_unavailable: "Window capture is not available in this session. On Linux, VRChat has to run as an X11/XWayland window (the Proton default), or you share its window under Capture target below."
+        shared_window:
+            label: "Share a window (Wayland)"
+            desc: "A VRChat window that is native Wayland (for example inside gamescope, or with Wine's Wayland driver) cannot be found by its name. Share it here and Chat Transcribe reads the shared window instead. Your desktop asks which window to share and remembers the answer. Sharing ends when you turn Chat Transcribe off or close VRCT-VOX."
+            share: "Share a window…"
+            share_another: "Choose another window…"
+            stop: "Stop sharing"
+            status_idle: "No window is shared."
+            status_asking: "Waiting for your answer in the desktop's dialog…"
+            status_active: "A window is shared. Chat Transcribe reads it while it is on."
+            error_unsupported: "This desktop cannot share a window of your choice with an app."
+            error_timeout: "The desktop did not answer in time. Try again."
+            error_failed: "The window could not be shared ({{code}})."
+            notice_ended: "The window shared with Chat Transcribe is gone: it was closed, or sharing was stopped. To keep reading, share a window again under Settings → VRChat → Chat Transcribe."
+            notice_failed: "Sharing the window with Chat Transcribe stopped because of an error. Share a window again under Settings → VRChat → Chat Transcribe."
 
     updater:
         install_panel:

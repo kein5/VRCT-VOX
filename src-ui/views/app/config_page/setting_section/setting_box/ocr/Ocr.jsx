@@ -18,6 +18,7 @@ import { SectionLabelComponent } from "../_components";
 import { OcrRegions } from "./OcrRegions";
 import { OcrModels } from "./OcrModels";
 import { OcrStatus } from "./OcrStatus";
+import { OcrSharedWindow } from "./OcrSharedWindow";
 
 export const Ocr = () => {
     return (
@@ -156,6 +157,7 @@ const CaptureTarget_Container = () => {
     return (
         <div>
             <SectionLabelComponent label={t("config_page.ocr.capture_target")} />
+            <OcrSharedWindow />
             <OcrWindowTitle_Box />
         </div>
     );

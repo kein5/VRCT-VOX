@@ -69,9 +69,10 @@ export const isRelayAllowed = (path) => typeof path === "string"
     && !path.startsWith("/run/update_") // update_software と update_cuda_software (インストーラーを起動して終了する)
     && !path.includes("model_download")
     && !path.includes("vc_runtime")
-    && !/auth_key|auth_token/.test(path)
+    && !/auth_key|auth_token|restore_token/.test(path)
     && !/^\/set\/data\/[a-z_]*_url$/.test(path);
 
 // VR画面へ写さない atom。VR画面は認証キーとトークンを表示しない。写すと、VR画面や、
-// 同じイベントを聞けるほかのウィンドウからキーを読めてしまう
-export const isSecretAtomName = (name) => /Auth(Key|Token)$/.test(name);
+// 同じイベントを聞けるほかのウィンドウからキーを読めてしまう。ウィンドウ共有を確認なしで
+// 再開するトークン (RestoreToken) も、VR画面では使わないので写さない
+export const isSecretAtomName = (name) => /(Auth(Key|Token)|RestoreToken)$/.test(name);
