@@ -30,6 +30,40 @@ Linuxでは再配置したアーカイブとAppImageのGUI試験、Windowsでは
 
 Windowsのsetupは、下書きへまとめる際に`VRCT-VOX_setup.exe`へコピーします。インストーラーが取得する`VRCT-VOX.zip`と`VRCT-VOX_cuda.zip`の名前も維持してください。アプリの自動更新は引き続き無効です。
 
+## 公開前にLinuxのデスクトップで確かめる
+
+候補のビルドは、AppImageの起動、描画、設定画面の操作までを自動で確かめます。音声経路を使う試験は、PipeWireとWirePlumber 0.5が要るので、CIでは実行しません。CIに含まれない試験は、画面を変えたあとに気づかないまま古くなります。0.1.0-beta.6では、公開の直前に補助コードが今の画面と合っていないことが分かり、一部を確かめないまま公開しました。公開の前に、下書きのAppImageをLinuxのデスクトップで実行してください。
+
+試験は実際のアプリを画面に開きます。音声は試験専用のPipeWireグラフを使うので、実際のマイクやスピーカーには触れません。画面が消えると描画が止まるため、`tools/display_power_guard.py`の下で実行します。`tauri-driver` 2.1.0の場所は`VRCT_TEST_DRIVER`で指定します。
+
+```bash
+# 下書きのAppImageを取得し、SHA-256を確かめる
+mkdir -p ~/.cache/vrct-vox-release-check/<version> && cd ~/.cache/vrct-vox-release-check/<version>
+gh release download v<version> -R kein5/VRCT-VOX -p '*.AppImage' -p 'SHA256SUMS-linux'
+sha256sum -c --ignore-missing SHA256SUMS-linux
+cd <リポジトリ>
+
+# AppImageの受け入れ（FUSEと展開の両方式）
+VRCT_TEST_APPIMAGE=<AppImageの絶対パス> VRCT_TEST_APPIMAGE_FUSE=1 \
+VRCT_TEST_NATIVE_GUI=1 VRCT_TEST_NATIVE_ROUTE=1 \
+python3 tools/display_power_guard.py -- .venv_linux/bin/python -m pytest \
+  -c tests/voice/pytest.ini tests/platform/test_appimage.py -q
+
+# 読み上げ、直接入力、TTSの独立動作、バックエンドの起動
+cp <AppImageの絶対パス> /tmp/vrct-vox-candidate.AppImage && chmod +x /tmp/vrct-vox-candidate.AppImage
+VRCT_TEST_APP=/tmp/vrct-vox-candidate.AppImage VRCT_TEST_APPIMAGE=1 APPIMAGE_EXTRACT_AND_RUN=1 \
+VRCT_TEST_NATIVE_GUI=1 VRCT_TEST_NATIVE_ROUTE=1 VRCT_TEST_NATIVE=1 \
+VRCT_TEST_NATIVE_TTS_INDEPENDENCE=1 VRCT_TEST_NATIVE_DIRECT=1 VRCT_TEST_NATIVE_VOICE=1 \
+python3 tools/display_power_guard.py -- .venv_linux/bin/python -m pytest \
+  -c tests/voice/pytest.ini tests/platform/test_native_ui.py tests/platform/test_native_tts_independence.py \
+  tests/platform/test_native_direct_voice.py tests/platform/test_native_voice.py \
+  tests/platform/test_native_backend.py -q
+```
+
+`test_native_voice.py`は、読み上げが仮想マイクへちょうど1回届くこと、停止とミュートが0.5秒以内に効くこと、音声サーバーが落ちたあとの復帰を確かめます。操作できなかった部品があるときは、試験の出力先の`blocked-<操作>.json`を見てください。何が覆っていたかと、開いていたダイアログを記録してあります。
+
+VR UIの試験（`test_native_vr_ui.py`）は、偽のSteamVRをPythonのモジュールとして差し込みます。凍結済みのバックエンドでは働かないので、AppImageではなく開発ビルドを`VRCT_TEST_APP`に指定して実行します。モデルやGPU、実際のVRChatが要る試験は、ここには含めていません。実行した試験と実行しなかった試験を、リリースノートの「既知の制限」に書いてください。
+
 ## WindowsのWebView2とインストール時の通信
 
 現在のビルドでは、`src-tauri/tauri.conf.json`の`bundle.windows.webviewInstallMode`を省略しているため、Tauriの既定の`downloadBootstrapper`（`silent: true`）を使います。ローカルの`@tauri-apps/cli/config.schema.json`とビルド設定で確認した動作です。今回、このモードは変更していません。

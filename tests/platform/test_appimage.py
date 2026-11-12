@@ -42,6 +42,18 @@ def test_appimage_gui_renders_and_exits(appimage, tmp_path):
     test_model_free_native_app_renders_text_input_without_fatal_warning(tmp_path)
 
 
+@pytest.mark.parametrize('scaling', [100, 150])
+def test_appimage_settings_open_save_and_fit_a_small_window(appimage, tmp_path, scaling):
+    """Opens settings, changes tabs, unfolds a setup section, saves and returns.
+
+    Needs no audio and no models, so it also runs in CI, on every pull request
+    that touches the UI. The other native tests are run by hand before a
+    release, and their helpers once fell behind the UI unnoticed.
+    """
+    from test_native_tts_settings import test_split_settings_small_window_keyboard_and_long_paths
+    test_split_settings_small_window_keyboard_and_long_paths(tmp_path, scaling)
+
+
 @pytest.mark.skipif(os.environ.get('VRCT_TEST_NATIVE_ROUTE') != '1', reason='private WirePlumber0.5 graph')
 def test_appimage_settings_restart_muted(appimage, tmp_path):
     from test_native_ui import test_native_voice_settings_survive_restart_with_managed_route_muted
