@@ -108,6 +108,8 @@ The regular main rail is 240px and the settings rail is 208px. At the existing 8
 
 The conversation occupies the largest region. An empty state explains where to type, and the composer has a blue send action. Settings have a conventional back button, search and aligned sections. Field labels stack below 700px. Dialogs constrain their width to the viewport and keep explicit consent visible.
 
+Notices (toasts) do not cover controls. On the main page they appear at the top of the conversation, under the top bar and beside the rail, so the switches, the settings button and the composer stay reachable while a notice is up. In settings they appear at the bottom of the content column, clear of the save bar and the rail. A notice that is already showing moves with the page. Only a window too narrow to hold a readable notice beside the rail lets it slide over the rail.
+
 ## Roles in settings
 
 Settings pages use four roles, and each must be recognizable without reading it. The user approved these on 2026-11-01.

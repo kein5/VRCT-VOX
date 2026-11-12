@@ -72,7 +72,8 @@ test("notification close names dismissal and retains its toast callback", async 
         "./ReactToastifyOverrideClass.scss": {},
         "react-toastify": { ToastContainer: "toasts", cssTransition: () => ({}), toast: (_, value) => { options = value; } },
         "@store": { Atom_NotificationStatus: notification },
-        "@logics_common": { useNotificationStatus: () => ({ closeNotification: () => {} }) },
+        "@logics_common": { useNotificationStatus: () => ({ closeNotification: () => {} }),
+            useIsOpenedConfigPage: () => ({ currentIsOpenedConfigPage: { state: "ok", data: false } }) },
     });
     runtime.render(SnackbarController);
     const button = options.closeButton({ closeToast: () => dismissed++ });

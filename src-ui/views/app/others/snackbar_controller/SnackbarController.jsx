@@ -12,7 +12,7 @@ import CheckMarkSvg from "@images/check_mark.svg?react";
 import ErrorSvg from "@images/error.svg?react";
 
 import { Atom_NotificationStatus } from "@store";
-import { useNotificationStatus } from "@logics_common";
+import { useNotificationStatus, useIsOpenedConfigPage } from "@logics_common";
 import { CloseButton } from "@common_components";
 import { useI18n } from "@useI18n";
 
@@ -64,6 +64,7 @@ const showToast = (settings, latest) => {
 export const SnackbarController = () => {
     const { t } = useI18n();
     const { closeNotification } = useNotificationStatus();
+    const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
     const atoms = useStore();
     const latest = useRef(null);
     latest.current = { t, closeNotification };
@@ -86,7 +87,10 @@ export const SnackbarController = () => {
 
     return (
         <ToastContainer
-            position="bottom-left"
+            position="top-left"
+            // One container for both pages, so a notice already showing moves
+            // with the page instead of staying over the other page's controls.
+            className={clsx({ [styles.over_settings]: currentIsOpenedConfigPage.data === true })}
             transition={CustomTransition}
             hideProgressBar={false}
             newestOnTop={false}
