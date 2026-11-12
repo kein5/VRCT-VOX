@@ -119,7 +119,7 @@ def test_native_same_send_chatbox_and_voice_then_off(tmp_path):
 
                 save("original")
                 ui.click_text("button", "Resume voice")
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Voice enabled (confirmed)')")
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Voice enabled (confirmed)')")
                 ui.close_settings()
 
                 for mode, marker in (("original", "VRCTCHECKA"), ("off", "VRCTCHECKB")):

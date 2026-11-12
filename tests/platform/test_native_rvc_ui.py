@@ -77,7 +77,7 @@ def test_native_rvc_selection_real_conversion_stop_and_restart(tmp_path):
                 assert gate.inspect()['muted'] and not any(name.startswith('vrct.asr.capture.') for name in nodes())
                 ui.select('Input to forward', selected)
                 ui.click_text('button', 'Start input forwarding')
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => ['VC ready; conversion not yet confirmed','Converting voice'].includes(e.textContent))", timeout=65)
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => ['VC ready; conversion not yet confirmed','Converting voice'].includes(e.textContent))", timeout=65)
                 settled(capture, time.monotonic_ns(), 'rvc_bypassed_global_mute', silent=True)
                 status_before = active_status(time.monotonic_ns())
                 muted_before, input_before = capture.snapshot(), original.snapshot()
@@ -110,7 +110,7 @@ def test_native_rvc_selection_real_conversion_stop_and_restart(tmp_path):
                 input_baseline = original.snapshot()['nonzero_frames']
                 finished = producer.play()
                 wait_for(lambda: original.snapshot()['nonzero_frames'] > input_baseline + 10)
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Converting voice')", timeout=10)
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Converting voice')", timeout=10)
                 wait_for(lambda: capture.snapshot()['nonzero_frames'] > baseline+10, timeout=10)
                 wait_for(finished.is_set, timeout=len(pcm) / 96000 + 8)
                 resumed = active_status(time.monotonic_ns())

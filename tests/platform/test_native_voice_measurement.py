@@ -115,14 +115,14 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
                 ui.click_text('button', 'Save changes')
                 wait_for(lambda: json.loads((state / 'config.json').read_text()).get('VOICE_SETTINGS', {}).get('routing') == 'managed')
                 ui.click_text('button', 'Resume voice')
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Voice enabled (confirmed)')")
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Voice enabled (confirmed)')")
                 ui.close_settings()
                 ui.open_voice_settings()
                 if managed_server:
                     ui.click_text('button', 'Start server')
-                    ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Ready')", timeout=120)
+                    ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Ready')", timeout=120)
                     if low_latency:
-                        ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Low-latency standby active')", timeout=15)
+                        ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Low-latency standby active')", timeout=15)
 
                 def save(mode):
                     ui.select("Chat voice", mode)
@@ -200,7 +200,7 @@ def test_native_osc_once_with_voice_and_ui_to_write_measurement(tmp_path):
                     assert gate.inspect()["identity"] == identity
                     require_continuous_capture(monitor.snapshot())
                     if low_latency:
-                        row['low_latency_active'] = ui.evaluate("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Low-latency standby active')")
+                        row['low_latency_active'] = ui.evaluate("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Low-latency standby active')")
                         assert row['low_latency_active'], 'standby ended during measurement'
                     row["valid"] = True
                     (tmp_path / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))

@@ -106,7 +106,7 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
                     ui.open_voice_settings()
 
                 def status(text):
-                    ui.wait(f"return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === {json.dumps(text)})")
+                    ui.wait(f"return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === {json.dumps(text)})")
 
                 def save(mode):
                     ui.select("Audio route", "managed")

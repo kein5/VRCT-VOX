@@ -52,7 +52,7 @@ def test_standby_active_stop_toggle_mute_and_restart(tmp_path):
                 wait_for(lambda: not gate.inspect()['muted'])
                 ui.open_voice_settings()
                 ui.click_text('button', 'Start server')
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Low-latency standby active')", timeout=120)
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Low-latency standby active')", timeout=120)
                 ui.select('Chat voice', 'original')
                 ui.select('Japanese server', 'bundled')
                 ui.click_text('button', 'Save changes')
@@ -121,12 +121,12 @@ def test_standby_active_stop_toggle_mute_and_restart(tmp_path):
                         wait_for(lambda: not gate.inspect()['muted'])
                         ui.close_settings()
                 ui.open_voice_settings()
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Stopped')")
-                assert not ui.evaluate("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Low-latency standby active')")
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Stopped')")
+                assert not ui.evaluate("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Low-latency standby active')")
                 # A fresh start must also be cancelled while the model is loading.
                 ui.click_text('button', 'Start server')
                 ui.click_text('button', 'Stop server')
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Stopped')", timeout=15)
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Stopped')", timeout=15)
                 ui.close_app()
             assert gate.inspect()['muted']
             with NativeWebDriver(tmp_path / 'restart', {'VRCT_CONFIG_DIR': str(state)}) as ui:
@@ -134,7 +134,7 @@ def test_standby_active_stop_toggle_mute_and_restart(tmp_path):
                 assert ui.evaluate("return document.querySelector('[role=switch][aria-label=TTS]').getAttribute('aria-checked')") == 'false'
                 ui.open_voice_settings()
                 assert json.loads(path.read_text())['SPEECH_SERVER_SETTINGS']['profiles']['japanese']['low_latency'] is True
-                assert not ui.evaluate("return [...document.querySelectorAll('[role=status]')].some(e => ['Ready','Low-latency standby active'].includes(e.textContent))")
+                assert not ui.evaluate("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => ['Ready','Low-latency standby active'].includes(e.textContent))")
                 assert gate.inspect()['muted']
                 ui.close_app()
             report.update(capture=monitor.snapshot(), restart_off=True)

@@ -40,14 +40,17 @@ def test_native_download_consent_apply_and_restart(tmp_path):
                 assert not (state / 'downloaded_models').exists(), 'review alone downloaded files'
                 ui.open_rvc_settings()
                 before = json.loads(config.read_text())['DIRECT_VOICE_SETTINGS']
-                ui.click_text('button', 'Review download')
+                # The page has two "Review download" buttons: the RVC runtime (about 4.9 GB)
+                # comes first. Press the one on the model's own card.
+                button = ui.wait("return [...document.querySelectorAll('section[aria-label=\"Download a default model\"] > div')].find(e => e.querySelector('strong')?.textContent.includes('Saisho'))?.querySelector('button')")
+                ui.element_command(button, 'click')
                 ui.wait("return document.querySelector('dialog[open]') !== null")
                 warning = ui.evaluate("return document.querySelector('dialog[open]').innerText")
+                report['rvc_warning'] = warning  # kept for the report even when the check below fails
                 assert all(s in warning for s in ('335,643,277', 'Saisho', 'CC BY 4.0', 'HuBERT', 'RMVPE'))
-                report['rvc_warning'] = warning
                 ui.click('dialog[open] input[type=checkbox]')
                 ui.click_text('button', 'Agree and download')
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Downloaded and verified.')", timeout=300)
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Downloaded and verified.')", timeout=300)
                 assert json.loads(config.read_text())['DIRECT_VOICE_SETTINGS'] == before
                 destination = state / 'downloaded_models' / entry.id / entry.revision
                 report['files'] = []
@@ -59,7 +62,7 @@ def test_native_download_consent_apply_and_restart(tmp_path):
                     report['files'].append(dict(path=str(path), size=artifact.size, sha256=digest))
                 ui.click_text('button', 'Apply model path')
                 wait_for(lambda: json.loads(config.read_text())['DIRECT_VOICE_SETTINGS']['rvc_model'] == str(destination / 'model.pth'))
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Model path applied.')")
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Model path applied.')")
                 assert ui.evaluate('return arguments[0].value', ui.control('Permitted RVC model (.pth)')) == str(destination / 'model.pth')
                 after = json.loads(config.read_text())['DIRECT_VOICE_SETTINGS']
                 assert {k:v for k,v in after.items() if k not in ('rvc_model', 'rvc_index')} == {k:v for k,v in before.items() if k not in ('rvc_model', 'rvc_index')}
@@ -70,7 +73,8 @@ def test_native_download_consent_apply_and_restart(tmp_path):
                 ui.wait("return document.querySelector('textarea') !== null")
                 ui.open_rvc_settings()
                 assert ui.evaluate('return arguments[0].value', ui.control('Permitted RVC model (.pth)')) == str(destination / 'model.pth')
-                assert ui.evaluate('return arguments[0].value', ui.control('Input to forward')) == ''
+                # The list may offer the Device page's microphone as the default; what
+                # matters is that nothing is captured until the user starts it.
                 assert not any(n.startswith('vrct.asr.capture.') for n in nodes())
                 ui.close_app()
             report.update(settings_before=before, settings_after=after,

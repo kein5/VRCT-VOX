@@ -84,11 +84,11 @@ def test_native_voice_settings_survive_restart_with_managed_route_muted(tmp_path
             ui.click_text("button", "Save changes")
             wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("japanese_voice") == "保存テスト")
             ui.open_route_settings()
-            ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Muted (confirmed)')")
+            ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Muted (confirmed)')")
             assert gate.inspect()["muted"] is True
             ui.click_text("button", "Resume voice")
             wait_for(lambda: gate.inspect()["muted"] is False)
-            ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Voice enabled (confirmed)')")
+            ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Voice enabled (confirmed)')")
             ui.assert_rendered()
             ui.close_app()
         assert gate.inspect()["muted"] is True
@@ -99,7 +99,7 @@ def test_native_voice_settings_survive_restart_with_managed_route_muted(tmp_path
                                  ("Seed value", "0"), ("Instruction", "設定復元の試験")]:
                 assert ui.evaluate("return arguments[0].value", ui.control(label)) == value
             ui.open_route_settings()
-            ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Muted (confirmed)')")
+            ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Muted (confirmed)')")
             assert gate.inspect()["muted"] is True
             ui.assert_rendered()
             ui.close_app()
