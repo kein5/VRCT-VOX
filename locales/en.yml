@@ -3,9 +3,6 @@
 # Please read 'readme_first.txt' before making any changes.
 # =================================
 
-runtime:
-    local_models_unavailable: "A built-in model that a selected engine needs has not been downloaded. Download it under Settings → Translation or Transcription."
-
 voice:
     direct_mode: "Direct voice mode"
     direct_passthrough: "Original / external converter output"
@@ -1500,6 +1497,15 @@ studio:
     toggle_sidebar: "Toggle sidebar"
     empty_title: "Your conversation starts here"
     empty_description: "Type a message below. Control translation, transcription and voice from the sidebar."
+    empty_vrchat_hint: "If nothing appears in VRChat, open VRChat's Action Menu and set Options → OSC to Enabled."
+    setup_label: "Before you start"
+    setup_translation: "Translation needs its model downloaded first."
+    setup_transcription: "Microphone and listening need the speech recognition model downloaded first."
+    setup_preparing: "Preparing the download"
+    setup_downloading: "Downloading {{progress}}%"
+    setup_translation_ready: "The translation model is here. Turning Translation on."
+    setup_translation_resume: "When the download finishes, Translation is turned on. The selected model and the microphone do not change."
+    setup_other_translator: "Choose another translator"
     message_input: "Message"
     message_placeholder: "Type a message…"
     send_message: "Send message"

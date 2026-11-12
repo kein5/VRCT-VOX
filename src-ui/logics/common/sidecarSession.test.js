@@ -330,7 +330,7 @@ for (const initialized of [false, true]) test(`production exit ${initialized ? "
     const startup = await loadModule(new URL("./useBackendStartup.js", import.meta.url), b.runtime, { "@store": b.stores });
     const SplashComponent = () => null, StartupFailedComponent = () => null;
     const app = await loadModule(new URL("../../views/app/App.jsx", import.meta.url), b.runtime, {
-        "./_app_controllers/TranscriptionConsentController": {}, "./_app_controllers": {},
+        "./_app_controllers/TranscriptionConsentController": {}, "./_app_controllers/TranslationSetupController": {}, "./_app_controllers": {},
         "./_app_controllers/QuickChatController": {}, "./main_page/MainPage": {}, "./config_page/ConfigPage": {},
         "./others": { SplashComponent }, "@logics_common": common,
         "@useI18n": { useI18n: () => ({ i18n: { language: "en" } }) },

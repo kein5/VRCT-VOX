@@ -79,6 +79,7 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
     });
     const main = stubApi({ ...languages, ...overrides.main });
     const transcriptionConsent = await loadModule(new URL("../transcription/useTranscriptionConsent.js", import.meta.url), runtime);
+    const translationSetup = await loadModule(new URL("../translation/useTranslationSetup.js", import.meta.url), runtime);
     const errors = await loadModule(new URL("../_useBackendErrorHandling.js", import.meta.url), runtime, {
         "@logics_common": common, "@logics_main": main, "@logics_configs": configs,
         "@useI18n": { useI18n: () => i18n ? { t: i18n.t.bind(i18n), i18n } : { t: key => key, i18n: { exists: () => false } } },
@@ -86,6 +87,7 @@ export const loadBridgeRoutes = async (loadCommon = async () => ({}), i18n = nul
         "./ui_configs": { ui_configs: {} }, "./configs/cloudTranscription": { CLOUD_TRANSCRIPTION_ENGINES: [] },
         "./configs/legacyModelConsent": legacyModelConsent,
         "./transcription/useTranscriptionConsent": transcriptionConsent,
+        "./translation/useTranslationSetup": translationSetup,
     });
     const feature = values => stubApi({ send, reset: noop, backendStopped: noop, ...values });
     const voice = { useVoice: () => feature({ settings: null, status: {} }) };

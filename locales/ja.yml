@@ -3,9 +3,6 @@
 # Please read 'readme_first.txt' before making any changes.
 # =================================
 
-runtime:
-    local_models_unavailable: "選択中のエンジンに必要な内蔵モデルが、まだ取得されていません。設定の「翻訳」または「音声認識」で取得できます。"
-
 voice:
     direct_mode: "直接音声のモード"
     direct_passthrough: "原音／外部ボイチェンの出力"
@@ -1500,6 +1497,15 @@ studio:
     toggle_sidebar: "サイドバーを切り替える"
     empty_title: "ここから会話を始めましょう"
     empty_description: "下の入力欄にメッセージを入力します。翻訳・文字起こし・音声は左のメニューで切り替えられます。"
+    empty_vrchat_hint: "VRChatに表示されないときは、VRChatのアクションメニューで「Options」→「OSC」を「Enabled」にしてください。"
+    setup_label: "使う前の準備"
+    setup_translation: "翻訳を使うには、翻訳モデルの取得が必要です。"
+    setup_transcription: "マイク入力と聞き取りを使うには、音声認識モデルの取得が必要です。"
+    setup_preparing: "取得を準備しています"
+    setup_downloading: "取得中 {{progress}}%"
+    setup_translation_ready: "翻訳モデルを取得しました。翻訳をオンにします。"
+    setup_translation_resume: "ダウンロードが終わると、翻訳をオンにします。モデルの選択やマイクのオン／オフは変わりません。"
+    setup_other_translator: "ほかの翻訳エンジンを選ぶ"
     message_input: "メッセージ"
     message_placeholder: "メッセージを入力…"
     send_message: "メッセージを送信"

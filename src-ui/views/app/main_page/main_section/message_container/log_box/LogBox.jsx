@@ -3,6 +3,7 @@ import { useAtomValue } from "jotai";
 import { Virtualizer } from "virtua";
 import styles from "./LogBox.module.scss";
 import { MessageContainer } from "./message_container/MessageContainer";
+import { EmptyState } from "./EmptyState";
 import { useMessageActions, nextLogView, rowsBetween } from "@logics_common";
 import { useSettingValue } from "@logics_configs";
 import { useI18n } from "@useI18n";
@@ -101,7 +102,7 @@ export const LogBox = memo(function LogBox({ savedView } = {}) {
         <div id="log_container" className={styles.container} ref={logContainerRef}
             tabIndex={0} role="region" aria-label={t("main_page.message_log.region_label")}>
             <MessageLogUiSizeController />
-            {view.rows.length === 0 && <div className={styles.empty}><h1>{t("studio.empty_title")}</h1><p>{t("studio.empty_description")}</p></div>}
+            {view.rows.length === 0 && <EmptyState />}
             {/* Rows measured later (new, or after a font size change) call onResize. */}
             <Virtualizer ref={virtualizerRef} cache={restored?.cache}
                 data={view.rows} shift={view.shift} scrollRef={logContainerRef} startMargin={startMargin} onResize={follow}

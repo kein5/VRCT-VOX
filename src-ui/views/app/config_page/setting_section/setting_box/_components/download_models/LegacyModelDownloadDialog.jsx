@@ -10,7 +10,9 @@ import { useConsentDialog } from "../../../../../../../logics/common/useConsentD
 
 // Native modal scope, initial focus on Back and the shared catalog form styles.
 // A snapshot remains on screen until closed, even if the catalog is refreshed.
-export const LegacyModelDownloadDialog = ({ kind, weightType, onCancel, onDownload }) => {
+// extraAction: another way forward that closes this review without downloading.
+// note: what the download changes, when the caller continues something afterwards.
+export const LegacyModelDownloadDialog = ({ kind, weightType, onCancel, onDownload, extraAction = null, note = null }) => {
     const { t } = useI18n();
     const { catalog, error, send } = useModelDownloads();
     const [entry, setEntry] = useState(null), [consent, setConsent] = useState(false);
@@ -73,7 +75,7 @@ export const LegacyModelDownloadDialog = ({ kind, weightType, onCancel, onDownlo
                     </div>
                 </dl>
                 {linkError && <div role="alert"><p>{t("model_downloads.link_error")}</p><code>{linkError}</code></div>}
-                <p>{t("legacy_model_downloads.no_start")}</p>
+                <p>{note ?? t("legacy_model_downloads.no_start")}</p>
                 <label className={styles.checkLabel}><input type="checkbox" checked={consent}
                     onChange={event => setConsent(event.target.checked)} />{t(entry.tokenizer
                         ? "legacy_model_downloads.consent" : "legacy_model_downloads.consent_without_extra_files")}</label>
@@ -86,6 +88,9 @@ export const LegacyModelDownloadDialog = ({ kind, weightType, onCancel, onDownlo
                     close(); onDownload(request); onCancel();
                 }}>{t("model_downloads.start")}</button>
             </div>
+            {extraAction && <p className={dialogStyles.alternative}>
+                <button type="button" onClick={() => { cancel(); extraAction.onClick(); }}>{extraAction.label}</button>
+            </p>}
         </dialog>
     </div>;
 };

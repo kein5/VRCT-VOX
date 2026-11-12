@@ -1,4 +1,5 @@
 import { TranscriptionConsentController } from "./_app_controllers/TranscriptionConsentController";
+import { TranslationSetupController } from "./_app_controllers/TranslationSetupController";
 import { useI18n } from "@useI18n";
 import { useRef } from "react";
 
@@ -85,6 +86,7 @@ const Contents = () => {
                 <MainPage focusFallback={mainPage} />
                 <ModalController fallback={mainPage} />
                 <TranscriptionConsentController />
+                <TranslationSetupController />
             </div>
             :
             <UpdatingComponent />

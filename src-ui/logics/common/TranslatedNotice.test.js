@@ -31,7 +31,7 @@ test("a notice raised before the saved language is applied is drawn in that lang
     assert.doesNotMatch(text, /\{\{|Voice2Chatbox/);
 });
 
-test("the save notice and the missing model notice are translated when drawn", async () => {
+test("the save notice is translated when drawn", async () => {
     const s = await setup();
     let raised;
     const status = s.runtime.jotai.atom({ state: "ok", data: {} });
@@ -43,12 +43,4 @@ test("the save notice and the missing model notice are translated when drawn", a
     s.runtime.render(common.useNotificationStatus).showNotification_SaveSuccess();
     await s.i18n.changeLanguage("ja");
     assert.equal(s.draw(raised.message), resources.ja.translation.config_page.notifications.save_success);
-
-    const models = await loadModule(new URL("./useIsVrctAvailable.jsx", import.meta.url), s.runtime, {
-        "@store": { useStore_IsVrctAvailable: () => ({ currentIsVrctAvailable: { data: true }, updateIsVrctAvailable() {} }) },
-        "@logics_common": { useNotificationStatus: () => ({ showNotification_Warning: notice => { raised = notice; } }) },
-        "./TranslatedNotice": s.translated,
-    });
-    s.runtime.render(models.useIsVrctAvailable).handleAiModelsAvailability(false);
-    assert.equal(s.draw(raised), resources.ja.translation.runtime.local_models_unavailable);
 });
