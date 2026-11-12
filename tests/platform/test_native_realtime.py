@@ -216,7 +216,7 @@ def test_real_asr_native_caption_translation_and_stop(tmp_path):
             ui.wait("return [...document.querySelectorAll('button')].some(e => e.textContent === 'Start microphone captions' && !e.disabled)")
             ui.click_text("button", "Start microphone captions")
             ui.click_text("button", "Start game audio captions")
-            ui.wait("return [...document.querySelectorAll('[role=status]')].filter(e => e.textContent === 'Captions running').length === 2")
+            ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].filter(e => e.textContent === 'Captions running').length === 2")
             ui.close_settings()
             ui.wait("return !!document.querySelector('#log_container')")
             instrument_rows(ui)
@@ -260,7 +260,7 @@ def test_real_asr_native_caption_translation_and_stop(tmp_path):
         with NativeWebDriver(tmp_path / "restart", {"VRCT_CONFIG_DIR": str(state_dir)}) as ui:
             ui.wait("return document.querySelector('textarea') !== null")
             open_captions(ui)
-            ui.wait("return [...document.querySelectorAll('[role=status]')].filter(e => e.textContent === 'Captions stopped').length === 2")
+            ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].filter(e => e.textContent === 'Captions stopped').length === 2")
             assert not any(name.startswith("vrct.asr.capture.") for name in nodes())
             ui.close_app()
         (tmp_path / "report.json").write_text(json.dumps({

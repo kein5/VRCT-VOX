@@ -117,7 +117,7 @@ def test_native_input_controls_and_independent_audio_stops(tmp_path):
                 ui.select('Input to forward', selected_value())
                 observe('selection_stays_silent', silent=True)
                 observe('start_preserves_global_mute', lambda: ui.click_text('button', 'Start input forwarding'), silent=True)
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Input forwarding connected')")
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Input forwarding connected')")
                 ui.open_route_settings()
                 observe('resume_selected_input', lambda: ui.click_text('button', 'Resume voice'), present=(440,))
                 ui.close_settings()
@@ -180,7 +180,7 @@ def test_native_input_controls_and_independent_audio_stops(tmp_path):
                 ui.wait("return document.querySelector('textarea') !== null")
                 ui.open_original_voice_settings()
                 observe('app_restart_off', silent=True)
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Input forwarding stopped')")
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Input forwarding stopped')")
                 # The list offers the Device page's microphone as the default (here the
                 # graph's default source, the decoy). The input chosen in the previous
                 # run is not remembered, and nothing is forwarded until Start is pressed.

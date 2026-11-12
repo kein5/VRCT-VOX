@@ -154,13 +154,13 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                 ui.click_text('button', 'Save changes')
                 wait_for(lambda: json.loads(config_path.read_text()).get('VOICE_SETTINGS', {}).get('mic_mode') == 'translated')
                 wait_for(lambda: gate.inspect_pair()['direct']['muted'] == (direct_policy == 'suppress'))
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Muted (confirmed)')")
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Muted (confirmed)')")
                 if real_rvc:
                     source = select_source(graph_snapshot(), 'vrct.native.caption.source')
                     selected = json.dumps([str(source.cookie), str(source.serial), source.name, source.media_class], separators=(',', ':'))
                     ui.select('Input to forward', selected)
                     ui.click_text('button', 'Start input forwarding')
-                    ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => ['VC ready; conversion not yet confirmed','Converting voice'].includes(e.textContent))", timeout=65)
+                    ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => ['VC ready; conversion not yet confirmed','Converting voice'].includes(e.textContent))", timeout=65)
                     workers = [child for child in ui.app_process.children(recursive=True)
                                if 'integrations.rvc.live_worker' in child.cmdline()]
                     assert len(workers) == 1
@@ -173,7 +173,7 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                 ui.close_settings()
                 open_captions(ui)
                 ui.click_text('button', 'Start microphone captions')
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Captions running')")
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Captions running')")
                 # Existing configuration navigation pauses translation. Return
                 # to the main view and observe its restoration before input.
                 ui.close_settings()
@@ -403,7 +403,7 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                     assert len(traces()) == completed
                 if direct_continues:
                     open_voice(ui)
-                    ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Converting voice')")
+                    ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Converting voice')")
                     ui.click_text('button', 'Mute until resumed')
                     producer.play()
                     settled(capture, time.monotonic_ns(), 'rvc_global_mute_failed', silent=True)

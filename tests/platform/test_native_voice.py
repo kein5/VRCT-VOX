@@ -80,7 +80,7 @@ def test_native_text_to_virtual_microphone_and_recovery(tmp_path):
                 ui.open_voice_settings()
 
                 def status(text):
-                    ui.wait(f"return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === {json.dumps(text)})")
+                    ui.wait(f"return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === {json.dumps(text)})")
 
                 def saved(key):
                     return json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get(key)
