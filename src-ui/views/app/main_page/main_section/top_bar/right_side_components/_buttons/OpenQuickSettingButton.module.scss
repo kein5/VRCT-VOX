@@ -37,7 +37,7 @@ $pending_label_color: var(--dark_500_color);
 }
 
 .button_indicator_label {
-    font-size: 1rem;
+    font-size: 1.2rem;
     &.is_pending {
         color: $pending_label_color;
         opacity: 0.25;
@@ -82,7 +82,7 @@ $pending_label_color: var(--dark_500_color);
         &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: -.2rem; }
     }
     .button_label { font-size: 1.3rem; white-space: normal; }
-    .button_indicator_label { flex-shrink: 0; font-size: 1.2rem; }
+    .button_indicator_label { flex-shrink: 0; }
     .loader { display: none; }
 }
 // Why a row cannot be used, under it.

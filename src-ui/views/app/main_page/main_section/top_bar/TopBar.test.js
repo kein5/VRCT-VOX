@@ -206,3 +206,13 @@ test("the main bar's stylesheet hides the long words and swaps to the shortest w
         for (const key of ["topbar_stop_tiny", "topbar_stop_tiny_count"]) assert.equal(typeof strings.voice_ui[key], "string");
     }
 });
+
+test("the words added to the main page are never smaller than 12px (1.2rem at the 10px base)", () => {
+    for (const file of ["./TopBar.module.scss", "./right_side_components/RightSideComponents.module.scss",
+        "./right_side_components/_buttons/OpenQuickSettingButton.module.scss",
+        "../../sidebar_section/language_readout/LanguageReadout.module.scss"]) {
+        const sizes = [...readFileSync(new URL(file, import.meta.url), "utf8").matchAll(/font-size: ([\d.]+)rem/g)].map(match => Number(match[1]));
+        assert.ok(sizes.length > 0, file);
+        assert.ok(sizes.every(size => size >= 1.2), `${file}: ${sizes}`);
+    }
+});
