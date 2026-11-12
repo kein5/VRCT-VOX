@@ -1284,6 +1284,8 @@ voice_ui:
     discard_short: "Discard"
     changed_items: "Changed settings"
     unsaved: "Unsaved changes"
+    applies_on_save: "Save to apply: {{changes}}"
+    changes_separator: ", "
     unsaved_count: "{{count}}"
     saved: "Saved"
     save_failed: "Save failed — edits kept"
