@@ -176,6 +176,8 @@ export const { atomInstance: Atom_IsBackendReady, useHook: useStore_IsBackendRea
 export const { atomInstance: Atom_BackendStartupState, useHook: useStore_BackendStartupState } = createAtomWithHook("starting", "BackendStartupState");
 export const { atomInstance: Atom_IsVrctAvailable, useHook: useStore_IsVrctAvailable } = createAtomWithHook(true, "IsVrctAvailable");
 export const { atomInstance: Atom_IsOscAvailable, useHook: useStore_IsOscAvailable } = createAtomWithHook(false, "IsOscAvailable");
+// Why it is unavailable: "remote_destination" (VRChat is on another machine) or "setup_failed". null while available or unknown.
+export const { atomInstance: Atom_OscUnavailableReason, useHook: useStore_OscUnavailableReason } = createAtomWithHook(null, "OscUnavailableReason");
 export const { atomInstance: Atom_ComputeMode, useHook: useStore_ComputeMode } = createAtomWithHook("cpu", "ComputeMode");
 export const { atomInstance: Atom_IsOpenedConfigPage, useHook: useStore_IsOpenedConfigPage } = createAtomWithHook(false, "IsOpenedConfigPage");
 export const { atomInstance: Atom_MainFunctionsStateMemory, useHook: useStore_MainFunctionsStateMemory } = createAtomWithHook({

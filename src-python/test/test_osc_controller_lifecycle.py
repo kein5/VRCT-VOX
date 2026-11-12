@@ -114,6 +114,7 @@ def test_setup_failure_disables_capability_and_stops_mic_before_disabling_sync(c
         context.model._mic_session.resume.assert_not_called()
         context.controller.run.assert_any_call(200, "/run/enable_osc_query", {
             "data": False, "disabled_functions": ["vrc_mic_mute_sync"],
+            "reason": "setup_failed", "microphone_stopped": True,
         })
         context.controller.run.assert_any_call(200, "/set/disable/vrc_mic_mute_sync", False)
         context.controller.run.assert_any_call(200, "/set/disable/transcription_send", False)
@@ -132,7 +133,8 @@ def test_startup_with_a_remote_destination_and_sync_off_does_not_warn(context):
     context.model.osc_handler.getIsOscQueryEnabled.return_value = False
     context.controller._initOscReceive()
     # The capability is still reported as unavailable; only the warning is left out.
-    assert _readiness_notices(context) == [{"data": False, "disabled_functions": []}]
+    assert _readiness_notices(context) == [{"data": False, "disabled_functions": [],
+                                            "reason": "remote_destination", "microphone_stopped": False}]
     assert context.config.ENABLE_TRANSCRIPTION_SEND is True
     context.controller._stopTranscriptionSendMessageLocked.assert_not_called()
 
@@ -143,7 +145,8 @@ def test_startup_with_a_remote_destination_warns_when_it_switches_sync_off(conte
     context.controller._initOscReceive()
     assert context.config.VRC_MIC_MUTE_SYNC is False
     assert context.config.ENABLE_TRANSCRIPTION_SEND is False
-    assert _readiness_notices(context) == [{"data": False, "disabled_functions": ["vrc_mic_mute_sync"]}]
+    assert _readiness_notices(context) == [{"data": False, "disabled_functions": ["vrc_mic_mute_sync"],
+                                            "reason": "remote_destination", "microphone_stopped": True}]
 
 
 def test_startup_failure_for_this_pc_warns_even_with_sync_off(context):
@@ -151,7 +154,8 @@ def test_startup_failure_for_this_pc_warns_even_with_sync_off(context):
     context.config.VRC_MIC_MUTE_SYNC = False
     context.model.osc_handler.getIsOscQueryEnabled.return_value = False
     context.controller._initOscReceive()
-    assert _readiness_notices(context) == [{"data": False, "disabled_functions": ["vrc_mic_mute_sync"]}]
+    assert _readiness_notices(context) == [{"data": False, "disabled_functions": ["vrc_mic_mute_sync"],
+                                            "reason": "setup_failed", "microphone_stopped": False}]
 
 
 def test_changing_the_destination_to_another_machine_warns_once_with_sync_off(context):
@@ -159,7 +163,8 @@ def test_changing_the_destination_to_another_machine_warns_once_with_sync_off(co
     context.config.VRC_MIC_MUTE_SYNC = False
     context.model.osc_handler.getIsOscQueryEnabled.return_value = False
     assert context.controller.setOscIpAddress("192.168.0.20")["status"] == 200
-    assert _readiness_notices(context) == [{"data": False, "disabled_functions": ["vrc_mic_mute_sync"]}]
+    assert _readiness_notices(context) == [{"data": False, "disabled_functions": ["vrc_mic_mute_sync"],
+                                            "reason": "remote_destination", "microphone_stopped": False}]
 
 
 @pytest.mark.parametrize("toggle", ["enable", "disable", "startup"])

@@ -275,7 +275,10 @@ common_warning:
         speaker: 'Speaker capture switched from “{{old}}” to “{{new}}”. Capture is continuing.'
     startup_degraded: "Some settings could not be loaded. VRCT-VOX has started with default values for those settings. Check them before use. If this continues, restart VRCT-VOX."
     config_file_unreadable: "config.json could not be read, so VRCT-VOX started with default settings. The old file was kept as {{file}}."
-    unable_to_use_osc_query: "OSC reception or OSCQuery advertisement is unavailable. The functions below are disabled. If mic mute sync was on, microphone input has also been stopped. Check the local OSC settings and save them again before turning microphone input back on."
+    osc_query_remote: "{{sync}} is not available while messages go to another machine. VRChat's mute state can be checked only when VRChat runs on this PC."
+    osc_query_remote_mic_stopped: "Messages go to another machine, so VRChat's mute state cannot be checked. {{sync}} was turned off and {{microphone}} was stopped. Turn {{microphone}} back on when you need it."
+    osc_query_failed: "OSC reception could not start, so {{sync}} is not available. Check the OSC settings under Settings → {{settings}} and save them again."
+    osc_query_failed_mic_stopped: "OSC reception could not start, so VRChat's mute state cannot be checked. {{sync}} was turned off and {{microphone}} was stopped. Check the OSC settings under Settings → {{settings}} and save them again, then turn {{microphone}} back on."
 
 main_page:
     backend_disconnected: "Engine disconnected"
@@ -429,6 +432,7 @@ config_page:
             type_template_high: "{{type_name}} (Higher accuracy, slower processing)"
         warning_labels:
             unable_to_use_osc_query: "OSC reception or OSCQuery advertisement is not ready. Check the local OSC settings and save them again."
+            unable_to_use_osc_query_remote: "Not available while messages go to another machine. VRChat's mute state can be checked only when VRChat runs on this PC."
 
     side_menu_labels:
         vrchat: "VRChat"

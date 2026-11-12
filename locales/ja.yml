@@ -275,7 +275,10 @@ common_warning:
         speaker: 'スピーカーの録音元を「{{old}}」から「{{new}}」に切り替え、録音を続けています。'
     startup_degraded: "一部の設定を読み込めなかったため、その項目を初期値にして起動しました。使う前に設定を確認してください。繰り返し起きる場合は、VRCT-VOXを再起動してください。"
     config_file_unreadable: "設定ファイル（config.json）を読み込めなかったため、既定の設定で起動しました。元のファイルは{{file}}として残しています。"
-    unable_to_use_osc_query: "OSC受信またはOSCQueryの公開を開始できないため、以下の機能を無効にしました。マイクミュート同期がオンだった場合は、マイク入力も停止しています。ローカルのOSC設定を確認して保存し直してから、マイク入力をオンにしてください。"
+    osc_query_remote: "送信先が別のマシンのときは、「{{sync}}」を使えません。VRChatのミュート状態を確認できるのは、VRChatが同じPCで動いているときだけです。"
+    osc_query_remote_mic_stopped: "送信先が別のマシンなので、VRChatのミュート状態を確認できません。「{{sync}}」をオフにして、「{{microphone}}」を止めました。必要なときに、「{{microphone}}」をオンにし直してください。"
+    osc_query_failed: "OSCの受信を始められなかったため、「{{sync}}」を使えません。設定の「{{settings}}」でOSCの設定を確認し、保存し直してください。"
+    osc_query_failed_mic_stopped: "OSCの受信を始められず、VRChatのミュート状態を確認できません。「{{sync}}」をオフにして、「{{microphone}}」を止めました。設定の「{{settings}}」でOSCの設定を確認して保存し直してから、「{{microphone}}」をオンにしてください。"
 
 main_page:
     backend_disconnected: "エンジンとの接続が切れました"
@@ -429,6 +432,7 @@ config_page:
             type_template_high: "{{type_name}}（精度が良く、処理は遅い）"
         warning_labels:
             unable_to_use_osc_query: "OSC受信またはOSCQueryの公開を開始できていません。ローカルのOSC設定を確認し、保存し直してください。"
+            unable_to_use_osc_query_remote: "送信先が別のマシンのときは使えません。VRChatのミュート状態を確認できるのは、VRChatが同じPCで動いているときだけです。"
 
     side_menu_labels:
         vrchat: "VRChat"

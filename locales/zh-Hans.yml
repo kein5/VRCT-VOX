@@ -37,7 +37,10 @@ common_error:
     invalid_hex_color: "请输入有效的 HEX 颜色代码（例：{{brand_color_hex}}）格式。"
 
 common_warning:
-    unable_to_use_osc_query: "由于 OSC IP Address 的设置无法接收 OSC 数据，以下功能已自动禁用。"
+    osc_query_remote: "消息发送到其他设备时，无法使用“{{sync}}”。只有当 VRChat 在本机运行时，才能确认 VRChat 的静音状态。"
+    osc_query_remote_mic_stopped: "消息发送到其他设备，无法确认 VRChat 的静音状态。已关闭“{{sync}}”并停止“{{microphone}}”。需要时请重新开启“{{microphone}}”。"
+    osc_query_failed: "无法开始接收 OSC，因此无法使用“{{sync}}”。请在设置的“{{settings}}”中检查 OSC 设置并重新保存。"
+    osc_query_failed_mic_stopped: "无法开始接收 OSC，无法确认 VRChat 的静音状态。已关闭“{{sync}}”并停止“{{microphone}}”。请在设置的“{{settings}}”中检查 OSC 设置并重新保存，然后再开启“{{microphone}}”。"
 
 main_page:
     translation: "翻译"
@@ -143,6 +146,7 @@ config_page:
             type_template_high: "{{type_name}} （精度较高，处理较慢）"
         warning_labels:
             unable_to_use_osc_query: "由于 OSC IP Address 的设置无法接收 OSC 数据，目前无法使用此功能。"
+            unable_to_use_osc_query_remote: "消息发送到其他设备时无法使用。只有当 VRChat 在本机运行时，才能确认 VRChat 的静音状态。"
 
     side_menu_labels:
         vrchat: "VRChat"

@@ -370,12 +370,12 @@ const VrSettings = ({ t }) => {
 // デスクトップと同じく、デバイスとVRChatの両方から同じ設定を操作する。
 const VrcMicMuteSyncRow = ({ t }) => {
     const o = useOthers();
-    const { currentIsOscAvailable } = useIsOscAvailable();
+    const { currentIsOscAvailable, oscUnavailableLabelKey } = useIsOscAvailable();
     return (
         <ToggleRow label={t("config_page.others.vrc_mic_mute_sync.label")}
             variable={o.currentEnableVrcMicMuteSync} onToggle={o.toggleEnableVrcMicMuteSync}
             is_disabled={currentIsOscAvailable.data === false}
-            disabled_reason={t("config_page.common.warning_labels.unable_to_use_osc_query")} />
+            disabled_reason={t(oscUnavailableLabelKey)} />
     );
 };
 

@@ -83,12 +83,12 @@ export const AutoExportMessageLogsContainer = () => {
 export const VrcMicMuteSyncContainer = () => {
     const { t } = useI18n();
     const { currentEnableVrcMicMuteSync, toggleEnableVrcMicMuteSync } = useOthers();
-    const { currentIsOscAvailable } = useIsOscAvailable();
+    const { currentIsOscAvailable, oscUnavailableLabelKey } = useIsOscAvailable();
 
     const add_warnings = [];
     if (currentIsOscAvailable.data === false) {
         add_warnings.push({
-            label: t("config_page.common.warning_labels.unable_to_use_osc_query"),
+            label: t(oscUnavailableLabelKey),
         });
     }
 
