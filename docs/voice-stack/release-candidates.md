@@ -60,9 +60,9 @@ python3 tools/display_power_guard.py -- .venv_linux/bin/python -m pytest \
   tests/platform/test_native_backend.py -q
 ```
 
-`test_native_voice.py`は、読み上げが仮想マイクへちょうど1回届くこと、停止とミュートが0.5秒以内に効くこと、音声サーバーが落ちたあとの復帰を確かめます。操作できなかった部品があるときは、試験の出力先の`blocked-<操作>.json`を見てください。何が覆っていたかと、開いていたダイアログを記録してあります。
+`test_native_voice.py`は、読み上げが仮想マイクへちょうど1回届くこと、停止とミュートが0.5秒以内に効くこと、音声サーバーが落ちたあとの復帰を確かめる試験です。操作できなかった部品があるときは、試験の出力先の`blocked-<操作>.json`を見てください。何が覆っていたかと、開いていたダイアログを記録してあります。
 
-VR UIの試験（`test_native_vr_ui.py`）は、偽のSteamVRをPythonのモジュールとして差し込みます。凍結済みのバックエンドでは働かないので、AppImageではなく開発ビルドを`VRCT_TEST_APP`に指定して実行します。モデルやGPU、実際のVRChatが要る試験は、ここには含めていません。実行した試験と実行しなかった試験を、リリースノートの「既知の制限」に書いてください。
+VR UIの試験（`test_native_vr_ui.py`）は、偽のSteamVRをPythonのモジュールとして差し込む仕組みです。凍結済みのバックエンドでは働かないので、AppImageではなく開発ビルドを`VRCT_TEST_APP`に指定して実行します。モデルやGPU、実際のVRChatが要る試験は、ここには含めていません。実行した試験と実行しなかった試験を、リリースノートの「既知の制限」に書いてください。
 
 ## WindowsのWebView2とインストール時の通信
 
