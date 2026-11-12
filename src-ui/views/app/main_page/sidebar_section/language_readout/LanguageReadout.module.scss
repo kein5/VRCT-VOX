@@ -15,6 +15,6 @@
     &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: -.2rem; }
 }
 // A long name ends in an ellipsis; the tooltip and the accessible name have it whole.
-.name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.1rem; line-height: 1.4; }
+.name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.2rem; line-height: 1.4; }
 .arrow { width: 1rem; height: 1rem; flex-shrink: 0; fill: currentColor; color: var(--dark_500_color); }
-.more { font-size: 1rem; font-variant-numeric: tabular-nums; color: var(--vox_description_text); }
+.more { font-size: 1.2rem; font-variant-numeric: tabular-nums; color: var(--vox_description_text); }
