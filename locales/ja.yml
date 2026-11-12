@@ -3,6 +3,14 @@
 # Please read 'readme_first.txt' before making any changes.
 # =================================
 
+vrchat_presence:
+    checking: "VRChatを確認しています…"
+    found: "このPCで、OSCが有効なVRChatを検出しました。"
+    not_found: "このPCで、OSCが有効なVRChatを検出できません。"
+    not_found_hint: "VRChatを起動し、アクションメニューで「Options」→「OSC」を「Enabled」にしてください。"
+    unknown: "VRChatの状態を確認できません。送信先が別のマシンのとき、またはOSCの受信を開始できていないときは確認できません。"
+    sending_off: "VRChatへのメッセージ送信はオフです。"
+
 voice:
     direct_mode: "直接音声のモード"
     direct_passthrough: "原音／外部ボイチェンの出力"

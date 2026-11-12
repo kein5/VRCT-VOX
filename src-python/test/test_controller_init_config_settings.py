@@ -41,6 +41,11 @@ class TestInitMappingExcludesNetworkEndpoints(unittest.TestCase):
         self.assertIn("/get/data/ocr_readiness", mapping)
         self.assertNotIn("/get/data/ocr_readiness", init_mapping)
 
+    def test_vrchat_presence_is_not_collected_at_startup(self) -> None:
+        """起動した直後は、まだ何も検出できていない。表示する側が、表示するときに要求する。"""
+        self.assertIn("/get/data/vrchat_osc_presence", mapping)
+        self.assertNotIn("/get/data/vrchat_osc_presence", init_mapping)
+
     def test_realtime_models_are_not_collected_at_startup(self) -> None:
         """音声サーバーへ HTTP で問い合わせるので、起動時には集めない。
 
@@ -58,7 +63,7 @@ class TestInitMappingExcludesNetworkEndpoints(unittest.TestCase):
         get_data_keys = {k for k in mapping if k.startswith("/get/data/")}
         self.assertEqual(get_data_keys - set(init_mapping),
                          {"/get/data/available_releases", "/get/data/ocr_readiness", "/get/data/ocr_capture_status",
-                          "/get/data/realtime_asr_models"})
+                          "/get/data/realtime_asr_models", "/get/data/vrchat_osc_presence"})
 
 
 class TestUpdateConfigSettingsIsolatesFailures(unittest.TestCase):

@@ -2087,6 +2087,11 @@ class Model:
         self.ensure_initialized()
         return self.osc_handler.getIsOscQueryEnabled()
 
+    def getVrchatOscPresence(self) -> str:
+        """"found", "not_found", or "unknown" when this PC cannot tell (see OSCHandler.localVrchatPresence)."""
+        self.ensure_initialized()
+        return {True: "found", False: "not_found"}.get(self.osc_handler.localVrchatPresence(), "unknown")
+
     @staticmethod
     def _isVersionSupported(version_str: str) -> bool:
         # Releases older than MIN_SUPPORTED_VERSION stay out of both the
