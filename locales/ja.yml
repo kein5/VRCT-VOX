@@ -284,6 +284,9 @@ main_page:
     transcription_receive: "聞き取り"
     ocr: "チャット読み取り"
     foreground: "最前面固定"
+    quick_settings: "クイック設定"
+    quick_settings_on: "{{count}}件オン"
+    quick_settings_all_off: "すべてオフ"
 
     language_settings: "言語設定"
     your_language: "あなたの言語"
@@ -1245,6 +1248,8 @@ voice_ui:
     topbar_stop_count: "読み上げを停止（{{count}}）"
     topbar_stop_short: "読み上げ停止"
     topbar_stop_short_count: "読み上げ停止（{{count}}）"
+    topbar_stop_tiny: "停止"
+    topbar_stop_tiny_count: "停止（{{count}}）"
     topbar_mute_speech: "読み上げをミュート"
     topbar_mute_mic: "仮想マイクをミュート"
     topbar_mute_short: "ミュート"

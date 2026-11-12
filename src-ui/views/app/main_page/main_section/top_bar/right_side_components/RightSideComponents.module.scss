@@ -1,17 +1,43 @@
 .container {
+    // The quick settings panel hangs from this group's right edge.
+    position: relative;
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 1rem;
+    gap: .8rem;
     height: 100%;
-    // Without overflow-y: hidden the two scrollbars feed each other: the
-    // horizontal one steals height, the vertical one then steals width.
-    overflow-x: auto;
-    overflow-y: hidden;
-    min-width: 0;
-    > * { flex-shrink: 0; }
-    &::-webkit-scrollbar { height: 0.4rem; }
+    flex-shrink: 0;
 }
+
+// Quick settings: one button for the window and VRChat toggles, saying how many are on.
+.menu { height: 100%; display: flex; align-items: center; }
+.menu_button {
+    display: flex; align-items: center; gap: .8rem; min-height: 3.6rem; padding: .4rem 1rem;
+    border-radius: var(--vox_radius); color: var(--dark_200_color); cursor: pointer;
+    &:hover { background-color: var(--dark_800_color); }
+    &:active { background-color: var(--dark_900_color); }
+    &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }
+    &[aria-expanded="true"] { background-color: var(--dark_850_color); }
+}
+.menu_svg { width: 2rem; height: 2rem; flex-shrink: 0; fill: currentColor; color: var(--dark_400_color); }
+.menu_text { display: flex; flex-direction: column; align-items: flex-start; gap: .1rem; }
+.menu_label { font-size: 1.2rem; white-space: nowrap; }
+.menu_state { font-size: 1.1rem; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--vox_secondary_text); }
+.has_on .menu_state, .has_on .menu_svg { color: var(--primary_300_color); }
+.menu_panel {
+    position: absolute; top: calc(100% - .4rem); right: 0; z-index: 30;
+    width: max-content; min-width: 26rem; max-width: min(34rem, calc(100vw - 2.4rem));
+    padding: .4rem; border: .1rem solid var(--vox_border); border-radius: var(--vox_radius);
+    background: var(--vox_surface); box-shadow: var(--vox_shadow_overlay);
+}
+// A narrow window keeps the icon; the words stay the button's accessible name.
+@mixin narrow_menu {
+    .container { gap: .4rem; }
+    .menu_button { padding: .4rem .8rem; }
+    .menu_text { position: absolute; width: .1rem; height: .1rem; margin: -.1rem; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@media (max-width: 800px) { @include narrow_menu; }
+:global(html[data-narrow]) { @include narrow_menu; }
 
 .help_and_info_button {
     padding: 0.6rem;

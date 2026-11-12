@@ -42,7 +42,7 @@ async function fixture(context) {
         "../_components/description/Description": { Description: "description" },
     });
     const { SaveBar } = await loadModule(new URL("../../../topbar/Topbar.jsx", import.meta.url), barRuntime, {
-        "@logics_common": {}, "../../../../logics/voice/saveBar": saveBar, "../../../../logics/voice/useVoice": {},
+        "@logics_common": {}, "../../../../logics/voice/saveBar": saveBar, "../../others/stop_actions/StopActions": {},
     });
     let dialogProps;
     const modal = { open: false, showModal() { this.open = true; }, close() { this.open = false; dialogProps.onClose(); } };

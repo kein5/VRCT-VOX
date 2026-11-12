@@ -284,6 +284,9 @@ main_page:
     transcription_receive: "Speaker2Log"
     ocr: "Chat Transcribe"
     foreground: "Always on Top"
+    quick_settings: "Quick settings"
+    quick_settings_on: "{{count}} on"
+    quick_settings_all_off: "All off"
 
     language_settings: "Language Settings"
     your_language: "Your Language"
@@ -1245,6 +1248,8 @@ voice_ui:
     topbar_stop_count: "Stop speech ({{count}})"
     topbar_stop_short: "Stop speech"
     topbar_stop_short_count: "Stop speech ({{count}})"
+    topbar_stop_tiny: "Stop"
+    topbar_stop_tiny_count: "Stop ({{count}})"
     topbar_mute_speech: "Mute speech"
     topbar_mute_mic: "Mute virtual mic"
     topbar_mute_short: "Mute"
