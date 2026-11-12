@@ -719,10 +719,33 @@ class Controller:
             profile = self._speechRequest(data)
         except ValueError:
             return {"status": 400, "result": {"error_code": "speech_server_request_invalid"}}
+        if profile == "asr":
+            self._refuseResumeAfterAsrStop()
         # Revoke endpoint availability first; new work cannot bind between
         # invalidating clients and the Stop signal. Neither operation joins.
         self.speech_servers.stop(profile, on_stop=self._speechServerEnded)
         return self.getSpeechServerState()
+
+    def _refuseResumeAfterAsrStop(self):
+        """利用者が設定画面で内蔵の音声認識サーバーを止めた。閉じたときに入力を再開しない。
+
+        設定画面を開くと、UI はマイクと聞き取りを一時停止し、閉じるときに元へ戻す。入力を戻すと、
+        メインのスイッチは内蔵サーバーを自分で起動する。そのため、止めた 0.25 秒後に設定画面を
+        閉じると、サーバーが 4 秒ほどで起動し直し、マイクの認識が再開していた。読み上げでは、
+        設定から止めたら TTS もオフにしている。入力も同じ扱いにする。
+        """
+        settings = getattr(self, "_realtime_settings", None) or {}
+        if settings.get("server") != "bundled":
+            return  # 入力は別のサーバーを使っている。内蔵サーバーを止めても関係がない。
+        with self._realtime_lock:
+            self._realtime_resume_refused |= self._realtime_settings_paused
+
+    def _noteRealtimePause(self, source, data):
+        """入力をオフにした理由を覚える。設定画面による一時停止でなければ、利用者が自分で切った。"""
+        paused = isinstance(data, dict) and data.get("reason") == "settings_pause"
+        with self._realtime_lock:
+            (self._realtime_settings_paused.add if paused else self._realtime_settings_paused.discard)(source)
+            self._realtime_resume_refused.discard(source)
 
     def _initRealtimeASR(self, choices):
         self._realtime_settings = normalize_realtime_settings(choices)
@@ -738,6 +761,10 @@ class Controller:
         # ASR server a toggle started (its generation), and toggles starting.
         self._realtime_toggle_lock = Lock()
         self._realtime_toggle_shown = dict.fromkeys(self._realtime_generation, False)
+        # 設定画面を開いている間だけ止めている入力と、その間に利用者が内蔵の音声認識サーバーを
+        # 止めたために、設定画面を閉じても再開しない入力。
+        self._realtime_settings_paused = set()
+        self._realtime_resume_refused = set()
         self._asr_server_owned = None
         self._asr_toggle_starting = 0
 
@@ -1051,6 +1078,16 @@ class Controller:
         return None, SessionOptions(base_url, chosen.id, row["language"], merged_terms(settings["vocabulary"]))
 
     def _enableRealtimeToggle(self, source, data=None):
+        with self._realtime_lock:
+            # 設定画面を閉じたときの復帰 (reason: settings_resume) だけを断る。利用者がメイン画面で
+            # スイッチを押した場合は、止めたあとでも本人の新しい操作なので、そのまま始める。
+            refused = (isinstance(data, dict) and data.get("reason") == "settings_resume"
+                       and source in self._realtime_resume_refused)
+            self._realtime_settings_paused.discard(source)
+            self._realtime_resume_refused.discard(source)
+        if refused:
+            self._publishRealtimeToggle(source)
+            return {"status": 200, "result": False}
         with self._realtime_lock:
             # IPC supplies the receipt-time stamp. Direct callers take their
             # snapshot here, before any potentially blocking preparation.
@@ -4938,6 +4975,8 @@ class Controller:
     def setDisableTranscriptionSend(self, data=None, *args, **kwargs) -> dict:
         if not (isinstance(data, dict) and data.get("reason") == "settings_pause"):
             model.message_delivery.revoke("mic")
+        if self._realtimeToggles():
+            self._noteRealtimePause("mic", data)
         # A legacy recorder started before the server choice changed still stops as one.
         if self._realtimeToggles() and not config.ENABLE_TRANSCRIPTION_SEND:
             return self._disableRealtimeToggle("mic")
@@ -4968,6 +5007,8 @@ class Controller:
     def setDisableTranscriptionReceive(self, data=None, *args, **kwargs) -> dict:
         if not (isinstance(data, dict) and data.get("reason") == "settings_pause"):
             model.message_delivery.revoke("speaker")
+        if self._realtimeToggles():
+            self._noteRealtimePause("speaker", data)
         if self._realtimeToggles() and not config.ENABLE_TRANSCRIPTION_RECEIVE:
             return self._disableRealtimeToggle("speaker")
         with self._audioLock("speaker"):

@@ -75,7 +75,7 @@ class FakeServers:
     def current_run(self, profile):
         return self.run
 
-    def stop(self, profile, generation=None):
+    def stop(self, profile, generation=None, on_stop=None):
         if generation is not None and generation != self.row["generation"]:
             return False
         self.stopped.append(generation)
@@ -236,6 +236,69 @@ def test_bundled_toggle_starts_its_server_and_stops_only_that_run(app, monkeypat
     assert not servers.stopped  # Speaker still uses it.
     c.setDisableTranscriptionReceive()
     assert servers.stopped == [1] and servers.row["state"] == "stopped"
+
+
+PAUSE, RESUME = {"reason": "settings_pause"}, {"reason": "settings_resume"}
+
+
+def bundled(app, monkeypatch, tmp_path):
+    c, m, made = app
+    recognizers(m, monkeypatch, QWEN)
+    configure(c, server="bundled", model="")
+    c.speech_servers = servers = FakeServers()
+    c._speech_settings["profiles"]["asr"].update(model=gguf(tmp_path / "asr.gguf"), vad_model=gguf(tmp_path / "vad.gguf"))
+    return c, servers
+
+
+@pytest.mark.parametrize("direction", ["Send", "Receive"])
+def test_stopping_the_asr_server_in_settings_keeps_the_input_off_after_leaving(app, monkeypatch, tmp_path, direction):
+    """Opening settings pauses the inputs and leaving brings them back. A server
+    the user stopped in between must not be started again by that."""
+    c, servers = bundled(app, monkeypatch, tmp_path)
+    enable, disable = (getattr(c, name + "Transcription" + direction) for name in ("setEnable", "setDisable"))
+    source = "mic" if direction == "Send" else "speaker"
+    assert enable()["result"] is True and len(servers.started) == 1
+    disable(PAUSE)                                  # settings opened
+    c.stopSpeechServer({"profile": "asr"})          # the user's Stop
+    assert enable(dict(RESUME)) == {"status": 200, "result": False}  # settings closed
+    assert len(servers.started) == 1 and servers.row["state"] == "stopped"
+    assert not c.getRealtimeASRState()["result"][source]["requested"]
+    # Pressing the switch afterwards is the user's own new start.
+    assert enable()["result"] is True and len(servers.started) == 2
+
+
+def test_leaving_settings_without_stopping_the_server_brings_the_input_back(app, monkeypatch, tmp_path):
+    c, servers = bundled(app, monkeypatch, tmp_path)
+    assert c.setEnableTranscriptionSend()["result"] is True
+    c.setDisableTranscriptionSend(PAUSE)
+    assert c.setEnableTranscriptionSend(dict(RESUME))["result"] is True
+    assert c.getRealtimeASRState()["result"]["mic"]["requested"]
+
+
+def test_a_stop_only_holds_back_the_inputs_that_settings_paused(app, monkeypatch, tmp_path):
+    """Mic was on and paused; the speaker was never on. Stop, then leave settings:
+    the mic stays off, and a later press on either switch starts normally."""
+    c, servers = bundled(app, monkeypatch, tmp_path)
+    assert c.setEnableTranscriptionSend()["result"] is True
+    c.setDisableTranscriptionSend(PAUSE)
+    c.stopSpeechServer({"profile": "asr"})
+    assert c.setEnableTranscriptionReceive()["result"] is True          # the user's own press
+    assert c.setEnableTranscriptionSend(dict(RESUME))["result"] is False
+    # An ordinary OFF forgets the pause, so the next resume-marked ON is not declined.
+    assert c.setEnableTranscriptionSend()["result"] is True
+    c.setDisableTranscriptionSend()
+    c.stopSpeechServer({"profile": "asr"})
+    assert c.setEnableTranscriptionSend(dict(RESUME))["result"] is True
+
+
+def test_stopping_the_bundled_server_does_not_hold_back_inputs_on_another_server(app, monkeypatch):
+    c, m, made = app
+    recognizers(m, monkeypatch, QWEN, RecognitionModel("asr", ("ja",), True))
+    c.speech_servers = FakeServers("ready")
+    assert c.setEnableTranscriptionSend()["result"] is True              # external server (the fixture's default)
+    c.setDisableTranscriptionSend(PAUSE)
+    c.stopSpeechServer({"profile": "asr"})
+    assert c.setEnableTranscriptionSend(dict(RESUME))["result"] is True
 
 
 def test_bundled_server_started_from_settings_keeps_running(app, monkeypatch):
