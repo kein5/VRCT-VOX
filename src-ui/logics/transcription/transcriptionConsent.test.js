@@ -49,6 +49,7 @@ async function fixture(context) {
         "@logics_common": common, "@logics_configs": configs, "@logics_main": main,
         "./ui_configs": {}, "./configs/legacyModelConsent": {}, "./configs/cloudTranscription": { CLOUD_TRANSCRIPTION_ENGINES: [] },
         "./transcription/useTranscriptionConsent": consent,
+        "./translation/useTranslationSetup": { useTranslationSetup: () => ({ open: noop }) },
     });
     const error = errors._useBackendErrorHandling().errorHandling_Backend;
     const { TranscriptionConsentController } = await loadModule(new URL("../../views/app/_app_controllers/TranscriptionConsentController.jsx", import.meta.url), runtime, {

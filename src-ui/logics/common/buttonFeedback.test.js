@@ -289,7 +289,7 @@ test("LogBox subscribes only to its log and resend setting; unchanged row props 
     const Virtualizer = () => null;
     const { LogBox } = await load("app/main_page/main_section/message_container/log_box/LogBox.jsx", runtime, {
         "virtua": { Virtualizer },
-        "./message_container/MessageContainer": { MessageContainer: React.memo(icon) },
+        "./message_container/MessageContainer": { MessageContainer: React.memo(icon) }, "./EmptyState": { EmptyState: () => null },
         "jotai": { useAtomValue: atom => { assert.equal(atom, "logs"); subscriptions.push(atom); return { data: logs }; } },
         "@store": { store: {}, Atom_MessageLogs: "logs" },
         "@logics_common": { useMessageActions: () => actions, nextLogView, rowsBetween },

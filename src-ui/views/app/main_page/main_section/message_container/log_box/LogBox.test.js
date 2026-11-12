@@ -25,7 +25,7 @@ async function setup(context, savedView, initialRows) {
     const { LogBox } = await loadModule(new URL("./LogBox.jsx", import.meta.url), runtime, {
         jotai: { useAtomValue: () => { subscriptions++; return { data: rows }; } },
         virtua: { Virtualizer }, "@store": { store, Atom_MessageLogs: {} },
-        "./message_container/MessageContainer": {},
+        "./message_container/MessageContainer": {}, "./EmptyState": { EmptyState: () => null },
         "@logics_common": { useMessageActions: () => null, nextLogView, rowsBetween },
         "@logics_configs": { useSettingValue: () => ({ data: false }) },
     });

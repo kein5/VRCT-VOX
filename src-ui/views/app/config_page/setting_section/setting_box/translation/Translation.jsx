@@ -69,7 +69,8 @@ const AITranslation_Container = () => {
     return (
         <div>
             <SectionLabelComponent label={t("config_page.translation.section_label_ai_translation")} />
-            <SetupSection title={t("config_page.translation.setup_title")} status={status}>
+            {/* Open while the selected model is missing: the download is the first thing to do here. */}
+            <SetupSection title={t("config_page.translation.setup_title")} status={status} attention={!!weight && !weight.is_downloaded}>
                 <CTranslate2WeightType_Box />
                 <TranslationComputeDevice_Box />
             </SetupSection>

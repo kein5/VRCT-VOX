@@ -1,4 +1,5 @@
 import { useTranscriptionConsent } from "./transcription/useTranscriptionConsent";
+import { useTranslationSetup } from "./translation/useTranslationSetup";
 import { createElement } from "react";
 import { useI18n } from "@useI18n";
 import { useStdoutToPython } from "@useStdoutToPython";
@@ -69,6 +70,7 @@ export const _useBackendErrorHandling = () => {
     const { updateMicThresholdCheckStatus, updateSpeakerThresholdCheckStatus } = useVolume();
     const transcription = useTranscription();
     const transcriptionConsent = useTranscriptionConsent();
+    const translationSetup = useTranslationSetup();
     const {
         updateMicRecordTimeout,
         updateMicPhraseTimeout,
@@ -201,8 +203,15 @@ export const _useBackendErrorHandling = () => {
             case "TRANSLATION_VRAM_ENABLE":
                 showNotification_Error(localized, { category_id: error_code });
                 return;
-            case "TRANSLATION_DISABLED_VRAM":
             case "TRANSLATION_MODEL_MISSING":
+                updateTranslationStatus(data);
+                // The user pressed the switch: open the review that fetches the model,
+                // where they are (main window, as the mic's engine choice does).
+                // Any other request says what is missing.
+                if (endpoint === "/set/enable/translation") translationSetup.open(true);
+                else showNotification_Error(localized, { category_id: error_code });
+                return;
+            case "TRANSLATION_DISABLED_VRAM":
             case "TRANSLATION_MODEL_LOAD_FAILED":
                 updateTranslationStatus(data);
                 showNotification_Error(localized, { category_id: error_code });
