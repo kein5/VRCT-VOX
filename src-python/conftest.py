@@ -49,3 +49,49 @@ _utils.process_logger = _utils.setupLogger("process", _os_path.join(_config_dir,
 _utils.error_logger = _utils.setupLogger("error", _os_path.join(_config_dir, "error.log"), logging.ERROR)
 # controller は `from utils import removeLog` で import 時に名前を取り込むので、その前に差し替える
 _utils.removeLog = lambda: None
+
+
+# --- 遅らせた設定の保存を、次のテストへ持ち越さない -------------------------------------
+# `config.X = ...` は保存を 2 秒遅らせ (threading.Timer)、失敗すると 30 秒後にやり直す。テストは
+# それより早く終わるので、タイマーは後ろのテストの最中に発火する。そのとき保存に失敗すると
+# errorLogging() が走り、utils.error_logger を差し替えてログの中身を確かめているテストに、
+# 関係のない記録が混ざる (CI の Linux で、test_outbound_logging_scope が実際にこれで落ちた)。
+# 保存を頼んだテストが終わったら、まだ発火していないタイマーを止める。
+import threading
+
+import pytest
+
+
+def _config_of_save_timer(timer):
+    """timer が設定の保存 (遅らせた保存か、失敗後のやり直し) なら、その Config を返す。
+
+    テストが作り直した Config も対象にするので、シングルトンとの一致ではなくクラス名で見分ける
+    (config を読み込み直すとクラスも別物になる)。
+    """
+    function = timer.function
+    owner = getattr(function, "__self__", None)  # Timer(…, self.saveConfigToFile)
+    if owner is None:  # やり直しは lambda: self.saveConfigToFile(_retry_timer=timer)
+        for cell in getattr(function, "__closure__", None) or ():
+            try:
+                owner = cell.cell_contents
+            except ValueError:  # まだ値の入っていないセル
+                continue
+            if type(owner).__name__ == "Config":
+                break
+    return owner if type(owner).__name__ == "Config" else None
+
+
+@pytest.fixture(autouse=True)
+def _cancel_pending_config_save():
+    yield
+    for thread in threading.enumerate():
+        if not isinstance(thread, threading.Timer):
+            continue
+        owner = _config_of_save_timer(thread)
+        if owner is None:
+            continue
+        thread.cancel()
+        # None に戻さないと、次に保存が失敗したときにやり直しが予約されない。ロックは取らない
+        # (ロックを握ったまま止まるスレッドをわざと残すテストがあり、後始末が固まるため)。
+        if getattr(owner, "_save_retry_timer", None) is thread:
+            owner._save_retry_timer = None

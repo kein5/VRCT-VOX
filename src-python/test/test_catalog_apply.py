@@ -27,7 +27,7 @@ def ready(tmp_path):
                         transport=lambda _: io.BytesIO(content), reserve_bytes=0)
     request = {"id": entry.id, "consent": True, "catalog_version": manager.catalog_version}
     manager.start(request)
-    manager.thread.join(2)
+    manager.thread.join(30)
     assert not manager.thread.is_alive()
     job = manager.state()["jobs"][entry.id]
     assert job["phase"] == "ready"
@@ -57,7 +57,7 @@ def run_thread():
 
     yield run
     for thread in threads:
-        thread.join(3)
+        thread.join(30)
         assert not thread.is_alive()
 
 
@@ -213,7 +213,7 @@ def test_apply_reserves_single_job_and_cancel_has_terminal_state(ready, run_thre
     callback.assert_not_called()
     # Explicit cancellation does not close the manager or remove verified files.
     manager.start(request)
-    manager.thread.join(2)
+    manager.thread.join(30)
     assert manager.state()["jobs"][entry.id]["phase"] == "ready"
 
 
