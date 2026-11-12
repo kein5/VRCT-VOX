@@ -37,12 +37,16 @@ pub(crate) const BACKENDS: &str = "org.freedesktop.impl.portal.desktop";
 const MARKER: &str = "X-VRCT-VOX-Generated=true";
 /// The desktop may show a confirmation dialog while binding.
 const BIND_TIMEOUT: Duration = Duration::from_secs(180);
-const ACTIONS: [(&str, &str); 5] = [
+const ACTIONS: [(&str, &str); 9] = [
     ("open_quick_chat", "Open the quick chat window"),
     ("toggle_vrct_visibility", "Minimize or restore VRCT-VOX"),
     ("toggle_translation", "Turn translation on or off"),
     ("toggle_transcription_send", "Turn microphone input on or off"),
     ("toggle_transcription_receive", "Turn listening on or off"),
+    ("stop_voice", "Stop speech and clear the queue"),
+    ("toggle_voice_mute", "Mute or resume the VRCT-VOX voice"),
+    ("toggle_tts", "Turn TTS on or off"),
+    ("toggle_rvc", "Turn RVC on or off"),
 ];
 
 /// (action id, portal trigger, Qt key code for KDE when representable)

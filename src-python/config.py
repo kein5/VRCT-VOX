@@ -1533,6 +1533,10 @@ class Config:
             "toggle_translation": None,
             "toggle_transcription_send": None,
             "toggle_transcription_receive": None,
+            "stop_voice": None,
+            "toggle_voice_mute": None,
+            "toggle_tts": None,
+            "toggle_rvc": None,
         }
         self._MIC_AVG_LOGPROB = -0.8
         self._MIC_NO_SPEECH_PROB = 0.6

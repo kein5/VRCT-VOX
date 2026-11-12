@@ -36,7 +36,8 @@ export const createInitializationValidators = settings => {
         selected_translation_compute_device: record,
         selected_transcription_compute_device: record,
         hotkeys: value => record(value) && ["open_quick_chat", "toggle_vrct_visibility", "toggle_translation",
-            "toggle_transcription_send", "toggle_transcription_receive"].every(key =>
+            "toggle_transcription_send", "toggle_transcription_receive",
+            "stop_voice", "toggle_voice_mute", "toggle_tts", "toggle_rvc"].every(key =>
             value[key] === null || (Array.isArray(value[key]) && value[key].every(string))),
         compute_mode: string,
         version: string,

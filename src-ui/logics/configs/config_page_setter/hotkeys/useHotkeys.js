@@ -8,6 +8,7 @@ import { register, unregister, unregisterAll } from "@tauri-apps/plugin-global-s
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useI18n } from "@useI18n";
+import { voiceActions } from "../../../voice/voiceActions.js";
 
 // Native Wayland grants no global key grab: the desktop binds the keys
 // through the GlobalShortcuts portal and Rust forwards each press here.
@@ -159,6 +160,23 @@ export const useHotkeys = () => {
             }
             case "toggle_transcription_receive": {
                 toggleTranscriptionReceive();
+                break;
+            }
+            // The switches and the stop actions on the main page own these; see voiceActions.js.
+            case "stop_voice": {
+                voiceActions.stop?.();
+                break;
+            }
+            case "toggle_voice_mute": {
+                voiceActions.toggleMute?.();
+                break;
+            }
+            case "toggle_tts": {
+                voiceActions.toggleTts?.();
+                break;
+            }
+            case "toggle_rvc": {
+                voiceActions.toggleRvc?.();
                 break;
             }
             default: {
@@ -375,6 +393,14 @@ const getHotkeyActionLabel = (actionKey, t) => {
             return t("config_page.hotkeys.toggle_transcription_receive.label", {
                 transcription_receive: t("main_page.transcription_receive"),
             });
+        case "stop_voice":
+            return t("config_page.hotkeys.stop_voice.label");
+        case "toggle_voice_mute":
+            return t("config_page.hotkeys.toggle_voice_mute.label");
+        case "toggle_tts":
+            return t("config_page.hotkeys.toggle_voice_switch.label", { name: "TTS" });
+        case "toggle_rvc":
+            return t("config_page.hotkeys.toggle_voice_switch.label", { name: "RVC" });
         default:
             return actionKey;
     }
