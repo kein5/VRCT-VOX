@@ -6254,13 +6254,22 @@ class Controller:
             }
         )
 
-    def disableOscQuery(self, mute_sync_info:bool=False):
+    def disableOscQuery(self, mute_sync_info:bool=False, *, reason:str="setup_failed", microphone_stopped:bool=False):
+        """受信と公開が使えないことを UI へ知らせる。
+
+        reason は、送信先が別のマシン ("remote_destination") か、この PC 宛てなのに準備に失敗したか
+        ("setup_failed")。microphone_stopped は、同期がオンだったのでマイク入力を止めたかどうか。
+        UI はこの 2 つで文言を選ぶ。以前は 1 つの文言で、別のマシン宛ての人にも「ローカルの OSC 設定を
+        保存し直してください」と案内し、何も止めていなくても「マイク入力も停止しています」と書いていた。
+        """
         disabled_functions = []
         if mute_sync_info is True:
             disabled_functions.append("vrc_mic_mute_sync")
         self.run(200, self.run_mapping["enable_osc_query"], {
             "data": False,
-            "disabled_functions": disabled_functions
+            "disabled_functions": disabled_functions,
+            "reason": reason,
+            "microphone_stopped": microphone_stopped,
         })
 
     def _publishOscQueryReadiness(self, *, startup: bool = False):
@@ -6275,9 +6284,12 @@ class Controller:
         # 使えない理由が出ているし、同期をオンにしようとすれば VRC_MIC_MUTE_SYNC_OSC_DISABLED で断る。
         # 同期を止めたとき、設定を変えた直後、この PC 宛てなのに準備に失敗したときは、これまでどおり知らせる。
         notify = True
+        stopped = False
+        remote = model.usesOscQuery(config.OSC_IP_ADDRESS) is False
         try:
             with self._audioLock("mic"):
                 if config.VRC_MIC_MUTE_SYNC is True:
+                    stopped = True
                     # Losing sync must not resume a private microphone. Turn input off
                     # before disabling sync; restarting input remains a user action.
                     model.invalidateMuteSelfStatus()
@@ -6287,10 +6299,11 @@ class Controller:
                     config.VRC_MIC_MUTE_SYNC = False
                     model.invalidateMuteSelfStatus()
                     self.run(200, "/set/disable/vrc_mic_mute_sync", False)
-                elif startup and model.usesOscQuery(config.OSC_IP_ADDRESS) is False:
+                elif startup and remote:
                     notify = False
         finally:
-            self.disableOscQuery(mute_sync_info=notify)
+            self.disableOscQuery(mute_sync_info=notify, reason="remote_destination" if remote else "setup_failed",
+                                 microphone_stopped=stopped)
 
     def _initVrcMicMuteSync(self) -> None:
         with self._audioLock("mic"):
