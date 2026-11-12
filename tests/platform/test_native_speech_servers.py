@@ -23,8 +23,28 @@ from tools.voice_b_poc import ToneCapture, settled
 pytestmark = pytest.mark.skipif(os.environ.get('VRCT_TEST_OWNED_SPEECH') != '1', reason='opt-in native GUI and consented Qwen/ASR/VAD assets')
 
 
+# Two groups carry the same heading on the TTS page: the voice's settings and
+# the server's setup. Look in every group with that heading.
+FIELDSETS = "[...document.querySelectorAll('fieldset')].filter(e => e.querySelector(':scope > legend')?.textContent === arguments[0])"
+
+
+def open_servers(ui, profile):
+    """The TTS servers are set up on the TTS page, the ASR server on the Transcription page."""
+    shown = ("return [...document.querySelectorAll('fieldset')].some(e => e.querySelector(':scope > legend')?.textContent === "
+             + json.dumps(profile) + " && e.querySelector('button') && e.getClientRects().length > 0"
+             " && !e.closest('[inert]'));")
+    if ui.evaluate(shown):
+        return  # already there: a timed Stop must not wait for a page change
+    if profile == 'ASR + VAD':
+        ui.open_voice_page('Transcription', 'section[aria-label="Realtime captions"] select')
+    else:
+        ui.open_voice_settings()
+    ui.wait("return [...document.querySelectorAll('fieldset')].some(e => e.querySelector('legend')?.textContent === " + json.dumps(profile) + ");")
+
+
 def control(ui, profile, label):
-    return ui.evaluate("return [...document.querySelectorAll('fieldset')].find(e => e.querySelector('legend')?.textContent === arguments[0]) && [...[...document.querySelectorAll('fieldset')].find(e => e.querySelector('legend')?.textContent === arguments[0]).querySelectorAll('label')].find(e => e.firstChild.textContent.trim() === arguments[1])?.querySelector('input,select');", profile, label)
+    open_servers(ui, profile)
+    return ui.evaluate(f"return {FIELDSETS}.flatMap(e => [...e.querySelectorAll('label')]).find(e => e.firstChild.textContent.trim() === arguments[1])?.querySelector('input,select');", profile, label)
 
 
 def fill(ui, profile, label, value):
@@ -37,13 +57,15 @@ def button(ui, profile, text):
     # The settings page is visible before its async server-settings form mounts.
     # Wait for this real control; do not bypass WebDriver hit testing or retry a
     # successful Start/Stop click.
-    ui.wait("return [...document.querySelectorAll('fieldset')].some(e => e.querySelector('legend')?.textContent === " + json.dumps(profile) + ");")
-    element = ui.evaluate("return [...[...document.querySelectorAll('fieldset')].find(e => e.querySelector('legend')?.textContent === arguments[0]).querySelectorAll('button')].find(e => e.textContent === arguments[1]);", profile, text)
+    open_servers(ui, profile)
+    element = ui.evaluate(f"return {FIELDSETS}.flatMap(e => [...e.querySelectorAll('button')]).find(e => e.textContent === arguments[1]);", profile, text)
     return ui.element_command(element, 'click')
 
 
 def server_state(ui, profile, expected, timeout=125):
-    return ui.wait("return [...document.querySelectorAll('fieldset')].some(e => e.querySelector('legend')?.textContent === " + json.dumps(profile) + " && e.querySelector('[role=status]')?.textContent === " + json.dumps(expected) + ");", timeout=timeout)
+    # One status block can hold several lines (state, low-latency standby).
+    open_servers(ui, profile)
+    return ui.wait("return [...document.querySelectorAll('fieldset')].some(e => e.querySelector('legend')?.textContent === " + json.dumps(profile) + " && [...e.querySelectorAll('[role=status], [role=status] p')].some(n => n.textContent === " + json.dumps(expected) + "));", timeout=timeout)
 
 
 def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
@@ -51,6 +73,7 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
     from ui_entry_acceptance import FixtureServer
 
     binary = bundled_binary()
+    packaged = bool(os.environ.get('VRCT_TEST_APPIMAGE'))
     models = {name: Path(os.environ[variable]).resolve(strict=True) for name, variable in (
         ('tts', 'VRCT_QWEN_TTS_MODEL'), ('asr', 'VRCT_SPEECH_ASR_MODEL'), ('vad', 'VRCT_SPEECH_VAD_MODEL'))}
     with wave.open(os.environ['VRCT_SPEECH_ASR_INPUT'], 'rb') as wav:
@@ -71,7 +94,15 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
             return False
 
     def owned(ui):
-        return [p for p in ui.app_process.children(recursive=True) if alive(p) and p.exe() == str(binary)]
+        # A packaged app runs the copy inside its own bundle, not the one in this tree.
+        # The app also runs the same binary for a moment to list devices; count servers only.
+        def server(process):
+            try:
+                return ((process.exe() == str(binary) or (packaged and Path(process.exe()).name == binary.name))
+                        and 'serve' in process.cmdline())
+            except Exception:  # gone between listing and reading
+                return False
+        return [p for p in ui.app_process.children(recursive=True) if alive(p) and server(p)]
 
     try:
         with private_graph(config_fragment=ROOT / 'config/pipewire/90-vrct-managed.conf'), ExitStack() as stack:
@@ -92,7 +123,10 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
                 ui.wait("return document.querySelector('textarea') !== null")
                 open_voice(ui)
                 assert not owned(ui)
+                # Each page has its own save bar; leaving a page with edits asks first.
                 fill(ui, 'Multilingual TTS', 'Model GGUF path', models['tts'])
+                ui.click_text('button', 'Save changes')
+                wait_for(lambda: json.loads(config_path.read_text()).get('SPEECH_SERVER_SETTINGS', {}).get('profiles', {}).get('multilingual', {}).get('model') == str(models['tts']))
                 fill(ui, 'ASR + VAD', 'Model GGUF path', models['asr'])
                 fill(ui, 'ASR + VAD', 'VAD GGUF path', models['vad'])
                 ui.click_text('button', 'Save changes')
@@ -108,15 +142,23 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
                 report['asr_gui_start_to_ready_s'] = time.monotonic() - started
                 children = owned(ui)
                 assert len(children) == 2
+                ui.open_route_settings()
                 ui.select('Audio route', 'managed')
-                ui.select('Read aloud', 'original')
+                ui.click_text('button', 'Save changes')
+                wait_for(lambda: json.loads(config_path.read_text()).get('VOICE_SETTINGS', {}).get('routing') == 'managed')
+                open_voice(ui)
+                ui.select('Chat voice', 'original')
                 ui.fill('Other languages server (Qwen3-TTS)', external.url)
                 ui.select('Other languages server', 'bundled')
                 ui.click_text('button', 'Save changes')
+                wait_for(lambda: json.loads(config_path.read_text()).get('VOICE_SETTINGS', {}).get('multilingual_server') == 'bundled')
+                ui.open_route_settings()
                 ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Muted (confirmed)')")
                 ui.click_text('button', 'Resume voice')
                 wait_for(lambda: not gate.inspect()['muted'])
                 ui.close_settings()
+                # Text is spoken only while the main TTS switch is on.
+                ui.set_switch('TTS')
 
                 def send(text):
                     element = ui.command('POST', '/element', {'using': 'css selector', 'value': 'textarea[class*=message_box_input_area]'})
@@ -152,10 +194,12 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
                 report['tts_stop_call_to_private_silence_ms'] = (silent - at) / 1e6
                 report['silence_confirmation_ms'] = 2000
                 ui.close_settings()
+                # Stopping the server from Settings turns TTS off, so later text is
+                # not spoken at all: no request reaches the external server either.
+                ui.wait("return document.querySelector('[role=switch][aria-label=TTS]').getAttribute('aria-checked') === 'false'")
                 at = send('The stopped bundled server must stay silent.')
-                wait_for(lambda: len(traces()) == 3)
-                assert traces()[-1]['outcome'] == 'error' and not external.requests
                 settled(capture, at, 'owned_tts_external_fallback', silent=True)
+                assert len(traces()) == 2 and not external.requests
                 # The separately owned ASR remains available after stopping TTS.
                 open_captions(ui)
                 ui.select('ASR server', 'bundled')
@@ -174,7 +218,9 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
                 assert producer.play().wait(10)
                 ui.wait(f"return window.__captionRows.length >= {baseline_rows + 2}", timeout=25)
                 report['new_caption_rows'] = ui.evaluate('return window.__captionRows.length') - baseline_rows
-                open_voice(ui)
+                # Be on the server's page first: Stop must land while the utterance is
+                # still in its lead-in silence, so nothing of it is recognized.
+                open_servers(ui, 'ASR + VAD')
                 in_flight = producer.play()
                 button(ui, 'ASR + VAD', 'Stop server')
                 server_state(ui, 'ASR + VAD', 'Stopped', timeout=5)
@@ -186,7 +232,10 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
                 # in flight at Stop before timing a new post-Stop utterance.
                 assert in_flight.wait(10)
                 assert producer.play().wait(10)
-                assert ui.evaluate("return document.querySelector('#log_container').innerText") == previous
+                after = ui.evaluate("return document.querySelector('#log_container').innerText")
+                (tmp_path / 'log-at-stop.txt').write_text(previous)
+                (tmp_path / 'log-after-stop.txt').write_text(after)
+                assert after == previous
                 # Actual loading cancellation; no capture restarts with it.
                 open_voice(ui)
                 button(ui, 'ASR + VAD', 'Start server')
@@ -203,6 +252,7 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
                     server_state(ui, name, 'Stopped', timeout=5)
                 assert not owned(ui)
                 assert ui.evaluate('return arguments[0].value', control(ui, 'ASR + VAD', 'VAD GGUF path')) == str(models['vad'])
+                ui.open_voice_settings()  # the voice's own settings are on the TTS page
                 assert ui.evaluate('return arguments[0].value', ui.control('Other languages server')) == 'bundled'
                 assert not any(name.startswith('vrct.asr.capture.') for name in nodes())
                 assert gate.inspect()['muted']
@@ -210,7 +260,9 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
             conn = http.client.HTTPConnection('127.0.0.1', external.port, timeout=2)
             try:
                 conn.request('GET', '/')
-                assert conn.getresponse().status == 501  # Fixture has POST only, but remains responsive.
+                # The external fixture must still be up: nothing here may have taken it
+                # down. Which status it gives a bare GET is the fixture's own business.
+                assert conn.getresponse().status in (200, 501)
             finally:
                 conn.close()
             assert external.thread.is_alive() and not external.requests

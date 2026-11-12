@@ -146,16 +146,23 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                 toggle = ui.evaluate("return [...document.querySelectorAll('[class*=switch_container]')].find(e => e.querySelector('p')?.textContent === 'Translation')")
                 ui.element_command(toggle, 'click')
                 ui.wait("return [...document.querySelectorAll('[class*=switch_container]')].some(e => e.querySelector('p')?.textContent === 'Translation' && e.className.includes('is_active'))")
+                # The route is on the Device page, the voice on the TTS page; each page saves on its own.
                 open_voice(ui)
+                ui.open_route_settings()
                 ui.select('Audio route', 'managed')
+                ui.click_text('button', 'Save changes')
+                wait_for(lambda: json.loads(config_path.read_text()).get('VOICE_SETTINGS', {}).get('routing') == 'managed')
+                ui.open_voice_settings()
                 ui.select('Realtime microphone speech', 'translated')
                 ui.select('Direct input while translating', direct_policy)
                 ui.fill('Other languages server (Qwen3-TTS)', tts.url)
                 ui.click_text('button', 'Save changes')
                 wait_for(lambda: json.loads(config_path.read_text()).get('VOICE_SETTINGS', {}).get('mic_mode') == 'translated')
                 wait_for(lambda: gate.inspect_pair()['direct']['muted'] == (direct_policy == 'suppress'))
+                ui.open_route_settings()
                 ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Muted (confirmed)')")
                 if real_rvc:
+                    ui.open_original_voice_settings()
                     source = select_source(graph_snapshot(), 'vrct.native.caption.source')
                     selected = json.dumps([str(source.cookie), str(source.serial), source.name, source.media_class], separators=(',', ':'))
                     ui.select('Input to forward', selected)
@@ -166,11 +173,14 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                     assert len(workers) == 1
                     worker = workers[0]
                     settled(capture, time.monotonic_ns(), 'rvc_bypassed_mute', silent=True)
+                    ui.open_route_settings()
                 ui.click_text('button', 'Resume voice')
                 wait_for(lambda: not gate.inspect()['muted'])
                 if not real_rvc:
                     settled(capture, time.monotonic_ns(), 'direct_input_policy_mismatch', **direct)
                 ui.close_settings()
+                # Translated speech is spoken only while the main TTS switch is on.
+                ui.set_switch('TTS')
                 open_captions(ui)
                 ui.click_text('button', 'Start microphone captions')
                 ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Captions running')")
