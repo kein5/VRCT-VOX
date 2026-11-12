@@ -162,7 +162,7 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                 ui.open_route_settings()
                 ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Muted (confirmed)')")
                 if real_rvc:
-                    ui.open_original_voice_settings()
+                    ui.open_rvc_settings()  # the converted input is started from the RVC page
                     source = select_source(graph_snapshot(), 'vrct.native.caption.source')
                     selected = json.dumps([str(source.cookie), str(source.serial), source.name, source.media_class], separators=(',', ':'))
                     ui.select('Input to forward', selected)
@@ -412,11 +412,15 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                 else:
                     assert len(traces()) == completed
                 if direct_continues:
+                    # The conversion's state and its Stop are on the RVC page, the mute on the Device page.
                     open_voice(ui)
+                    ui.open_rvc_settings()
                     ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Converting voice')")
+                    ui.open_route_settings()
                     ui.click_text('button', 'Mute until resumed')
                     producer.play()
                     settled(capture, time.monotonic_ns(), 'rvc_global_mute_failed', silent=True)
+                    ui.open_rvc_settings()
                     ui.click_text('button', 'Stop input forwarding')
                     wait_for(lambda: not any(name.startswith('vrct.asr.capture.') for name in nodes()))
                     ui.click_text('button', 'Resume voice')

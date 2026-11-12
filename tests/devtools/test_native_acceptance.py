@@ -20,7 +20,9 @@ def by_name(rows):
 
 
 ALL = {"vad": "/m/vad.gguf", "asr": "/m/asr.gguf", "qwen_tts": "/m/qwen.gguf", "irodori": "/m/irodori.gguf",
-       "speech": "/bin/speech", "asr_input": "/m/input.wav", "ocr": "/m/ocr", "--vrchat": True, "--downloads": True}
+       "speech": "/bin/speech", "asr_input": "/m/input.wav", "voice_input": "/m/input.wav", "ocr": "/m/ocr",
+       "rvc_runtime": "/r/rvc", "rvc_model": "/m/model.pth", "rvc_index": "/m/model.index", "seed_runtime": "/r/seed-vc",
+       "--vrchat": True, "--downloads": True, "--vrchat-voice": True}
 
 
 def test_nothing_downloads_or_starts_vrchat_unless_asked():
@@ -31,6 +33,10 @@ def test_nothing_downloads_or_starts_vrchat_unless_asked():
     assert rows["tts-model"][2] == "missing: irodori-v41-q8, speech"
     assert rows["downloads"][2] == "missing: --downloads"
     assert rows["vrchat"][2] == "missing: --vrchat, ocr"
+    # The runtimes and the PC's real audio route are opt-in too.
+    assert rows["rvc"][2] == "missing: rvc, rvc-saisho, voice_input"
+    assert rows["seed-vc"][2] == "missing: seed-vc, voice_input"
+    assert rows["vrchat-voice"][2] == "missing: --vrchat-voice, irodori-v41-q8, speech"
 
 
 def test_a_packaged_build_runs_the_image_itself_and_skips_the_fake_vr():
@@ -61,6 +67,18 @@ def test_each_group_gets_only_the_models_it_names():
     tts = rows["tts-model"][1]
     assert tts["VRCT_TEST_SPEECH_MODEL"] == "/m/irodori.gguf" and "VRCT_SPEECH_ASR_MODEL" not in tts
     assert "VRCT_SPEECH_BINARY" not in rows["ui"][1]
+    rvc = rows["rvc"][1]
+    assert (rvc["VRCT_RVC_RUNTIME"], rvc["VRCT_RVC_MODEL"], rvc["VRCT_RVC_INDEX"], rvc["VRCT_RVC_INPUT"]) == (
+        "/r/rvc", "/m/model.pth", "/m/model.index", "/m/input.wav")
+    seed = rows["seed-vc"][1]
+    assert (seed["VRCT_SEED_POC"], seed["VRCT_SEED_REFERENCE"], seed["VRCT_SEED_INPUT"]) == ("/r/seed-vc", "/m/input.wav", "/m/input.wav")
+
+
+def test_spoken_translation_runs_its_rvc_variants_only_when_the_runtime_is_there():
+    with_rvc = by_name(subject.plan(args(), ALL))["asr"][1]
+    assert with_rvc["VRCT_TEST_NATIVE_RVC_UI"] == "1" and with_rvc["VRCT_RVC_RUNTIME"] == "/r/rvc"
+    without = by_name(subject.plan(args(), {key: value for key, value in ALL.items() if key != "rvc_runtime"}))["asr"]
+    assert without[2] is None and "VRCT_TEST_NATIVE_RVC_UI" not in without[1] and "VRCT_RVC_MODEL" not in without[1]
 
 
 def test_only_limits_the_run_and_every_test_file_exists():
@@ -73,3 +91,5 @@ def test_only_limits_the_run_and_every_test_file_exists():
     sys.path.insert(0, str(ROOT / "src-python"))
     from models.model_downloads.catalog import CATALOG
     assert set(subject.MODELS.values()) <= {entry.id for entry in CATALOG}
+    from models.voice_conversion.runtime_setup import RVC_COMMIT, SEED_COMMIT  # the runtimes are the product's own too
+    assert set(subject.RUNTIMES.values()) == {"rvc", "seed-vc"} and RVC_COMMIT and SEED_COMMIT

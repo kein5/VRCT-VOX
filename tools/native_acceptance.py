@@ -16,6 +16,9 @@ tests listen to is synthesized with the product's own TTS, so no recording of a 
 
 --vrchat starts the chatbox lab's two local VRChat clients (a hidden local instance), runs the
 round trip, and stops the clients it started. --downloads runs the real 336 MB model download.
+--fetch-runtimes sets up the RVC and Seed-VC runtimes with the product's installer. --vrchat-voice
+runs the two tests that use the PC's real audio route; tools/vrchat_voice_host.py prepares the PC
+for them and restores it afterwards.
 """
 import argparse
 import json
@@ -31,10 +34,25 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = Path.home() / ".cache/vrct-vox-acceptance"
 # What a group needs -> the catalog entry that provides it.
-MODELS = {"vad": "silero-vad-v62", "asr": "qwen3-asr-06b-q8", "qwen_tts": "qwen3-06b-q8", "irodori": "irodori-v41-q8"}
+MODELS = {"vad": "silero-vad-v62", "asr": "qwen3-asr-06b-q8", "qwen_tts": "qwen3-06b-q8", "irodori": "irodori-v41-q8",
+          "rvc_model": "rvc-saisho", "rvc_index": "rvc-saisho"}
+FILES = {"rvc_model": "model.pth", "rvc_index": "model.index"}  # everything else is the entry's one GGUF
+# The voice conversion runtimes the product can set up (models/voice_conversion/runtime_setup.py).
+RUNTIMES = {"rvc_runtime": "rvc", "seed_runtime": "seed-vc"}
 # Qwen3-ASR names each utterance's language; game audio captions need that ("auto").
 SENTENCES = ["今日はいい天気ですね", "駅の前で会いましょう"]
 PLATFORM = "tests/platform/"
+
+
+# What a group can use when it is there, without needing it: with these the spoken translation
+# test also runs its two RVC variants.
+OPTIONAL = {"asr": ({"VRCT_TEST_NATIVE_RVC_UI": "1"}, ["rvc_runtime", "rvc_model", "rvc_index"])}
+# Environment variable -> the asset whose path it carries.
+PATHS = {"VRCT_SPEECH_BINARY": "speech", "VRCT_TEST_SPEECH_BINARY": "speech", "VRCT_SPEECH_ASR_MODEL": "asr",
+         "VRCT_SPEECH_VAD_MODEL": "vad", "VRCT_QWEN_TTS_MODEL": "qwen_tts", "VRCT_TEST_SPEECH_MODEL": "irodori",
+         "VRCT_SPEECH_ASR_INPUT": "asr_input", "VRCT_RVC_RUNTIME": "rvc_runtime", "VRCT_RVC_MODEL": "rvc_model",
+         "VRCT_RVC_INDEX": "rvc_index", "VRCT_RVC_INPUT": "voice_input", "VRCT_SEED_POC": "seed_runtime",
+         "VRCT_SEED_REFERENCE": "voice_input", "VRCT_SEED_INPUT": "voice_input"}
 
 
 def groups():
@@ -53,7 +71,14 @@ def groups():
         "asr": (["test_native_realtime.py", "test_native_speech_servers.py", "test_native_spoken_translation.py"],
                 {"VRCT_TEST_OWNED_SPEECH": on}, ["asr", "vad", "qwen_tts", "speech", "asr_input"], "any"),
         "downloads": (["test_native_model_downloads.py"], {"VRCT_TEST_NATIVE_MODEL_DOWNLOADS": on}, ["--downloads"], "any"),
+        "rvc": (["test_native_rvc_ui.py"], {"VRCT_TEST_NATIVE_RVC_UI": on},
+                ["rvc_runtime", "rvc_model", "rvc_index", "voice_input"], "any"),
+        "seed-vc": (["test_native_direct_vc.py"], {"VRCT_TEST_NATIVE_DIRECT_VC": on}, ["seed_runtime", "voice_input"], "any"),
         "vrchat": (["test_native_vrchat_roundtrip.py"], {"VRCT_TEST_NATIVE_VRCHAT_ROUNDTRIP": on}, ["--vrchat", "ocr"], "any"),
+        # On the PC's real audio route; see tools/vrchat_voice_host.py for what it changes and restores.
+        "vrchat-voice": (["test_native_chatbox.py", "test_native_vrchat.py"],
+                         {"VRCT_TEST_NATIVE_CHATBOX": on, "VRCT_TEST_NATIVE_VRCHAT": on},
+                         ["--vrchat-voice", "irodori", "speech"], "any"),
         "vr-ui": (["test_native_vr_ui.py"], {}, [], "development"),
     }
 
@@ -65,22 +90,29 @@ ALSO = {"irodori": ["irodori-v41-f16"]}
 
 def model_path(cache, need):
     for root, model in [(cache / "models", MODELS[need]), *((INSTALLED, other) for other in [MODELS[need], *ALSO.get(need, [])])]:
-        found = sorted((root / model).glob("*/*.gguf"))
+        found = sorted((root / model).glob("*/" + FILES.get(need, "*.gguf")))
         if found:
             return found[0]
     return None
 
 
+def runtime_path(cache, need):
+    folder = cache / "vc_runtimes" / RUNTIMES[need]
+    return folder if (folder / "receipt.json").is_file() else None
+
+
 def assets(args):
     """need -> path or flag for everything that exists now."""
     have = {need: model_path(args.cache, need) for need in MODELS}
+    have.update({need: runtime_path(args.cache, need) for need in RUNTIMES})
     speech = Path(args.speech_binary)
     have["speech"] = speech if speech.is_file() else None
     recording = args.cache / "asr-input-ja.wav"
-    have["asr_input"] = recording if recording.is_file() else None
+    have["asr_input"] = have["voice_input"] = recording if recording.is_file() else None
     ocr = Path(os.environ.get("VRCT_TEST_OCR_MODELS", Path.home() / ".cache/vrct-vox-chatbox-lab/models"))
     have["ocr"] = ocr if ocr.is_dir() else None
     have["--downloads"], have["--vrchat"] = args.downloads or None, args.vrchat or None
+    have["--vrchat-voice"] = args.vrchat_voice or None
     return {need: value for need, value in have.items() if value}
 
 
@@ -98,7 +130,7 @@ def plan(args, have):
         elif kind == "development" and packaged:
             reason = "needs --app (a development build; the fake SteamVR is a Python module)"
         elif missing:
-            reason = "missing: " + ", ".join(MODELS.get(need, need) for need in missing)
+            reason = "missing: " + ", ".join(dict.fromkeys(MODELS.get(need) or RUNTIMES.get(need, need) for need in missing))
         env = {"VRCT_TEST_NATIVE_GUI": "1", "VRCT_TEST_DRIVER": str(args.driver), **extra}
         if name == "appimage":
             env["VRCT_TEST_APPIMAGE"] = str(args.appimage)
@@ -106,10 +138,11 @@ def plan(args, have):
             env["VRCT_TEST_APP"] = str(args.copy if packaged else args.app)
             if packaged:
                 env.update(VRCT_TEST_APPIMAGE="1", APPIMAGE_EXTRACT_AND_RUN="1")
-        paths = {"VRCT_SPEECH_BINARY": "speech", "VRCT_TEST_SPEECH_BINARY": "speech", "VRCT_SPEECH_ASR_MODEL": "asr",
-                 "VRCT_SPEECH_VAD_MODEL": "vad", "VRCT_QWEN_TTS_MODEL": "qwen_tts", "VRCT_TEST_SPEECH_MODEL": "irodori",
-                 "VRCT_SPEECH_ASR_INPUT": "asr_input"}
-        env.update({variable: str(have[need]) for variable, need in paths.items() if need in needs and need in have})
+        extra_env, extra_needs = OPTIONAL.get(name, ({}, []))
+        if all(need in have for need in extra_needs):
+            env.update(extra_env)
+            needs = [*needs, *extra_needs]
+        env.update({variable: str(have[need]) for variable, need in PATHS.items() if need in needs and need in have})
         rows.append((name, [PLATFORM + test for test in tests], env, reason))
     return rows
 
@@ -137,6 +170,27 @@ def fetch_models(args):
                 raise SystemExit(f"could not fetch {model}: {job.get('error_code') or job.get('phase')}")
     finally:
         manager.close(timeout=10)
+
+
+def fetch_runtimes(args):
+    """Set up the RVC and Seed-VC runtimes with the product's own consent-gated installer (about 11 GB)."""
+    sys.path.insert(0, str(ROOT / "src-python"))
+    from models.voice_conversion.runtime_setup import ACTIVE, RuntimeSetup
+
+    setup = RuntimeSetup(args.cache / "vc_runtimes")
+    try:
+        for row in setup.catalog()["runtimes"]:
+            if row["id"] in setup.state()["installed"]:
+                continue
+            print(f"setting up {row['id']}: {row['license']}, download {row['download_bytes'] / 1e9:.1f} GB, "
+                  f"disk {row['disk_bytes'] / 1e9:.1f} GB", flush=True)
+            setup.start({"id": row["id"], "consent": True, "version": row["version"]})
+            while setup.state()["jobs"].get(row["id"], {}).get("phase") in ACTIVE:
+                time.sleep(2)
+            if row["id"] not in setup.state()["installed"]:
+                raise SystemExit(f"could not set up {row['id']}: {setup.state()['jobs'].get(row['id'])}")
+    finally:
+        setup.close(timeout=20)
 
 
 def synthesize_recording(args, have):
@@ -198,6 +252,26 @@ def run_group(args, name, tests, env):
     return code, counts(report)
 
 
+class VRChatVoice:
+    """The PC's real audio route with VRChat on it, prepared before the group and restored after it."""
+
+    def __enter__(self):
+        sys.path.insert(0, str(ROOT / "tools"))
+        import vrchat_voice_host as host
+
+        self.host = host
+        try:
+            self.env = host.prepare()
+            host.open_mic_test()
+        except BaseException:
+            host.restore()
+            raise
+        return self
+
+    def __exit__(self, *exc):
+        self.host.restore()
+
+
 class VRChat:
     """The chatbox lab's two local clients, started here unless they already run."""
 
@@ -232,9 +306,13 @@ def main(argv=None):
     build.add_argument("--app", type=Path, help="a development build (src-tauri/target/debug/vrct-vox)")
     parser.add_argument("--only", action="append", choices=sorted(groups()), help="run only this group (repeatable)")
     parser.add_argument("--fetch-models", action="store_true",
-                        help="download missing catalog models (about 3.3 GB in all) into the cache")
+                        help="download missing catalog models (about 3.6 GB in all) into the cache")
     parser.add_argument("--vrchat", action="store_true", help="start two local VRChat clients and run the round trip")
     parser.add_argument("--downloads", action="store_true", help="run the real 336 MB model download test")
+    parser.add_argument("--fetch-runtimes", action="store_true",
+                        help="set up the RVC and Seed-VC runtimes (about 11 GB of downloads, 17 GB on disk) into the cache")
+    parser.add_argument("--vrchat-voice", action="store_true",
+                        help="run the two tests on the PC's real audio route (see tools/vrchat_voice_host.py)")
     parser.add_argument("--cache", type=Path, default=CACHE)
     parser.add_argument("--output", type=Path, default=ROOT / "build/native-acceptance")
     parser.add_argument("--python", type=Path, default=ROOT / ".venv_linux/bin/python")
@@ -257,6 +335,8 @@ def main(argv=None):
         args.copy.chmod(0o755)
     if args.fetch_models:
         fetch_models(args)
+    if args.fetch_runtimes:
+        fetch_runtimes(args)
     have = assets(args)
     if "asr_input" not in have and {"irodori", "speech"} <= set(have):
         synthesize_recording(args, have)
@@ -275,6 +355,9 @@ def main(argv=None):
             if name == "vrchat":
                 with lab:
                     code, tally = run_group(args, name, tests, env)
+            elif name == "vrchat-voice":
+                with VRChatVoice() as voice:
+                    code, tally = run_group(args, name, tests, {**env, **voice.env})
             else:
                 code, tally = run_group(args, name, tests, env)
         except subprocess.TimeoutExpired:
