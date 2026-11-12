@@ -49,11 +49,15 @@ export const SaveBar = () => {
     if (!entries.length) return leaveDialog || null;
     const failed = entries.some(entry => entry.saveState === "save_failed");
     const changes = [...new Set(dirty.flatMap(entry => entry.changes))];
-    const state = saving ? "saving" : failed ? "save_failed" : dirty.length ? "unsaved" : "saved";
+    // A page can propose a change the user has not made (the RVC page selects RVC).
+    // Calling that "unsaved changes" reads as if something was edited; it is
+    // something that Save will apply, and the bar says so.
+    const proposed = dirty.length > 0 && !dirty.some(entry => entry.edited ?? entry.dirty);
+    const state = saving ? "saving" : failed ? "save_failed" : proposed ? "applies_on_save" : dirty.length ? "unsaved" : "saved";
     const count = Math.max(changes.length, dirty.length);
     return <div className={clsx(styles.save_bar, { [styles.is_dirty]: dirty.length > 0 })} role="region" aria-label={t("voice_ui.save_bar")}>
         <div className={styles.summary} title={changes.length ? changes.join("\n") : undefined}>
-            <span role="status" className={clsx(styles.state, { [styles.is_failed]: failed })}>{t(`voice_ui.${state}`)}</span>
+            <span role="status" className={clsx(styles.state, { [styles.is_failed]: failed })}>{t(`voice_ui.${state}`, { changes: changes.join(t("voice_ui.changes_separator")) })}</span>
             {state === "unsaved" && <span className={styles.count} aria-hidden="true">{t("voice_ui.unsaved_count", { count })}</span>}
             {changes.length > 0 && <ul className={styles.changes} aria-label={t("voice_ui.changed_items")}>
                 {changes.map(change => <li key={change}>{change}</li>)}

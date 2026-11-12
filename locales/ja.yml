@@ -1284,6 +1284,8 @@ voice_ui:
     discard_short: "破棄"
     changed_items: "変更した設定"
     unsaved: "未保存の変更"
+    applies_on_save: "保存すると適用: {{changes}}"
+    changes_separator: "、"
     unsaved_count: "{{count}}件"
     saved: "保存済み"
     save_failed: "保存失敗 — 編集内容は保持されています"
