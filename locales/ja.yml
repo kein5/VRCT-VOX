@@ -289,6 +289,7 @@ main_page:
     quick_settings_all_off: "すべてオフ"
 
     language_settings: "言語設定"
+    language_pair: "{{from}} → {{to}}"
     your_language: "あなたの言語"
     translate_each_other_label: "双方向に翻訳"
     swap_button_label: "言語を入れ替え"

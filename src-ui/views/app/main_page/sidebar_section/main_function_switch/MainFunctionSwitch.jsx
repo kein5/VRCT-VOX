@@ -150,7 +150,7 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
             className={getClassNames(styles.switch_container)}
             role="switch" aria-label={unavailable ? `${switchLabel}: ${statusText}` : switchLabel} aria-checked={active}
             aria-busy={pending} aria-disabled={blocked} tabIndex={0}
-            title={statusText ?? undefined}
+            title={statusText ?? (currentIsMainPageCompactMode.data ? switchLabel : undefined)}
             onClick={() => { if (!blocked) toggleFunction(); }}
             onKeyDown={event => {
                 if (event.key === " " || event.key === "Enter") {

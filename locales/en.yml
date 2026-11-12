@@ -289,6 +289,7 @@ main_page:
     quick_settings_all_off: "All off"
 
     language_settings: "Language Settings"
+    language_pair: "{{from}} → {{to}}"
     your_language: "Your Language"
     translate_each_other_label: "Translate Both Languages"
     swap_button_label: "Switch Languages"
