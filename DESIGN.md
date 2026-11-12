@@ -104,7 +104,9 @@ Keep the user's configured UI font, scaling and log-font preferences. Local Noto
 
 ## Layout
 
-The regular main rail is 240px and the settings rail is 208px. At the existing 800px scaling-aware breakpoint, main navigation uses a 72px icon rail; its toggle can temporarily expand the rail to reach the language controls without changing the saved compact preference. Returning to a wide window clears that temporary expansion. Settings use a 56px rail that expands for keyboard focus or hover; focus from a click does not keep it open after the pointer leaves. Small windows scroll rather than dropping controls. Top status controls can scroll horizontally when necessary.
+The regular main rail is 240px and the settings rail is 208px. At the existing 800px scaling-aware breakpoint, main navigation uses a 72px icon rail; its toggle can temporarily expand the rail to reach the language controls without changing the saved compact preference. Returning to a wide window clears that temporary expansion. Settings use a 56px rail that expands for keyboard focus or hover; focus from a click does not keep it open after the pointer leaves. Small windows scroll rather than dropping controls.
+
+The main top bar leads with the stop actions (stop TTS, mute), in the same place at every window size. The window and VRChat toggles (always on top, VRChat microphone mute sync, subtitle overlay) open from one quick settings button on the right, which says how many of them are on; a toggle that cannot be used says why under its row. In a narrow window the bar draws its shortest words and the quick settings button keeps only its icon; accessible names and tooltips stay the full words.
 
 The conversation occupies the largest region. An empty state explains where to type; in the main window it also lists the models the selected engines still need, each with a button that opens the download review, and a one-line hint for enabling OSC in VRChat while messages are sent there. The composer has a blue send action. Settings have a conventional back button, search and aligned sections. Field labels stack below 700px. Dialogs constrain their width to the viewport and keep explicit consent visible.
 
@@ -124,7 +126,7 @@ Settings pages use four roles, and each must be recognizable without reading it.
 
 A readout states its condition in words; its color repeats the words (active blue, warning amber, failed red) and never replaces them. Frames are kept for real units, such as one server or engine; groups inside a section are separated by space and a subheading, not by nested borders. One-time setup (model files, servers, downloads) sits in one folded "モデルとサーバー" section per page with a one-line status.
 
-The settings top bar always offers the stop actions: stop TTS (clears the queue) and mute VRCT's voice output. They are quiet until there is something to stop. Its save bar is the one place to save: text fields register their edits there instead of carrying their own save buttons, and Enter still saves the field being edited. The bar shows the state and a count; the changed rows carry a short blue rule on their left, and the names are in the bar's tooltip and its screen-reader list.
+The settings top bar, like the main one, always offers the stop actions: stop TTS (clears the queue) and mute VRCT's voice output. They are quiet until there is something to stop. Its save bar is the one place to save: text fields register their edits there instead of carrying their own save buttons, and Enter still saves the field being edited. The bar shows the state and a count; the changed rows carry a short blue rule on their left, and the names are in the bar's tooltip and its screen-reader list.
 
 ## Elevation & Depth
 

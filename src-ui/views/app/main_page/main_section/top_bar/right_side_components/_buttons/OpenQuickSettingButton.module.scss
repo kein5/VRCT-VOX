@@ -63,3 +63,27 @@ $pending_label_color: var(--dark_500_color);
     width: 1.1rem;
     color: var(--warning_color);
 }
+
+
+// One line of the quick settings menu: the name on the left, the state on the right.
+.row {
+    height: auto;
+    .button_wrapper {
+        width: 100%;
+        height: auto;
+        min-height: 4rem;
+        flex-direction: row;
+        justify-content: space-between;
+        gap: 1.6rem;
+        padding: .6rem 1.2rem;
+        border-radius: .6rem;
+        text-align: left;
+        &:disabled { cursor: not-allowed; opacity: .6; }
+        &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: -.2rem; }
+    }
+    .button_label { font-size: 1.3rem; white-space: normal; }
+    .button_indicator_label { flex-shrink: 0; font-size: 1.2rem; }
+    .loader { display: none; }
+}
+// Why a row cannot be used, under it.
+.note { padding: 0 1.2rem .8rem; font-size: 1.2rem; line-height: 1.6; color: var(--vox_description_text); }
