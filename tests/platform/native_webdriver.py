@@ -108,7 +108,12 @@ class NativeWebDriver:
                 if action not in ("click", "clear", "value") or not any(code in str(error) for code in ('"element click intercepted"', '"element not interactable"')) or time.monotonic() >= deadline:
                     self._describe_blocked(element, action)
                     raise
-                notice = self.evaluate("return [...document.querySelectorAll('.Toastify__toast')].find(e => e.textContent.startsWith('Built-in translation or transcription models are unavailable.') || e.textContent.startsWith('Network is not connected.'))?.querySelector('button svg');")
+                # A notice over the control: close it, as a user would. Startup
+                # notices stay for ten seconds, longer than this retry.
+                notice = self.evaluate(
+                    "const e = arguments[0].tagName === 'OPTION' ? arguments[0].parentElement : arguments[0], r = e.getBoundingClientRect();"
+                    " const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);"
+                    " return top?.closest('.Toastify__toast')?.querySelector('button') ?? null;", element)
                 if notice:
                     try:
                         self.command("POST", f"/element/{notice[key]}/click", {})
