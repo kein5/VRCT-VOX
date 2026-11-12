@@ -23,10 +23,9 @@ const VALID_TABS = [
     "others",
 ];
 
-// 名前空間と実際のページが違うもの。チャット読み取りの項目は専用のページと
-// VRChat ページの両方に、旧「その他」の項目は VRChat ページにある。
+// 名前空間と実際のページが違うもの。旧「その他」の項目は VRChat ページにある。
+// チャット読み取りの項目は、同じ名前のページにだけある。
 const NAMESPACE_TABS = {
-    ocr: ["ocr", "vrchat"],
     others: ["vrchat"],
 };
 

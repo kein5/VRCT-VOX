@@ -7,7 +7,7 @@ import { hooks, loadModule, find } from "../../../logics/test/hookHarness.js";
 const all = (tree, predicate, found = []) => { find(tree, node => { if (predicate(node)) found.push(node); return false; }); return found; };
 const icon = name => Object.assign(() => null, { icon: name });
 
-test("chat reading has a page of its own, and search lists it on both pages it is on", async () => {
+test("chat reading has a page of its own, and search lists it there", async () => {
     const runtime = hooks();
     let tab = "ocr";
     const pages = Object.fromEntries(["Device", "Tts", "Rvc", "Appearance", "Translation", "Transcription", "Vrchat", "Ocr",
@@ -22,7 +22,7 @@ test("chat reading has a page of its own, and search lists it on both pages it i
         "@store": {}, "@logics_configs": {}, "@ui_configs": {}, "@root/locales/config.js": {},
         "../../../transcription/useRealtimeASR": {}, "../../../common/languageNames.js": {}, "../../../voice/settingsNavigation": {},
     });
-    assert.deepEqual(search.settingTabs("ocr", "source_language"), ["ocr", "vrchat"]);
+    assert.deepEqual(search.settingTabs("ocr", "source_language"), ["ocr"]);
     assert.deepEqual(search.settingTabs("others", "send_message_to_vrc"), ["vrchat"]);
     assert.deepEqual(search.settingTabs("others", "vrc_mic_mute_sync"), ["vrchat", "device"]);
     assert.deepEqual(search.settingTabs("translation", "deepl_auth_key"), ["translation"]);
@@ -51,12 +51,79 @@ test("the side menu lists chat reading after VRChat, with an icon of its own and
     }
 });
 
-test("speech recognition opens on the engine choice; the timing numbers follow", () => {
+test("speech recognition opens on the engine choice; the timing numbers follow, folded under a line that shows them", async () => {
     const source = readFileSync(new URL("./setting_section/setting_box/transcription/Transcription.jsx", import.meta.url), "utf8");
     const page = source.split("export const Transcription = () => {")[1].split("\n};")[0];
     const order = [...page.matchAll(/<([A-Z][A-Za-z_]+)/g)].map(match => match[1]);
     assert.deepEqual(order, ["TranscriptionEngine_Container", "CloudTranscription_Container", "Mic_Container", "Speaker_Container",
         "RealtimeASRSettings", "SpeechServers"]);
+    const section = name => source.split(`const ${name} = () => {`)[1].split("\n};")[0];
+    // The word filter is a list people edit; it stays in sight. The three numbers are folded.
+    assert.match(section("Mic_Container"), /<MicWordFilter_Box \/>\s*<TimingFold silence=\{currentMicRecordTimeout\.data\} length=\{currentMicPhraseTimeout\.data\} queue=\{currentMicMaxWords\.data\}>\s*<MicRecordTimeout_Box \/>\s*<MicPhraseTimeout_Box \/>\s*<MicMaxWords_Box \/>\s*<\/TimingFold>/);
+    assert.match(section("Speaker_Container"), /<TimingFold silence=\{currentSpeakerRecordTimeout\.data\} length=\{currentSpeakerPhraseTimeout\.data\} queue=\{currentSpeakerMaxWords\.data\}>\s*<SpeakerRecordTimeout_Box \/>\s*<SpeakerPhraseTimeout_Box \/>\s*<SpeakerMaxWords_Box \/>\s*<\/TimingFold>/);
+    assert.match(section("TranscriptionEngine_Container"), /thresholds_title[\s\S]*<MicAvgLogprobContainer \/>\s*<MicNoSpeechProbContainer \/>\s*<SpeakerAvgLogprobContainer \/>\s*<SpeakerNoSpeechProbContainer \/>\s*<\/SetupSection>/);
+
+    const runtime = hooks();
+    const SetupSection = () => null;
+    const dependencies = Object.fromEntries([...source.matchAll(/from "([^"]+)"/g)].map(match => [match[1], {}]));
+    const t = (key, options) => options ? `${key}:${Object.values(options).join(",")}` : key;
+    const transcription = await loadModule(new URL("./setting_section/setting_box/transcription/Transcription.jsx", import.meta.url), runtime, {
+        ...dependencies, react: runtime.api, "@useI18n": { useI18n: () => ({ t }) },
+        "@logics_configs": { useTranscription: () => ({ currentMicRecordTimeout: { data: 3 }, currentMicPhraseTimeout: { data: 5 }, currentMicMaxWords: { data: 10 } }) },
+        "../_components/setup_section/SetupSection": { SetupSection },
+    });
+    const mic = runtime.render(transcription.Transcription).props.children.find(node => node?.type?.name === "Mic_Container");
+    const fold = find(mic.type(mic.props), node => node.type?.name === "TimingFold");
+    const drawn = fold.type(fold.props);
+    assert.equal(drawn.type, SetupSection);
+    assert.equal(drawn.props.title, "config_page.transcription.timing_title");
+    assert.equal(drawn.props.status, "config_page.transcription.timing_status:3,5,10");
+    assert.equal(drawn.props.attention, undefined, "closed until opened");
+});
+
+test("each cloud speech recognition provider is one fold; the selected one stays open", async () => {
+    const runtime = hooks();
+    const SetupSection = () => null;
+    const source = readFileSync(new URL("./setting_section/setting_box/transcription/Transcription.jsx", import.meta.url), "utf8");
+    const dependencies = Object.fromEntries([...source.matchAll(/from "([^"]+)"/g)].map(match => [match[1], {}]));
+    const engines = [{ id: "Groq_Whisper", base: "GroqWhisper", key: "groq_whisper" }, { id: "Custom_Whisper", base: "CustomWhisper", key: "custom_whisper", has_url: true },
+        { id: "Deepgram", base: "Deepgram", key: "deepgram" }];
+    const state = { currentSelectedTranscriptionEngine: { data: "Deepgram" }, currentSelectableTranscriptionEngines: { data: ["Google", "Groq_Whisper", "Deepgram"] },
+        currentCustomWhisperURL: { data: "" }, getSelectableTranscriptionEngines() {}, getSelectedTranscriptionEngine() {},
+        ...Object.fromEntries(engines.map(engine => [`current${engine.base}AuthKey`, { data: null }])) };
+    const transcription = await loadModule(new URL("./setting_section/setting_box/transcription/Transcription.jsx", import.meta.url), runtime, {
+        ...dependencies, react: runtime.api, "@useI18n": { useI18n: () => ({ t: key => key }) },
+        "@logics_configs": { useTranscription: () => state },
+        "../../../../../../logics/configs/cloudTranscription": { CLOUD_TRANSCRIPTION_ENGINES: engines },
+        "../_components/setup_section/SetupSection": { SetupSection },
+    });
+    const cloud = runtime.render(transcription.Transcription).props.children.find(node => node?.type?.name === "CloudTranscription_Container");
+    const folds = all(runtime.render(cloud.type, cloud.props), node => node.type === SetupSection)
+        .map(node => [node.props.title.split(".").at(-1), node.props.status.split(".").at(-1), node.props.attention]);
+    assert.deepEqual(folds, [["groq_whisper", "provider_ready", false], ["custom_whisper", "provider_not_set", false], ["deepgram", "provider_in_use", true]]);
+});
+
+test("the VRChat page no longer carries chat reading; it ends with the way to that page", async () => {
+    const runtime = hooks(), opened = [];
+    const source = readFileSync(new URL("./setting_section/setting_box/vrchat/Vrchat.jsx", import.meta.url), "utf8");
+    assert.doesNotMatch(source, /ocr\/Ocr/);
+    const dependencies = Object.fromEntries([...source.matchAll(/from "([^"]+)"/g)].map(match => [match[1], {}]));
+    const vrchat = await loadModule(new URL("./setting_section/setting_box/vrchat/Vrchat.jsx", import.meta.url), runtime, {
+        ...dependencies, react: runtime.api, "@useI18n": { useI18n: () => ({ t: key => key }) },
+        "@store": { useStore_SelectedConfigTabId: () => ({ updateSelectedConfigTabId: id => opened.push(id) }) },
+    });
+    const page = runtime.render(vrchat.Vrchat);
+    const last = page.props.children.at(-1);
+    const pointer = last.type(last.props);
+    const button = find(pointer, node => node.type === "button");
+    assert.equal(button.props.children, "config_page.vrchat.open_chat_reading");
+    button.props.onClick();
+    assert.deepEqual(opened, ["ocr"]);
+    for (const language of ["en", "ja"]) {
+        const strings = yaml.load(readFileSync(new URL(`../../../../locales/${language}.yml`, import.meta.url), "utf8")).config_page;
+        for (const key of ["chat_reading_moved", "open_chat_reading"]) assert.equal(typeof strings.vrchat[key], "string");
+        for (const key of ["timing_title", "timing_status", "thresholds_title", "thresholds_status"]) assert.equal(typeof strings.transcription[key], "string");
+    }
 });
 
 test("each translation provider is one fold that says whether it can be used; the one in use stays open", async () => {

@@ -606,6 +606,10 @@ config_page:
         section_label_mic: "Mic"
         section_label_speaker: "Speaker"
         section_label_transcription_engines: "Transcription Engines"
+        timing_title: "Segmenting and queue"
+        timing_status: "ends after {{silence}} s of silence · processed every {{length}} s · up to {{queue}} waiting"
+        thresholds_title: "Recognition thresholds"
+        thresholds_status: "mic {{mic}} · speaker {{speaker}}"
         mic_record_timeout:
             label: "Mic Record Timeout"
             desc: "Detects silence and, when the specified number of seconds passes, the system considers the voice input to have ended. (Second(s))"
@@ -791,6 +795,8 @@ config_page:
     vrchat:
         section_label_chatbox: "Chatbox"
         section_label_tts_output: "Speech output"
+        chat_reading_moved: "The settings for reading VRChat's chat are on the Chat Transcribe page."
+        open_chat_reading: "Open the Chat Transcribe settings"
 
     ocr:
         section_title: "VRChat Chat Transcribe"

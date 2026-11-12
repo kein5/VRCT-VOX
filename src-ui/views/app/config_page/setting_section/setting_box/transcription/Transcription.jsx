@@ -29,6 +29,7 @@ import {
 
 import { ComputeDevice } from "../_components/compute_device/ComputeDevice";
 import { Description } from "../_components/description/Description";
+import { SetupSection } from "../_components/setup_section/SetupSection";
 import { LegacyModelDownloadDialog } from "../_components/download_models/LegacyModelDownloadDialog";
 import { AutoDownloadModelsContainer } from "../shared_items/SharedItems";
 
@@ -36,7 +37,7 @@ export const Transcription = () => {
     return (
         <div className={styles.container}>
             {/* Which engine listens comes first: it decides what else on this page applies.
-                The timing numbers for the microphone and the speaker follow it. */}
+                The timing numbers for the microphone and the speaker follow it, folded. */}
             <TranscriptionEngine_Container />
             <CloudTranscription_Container />
             <Mic_Container />
@@ -48,15 +49,31 @@ export const Transcription = () => {
 };
 
 
+// The numbers that tune how speech is cut into messages are set once, if ever.
+// They sit in one fold whose line shows the values in use, so the page stays
+// short and nothing has to be opened to see what is set.
+const TimingFold = ({ silence, length, queue, children }) => {
+    const { t } = useI18n();
+    return (
+        <SetupSection title={t("config_page.transcription.timing_title")}
+            status={t("config_page.transcription.timing_status", { silence: silence ?? "-", length: length ?? "-", queue: queue ?? "-" })}>
+            {children}
+        </SetupSection>
+    );
+};
+
 const Mic_Container = () => {
     const { t } = useI18n();
+    const { currentMicRecordTimeout, currentMicPhraseTimeout, currentMicMaxWords } = useTranscription();
     return (
         <div>
             <SectionLabelComponent label={t("config_page.transcription.section_label_mic")} />
-            <MicRecordTimeout_Box />
-            <MicPhraseTimeout_Box />
-            <MicMaxWords_Box />
             <MicWordFilter_Box />
+            <TimingFold silence={currentMicRecordTimeout.data} length={currentMicPhraseTimeout.data} queue={currentMicMaxWords.data}>
+                <MicRecordTimeout_Box />
+                <MicPhraseTimeout_Box />
+                <MicMaxWords_Box />
+            </TimingFold>
         </div>
     );
 };
@@ -138,12 +155,15 @@ const MicWordFilter_Box = () => {
 
 const Speaker_Container = () => {
     const { t } = useI18n();
+    const { currentSpeakerRecordTimeout, currentSpeakerPhraseTimeout, currentSpeakerMaxWords } = useTranscription();
     return (
         <div>
             <SectionLabelComponent label={t("config_page.transcription.section_label_speaker")} />
-            <SpeakerRecordTimeout_Box />
-            <SpeakerPhraseTimeout_Box />
-            <SpeakerMaxWords_Box />
+            <TimingFold silence={currentSpeakerRecordTimeout.data} length={currentSpeakerPhraseTimeout.data} queue={currentSpeakerMaxWords.data}>
+                <SpeakerRecordTimeout_Box />
+                <SpeakerPhraseTimeout_Box />
+                <SpeakerMaxWords_Box />
+            </TimingFold>
         </div>
     );
 };
@@ -212,7 +232,9 @@ const SpeakerMaxWords_Box = () => {
 
 const TranscriptionEngine_Container = () => {
     const { t } = useI18n();
-    const { currentSelectedTranscriptionEngine } = useTranscription();
+    const { currentSelectedTranscriptionEngine, currentMicAvgLogprob, currentMicNoSpeechProb,
+        currentSpeakerAvgLogprob, currentSpeakerNoSpeechProb } = useTranscription();
+    const pair = (confidence, silence) => `${confidence.data ?? "-"} / ${silence.data ?? "-"}`;
 
     return (
         <div>
@@ -224,10 +246,16 @@ const TranscriptionEngine_Container = () => {
                 <>
                     <WhisperWeightType_Box />
                     <TranscriptionComputeDevice_Box />
-                    <MicAvgLogprobContainer />
-                    <MicNoSpeechProbContainer />
-                    <SpeakerAvgLogprobContainer />
-                    <SpeakerNoSpeechProbContainer />
+                    {/* Whisper's own thresholds: the defaults suit most voices, so they are folded too. */}
+                    <SetupSection title={t("config_page.transcription.thresholds_title")}
+                        status={t("config_page.transcription.thresholds_status", {
+                            mic: pair(currentMicAvgLogprob, currentMicNoSpeechProb),
+                            speaker: pair(currentSpeakerAvgLogprob, currentSpeakerNoSpeechProb) })}>
+                        <MicAvgLogprobContainer />
+                        <MicNoSpeechProbContainer />
+                        <SpeakerAvgLogprobContainer />
+                        <SpeakerNoSpeechProbContainer />
+                    </SetupSection>
                 </>
             )}
         </div>
@@ -288,14 +316,21 @@ const CloudTranscription_Container = () => {
         <div data-setting-id="cloud_section">
             <SectionLabelComponent label={t("config_page.transcription.cloud_section.label")} />
             <Description text={t("config_page.transcription.cloud_section.desc")} />
-            {CLOUD_TRANSCRIPTION_ENGINES.map(engine => (
-                <div key={engine.id}>
-                    {engine.has_url
-                        ? <CredentialPair settings={transcription} base={engine.base} provider={engine.key} section="transcription" />
-                        : <CloudAuthKey_Box engine={engine} />}
-                    <CloudModel_Box engine={engine} />
-                </div>
-            ))}
+            {/* One line per provider, as on the translation page: the line says whether it can
+                be used, and the one that is selected above stays open. */}
+            {CLOUD_TRANSCRIPTION_ENGINES.map(engine => {
+                const in_use = transcription.currentSelectedTranscriptionEngine.data === engine.id;
+                const usable = (transcription.currentSelectableTranscriptionEngines.data || []).includes(engine.id);
+                return (
+                    <SetupSection key={engine.id} title={t(`config_page.transcription.select_transcription_engine.engines.${engine.key}`)} attention={in_use}
+                        status={t(`config_page.translation.provider_${in_use ? "in_use" : usable ? "ready" : "not_set"}`)}>
+                        {engine.has_url
+                            ? <CredentialPair settings={transcription} base={engine.base} provider={engine.key} section="transcription" />
+                            : <CloudAuthKey_Box engine={engine} />}
+                        <CloudModel_Box engine={engine} />
+                    </SetupSection>
+                );
+            })}
         </div>
     );
 };

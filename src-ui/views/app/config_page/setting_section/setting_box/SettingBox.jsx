@@ -36,7 +36,7 @@ export const SettingBox = () => {
         case "updater":
             return <Updater />;
         // The main page has a chat reading switch, so settings have a page of that
-        // name. The VRChat page shows the same settings, and holds the old "others" page.
+        // name. The VRChat page points to it, and holds the old "others" page.
         case "ocr":
             return <Ocr />;
         case "vrchat":
