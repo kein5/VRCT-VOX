@@ -92,12 +92,21 @@ class NativeWebDriver:
                 break
             self.command("POST", f"/element/{summary[key]}/click", {})
         self.evaluate("const e = arguments[0].tagName === 'OPTION' ? arguments[0].parentElement : arguments[0]; e.scrollIntoView({block:'center', inline:'center', behavior:'instant'}); return true;", element)
+        # Plain text typed into a field (no WebDriver key such as Tab or Enter)
+        # must arrive whole; see _complete_typed.
+        text = (data or {}).get("text") if action == "value" else None
+        plain = bool(text) and not any('\ue000' <= c <= '\uf8ff' for c in text) and not text.isascii()
+        before = self.evaluate("return typeof arguments[0].value === 'string' ? arguments[0].value : null", element) if plain else None
         deadline = time.monotonic() + 5
         while True:
             try:
-                return self.command("POST", f"/element/{element[key]}/{action}", data or {})
+                result = self.command("POST", f"/element/{element[key]}/{action}", data or {})
+                if before is not None:
+                    self._complete_typed(element, before + text)
+                return result
             except AssertionError as error:
                 if action not in ("click", "clear", "value") or not any(code in str(error) for code in ('"element click intercepted"', '"element not interactable"')) or time.monotonic() >= deadline:
+                    self._describe_blocked(element, action)
                     raise
                 notice = self.evaluate("return [...document.querySelectorAll('.Toastify__toast')].find(e => e.textContent.startsWith('Built-in translation or transcription models are unavailable.') || e.textContent.startsWith('Network is not connected.'))?.querySelector('button svg');")
                 if notice:
@@ -130,20 +139,52 @@ class NativeWebDriver:
         if self.evaluate('return arguments[0].tagName', control) == 'TEXTAREA':
             typed = value.replace('\n', '\ue007')  # WebDriver Enter; raw LF is ignored by WebKitGTK.
         self.element_command(control, "value", {"text": typed})
-        if self.evaluate("return arguments[0].value", control) != value:
-            # WebKitWebDriver types through the desktop keymap and silently drops
-            # characters that have no key there (Japanese on a US layout: only
-            # the ASCII part arrives). Give React the whole value the way it
-            # hears any other input.
-            self.evaluate("const e = arguments[0];"
-                          " const proto = e.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;"
-                          " Object.getOwnPropertyDescriptor(proto, 'value').set.call(e, arguments[1]);"
-                          " e.dispatchEvent(new Event('input', {bubbles: true})); return true;", control, value)
-            assert self.evaluate("return arguments[0].value", control) == value, f"could not fill {label}"
+        self._complete_typed(control, value)
+
+    def _describe_blocked(self, element, action):
+        """Record why a control could not be used: what covers it and which dialog is open."""
+        try:
+            report = self.evaluate(
+                "const e = arguments[0], r = e.getBoundingClientRect();"
+                " const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);"
+                " const name = n => n ? n.tagName + '.' + String(n.className?.baseVal ?? n.className).slice(0, 80) : null;"
+                " return {target: name(e), rect: [r.left, r.top, r.width, r.height], disabled: !!e.disabled,"
+                "  inert: !!e.closest('[inert]'), hidden: getComputedStyle(e).visibility, covered_by: name(top),"
+                "  covered_text: (top?.textContent || '').slice(0, 200),"
+                "  dialogs: [...document.querySelectorAll('dialog[open]')].map(d => d.textContent.slice(0, 300)),"
+                "  body: document.body.innerText.slice(0, 4000)};", element)
+            (self.output / f"blocked-{action}.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
+        except Exception:
+            pass  # the original WebDriver error is the one to report
+
+    def _complete_typed(self, element, expected):
+        """Finish a text entry the native driver delivered only in part.
+
+        WebKitWebDriver types through the desktop keymap and silently drops
+        characters that have no key there (Japanese on a US layout: only the
+        ASCII part arrives). Give React the whole value the way it hears any
+        other input.
+        """
+        if self.evaluate("return arguments[0].value", element) == expected:
+            return
+        self.evaluate("const e = arguments[0];"
+                      " const proto = e.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;"
+                      " Object.getOwnPropertyDescriptor(proto, 'value').set.call(e, arguments[1]);"
+                      " e.dispatchEvent(new Event('input', {bubbles: true})); return true;", element, expected)
+        assert self.evaluate("return arguments[0].value", element) == expected, "the text did not reach the field"
 
     def select(self, label, value):
         option = self.evaluate("return [...arguments[0].options].find(e => e.value === arguments[1]);", self.control(label), value)
         self.element_command(option, "click")
+
+    def set_switch(self, label, on=True):
+        """Set a main-page switch as a user does: press it, then wait for the reported state."""
+        find = f"[...document.querySelectorAll('[role=switch]')].find(e => e.getAttribute('aria-label') === {json.dumps(label)})"
+        want = "true" if on else "false"
+        self.wait(f"const e = {find}; return !!e && !e.disabled && e.getAttribute('aria-disabled') !== 'true';")
+        if self.evaluate(f"return {find}.getAttribute('aria-checked')") != want:
+            self.element_command(self.evaluate(f"return {find}"), "click")
+        self.wait(f"return {find}.getAttribute('aria-checked') === '{want}'")
 
     def open_voice_page(self, tab, selector):
         self.wait("return innerWidth >= 500 && innerHeight >= 300")

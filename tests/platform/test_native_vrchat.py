@@ -120,12 +120,12 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
 
                 def send(text):
                     native()
-                    field = ui.command("POST", "/element", {"using": "css selector", "value": "textarea"})
+                    field = ui.command("POST", "/element", {"using": "css selector", "value": "textarea[class*=message_box_input_area]"})
                     ui.element_command(field, "clear")
                     ui.element_command(field, "value", {"text": text})
                     started = time.monotonic_ns()
                     ui.click('[class*="message_send_button"]')
-                    ui.wait("return document.querySelector('textarea').value === ''")
+                    ui.wait("return document.querySelector('textarea[class*=message_box_input_area]').value === ''")
                     return started
 
                 def first_audio(start):

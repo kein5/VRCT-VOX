@@ -119,11 +119,11 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
                 ui.close_settings()
 
                 def send(text):
-                    element = ui.command('POST', '/element', {'using': 'css selector', 'value': 'textarea'})
+                    element = ui.command('POST', '/element', {'using': 'css selector', 'value': 'textarea[class*=message_box_input_area]'})
                     ui.element_command(element, 'value', {'text': text})
                     at = time.monotonic_ns()
                     ui.click('[class*="message_send_button"]')
-                    ui.wait("return document.querySelector('textarea').value === ''")
+                    ui.wait("return document.querySelector('textarea[class*=message_box_input_area]').value === ''")
                     return at
 
                 def audio_after(at):

@@ -82,23 +82,32 @@ def test_native_text_to_virtual_microphone_and_recovery(tmp_path):
                 def status(text):
                     ui.wait(f"return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === {json.dumps(text)})")
 
+                def saved(key):
+                    return json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get(key)
+
                 def save(mode):
-                    ui.select("Audio route", "managed")
-                    ui.select("Read aloud", mode)
+                    # The route lives on the Device page, the voice on the TTS page.
+                    ui.open_route_settings()
+                    if ui.evaluate("return arguments[0].value", ui.control("Audio route")) != "managed":
+                        ui.select("Audio route", "managed")
+                        ui.click_text("button", "Save changes")
+                        wait_for(lambda: saved("routing") == "managed")
+                    ui.open_voice_settings()
+                    ui.select("Chat voice", mode)
                     ui.fill("Japanese server (Irodori)", server.url)
                     ui.click_text("button", "Save changes")
-                    wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("mode") == mode)
+                    wait_for(lambda: saved("mode") == mode)
 
                 def home():
                     ui.close_settings()
 
                 def send(text):
-                    field = ui.command("POST", "/element", {"using": "css selector", "value": "textarea"})
+                    field = ui.command("POST", "/element", {"using": "css selector", "value": "textarea[class*=message_box_input_area]"})
                     ui.element_command(field, "clear")
                     ui.element_command(field, "value", {"text": text})
                     started = time.monotonic_ns()
                     ui.click('[class*="message_send_button"]')
-                    ui.wait("return document.querySelector('textarea').value === ''")
+                    ui.wait("return document.querySelector('textarea[class*=message_box_input_area]').value === ''")
                     return started
 
                 def first_audio(start):
@@ -113,6 +122,9 @@ def test_native_text_to_virtual_microphone_and_recovery(tmp_path):
                     report["cases"].append({"name": name, "status": "passed", **observations})
 
                 def positive(name):
+                    # Text is spoken only while the main TTS switch is on; a mute,
+                    # a failed server or "off" turns it off again.
+                    ui.set_switch("TTS")
                     settled(capture, time.monotonic_ns(), "before_send_not_silent", silent=True)
                     path = tmp_path / f"{name}.pcm"
                     recording = Capture("vrct.managed.source", path)
@@ -130,6 +142,7 @@ def test_native_text_to_virtual_microphone_and_recovery(tmp_path):
                     done(name, click_to_source_ms=(first - start) / 1e6, match=matched, capture=observation)
 
                 save("original")
+                ui.open_route_settings()
                 status("Muted (confirmed)")
                 ui.click_text("button", "Resume voice")
                 status("Voice enabled (confirmed)")
@@ -137,9 +150,10 @@ def test_native_text_to_virtual_microphone_and_recovery(tmp_path):
                 positive("normal_exactly_once")
 
                 for name, button in [("stop", "Stop playback and clear queue"), ("mute", "Mute until resumed")]:
+                    ui.set_switch("TTS")
                     start = send(LONG)
                     first_audio(start)
-                    ui.open_voice_settings()
+                    (ui.open_voice_settings if name == "stop" else ui.open_route_settings)()
                     before = time.monotonic_ns()
                     ui.click_text("button", button)
                     silent = settled(capture, before, name + "_not_silent", silent=True)
@@ -151,8 +165,8 @@ def test_native_text_to_virtual_microphone_and_recovery(tmp_path):
                 start = send(SHORT)
                 settled(capture, start, "held_mute_leaked_audio", silent=True)
                 done("held_mute_stays_silent")
-                ui.open_voice_settings()
                 save("off")
+                ui.open_route_settings()
                 ui.click_text("button", "Resume voice")
                 status("Voice enabled (confirmed)")
                 home()
@@ -160,7 +174,6 @@ def test_native_text_to_virtual_microphone_and_recovery(tmp_path):
                 settled(capture, start, "off_leaked_audio", silent=True)
                 done("off_keeps_text_silent")
 
-                ui.open_voice_settings()
                 save("original")
                 home()
                 positive("off_to_original_exactly_once")
