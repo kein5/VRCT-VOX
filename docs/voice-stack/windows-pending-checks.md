@@ -42,6 +42,10 @@ LinuxのPCで測った参考の値です。VRChatの検出は、VRChatを起動�
 
 Linuxで残っている未確認（実物のヘッドセット、KDE以外のデスクトップなど）は、[README](/README.md)の制限の節に書いてあります。
 
+## Windowsで直すとよいこと
+
+- VR UIの起動演出が、上流のVRCTのロゴとアイコンを読み込んでいます（`src-ui/views/vr/VrLauncher.jsx`の`vrct_logo_for_dark_mode.png`と`vrct_icon_for_vr_intro.png`）。VRCT-VOXは公式のVRCTではないので、VRCT-VOXのブランド画像（`src-ui/views/assets/brand/`）に替えます。コードと画像で確かめただけで、演出は動かしていません。VR UIを実機で見られるWindowsで直すのが向いています。
+
 ## 公開の状態
 
 - 0.1.0-beta.7は公開していません。公開は、保守担当者が確認してから行います（[配布候補](release-candidates.md)）。
