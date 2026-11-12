@@ -23,7 +23,6 @@ from models.translation.translation_providers import TRANSLATION_PROVIDER_REGIST
 from models.translation.translation_utils import ctranslate2_weights, isNonCommercialCTranslate2Weight, MissingCTranslate2Tokenizer
 from models.legacy_model_consent import legacyModelCatalog, recordLegacyConsent, consentedLegacyRequest
 from models.legacy_model_downloads import LegacyDownloads
-from models.osc.osc import usesOscQuery
 from uuid import uuid4
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
 from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
@@ -6288,7 +6287,7 @@ class Controller:
                     config.VRC_MIC_MUTE_SYNC = False
                     model.invalidateMuteSelfStatus()
                     self.run(200, "/set/disable/vrc_mic_mute_sync", False)
-                elif startup and not usesOscQuery(config.OSC_IP_ADDRESS):
+                elif startup and model.usesOscQuery(config.OSC_IP_ADDRESS) is False:
                     notify = False
         finally:
             self.disableOscQuery(mute_sync_info=notify)
