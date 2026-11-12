@@ -111,6 +111,8 @@ def test_startup_retry_requires_previous_attempt_to_stop_and_join(app, monkeypat
     config.AUTO_DOWNLOAD_MODELS = True
     config.WHISPER_WEIGHT_TYPE = "base"
     config.CTRANSLATE2_WEIGHT_TYPE = "m2m100_418M-ct2-int8"
+    config.SELECTED_TAB_NO, config.SELECTED_TRANSLATION_ENGINES = "1", {"1": "CTranslate2"}
+    config.SELECTED_TRANSCRIPTION_ENGINE = "Whisper"
     for kind, weight in [("whisper", config.WHISPER_WEIGHT_TYPE), ("ctranslate2", config.CTRANSLATE2_WEIGHT_TYPE)]:
         recordLegacyConsent(config, kind, {"weight_type": weight, "consent": True,
             "manifest_version": legacyModelReview(kind, weight)["manifest_version"]})
@@ -134,7 +136,8 @@ def test_startup_retry_requires_previous_attempt_to_stop_and_join(app, monkeypat
     class ReachedAvailability(Exception):
         pass
 
-    controller.disableAiModels = Mock(side_effect=ReachedAvailability)
+    # Which of the two is called depends on the engines in use, not on this test's subject.
+    controller.disableAiModels = controller.enableAiModels = Mock(side_effect=ReachedAvailability)
     with pytest.raises(ReachedAvailability):
         controller.init()
     assert order == (["start:ctranslate2", "start:whisper", "stop:ctranslate2"] +

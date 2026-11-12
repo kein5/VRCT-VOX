@@ -1543,6 +1543,18 @@ class Controller:
             False,
         )
 
+    @staticmethod
+    def _missingBuiltInModelInUse(ctranslate2_available: bool, whisper_available: bool) -> bool:
+        """いま選んでいるエンジンが、取得していない内蔵モデルを必要としているか。
+
+        以前は、どちらか一方でも無ければ起動のたびに警告していた。そのため、翻訳モデルを取得して
+        文字起こしは Google を選んでいる人や、どちらも外部のサービスを使う人にも、使わないモデルに
+        ついての警告が毎回出ていた。選んでいないエンジンのモデルは、選んだときに取得を案内する。
+        """
+        translation = config.SELECTED_TRANSLATION_ENGINES.get(config.SELECTED_TAB_NO) == "CTranslate2"
+        transcription = config.SELECTED_TRANSCRIPTION_ENGINE == "Whisper"
+        return (translation and not ctranslate2_available) or (transcription and not whisper_available)
+
     def enableAiModels(self) -> None:
         self.run(
             200,
@@ -6662,7 +6674,7 @@ class Controller:
         self._ctranslate2_available_cache = ctranslate2_available
         self._whisper_available_cache = whisper_available
 
-        if not ctranslate2_available or not whisper_available:
+        if self._missingBuiltInModelInUse(ctranslate2_available, whisper_available):
             self.disableAiModels()
         else:
             self.enableAiModels()

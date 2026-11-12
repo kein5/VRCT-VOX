@@ -152,6 +152,8 @@ def test_tokenizer_revision_and_file_pins_invalidate_consent(monkeypatch):
 def test_real_startup_skips_or_fetches_including_retry(app, monkeypatch, auto, recorded, available):
     controller, config, backend = app
     config.AUTO_DOWNLOAD_MODELS = auto
+    config.SELECTED_TAB_NO, config.SELECTED_TRANSLATION_ENGINES = "1", {"1": "CTranslate2"}
+    config.SELECTED_TRANSCRIPTION_ENGINE = "Whisper"
     for kind, weight in [("whisper", config.WHISPER_WEIGHT_TYPE), ("ctranslate2", config.CTRANSLATE2_WEIGHT_TYPE)]:
         if recorded: recordLegacyConsent(config, kind, request(kind, weight))
     monkeypatch.setattr(module, "isConnectedNetwork", lambda: True)
