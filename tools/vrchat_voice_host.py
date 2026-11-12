@@ -180,13 +180,32 @@ class Menu:
         assert width == SIZE[0] and 0 <= height - SIZE[1] <= 60, geometry
         return x, y + height - SIZE[1]
 
+    @staticmethod
+    def location():
+        location = run("kdotool", "getmouselocation", "--shell")
+        return tuple(map(int, re.search(r"X=(-?\d+)\nY=(-?\d+)", location).groups()))
+
+    def held(self):
+        """True while VRChat keeps the pointer in the middle of its window, as it does with no menu open."""
+        self.focus()
+        before = self.location()
+        # A daemon that has just started is ignored until the compositor has taken its
+        # device: about a second on an idle PC, longer while VRChat is loading.
+        deadline = time.monotonic() + 6
+        while time.monotonic() < deadline:
+            run("ydotool", "mousemove", "-x", 12, "-y", 0, env=self.env)
+            time.sleep(.1)
+            if self.location() != before:
+                return False
+        return True
+
     def move(self, position):
         self.focus()
         x, y = self.origin()
         target = x + round(position[0] * SIZE[0]), y + round(position[1] * SIZE[1])
-        for _ in range(40):
-            location = run("kdotool", "getmouselocation", "--shell")
-            now = tuple(map(int, re.search(r"X=(-?\d+)\nY=(-?\d+)", location).groups()))
+        deadline = time.monotonic() + 20  # by the clock: see held() for the new daemon's first second
+        while time.monotonic() < deadline:
+            now = self.location()
             dx, dy = target[0] - now[0], target[1] - now[1]
             if max(abs(dx), abs(dy)) <= 2:
                 return
@@ -234,8 +253,16 @@ def open_mic_test(calibrate=False):
     """Leave the speaker's VRChat on Audio & Voice with a finished microphone test and noise suppression off."""
     menu = Menu()
     state = json.loads(STATE.read_text())
+    # With no menu open VRChat may hold the pointer in the middle of its window, and then
+    # nothing here can point at anything. The quick menu frees it.
+    opened = menu.held()
+    if opened:
+        menu.escape()
+        if menu.held():
+            raise SystemExit("VRChat holds the pointer even with its menu open")
     if calibrate or page_state(menu) is None:
-        menu.escape()  # quick menu
+        if not opened:
+            menu.escape()  # quick menu
         for _ in range(2):
             # A news card can lie over the quick menu. Its close button is where EXPAND is,
             # so the first pass closes the card and the second opens the page.
