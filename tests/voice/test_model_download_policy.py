@@ -39,7 +39,9 @@ def test_startup_download_requires_explicit_consent(controller_module, monkeypat
     module = controller_module
     monkeypatch.setattr(module, "config", SimpleNamespace(
         AUTO_DOWNLOAD_MODELS=enabled, CTRANSLATE2_WEIGHT_TYPE="m2m100_418M-ct2-int8",
-        WHISPER_WEIGHT_TYPE="base", LEGACY_MODEL_DOWNLOAD_CONSENTS={}))
+        WHISPER_WEIGHT_TYPE="base", LEGACY_MODEL_DOWNLOAD_CONSENTS={},
+        SELECTED_TAB_NO="1", SELECTED_TRANSLATION_ENGINES={"1": "CTranslate2"},
+        SELECTED_TRANSCRIPTION_ENGINE="Whisper"))
     if consent != "absent":
         for kind, weight in [("whisper", "base"), ("ctranslate2", "m2m100_418M-ct2-int8")]:
             recordLegacyConsent(module.config, kind, {"weight_type": weight, "consent": True,

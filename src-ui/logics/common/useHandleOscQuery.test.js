@@ -28,6 +28,12 @@ for (const language of ["en", "ja"]) {
         assert.equal(runtime.store.get(stores.Atom_IsOscAvailable).data, false);
         assert.deepEqual(notices, [[`${i18n.t("common_warning.unable_to_use_osc_query")}\n- ${i18n.t("config_page.others.vrc_mic_mute_sync.label")}`, { hide_duration: 10000 }]]);
         assert.equal(i18n.exists("config_page.common.warning_labels.unable_to_use_osc_query"), true);
+        // Started with another machine as the destination and nothing switched
+        // off: unavailable, but no warning (the setting's row says why).
+        handleOscQuery({ data: true, disabled_functions: [] });
+        handleOscQuery({ data: false, disabled_functions: [] });
+        assert.equal(runtime.store.get(stores.Atom_IsOscAvailable).data, false);
+        assert.equal(notices.length, 1);
     });
 
     test(`${language}: rejected mute sync uses the existing localized error protocol`, async context => {

@@ -1542,6 +1542,18 @@ class Controller:
             False,
         )
 
+    @staticmethod
+    def _missingBuiltInModelInUse(ctranslate2_available: bool, whisper_available: bool) -> bool:
+        """いま選んでいるエンジンが、取得していない内蔵モデルを必要としているか。
+
+        以前は、どちらか一方でも無ければ起動のたびに警告していた。そのため、翻訳モデルを取得して
+        文字起こしは Google を選んでいる人や、どちらも外部のサービスを使う人にも、使わないモデルに
+        ついての警告が毎回出ていた。選んでいないエンジンのモデルは、選んだときに取得を案内する。
+        """
+        translation = config.SELECTED_TRANSLATION_ENGINES.get(config.SELECTED_TAB_NO) == "CTranslate2"
+        transcription = config.SELECTED_TRANSCRIPTION_ENGINE == "Whisper"
+        return (translation and not ctranslate2_available) or (transcription and not whisper_available)
+
     def enableAiModels(self) -> None:
         self.run(
             200,
@@ -6251,13 +6263,18 @@ class Controller:
             "disabled_functions": disabled_functions
         })
 
-    def _publishOscQueryReadiness(self):
+    def _publishOscQueryReadiness(self, *, startup: bool = False):
         # A cancelled background startup must not rewrite saved user intent.
         if getattr(model, "_osc_shutdown", False) is True:
             return
         if model.getIsOscQueryEnabled() is True:
             self.enableOscQuery()
             return
+        # 起動しただけで、何も止めておらず、送信先が別のマシン (設定で選んだ状態) なら、知らせない。
+        # 単体のヘッドセットへ送っている人には、毎回の起動で同じ警告が 10 秒出ていた。同期の欄には
+        # 使えない理由が出ているし、同期をオンにしようとすれば VRC_MIC_MUTE_SYNC_OSC_DISABLED で断る。
+        # 同期を止めたとき、設定を変えた直後、この PC 宛てなのに準備に失敗したときは、これまでどおり知らせる。
+        notify = True
         try:
             with self._audioLock("mic"):
                 if config.VRC_MIC_MUTE_SYNC is True:
@@ -6270,8 +6287,10 @@ class Controller:
                     config.VRC_MIC_MUTE_SYNC = False
                     model.invalidateMuteSelfStatus()
                     self.run(200, "/set/disable/vrc_mic_mute_sync", False)
+                elif startup and model.usesOscQuery(config.OSC_IP_ADDRESS) is False:
+                    notify = False
         finally:
-            self.disableOscQuery(mute_sync_info=True)
+            self.disableOscQuery(mute_sync_info=notify)
 
     def _initVrcMicMuteSync(self) -> None:
         with self._audioLock("mic"):
@@ -6289,7 +6308,7 @@ class Controller:
             except Exception:
                 printLog("OSC: receive/advertisement setup failed")
             finally:
-                self._publishOscQueryReadiness()
+                self._publishOscQueryReadiness(startup=True)
         if model.getIsOscQueryEnabled() is True:
             self._initVrcMicMuteSync()
 
@@ -6654,7 +6673,7 @@ class Controller:
         self._ctranslate2_available_cache = ctranslate2_available
         self._whisper_available_cache = whisper_available
 
-        if not ctranslate2_available or not whisper_available:
+        if self._missingBuiltInModelInUse(ctranslate2_available, whisper_available):
             self.disableAiModels()
         else:
             self.enableAiModels()

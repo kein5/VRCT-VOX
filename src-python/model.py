@@ -29,7 +29,7 @@ from config import config, DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 from models.translation.translation_translator import Translator
 from models.translation.translation_history import TranslationHistory
 from models.message_delivery import ChatboxOrder, DeliveryEpochs
-from models.osc.osc import OSCHandler, OSC_STOP_TIMEOUT_SECONDS
+from models.osc.osc import OSCHandler, OSC_STOP_TIMEOUT_SECONDS, usesOscQuery
 from models.transcription.transcription_recorder import (
     AudioOpenBusy,
     audioOpenOutstanding,
@@ -2077,6 +2077,11 @@ class Model:
                 handler.oscServerStop()
         finally:
             self._osc_lifecycle_lock.release()
+
+    @staticmethod
+    def usesOscQuery(ip_address) -> bool:
+        """送信先がこの PC で、OSCQuery (受信と公開) を使う設定か。"""
+        return usesOscQuery(ip_address)
 
     def getIsOscQueryEnabled(self):
         self.ensure_initialized()
