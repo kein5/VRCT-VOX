@@ -5454,6 +5454,16 @@ class Controller:
         config.OCR_PORTAL_RESTORE_TOKEN = data
         return {"status": 200, "result": config.OCR_PORTAL_RESTORE_TOKEN}
 
+    @staticmethod
+    def getVrchatOscPresence(*args, **kwargs) -> dict:
+        """Whether a VRChat with OSC enabled is seen on this PC: "found", "not_found" or "unknown".
+
+        "Sent" in the log only means the message left; VRChat does not answer. This
+        is the nearest thing to a receipt, and the VRChat page and the quick settings
+        show it in words. "unknown" covers a destination on another machine.
+        """
+        return {"status": 200, "result": model.getVrchatOscPresence()}
+
     def getOcrReadiness(self, *args, **kwargs) -> dict:
         """What chat reading still needs before it can start (models, window).
 

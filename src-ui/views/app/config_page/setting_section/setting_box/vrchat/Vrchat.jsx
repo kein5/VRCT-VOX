@@ -15,6 +15,7 @@ import { OscIpAddressContainer, OscPortContainer } from "../advanced_settings/Ad
 import { VoiceRouteSettings } from "../device/VoiceRouteSettings";
 import { TtsOutputDeviceSettings } from "../advanced_settings/VoiceSettings";
 import { Ocr } from "../ocr/Ocr";
+import { VrchatPresence } from "../../../../others/vrchat_presence/VrchatPresence";
 
 // Everything that talks to VRChat: the chatbox, OSC, the voice that reaches
 // VRChat's microphone, and reading VRChat's chatbox. The voice route, the TTS
@@ -25,6 +26,8 @@ export const Vrchat = () => {
         <div className={styles.container}>
             <div>
                 <SectionLabelComponent label={t("config_page.vrchat.section_label_chatbox")} />
+                {/* Whether a message sent now can arrive: the first thing to check on this page. */}
+                <VrchatPresence />
                 <SendMessageToVrcContainer />
                 <SendOnlyTranslatedMessagesContainer />
                 <EnableNotificationVrcSfxContainer />

@@ -149,6 +149,21 @@ class LocalOSCQueryBrowser(OSCQueryBrowser if OSCQueryBrowser is not None else o
         self.zc = Zeroconf()
         self.browser = ServiceBrowser(self.zc, ["_oscjson._tcp.local."], self.listener)
 
+    def ask_again(self):
+        """Ask who offers OSCQuery right now.
+
+        The browser asks only during its first seconds; after that it waits for services
+        to announce themselves. VRChat announces once when it starts, and that single
+        packet can be missed, so a VRChat started after this app could stay unseen.
+        The answers reach the browser's listener like any other record.
+        """
+        from zeroconf import DNSOutgoing, DNSQuestion
+        from zeroconf.const import _CLASS_IN, _FLAGS_QR_QUERY, _TYPE_PTR
+
+        question = DNSOutgoing(_FLAGS_QR_QUERY)
+        question.add_question(DNSQuestion("_oscjson._tcp.local.", _TYPE_PTR, _CLASS_IN))
+        self.zc.send(question)
+
     def close(self):
         try:
             if self.browser is not None:
@@ -344,6 +359,49 @@ class OSCHandler:
         node = candidates[0].query_node(address)
         values = getattr(node, "value", None)
         return values[0] if isinstance(values, list) and values else None
+
+    def localVrchatPresence(self) -> Optional[bool]:
+        """Whether a VRChat on this PC is advertising OSC, which it does only while its OSC is enabled.
+
+        None when that cannot be known: the destination is another machine, receiving
+        could not start, or OSC is shut down.
+
+        A service that was discovered is asked for its host info before it counts: a
+        VRChat that was closed stays in discovery for a long time. When nothing answers,
+        discovery is asked again, so a VRChat started after this app is found by the
+        next call. Nothing is sent to VRChat's OSC port.
+        """
+        if not self._lifecycle_lock.acquire(timeout=OSC_QUERY_TIMEOUT_SECONDS):
+            return None
+        try:
+            if not self.is_osc_query_enabled or self._shutdown:
+                return None
+            browser = self.browser
+        finally:
+            self._lifecycle_lock.release()
+        if browser is None:
+            return None
+        def local(service):
+            try:
+                return self._localServiceName(service) is not None
+            except (ValueError, TypeError, AttributeError):
+                return False  # a malformed advertisement from something else is not VRChat
+
+        try:
+            candidates = [service for service in browser.get_discovered_oscquery() if local(service)]
+        except Exception:
+            return None
+        for service in candidates:
+            try:
+                if OSCQueryClient(service).get_host_info() is not None:
+                    return True
+            except Exception:
+                continue  # advertised earlier, not answering now
+        try:
+            browser.ask_again()
+        except Exception:
+            pass  # looking again is best effort; the answer is still "not found"
+        return False
 
     def getOSCParameterMuteSelf(self) -> Optional[bool]:
         value = self.getOSCParameterValue(self.osc_parameter_muteself)

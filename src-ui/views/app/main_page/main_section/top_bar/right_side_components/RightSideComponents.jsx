@@ -19,6 +19,7 @@ import {
 } from "@logics_configs";
 import { useMainFunction } from "@logics_main";
 import { OpenQuickSettingButton } from "./_buttons/OpenQuickSettingButton";
+import { VrchatPresence } from "../../../../others/vrchat_presence/VrchatPresence";
 
 import { generateLocalizedDocumentUrl } from "@ui_configs";
 
@@ -119,6 +120,8 @@ const QuickSettingsMenu = () => {
                     variable={overlay}
                     onClickFunction={() => { setOpen(false); updateOpenedQuickSetting("overlay"); }}
                 />
+                {/* Within reach of the conversation: can a message sent now arrive in VRChat? */}
+                <VrchatPresence className={styles.menu_readout} />
             </div>}
         </div>
     );

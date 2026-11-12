@@ -3,6 +3,14 @@
 # Please read 'readme_first.txt' before making any changes.
 # =================================
 
+vrchat_presence:
+    checking: "Looking for VRChat…"
+    found: "A VRChat with OSC enabled was found on this PC."
+    not_found: "No VRChat with OSC enabled was found on this PC."
+    not_found_hint: "Start VRChat, then open its Action Menu and set Options → OSC to Enabled."
+    unknown: "VRChat cannot be checked: the destination is another machine, or OSC receiving has not started."
+    sending_off: "Sending messages to VRChat is off."
+
 voice:
     direct_mode: "Direct voice mode"
     direct_passthrough: "Original / external converter output"

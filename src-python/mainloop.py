@@ -726,6 +726,7 @@ mapping = {
     "/set/enable/ocr_use_chatbox_detector": {"status": True, "variable":controller.setEnableOcrUseChatboxDetector},
     "/set/disable/ocr_use_chatbox_detector": {"status": True, "variable":controller.setDisableOcrUseChatboxDetector},
     "/get/data/ocr_readiness": {"status": True, "variable":controller.getOcrReadiness},
+    "/get/data/vrchat_osc_presence": {"status": True, "variable":controller.getVrchatOscPresence},
     "/get/data/ocr_portal_restore_token": {"status": True, "variable":controller.getOcrPortalRestoreToken},
     "/set/data/ocr_portal_restore_token": {"status": True, "variable":controller.setOcrPortalRestoreToken},
 
@@ -760,6 +761,8 @@ _INIT_MAPPING_EXCLUDED_ENDPOINTS = frozenset({
     "/get/data/ocr_readiness",
     # Runtime-only state; the OCR page polls it while shown.
     "/get/data/ocr_capture_status",
+    # What discovery has seen so far; at start-up that is nothing yet. The UI asks when it shows it.
+    "/get/data/vrchat_osc_presence",
     # Asks the speech server over HTTP. Windows takes 2 s to refuse a closed local
     # port, and a stalled server takes 5 s. The UI requests it after startup.
     "/get/data/realtime_asr_models",

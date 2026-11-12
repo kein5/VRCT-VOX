@@ -32,6 +32,7 @@ async function menu(context, values = {}) {
         "@logics_main": { useMainFunction: () => ({ currentForegroundStatus: { data: state.foreground, state: state.pending ? "pending" : "ok" },
             toggleForeground: () => calls.push(["foreground"]) }) },
         "./_buttons/OpenQuickSettingButton": button,
+        "../../../../others/vrchat_presence/VrchatPresence": { VrchatPresence: "vrchat-presence" },
         "@ui_configs": { generateLocalizedDocumentUrl: () => ({ vrct_document_ui_guide_url: "https://example.invalid/guide" }) },
     });
     const Menu = find(runtime.render(RightSideComponents), node => node.type?.name === "QuickSettingsMenu").type;
@@ -66,6 +67,7 @@ test("the quick settings button says how many of its toggles are on, and opens t
         ["main_page.foreground", true], ["config_page.others.vrc_mic_mute_sync.label", false], ["config_page.vr.section_label_overlay", true]]);
     assert.deepEqual(view.rows.map(row => row.button.props["aria-pressed"]), [true, false, undefined]);
     assert.equal(view.rows[2].button.props["aria-haspopup"], "dialog");
+    assert.ok(find(view.panel, node => node.type === "vrchat-presence"), "the open menu says whether VRChat can be reached");
 });
 
 test("nothing on reads as all off", async context => {

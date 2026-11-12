@@ -1071,6 +1071,15 @@ export const SETTINGS_ARRAY = [
         base_endpoint_name: "logger_feature",
     },
     {
+        // What OSC discovery sees now; requested by the readout that shows it, not at start-up.
+        Category: "Others",
+        Base_Name: "VrchatOscPresence",
+        default_value: null,
+        ui_template_id: "custom",
+        logics_template_id: "get_only",
+        base_endpoint_name: "vrchat_osc_presence",
+    },
+    {
         Category: "Others",
         Base_Name: "EnableVrcMicMuteSync",
         default_value: false,
