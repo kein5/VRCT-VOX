@@ -36,3 +36,11 @@
     color: var(--warning_color);
     width: 2.4rem;
 }
+
+// Settings have no message box, and their first rows are controls. There the
+// notices sit at the bottom of the content column instead, clear of the save
+// bar above and the sidebar beside them.
+:global(.Toastify__toast-container--top-left).over_settings {
+    top: auto;
+    bottom: var(--toastify-toast-offset);
+}

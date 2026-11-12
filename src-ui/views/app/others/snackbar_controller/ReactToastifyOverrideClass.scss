@@ -15,9 +15,16 @@
     --toastify-container-width: fit-content;
     --toastify-toast-width: 32rem;
     --toastify-toast-offset: 1.6rem;
-    --toastify-toast-top: max(var(--toastify-toast-offset), env(safe-area-inset-top));
+    // On the main page, notices sit at the top of the content column, under the
+    // top bar. Nothing there is a control: it is the oldest end of the log. At
+    // the bottom left they covered the lower sidebar and the message box. On a
+    // first run, the notice that says "open Settings" hid the settings button
+    // for ten seconds. In settings they move down (SnackbarController.module.scss).
+    // 24rem is the main sidebar (the settings sidebar is narrower). A window too
+    // narrow for a readable notice beside it lets the notice slide over the sidebar.
+    --toastify-toast-top: calc(var(--title_bar_height) + var(--config_page_content_padding_top) + 2.4rem);
     --toastify-toast-right: max(var(--toastify-toast-offset), env(safe-area-inset-right));
-    --toastify-toast-left: max(var(--toastify-toast-offset), env(safe-area-inset-left));
+    --toastify-toast-left: max(var(--toastify-toast-offset), min(calc(24rem + var(--toastify-toast-offset)), calc(100vw - 32rem - var(--toastify-toast-offset))));
     --toastify-toast-bottom: max(var(--toastify-toast-offset), env(safe-area-inset-bottom));
     --toastify-toast-background: #fff;
     --toastify-toast-padding: 1.4rem;
@@ -46,6 +53,19 @@
     --toastify-color-progress-error: var(--toastify-color-error);
     /* used to control the opacity of the progress trail */
     --toastify-color-progress-bgo: 0.2;
+}
+
+
+// Below 480px the library moves the container to the very top of the window,
+// over the title bar and its close button. Keep it under the top bars.
+@media only screen and (max-width: 480px) {
+    .Toastify__toast-container--top-left {
+        top: var(--toastify-toast-top);
+    }
+    // The container spans the window here; a notice kept narrow only grows taller.
+    .Toastify__toast-container .Toastify__toast {
+        max-width: 100vw;
+    }
 }
 
 
@@ -81,7 +101,7 @@
     align-items: center;
     font-size: 1.4rem;
     width: fit-content;
-    max-width: 70vw;
+    max-width: calc(100vw - var(--toastify-toast-left) - var(--toastify-toast-offset));
     padding-right: 4rem;
     background-color: var(--dark_950_color);
     gap: 0.6rem;
