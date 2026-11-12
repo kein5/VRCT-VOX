@@ -33,7 +33,7 @@ LINT_PATHS = [
     "src-python/models/voice_events.py", "src-python/models/http_stream.py", "tests/voice", "tools/voice_cli.py",
     "tools/voice_latency.py", "tools/voice_acceptance.py", "tools/voice_b_poc.py",
     "tools/voice_route.py", "tools/voice_route_acceptance.py", "tools/build_voice_gate.py",
-    "tools/check_voice_distribution.py", "tools/release_candidate.py", "tools/native_acceptance.py",
+    "tools/check_voice_distribution.py", "tools/release_candidate.py", "tools/native_acceptance.py", "tools/vrchat_voice_host.py",
     "tools/prepare_release.py", "tools/dev.py", "tools/build_linux.py",
     "tools/check_python_lock.py", "tests/devtools",
 ]

@@ -47,6 +47,10 @@ python tools/native_acceptance.py --appimage <AppImageの絶対パス>
 # 音声認識、読み上げ、VRChatの往復、モデルの取得も含める
 python tools/native_acceptance.py --appimage <AppImageの絶対パス> --fetch-models --vrchat --downloads
 
+# RVCとSeed-VCの実行環境、実際の音声経路でのVRChatも含める
+python tools/native_acceptance.py --appimage <AppImageの絶対パス> --fetch-models --fetch-runtimes \
+  --vrchat --vrchat-voice --downloads
+
 # VR UI（開発ビルドだけ）
 python tools/native_acceptance.py --app src-tauri/target/debug/vrct-vox --only vr-ui
 ```
@@ -61,12 +65,29 @@ python tools/native_acceptance.py --app src-tauri/target/debug/vrct-vox --only v
 | `tts-model` | 低遅延の待機、遅延の計測 | Irodori、GPU |
 | `asr` | リアルタイム字幕、内蔵の音声サーバー、音声翻訳 | Qwen3-ASR、Silero VAD、Qwen3-TTS、GPU |
 | `downloads` | 同意の画面、実際の取得（約336 MB）、SHA-256、適用、再起動後の保持 | `--downloads` |
+| `rvc` | アプリから起動した実際のRVCの変換、ミュート中の無音、停止 | RVCの実行環境とモデル、GPU |
+| `seed-vc` | アプリから起動した実際のSeed-VCの変換、停止、入力の消失 | Seed-VCの実行環境、GPU |
 | `vrchat` | アプリで入力した文が実際のVRChatの吹き出しに出て、チャット読み取りで読み戻せること | `--vrchat`、OCRのモデル |
+| `vrchat-voice` | 同じ送信で吹き出しと読み上げが1回ずつ届くこと、読み上げがVRChatのマイクに届いてVRChatの再生で1回だけ確認できること | `--vrchat-voice`、Irodori、GPU |
 | `vr-ui` | VR UIの表示と操作（偽のSteamVR） | 開発ビルド |
 
-モデルは、製品のカタログ（`src-python/models/model_downloads/catalog.py`）に載っているものだけです。`--fetch-models`を付けたときだけ、足りないモデルを製品と同じダウンローダーで`~/.cache/vrct-vox-acceptance`へ取得し、容量とSHA-256を照合します。取得する量は、全部で約3.3 GBです。付けなければ何も取得せず、モデルが足りないグループは、足りないものの名前を示してスキップします。音声認識の試験が聞く音声は、製品のTTSで合成するので、人の録音は要りません。
+モデルは、製品のカタログ（`src-python/models/model_downloads/catalog.py`）に載っているものだけです。`--fetch-models`を付けたときだけ、足りないモデルを製品と同じダウンローダーで`~/.cache/vrct-vox-acceptance`へ取得し、容量とSHA-256を照合します。取得する量は、全部で約3.6 GBです。付けなければ何も取得せず、モデルが足りないグループは、足りないものの名前を示してスキップします。音声認識の試験が聞く音声は、製品のTTSで合成するので、人の録音は要りません。
 
-`--vrchat`は、チャットボックスのラボのVRChatを2つ、このPCの中だけの非公開のインスタンスで起動し、往復の試験を流してから終了します。VRChatには、このPCでサインイン済みのアカウントを使います。実際の音声経路を書き換える`test_native_chatbox.py`と`test_native_vrchat.py`は、このコマンドでは実行しません。RVCやSeed-VCの実行環境が要る試験も含めていません。実行した試験と実行しなかった試験を、リリースノートの「既知の制限」に書いてください。
+`--fetch-runtimes`は、RVCとSeed-VCの実行環境を、製品の設定画面と同じ仕組みで同じフォルダーへ用意します。取得は約11 GB、ディスクは約17 GBです。uv、Pythonのパッケージ、ソース、モデルは、固定した版とハッシュで照合します。モデルの読み込みは、任意のコードを実行しない方式（`weights_only=True`）です。
+
+`--vrchat`は、チャットボックスのラボのVRChatを2つ、このPCの中だけの非公開のインスタンスで起動し、往復の試験を流してから終了します。VRChatのアカウントは、このPCでサインイン済みのものです。
+
+`--vrchat-voice`だけは、試験専用のPipeWireグラフではなく、このPCの実際の音声経路を使います。`tools/vrchat_voice_host.py`が次の準備をして、終わったら元へ戻します。
+
+- VRChatの再生だけが入る出力先（`vrct.native.replay`）を作り、VRChatの再生をそこへ移す。VRChatのマイクは、管理対象の仮想マイクのまま
+- 管理対象の経路をミュートにする
+- VRChatのメニューを専用のydotooldで操作し、「オーディオと声」のマイクテストを開く。試験の間だけ「ノイズを抑制」をオフにする（合成音声の一部を削るため）
+
+メニューの操作は位置で行い、手順ごとに画面を見本画像と照合する方式です。合わないときは、見えた画面を保存して止まります。VRChatの版や表示言語が変わったら、`python tools/vrchat_voice_host.py calibrate`で見本を撮り直してください。
+
+ストリームを移すと、WirePlumberはVRChatの出力先を覚えます。復元ではそれを消し、VRChatが既定の出力に従う状態へ戻します。試験が途中で止まったときは、`python tools/vrchat_voice_host.py restore`を実行してください。
+
+実行した試験と実行しなかった試験を、リリースノートの「既知の制限」に書いてください。
 
 操作できなかった部品があるときは、試験の出力先の`blocked-<操作>.json`を見てください。何が覆っていたかと、開いていたダイアログを記録してあります。
 
