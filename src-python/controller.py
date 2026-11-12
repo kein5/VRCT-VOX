@@ -2275,7 +2275,13 @@ class Controller:
 
         if feature_enabled:
             def send_osc():
-                if spec.osc_send_gate_attr is None or not getattr(config, spec.osc_send_gate_attr):
+                if spec.osc_send_gate_attr is None:
+                    return
+                if not getattr(config, spec.osc_send_gate_attr):
+                    # The user's own message stayed out of the chatbox by their setting.
+                    # The row says so: "sent" alone would read as "it went to VRChat".
+                    if spec.osc_format_type == "SEND":
+                        payload["delivery_reason"] = "vrchat_off"
                     return
                 original = "" if snapshot.send_only_translated and snapshot.translation_enabled else message
                 formatted = self.messageFormatter(spec.osc_format_type, translation, original, snapshot.format_parts)

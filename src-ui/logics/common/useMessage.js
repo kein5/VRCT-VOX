@@ -162,6 +162,10 @@ const generateTimeData = () => {
     );
 };
 
+// Why a message of the user's own stayed out of the chatbox although nothing failed
+// ("vrchat_off": sending to VRChat is switched off). Absent on every other row.
+const deliveryReason = data => typeof data?.delivery_reason === "string" ? { delivery_reason: data.delivery_reason } : {};
+
 const generateMessageObject = (data, category, status = "ok") => {
     return {
         id: data.id ?? crypto.randomUUID(),
@@ -169,6 +173,7 @@ const generateMessageObject = (data, category, status = "ok") => {
         category: category,
         status: status,
         source: data.source,
+        ...deliveryReason(data),
         messages: {
             original: data.original,
             translations: data.translations ?? [],
@@ -185,6 +190,7 @@ const updateItemById = (id, updated_data) => (current_items) => {
             return {
                 ...item,
                 status: "ok",
+                ...deliveryReason(updated_data),
                 messages: {
                     ...item.messages,
                     original: updated_data.original ?? item.messages.original,

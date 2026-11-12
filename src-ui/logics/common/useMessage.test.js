@@ -376,3 +376,20 @@ test("history follows row identity through appended rows and partial eviction, t
     input.key("ArrowDown");
     assert.equal(input.input(), "edited history becomes a draft");
 });
+
+test("a message kept out of the chatbox by the setting keeps that reason on its row, typed or spoken", async () => {
+    const subject = await setup();
+    await subject.message.sendMessage("Typed", "typed");
+    subject.receive(200, { id: "typed", original: { message: "Typed", transliteration: [] }, translations: [], delivery_reason: "vrchat_off" });
+    await subject.message.sendMessage("Reached VRChat", "sent");
+    subject.receive(200, { id: "sent", original: { message: "Reached VRChat", transliteration: [] }, translations: [] });
+    subject.receiveRoutes({ endpoint: "/run/transcription_send_mic_message", status: 200,
+        result: { original: { message: "Spoken", transliteration: [] }, translations: [], delivery_reason: "vrchat_off" } });
+    subject.receiveRoutes({ endpoint: "/run/transcription_receive_speaker_message", status: 200,
+        result: { original: { message: "Heard", transliteration: [] }, translations: [] } });
+    assert.deepEqual(subject.rows().map(row => [row.messages.original.message, row.status, row.delivery_reason, "delivery_reason" in row]), [
+        ["Typed", "ok", "vrchat_off", true], ["Reached VRChat", "ok", undefined, false],
+        ["Spoken", "ok", "vrchat_off", true], ["Heard", "ok", undefined, false]]);
+    const mirrored = decodeLogUpdate(null, encodeLogUpdate(null, { state: "ok", data: subject.rows() }).message);
+    assert.deepEqual(mirrored.rows, subject.rows(), "the VR panel shows the same reason");
+});

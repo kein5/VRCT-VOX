@@ -266,3 +266,13 @@ def test_ui_output_failure_keeps_other_outputs_and_only_settles_a_shown_row(app,
     app.m.logger.info.assert_called_once()
     assert [p["state"] for p in shown] == (["translated", "outcome"] if recover else [])
     assert sum(p["state"] == "outcome" for p in captions(app)) == int(recover)
+
+
+def test_a_spoken_message_kept_out_of_the_chatbox_by_the_setting_says_so(app):
+    app.cfg.SEND_MESSAGE_TO_VRC = False
+    session, delivery = start(app)
+    session.emit("recognized")
+    wait_for_finals(session, delivery)
+    assert_outcome(app, "recognized", "delivered", "vrchat_off")
+    app.m.oscSendMessage.assert_not_called()
+    app.m.websocketSendMessage.assert_called_once()

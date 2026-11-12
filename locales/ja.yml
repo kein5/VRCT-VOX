@@ -304,6 +304,7 @@ main_page:
         region_label: "会話ログ"
         all: "全て"
         sent: "送信"
+        sent_vrchat_off: "VRChatには未送信（設定でオフ）"
         sending: "送信中…"
         send_unconfirmed: "送信を確認できません"
         not_sent: "送信しませんでした"
