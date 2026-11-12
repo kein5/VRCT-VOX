@@ -179,6 +179,7 @@ test("settings keep the selected engine and Google notice inside the radio row's
         "../../../../../../logics/common/endpointPrivacy": endpointPrivacy,
         "../_templates/Templates": { RadioButtonContainer: "radio-options" }, "../_components": {},
         "../_components/compute_device/ComputeDevice": {}, "../_components/description/Description": {},
+        "../_components/setup_section/SetupSection": {},
         "../_components/download_models/LegacyModelDownloadDialog": {}, "../shared_items/SharedItems": {},
     });
     s.transcription.currentSelectedTranscriptionEngine = { data: "Google", state: "ok" };

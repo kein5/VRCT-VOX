@@ -606,6 +606,10 @@ config_page:
         section_label_mic: "マイク"
         section_label_speaker: "スピーカー"
         section_label_transcription_engines: "音声認識エンジン"
+        timing_title: "区切りと待機の調整"
+        timing_status: "無音{{silence}}秒で区切る · {{length}}秒ごとに処理 · 待機は{{queue}}件まで"
+        thresholds_title: "認識のしきい値"
+        thresholds_status: "マイク {{mic}} · スピーカー {{speaker}}"
         mic_record_timeout:
             label: "入力が終了したとみなす無音時間"
             desc: "無音を検出し、設定された秒数経過すると、音声入力が終了したとみなします。"
@@ -791,6 +795,8 @@ config_page:
     vrchat:
         section_label_chatbox: "チャットボックスへの送信"
         section_label_tts_output: "読み上げの出力先"
+        chat_reading_moved: "VRChatのチャットを読み取る設定は、「チャット読み取り」のページにあります。"
+        open_chat_reading: "「チャット読み取り」の設定を開く"
 
     ocr:
         section_title: "VRChatチャット読み取り"
