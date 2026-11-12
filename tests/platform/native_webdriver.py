@@ -95,14 +95,14 @@ class NativeWebDriver:
         # Plain text typed into a field (no WebDriver key such as Tab or Enter)
         # must arrive whole; see _complete_typed.
         text = (data or {}).get("text") if action == "value" else None
-        plain = bool(text) and not any('\ue000' <= c <= '\uf8ff' for c in text) and not text.isascii()
+        plain = bool(text) and not any('\ue000' <= c <= '\uf8ff' for c in text)
         before = self.evaluate("return typeof arguments[0].value === 'string' ? arguments[0].value : null", element) if plain else None
         deadline = time.monotonic() + 5
         while True:
             try:
                 result = self.command("POST", f"/element/{element[key]}/{action}", data or {})
                 if before is not None:
-                    self._complete_typed(element, before + text)
+                    self._complete_typed(element, before + text, strict=False)
                 return result
             except AssertionError as error:
                 if action not in ("click", "clear", "value") or not any(code in str(error) for code in ('"element click intercepted"', '"element not interactable"')) or time.monotonic() >= deadline:
@@ -162,13 +162,15 @@ class NativeWebDriver:
         except Exception:
             pass  # the original WebDriver error is the one to report
 
-    def _complete_typed(self, element, expected):
-        """Finish a text entry the native driver delivered only in part.
+    def _complete_typed(self, element, expected, strict=True):
+        """Finish a text entry the native driver delivered wrongly.
 
-        WebKitWebDriver types through the desktop keymap and silently drops
+        WebKitWebDriver types through the desktop keymap. It silently drops
         characters that have no key there (Japanese on a US layout: only the
-        ASCII part arrives). Give React the whole value the way it hears any
-        other input.
+        ASCII part arrives), and on some sessions it loses Shift, so a path
+        such as "Model-Q8_0.gguf" arrives as "model-q8-0.gguf". Give React the
+        whole value the way it hears any other input. A field that rewrites
+        its input on purpose keeps its own value unless `strict`.
         """
         if self.evaluate("return arguments[0].value", element) == expected:
             return
@@ -176,20 +178,35 @@ class NativeWebDriver:
                       " const proto = e.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;"
                       " Object.getOwnPropertyDescriptor(proto, 'value').set.call(e, arguments[1]);"
                       " e.dispatchEvent(new Event('input', {bubbles: true})); return true;", element, expected)
-        assert self.evaluate("return arguments[0].value", element) == expected, "the text did not reach the field"
+        assert not strict or self.evaluate("return arguments[0].value", element) == expected, "the text did not reach the field"
 
     def select(self, label, value):
         option = self.evaluate("return [...arguments[0].options].find(e => e.value === arguments[1]);", self.control(label), value)
         self.element_command(option, "click")
 
     def set_switch(self, label, on=True):
-        """Set a main-page switch as a user does: press it, then wait for the reported state."""
+        """Set a main-page switch as a user does: press it, then wait for the reported state.
+
+        The engine declines a press made on a state that has just changed
+        (tts_state_changed, right after a mute or a route change). The switch
+        then stays where it was, and a user presses it again.
+        """
         find = f"[...document.querySelectorAll('[role=switch]')].find(e => e.getAttribute('aria-label') === {json.dumps(label)})"
         want = "true" if on else "false"
         self.wait(f"const e = {find}; return !!e && !e.disabled && e.getAttribute('aria-disabled') !== 'true';")
-        if self.evaluate(f"return {find}.getAttribute('aria-checked')") != want:
-            self.element_command(self.evaluate(f"return {find}"), "click")
-        self.wait(f"return {find}.getAttribute('aria-checked') === '{want}'")
+        deadline = time.monotonic() + 20
+        while True:
+            state = self.evaluate(f"const e = {find}; return [e.getAttribute('aria-checked'), e.getAttribute('aria-busy')]")
+            if state[0] == want and state[1] != "true":
+                return
+            if state[1] != "true":
+                self.element_command(self.evaluate(f"return {find}"), "click")
+            settle = time.monotonic() + 3
+            while time.monotonic() < settle:
+                if self.evaluate(f"return {find}.getAttribute('aria-checked')") == want:
+                    break
+                time.sleep(.1)
+            assert time.monotonic() < deadline, f"the {label} switch did not turn {'on' if on else 'off'}; see {self.output}"
 
     def open_voice_page(self, tab, selector):
         self.wait("return innerWidth >= 500 && innerHeight >= 300")

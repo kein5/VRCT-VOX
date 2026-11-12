@@ -32,9 +32,7 @@ Windowsのsetupは、下書きへまとめる際に`VRCT-VOX_setup.exe`へコピ
 
 ## 公開前にLinuxのデスクトップで確かめる
 
-候補のビルドは、AppImageの起動、描画、設定画面の操作までを自動で確かめます。音声経路を使う試験は、PipeWireとWirePlumber 0.5が要るので、CIでは実行しません。CIに含まれない試験は、画面を変えたあとに気づかないまま古くなります。0.1.0-beta.6では、公開の直前に補助コードが今の画面と合っていないことが分かり、一部を確かめないまま公開しました。公開の前に、下書きのAppImageをLinuxのデスクトップで実行してください。
-
-試験は実際のアプリを画面に開きます。音声は試験専用のPipeWireグラフを使うので、実際のマイクやスピーカーには触れません。画面が消えると描画が止まるため、`tools/display_power_guard.py`の下で実行します。`tauri-driver` 2.1.0の場所は`VRCT_TEST_DRIVER`で指定します。
+候補のビルドは、AppImageの起動、描画、設定画面の操作までを自動で確かめます。音声経路、音声認識、VRChatを使う試験は、PipeWireとWirePlumber 0.5、モデル、GPU、VRChatが要るので、CIでは実行しません。CIに含まれない試験は、画面を変えたあとに気づかないまま古くなります。0.1.0-beta.6では、公開の直前に補助コードが今の画面と合っていないことが分かり、一部を確かめないまま公開しました。その後に流し直すと、設定画面で音声認識サーバーを止めても、閉じると再開する不具合が見つかっています。公開の前に、下書きのAppImageをLinuxのデスクトップで実行してください。
 
 ```bash
 # 下書きのAppImageを取得し、SHA-256を確かめる
@@ -43,26 +41,34 @@ gh release download v<version> -R kein5/VRCT-VOX -p '*.AppImage' -p 'SHA256SUMS-
 sha256sum -c --ignore-missing SHA256SUMS-linux
 cd <リポジトリ>
 
-# AppImageの受け入れ（FUSEと展開の両方式）
-VRCT_TEST_APPIMAGE=<AppImageの絶対パス> VRCT_TEST_APPIMAGE_FUSE=1 \
-VRCT_TEST_NATIVE_GUI=1 VRCT_TEST_NATIVE_ROUTE=1 \
-python3 tools/display_power_guard.py -- .venv_linux/bin/python -m pytest \
-  -c tests/voice/pytest.ini tests/platform/test_appimage.py -q
+# モデルの要らない試験だけ
+python tools/native_acceptance.py --appimage <AppImageの絶対パス>
 
-# 読み上げ、直接入力、TTSの独立動作、バックエンドの起動
-cp <AppImageの絶対パス> /tmp/vrct-vox-candidate.AppImage && chmod +x /tmp/vrct-vox-candidate.AppImage
-VRCT_TEST_APP=/tmp/vrct-vox-candidate.AppImage VRCT_TEST_APPIMAGE=1 APPIMAGE_EXTRACT_AND_RUN=1 \
-VRCT_TEST_NATIVE_GUI=1 VRCT_TEST_NATIVE_ROUTE=1 VRCT_TEST_NATIVE=1 \
-VRCT_TEST_NATIVE_TTS_INDEPENDENCE=1 VRCT_TEST_NATIVE_DIRECT=1 VRCT_TEST_NATIVE_VOICE=1 \
-python3 tools/display_power_guard.py -- .venv_linux/bin/python -m pytest \
-  -c tests/voice/pytest.ini tests/platform/test_native_ui.py tests/platform/test_native_tts_independence.py \
-  tests/platform/test_native_direct_voice.py tests/platform/test_native_voice.py \
-  tests/platform/test_native_backend.py -q
+# 音声認識、読み上げ、VRChatの往復、モデルの取得も含める
+python tools/native_acceptance.py --appimage <AppImageの絶対パス> --fetch-models --vrchat --downloads
+
+# VR UI（開発ビルドだけ）
+python tools/native_acceptance.py --app src-tauri/target/debug/vrct-vox --only vr-ui
 ```
 
-`test_native_voice.py`は、読み上げが仮想マイクへちょうど1回届くこと、停止とミュートが0.5秒以内に効くこと、音声サーバーが落ちたあとの復帰を確かめる試験です。操作できなかった部品があるときは、試験の出力先の`blocked-<操作>.json`を見てください。何が覆っていたかと、開いていたダイアログを記録してあります。
+`tools/native_acceptance.py`は、試験のグループごとにpytestを起動し、成功、失敗、スキップの件数を表示します。結果は`build/native-acceptance/summary.json`、各グループのログは同じフォルダーの`<グループ>/pytest.log`です。試験は実際のアプリを画面に開きます。音声は試験専用のPipeWireグラフを通すため、実際のマイクやスピーカーには触れません。`tauri-driver` 2.1.0の場所は`--driver`か`VRCT_TEST_DRIVER`で指定します。
 
-VR UIの試験（`test_native_vr_ui.py`）は、偽のSteamVRをPythonのモジュールとして差し込む仕組みです。凍結済みのバックエンドでは働かないので、AppImageではなく開発ビルドを`VRCT_TEST_APP`に指定して実行します。モデルやGPU、実際のVRChatが要る試験は、ここには含めていません。実行した試験と実行しなかった試験を、リリースノートの「既知の制限」に書いてください。
+| グループ | 確かめること | 要るもの |
+|---|---|---|
+| `appimage` | FUSEと展開の両方式での起動、描画、終了、設定画面の操作、再起動後のミュート | AppImage |
+| `ui` | 基本画面と設定画面（表示倍率100%と150%） | なし |
+| `voice` | 読み上げが仮想マイクへちょうど1回届くこと、停止とミュート、直接入力、TTSの独立動作、バックエンドの起動 | なし（固定の音声） |
+| `tts-model` | 低遅延の待機、遅延の計測 | Irodori、GPU |
+| `asr` | リアルタイム字幕、内蔵の音声サーバー、音声翻訳 | Qwen3-ASR、Silero VAD、Qwen3-TTS、GPU |
+| `downloads` | 同意の画面、実際の取得（約336 MB）、SHA-256、適用、再起動後の保持 | `--downloads` |
+| `vrchat` | アプリで入力した文が実際のVRChatの吹き出しに出て、チャット読み取りで読み戻せること | `--vrchat`、OCRのモデル |
+| `vr-ui` | VR UIの表示と操作（偽のSteamVR） | 開発ビルド |
+
+モデルは、製品のカタログ（`src-python/models/model_downloads/catalog.py`）に載っているものだけです。`--fetch-models`を付けたときだけ、足りないモデルを製品と同じダウンローダーで`~/.cache/vrct-vox-acceptance`へ取得し、容量とSHA-256を照合します。取得する量は、全部で約3.3 GBです。付けなければ何も取得せず、モデルが足りないグループは、足りないものの名前を示してスキップします。音声認識の試験が聞く音声は、製品のTTSで合成するので、人の録音は要りません。
+
+`--vrchat`は、チャットボックスのラボのVRChatを2つ、このPCの中だけの非公開のインスタンスで起動し、往復の試験を流してから終了します。VRChatには、このPCでサインイン済みのアカウントを使います。実際の音声経路を書き換える`test_native_chatbox.py`と`test_native_vrchat.py`は、このコマンドでは実行しません。RVCやSeed-VCの実行環境が要る試験も含めていません。実行した試験と実行しなかった試験を、リリースノートの「既知の制限」に書いてください。
+
+操作できなかった部品があるときは、試験の出力先の`blocked-<操作>.json`を見てください。何が覆っていたかと、開いていたダイアログを記録してあります。
 
 ## WindowsのWebView2とインストール時の通信
 
