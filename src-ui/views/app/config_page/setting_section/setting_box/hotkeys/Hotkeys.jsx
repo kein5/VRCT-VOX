@@ -14,6 +14,26 @@ export const Hotkeys = () => {
             <p className={styles.disabled_notice}>{t("config_page.hotkeys.disabled_notice")}</p>
             <QuickChatHotkeyContainer />
             <ToggleHotkeysContainer />
+            <VoiceHotkeysContainer />
+        </div>
+    );
+};
+
+// Stop and mute first: they are the ones a conversation cannot wait for.
+const VoiceHotkeysContainer = () => {
+    const { t } = useI18n();
+    const { currentHotkeys, setHotkeys } = useHotkeys();
+    const rows = [
+        ["stop_voice", t("config_page.hotkeys.stop_voice.label")],
+        ["toggle_voice_mute", t("config_page.hotkeys.toggle_voice_mute.label")],
+        ["toggle_tts", t("config_page.hotkeys.toggle_voice_switch.label", { name: "TTS" })],
+        ["toggle_rvc", t("config_page.hotkeys.toggle_voice_switch.label", { name: "RVC" })],
+    ];
+    return (
+        <div className={styles.container}>
+            <SectionLabelComponent label={t("config_page.hotkeys.section_label_voice")} />
+            {rows.map(([hotkey_id, label]) => <HotkeysEntryContainer key={hotkey_id} label={label} hotkey_id={hotkey_id}
+                value={currentHotkeys.data} state={currentHotkeys.state} setHotkeys={setHotkeys} />)}
         </div>
     );
 };

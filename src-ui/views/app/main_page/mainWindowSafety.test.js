@@ -4,6 +4,7 @@ import { hooks, loadModule, find } from "../../../logics/test/hookHarness.js";
 import { loadBridgeStore } from "../../../logics/test/bridgeHarness.js";
 import { chunkArray } from "../../../logics/utils.js";
 import * as routeState from "../../../logics/voice/routeState.js";
+import { voiceActions } from "../../../logics/voice/voiceActions.js";
 
 const icon = () => null;
 const keydown = (control, key, repeat = false) => {
@@ -22,6 +23,7 @@ const loadSwitches = async (b, voice = {}) => {
         "@logics_common": { useIsBackendReady: b.stores.useStore_IsBackendReady },
         "../../../../../logics/common/useNotificationStatus": { useNotificationStatus: () => ({ showNotification_Error() {} }) },
         "../../../../../logics/voice/useVoice": { useVoice: () => voice },
+        "../../../../../logics/voice/voiceActions.js": { voiceActions },
         "../../../../../logics/voice/routeState": routeState,
         "@logics_main": { ...main, useIsMainPageCompactMode: () => ({ currentIsMainPageCompactMode: { data: false } }) },
         "../../../../common_components/toggle_switch/ToggleSwitch": { ToggleSwitch: icon },
@@ -72,6 +74,27 @@ test("TTS and RVC ignore held keys but allow a fresh press to cancel their pendi
         keydown(control, "Enter");
         assert.equal(sent.at(-1), id === "tts" ? "/run/disable_tts" : "/run/stop_direct_voice");
     }
+});
+
+test("the TTS and RVC hotkeys press the switches with the state of the moment", async () => {
+    const b = await loadBridgeStore(), sent = [];
+    b.stores.store.backend_subprocess = {};
+    b.runtime.store.set(b.stores.Atom_IsBackendReady, { data: true, state: "ok" });
+    const voice = { status: { tts_generation: 4 }, directState: {}, send: (...args) => sent.push(args) };
+    const s = await loadSwitches(b, voice);
+    b.runtime.render(s.MainFunctionSwitch);
+    voiceActions.toggleTts();
+    assert.deepEqual(sent.at(-1), ["/run/enable_tts", { generation: 4 }]);
+    // The shortcut was registered before TTS came on; pressing it now turns TTS off.
+    voice.status = { tts_generation: 5, tts_enabled: true };
+    b.runtime.render(s.MainFunctionSwitch);
+    voiceActions.toggleTts();
+    assert.deepEqual(sent.at(-1), ["/run/disable_tts"]);
+    voice.directOwner = "rvc";
+    voice.directState = { observation_id: "one", requested: true };
+    b.runtime.render(s.MainFunctionSwitch);
+    voiceActions.toggleRvc();
+    assert.deepEqual(sent.at(-1), ["/run/stop_direct_voice"]);
 });
 
 test("disconnected main switches hide retained activity and reject clicks, keys and stale handlers", async () => {

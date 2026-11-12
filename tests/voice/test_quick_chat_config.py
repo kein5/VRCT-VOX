@@ -12,7 +12,9 @@ def test_legacy_hotkeys_survive_quick_chat_upgrade(tmp_path):
     Path(cfg._PATH_CONFIG).write_text(json.dumps({'HOTKEYS': legacy}))
     try:
         cfg.load_config()
-        assert cfg.HOTKEYS == dict(legacy, open_quick_chat=None)
+        # Keys an older version saved are kept; actions added since start unassigned.
+        assert cfg.HOTKEYS == dict(legacy, open_quick_chat=None, stop_voice=None, toggle_voice_mute=None,
+                                   toggle_tts=None, toggle_rvc=None)
         cfg.HOTKEYS = dict(cfg.HOTKEYS, open_quick_chat=['Ctrl', 'Alt', 'J'])
         cfg.saveConfigToFile()
         assert json.loads(Path(cfg._PATH_CONFIG).read_text())['HOTKEYS']['open_quick_chat'] == ['Ctrl', 'Alt', 'J']

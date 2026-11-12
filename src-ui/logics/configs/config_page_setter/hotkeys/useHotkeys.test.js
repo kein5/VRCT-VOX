@@ -37,6 +37,7 @@ async function setup() {
         export const useI18n = () => ({ t: key => key, i18n: { exists: () => true } });
         export const useMainFunction = () => ({ toggleTranslation: () => state.actions.push('translation'),
             toggleTranscriptionSend: () => state.actions.push('send'), toggleTranscriptionReceive: () => state.actions.push('receive') });
+        export const voiceActions = Object.fromEntries(['stop', 'toggleMute', 'toggleTts', 'toggleRvc'].map(name => [name, () => state.actions.push(name)]));
         export const invoke = async (command, args) => {
             state.calls.push([command, args]);
             if (command === 'quick_chat_shortcut_platform') return state.platformGate ?? 'wayland';
@@ -416,4 +417,20 @@ test("elsewhere the visibility hotkey asks the window whether it is minimized", 
     await flush();
     assert.deepEqual(state.actions, ["minimize", "unminimize", "set-focus", "focus-input"]);
     assert.ok(!state.calls.some(([command]) => command === "main_window_restore"));
+});
+
+test("the voice hotkeys press the controls the main window published", async () => {
+    const subject = await setup();
+    const { state } = subject;
+    state.hotkeys = { stop_voice: ["Ctrl", "1"], toggle_voice_mute: ["Ctrl", "2"], toggle_tts: ["Ctrl", "3"], toggle_rvc: ["Ctrl", "4"] };
+    const hook = await subject.load();
+    await hook.registerShortcuts();
+    await flush();
+    assert.deepEqual(Object.keys(state.calls.find(([command]) => command === "portal_shortcuts_bind")[1].shortcuts),
+        ["stop_voice", "toggle_voice_mute", "toggle_tts", "toggle_rvc"]);
+    for (const id of ["stop_voice", "toggle_voice_mute", "toggle_tts", "toggle_rvc"]) {
+        for (const callback of state.handlers) callback({ payload: { id } });
+        await flush();
+    }
+    assert.deepEqual(state.actions, ["stop", "toggleMute", "toggleTts", "toggleRvc"]);
 });

@@ -278,6 +278,10 @@ export const { atomInstance: Atom_Hotkeys, useHook: useStore_Hotkeys } = createA
     toggle_translation: null,
     toggle_transcription_send: null,
     toggle_transcription_receive: null,
+    stop_voice: null,
+    toggle_voice_mute: null,
+    toggle_tts: null,
+    toggle_rvc: null,
 }, "Hotkeys");
 
 

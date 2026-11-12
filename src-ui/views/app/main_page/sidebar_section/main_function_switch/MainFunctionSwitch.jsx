@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useVoice, sourceKey } from "../../../../../logics/voice/useVoice";
 import { directRouteReady, usesOutputDevice } from "../../../../../logics/voice/routeState";
 import { useNotificationStatus } from "../../../../../logics/common/useNotificationStatus";
+import { voiceActions } from "../../../../../logics/voice/voiceActions.js";
 import { useI18n } from "@useI18n";
 import { useIsBackendReady } from "@logics_common";
 import { store } from "@store";
@@ -73,6 +74,8 @@ export const MainFunctionSwitch = () => {
             pitch: cfg.rvc_pitch, index_rate: cfg.rvc_index_rate,
         } });
     };
+    // Hotkeys press the same switches, with today's state (logics/voice/voiceActions.js).
+    useEffect(() => { voiceActions.toggleTts = toggleTts; voiceActions.toggleRvc = toggleRvc; });
     const switch_items = [
         {
             switch_id: "translation",
