@@ -5,7 +5,7 @@ import styles from "./MessageContainer.module.scss";
 import { MessageSubMenuContainer } from "./message_sub_menu_container/MessageSubMenuContainer";
 import { store } from "@store";
 
-export const MessageContainer = memo(function MessageContainer({ id, messages, status, category, created_at, source, realtime,
+export const MessageContainer = memo(function MessageContainer({ id, messages, status, category, created_at, source, realtime, delivery_reason,
     sendMessage, updateMessageInputValue, showResendButton }) {
     const { t } = useI18n();
     const [is_hovered, setIsHovered] = useState(false);
@@ -42,6 +42,8 @@ export const MessageContainer = memo(function MessageContainer({ id, messages, s
     const is_system_message = category === "system";
     const is_ocr_message = source === "ocr";
     const is_realtime = source === "realtime_mic" || source === "realtime_speaker";
+    // The message reached the log and the other outputs, but the chatbox is switched off.
+    const is_vrchat_off = is_sent_message && status === "ok" && (realtime?.reason ?? delivery_reason) === "vrchat_off";
     const not_sent_key = ["expired", "revoked", "superseded", "filtered"].includes(realtime?.reason)
         ? `not_sent_${realtime.reason}` : "not_sent";
     const category_text = is_realtime && is_not_sent
@@ -51,7 +53,7 @@ export const MessageContainer = memo(function MessageContainer({ id, messages, s
         : is_realtime && is_pending && !is_sent_message
         ? t("main_page.message_log.processing")
         : is_sent_message
-        ? t(`main_page.message_log.${is_failed ? "send_unconfirmed" : is_pending ? "sending" : "sent"}`)
+        ? t(`main_page.message_log.${is_failed ? "send_unconfirmed" : is_pending ? "sending" : is_vrchat_off ? "sent_vrchat_off" : "sent"}`)
         : is_system_message
         ? t("main_page.message_log.system")
         : is_ocr_message
@@ -76,7 +78,7 @@ export const MessageContainer = memo(function MessageContainer({ id, messages, s
                     <p className={styles.time}>{created_at}</p>
                     <p className={clsx(styles.category, message_type_class_name, {
                         [styles.ocr_category]: is_ocr_message, [styles.failed]: is_failed,
-                        [styles.not_sent]: is_not_sent,
+                        [styles.not_sent]: is_not_sent, [styles.vrchat_off]: is_vrchat_off,
                     })}>{category_text}</p>
                     {/* The VR atlas needs static pixels while a send is pending. Its label above shows the state. */}
                     {(is_sent_message || is_realtime) && is_pending && !store.is_vr_panel && <span className={styles.loader} aria-hidden="true"></span>}

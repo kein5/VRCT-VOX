@@ -77,6 +77,10 @@
     &.not_sent {
         color: var(--vox_state_warning);
     }
+    // The user's own setting, not a fault: quieter than a sent row, no warning colour.
+    &.vrchat_off {
+        color: var(--vox_description_text);
+    }
 }
 
 .message_box {

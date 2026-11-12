@@ -304,6 +304,7 @@ main_page:
         region_label: "Message log"
         all: "All"
         sent: "Sent"
+        sent_vrchat_off: "Not sent to VRChat (off in settings)"
         sending: "Sending…"
         send_unconfirmed: "Send unconfirmed"
         not_sent: "Not sent"

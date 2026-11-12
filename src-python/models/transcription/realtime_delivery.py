@@ -137,6 +137,9 @@ class RealtimeDelivery:
             del self._pending[update.item_id]
         deadline, publish, admitted, shown = pending.deadline, pending.publish, pending.admitted, pending.shown
         invalid = self._reason(update, deadline, admitted)
+        # Not a failure: the chatbox is switched off, and the row says so even
+        # when the other outputs went out.
+        chatbox_off = outcome == "delivered" and reason == "vrchat_off"
         if invalid:
             outcome, reason, result = "not_delivered", invalid, None
         try:
@@ -153,7 +156,7 @@ class RealtimeDelivery:
                 outcome, reason = "not_delivered", invalid
             if pending.committed:
                 # Later expiry/failure cannot undo an output that already left.
-                outcome, reason = "delivered", None
+                outcome, reason = "delivered", "vrchat_off" if chatbox_off else None
             if shown:
                 publish(dict(source=update.source, namespace=update.namespace,
                              item_id=update.item_id, revision=update.revision + 2,

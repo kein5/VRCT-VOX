@@ -479,3 +479,28 @@ def test_skipped_transport_send_does_not_claim_delivery_or_advance_watermark(sub
     publish = Mock(return_value=True)
     assert subject.m.chatbox_order.send(older, publish, lambda: True) is True
     publish.assert_called_once()
+
+
+def test_own_messages_kept_out_of_the_chatbox_by_the_setting_say_so(subject):
+    subject.m.translator.translate.return_value = 'translated'
+    subject.cfg.SEND_MESSAGE_TO_VRC = False
+    typed = subject.c.chatMessage({'id': 'typed', 'message': 'hello'})
+    assert typed['status'] == 200 and typed['result']['delivery_reason'] == 'vrchat_off'
+    subject.c.micMessage({'text': 'spoken', 'language': 'English'})
+    spoken = subject.c.run.call_args.args
+    assert spoken[:2] == (200, subject.c.run_mapping['transcription_mic'])
+    assert spoken[2]['delivery_reason'] == 'vrchat_off'
+    subject.m.oscSendMessage.assert_not_called()
+    assert not notices(subject)
+
+
+def test_messages_sent_to_the_chatbox_and_messages_from_others_carry_no_reason(subject):
+    subject.m.translator.translate.return_value = 'translated'
+    assert 'delivery_reason' not in subject.c.chatMessage({'id': 'typed', 'message': 'hello'})['result']
+    subject.m.oscSendMessage.assert_called_once()
+    # Someone else's speech is never "sent"; its own switch being off is the normal case.
+    subject.cfg.SEND_RECEIVED_MESSAGE_TO_VRC = False
+    subject.c.speakerMessage({'text': 'heard', 'language': 'English'})
+    heard = subject.c.run.call_args.args
+    assert heard[1] == subject.c.run_mapping['transcription_speaker']
+    assert 'delivery_reason' not in heard[2]
