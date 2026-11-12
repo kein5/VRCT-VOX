@@ -38,6 +38,15 @@ OSC_HTTP_REQUEST_TIMEOUT_SECONDS = 2.0
 LOOPBACK = "127.0.0.1"
 
 
+def usesOscQuery(ip_address) -> bool:
+    """OSCQuery (receiving and advertising) runs only when VRChat is on this PC.
+
+    A destination on another machine, such as a standalone headset, is a choice
+    the user made in settings, not a failure.
+    """
+    return ip_address in (LOOPBACK, "localhost")
+
+
 class ImmediateDispatcher(dispatcher.Dispatcher):
     """VRChat state packets are applied on receipt, including bundle contents."""
 
@@ -360,7 +369,7 @@ class OSCHandler:
     def _startLocked(self, ip_address):
         if self._shutdown:
             raise RuntimeError("OSC is shut down")
-        if ip_address not in (LOOPBACK, "localhost"):
+        if not usesOscQuery(ip_address):
             return
         if OSCQueryService is None or OSCQueryBrowser is None:
             raise RuntimeError("OSCQuery is unavailable")

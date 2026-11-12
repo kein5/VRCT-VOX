@@ -23,6 +23,7 @@ from models.translation.translation_providers import TRANSLATION_PROVIDER_REGIST
 from models.translation.translation_utils import ctranslate2_weights, isNonCommercialCTranslate2Weight, MissingCTranslate2Tokenizer
 from models.legacy_model_consent import legacyModelCatalog, recordLegacyConsent, consentedLegacyRequest
 from models.legacy_model_downloads import LegacyDownloads
+from models.osc.osc import usesOscQuery
 from uuid import uuid4
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
 from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
@@ -6251,13 +6252,18 @@ class Controller:
             "disabled_functions": disabled_functions
         })
 
-    def _publishOscQueryReadiness(self):
+    def _publishOscQueryReadiness(self, *, startup: bool = False):
         # A cancelled background startup must not rewrite saved user intent.
         if getattr(model, "_osc_shutdown", False) is True:
             return
         if model.getIsOscQueryEnabled() is True:
             self.enableOscQuery()
             return
+        # 起動しただけで、何も止めておらず、送信先が別のマシン (設定で選んだ状態) なら、知らせない。
+        # 単体のヘッドセットへ送っている人には、毎回の起動で同じ警告が 10 秒出ていた。同期の欄には
+        # 使えない理由が出ているし、同期をオンにしようとすれば VRC_MIC_MUTE_SYNC_OSC_DISABLED で断る。
+        # 同期を止めたとき、設定を変えた直後、この PC 宛てなのに準備に失敗したときは、これまでどおり知らせる。
+        notify = True
         try:
             with self._audioLock("mic"):
                 if config.VRC_MIC_MUTE_SYNC is True:
@@ -6270,8 +6276,10 @@ class Controller:
                     config.VRC_MIC_MUTE_SYNC = False
                     model.invalidateMuteSelfStatus()
                     self.run(200, "/set/disable/vrc_mic_mute_sync", False)
+                elif startup and not usesOscQuery(config.OSC_IP_ADDRESS):
+                    notify = False
         finally:
-            self.disableOscQuery(mute_sync_info=True)
+            self.disableOscQuery(mute_sync_info=notify)
 
     def _initVrcMicMuteSync(self) -> None:
         with self._audioLock("mic"):
@@ -6289,7 +6297,7 @@ class Controller:
             except Exception:
                 printLog("OSC: receive/advertisement setup failed")
             finally:
-                self._publishOscQueryReadiness()
+                self._publishOscQueryReadiness(startup=True)
         if model.getIsOscQueryEnabled() is True:
             self._initVrcMicMuteSync()
 
