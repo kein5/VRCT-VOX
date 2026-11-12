@@ -4,6 +4,8 @@
 
 どの試験も音声を保存しません。出力の確認は、音量の数値だけを残します。
 
+Linuxで入れた変更のうち、Windowsの実機でまだ確かめていないものは、[Windowsで未確認の変更](windows-pending-checks.md)にあります。
+
 ## 準備
 
 - `.venv`にアプリの依存を入れ、`build/speechcpp`に`speech.exe`を置きます（`npm run setup-python`）。

@@ -22,8 +22,7 @@ PAGES = {
     "device": {"ja": "デバイス", "en": "Device"},
     "translation": {"ja": "翻訳", "en": "Translation"},
     "transcription": {"ja": "音声認識", "en": "Transcription"},
-    # Chat reading is a section further down the VRChat page (SECTIONS).
-    "chat-reading": {"ja": "VRChat", "en": "VRChat"},
+    "chat-reading": {"ja": "チャット読み取り", "en": "Chat Transcribe"},
     "tts": {"ja": "TTS", "en": "TTS"},
     "rvc": {"ja": "RVC", "en": "RVC"},
     "vr": {"ja": "VR", "en": "VR"},
@@ -31,7 +30,7 @@ PAGES = {
     "advanced": {"ja": "高度な設定", "en": "Advanced"},
 }
 # File name -> the heading to bring to the top of the picture, where the page's top is another section.
-SECTIONS = {"chat-reading": {"ja": "VRChatチャット読み取り", "en": "VRChat Chat Transcribe"}}
+SECTIONS = {}
 TITLE = {"ja": "ここから会話を始めましょう", "en": "Your conversation starts here"}
 OPEN_SETTINGS = {"ja": "設定を開く", "en": "Open settings"}
 # studio-entry shows a fixture version; the documentation shows the app's own.
