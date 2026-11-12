@@ -41,13 +41,16 @@ export const useMainFunction = () => {
     const { asyncStdoutToPython } = useStdoutToPython();
 
     const createTogglePair = (pendingFn, updateFn, endpointName) => {
-        const setFn = (to_enable, disableIntent) => {
+        // intent says why, when it is not the user pressing the switch: settings
+        // pause the inputs while they are open ({ reason: "settings_pause" }) and
+        // bring them back on leaving ({ reason: "settings_resume" }).
+        const setFn = (to_enable, intent) => {
             if (!store.is_vr_panel && (!store.backend_subprocess || store.backend_stopped)) return;
             pendingFn();
             if (to_enable) {
-                asyncStdoutToPython(`/set/enable/${endpointName}`);
+                asyncStdoutToPython(`/set/enable/${endpointName}`, intent);
             } else {
-                asyncStdoutToPython(`/set/disable/${endpointName}`, disableIntent);
+                asyncStdoutToPython(`/set/disable/${endpointName}`, intent);
             }
         };
         const toggleFn = () => {

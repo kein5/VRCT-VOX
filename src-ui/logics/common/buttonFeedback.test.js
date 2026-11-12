@@ -114,9 +114,15 @@ test("Settings pauses transcription with intent and restores it; user OFF has no
     runtime.render(ConfigPageCloseTriggerController);
     assert.deepEqual(requests, [
         ["/set/enable/translation", undefined],
-        ["/set/enable/transcription_send", undefined],
-        ["/set/enable/transcription_receive", undefined],
+        // Marked as a resume: the engine declines it for an input whose bundled
+        // ASR server the user stopped while settings were open.
+        ["/set/enable/transcription_send", { reason: "settings_resume" }],
+        ["/set/enable/transcription_receive", { reason: "settings_resume" }],
     ]);
+    requests.length = 0;
+    // The user's own press on the switch carries no reason and is never declined.
+    useMainFunction().setTranscriptionSend(true);
+    assert.deepEqual(requests, [["/set/enable/transcription_send", undefined]]);
     requests.length = 0;
     useMainFunction().setTranscriptionSend(false);
     useMainFunction().setTranscriptionReceive(false);

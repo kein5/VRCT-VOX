@@ -52,8 +52,11 @@ export const ConfigPageCloseTriggerController = () => {
 
         // Then, restore them.
         if (currentMainFunctionsStateMemory.data.translation === true) setTranslation(true);
-        if (currentMainFunctionsStateMemory.data.transcription_send === true) setTranscriptionSend(true);
-        if (currentMainFunctionsStateMemory.data.transcription_receive === true) setTranscriptionReceive(true);
+        // The engine declines this resume if the user stopped the bundled ASR
+        // server while settings were open: leaving settings must not start again
+        // what they stopped. It answers "off" and the switch shows it.
+        if (currentMainFunctionsStateMemory.data.transcription_send === true) setTranscriptionSend(true, { reason: "settings_resume" });
+        if (currentMainFunctionsStateMemory.data.transcription_receive === true) setTranscriptionReceive(true, { reason: "settings_resume" });
     };
 
     useEffect(() => {

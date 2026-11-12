@@ -89,7 +89,7 @@ test("a live panel closes its own settings and restores the microphone", async c
     view.config(false);
     assert.equal(view.state.configOpen, false);
     assert.equal(view.state.mic, true);
-    assert.deepEqual(view.actions, [[false, { reason: "settings_pause" }], [true, undefined]]);
+    assert.deepEqual(view.actions, [[false, { reason: "settings_pause" }], [true, { reason: "settings_resume" }]]);
 });
 
 test("a live panel cannot close settings first opened on the desktop", async context => {
