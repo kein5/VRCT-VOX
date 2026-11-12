@@ -4,7 +4,7 @@
 # =================================
 
 runtime:
-    local_models_unavailable: "Built-in translation or transcription models are unavailable. Text chat and external voice engines remain available. To use built-in models, review their license and size and download them under Settings → Translation or Speech Recognition."
+    local_models_unavailable: "A built-in model that a selected engine needs has not been downloaded. Download it under Settings → Translation or Transcription."
 
 voice:
     direct_mode: "Direct voice mode"
@@ -212,8 +212,8 @@ backend_errors:
     TRANSLATION_DISABLED_VRAM: "Translation was turned off because GPU memory ran out."
     TRANSLATION_MODEL_MISSING: "Translation could not start because the translation model or its tokenizer files are missing. Download it in Settings > Translation, or choose another translation engine on the main screen."
     TRANSLATION_MODEL_LOAD_FAILED: "Translation could not start because the translation model could not be loaded. Download it again in Settings > Translation, or change the compute device."
-    TRANSCRIPTION_VRAM_MIC: "Not enough GPU memory to keep recognising the microphone. Choose CPU as the device under Settings → Speech Recognition, or close other GPU apps."
-    TRANSCRIPTION_VRAM_SPEAKER: "Not enough GPU memory to keep recognising the speaker. Choose CPU as the device under Settings → Speech Recognition, or close other GPU apps."
+    TRANSCRIPTION_VRAM_MIC: "Not enough GPU memory to keep recognising the microphone. Choose CPU as the device under Settings → Transcription, or close other GPU apps."
+    TRANSCRIPTION_VRAM_SPEAKER: "Not enough GPU memory to keep recognising the speaker. Choose CPU as the device under Settings → Transcription, or close other GPU apps."
     TRANSCRIPTION_SEND_DISABLED_VRAM: "Mic input was turned off because GPU memory ran out."
     TRANSCRIPTION_RECEIVE_DISABLED_VRAM: "Listening was turned off because GPU memory ran out."
     # Recognition failures shown in the message log. A _mic or _speaker key is used for that source.
