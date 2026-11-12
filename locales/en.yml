@@ -187,12 +187,12 @@ common_error:
     invalid_hex_color: "Please enter a valid HEX color code (e.g., {{brand_color_hex}})."
     invalid_config_value: "That value cannot be used. The previous setting is kept."
     ocr_engine_unavailable: "Chat Transcribe could not start: the OCR engine is not included in this build."
-    ocr_model_load_failed: "Chat Transcribe could not start: the recognition models could not be loaded. Download them again under Settings → VRChat → Chat Transcribe."
+    ocr_model_load_failed: "Chat Transcribe could not start: the recognition models could not be loaded. Download them again under Settings → Chat Transcribe."
     ocr_unsupported_language: "Chat Transcribe could not start: the selected source language is not supported."
-    ocr_model_missing: "Chat Transcribe needs recognition models. Download them under Settings → VRChat → Chat Transcribe."
+    ocr_model_missing: "Chat Transcribe needs recognition models. Download them under Settings → Chat Transcribe."
     ocr_window_not_found: "Chat Transcribe could not find the VRChat window. Start VRChat, then turn it on again."
-    ocr_window_not_found_wayland: "Chat Transcribe could not find the VRChat window. Start VRChat, then turn it on again. If VRChat runs as a native Wayland window (inside gamescope, for example), share its window first under Settings → VRChat → Chat Transcribe."
-    ocr_capture_unavailable: "Chat Transcribe cannot capture windows in this session. On Linux, VRChat has to run as an X11/XWayland window, or you share its window under Settings → VRChat → Chat Transcribe."
+    ocr_window_not_found_wayland: "Chat Transcribe could not find the VRChat window. Start VRChat, then turn it on again. If VRChat runs as a native Wayland window (inside gamescope, for example), share its window first under Settings → Chat Transcribe."
+    ocr_capture_unavailable: "Chat Transcribe cannot capture windows in this session. On Linux, VRChat has to run as an X11/XWayland window, or you share its window under Settings → Chat Transcribe."
     ocr_unknown: "Chat Transcribe could not start because of an unexpected error."
 
 
@@ -518,6 +518,9 @@ config_page:
         setup_title: "Model and device"
         setup_downloaded: "downloaded"
         setup_not_downloaded: "not downloaded"
+        provider_in_use: "in use"
+        provider_ready: "ready"
+        provider_not_set: "not set up"
         section_label_ai_translation: "AI Translation (Local)"
         section_label_external_api: "External Translation API"
         section_label_local_llm: "Local LLM & Compatible Server"
@@ -874,8 +877,8 @@ config_page:
             error_unsupported: "This desktop cannot share a window of your choice with an app."
             error_timeout: "The desktop did not answer in time. Try again."
             error_failed: "The window could not be shared ({{code}})."
-            notice_ended: "The window shared with Chat Transcribe is gone: it was closed, or sharing was stopped. To keep reading, share a window again under Settings → VRChat → Chat Transcribe."
-            notice_failed: "Sharing the window with Chat Transcribe stopped because of an error. Share a window again under Settings → VRChat → Chat Transcribe."
+            notice_ended: "The window shared with Chat Transcribe is gone: it was closed, or sharing was stopped. To keep reading, share a window again under Settings → Chat Transcribe."
+            notice_failed: "Sharing the window with Chat Transcribe stopped because of an error. Share a window again under Settings → Chat Transcribe."
 
     updater:
         install_panel:

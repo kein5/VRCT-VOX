@@ -23,11 +23,11 @@ const VALID_TABS = [
     "others",
 ];
 
-// 名前空間と実際のページが違うもの。チャット読み取りと旧「その他」の項目は
-// VRChat ページにある。
-const NAMESPACE_TAB = {
-    ocr: "vrchat",
-    others: "vrchat",
+// 名前空間と実際のページが違うもの。チャット読み取りの項目は専用のページと
+// VRChat ページの両方に、旧「その他」の項目は VRChat ページにある。
+const NAMESPACE_TABS = {
+    ocr: ["ocr", "vrchat"],
+    others: ["vrchat"],
 };
 
 // 名前空間の既定と違うページに置いた項目。複数のページに置いた項目は、
@@ -47,10 +47,11 @@ const SETTING_TABS = {
 };
 
 export const settingTabs = (namespace, key) =>
-    SETTING_TABS[`${namespace}.${key}`] ?? [NAMESPACE_TAB[namespace] ?? namespace];
+    SETTING_TABS[`${namespace}.${key}`] ?? NAMESPACE_TABS[namespace] ?? [namespace];
 
 const TAB_LABEL_KEYS = {
     vrchat: "config_page.side_menu_labels.vrchat",
+    ocr: "config_page.side_menu_labels.ocr",
     device: "config_page.side_menu_labels.device",
     appearance: "config_page.side_menu_labels.appearance",
     translation: "config_page.side_menu_labels.translation",

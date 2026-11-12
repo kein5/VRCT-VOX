@@ -18,6 +18,7 @@ import KeyboardAltSvg from "@images/mui_keyboard_alt.svg?react";
 import CodeBlocksSvg from "@images/mui_code_blocks.svg?react";
 import RefreshSvg from "@images/refresh.svg?react";
 import ChatTranscribeSvg from "@images/chat_transcribe.svg?react";
+import DocumentScannerSvg from "@images/mui_document_scanner.svg?react";
 
 import vrct_vox_icon from "@images/brand/icon-small.svg";
 
@@ -65,6 +66,7 @@ export const SidebarSection = () => {
                         <Tab tab_id="translation" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="transcription" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="vrchat" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
+                        <Tab tab_id="ocr" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="vr" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="hotkeys" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="tts" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
@@ -91,6 +93,7 @@ export const TabIcon = ({ tab_id, className }) => {
         case "translation": return <TranslationSvg className={className} />;
         case "transcription": return <GraphicEqSvg className={clsx(className, styles.mui_icon)} />;
         case "vrchat": return <ChatTranscribeSvg className={clsx(className, styles.mui_icon, styles.ocr_icon)} />;
+        case "ocr": return <DocumentScannerSvg className={clsx(className, styles.mui_icon)} />;
         case "vr": return <HMDSvg className={clsx(className, styles.mui_icon)} />;
         case "hotkeys": return <KeyboardAltSvg className={clsx(className, styles.mui_icon)} />;
         case "advanced_settings": return <CodeBlocksSvg className={clsx(className, styles.mui_icon)} />;
