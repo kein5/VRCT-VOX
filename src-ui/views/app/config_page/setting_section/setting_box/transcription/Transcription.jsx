@@ -35,10 +35,12 @@ import { AutoDownloadModelsContainer } from "../shared_items/SharedItems";
 export const Transcription = () => {
     return (
         <div className={styles.container}>
-            <Mic_Container />
-            <Speaker_Container />
+            {/* Which engine listens comes first: it decides what else on this page applies.
+                The timing numbers for the microphone and the speaker follow it. */}
             <TranscriptionEngine_Container />
             <CloudTranscription_Container />
+            <Mic_Container />
+            <Speaker_Container />
             <RealtimeASRSettings />
             <SpeechServers profiles={["asr"]} />
         </div>

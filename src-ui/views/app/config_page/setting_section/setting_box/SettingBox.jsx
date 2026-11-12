@@ -6,6 +6,7 @@ import {
     Translation,
     Transcription,
     Vrchat,
+    Ocr,
     AdvancedSettings,
     Vr,
     Hotkeys,
@@ -34,9 +35,11 @@ export const SettingBox = () => {
             return <AdvancedSettings />;
         case "updater":
             return <Updater />;
-        // Chat reading and the old "others" page now live on the VRChat page.
-        case "vrchat":
+        // The main page has a chat reading switch, so settings have a page of that
+        // name. The VRChat page shows the same settings, and holds the old "others" page.
         case "ocr":
+            return <Ocr />;
+        case "vrchat":
         case "others":
             return <Vrchat />;
         case "about_vrct":

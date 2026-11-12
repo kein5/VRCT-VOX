@@ -46,7 +46,7 @@ async function fixture(context, kind, openerState) {
         "../_components/description/Description": {},
         "../_components/credential_pair/CredentialPair": {},
         "../_components/download_models/LegacyModelDownloadDialog": {}, "../shared_items/SharedItems": {},
-        "@ui_configs": {}, "@logics_common": {},
+        "@ui_configs": {}, "@logics_common": {}, "@store": {},
     };
     const paths = { catalog: ["advanced_settings/ModelDownloads.jsx", "ModelDownloads"],
         ocr: ["ocr/OcrModels.jsx", "OcrModels"], nllb: ["translation/Translation.jsx", "CTranslate2LicenseDialog"],

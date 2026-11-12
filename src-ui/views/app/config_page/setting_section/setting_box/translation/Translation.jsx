@@ -43,6 +43,7 @@ import {
 } from "@ui_configs";
 
 import { useLLMConnection } from "@logics_common";
+import { useStore_TranslationEngines, useStore_SelectedTranslationEngines } from "@store";
 
 export const Translation = () => {
     return (
@@ -80,6 +81,20 @@ const AITranslation_Container = () => {
     );
 };
 
+// One provider is one line until it is opened: most people use one of them or
+// none, and nine open forms made this page nine screens long. The line says
+// whether the provider can be used. A provider that a language preset uses
+// stays open, so its key and model are in sight.
+const Provider = ({ id, children }) => {
+    const { t } = useI18n();
+    const { currentTranslationEngines } = useStore_TranslationEngines();
+    const { currentSelectedTranslationEngines } = useStore_SelectedTranslationEngines();
+    const engine = (currentTranslationEngines.data ?? []).find(item => item.id === id);
+    const in_use = Object.values(currentSelectedTranslationEngines.data ?? {}).includes(id);
+    const status = t(`config_page.translation.provider_${in_use ? "in_use" : engine?.is_available === true ? "ready" : "not_set"}`);
+    return <SetupSection title={engine?.label ?? id} status={status} attention={in_use}>{children}</SetupSection>;
+};
+
 const ExternalTranslationAPI_Container = () => {
     const { t } = useI18n();
     return (
@@ -87,22 +102,29 @@ const ExternalTranslationAPI_Container = () => {
             <SectionLabelComponent label={t("config_page.translation.section_label_external_api")} />
             <Description text={t("config_page.translation.llm_privacy_desc")} className={styles.privacy_description} />
 
-            <DeepLAuthKey_Box />
-
-            <PlamoAuthKey_Box />
-            <PlamoModelContainer />
-
-            <GeminiAuthKey_Box />
-            <GeminiModelContainer />
-
-            <OpenAIAuthKey_Box />
-            <OpenAIModelContainer />
-
-            <GroqAuthKey_Box />
-            <GroqModelContainer />
-
-            <OpenRouterAuthKey_Box />
-            <OpenRouterModelContainer />
+            <Provider id="DeepL_API">
+                <DeepLAuthKey_Box />
+            </Provider>
+            <Provider id="Plamo_API">
+                <PlamoAuthKey_Box />
+                <PlamoModelContainer />
+            </Provider>
+            <Provider id="Gemini_API">
+                <GeminiAuthKey_Box />
+                <GeminiModelContainer />
+            </Provider>
+            <Provider id="OpenAI_API">
+                <OpenAIAuthKey_Box />
+                <OpenAIModelContainer />
+            </Provider>
+            <Provider id="Groq_API">
+                <GroqAuthKey_Box />
+                <GroqModelContainer />
+            </Provider>
+            <Provider id="OpenRouter_API">
+                <OpenRouterAuthKey_Box />
+                <OpenRouterModelContainer />
+            </Provider>
         </div>
     );
 };
@@ -114,15 +136,19 @@ const LocalLLM_Container = () => {
             <SectionLabelComponent label={t("config_page.translation.section_label_local_llm")} />
             <Description text={t("config_page.translation.llm_privacy_desc")} className={styles.privacy_description} />
 
-            <LMStudioConnectionCheck_Box />
-            <LMStudioURL_Box />
-            <LMStudioModelContainer />
-
-            <OllamaConnectionCheck_Box />
-            <OllamaModelContainer />
-
-            <OpenAICompatibleCredentials />
-            <OpenAICompatibleModelContainer />
+            <Provider id="LMStudio">
+                <LMStudioConnectionCheck_Box />
+                <LMStudioURL_Box />
+                <LMStudioModelContainer />
+            </Provider>
+            <Provider id="Ollama">
+                <OllamaConnectionCheck_Box />
+                <OllamaModelContainer />
+            </Provider>
+            <Provider id="OpenAI_Compatible">
+                <OpenAICompatibleCredentials />
+                <OpenAICompatibleModelContainer />
+            </Provider>
         </div>
     );
 };
