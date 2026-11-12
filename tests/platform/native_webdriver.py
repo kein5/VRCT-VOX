@@ -79,13 +79,34 @@ class NativeWebDriver:
     def element_command(self, element, action, data=None):
         key = "element-6066-11e4-a52e-4f735466cecf"
         assert element and key in element, f"missing UI element for {action}"
+        # Setup fields sit in a section that starts folded. Unfold it the way a
+        # user does, outermost first; a folded control is "not interactable".
+        for _ in range(4):
+            summary = self.evaluate(
+                "let folded = null;"
+                " for (let d = arguments[0].parentElement?.closest('details'); d; d = d.parentElement?.closest('details')) if (!d.open) folded = d;"
+                " if (!folded || folded.querySelector(':scope > summary') === arguments[0]) return null;"
+                " const summary = folded.querySelector(':scope > summary');"
+                " summary.scrollIntoView({block:'center', inline:'center', behavior:'instant'}); return summary;", element)
+            if not summary:
+                break
+            self.command("POST", f"/element/{summary[key]}/click", {})
         self.evaluate("const e = arguments[0].tagName === 'OPTION' ? arguments[0].parentElement : arguments[0]; e.scrollIntoView({block:'center', inline:'center', behavior:'instant'}); return true;", element)
+        # Plain text typed into a field (no WebDriver key such as Tab or Enter)
+        # must arrive whole; see _complete_typed.
+        text = (data or {}).get("text") if action == "value" else None
+        plain = bool(text) and not any('\ue000' <= c <= '\uf8ff' for c in text) and not text.isascii()
+        before = self.evaluate("return typeof arguments[0].value === 'string' ? arguments[0].value : null", element) if plain else None
         deadline = time.monotonic() + 5
         while True:
             try:
-                return self.command("POST", f"/element/{element[key]}/{action}", data or {})
+                result = self.command("POST", f"/element/{element[key]}/{action}", data or {})
+                if before is not None:
+                    self._complete_typed(element, before + text)
+                return result
             except AssertionError as error:
                 if action not in ("click", "clear", "value") or not any(code in str(error) for code in ('"element click intercepted"', '"element not interactable"')) or time.monotonic() >= deadline:
+                    self._describe_blocked(element, action)
                     raise
                 notice = self.evaluate("return [...document.querySelectorAll('.Toastify__toast')].find(e => e.textContent.startsWith('Built-in translation or transcription models are unavailable.') || e.textContent.startsWith('Network is not connected.'))?.querySelector('button svg');")
                 if notice:
@@ -114,13 +135,56 @@ class NativeWebDriver:
     def fill(self, label, value):
         control = self.control(label)
         self.element_command(control, "clear")
+        typed = value
         if self.evaluate('return arguments[0].tagName', control) == 'TEXTAREA':
-            value = value.replace('\n', '\ue007')  # WebDriver Enter; raw LF is ignored by WebKitGTK.
-        self.element_command(control, "value", {"text": value})
+            typed = value.replace('\n', '\ue007')  # WebDriver Enter; raw LF is ignored by WebKitGTK.
+        self.element_command(control, "value", {"text": typed})
+        self._complete_typed(control, value)
+
+    def _describe_blocked(self, element, action):
+        """Record why a control could not be used: what covers it and which dialog is open."""
+        try:
+            report = self.evaluate(
+                "const e = arguments[0], r = e.getBoundingClientRect();"
+                " const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);"
+                " const name = n => n ? n.tagName + '.' + String(n.className?.baseVal ?? n.className).slice(0, 80) : null;"
+                " return {target: name(e), rect: [r.left, r.top, r.width, r.height], disabled: !!e.disabled,"
+                "  inert: !!e.closest('[inert]'), hidden: getComputedStyle(e).visibility, covered_by: name(top),"
+                "  covered_text: (top?.textContent || '').slice(0, 200),"
+                "  dialogs: [...document.querySelectorAll('dialog[open]')].map(d => d.textContent.slice(0, 300)),"
+                "  body: document.body.innerText.slice(0, 4000)};", element)
+            (self.output / f"blocked-{action}.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
+        except Exception:
+            pass  # the original WebDriver error is the one to report
+
+    def _complete_typed(self, element, expected):
+        """Finish a text entry the native driver delivered only in part.
+
+        WebKitWebDriver types through the desktop keymap and silently drops
+        characters that have no key there (Japanese on a US layout: only the
+        ASCII part arrives). Give React the whole value the way it hears any
+        other input.
+        """
+        if self.evaluate("return arguments[0].value", element) == expected:
+            return
+        self.evaluate("const e = arguments[0];"
+                      " const proto = e.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;"
+                      " Object.getOwnPropertyDescriptor(proto, 'value').set.call(e, arguments[1]);"
+                      " e.dispatchEvent(new Event('input', {bubbles: true})); return true;", element, expected)
+        assert self.evaluate("return arguments[0].value", element) == expected, "the text did not reach the field"
 
     def select(self, label, value):
         option = self.evaluate("return [...arguments[0].options].find(e => e.value === arguments[1]);", self.control(label), value)
         self.element_command(option, "click")
+
+    def set_switch(self, label, on=True):
+        """Set a main-page switch as a user does: press it, then wait for the reported state."""
+        find = f"[...document.querySelectorAll('[role=switch]')].find(e => e.getAttribute('aria-label') === {json.dumps(label)})"
+        want = "true" if on else "false"
+        self.wait(f"const e = {find}; return !!e && !e.disabled && e.getAttribute('aria-disabled') !== 'true';")
+        if self.evaluate(f"return {find}.getAttribute('aria-checked')") != want:
+            self.element_command(self.evaluate(f"return {find}"), "click")
+        self.wait(f"return {find}.getAttribute('aria-checked') === '{want}'")
 
     def open_voice_page(self, tab, selector):
         self.wait("return innerWidth >= 500 && innerHeight >= 300")
@@ -128,7 +192,7 @@ class NativeWebDriver:
         if not self.evaluate("return document.querySelector('[class*=show_config]') !== null"):
             self.open_settings()
         if not self.evaluate(f"return document.querySelector({json.dumps(selector)}) !== null"):
-            element = self.evaluate("return [...document.querySelectorAll('[role=button]')].find(e => e.getAttribute('aria-label') === arguments[0]);", tab)
+            element = self.evaluate("return [...document.querySelectorAll('button[aria-label], [role=button]')].find(e => e.getAttribute('aria-label') === arguments[0] && e.getClientRects().length);", tab)
             self.element_command(element, "click")
         self.wait(f"return document.querySelector({json.dumps(selector)}) !== null")
 
@@ -152,17 +216,25 @@ class NativeWebDriver:
         # it a second time. The owned driver group is still reaped by __exit__.
         self.session = None
 
+    # Opening settings slides the main page up and away (0.12s); closing
+    # slides it back down over the settings page.
     def close_settings(self):
-        # The label moves on hover. Its parent bar is the actual click handler
-        # and its central hit point stays inside the bar while it expands.
-        self.click('[class*="show_config"] > [class*="_wrapper_"]')
-        self.wait("return document.querySelector('[class*=show_main]') !== null && [...document.querySelectorAll('[class*=go_back_text]')].every(e => getComputedStyle(e).visibility === 'hidden')")
+        self.click('button[class^="_back_"]')
+        self.wait("const page = document.querySelector('[class*=_main_page_]');"
+                  " return page.matches('[class*=_show_main_]') && Math.abs(new DOMMatrix(getComputedStyle(page).transform).m42) < 1;")
 
     def open_settings(self):
-        self.click('[class*="open_config_page_button"]')
-        # Visibility can remain true for 0.5s while the old page is closing.
-        # Observe the explicit open state and the end of its moving top bar.
-        self.wait("const bar = document.querySelector('[class*=show_config] > [class*=\"_wrapper_\"]')?.parentElement; return !!bar && getComputedStyle(bar).top === '0px';")
+        # A startup notice (toast, bottom left) covers this button until it
+        # expires after ten seconds. These tests start with a non-local OSC
+        # address, which always produces one. Wait as a user would.
+        self.wait("const b = document.querySelector('[data-open-settings]'); if (!b) return false;"
+                  " const r = b.getBoundingClientRect();"
+                  " return b.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));",
+                  timeout=30)
+        self.click('[data-open-settings]')
+        # Settings are usable once the main page has finished sliding away.
+        self.wait("const page = document.querySelector('[class*=_main_page_]');"
+                  " return page.matches('[class*=_show_config_]') && new DOMMatrix(getComputedStyle(page).transform).m42 <= 1 - page.offsetHeight;")
 
     def assert_rendered(self):
         """Observe real frame delivery and a nonblank native WebDriver image."""

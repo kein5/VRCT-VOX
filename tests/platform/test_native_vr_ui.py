@@ -1,7 +1,8 @@
 """Opt-in: the VR UI of the built Linux app, seen and operated through a fake SteamVR.
 
-Needs a graphical session and a build with the embedded UI (VRCT_TEST_APP). No headset: what the
-headset would show is read from the overlays the app hands to tools/fake_vr_site.
+Needs a graphical session and a development build with the embedded UI (VRCT_TEST_APP; not an
+AppImage). No headset: what the headset would show is read from the overlays the app hands to
+tools/fake_vr_site.
 """
 import os
 import sys
@@ -11,10 +12,19 @@ import pytest
 
 from native_fake_vr import LAUNCHER, LOG, POPUP, TOOLBAR, FakeVrApp
 
-pytestmark = pytest.mark.skipif(
-    sys.platform != "linux" or os.environ.get("VRCT_TEST_NATIVE_GUI") != "1",
-    reason="requires built native Tauri and a graphical session",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        sys.platform != "linux" or os.environ.get("VRCT_TEST_NATIVE_GUI") != "1",
+        reason="requires built native Tauri and a graphical session",
+    ),
+    # The fake SteamVR is a Python module put ahead of the real one on PYTHONPATH. Only a
+    # development build runs the backend from source; the frozen backend of an AppImage or an
+    # installer never looks there, so no overlay would ever appear.
+    pytest.mark.skipif(
+        bool(os.environ.get("VRCT_TEST_APPIMAGE")),
+        reason="the fake SteamVR needs a development build (backend run from source), not an AppImage",
+    ),
+]
 
 # Button centres in page pixels, inside their region.
 TRANSLATION, LOG_WINDOW, LANGUAGES = (67, 60), (567, 60), (687, 60)

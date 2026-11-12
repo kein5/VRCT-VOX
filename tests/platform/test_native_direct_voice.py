@@ -181,7 +181,10 @@ def test_native_input_controls_and_independent_audio_stops(tmp_path):
                 ui.open_original_voice_settings()
                 observe('app_restart_off', silent=True)
                 ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Input forwarding stopped')")
-                assert ui.evaluate('return arguments[0].value', ui.control('Input to forward')) == ''
+                # The list offers the Device page's microphone as the default (here the
+                # graph's default source, the decoy). The input chosen in the previous
+                # run is not remembered, and nothing is forwarded until Start is pressed.
+                assert ui.evaluate('return arguments[0].value', ui.control('Input to forward')) != selected_value()
                 assert not any(name.startswith('vrct.source-bridge.') for name in nodes())
                 ui.assert_rendered()
                 ui.close_app()

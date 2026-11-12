@@ -216,7 +216,7 @@ def test_shortcut_focus_escape_and_single_pipeline(tmp_path):
             assert ui.evaluate('return arguments[0].value', ui.control('Message')) == 'retained draft'
             ui.fill('Message', 'Quick chat integration')
             xdo('key', 'Return')
-            ui.wait("return document.querySelector('textarea').value === ''")
+            ui.wait("return document.querySelector('textarea[class*=message_box_input_area]').value === ''")
             wait_for(lambda: len(translation.requests) == 1 and len(tts.requests) == 1)
             (tmp_path / 'quick-chat.png').write_bytes(base64.b64decode(ui.command('GET', '/screenshot')))
             assert sidecars(ui) == before, 'the mini window must not spawn a second sidecar'

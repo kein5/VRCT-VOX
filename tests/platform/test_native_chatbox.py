@@ -132,7 +132,7 @@ def test_native_same_send_chatbox_and_voice_then_off(tmp_path):
                     assert marker not in row["before"]["ocr"], "stale_marker_before_send"
                     settled(monitor, time.monotonic_ns(), "before_send_not_silent", silent=True)
                     native()
-                    field = ui.command("POST", "/element", {"using": "css selector", "value": "textarea"})
+                    field = ui.command("POST", "/element", {"using": "css selector", "value": "textarea[class*=message_box_input_area]"})
                     ui.element_command(field, "clear")
                     ui.element_command(field, "value", {"text": SHORT + " " + marker})
                     previous_trace = len(records())
@@ -142,7 +142,7 @@ def test_native_same_send_chatbox_and_voice_then_off(tmp_path):
                         time.sleep(.3)
                         started = time.monotonic_ns()
                         ui.click('[class*="message_send_button"]')
-                        ui.wait("return document.querySelector('textarea').value === ''")
+                        ui.wait("return document.querySelector('textarea[class*=message_box_input_area]').value === ''")
                         if mode == "original":
                             wait_for(lambda: len(records()) > previous_trace, timeout=30, code="voice_trace_missing")
                         else:
