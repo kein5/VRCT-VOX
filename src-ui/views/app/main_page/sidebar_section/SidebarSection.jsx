@@ -7,6 +7,7 @@ import { useIsMainPageCompactMode } from "@logics_main";
 import { Logo } from "./logo/Logo";
 import { MainFunctionSwitch } from "./main_function_switch/MainFunctionSwitch";
 import { LanguageSettings } from "./language_settings/LanguageSettings";
+import { LanguageReadout } from "./language_readout/LanguageReadout";
 import { OpenSettings } from "./open_settings/OpenSettings";
 
 export const SidebarSection = () => {
@@ -25,7 +26,7 @@ export const SidebarSection = () => {
             <Logo />
             <div className={scroll_container_class_names}>
                 <MainFunctionSwitch />
-                {!currentIsMainPageCompactMode.data && <LanguageSettings />}
+                {currentIsMainPageCompactMode.data ? <LanguageReadout /> : <LanguageSettings />}
             </div>
             <OpenSettings />
         </div>

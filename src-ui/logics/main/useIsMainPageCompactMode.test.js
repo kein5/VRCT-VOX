@@ -19,6 +19,7 @@ async function fixture(saved) {
         "@store": store, "@logics_main": logic, "./logo/Logo": { Logo: "logo" },
         "./main_function_switch/MainFunctionSwitch": { MainFunctionSwitch: "switches" },
         "./language_settings/LanguageSettings": { LanguageSettings: "languages" },
+        "./language_readout/LanguageReadout": { LanguageReadout: "readout" },
         "./open_settings/OpenSettings": { OpenSettings: "settings" },
     });
     const { SidebarCompactModeButton } = await loadModule(new URL("../../views/app/main_page/main_section/top_bar/sidebar_compact_mode_button/SidebarCompactModeButton.jsx", import.meta.url), runtime, {
@@ -33,12 +34,14 @@ for (const saved of [false, true]) {
         const s = await fixture(saved);
         let tree = s.render();
         assert.equal(find(tree.sidebar, node => node.type === "languages"), null);
+        assert.ok(find(tree.sidebar, node => node.type === "readout"), "the icon rail keeps the language pair in sight");
         assert.ok(!tree.button.props.disabled, "keyboard and pointer activation must remain available");
         assert.equal(tree.button.props.type, "button");
         assert.equal(tree.button.props["aria-expanded"], false);
         tree.button.props.onClick();
         tree = s.render();
         assert.ok(find(tree.sidebar, node => node.type === "languages"));
+        assert.equal(find(tree.sidebar, node => node.type === "readout"), null);
         assert.equal(tree.button.props["aria-expanded"], true);
         tree.button.props.onClick();
         tree = s.render();

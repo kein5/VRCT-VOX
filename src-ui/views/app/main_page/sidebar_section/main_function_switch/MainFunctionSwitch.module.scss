@@ -28,6 +28,14 @@
     &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: -.3rem; }
     @include toggle_interactive_parent;
 
+    // On is seen at a glance, also in the icon rail: a blue tint on the row and
+    // a blue icon. The switch, and in the rail the bar on the right, still say it.
+    &.is_active {
+        background-color: var(--vox_highlight_tint);
+        &:hover { background-color: color-mix(in srgb, var(--primary_400_color) 26%, transparent); }
+        &:active { background-color: color-mix(in srgb, var(--primary_400_color) 12%, transparent); }
+    }
+
     &.is_compact_mode {
         padding: 1.5rem;
         justify-content: center;
@@ -83,6 +91,9 @@ $pending_label_color: var(--dark_500_color);
     &:not(.is_compact_mode) {
         width: 1.6rem;
         color: var(--dark_350_color);
+    }
+    &.is_active:not(.is_pending) {
+        color: var(--vox_state_active);
     }
 }
 
