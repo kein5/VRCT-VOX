@@ -19,6 +19,7 @@ You can read what is sent in the app itself. The notice shown before anything is
 
 - The text and audio of conversations, the names of microphones and speakers, user names, the PC's name and file locations are never sent.
 - The receiver does not keep the sender's IP address or anything that tells one PC from another. It runs on Cloudflare, which handles the sender's address as the other end of the connection.
+- The receiver records when each event arrived and the country the connection came from, which Cloudflare derives from the sender's address.
 - No number that identifies a PC is sent, but an unusual combination of hardware can suggest that two events came from the same PC.
 - Before anything is sent, a dialog explains what is sent. Nothing is sent until you choose "Send" or "Don't send".
 - Starting the app with the environment variable `VRCT_TELEMETRY` set to `off` sends nothing, whatever the setting says.

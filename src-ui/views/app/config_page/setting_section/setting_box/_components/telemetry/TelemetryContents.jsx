@@ -26,6 +26,8 @@ export const TelemetryContents = ({ with_sent = false }) => {
                 </dl>
                 <p>{t("telemetry_contents.error_note")}</p>
                 {preview.endpoint && <p>{t("telemetry_contents.destination", { endpoint: preview.endpoint })}</p>}
+                {/* Not in the event: what the receiver notes on its own when one arrives. */}
+                <p>{t("telemetry_contents.receiver_note")}</p>
                 <details className={styles.raw}>
                     <summary>{t("telemetry_contents.raw")}</summary>
                     <pre tabIndex={0}>{JSON.stringify(event, null, 2)}</pre>
