@@ -1217,7 +1217,7 @@ speech_servers:
     model: "Model GGUF path"
     vad_model: "VAD GGUF path"
     diarization_model: "Diarization GGUF path (optional)"
-    diarization_help: "With a file here, game audio captions carry a label for each voice (A, B, …). The labels are guessed from the sound of the voices: they do not name anyone, and similar voices can share one. Captions arrive a little later. Leave it empty for captions without speakers. Meant for use on a GPU."
+    diarization_help: "With a file here, game audio captions carry a label for each voice (A, B, …). The labels are guessed from the sound of the voices: they do not name anyone, and similar voices can share one. Captions arrive a little later. Leave it empty for captions without speakers. It needs a GPU: while the server runs on the CPU, captions carry no speakers even with the model."
     voice_file: "Voice GGUF path (optional)"
     device: "Inference device"
     device_named: "{{label}} ({{name}})"
