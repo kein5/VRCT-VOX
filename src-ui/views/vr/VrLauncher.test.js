@@ -24,8 +24,9 @@ async function launcher(context) {
         },
         "@logics_main": { useMainFunction: () => ({}) },
         "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython: path => calls.push(path) }) },
-        "@images/vrct_logo_for_dark_mode.png": "logo",
-        "@images/vrct_icon_for_vr_intro.png": "icon",
+        "@images/brand/icon-small.svg": "icon",
+        "@images/brand/logo-en.svg": "logo-en", "@images/brand/logo-ja.svg": "logo-ja", "@images/brand/logo-ko.svg": "logo-ko",
+        "@images/brand/logo-zh-Hant.svg": "logo-zh-Hant", "@images/brand/logo-zh-Hans.svg": "logo-zh-Hans",
         "./VrTooltip": { VrTooltipButton: "button" },
     });
     const tree = runtime.render(VrLauncher, { windows: { log: false, popup: null },

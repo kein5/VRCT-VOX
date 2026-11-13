@@ -11,15 +11,21 @@ import ChatTranscribeSvg from "@images/chat_transcribe.svg?react";
 import CopyThinSvg from "@images/copy_thin.svg?react";
 import ConfigurationSvg from "@images/configuration.svg?react";
 import LanguageSvg from "@images/mui_language.svg?react";
-import vrct_logo from "@images/vrct_logo_for_dark_mode.png";
-import vrct_icon from "@images/vrct_icon_for_vr_intro.png";
+// The intro shows VRCT-VOX's own mark, like the About page: this is not the official VRCT.
+import intro_icon from "@images/brand/icon-small.svg";
+import logo_en from "@images/brand/logo-en.svg";
+import logo_ja from "@images/brand/logo-ja.svg";
+import logo_ko from "@images/brand/logo-ko.svg";
+import logo_zh_hant from "@images/brand/logo-zh-Hant.svg";
+import logo_zh_hans from "@images/brand/logo-zh-Hans.svg";
 import { VrTooltipButton } from "./VrTooltip";
 import shared from "./VrSettingsWindow.module.scss";
 import styles from "./VrLauncher.module.scss";
 
 const LONG_PRESS_MS = 600;
+const INTRO_LOGOS = { en: logo_en, ja: logo_ja, ko: logo_ko, "zh-Hant": logo_zh_hant, "zh-Hans": logo_zh_hans };
 export const VrLauncher = ({ windows, toggleLog, openLog, togglePopup }) => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
     const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
     const { toggleTranslation, currentTranslationStatus, toggleTranscriptionSend, currentTranscriptionSendStatus,
         toggleTranscriptionReceive, currentTranscriptionReceiveStatus, toggleOcrCapture, currentOcrCaptureStatus } = useMainFunction();
@@ -30,9 +36,9 @@ export const VrLauncher = ({ windows, toggleLog, openLog, togglePopup }) => {
     const is_log_lost = windows.log && currentVrPanelLogOutOfView.data === true;
     const is_locked = currentIsOpenedConfigPage.data === true;
     const recallLog = () => { openLog(); asyncStdoutToPython("/run/vr_panel_recall_log"); };
-    return <div className={styles.root} style={{ "--vrct-logo": `url("${vrct_logo}")` }}>
+    return <div className={styles.root} style={{ "--intro-logo": `url("${INTRO_LOGOS[i18n?.language] ?? logo_en}")` }}>
         {intro === "playing" && <>
-            <img className={styles.intro_icon} src={vrct_icon} alt="" aria-hidden="true" />
+            <img className={styles.intro_icon} src={intro_icon} alt="" aria-hidden="true" />
             <div className={styles.intro_logo} aria-hidden="true" />
         </>}
         <div className={clsx(styles.container, { [styles.is_intro_pending]: intro === "pending", [styles.is_intro_playing]: intro === "playing" })}>

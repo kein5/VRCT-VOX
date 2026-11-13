@@ -4,6 +4,7 @@ import { useStdoutToPython } from "@useStdoutToPython";
 import { useStore_IsBreakPoint } from "@store";
 import { useAppearance } from "@logics_configs";
 import { store } from "@store";
+import { isBuiltInGeometry, sizeToRestore } from "./windowGeometry.js";
 
 // Time the backend gets to save the settings after /run/shutdown. Closing the
 // window ends the app, and the shell plugin then kills the backend.
@@ -71,7 +72,7 @@ export const useWindow = () => {
     const restoreWindowGeometry = async (data) => {
         try {
             const monitors = await availableMonitors();
-            const { x_pos, y_pos, width, height } = data;
+            const { x_pos, y_pos } = data;
 
             // ウィンドウが属するモニターを特定
             const targetMonitor = monitors.find(monitor =>
@@ -82,8 +83,11 @@ export const useWindow = () => {
             ) || await currentMonitor();
 
             if (targetMonitor) {
-                const { width: monitorWidth, height: monitorHeight } = targetMonitor.size;
-                const { x: monitorX, y: monitorY } = targetMonitor.position;
+                const { width, height } = sizeToRestore(data, targetMonitor.scaleFactor);
+                // The first window also stays clear of the taskbar; a saved geometry keeps the monitor's bounds.
+                const bounds = isBuiltInGeometry(data) && targetMonitor.workArea ? targetMonitor.workArea : targetMonitor;
+                const { width: monitorWidth, height: monitorHeight } = bounds.size;
+                const { x: monitorX, y: monitorY } = bounds.position;
 
                 // ウィンドウのサイズをモニターサイズ内に収める
                 let adjustedWidth = Math.min(parseInt(width), monitorWidth);

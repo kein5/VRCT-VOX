@@ -67,3 +67,16 @@ def test_mismatch_is_not_present_and_load_does_not_call_native_parser(pinned, mo
         translator.Translator().changeCTranslate2Model(root, weight, compute_type="int8")
     loader.Translator.assert_not_called()
     assert (path / "model.bin").read_bytes() == b"unverified"
+
+
+def test_missing_weights_are_reported_before_transformers_is_imported(pinned, monkeypatch):
+    # The first press of Translation has no weights. The import took 22 s on a
+    # Windows PC, and the model review could not open until it had finished.
+    root, weight, _ = pinned
+    load = Mock()
+    monkeypatch.setattr(translator, "transformers", translator.UNLOADED)
+    monkeypatch.setattr(translator, "loadTransformers", load)
+    monkeypatch.setattr(translator, "ctranslate2", Mock())
+    with pytest.raises(utils.MissingCTranslate2Tokenizer):
+        translator.Translator().changeCTranslate2Model(root, weight, compute_type="int8")
+    load.assert_not_called()

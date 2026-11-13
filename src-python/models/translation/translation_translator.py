@@ -496,10 +496,17 @@ class Translator:
         ``is_loaded_ctranslate2_model`` on success.
         """
         global transformers
-        if transformers is UNLOADED:
-            transformers = loadTransformers()
+        missing_runtime = RuntimeError("CTranslate2 and Transformers are required for local translation")
         if ctranslate2 is None or transformers is None:
-            raise RuntimeError("CTranslate2 and Transformers are required for local translation")
+            raise missing_runtime
+        if transformers is UNLOADED:
+            # A first run has no weights yet. Say so before the import below, which
+            # took 22 s on a Windows PC and kept the model review from opening.
+            if resolveCTranslate2Weight(path, model_type) is None:
+                raise MissingCTranslate2Tokenizer(model_type)
+            transformers = loadTransformers()
+            if transformers is None:
+                raise missing_runtime
 
         with self._ctranslate2_lock:
             weight_path = resolveCTranslate2Weight(path, model_type)

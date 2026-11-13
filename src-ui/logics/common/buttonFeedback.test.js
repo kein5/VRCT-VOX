@@ -401,6 +401,7 @@ test("the window geometry controller keeps its listeners and only sends layout c
         "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython() {} }) },
         "@store": { store: { appWindow }, useStore_IsBreakPoint: () => ({ updateIsBreakPoint: value => updates.push(value) }) },
         "@logics_configs": { useAppearance: () => ({ currentUiScaling: { data: scaling } }) },
+        "./windowGeometry.js": await import("./windowGeometry.js"),
     });
     const settle = () => new Promise(resolve => setTimeout(resolve));
     // A module-level component: re-rendering its parent must not remount it.
