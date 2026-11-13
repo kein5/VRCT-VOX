@@ -30,5 +30,5 @@ When you play VRChat without a headset, the captions can be drawn on the desktop
 "Show the VR UI" shows a wrist launcher and windows in VR for turning features on and off and for the log, languages and settings. It works separately from the subtitle overlay. If you lose the launcher, press "Reset the launcher position and size"; it returns to your left wrist.
 
 ::: warning Testing status
-VR features have not been tested in depth in VRCT-VOX. On Linux, the VR UI has only been checked against a simulated SteamVR, not with a real headset. The desktop caption overlay was checked on Windows 11 above other windows; how it looks above the VRChat window has not been checked.
+VR features have not been tested in depth in VRCT-VOX. On Linux, the VR UI has only been checked against a simulated SteamVR, not with a real headset. The desktop caption overlay was checked on Windows 11 above VRChat in desktop mode, both windowed and full screen. That check used test lines, not captions from speech recognition.
 :::
