@@ -53,6 +53,13 @@ async def mock_server(mode="normal"):
                 return
             if mode == "bad_config":
                 config["session"]["audio"]["input"]["format"]["rate"] = 16000
+            if mode == "drop_diarization":
+                # A server that does not take the member, or one that turns it on unasked.
+                audio = config["session"]["audio"]["input"]
+                if "diarization" in audio:
+                    del audio["diarization"]
+                else:
+                    audio["diarization"] = {}
             await send(
                 ws,
                 "session.updated",
@@ -122,6 +129,9 @@ async def mock_server(mode="normal"):
                     item_id=item_id,
                     transcript="確定",
                     stop="complete",
+                    **({"speakers": [{"speaker": "C", "start_ms": 24290, "end_ms": 28560},
+                                     {"speaker": "B", "start_ms": 26970, "end_ms": 28150}]}
+                       if mode == "speakers" else {}),
                 )
                 await send(
                     ws,
@@ -179,6 +189,46 @@ def test_protocol_config_audio_and_duplicate_final(monkeypatch):
                 await client.next_update()
 
     asyncio.run(run())
+
+
+def test_diarization_is_asked_for_and_the_final_names_its_speakers():
+    async def run():
+        async with mock_server("speakers") as (url, server):
+            client = module().SpeechCppRealtime(url, "asr", "auto", "speaker", server_vad=False, diarization=True)
+            await client.start()
+            # speech.cpp's own member: {} asks for the diarization model's defaults.
+            assert server.requests[0]["session"]["audio"]["input"]["diarization"] == {}
+            await client.commit()
+            partial = await asyncio.wait_for(client.next_update(), 1)
+            final = await asyncio.wait_for(client.next_update(), 1)
+            assert partial.speakers == () and final.is_final and final.speakers == ("C", "B")
+            await client.stop()
+
+        # Without the argument the member is not sent.
+        async with mock_server("speakers") as (url, server):
+            client = module().SpeechCppRealtime(url, "asr", "auto", "speaker", server_vad=False)
+            await client.start()
+            assert "diarization" not in server.requests[0]["session"]["audio"]["input"]
+            await client.stop()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("diarization", [True, False])
+def test_a_server_that_answers_another_diarization_setting_is_refused(diarization):
+    async def run():
+        async with mock_server("drop_diarization") as (url, _):
+            c = module().SpeechCppRealtime(url, "asr", "auto", "speaker", diarization=diarization)
+            with pytest.raises(module().RealtimeError) as caught:
+                await c.start()
+            assert str(caught.value) == "configuration_rejected" and c.state == "failed"
+
+    asyncio.run(run())
+
+
+def test_diarization_must_be_a_flag():
+    with pytest.raises(ValueError):
+        module().SpeechCppRealtime("http://127.0.0.1:8080", "asr", "ja", "speaker", diarization={})
 
 
 def test_sources_and_explicit_reconnect_use_separate_namespaces():

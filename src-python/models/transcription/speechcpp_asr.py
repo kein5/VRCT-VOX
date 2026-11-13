@@ -154,16 +154,18 @@ class SpeechCppASR:
                 response.close()
             conn.close()
 
-    def _recognizers(self, token, deadline):
+    def _survey(self, token, deadline):
+        """The recognition models, and whether the server also holds a diarization model."""
         payload, _ = self._request('GET', '/v1/models', token, deadline)
         if not isinstance(payload, dict) or not isinstance(payload.get('data'), list):
             raise ASRError('invalid_models')
-        models, ids = [], set()
+        models, ids, diarizes = [], set(), False
         for row in payload['data']:
             if not isinstance(row, dict) or not isinstance(row.get('speech'), dict):
                 raise ASRError('invalid_models')
             speech = row['speech']
             if speech.get('task') != 'recognition':
+                diarizes = diarizes or speech.get('task') == 'diarization'
                 continue
             name, languages = row.get('id'), speech.get('languages')
             options = speech.get('options')
@@ -176,10 +178,17 @@ class SpeechCppASR:
             models.append(RecognitionModel(name, tuple(languages), any(v.get('name') == 'language' for v in options),
                                            _detects(options),
                                            tuple(v['name'] for v in options if isinstance(v.get('name'), str))))
-        return tuple(models)
+        return tuple(models), diarizes
+
+    def _recognizers(self, token, deadline):
+        return self._survey(token, deadline)[0]
 
     def recognizers(self, cancel_token=None):
         return self._recognizers(cancel_token or CancelToken(), monotonic() + self.timeout)
+
+    def survey(self, cancel_token=None):
+        """(recognizers, diarizes): one request for what a Realtime session can ask of the server."""
+        return self._survey(cancel_token or CancelToken(), monotonic() + self.timeout)
 
     def transcribe(self, audio: AudioFrame, model: str, language='auto', cancel_token=None):
         deadline = monotonic() + self.timeout

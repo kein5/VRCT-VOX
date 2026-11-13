@@ -17,6 +17,7 @@ const TITLE: &str = "VRCT-VOX Captions";
 const MAX_LINES: usize = 8;
 const MAX_TEXT: usize = 2000;
 const MAX_TRANSLATIONS: usize = 3;
+const MAX_SPEAKERS: usize = 4;
 /// The band the captions are drawn in, as parts of the monitor's work area.
 const BAND_WIDTH: f64 = 0.8;
 const BAND_HEIGHT: f64 = 0.34;
@@ -33,8 +34,17 @@ pub struct Line {
     /// Still being recognized or sent: the line stays until it settles.
     #[serde(default)]
     pending: bool,
+    /// Who spoke a received line, where the voices were told apart: labels such as "A" and
+    /// "B", in the order they speak. A label is a voice within one session, not a person.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    speakers: Vec<String>,
     /// Milliseconds since the epoch after which the line is no longer shown.
     until: f64,
+}
+
+/// One to three capital letters, as the speech server labels a voice.
+fn valid_speaker(label: &str) -> bool {
+    (1..=3).contains(&label.len()) && label.bytes().all(|byte| byte.is_ascii_uppercase())
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -98,6 +108,10 @@ fn validate(snapshot: &Snapshot) -> Result<(), String> {
             || line.text.chars().count() > MAX_TEXT
             || line.translations.len() > MAX_TRANSLATIONS
             || line.translations.iter().any(|text| text.chars().count() > MAX_TEXT)
+            || line.speakers.len() > MAX_SPEAKERS
+            || !line.speakers.iter().all(|label| valid_speaker(label))
+            // Only what was heard has several voices; the user's own line names no one.
+            || (line.kind == "sent" && !line.speakers.is_empty())
             || !line.until.is_finite()
             || line.until < 0.0
         {
@@ -256,8 +270,35 @@ mod tests {
             text: "こんにちは".into(),
             translations: vec!["Hello".into()],
             pending: false,
+            speakers: Vec::new(),
             until: 1_800_000_000_000.0,
         }
+    }
+
+    fn heard(speakers: &[&str]) -> Snapshot {
+        let mut value = snapshot();
+        value.lines[0].kind = "received".into();
+        value.lines[0].speakers = speakers.iter().map(|label| label.to_string()).collect();
+        value
+    }
+
+    #[test]
+    fn a_heard_line_may_name_up_to_four_voices_by_short_capital_labels() {
+        for speakers in [vec![], vec!["A"], vec!["C", "B"], vec!["A", "B", "C", "AB"], vec!["ABC"]] {
+            let value = heard(&speakers);
+            assert!(validate(&value).is_ok(), "{speakers:?}");
+            let copy: Snapshot = serde_json::from_value(serde_json::to_value(&value).unwrap()).unwrap();
+            assert_eq!(copy, value);
+        }
+        // A line without speakers is written as before, so an older overlay page reads it.
+        assert!(serde_json::to_value(heard(&[])).unwrap()["lines"][0].get("speakers").is_none());
+        for speakers in [vec!["a"], vec![""], vec!["ABCD"], vec!["A1"], vec!["あ"], vec!["A", "B", "C", "D", "E"]] {
+            assert_eq!(validate(&heard(&speakers)), Err("caption_overlay_invalid".into()), "{speakers:?}");
+        }
+        // The user's own words are one voice: a sent line that names speakers is refused.
+        let mut own = heard(&["A"]);
+        own.lines[0].kind = "sent".into();
+        assert_eq!(validate(&own), Err("caption_overlay_invalid".into()));
     }
 
     fn snapshot() -> Snapshot {

@@ -44,12 +44,47 @@
 .sent {
     --caption_ink: #9fd4ff;
     --caption_ink_soft: #c2e3ff;
-    border-right: 0.2em solid #58b0ee;
+    --caption_bar: #58b0ee;
+    border-right: 0.2em solid var(--caption_bar);
 }
 .received {
     --caption_ink: #efb4ff;
     --caption_ink_soft: #f5ceff;
-    border-left: 0.2em solid #cf86e6;
+    --caption_bar: #cf86e6;
+    border-left: 0.2em solid var(--caption_bar);
+}
+// Where the game audio's voices are told apart, each voice keeps a colour of
+// its own: the first is the purple of every received line, then amber, green
+// and rose, and the fifth voice starts over. Blue stays the user's own. The
+// label before the words (A, B, ...) says the same without colour.
+.voice_1 {
+    --caption_ink: #ffd08a;
+    --caption_ink_soft: #ffe2b5;
+    --caption_bar: #e6a84a;
+}
+.voice_2 {
+    --caption_ink: #a6efc0;
+    --caption_ink_soft: #c8f6d8;
+    --caption_bar: #5fcf8c;
+}
+.voice_3 {
+    --caption_ink: #ffb3c1;
+    --caption_ink_soft: #ffd0d8;
+    --caption_bar: #ee7f95;
+}
+.who {
+    display: inline-block;
+    margin-right: 0.45em;
+    padding: 0 0.4em;
+    border-radius: 0.3em;
+    font-size: 0.62em;
+    font-weight: 700;
+    font-style: normal;
+    vertical-align: 0.2em;
+    // Dark letters on the voice's colour read over any scene, with or without the plate.
+    color: #0b0f18;
+    background: var(--caption_bar);
+    text-shadow: none;
 }
 .text { color: var(--caption_ink); }
 // A translation under its original is a lighter tint of the same hue; alone

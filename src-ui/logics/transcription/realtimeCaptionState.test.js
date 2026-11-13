@@ -35,6 +35,32 @@ for (const source of ["mic", "speaker"]) {
     }
 }
 
+test("a speaker caption keeps the speakers its final names, through translation and the outcome", () => {
+    const active = { speaker: owner }, event = { ...payload, source: "speaker" };
+    const partial = captions.applyRealtimeCaption({ rows: [], retired: [] }, { ...event, speakers: [] }, active);
+    assert.equal("speakers" in partial.rows[0], false);
+    const final = captions.applyRealtimeCaption(partial, { ...event, revision: 2, state: "final", speakers: ["C", "B"] }, active);
+    assert.deepEqual(final.rows[0].speakers, ["C", "B"]);
+    // The translated row is built again from its payload; one without the list keeps what the final said.
+    for (const speakers of [["C", "B"], undefined]) {
+        const translated = captions.applyRealtimeCaption(final, { ...event, revision: 3, state: "translated", speakers,
+            translations: [{ message: "訳", transliteration: [] }] }, active);
+        assert.deepEqual(translated.rows[0].speakers, ["C", "B"]);
+        const settled = captions.applyRealtimeCaption(translated, { ...event, text: undefined, revision: 4, state: "outcome", outcome: "delivered" }, {});
+        assert.deepEqual(settled.rows[0].speakers, ["C", "B"]);
+    }
+});
+
+test("speakers that are not short capital labels, or that come for the microphone, are left out", () => {
+    const row = (source, speakers) => captions.applyRealtimeCaption({ rows: [], retired: [] },
+        { ...payload, source, state: "final", speakers }, { [source]: owner }).rows[0];
+    for (const speakers of ["A", [1], ["a"], [""], ["ABCD"], ["A", "B", "C", "D", "E"], [["A"]], null, {}]) {
+        assert.equal("speakers" in row("speaker", speakers), false, JSON.stringify(speakers));
+    }
+    assert.equal("speakers" in row("mic", ["A"]), false);
+    assert.deepEqual(row("speaker", ["A", "AB", "ABC"]).speakers, ["A", "AB", "ABC"]);
+});
+
 test("outcomes cannot create rows or settle another caption identity or a partial", () => {
     const empty = { rows: [], retired: [] };
     const event = { ...payload, state: "outcome", revision: 3, outcome: "delivered" };

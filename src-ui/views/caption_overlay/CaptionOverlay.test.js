@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { hooks, loadModule, find, stubGlobals } from "../../logics/test/hookHarness.js";
 import { flush } from "../../logics/test/bridgeHarness.js";
 import * as lines from "../../logics/captionOverlay/lines.js";
+import * as speakerLabels from "../../logics/common/speakerLabels.js";
 
 const findAll = (tree, match, found = []) => {
     if (Array.isArray(tree)) tree.forEach(item => findAll(item, match, found));
@@ -26,6 +27,7 @@ async function setup(context, snapshot) {
     const { CaptionOverlay } = await loadModule(new URL("./CaptionOverlay.jsx", import.meta.url), runtime, {
         "../../logics/captionOverlay/bridge": { captionOverlayBridge: bridge },
         "../../logics/captionOverlay/lines": lines,
+        "../../logics/common/speakerLabels": speakerLabels,
     });
     const render = () => runtime.render(CaptionOverlay, { bridge, now: () => clock });
     render(); await flush(); render();
@@ -72,6 +74,38 @@ test("the user's own words and the other side are drawn in different colours and
     // Not by colour alone: the bar sits on the side the message log uses.
     assert.match(rule("sent"), /border-right:/); assert.doesNotMatch(rule("sent"), /border-left:/);
     assert.match(rule("received"), /border-left:/); assert.doesNotMatch(rule("received"), /border-right:/);
+});
+
+test("a heard line leads with who spoke and takes that voice's colour", async context => {
+    const heard = (id, speakers, text = "こんばんは", translations = []) =>
+        ({ id, kind: "received", text, translations, pending: false, until: 9000, ...(speakers ? { speakers } : {}) });
+    const s = await setup(context, { ...base, lines: [
+        heard("a", ["A"]), heard("b", ["B", "A"], "", ["Good evening"]), heard("c", ["E"]), heard("d", undefined),
+        heard("e", ["a"]), { ...heard("f", ["A"]), kind: "sent" },
+    ] });
+    const label = child => Array.isArray(child) ? [child[0].props.className, child[0].props.children, child[1]] : child;
+    assert.deepEqual(s.texts().map(label), [
+        ["who", "A", "こんばんは"],
+        // Two voices in one line; with only the translation shown, the label leads it.
+        ["who", "B·A", "Good evening"],
+        ["who", "E", "こんばんは"],
+        "こんばんは", "こんばんは", "こんばんは",
+    ]);
+    const classes = s.lineClasses();
+    // The first voice keeps the colour of every received line; the fifth starts over.
+    assert.match(classes[0], /voice_0/); assert.match(classes[1], /voice_1/); assert.match(classes[2], /voice_0/);
+    // No speakers, labels that are not the server's, and the user's own line: no label and no voice colour.
+    for (const index of [3, 4, 5]) assert.doesNotMatch(classes[index], /voice_/);
+});
+
+test("each voice has a colour of its own, none of them the user's blue", async () => {
+    const scss = await readFile(new URL("./CaptionOverlay.module.scss", import.meta.url), "utf8");
+    const ink = name => scss.match(new RegExp(`^\\.${name} \\{[^}]*--caption_ink: (#[0-9a-f]{6});`, "m"))?.[1];
+    const inks = [ink("received"), ink("voice_1"), ink("voice_2"), ink("voice_3")];
+    assert.ok(inks.every(Boolean));
+    assert.equal(new Set([...inks, ink("sent")]).size, 5);
+    // The label is dark on the voice's colour, so it reads without the plate.
+    assert.match(scss, /^\.who \{[^}]*background: var\(--caption_bar\);/m);
 });
 
 test("a line fades and then goes when its time has passed, without a new notice", async context => {

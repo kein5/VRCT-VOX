@@ -77,6 +77,38 @@ test("VR pending label is static; only the desktop renders the animated loader",
     }
 });
 
+test("a heard caption names its speakers beside its state, in the desktop log and the VR mirror", async () => {
+    const runtime = hooks(), store = { is_vr_panel: false };
+    const { MessageContainer } = await loadModule(new URL("./MessageContainer.jsx", import.meta.url), runtime, {
+        "@store": { store }, "./message_sub_menu_container/MessageSubMenuContainer": {},
+    });
+    const event = { source: "speaker", generation: 4, namespace: "session", item_id: "one", revision: 1, state: "final",
+        text: "こんばんは。こんばんは。", speakers: ["A", "B"] };
+    const owner = { speaker: { generation: 4, namespace: "session", requested: true } };
+    const state = applyRealtimeCaption({ rows: [], retired: [] }, event, owner);
+    const mirror = decodeLogUpdate(null, encodeLogUpdate(null, { state: "ok", data: state.rows }).message);
+    const labels = node => {
+        const found = [];
+        find(node, n => { if (typeof n.props?.children === "string" && n.props.children.startsWith("main_page.message_log.")) found.push(n.props.children); return false; });
+        return found;
+    };
+    for (const isVr of [false, true]) {
+        store.is_vr_panel = isVr;
+        // The harness's t() answers the key alone.
+        const shown = labels(runtime.render(MessageContainer.type, (isVr ? mirror.rows : state.rows)[0]));
+        assert.equal(shown.length, 2);
+        assert.equal(shown[0], "main_page.message_log.processing");
+        assert.match(shown[1], /^main_page\.message_log\.speakers/);
+    }
+    store.is_vr_panel = false;
+    const plain = applyRealtimeCaption({ rows: [], retired: [] }, { ...event, speakers: [] }, owner).rows[0];
+    assert.deepEqual(labels(runtime.render(MessageContainer.type, plain)), ["main_page.message_log.processing"]);
+    // The user's own row never shows speakers, whatever it carries.
+    const own = { id: "typed", category: "sent", status: "ok", created_at: "12:00", speakers: ["A"],
+        messages: { original: { message: "Hello", transliteration: [] }, translations: [] } };
+    assert.deepEqual(labels(runtime.render(MessageContainer.type, own)), ["main_page.message_log.sent"]);
+});
+
 test("a typed message kept out of the chatbox by the setting says so, quietly and only once settled", async () => {
     const runtime = hooks();
     const { MessageContainer } = await loadModule(new URL("./MessageContainer.jsx", import.meta.url), runtime, {

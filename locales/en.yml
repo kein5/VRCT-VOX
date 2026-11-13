@@ -329,6 +329,8 @@ main_page:
         processing_failed: "Processing failed"
         received: "Received"
         received_ocr: "Received ({{ocr}})"
+        speakers: "Speaker {{speakers}}"
+        speakers_separator: ", "
         system: "System"
 
         resend_button_on_hover_desc: "Press And Hold To Send"
@@ -722,7 +724,7 @@ config_page:
         section_label_desktop_overlay: "Desktop caption overlay"
         desktop_overlay:
             label: "Show captions on the desktop"
-            desc: "Draws the lines of the message log as captions above other windows, including VRChat played without a headset. Your own words (microphone or typing) are blue and the other side's (speakers or Chat Transcribe) are purple. Clicks pass through the captions to the window underneath. The captions appear on the monitor that holds VRCT-VOX's main window."
+            desc: "Draws the lines of the message log as captions above other windows, including VRChat played without a headset. Your own words (microphone or typing) are blue and the other side's (speakers or Chat Transcribe) are purple. With a diarization model, game audio captions carry a label for each voice (A, B, …) and each voice has its own colour. Clicks pass through the captions to the window underneath. The captions appear on the monitor that holds VRCT-VOX's main window."
         desktop_overlay_position:
             label: "Where the captions appear"
             bottom: "Bottom of the screen"

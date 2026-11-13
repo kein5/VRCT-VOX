@@ -1,5 +1,6 @@
 // Which rows of the message log become captions over the desktop, and for how long.
 // Pure: the main window's controller and the overlay page both use it.
+import { speakerLabels } from "../common/speakerLabels.js";
 
 // More lines than this would cover the game.
 export const MAX_CAPTION_LINES = 4;
@@ -25,7 +26,10 @@ export const captionLines = (rows, { onlyTranslated = false, max = MAX_CAPTION_L
         // "Only the translation" still shows the original while no translation exists.
         const text = onlyTranslated && translations.length ? "" : clip(row.messages?.original?.message ?? "");
         if (!text && !translations.length) continue;
-        lines.unshift({ id: String(row.id), kind: row.category, text, translations, pending: row.status === "pending" });
+        // Where the game audio's voices were told apart, the line says who spoke (A, B, ...).
+        const speakers = row.category === "received" ? speakerLabels(row.speakers) : [];
+        lines.unshift({ id: String(row.id), kind: row.category, text, translations, pending: row.status === "pending",
+            ...(speakers.length ? { speakers } : {}) });
     }
     return lines;
 };

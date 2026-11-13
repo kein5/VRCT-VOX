@@ -31,6 +31,17 @@ test("only the translation is shown when asked, and the original until one exist
     assert.deepEqual(captionLines([row(3, "received", "")]), []);
 });
 
+test("a heard line names its speakers; the user's own line and malformed labels name none", () => {
+    const heard = { ...row("realtime:speaker:1:s:a", "received", "こんばんは。こんばんは。"), speakers: ["A", "B"] };
+    const own = { ...row(2, "sent", "やあ"), speakers: ["A"] };
+    const odd = { ...row(3, "received", "Hello"), speakers: ["a", "B"] };
+    assert.deepEqual(captionLines([heard, own, odd]), [
+        { id: "realtime:speaker:1:s:a", kind: "received", text: "こんばんは。こんばんは。", translations: [], pending: false, speakers: ["A", "B"] },
+        { id: "2", kind: "sent", text: "やあ", translations: [], pending: false },
+        { id: "3", kind: "received", text: "Hello", translations: [], pending: false },
+    ]);
+});
+
 test("long text is cut by characters, and at most three translations are kept", () => {
     const [line] = captionLines([row(1, "sent", "あ".repeat(2500), ["a", "b", "c", "d"])]);
     assert.equal([...line.text].length, 2000);

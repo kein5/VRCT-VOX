@@ -329,6 +329,8 @@ main_page:
         processing_failed: "処理に失敗しました"
         received: "受信"
         received_ocr: "受信({{ocr}})"
+        speakers: "話者{{speakers}}"
+        speakers_separator: "・"
         system: "システム"
 
         resend_button_on_hover_desc: "長押しで送信"
@@ -722,7 +724,7 @@ config_page:
         section_label_desktop_overlay: "デスクトップの字幕オーバーレイ"
         desktop_overlay:
             label: "デスクトップに字幕を表示する"
-            desc: "会話ログに出た文をほかのウィンドウの上に字幕として重ねます。ヘッドセットを使わないVRChatの画面にも出せます。自分の発言（マイクや入力）は青、相手の発言（スピーカーやチャット読み取り）は紫の文字で出ます。字幕はクリックを通すので、下のウィンドウをそのまま操作できます。VRCT-VOXのメイン画面があるモニターに出ます。"
+            desc: "会話ログに出た文をほかのウィンドウの上に字幕として重ねます。ヘッドセットを使わないVRChatの画面にも出せます。自分の発言（マイクや入力）は青、相手の発言（スピーカーやチャット読み取り）は紫の文字で出ます。話者分離モデルを使っているときは、ゲーム音声の字幕に話者のラベル（A、B…）が付き、話者ごとに色が変わります。字幕はクリックを通すので、下のウィンドウをそのまま操作できます。VRCT-VOXのメイン画面があるモニターに出ます。"
         desktop_overlay_position:
             label: "字幕を出す場所"
             bottom: "画面の下"
