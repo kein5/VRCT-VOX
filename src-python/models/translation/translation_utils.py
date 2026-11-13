@@ -163,28 +163,46 @@ class MissingCTranslate2Tokenizer(FileNotFoundError):
     """The pinned local bundle is unavailable; direct the user to Downloads."""
 
 
+class CTranslate2TokenizerLoadError(RuntimeError):
+    """The pinned bundle is on the disk and verified, but its tokenizer could not be built.
+
+    Fetching the model again cannot help, so this must not send the user to Downloads: the
+    files verify, the load fails again, and the review reopens for ever. That is what every
+    Windows package up to 0.1.0-beta.7 did, where Transformers could not be imported.
+    """
+
+
 def downloadCTranslate2Tokenizer(path: str, weight_type: str = "m2m100_418M-ct2-int8", *, local_files_only: bool = True):
     # Both families already include their tokenizer assets in the pinned CT2
     # bundle. Never delegate acquisition to Transformers or trust its hub cache.
     weight_path = resolveCTranslate2Weight(path, weight_type)
-    if weight_path is None or loadTransformers() is None:
+    if weight_path is None:
         raise MissingCTranslate2Tokenizer(weight_type)
+    if loadTransformers() is None:
+        raise CTranslate2TokenizerLoadError(weight_type)
     try:
+        # Transformers imports the class on first use; a broken package fails here.
         tokenizer_class = (transformers.M2M100Tokenizer if weight_type.startswith("m2m100")
                            else transformers.NllbTokenizerFast)
-        repo = ctranslate2_weights[weight_type]["hf_repo"]
-        pin = MODEL_PINS[repo]
-        files = tokenizerFilePins(repo)
-        # Transformers also reads optional added_tokens/config files. A private
-        # projection prevents unpinned extras in a user's directory being loaded.
-        with TemporaryDirectory(prefix="vrct-tokenizer-") as temporary:
+    except Exception as exc:
+        raise CTranslate2TokenizerLoadError(weight_type) from exc
+    repo = ctranslate2_weights[weight_type]["hf_repo"]
+    pin = MODEL_PINS[repo]
+    files = tokenizerFilePins(repo)
+    # Transformers also reads optional added_tokens/config files. A private
+    # projection prevents unpinned extras in a user's directory being loaded.
+    with TemporaryDirectory(prefix="vrct-tokenizer-") as temporary:
+        try:
             for name in files:
                 copyfile(weight_path / name, Path(temporary) / name)
-            if not verified_directory(temporary, repo, {"revision": pin["revision"], "files": files}):
-                raise MissingCTranslate2Tokenizer(weight_type)
+        except OSError as exc:
+            raise MissingCTranslate2Tokenizer(weight_type) from exc
+        if not verified_directory(temporary, repo, {"revision": pin["revision"], "files": files}):
+            raise MissingCTranslate2Tokenizer(weight_type)
+        try:
             return tokenizer_class.from_pretrained(temporary, local_files_only=True)
-    except Exception as exc:
-        raise MissingCTranslate2Tokenizer(weight_type) from exc
+        except Exception as exc:
+            raise CTranslate2TokenizerLoadError(weight_type) from exc
 
 
 def loadTranslatePromptConfig(root_path: str | None = None, prompt_filename: str | None = None) -> dict:

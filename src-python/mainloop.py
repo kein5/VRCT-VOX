@@ -18,6 +18,12 @@ if __name__ == '__main__' and sys.argv[1:] == ['--voice-router-worker']:
     from models.voice_conversion.router_worker import main as voice_router_main
     raise SystemExit(voice_router_main())
 
+# The build runs the packaged backend with this to see that it can load what a feature
+# imports only when it turns on. Nothing else starts: no devices, no servers, no network.
+if __name__ == '__main__' and sys.argv[1:] == ['--self-check']:
+    from packaged_self_check import main as self_check_main
+    raise SystemExit(self_check_main())
+
 import json
 import time
 import faulthandler

@@ -30,6 +30,31 @@ Linuxでは再配置したアーカイブとAppImageのGUI試験、Windowsでは
 
 Windowsのsetupは、下書きへまとめる際に`VRCT-VOX_setup.exe`へコピーします。インストーラーが取得する`VRCT-VOX.zip`と`VRCT-VOX_cuda.zip`の名前も維持してください。アプリの自動更新は引き続き無効です。
 
+## 公開前にWindowsのパッケージを起動して確かめる
+
+候補のビルドはパッケージの中身（配布してはいけないファイル、容量、SHA-256）を検査し、パッケージしたバックエンドを`--self-check`で起動します。`--self-check`は機能をオンにしたときに初めて読み込むライブラリ（翻訳のtokenizer、CTranslate2、faster-whisper）を読み込めるかだけを確かめます。画面と、モデルを使う動作は確かめません。
+
+0.1.0-beta.7までのWindowsのパッケージでは、ローカル翻訳を一度もオンにできませんでした。PyInstallerのアーカイブの中ではTransformersが自分のフォルダーの一覧を読めず、tokenizerを組み立てられなかったためです。開発用のビルドでは起きないので、パッケージを起動して「翻訳」を押すまで分かりませんでした。公開の前に、下書きの`VRCT-VOX.zip`を作業用のフォルダーへ展開して起動してください。インストール済みのVRCT-VOXには触れません。
+
+```powershell
+# 下書きのパッケージを取得し、SHA-256を確かめて、作業用のフォルダーへ展開する
+$d = "build\release-check\<version>"
+gh release download v<version> -R kein5/VRCT-VOX -p "VRCT-VOX.zip" -p "VRCT-VOX.zip.sha256" -D "$d\dl"
+(Get-FileHash "$d\dl\VRCT-VOX.zip" -Algorithm SHA256).Hash.ToLower() -eq (Get-Content "$d\dl\VRCT-VOX.zip.sha256" -Raw).Trim()
+New-Item -ItemType Directory -Force "$d\app", "$d\state", "$d\webview" | Out-Null
+tar -xf "$d\dl\VRCT-VOX.zip" -C "$d\app"
+
+# 設定とWebView2のデータを作業用のフォルダーへ分けて起動する（どちらも絶対パス）
+$env:VRCT_CONFIG_DIR = (Resolve-Path "$d\state").Path
+$env:WEBVIEW2_USER_DATA_FOLDER = (Resolve-Path "$d\webview").Path
+& "$d\app\vrct-vox.exe"
+```
+
+- `VRCT_CONFIG_DIR`を指定すると、設定とログがそのフォルダーに入り、インストール済みのアプリが動いていても別に起動します。モデルと`telemetry_state.json`は展開した`app`フォルダーの中に入ります。
+- OSCの送信先がこのPC（既定）だと、バックエンドがmDNSのためにポートを開き、新しい場所の実行ファイルにはWindowsのファイアウォールの確認が出ます。確認を出さずに見るときは、`state\config.json`に`"OSC_IP_ADDRESS": "127.0.0.2"`と`"SEND_MESSAGE_TO_VRC": false`を書いてから起動します。
+- 利用状況のお知らせで「送信する」を選ぶと、実際の受信サーバーへ1件送ります。送らずに見るときは`VRCT_TELEMETRY`に`off`を入れます。
+- 少なくとも次を確かめます。起動して版が表示されること。「翻訳」を押すと取得の確認画面が開き、同意して取得が終わると翻訳がオンになって訳文が出ること。設定の各ページが開くこと。閉じるとバックエンドのプロセスも終わること。`state\logs\error.log`ができていないこと。
+
 ## 公開前にLinuxのデスクトップで確かめる
 
 候補のビルドは、AppImageの起動、描画、設定画面の操作までを自動で確かめます。音声経路、音声認識、VRChatを使う試験は、PipeWireとWirePlumber 0.5、モデル、GPU、VRChatが要るので、CIでは実行しません。CIに含まれない試験は、画面を変えたあとに気づかないまま古くなります。0.1.0-beta.6では、公開の直前に補助コードが今の画面と合っていないことが分かり、一部を確かめないまま公開しました。その後に流し直すと、設定画面で音声認識サーバーを止めても、閉じると再開する不具合が見つかっています。公開の前に、下書きのAppImageをLinuxのデスクトップで実行してください。

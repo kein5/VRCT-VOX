@@ -12,6 +12,7 @@ on:
       - 'uv.lock'
       - 'bat/**'
       - 'tools/check_voice_distribution.py'
+      - 'src-python/packaged_self_check.py'
       - '.github/workflows/windows-package.yml'
 
 permissions:
@@ -41,4 +42,12 @@ jobs:
         shell: pwsh
         run: |
           python tools/check_voice_distribution.py src-tauri/bin/_internal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      # The inspection reads files. This starts the packaged backend and imports what the
+      # features import only when they turn on (the translation tokenizer never loaded
+      # from a Windows package up to 0.1.0-beta.7, and no check started it).
+      - name: Self-check the packaged backend
+        shell: pwsh
+        run: |
+          & src-tauri/bin/vrct-vox-sidecar-x86_64-pc-windows-msvc.exe --self-check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

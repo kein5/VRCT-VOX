@@ -137,6 +137,14 @@ jobs:
           python tools/check_voice_distribution.py $env:PACKAGE src-tauri/bin/_internal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      # Starts the packaged backend itself: can it import what a feature imports only
+      # when it turns on? (windows-package.yml says why.)
+      - name: Self-check the packaged backend
+        shell: pwsh
+        run: |
+          & src-tauri/bin/vrct-vox-sidecar-x86_64-pc-windows-msvc.exe --self-check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Collect build outputs
         shell: pwsh
         env:

@@ -68,6 +68,17 @@ def test_frozen_router_and_bundled_engine_entrypoints(installation, tmp_path):
     assert result.returncode == 0, result.stderr
 
 
+def test_packaged_backend_loads_what_features_import_only_when_turned_on(installation, tmp_path):
+    # The tokenizer of the local translation never loaded from a Windows package up to
+    # 0.1.0-beta.7: Transformers could not list its own folders inside the PYZ archive.
+    env = dict(os.environ, XDG_CONFIG_HOME=str(tmp_path / 'config'),
+               XDG_DATA_HOME=str(tmp_path / 'data'), XDG_CACHE_HOME=str(tmp_path / 'cache'))
+    result = subprocess.run([str(installation / 'vrct-vox-sidecar'), '--self-check'],
+                            capture_output=True, timeout=300, env=env, cwd=tmp_path)
+    assert result.returncode == 0, (result.stdout + result.stderr).decode('utf-8', 'replace')
+    assert result.stdout.splitlines()[-1] == b'self-check passed'
+
+
 @pytest.mark.skipif(os.environ.get('VRCT_TEST_NATIVE_GUI') != '1', reason='requires WebKit driver/display')
 def test_relocated_native_gui(installation, tmp_path):
     from test_native_ui import test_model_free_native_app_renders_text_input_without_fatal_warning
