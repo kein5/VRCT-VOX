@@ -1227,7 +1227,7 @@ speech_servers:
     device: "推論デバイス"
     device_named: "{{label}}（{{name}}）"
     device_missing: "{{name}}（見つかりません）"
-    device_help: "内蔵GPUと独立GPUがあるPCでは、「自動」と「GPU」がどちらを使うかはPCによります。ここで指定できます。RVCと同じGPUで動かすと、RVCが止まりやすくなることがあります。"
+    device_help: "「自動」と「GPU」は内蔵GPUより独立GPUを先に使い、独立GPUが複数あればメモリの多いほうを使います。AMD、Intel、NVIDIAのどれでも同じです。ここで指定もできます。RVCと同じGPUで動かすとRVCが止まりやすくなることがあります。"
     low_latency: "低遅延待機（Irodori・GPU）"
     low_latency_help: "サーバーの起動中は、TTSがオフでもGPUで無音の待機計算を続け、最初の読み上げを速くします。消費電力が増え、ゲームとGPUを取り合うことがあります。変更する前にサーバーを止めてください。遅延を保証する設定ではありません。"
     low_latency_warming: "低遅延待機を準備中"

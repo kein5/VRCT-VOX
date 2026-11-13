@@ -39,6 +39,17 @@ VRCT-VOXの配布物には読み上げ・音声認識・声の変換・文字認
 
 読み上げのページではGPUの名前とメモリの合計・空きを表示し、空きに合わせて標準か軽量のモデルを勧めます。これは目安です。メモリを予約するものでも、動作を保証するものでもありません。VRChatなどと同時に使うときは余裕を多めに見てください。
 
+## 使えるGPU
+
+| 機能 | GPU |
+|---|---|
+| 読み上げ、リアルタイム字幕、話者の聞き分け（同梱のspeech.cpp） | AMD、Intel、NVIDIA（Vulkan） |
+| ローカルの翻訳、Whisperの音声認識 | NVIDIA（WindowsのGPU版）。ほかのGPUではCPUで動きます |
+| 声の変換（RVC、Seed-VC） | NVIDIA |
+| チャット読み取り | CPUで動きます |
+
+同梱のspeech.cppのサーバーは、推論デバイスが「自動」か「GPU」のとき、内蔵GPUより独立GPUを先に使います。独立GPUが複数あればメモリの多いほうを使います。使うGPUは「モデルとサーバー」の「推論デバイス」で指定もできます。
+
 ## 保存先
 
 取得したモデルは設定ファイル（`config.json`）と同じフォルダーの`downloaded_models`に保存します。Linuxでは`~/.config/vrct-vox/downloaded_models`、Windowsではアプリを入れたフォルダーの`downloaded_models`です。翻訳とWhisperのモデルは別の場所で、Windowsではアプリのフォルダーの`weights`に、Linuxでは`~/.local/share/vrct-vox`の中に入ります。
