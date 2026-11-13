@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { hooks, loadModule, find, stubGlobals } from "../../logics/test/hookHarness.js";
 import { flush } from "../../logics/test/bridgeHarness.js";
@@ -54,6 +55,23 @@ test("the overlay reads its captions through the command, draws them and applies
     const [sent, received] = s.lineClasses();
     assert.match(sent, /sent/); assert.doesNotMatch(sent, /is_pending|is_fading/);
     assert.match(received, /received/); assert.match(received, /is_pending/);
+});
+
+test("the user's own words and the other side are drawn in different colours and on different sides", async () => {
+    const scss = await readFile(new URL("./CaptionOverlay.module.scss", import.meta.url), "utf8");
+    const rule = name => scss.match(new RegExp(`^\\.${name} \\{([^}]*)\\}`, "m"))?.[1] ?? "";
+    const ink = name => rule(name).match(/--caption_ink: (#[0-9a-f]{6});/)?.[1];
+    const soft = name => rule(name).match(/--caption_ink_soft: (#[0-9a-f]{6});/)?.[1];
+    assert.ok(ink("sent") && ink("received") && soft("sent") && soft("received"));
+    assert.notEqual(ink("sent"), ink("received"));
+    assert.notEqual(soft("sent"), soft("received"));
+    // Both the original and its translation take the colour of their side.
+    assert.match(scss, /^\.text \{ color: var\(--caption_ink\); \}/m);
+    assert.match(scss, /^\.translation \{ color: var\(--caption_ink_soft\); \}/m);
+    assert.match(scss, /^\.translation:first-child \{ color: var\(--caption_ink\); \}/m);
+    // Not by colour alone: the bar sits on the side the message log uses.
+    assert.match(rule("sent"), /border-right:/); assert.doesNotMatch(rule("sent"), /border-left:/);
+    assert.match(rule("received"), /border-left:/); assert.doesNotMatch(rule("received"), /border-right:/);
 });
 
 test("a line fades and then goes when its time has passed, without a new notice", async context => {

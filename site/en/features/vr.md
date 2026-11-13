@@ -18,7 +18,8 @@ Turn it on with "Overlay(VR)" at the top of the main screen to show translations
 
 When you play VRChat without a headset, the captions can be drawn on the desktop. Turn on "Show captions on the desktop" under Settings → "VR" → "Desktop caption overlay". It is available on Windows.
 
-- The lines of the message log are drawn above other windows. A bar at the left tells your own words from the other side's.
+- The lines of the message log are drawn above other windows.
+- Your own words (microphone or typing) are blue and the other side's (speakers or Chat Transcribe) are purple, the same colours as the message log. The bar sits at the right for your own words and at the left for the other side.
 - Clicks pass through the captions and they never take the focus, so the window underneath stays usable.
 - You can change where they appear (bottom or top of the screen), the text size, the display duration and how dark the background is.
 - They appear on the monitor that holds VRCT-VOX's main window.
