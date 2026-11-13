@@ -1617,12 +1617,14 @@ message_outputs:
     unknown: "An output"
 
 telemetry_notice:
-    title: "About usage data"
+    title: "Help improve VRCT-VOX"
+    purpose: "To fix problems and to learn which features run well on which PCs, we ask you to share usage data with the developers."
     what: "VRCT-VOX sends the developers a note that the app started, and the kind of error (its error code) when one happens. Each carries the app version, the OS and its version, the display language, and this PC's hardware (CPU, memory, GPUs and their driver versions)."
     not_sent: "The text and audio of conversations, the names of microphones and speakers, and user names are never sent. The sender's IP address and anything that tells one PC from another are not kept. The receiver records when an event arrived and the country it came from."
     change: "You can change this later under Settings → Advanced → \"Send usage data\". Nothing is sent until you choose."
     send: "Send"
     dont_send: "Don't send"
+    later: "Decide later"
 telemetry_contents:
     show: "See what is sent"
     loading: "Checking what would be sent…"

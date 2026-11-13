@@ -2,7 +2,7 @@
 
 ## Usage data
 
-VRCT-VOX sends its developers two kinds of events. Turn them off under Settings → "Advanced" → "Send usage data".
+VRCT-VOX sends its developers two kinds of events, to fix problems and to learn which features run well on which PCs. Turn them off under Settings → "Advanced" → "Send usage data".
 
 | Event | When | What it holds |
 |---|---|---|
@@ -15,13 +15,15 @@ The PC's hardware means:
 - the amount of memory, rounded to a common size such as 8, 16 or 32 GB
 - for up to four GPUs: the name, whether it is integrated or discrete, the amount of video memory, and the driver version when it can be read
 
-You can read what is sent in the app itself. The notice shown before anything is sent and Settings → "Advanced" both have "See what is sent", which lists what this PC sends field by field and also shows the data itself. Under "Advanced" you can also read what has been sent so far.
+![The dialog that asks about usage data](/screenshots/en/telemetry-notice.webp)
+
+You can read what is sent in the app itself. The notice shown before anything is sent (above) and Settings → "Advanced" both have "See what is sent", which lists what this PC sends field by field and also shows the data itself. Under "Advanced" you can also read what has been sent so far.
 
 - The text and audio of conversations, the names of microphones and speakers, user names, the PC's name and file locations are never sent.
 - The receiver does not keep the sender's IP address or anything that tells one PC from another. It runs on Cloudflare, which handles the sender's address as the other end of the connection.
 - The receiver records when each event arrived and the country the connection came from, which Cloudflare derives from the sender's address.
 - No number that identifies a PC is sent, but an unusual combination of hardware can suggest that two events came from the same PC.
-- Before anything is sent, a dialog explains what is sent. Nothing is sent until you choose "Send" or "Don't send".
+- Before anything is sent, a dialog explains what is sent. Nothing is sent until you choose "Send" or "Don't send". "Decide later" puts the dialog away, and it comes back the next time the app starts.
 - Starting the app with the environment variable `VRCT_TELEMETRY` set to `off` sends nothing, whatever the setting says.
 
 Upstream VRCT's usage reporting (Aptabase telemetry) is not used. Even when an old key file remains, nothing goes to upstream. The in-app updater is also disabled, so the app does not check for updates at startup.
