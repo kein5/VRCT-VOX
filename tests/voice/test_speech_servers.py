@@ -40,6 +40,10 @@ if mode.startswith('oom'):
     if mode=='oom_ansi': message='\\x1b[31m'+message+'\\x1b[0m'
     sys.stderr.write(message + ('' if mode=='oom_unterminated' else '\\n'))
     sys.stderr.flush(); sys.exit(1)
+if mode.startswith('device'):
+    message='speech: device: the device Vulkan0 failed to compute a graph: /private/model.gguf'
+    if mode=='device_option': message='speech: device (--device): no device is named /private/Vulkan9'
+    sys.stderr.write(message+'\\n'); sys.stderr.flush(); sys.exit(1)
 if mode=='wait': time.sleep(30); sys.exit(0)
 if mode=='overflow': sys.stderr.write('x'*70000); sys.stderr.flush(); time.sleep(30)
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -338,6 +342,23 @@ def test_ready_server_death_invalidates_endpoint(tmp_path, fake):
         wait_for(lambda: server.health()["state"] == "failed", timeout=4)
         assert server.health()["base_url"] is None
         assert ended == ["japanese"]
+    finally:
+        server.close()
+
+
+@pytest.mark.parametrize("mode", ["device", "device_option"])
+def test_a_device_that_cannot_run_the_model_is_named(tmp_path, fake, mode):
+    """A GPU that lists itself and then fails to compute, or a device name the engine refuses."""
+    _, runtime = modules()
+    binary, helper = fake
+    server = runtime.SpeechServer("asr", options(tmp_path, mode, "asr"), binary=binary, helper=helper)
+    try:
+        server.start()
+        wait_for(lambda: server.health()["state"] == "failed", timeout=4)
+        assert server.health() == dict(
+            state="failed", base_url=None, error_code="speech_server_device_failed"
+        )
+        assert "/private/" not in json.dumps(server.health())
     finally:
         server.close()
 

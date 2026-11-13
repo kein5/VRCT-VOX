@@ -147,6 +147,34 @@ def test_a_missing_vulkan_library_is_named(tmp_path, monkeypatch):
     assert server.close(timeout=3)
 
 
+@windows
+@pytest.mark.parametrize('line,code', [
+    # Seen with only the Direct3D 12 mapping layer in place of the GPU's own Vulkan driver.
+    ('speech: device: the device Vulkan0 failed to compute a graph: vk::Device::createComputePipeline: ErrorUnknown',
+     'speech_server_device_failed'),
+    ('speech: device (--device): C:\\\\private\\\\path', 'speech_server_device_failed'),
+    ('speech: out_of_memory: cannot allocate', 'speech_server_out_of_memory'),
+    # Running out of memory keeps its own advice when both are printed.
+    ('speech: out_of_memory: cannot allocate\\nspeech: device: gave up', 'speech_server_out_of_memory'),
+    ('speech: model_file: not a model', 'speech_server_exited'),
+    ('a line that only mentions speech: device: in passing', 'speech_server_exited'),
+])
+def test_an_engine_failure_with_a_next_step_is_named(monkeypatch, line, code):
+    real = rt.launch_owned
+    monkeypatch.setattr(rt, 'launch_owned', lambda args, **kwargs: real(
+        [sys.executable, '-c', f"import sys; sys.stderr.write('speech.cpp 0.10.0 - serve\\n{line}\\n'); sys.exit(1)"],
+        **kwargs))
+    server = rt.SpeechServer('asr', OPTIONS, binary=sys.executable)
+    server.start()
+    deadline = time.monotonic() + 30
+    while server.health()['state'] == 'preparing' and time.monotonic() < deadline:
+        time.sleep(.02)
+    health = server.health()
+    assert health == dict(state='failed', base_url=None, error_code=code)
+    assert 'private' not in str(health)
+    assert server.close(timeout=3)
+
+
 def test_windows_bundle_keeps_only_the_executable_and_the_notices(tmp_path):
     m = importlib.import_module('tools.speechcpp_bundle')
     archive = tmp_path / 'speech.zip'

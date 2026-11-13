@@ -31,6 +31,10 @@ HASHES={'linux-x64-cpu':'7a9c6caa705f56bd52db1fa1a2d8317e5e07da6a291d2dfa37f4e9b
         'windows-x64-vulkan':'fa787d70ce3c9d83b11aacd06024d2bfa89fccf0e4e34995245ef0cd341981b7'}
 READY=re.compile(rb'API at http://127\.0\.0\.1:([0-9]{1,5})/v1(?:;|$)')
 ANSI=re.compile(rb'\x1b\[[0-9;]*m')
+# speech.cpp prints a failure as "speech: <category>: ..." or "speech: <category> (<option>): ...".
+# These two categories have a next step of their own for the user.
+ENGINE_FAILURE=re.compile(rb'speech: (out_of_memory|device)(?::| \()')
+ENGINE_FAILURES={b'out_of_memory':'speech_server_out_of_memory',b'device':'speech_server_device_failed'}
 DEVICE_LINE=re.compile(r'(Vulkan[0-9]{1,2})\s+(igpu|gpu)\s+(.+?),\s+[0-9.]+ GB,')
 EXECUTABLE='speech.exe' if sys.platform=='win32' else 'speech'
 # The loader reports a missing import as this NTSTATUS. Only vulkan-1.dll can be
@@ -252,8 +256,11 @@ class SpeechServer:
                     line=ANSI.sub(b'',line).rstrip(b'\r')
                     # Only map the fixed engine's error category. Never publish
                     # raw stderr, which can contain local model paths or input.
-                    if line.startswith(b'speech: out_of_memory:'):
-                        exit_error='speech_server_out_of_memory'
+                    # "device" is a GPU that cannot run the model: a driver that only
+                    # maps Vulkan onto Direct3D 12 loads it and then fails to compute.
+                    category=ENGINE_FAILURE.match(line)
+                    if category and exit_error!='speech_server_out_of_memory':
+                        exit_error=ENGINE_FAILURES[category[1]]
                     if exited or self.health()['state']=='ready': continue
                     matched=READY.search(line)
                     if matched:
