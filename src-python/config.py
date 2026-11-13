@@ -584,6 +584,25 @@ def _overlay_small_validator(val, inst):
             new[key] = float(v)
     return new
 
+def _overlay_desktop_validator(val, inst):
+    """The desktop caption overlay's look. A value out of range keeps the current one."""
+    base = inst.OVERLAY_DESKTOP_SETTINGS
+    if not (isinstance(val, dict) and set(val.keys()) == set(base.keys())):
+        return None
+    new = dict(base)
+    for key, v in val.items():
+        if isinstance(v, bool) or (isinstance(v, float) and not math.isfinite(v)):
+            return None
+        if key == 'position' and v in ('bottom', 'top'):
+            new[key] = v
+        elif key == 'font_size' and isinstance(v, int) and 16 <= v <= 72:
+            new[key] = v
+        elif key == 'display_duration' and isinstance(v, int) and 1 <= v <= 60:
+            new[key] = v
+        elif key == 'opacity' and isinstance(v, (int, float)) and 0.0 <= v <= 1.0:
+            new[key] = float(v)
+    return new
+
 def _make_overlay_vr_window_validator(name):
     """VR UIのウィンドウ (ログ・ランチャー) の位置設定用。VR内で掴んで動かした結果だけが保存される。"""
     def validator(val, inst):
@@ -1229,6 +1248,8 @@ class Config:
     # --- Overlay settings ---
     OVERLAY_SMALL_LOG_SETTINGS = ValidatedProperty('OVERLAY_SMALL_LOG_SETTINGS', _overlay_small_validator)
     OVERLAY_LARGE_LOG_SETTINGS = ValidatedProperty('OVERLAY_LARGE_LOG_SETTINGS', _overlay_large_validator)
+    # Captions over the desktop, for VRChat without a headset. The UI draws them in its own window.
+    OVERLAY_DESKTOP_SETTINGS = ValidatedProperty('OVERLAY_DESKTOP_SETTINGS', _overlay_desktop_validator)
     # VRパネルの位置。UIからは設定せず、VR内で掴んで動かした位置だけが保存される。
     OVERLAY_VR_PANEL_SETTINGS = ValidatedProperty('OVERLAY_VR_PANEL_SETTINGS', _make_overlay_vr_window_validator('OVERLAY_VR_PANEL_SETTINGS'))
     # VR UIのランチャー (手首の帯) の位置。OVERLAY_VR_PANEL_SETTINGS はログウィンドウの位置。
@@ -1250,6 +1271,7 @@ class Config:
     SEND_ONLY_TRANSLATED_MESSAGES = ManagedProperty('SEND_ONLY_TRANSLATED_MESSAGES', type_=bool)
     OVERLAY_SMALL_LOG = ManagedProperty('OVERLAY_SMALL_LOG', type_=bool)
     OVERLAY_LARGE_LOG = ManagedProperty('OVERLAY_LARGE_LOG', type_=bool)
+    OVERLAY_DESKTOP = ManagedProperty('OVERLAY_DESKTOP', type_=bool)
     # VR UI (手首のランチャーとログ・言語・VR設定のウィンドウ)。字幕のオーバーレイとは別にON/OFFする
     OVERLAY_VR_PANEL = ManagedProperty('OVERLAY_VR_PANEL', type_=bool)
     # VR UIのログウィンドウを掴めなくする (操作バーのロック)
@@ -1632,6 +1654,13 @@ class Config:
             "opacity": 1.0,
             "ui_scaling": 1.0,
             "tracker": "LeftHand",
+        }
+        self._OVERLAY_DESKTOP = False
+        self._OVERLAY_DESKTOP_SETTINGS = {
+            "position": "bottom",
+            "font_size": 28,
+            "display_duration": 6,
+            "opacity": 0.6,
         }
         self._OVERLAY_VR_LAUNCHER_SETTINGS = dict(DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS)
         self._OVERLAY_VR_PANEL = False

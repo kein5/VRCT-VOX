@@ -944,6 +944,24 @@ export const SETTINGS_ARRAY = [
         base_endpoint_name: "overlay_large_log_settings",
     },
     {
+        // Captions over the desktop. The UI draws them in its own window
+        // (CaptionOverlayController); the backend only keeps the setting.
+        Category: "Vr",
+        Base_Name: "IsEnabledOverlayDesktop",
+        default_value: false,
+        ui_template_id: "toggle",
+        logics_template_id: "toggle_enable_disable",
+        base_endpoint_name: "overlay_desktop",
+    },
+    {
+        Category: "Vr",
+        Base_Name: "OverlayDesktopSettings",
+        default_value: ui_configs.overlay_desktop_default_settings,
+        ui_template_id: "object",
+        logics_template_id: "get_set",
+        base_endpoint_name: "overlay_desktop_settings",
+    },
+    {
         Category: "Vr",
         Base_Name: "OverlayShowOnlyTranslatedMessages",
         default_value: false,

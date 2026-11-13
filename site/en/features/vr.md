@@ -14,10 +14,21 @@ Turn it on with "Overlay(VR)" at the top of the main screen to show translations
 - "Send Sample Texts To Overlay" shows how it looks.
 - "Show Only Translated Messages" hides the original text and shows only the translation.
 
+## Desktop caption overlay
+
+When you play VRChat without a headset, the captions can be drawn on the desktop. Turn on "Show captions on the desktop" under Settings → "VR" → "Desktop caption overlay". It is available on Windows.
+
+- The lines of the message log are drawn above other windows.
+- Your own words (microphone or typing) are blue and the other side's (speakers or Chat Transcribe) are purple, the same colours as the message log. The bar sits at the right for your own words and at the left for the other side.
+- Clicks pass through the captions and they never take the focus, so the window underneath stays usable.
+- You can change where they appear (bottom or top of the screen), the text size, the display duration and how dark the background is.
+- They appear on the monitor that holds VRCT-VOX's main window.
+- "Show Only Translated Messages" applies to these captions too.
+
 ## VR UI (beta feature)
 
 "Show the VR UI" shows a wrist launcher and windows in VR for turning features on and off and for the log, languages and settings. It works separately from the subtitle overlay. If you lose the launcher, press "Reset the launcher position and size"; it returns to your left wrist.
 
 ::: warning Testing status
-VR features have not been tested in depth in VRCT-VOX. On Linux, the VR UI has only been checked against a simulated SteamVR, not with a real headset.
+VR features have not been tested in depth in VRCT-VOX. On Linux, the VR UI has only been checked against a simulated SteamVR, not with a real headset. The desktop caption overlay was checked on Windows 11 above other windows; how it looks above the VRChat window has not been checked.
 :::

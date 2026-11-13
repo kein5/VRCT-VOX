@@ -49,6 +49,7 @@
             "capabilities": [
                 "default",
                 "quick-chat",
+                "caption-overlay",
                 "vrct-capability"
             ],
             "devCsp": {

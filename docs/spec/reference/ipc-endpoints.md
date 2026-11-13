@@ -10,7 +10,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - UIの受信先: 200の応答を処理するUIのフック（`useReceiveRoutes.js`の静的ルートと`ui_config_setter.js`の定義から生成）。「—」は受信先がない。
 - ログで伏せる: `process.log`で値を`***MASKED***`に置き換える（`SENSITIVE_ENDPOINT_MARKERS`）。stdoutのIPCそのものは伏せない。
 
-## 要求（403件: 削除 11、取得 180、実行 37、有効化 38、無効化 38、設定 99）
+## 要求（408件: 削除 11、取得 182、実行 37、有効化 39、無効化 39、設定 100）
 
 | エンドポイント | 種別 | 処理（controller） | 初期化前 | UIの受信先 | 備考 |
 |---|---|---|---|---|---|
@@ -286,6 +286,11 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/set/disable/overlay_large_log` | 無効化 | `setDisableOverlayLargeLog` | 可 | useVr.setSuccessIsEnabledOverlayLargeLog |  |
 | `/get/data/overlay_large_log_settings` | 取得 | `getOverlayLargeLogSettings` | 可 | useVr.updateFromBackendOverlayLargeLogSettings |  |
 | `/set/data/overlay_large_log_settings` | 設定 | `setOverlayLargeLogSettings` | 可 | useVr.setSuccessOverlayLargeLogSettings |  |
+| `/get/data/overlay_desktop` | 取得 | `getOverlayDesktop` | 可 | useVr.updateFromBackendIsEnabledOverlayDesktop |  |
+| `/set/enable/overlay_desktop` | 有効化 | `setEnableOverlayDesktop` | 可 | useVr.setSuccessIsEnabledOverlayDesktop |  |
+| `/set/disable/overlay_desktop` | 無効化 | `setDisableOverlayDesktop` | 可 | useVr.setSuccessIsEnabledOverlayDesktop |  |
+| `/get/data/overlay_desktop_settings` | 取得 | `getOverlayDesktopSettings` | 可 | useVr.updateFromBackendOverlayDesktopSettings |  |
+| `/set/data/overlay_desktop_settings` | 設定 | `setOverlayDesktopSettings` | 可 | useVr.setSuccessOverlayDesktopSettings |  |
 | `/get/data/overlay_show_only_translated_messages` | 取得 | `getOverlayShowOnlyTranslatedMessages` | 可 | useVr.updateFromBackendOverlayShowOnlyTranslatedMessages |  |
 | `/set/enable/overlay_show_only_translated_messages` | 有効化 | `setEnableOverlayShowOnlyTranslatedMessages` | 可 | useVr.setSuccessOverlayShowOnlyTranslatedMessages |  |
 | `/set/disable/overlay_show_only_translated_messages` | 無効化 | `setDisableOverlayShowOnlyTranslatedMessages` | 可 | useVr.setSuccessOverlayShowOnlyTranslatedMessages |  |
@@ -544,7 +549,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - `/run/translation_language_unsupported`
 
 
-## UIだけにあるルート（59件）
+## UIだけにあるルート（60件）
 
 UIに受信先が定義されているが、サイドカーの`mapping`と`run_mapping`にはないもの。多くは`ui_config_setter.js`の定義が機械的に作るルートで、使われない。
 
@@ -570,6 +575,7 @@ UIに受信先が定義されているが、サイドカーの`mapping`と`run_m
 - `/set/data/ocr_chatbox_filter`
 - `/set/data/ocr_use_chatbox_detector`
 - `/set/data/ollama_url`
+- `/set/data/overlay_desktop`
 - `/set/data/overlay_large_log`
 - `/set/data/overlay_show_only_translated_messages`
 - `/set/data/overlay_small_log`

@@ -589,6 +589,13 @@ mapping = {
     "/get/data/overlay_large_log_settings": {"status": True, "variable":controller.getOverlayLargeLogSettings},
     "/set/data/overlay_large_log_settings": {"status": True, "variable":controller.setOverlayLargeLogSettings},
 
+    # Captions over the desktop (drawn by the UI in its own window)
+    "/get/data/overlay_desktop": {"status": True, "variable":controller.getOverlayDesktop},
+    "/set/enable/overlay_desktop": {"status": True, "variable":controller.setEnableOverlayDesktop},
+    "/set/disable/overlay_desktop": {"status": True, "variable":controller.setDisableOverlayDesktop},
+    "/get/data/overlay_desktop_settings": {"status": True, "variable":controller.getOverlayDesktopSettings},
+    "/set/data/overlay_desktop_settings": {"status": True, "variable":controller.setOverlayDesktopSettings},
+
     "/get/data/overlay_show_only_translated_messages": {"status": True, "variable":controller.getOverlayShowOnlyTranslatedMessages},
     "/set/enable/overlay_show_only_translated_messages": {"status": True, "variable":controller.setEnableOverlayShowOnlyTranslatedMessages},
     "/set/disable/overlay_show_only_translated_messages": {"status": True, "variable":controller.setDisableOverlayShowOnlyTranslatedMessages},

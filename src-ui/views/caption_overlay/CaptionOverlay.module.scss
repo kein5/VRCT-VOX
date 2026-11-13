@@ -1,0 +1,60 @@
+// Lines stack from the edge the band sits on: upward from the bottom of the
+// screen, downward from the top.
+.container {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.25em;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 0.2em 0;
+}
+.container.is_top { justify-content: flex-start; }
+
+.line {
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.2em 0.7em;
+    border-radius: 0.3em;
+    // The plate keeps the words readable over a bright scene; the outline keeps
+    // them readable when the plate is made fully transparent.
+    background: rgba(8, 12, 22, var(--caption_plate, 0.6));
+    text-align: center;
+    // One blurred shadow is too faint an outline for light-coloured words on a
+    // bright scene; stacked, it closes into a dark edge.
+    text-shadow: 0 0 0.09em #000, 0 0 0.09em #000, 0 0 0.09em #000, 0 0 0.09em #000,
+        0 0.06em 0.22em rgba(0, 0, 0, 0.9);
+    opacity: 1;
+    transition: opacity 0.4s ease;
+}
+.line.is_fading { opacity: 0; }
+
+.text, .translation {
+    margin: 0;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+// The user's own words (the microphone, typing) are blue and the other side
+// (the speakers, chat reading) is purple, the hues of the message log and of
+// the VR overlay, lightened to stay readable over a game. The bar repeats it
+// on the side the message log puts each on, so the two are never told apart
+// by colour alone.
+.sent {
+    --caption_ink: #9fd4ff;
+    --caption_ink_soft: #c2e3ff;
+    border-right: 0.2em solid #58b0ee;
+}
+.received {
+    --caption_ink: #efb4ff;
+    --caption_ink_soft: #f5ceff;
+    border-left: 0.2em solid #cf86e6;
+}
+.text { color: var(--caption_ink); }
+// A translation under its original is a lighter tint of the same hue; alone
+// ("only the translation") it carries the full colour.
+.translation { color: var(--caption_ink_soft); }
+.translation:first-child { color: var(--caption_ink); }
+// Still being recognized or sent.
+.is_pending .text { font-style: italic; }

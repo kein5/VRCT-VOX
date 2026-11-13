@@ -21,6 +21,7 @@ import styles from "./App.module.scss";
 
 import { MainPage } from "./main_page/MainPage";
 import { QuickChatController } from "./_app_controllers/QuickChatController";
+import { CaptionOverlayController } from "./_app_controllers/CaptionOverlayController";
 import { ConfigPage } from "./config_page/ConfigPage";
 
 import {
@@ -49,6 +50,7 @@ export const App = () => {
                 <WindowCloseController />
                 <GlobalHotKeyController />
                 <QuickChatController />
+                <CaptionOverlayController />
                 <UiLanguageController />
                 <ConfigPageCloseTriggerController />
                 <UiSizeController />
