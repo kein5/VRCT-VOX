@@ -6,7 +6,7 @@
 
 ## 使う声
 
-読み上げには、同梱の[speech.cpp](https://github.com/nyosegawa/speech.cpp)のサーバーを使います。日本語はIrodori-TTS、ほかの言語はQwen3-TTSで読み上げます。
+読み上げには同梱の[speech.cpp](https://github.com/nyosegawa/speech.cpp)のサーバーを使います。日本語はIrodori-TTS、ほかの言語はQwen3-TTSで読み上げます。
 
 どちらのモデルも同梱していません。「同梱speech.cppサーバー」の「既定モデルのダウンロード」で取得します（[モデルの取得](../guide/models)）。すでに持っているGGUFファイルを指定することもできます。
 
@@ -19,7 +19,7 @@
 5. メイン画面に戻り、「TTS」をオンにします。入力欄から文章を送ると、読み上げます。
 
 ::: tip VRChatへ声を届ける
-VRChatで読み上げを聞かせるには、出力先を仮想マイクにして、VRChatのマイクにその仮想マイクを選びます。Linuxでは「管理対象の仮想マイク（Linux）」を使えます（[Linuxの音声経路](../guide/linux-audio)）。Windowsでは、別に用意した仮想ケーブルを使います。
+VRChatで読み上げを聞かせるには、出力先を仮想マイクにして、VRChatのマイクにその仮想マイクを選びます。Linuxでは「管理対象の仮想マイク（Linux）」を使えます（[Linuxの音声経路](../guide/linux-audio)）。Windowsでは別に用意した仮想ケーブルを使います。
 :::
 
 ## 自分でも聞く
