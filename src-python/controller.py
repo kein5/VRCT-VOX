@@ -311,6 +311,8 @@ _SIMPLE_CONFIG_GETTERS = {
     "getOverlayVrLauncherAutoHide": "OVERLAY_VR_LAUNCHER_AUTO_HIDE",
     "getOverlayVrTooltip": "OVERLAY_VR_TOOLTIP",
     "getOverlayLargeLogSettings": "OVERLAY_LARGE_LOG_SETTINGS",
+    "getOverlayDesktop": "OVERLAY_DESKTOP",
+    "getOverlayDesktopSettings": "OVERLAY_DESKTOP_SETTINGS",
     "getOverlayShowOnlyTranslatedMessages": "OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES",
     "getSendMessageToVrc": "SEND_MESSAGE_TO_VRC",
     "getSendReceivedMessageToVrc": "SEND_RECEIVED_MESSAGE_TO_VRC",
@@ -4763,6 +4765,24 @@ class Controller:
             Controller.syncOverlayRunning()
         return {"status":200, "result":config.OVERLAY_SMALL_LOG}
 
+
+    # The desktop caption overlay is a window of the UI: the backend only keeps
+    # the switch and the look, and has nothing to start or stop.
+    @staticmethod
+    def setEnableOverlayDesktop(*args, **kwargs) -> dict:
+        config.OVERLAY_DESKTOP = True
+        return {"status":200, "result":config.OVERLAY_DESKTOP}
+
+    @staticmethod
+    def setDisableOverlayDesktop(*args, **kwargs) -> dict:
+        config.OVERLAY_DESKTOP = False
+        return {"status":200, "result":config.OVERLAY_DESKTOP}
+
+    @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
+    def setOverlayDesktopSettings(data, *args, **kwargs) -> dict:
+        config.OVERLAY_DESKTOP_SETTINGS = data
+        return {"status":200, "result":config.OVERLAY_DESKTOP_SETTINGS}
 
     @staticmethod
     @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
