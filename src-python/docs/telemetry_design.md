@@ -1,5 +1,13 @@
 # VRCT Python Sidecar テレメトリ（Aptabase）実装設計書
 
+> **VRCT-VOXでの扱い（2026-11）**: この文書は本家VRCTのAptabase版の設計書で、送信先とクライアントの記述はVRCT-VOXに当てはまらない。
+> VRCT-VOXはAptabaseのSDKとキーを使わず、`models/telemetry/client.py`から自前の受信サーバーへ送る。
+> 送る条件（初回のお知らせ、`TELEMETRY_NOTICE`、`VRCT_TELEMETRY=off`）と通信の形は
+> [docs/spec/cross-cutting.md](../../docs/spec/cross-cutting.md#同意と外部への送信)と
+> [docs/spec/external-interfaces.md](../../docs/spec/external-interfaces.md#利用状況の通知)にある。
+> 引き継いでいるのは、2種類のイベント、1日1回の重複排除、専用スレッドのイベントループである。
+> VRCT-VOXではイベントにPCの構成（`models/telemetry/hardware.py`）が付き、送る内容を利用者に見せる（`Telemetry.preview`）。
+
 > **2026-08 改訂**: Aptabase 無料枠（20k events/月）に収めるため、送信イベントを
 > `app_started`（日次 1 回）と `error`（error_code ごと日次 1 回）の 2 種類のみに削減した。
 > 旧仕様の `core_feature` / `app_closed` は廃止。日次デデュープはプロセス再起動を跨いで

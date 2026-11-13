@@ -18,7 +18,7 @@ def initial_state(tmp_path):
     state = tmp_path / "state"
     state.mkdir()
     (state / "config.json").write_text(json.dumps({
-        "AUTO_DOWNLOAD_MODELS": False, "ENABLE_TELEMETRY": False,
+        "AUTO_DOWNLOAD_MODELS": False, "ENABLE_TELEMETRY": False, "TELEMETRY_NOTICE": 1,
         "AUTO_MIC_SELECT": False, "AUTO_SPEAKER_SELECT": False,
         "SEND_MESSAGE_TO_VRC": False, "VRC_MIC_MUTE_SYNC": False,
         "OSC_IP_ADDRESS": "127.0.0.2", "WEBSOCKET_SERVER": False,
@@ -72,7 +72,7 @@ def test_native_voice_settings_survive_restart_with_managed_route_muted(tmp_path
             ui.wait("return document.querySelector('textarea') !== null")
             ui.open_route_settings()
             ui.select("Audio route", "managed")
-            ui.click_text("button", "Save audio route")
+            ui.click_text("button", "Save changes")
             wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("routing") == "managed")
             ui.open_voice_settings()
             ui.select("Chat voice", "translated")
@@ -81,14 +81,14 @@ def test_native_voice_settings_survive_restart_with_managed_route_muted(tmp_path
             ui.select("Seed mode", "fixed")
             ui.fill("Instruction", "設定復元の試験")
             ui.fill("Japanese voice name", "保存テスト")
-            ui.click_text("button", "Save voice settings")
+            ui.click_text("button", "Save changes")
             wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("japanese_voice") == "保存テスト")
             ui.open_route_settings()
-            ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Muted (confirmed)')")
+            ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Muted (confirmed)')")
             assert gate.inspect()["muted"] is True
             ui.click_text("button", "Resume voice")
             wait_for(lambda: gate.inspect()["muted"] is False)
-            ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Voice enabled (confirmed)')")
+            ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Voice enabled (confirmed)')")
             ui.assert_rendered()
             ui.close_app()
         assert gate.inspect()["muted"] is True
@@ -99,7 +99,7 @@ def test_native_voice_settings_survive_restart_with_managed_route_muted(tmp_path
                                  ("Seed value", "0"), ("Instruction", "設定復元の試験")]:
                 assert ui.evaluate("return arguments[0].value", ui.control(label)) == value
             ui.open_route_settings()
-            ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Muted (confirmed)')")
+            ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Muted (confirmed)')")
             assert gate.inspect()["muted"] is True
             ui.assert_rendered()
             ui.close_app()

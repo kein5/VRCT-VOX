@@ -347,11 +347,11 @@
       "sha256": "04be80d826c061f3c955710c7da1e432912655d8ebe341b217fbe9bbaed9bb96"
     },
     {
-      "file": "/home/kei/Documents/projects/it-duo/.agents/skills/imozuru/SKILL.md",
+      "file": "<imozuru skill>/SKILL.md",
       "sha256": "d1cfff8d8e04e3c10e353b9efe899bb0ee927f3d51c7a018627caf35871d4223"
     },
     {
-      "file": "/home/kei/.codex/plugins/cache/openai-curated-remote/superpowers/7.0.1/skills/brainstorming/SKILL.md",
+      "file": "~/.codex/plugins/cache/openai-curated-remote/superpowers/7.0.1/skills/brainstorming/SKILL.md",
       "sha256": "61a7ef918652108c76a3fd01e02dd92d39996c6b46d4cb2819cbd03f6c45e46a"
     }
   ]

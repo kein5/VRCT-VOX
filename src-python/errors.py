@@ -8,6 +8,7 @@
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, Dict
 from enum import Enum
+from models.diagnostics import exception_provider, redact_diagnostic_text
 
 
 # エラー生成時に通知される optional なフック（テレメトリ等）。
@@ -41,6 +42,52 @@ def report_error_code(error_code: str) -> None:
         _notify_error_hooks(str(error_code))
 
 
+# The voice features do not answer with an ErrorCode: a server, a conversion or a caption
+# session ends in a "failed" state that carries a fixed lowercase code. These are the codes
+# that are reported (to the usage events) when that happens. A code outside its list is
+# reported under the list's "other" name, or not at all where there is none, so that a
+# string nobody listed never leaves the PC.
+REPORTED_FAILURES = {
+    # models/speech_server/runtime.py: a bundled speech.cpp server that ended on its own.
+    "speech_server": (frozenset((
+        "speech_server_out_of_memory", "speech_server_device_failed", "speech_server_vulkan_missing",
+        "speech_server_start_timeout", "speech_server_exited", "speech_server_launch_failed",
+        "speech_server_protocol", "speech_server_readiness", "speech_server_model_tasks",
+        "speech_server_low_latency_requires_gpu_irodori", "speech_bundle_missing_or_invalid",
+        "speech_server_cleanup_unconfirmed")), "speech_server_failed_other"),
+    # models/voice_conversion/process.py and models/audio_routing/windows_route.py.
+    "voice_conversion": (frozenset((
+        "vc_capture_overrun", "vc_capture_invalid", "vc_capture_failed", "vc_worker_eof", "vc_worker_failed",
+        "vc_sink_changed", "vc_output_failed", "source_bridge_output_failed", "source_bridge_capture_failed")),
+        "voice_conversion_failed_other"),
+    # models/transcription/realtime_session.py: a caption session that ended on its own.
+    "realtime": (frozenset((
+        "realtime_session_failed", "realtime_capture_failed", "realtime_capture_stop_failed",
+        "realtime_asr_timeout")), "realtime_failed_other"),
+    # models/tts/tts_scheduler.py: one speech request. What the text or the settings caused is not reported.
+    "tts": (frozenset((
+        "first_audio_timeout", "request_timeout", "transport_error", "audio_output_error", "output_missing",
+        "output_disconnected", "output_stalled", "output_failed", "output_drain_timeout", "truncated_pcm",
+        "truncated_http", "empty_pcm", "speech_server_not_ready")), None),
+}
+
+
+def reported_failure_code(area: str, code) -> Optional[str]:
+    """The code a failure is reported under, or None when it is not reported."""
+    listed = REPORTED_FAILURES.get(area)
+    if listed is None:
+        return None
+    codes, other = listed
+    return code if isinstance(code, str) and code in codes else other
+
+
+def report_failure(area: str, code) -> None:
+    """Reports a voice feature's failure by its fixed code. Safe to call from any thread, and never raises."""
+    reported = reported_failure_code(area, code)
+    if reported:
+        _notify_error_hooks(reported)
+
+
 class ErrorCode(str, Enum):
     """エラーコード定数
     
@@ -51,6 +98,9 @@ class ErrorCode(str, Enum):
     # ============================================================================
     DEVICE_NO_MIC = "DEVICE_NO_MIC"
     DEVICE_NO_SPEAKER = "DEVICE_NO_SPEAKER"
+    MESSAGE_OUTPUT_FAILED = "MESSAGE_OUTPUT_FAILED"
+    OVERLAY_RUNTIME_FAILED = "OVERLAY_RUNTIME_FAILED"
+    OVERLAY_VR_PANEL_UNSUPPORTED = "OVERLAY_VR_PANEL_UNSUPPORTED"
 
     # 音声入力から文字起こしまでの実行時エラー。これらは通常の
     # request/response エラーではなく、既存の
@@ -72,6 +122,12 @@ class ErrorCode(str, Enum):
     TRANSLATION_VRAM_SPEAKER = "TRANSLATION_VRAM_SPEAKER"
     TRANSLATION_VRAM_ENABLE = "TRANSLATION_VRAM_ENABLE"
     TRANSLATION_DISABLED_VRAM = "TRANSLATION_DISABLED_VRAM"
+    TRANSLATION_MODEL_MISSING = "TRANSLATION_MODEL_MISSING"
+    TRANSLATION_MODEL_LOAD_FAILED = "TRANSLATION_MODEL_LOAD_FAILED"
+    # The active engine (in practice the CTranslate2 fallback with the
+    # selected weight) cannot translate a selected language, so that language
+    # was reset. data = {"engine", "weight_type", "languages"}.
+    TRANSLATION_LANGUAGE_UNSUPPORTED = "TRANSLATION_LANGUAGE_UNSUPPORTED"
     
     # ============================================================================
     # 音声認識関連エラー (TRANSCRIPTION_*)
@@ -80,6 +136,13 @@ class ErrorCode(str, Enum):
     TRANSCRIPTION_VRAM_SPEAKER = "TRANSCRIPTION_VRAM_SPEAKER"
     TRANSCRIPTION_SEND_DISABLED_VRAM = "TRANSCRIPTION_SEND_DISABLED_VRAM"
     TRANSCRIPTION_RECEIVE_DISABLED_VRAM = "TRANSCRIPTION_RECEIVE_DISABLED_VRAM"
+    # Linux の Mic/Speaker トグルが使う realtime 認識の準備ができていない、
+    # または動作中に止まった。details.reason に不足している項目のコードが入る。
+    TRANSCRIPTION_SEND_NOT_READY = "TRANSCRIPTION_SEND_NOT_READY"
+    TRANSCRIPTION_RECEIVE_NOT_READY = "TRANSCRIPTION_RECEIVE_NOT_READY"
+    TRANSCRIPTION_ENGINE_NOT_SELECTED = "TRANSCRIPTION_ENGINE_NOT_SELECTED"
+    TRANSCRIPTION_MODEL_MISSING = "TRANSCRIPTION_MODEL_MISSING"
+    TRANSCRIPTION_ENGINE_UNAVAILABLE = "TRANSCRIPTION_ENGINE_UNAVAILABLE"
     TRANSCRIPTION_API_AUTH_FAILED = "TRANSCRIPTION_API_AUTH_FAILED"
     TRANSCRIPTION_API_RATE_LIMITED = "TRANSCRIPTION_API_RATE_LIMITED"
     TRANSCRIPTION_API_TIMEOUT = "TRANSCRIPTION_API_TIMEOUT"
@@ -90,6 +153,14 @@ class ErrorCode(str, Enum):
     # ============================================================================
     WEIGHT_CTRANSLATE2_DOWNLOAD = "WEIGHT_CTRANSLATE2_DOWNLOAD"
     WEIGHT_WHISPER_DOWNLOAD = "WEIGHT_WHISPER_DOWNLOAD"
+    WEIGHT_DOWNLOAD_CONSENT_REQUIRED = "WEIGHT_DOWNLOAD_CONSENT_REQUIRED"
+    # A non-commercial (CC-BY-NC-4.0) CTranslate2 weight was requested
+    # without the explicit license opt-in. data = {"weight_type", "selected"}.
+    WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED = "WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED"
+    # One-time startup notice: the saved CTranslate2 weight is non-commercial.
+    # Not a failure; it is delivered on the error channel because that is the
+    # channel the UI already turns into a localized notification.
+    WEIGHT_CTRANSLATE2_NON_COMMERCIAL_NOTICE = "WEIGHT_CTRANSLATE2_NON_COMMERCIAL_NOTICE"
 
     # ============================================================================
     # ソフトウェア更新関連エラー (UPDATE_*)
@@ -137,6 +208,7 @@ class ErrorCode(str, Enum):
     AUTH_GROQ_FAILED = "AUTH_GROQ_FAILED"
     AUTH_OPENROUTER_INVALID = "AUTH_OPENROUTER_INVALID"
     AUTH_OPENROUTER_FAILED = "AUTH_OPENROUTER_FAILED"
+    CREDENTIAL_REENTRY_REQUIRED = "CREDENTIAL_REENTRY_REQUIRED"
     
     # ============================================================================
     # モデル選択エラー (MODEL_*)
@@ -177,6 +249,7 @@ class ErrorCode(str, Enum):
     # ============================================================================
     OBS_BROWSER_SOURCE_HOST_UNAVAILABLE = "OBS_BROWSER_SOURCE_HOST_UNAVAILABLE"
     OBS_BROWSER_SOURCE_PORT_UNAVAILABLE = "OBS_BROWSER_SOURCE_PORT_UNAVAILABLE"
+    OBS_BROWSER_SOURCE_PORT_INVALID = "OBS_BROWSER_SOURCE_PORT_INVALID"
     OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE = "OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE"
     OBS_BROWSER_SOURCE_FONT_COLOR_INVALID = "OBS_BROWSER_SOURCE_FONT_COLOR_INVALID"
     OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR_INVALID = "OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR_INVALID"
@@ -198,6 +271,9 @@ class ErrorCode(str, Enum):
     OCR_DISABLED_ENGINE_UNAVAILABLE = "OCR_DISABLED_ENGINE_UNAVAILABLE"
     OCR_DISABLED_MODEL_LOAD_FAILED = "OCR_DISABLED_MODEL_LOAD_FAILED"
     OCR_DISABLED_UNSUPPORTED_LANGUAGE = "OCR_DISABLED_UNSUPPORTED_LANGUAGE"
+    OCR_DISABLED_MODEL_MISSING = "OCR_DISABLED_MODEL_MISSING"
+    OCR_DISABLED_WINDOW_NOT_FOUND = "OCR_DISABLED_WINDOW_NOT_FOUND"
+    OCR_DISABLED_CAPTURE_UNAVAILABLE = "OCR_DISABLED_CAPTURE_UNAVAILABLE"
     OCR_DISABLED_UNKNOWN = "OCR_DISABLED_UNKNOWN"
     
     # ============================================================================
@@ -242,6 +318,14 @@ class AudioPipelineError(RuntimeError):
         self.failure = failure
 
 
+class TranscriptionStartError(RuntimeError):
+    """The selected recognizer cannot start; never select another provider."""
+
+    def __init__(self, error_code: ErrorCode) -> None:
+        super().__init__(error_code.value)
+        self.error_code = error_code
+
+
 class OcrStartError(RuntimeError):
     """OCRを開始できなかった理由 (OCR_DISABLED_*) を controller へ渡す例外。
 
@@ -273,6 +357,24 @@ class ErrorCategory(str, Enum):
 
 # エラーコードのメタデータ定義
 ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
+    ErrorCode.OVERLAY_RUNTIME_FAILED: {
+        "category": ErrorCategory.GENERAL,
+        "message": "The VR overlay stopped after a rendering or capture failure. Check SteamVR and the VR window, then enable it again.",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.OVERLAY_VR_PANEL_UNSUPPORTED: {
+        "category": ErrorCategory.GENERAL,
+        "message": "The VR UI is not available in this environment. Subtitle overlays are not affected.",
+        "severity": "error",
+        "user_action_required": False,
+    },
+    ErrorCode.MESSAGE_OUTPUT_FAILED: {
+        "category": ErrorCategory.GENERAL,
+        "message": "One message output failed; other outputs continued. Resending may duplicate delivery.",
+        "severity": "warning",
+        "user_action_required": False,
+    },
     # デバイスエラー
     ErrorCode.DEVICE_NO_MIC: {
         "category": ErrorCategory.DEVICE,
@@ -367,6 +469,24 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "severity": "critical",
         "user_action_required": True,
     },
+    ErrorCode.TRANSLATION_MODEL_MISSING: {
+        "category": ErrorCategory.TRANSLATION,
+        "message": "The CTranslate2 model is not downloaded; translation was not enabled",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSLATION_MODEL_LOAD_FAILED: {
+        "category": ErrorCategory.TRANSLATION,
+        "message": "The CTranslate2 model could not be loaded; translation was not enabled",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSLATION_LANGUAGE_UNSUPPORTED: {
+        "category": ErrorCategory.TRANSLATION,
+        "message": "The selected translation model does not support a selected language; it was reset",
+        "severity": "warning",
+        "user_action_required": False,
+    },
     
     # 音声認識エラー
     ErrorCode.TRANSCRIPTION_VRAM_MIC: {
@@ -391,6 +511,36 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "category": ErrorCategory.TRANSCRIPTION,
         "message": "Transcription receive disabled due to VRAM overflow",
         "severity": "critical",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSCRIPTION_SEND_NOT_READY: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "Realtime microphone recognition is not ready",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSCRIPTION_RECEIVE_NOT_READY: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "Realtime speaker recognition is not ready",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSCRIPTION_ENGINE_NOT_SELECTED: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "Choose a speech recognition engine before enabling transcription.",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSCRIPTION_MODEL_MISSING: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "Whisper model files are missing or invalid. Review the model download before trying again.",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.TRANSCRIPTION_ENGINE_UNAVAILABLE: {
+        "category": ErrorCategory.TRANSCRIPTION,
+        "message": "The selected speech recognition engine could not start. Check its settings.",
+        "severity": "error",
         "user_action_required": True,
     },
     ErrorCode.TRANSCRIPTION_API_AUTH_FAILED: {
@@ -430,6 +580,24 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "Whisper weight download error",
         "severity": "error",
         "user_action_required": True,
+    },
+    ErrorCode.WEIGHT_DOWNLOAD_CONSENT_REQUIRED: {
+        "category": ErrorCategory.WEIGHT,
+        "message": "Review the model license and size in Settings and consent to this exact model manifest before downloading",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+    ErrorCode.WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED: {
+        "category": ErrorCategory.WEIGHT,
+        "message": "This translation model has a non-commercial license (CC-BY-NC-4.0) and must be confirmed explicitly",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+    ErrorCode.WEIGHT_CTRANSLATE2_NON_COMMERCIAL_NOTICE: {
+        "category": ErrorCategory.WEIGHT,
+        "message": "The selected translation model has a non-commercial license (CC-BY-NC-4.0)",
+        "severity": "warning",
+        "user_action_required": False,
     },
 
     # ソフトウェア更新エラー
@@ -694,6 +862,13 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "user_action_required": True,
     },
 
+    ErrorCode.CREDENTIAL_REENTRY_REQUIRED: {
+        "category": ErrorCategory.AUTH,
+        "message": "Enter the API key again for the new URL, or delete the saved key before changing the URL for a server without a key",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+
     # WebSocketエラー
     ErrorCode.WEBSOCKET_HOST_INVALID: {
         "category": ErrorCategory.WEBSOCKET,
@@ -731,6 +906,12 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "category": ErrorCategory.OBS_BROWSER_SOURCE,
         "message": "OBS Browser Source server port is not available",
         "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.OBS_BROWSER_SOURCE_PORT_INVALID: {
+        "category": ErrorCategory.OBS_BROWSER_SOURCE,
+        "message": "OBS Browser Source port must be a number",
+        "severity": "warning",
         "user_action_required": True,
     },
     ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE: {
@@ -809,6 +990,24 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "severity": "error",
         "user_action_required": False,
     },
+    ErrorCode.OCR_DISABLED_MODEL_MISSING: {
+        "category": ErrorCategory.OCR,
+        "message": "OCR disabled: the OCR models for this language have not been downloaded",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.OCR_DISABLED_WINDOW_NOT_FOUND: {
+        "category": ErrorCategory.OCR,
+        "message": "OCR disabled: the VRChat window was not found",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.OCR_DISABLED_CAPTURE_UNAVAILABLE: {
+        "category": ErrorCategory.OCR,
+        "message": "OCR disabled: window capture is not available in this session",
+        "severity": "error",
+        "user_action_required": True,
+    },
     ErrorCode.OCR_DISABLED_UNKNOWN: {
         "category": ErrorCategory.OCR,
         "message": "OCR disabled due to an unknown error",
@@ -873,7 +1072,8 @@ class VRCTError:
     def create_exception_error_response(
         exception: Exception,
         data: Any = None,
-        error_code: ErrorCode = ErrorCode.GENERAL_EXCEPTION
+        error_code: ErrorCode = ErrorCode.GENERAL_EXCEPTION,
+        *, provider: Optional[str] = None
     ) -> Dict[str, Any]:
         """例外からエラーレスポンスを生成
         
@@ -881,13 +1081,16 @@ class VRCTError:
             exception: 発生した例外
             data: エラー時に戻す値
             error_code: エラーコード
+            provider: プロバイダー呼び出しの失敗ならサービス名を指定する
         
         Returns:
             エラーレスポンス辞書
         """
+        message = (type(exception).__name__ if provider is not None or exception_provider(exception) is not None
+                   else redact_diagnostic_text(str(exception)))
         return VRCTError.create_error_response(
             error_code=error_code,
             data=data,
-            custom_message=f"Error: {str(exception)}",
+            custom_message=f"Error: {message}",
             details={"exception_type": type(exception).__name__}
         )

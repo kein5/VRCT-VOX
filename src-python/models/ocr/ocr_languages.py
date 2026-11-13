@@ -28,17 +28,34 @@ def ocr_onnx_threads() -> int:
     return max(1, min(4, (os.cpu_count() or 2) // 2))
 
 
+# 検出(det)は全言語でこのダウンロードのものを使う。認識(rec)だけ文字体系で替える。
+# id は models/model_downloads/catalog.py の OCR ブロックと揃える。
+BASE_MODEL_ID = "ppocrv6-small"
+
+
 @dataclass(frozen=True)
 class OcrModelSpec:
-    """RapidOCRに渡すモデルの指定。lang_rec=None はそのモデルの既定(多言語)を使う。"""
+    """RapidOCRに渡すモデルの指定。lang_rec=None はそのモデルの既定(多言語)を使う。
+
+    rec_model_id は認識モデルを含むダウンロード (カタログの id)。検出モデルは
+    常に BASE_MODEL_ID から読むので、文字体系別の認識モデルだけでは動かない。
+    """
 
     ocr_version: str  # "PP-OCRv6" / "PP-OCRv5"
     model_type: str   # "small" / "mobile"
     lang_rec: Optional[str] = None
+    rec_model_id: str = BASE_MODEL_ID
 
     @property
     def label(self) -> str:
         return f"{self.ocr_version}/{self.model_type}/{self.lang_rec or 'default'}"
+
+    @property
+    def model_ids(self) -> Tuple[str, ...]:
+        """起動に必要なダウンロード。先頭が検出モデルを含むもの。"""
+        if self.rec_model_id == BASE_MODEL_ID:
+            return (BASE_MODEL_ID,)
+        return (BASE_MODEL_ID, self.rec_model_id)
 
 
 # 日英中＋ラテン文字系。1モデルで読めるので言語を選ぶ必要がない。
@@ -48,12 +65,12 @@ _MULTILINGUAL = OcrModelSpec("PP-OCRv6", "small")
 # 文字体系ごとに別モデルが要るものだけを選択肢にする。
 _BY_LANGUAGE: Dict[str, OcrModelSpec] = {
     AUTO: _MULTILINGUAL,
-    "Korean": OcrModelSpec("PP-OCRv5", "mobile", "korean"),
-    "Russian": OcrModelSpec("PP-OCRv5", "mobile", "cyrillic"),
-    "Ukrainian": OcrModelSpec("PP-OCRv5", "mobile", "cyrillic"),
-    "Thai": OcrModelSpec("PP-OCRv5", "mobile", "th"),
-    "Arabic": OcrModelSpec("PP-OCRv5", "mobile", "arabic"),
-    "Hindi": OcrModelSpec("PP-OCRv5", "mobile", "devanagari"),
+    "Korean": OcrModelSpec("PP-OCRv5", "mobile", "korean", "ppocrv5-korean"),
+    "Russian": OcrModelSpec("PP-OCRv5", "mobile", "cyrillic", "ppocrv5-cyrillic"),
+    "Ukrainian": OcrModelSpec("PP-OCRv5", "mobile", "cyrillic", "ppocrv5-cyrillic"),
+    "Thai": OcrModelSpec("PP-OCRv5", "mobile", "th", "ppocrv5-thai"),
+    "Arabic": OcrModelSpec("PP-OCRv5", "mobile", "arabic", "ppocrv5-arabic"),
+    "Hindi": OcrModelSpec("PP-OCRv5", "mobile", "devanagari", "ppocrv5-devanagari"),
 }
 
 # v6 small が1モデルで読む言語。設定として受け付けるが、動作は auto と同じ。

@@ -23,12 +23,10 @@ partial (発話中の暫定結果) 通知は行わない。
 """
 
 import time
-from io import BytesIO
 from queue import Empty
 from threading import Event
-import wave
 from typing import Any, Dict, List, Optional
-from speech_recognition import Recognizer, AudioData, AudioFile
+from speech_recognition import Recognizer, AudioData
 from speech_recognition.exceptions import UnknownValueError
 from datetime import datetime, timedelta
 from .transcription_whisper import getWhisperModel, checkWhisperWeight
@@ -38,6 +36,7 @@ from .transcription_providers import (
     OpenAICompatibleTranscriptionProvider,
     DeepgramProvider,
     TranscriptionApiError,
+    resolveDetectedLanguage,
 )
 from .transcription_openai_compatible import TRANSCRIPTION_API_ENGINES as _API_TRANSCRIPTION_ENGINES
 
@@ -47,9 +46,9 @@ from .transcription_openai_compatible import TRANSCRIPTION_API_ENGINES as _API_T
 _CLOUD_TRANSCRIPTION_ENGINES = _API_TRANSCRIPTION_ENGINES + ("Deepgram",)
 
 import numpy as np
-from pydub import AudioSegment
-from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode
+from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, TranscriptionStartError
 from utils import errorLogging, printLog
+from .utterance_diagnostics import utterance_diagnostics
 
 import warnings
 warnings.simplefilter('ignore', RuntimeWarning)
@@ -147,25 +146,30 @@ class AudioTranscriber:
         self.asr_successes = 0
         self.audio_recognizer = Recognizer()
         self.audio_recognizer.operation_timeout = GOOGLE_RECOGNIZE_TIMEOUT_SECONDS
-        self.transcription_engine = "Google"
+        self.transcription_engine = transcription_engine
         self.whisper_model = None
         self.whisper_weight_type = whisper_weight_type
         self._api_provider: Optional[OpenAICompatibleTranscriptionProvider] = None
-        self.audio_sources: Dict[str, Any] = {
-            "sample_rate": source.SAMPLE_RATE,
-            "sample_width": source.SAMPLE_WIDTH,
-            "channels": source.channels,
-            "last_sample": bytes(),
-            "last_spoken": None,
-            "phrase_started_at": None,
-            "process_data_func": self.processSpeakerData if speaker else self.processMicData,
-        }
+        self.audio_sources: Dict[str, Any] = {}
+        if source is not None:
+            self.setAudioSource(source)
 
-        if transcription_engine == "Whisper" and checkWhisperWeight(root, whisper_weight_type) is True:
-            self.whisper_model = getWhisperModel(
-                root, whisper_weight_type, device=device, device_index=device_index, compute_type=compute_type
-            )
-            self.transcription_engine = "Whisper"
+        if transcription_engine is None:
+            raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_ENGINE_NOT_SELECTED)
+        if transcription_engine == "Whisper":
+            try:
+                verified = checkWhisperWeight(root, whisper_weight_type)
+            except Exception:
+                verified = False
+            if verified is not True:
+                raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_MODEL_MISSING)
+            try:
+                self.whisper_model = getWhisperModel(
+                    root, whisper_weight_type, device=device, device_index=device_index, compute_type=compute_type
+                )
+            except FileNotFoundError:
+                # The loader verifies again; files may change after the first check.
+                raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_MODEL_MISSING) from None
         elif transcription_engine in _API_TRANSCRIPTION_ENGINES:
             self.transcription_engine = transcription_engine
             try:
@@ -176,8 +180,7 @@ class AudioTranscriber:
                     engine_name=transcription_engine,
                 )
             except Exception:
-                errorLogging()
-                raise
+                raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_ENGINE_UNAVAILABLE) from None
         elif transcription_engine == "Deepgram":
             self.transcription_engine = transcription_engine
             try:
@@ -187,8 +190,26 @@ class AudioTranscriber:
                     model_languages=api_model_languages,
                 )
             except Exception:
-                errorLogging()
-                raise
+                raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_ENGINE_UNAVAILABLE) from None
+        elif transcription_engine != "Google":
+            raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_ENGINE_UNAVAILABLE)
+
+    def releaseModel(self) -> None:
+        """Drop the Whisper model once no worker will transcribe with this object."""
+        self.whisper_model = None
+
+    def setAudioSource(self, source: Any) -> None:
+        """Bind PCM format after the recognizer is ready, before listening."""
+        self.audio_sources = {
+            "sample_rate": source.SAMPLE_RATE,
+            "sample_width": source.SAMPLE_WIDTH,
+            "channels": source.channels,
+            "last_sample": bytes(),
+            "unsent": False,
+            "last_spoken": None,
+            "phrase_started_at": None,
+            "process_data_func": self.processSpeakerData if self.speaker else self.processMicData,
+        }
 
     def _resolve_provider(self):
         """`self.transcription_engine`/`self.whisper_model` の"現在の"値を見て
@@ -203,7 +224,25 @@ class AudioTranscriber:
             return LocalWhisperProvider(self.whisper_model)
         if self.transcription_engine in _CLOUD_TRANSCRIPTION_ENGINES:
             return self._api_provider
-        return GoogleProvider(self.audio_recognizer)
+        if self.transcription_engine == "Google":
+            return GoogleProvider(self.audio_recognizer)
+        raise TranscriptionStartError(ErrorCode.TRANSCRIPTION_ENGINE_UNAVAILABLE)
+
+    def getAudioWaitTimeout(self) -> Optional[float]:
+        """次の入力なしでもフレーズのリセットが必要になるまでの秒数。"""
+        source_info = self.audio_sources
+        if (
+            self.vad_segmented
+            or not source_info["last_sample"]
+            or source_info["last_spoken"] is None
+        ):
+            return None
+        # 既存の判定は elapsed > phrase_timeout。datetime の最小単位を
+        # 足し、ちょうど境界の時刻でもゼロ秒の待機を繰り返さない。
+        deadline = source_info["last_spoken"] + timedelta(
+            seconds=self.phrase_timeout, microseconds=1
+        )
+        return max(0.0, (deadline - datetime.now()).total_seconds())
 
     def transcribeAudioQueue(
         self,
@@ -281,12 +320,8 @@ class AudioTranscriber:
         """
         source_info = self.audio_sources
         transcribed = False
-        # last_sample に「まだ一度も送信していない追記」があるか。
-        # interim_send をキューのドレイン単位で1回に畳む
-        # (下記参照) にあたり、reset_only() が前提にしている
-        # 「この last_sample は直前に送信済み」が崩れるため、それを
-        # 明示的に追跡して取りこぼしを防ぐ。
-        unsent = False
+        # 未送信の追記は last_sample と一緒に保持する。途中で return しても
+        # 次の呼び出しで送信済みと誤認して捨てない。
         kind = "speaker" if self.speaker else "mic"
 
         def send_current_buffer() -> bool:
@@ -307,30 +342,29 @@ class AudioTranscriber:
                 source_info["last_sample"] = original
 
         def finalize() -> None:
-            nonlocal transcribed, unsent
+            nonlocal transcribed
             if send_current_buffer():
                 transcribed = True
             source_info["last_sample"] = bytes()
             source_info["phrase_started_at"] = None
-            unsent = False
+            source_info["unsent"] = False
 
         def interim_send() -> None:
             # finalize と異なり last_sample/phrase_started_at を
             # リセットしない。次のチャンクが来たら、今回よりさらに育った
             # 同じ発話の累積バッファを再送信することになる (v3.5.0 と同じ)。
-            nonlocal transcribed, unsent
+            nonlocal transcribed
             if send_current_buffer():
                 transcribed = True
-            unsent = False
+            source_info["unsent"] = False
 
         def reset_only() -> None:
             # interim_send() で直前に送信済みの内容を
             # もう一度 _finalizeAndTranscribe に通すと無駄な二重送信に
             # なるため、次のフレーズのための状態リセットだけ行う。
-            nonlocal unsent
             source_info["last_sample"] = bytes()
             source_info["phrase_started_at"] = None
-            unsent = False
+            source_info["unsent"] = False
 
         if self.vad_segmented:
             while True:
@@ -339,9 +373,11 @@ class AudioTranscriber:
                 except Empty:
                     break
 
+                self._recordQueueWait(time_spoken)
                 if source_info["phrase_started_at"] is None:
                     source_info["phrase_started_at"] = time_spoken
                 source_info["last_sample"] += data
+                source_info["unsent"] = source_info["unsent"] or bool(data)
                 source_info["last_spoken"] = time_spoken
                 # 蓄積されている音声そのものの長さを使う。
                 # セグメント到着時刻の差 (time_spoken - phrase_started_at) では
@@ -354,7 +390,8 @@ class AudioTranscriber:
                 if reason != "max_duration":
                     # 自然な区切り (silence/flush) → ここまでの蓄積分を
                     # まとめて確定・送信する。
-                    printLog(
+                    utterance_diagnostics.record(
+                        kind, "vad_finalize", {"vad_buffer_ms": accumulated_sec * 1000},
                         f"[VAD-merge][{kind}] finalize reason={reason!r} "
                         f"accumulated={accumulated_sec:.2f}s bytes={len(source_info['last_sample'])}"
                     )
@@ -363,7 +400,8 @@ class AudioTranscriber:
                     # 話者が本当にノンストップで話し続け、VAD 側の
                     # max_speech_frames が silence/flush を伴わず
                     # max_duration を繰り返し返し続ける病的なケースの保険。
-                    printLog(
+                    utterance_diagnostics.record(
+                        kind, "vad_safety_finalize", {"vad_buffer_ms": accumulated_sec * 1000},
                         f"[VAD-merge][{kind}] safety-net finalize reason={reason!r} "
                         f"accumulated={accumulated_sec:.2f}s bytes={len(source_info['last_sample'])}"
                     )
@@ -374,7 +412,8 @@ class AudioTranscriber:
                     # 状態で送っても、後でより完全なテキストに置き換わる
                     # だけの中間結果に ASR 1回分と翻訳1回分を払うことに
                     # なる。控えている間は下の else と同じく蓄積を続ける。
-                    printLog(
+                    utterance_diagnostics.record(
+                        kind, "vad_interim", {"vad_buffer_ms": accumulated_sec * 1000},
                         f"[VAD-merge][{kind}] interim-send ({self.transcription_engine}) reason={reason!r} "
                         f"accumulated={accumulated_sec:.2f}s bytes={len(source_info['last_sample'])}"
                     )
@@ -382,7 +421,8 @@ class AudioTranscriber:
                 else:
                     # reason == "max_duration" かつキューに次の segment が
                     # 控えている → 送らず蓄積を継続する (次のアイテムへ)。
-                    printLog(
+                    utterance_diagnostics.record(
+                        kind, "vad_accumulate", {"vad_buffer_ms": accumulated_sec * 1000},
                         f"[VAD-merge][{kind}] accumulate reason={reason!r} "
                         f"accumulated={accumulated_sec:.2f}s bytes={len(source_info['last_sample'])}"
                     )
@@ -396,8 +436,6 @@ class AudioTranscriber:
                     # 直後に translate=30秒 が観測された。
                     return True
 
-            if not transcribed:
-                time.sleep(0.01)
             return transcribed
 
         while True:
@@ -406,9 +444,18 @@ class AudioTranscriber:
             except Empty:
                 break
 
+            self._recordQueueWait(time_spoken)
+            # recorded_at はクリップ終端。次のクリップの音声長を除いて
+            # 開始時刻を見積もり、前の終端との間だけを無音として扱う。
+            bytes_per_second = (
+                source_info["sample_rate"] * source_info["sample_width"] * source_info["channels"]
+            )
+            clip_started_at = time_spoken - timedelta(
+                seconds=len(data) / bytes_per_second if bytes_per_second else 0.0
+            )
             if (
                 source_info["last_spoken"] is not None
-                and time_spoken - source_info["last_spoken"] > timedelta(seconds=self.phrase_timeout)
+                and clip_started_at - source_info["last_spoken"] > timedelta(seconds=self.phrase_timeout)
             ):
                 # ここに残っている last_sample は通常
                 # 直前のループで既に interim_send() 済みなので、再送信せず
@@ -416,7 +463,7 @@ class AudioTranscriber:
                 # ドレイン畳み込み (下記) で送信を飛ばしていた場合は
                 # 未送信のまま捨てることになるので、その時は送ってから
                 # リセットする。
-                if not unsent:
+                if not source_info["unsent"]:
                     reset_only()
                 else:
                     finalize()
@@ -426,15 +473,14 @@ class AudioTranscriber:
 
             source_info["last_sample"] += data
             source_info["last_spoken"] = time_spoken
-            unsent = True
+            source_info["unsent"] = True
 
             # VAD 経路と同じく、蓄積されている音声そのものの長さで測る。
             # チャンクの到着時刻の差では、フレーズ最初のチャンクが含む音声
             # (listen_energy_and_audio_in_background はフレーズ単位で
             # コールバックするので、record_timeout = 既定3秒まで育つ) が
             # 丸ごと欠落し、15秒の安全弁が約18秒まで発火しない。
-            # 上の phrase_timeout 判定は「到着の間隔 = 無音ギャップ」を
-            # 見るものなので、そちらは時刻のままで正しい。
+            # 上の phrase_timeout 判定はクリップ間の無音ギャップを見る。
             if _bufferedSeconds(source_info) >= MAX_PHRASE_DURATION_SECONDS:
                 finalize()
             elif audio_queue.empty():
@@ -470,14 +516,21 @@ class AudioTranscriber:
             # 通常は既に送信済み (末尾のチャンクが来た回のループで送られて
             # いる) なので、再送信せずリセットだけする。未送信で残って
             # いる場合だけ送ってからリセットする。
-            if not unsent:
+            if not source_info["unsent"]:
                 reset_only()
             else:
                 finalize()
 
-        if not transcribed:
-            time.sleep(0.01)
         return transcribed
+
+    def _recordQueueWait(self, recorded_at: datetime) -> None:
+        # キューの既存 timestamp は wall clock。負値は時計補正として0に丸める。
+        # VAD hangover / 蓄積音声長とは別の、完成済みチャンクの滞留時間。
+        wait_ms = max(0.0, (datetime.now() - recorded_at).total_seconds() * 1000)
+        utterance_diagnostics.record(
+            self.source, "audio_chunk", {"queue_ms": wait_ms},
+            f"[ASR-queue][{self.source}] wait={wait_ms:.1f}ms vad={self.vad_segmented}",
+        )
 
     def _padWithSilenceForVad(self, data: bytes) -> bytes:
         """VAD が確定したクリップの前後に無音 (ゼロバイト) を付与する。
@@ -523,8 +576,8 @@ class AudioTranscriber:
         # 候補言語ごとの呼び出し内訳。`_finalizeAndTranscribe` 1回の中で
         # provider.transcribe() が何回走ったかは、従来ログから見えなかった。
         # Google は「検出された言語」の概念が無く is_definitive が常に False
-        # なので必ず候補言語の数だけ叩く一方、Whisper系は自分で言語を検出し
-        # 一致すれば早期 break、Deepgram は常に1回で済む。つまり同じ
+        # なので必ず候補言語の数だけ叩く一方、Whisper系とDeepgramは
+        # 1回の自動検出結果を候補に照合する。つまり同じ
         # `asr=..ms` でも中身の回数がエンジンと設定で変わる。
         # speaker 側は SELECTED_TARGET_LANGUAGES を候補に使うため、
         # ターゲット言語を増やすとここが増える (mic 側は SELECTED_YOUR_LANGUAGES
@@ -540,7 +593,7 @@ class AudioTranscriber:
                 for language, country in zip(languages, countries):
                     call_started_at = time.perf_counter()
                     try:
-                        text, confidence, is_definitive = provider.transcribe(
+                        text, confidence, is_definitive, detected_language = provider.transcribe(
                             audio_data,
                             language,
                             country,
@@ -572,15 +625,16 @@ class AudioTranscriber:
                     else:
                         # 「認識結果0件」を例外ではなく空文字で返すプロバイダが
                         # ある。GoogleProvider は UnknownValueError を内部で
-                        # 握って ("", 0.0, False) を返すため、上の
+                        # 握って空の結果を返すため、上の
                         # except UnknownValueError は Google では一度も発火
                         # しない。ここで拾わないと、何も認識できなかった
                         # 呼び出しが成功したかのように所要時間だけログに出て、
                         # 失敗率の内訳 (nomatch なのか timeout なのか) を
                         # 実ログから追えない。
                         language_calls.append(f"{language}=nomatch({elapsed_ms}ms)")
-                    if confidence > best["confidence"]:
-                        best = {"confidence": confidence, "text": text, "language": language}
+                    if text and (is_definitive or confidence > best["confidence"]):
+                        result_language = resolveDetectedLanguage(detected_language, languages, countries)
+                        best = {"confidence": confidence, "text": text, "language": result_language}
                     if is_definitive:
                         break
 
@@ -603,6 +657,7 @@ class AudioTranscriber:
                 message=ERROR_METADATA[ErrorCode.ASR_ERROR]["message"],
                 exception_type=type(provider_error).__name__,
             )
+            utterance_diagnostics.record(self.source, "asr_error", {"asr_ms": asr_elapsed_ms})
             printLog(
                 f"[ASR-error][{self.source}][{self.transcription_engine}] "
                 f"error_type={type(provider_error).__name__} asr={asr_elapsed_ms}ms "
@@ -615,12 +670,14 @@ class AudioTranscriber:
             best["asr_ms"] = asr_elapsed_ms
             self.updateTranscript(best)
         success_rate = (self.asr_successes / self.asr_attempts) * 100
-        printLog(
+        utterance_diagnostics.record(
+            self.source, "asr_success" if succeeded else "asr_failure", {"asr_ms": asr_elapsed_ms},
             f"[ASR-stats][{'speaker' if self.speaker else 'mic'}][{self.transcription_engine}] "
             f"this_call={'success' if succeeded else 'failure'} "
             f"attempts={self.asr_attempts} successes={self.asr_successes} rate={success_rate:.1f}% "
             f"asr={asr_elapsed_ms}ms calls={len(language_calls)}/{len(languages)} "
-            f"[{' '.join(language_calls)}]"
+            f"[{' '.join(language_calls)}]",
+            immediate=not succeeded or provider_error is not None,
         )
         return True
 
@@ -637,26 +694,8 @@ class AudioTranscriber:
         return audio_data
 
     def processSpeakerData(self) -> AudioData:
-        temp_file = BytesIO()
-        with wave.open(temp_file, 'wb') as wf:
-            wf.setnchannels(self.audio_sources["channels"])
-            # Recorder/normalizer output is signed 16-bit PCM on both OSes.
-            # Serializing it must not import a Windows-only device driver.
-            wf.setsampwidth(2)
-            wf.setframerate(self.audio_sources["sample_rate"])
-            wf.writeframes(self.audio_sources["last_sample"])
-        temp_file.seek(0)
-
-        if self.audio_sources["channels"] > 2:
-            audio = AudioSegment.from_file(temp_file, format="wav")
-            mono_audio = audio.set_channels(1)
-            temp_file = BytesIO()
-            mono_audio.export(temp_file, format="wav")
-            temp_file.seek(0)
-
-        with AudioFile(temp_file) as source:
-            audio = self.audio_recognizer.record(source)
-        return audio
+        # マイクと同じ平均でモノラル化し、AudioFile の L+R 加算による音割れを防ぐ。
+        return self.processMicData()
 
     def updateTranscript(self, result: dict) -> None:
         """呼び出し元 (_finalizeAndTranscribe) は完成したフレーズ1件に
@@ -691,5 +730,6 @@ class AudioTranscriber:
     def clearTranscriptData(self) -> None:
         self.transcript_data.clear()
         self.audio_sources["last_sample"] = bytes()
+        self.audio_sources["unsent"] = False
         self.audio_sources["last_spoken"] = None
         self.audio_sources["phrase_started_at"] = None

@@ -5,15 +5,43 @@ MODEL_SUFFIXES = (".onnx", ".pth", ".pt", ".ckpt", ".safetensors", ".gguf", ".bi
 ARCHIVE_SUFFIXES = (".zip", ".7z", ".tar", ".tgz", ".tar.gz", ".tar.xz", ".rar")
 
 
+# Chat reading needs the RapidOCR code and the YAML config it reads at start-up.
+# Its weights are not part of this list: they come from consented downloads.
+OCR_RUNTIME_DATA = ("rapidocr/config.yaml", "rapidocr/default_models.yaml")
+
+
+# GPL-licensed encoders bundled by PyAV's FFmpeg wheels; builds use a stub
+# for `av` instead (packaging/pyinstaller-stubs/av).
+GPL_CODEC_PREFIXES = ("libx264", "libx265", "x264", "x265")
+
+
 def violation(name):
     parts = str(name).replace("\\", "/").lower().split("/")
     base = parts[-1]
     if base in PRIVATE_VOICE_NAMES:
         return "Private voice asset"
-    ocr = any(part in {"ocr", "ocr_onnx", "rapidocr", "rapidocr_onnxruntime"} for part in parts)
+    if base.startswith("translator_engines"):
+        return "Upstream-only translator_engines"
+    if base.startswith(GPL_CODEC_PREFIXES) and (".so" in base or base.endswith(".dll")):
+        return "GPL codec library"
+    if "av.libs" in parts or (len(parts) > 1 and parts[-2] == "av" and base.endswith((".so", ".pyd"))):
+        return "PyAV native library"
+    # PP-OCR download directories (ppocrv6-small/...) and upstream repo names count too.
+    ocr = any(part in {"ocr", "ocr_onnx", "rapidocr", "rapidocr_onnxruntime"}
+              or part.startswith(("ppocr", "pp-ocr")) for part in parts)
     if base.endswith(MODEL_SUFFIXES) and (ocr or "ocr" in base or base.startswith("chatbox_yolo")):
         return "Restricted OCR model"
+    # The upstream chat-bubble detector may not ship under any name or format.
+    if base.startswith("chatbox_yolo") or "chatbox_yolox" in base:
+        return "Restricted OCR model"
     return None
+
+
+def missing_ocr_runtime(names):
+    """Required RapidOCR data files absent from an artifact inventory (posix paths)."""
+    present = {str(name).replace("\\", "/").lower() for name in names}
+    return [required for required in OCR_RUNTIME_DATA
+            if not any(name == required or name.endswith("/" + required) for name in present)]
 
 
 def filter_toc(entries):

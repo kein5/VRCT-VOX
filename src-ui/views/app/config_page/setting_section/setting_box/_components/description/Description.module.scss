@@ -1,0 +1,5 @@
+.description { display: grid; gap: .4rem; min-width: 0; }
+.more { color: var(--vox_description_text); }
+.more summary { width: fit-content; padding: .2rem 0; font-size: 1.2rem; font-weight: 500; color: var(--vox_secondary_text); cursor: pointer; }
+.more summary:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; border-radius: .4rem; }
+.more p { margin-top: .4rem; }

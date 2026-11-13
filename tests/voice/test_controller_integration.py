@@ -7,11 +7,12 @@ import sys
 from threading import Event, Thread
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import pytest
 
 from models.audio_routing.audio_router import AudioRouter
+from models.message_delivery import ChatboxOrder
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
 from models.voice_events import AudioFrame
@@ -27,7 +28,7 @@ def controller_module(monkeypatch, tmp_path):
         "models.translation.translation_providers": {"TRANSLATION_PROVIDER_REGISTRY": {}, "CONNECTION_PROVIDER_REGISTRY": {}},
         "models.transcription.transcription_openai_compatible": {"TRANSCRIPTION_MODEL_KEYWORDS": {}, "TRANSCRIPTION_API_ENGINES": ()},
         "models.overlay.overlay_tooltip": {"validate_tooltip": MagicMock()},
-        "models.overlay.overlay": {name: MagicMock() for name in ("PANEL_ANCHORS", "computeVrLayout", "clampPanelSize", "mirrorHandPosition")},
+        "models.overlay.overlay": {name: MagicMock() for name in ("PANEL_ANCHORS", "computeVrLayout", "clampPanelSize", "mirrorHandPosition", "vrPanelSupported")},
     }
     for name, attrs in stubs.items():
         module = ModuleType(name)
@@ -39,6 +40,7 @@ def controller_module(monkeypatch, tmp_path):
     module.config = SimpleNamespace(
         _PATH_CONFIG=str(tmp_path / 'config.json'),
         VOICE_SETTINGS=VoiceSettings().to_dict(), ENABLE_TRANSLATION=False,
+        SELECTED_TRANSCRIPTION_ENGINE="Google",
         SELECTED_YOUR_LANGUAGES={"1": {"1": {"language": "Japanese", "enable": True}}},
         SELECTED_TARGET_LANGUAGES={"1": {"1": {"language": "English", "enable": True},
                                              "2": {"language": "Japanese", "enable": True}}},
@@ -48,6 +50,14 @@ def controller_module(monkeypatch, tmp_path):
         OVERLAY_LARGE_LOG=False, OVERLAY_SMALL_LOG=False, ENABLE_CLIPBOARD=False,
         LOGGER_FEATURE=False, ENABLE_TRANSCRIPTION_RECEIVE=True, SEND_RECEIVED_MESSAGE_TO_VRC=False,
     )
+    module.config.SELECTED_TRANSLATION_ENGINES = {"1": "CTranslate2"}
+    module.config.CTRANSLATE2_WEIGHT_TYPE = "fake"
+    module.config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES = False
+    module.config.SEND_MESSAGE_FORMAT_PARTS = module.config.RECEIVED_MESSAGE_FORMAT_PARTS = {
+        "message": {"prefix": "", "suffix": ""},
+        "translation": {"prefix": "", "suffix": "", "separator": "/"},
+        "translation_first": False, "separator": "\n"}
+    module.model.chatbox_order = ChatboxOrder()
     module.model.checkWebSocketServerAlive.return_value = True
     module.model.checkKeywords.return_value = False
     module.model.detectRepeatReceiveMessage.return_value = False
@@ -66,8 +76,8 @@ def test_text_to_osc_websocket_history_and_pcm_once(controller_module, pcm_serve
             result = controller.chatMessage({"id": "chat-1", "message": "こんにちは"})
             assert result == {"status": 200, "result": {"id": "chat-1", "original": {
                 "message": "こんにちは", "transliteration": []}, "translations": []}}
-            module.model.oscSendMessage.assert_called_once_with("こんにちは")
-            module.model.addTranslationHistory.assert_called_once_with("chat", "こんにちは")
+            module.model.oscSendMessage.assert_called_once_with("こんにちは", current=ANY)
+            module.model.addTranslationHistory.assert_called_once_with("chat", "こんにちは", snapshot=ANY)
             legacy = module.model.websocketSendMessage.call_args.args[0]
             assert set(legacy) == {"type", "src_languages", "dst_languages", "message", "translation", "transliteration"}
             assert legacy["type"] == "CHAT"
@@ -100,14 +110,14 @@ def test_translated_slot_and_cancellation_during_translation(controller_module):
     controller.voice_events.configure(VoiceSettings(mode="translated", target_slot="2", output_device="cable"))
     publish = MagicMock(return_value=True)
     controller.voice_events.publish = publish
-    module.model.getInputTranslate.return_value = (["hello", "こんにちは"], [True, True])
+    module.model.getInputTranslate.return_value = (["hello", "こんにちは"], [True, True], ['translated', 'translated'])
     controller.chatMessage({"id": "1", "message": "original"})
     event = publish.call_args.args[0]
     assert (event.translated_text, event.target_language) == ("こんにちは", "Japanese")
     generation = controller.voice_events.generation()
     def translate(*args, **kwargs):
         controller.stopVoice()
-        return ["hello", "こんにちは"], [True, True]
+        return ["hello", "こんにちは"], [True, True], ['translated', 'translated']
     module.model.getInputTranslate.side_effect = translate
     controller.chatMessage({"id": "2", "message": "original"})
     assert publish.call_args.kwargs["expected_generation"] == generation
@@ -145,7 +155,7 @@ def test_original_speaks_before_translation_but_translated_waits(controller_modu
     def translate(*args, **kwargs):
         entered.set()
         assert release.wait(2), "test translation not released"
-        return ["hello", "こんにちは"], [True, True]
+        return ["hello", "こんにちは"], [True, True], ['translated', 'translated']
 
     module.model.getInputTranslate.side_effect = translate
     controller = module.Controller()
@@ -165,7 +175,7 @@ def test_original_speaks_before_translation_but_translated_waits(controller_modu
         assert result[0]["status"] == 200
         until(lambda: controller.voice_events.status()["completed"] == 1)
         assert len(sink.data) == 1
-        module.model.addTranslationHistory.assert_called_once_with("chat", "原文")
+        module.model.addTranslationHistory.assert_called_once_with("chat", "原文", snapshot=ANY)
     finally:
         release.set()
         worker.join(2)
@@ -185,7 +195,7 @@ def test_chat_accepted_before_cancel_cannot_speak_later(controller_module):
                                          "_voice_generation": old_generation})
         assert result["status"] == 200
         assert controller.voice_events.status()["accepted"] == 0
-        module.model.addTranslationHistory.assert_called_once_with("chat", "queued")
+        module.model.addTranslationHistory.assert_called_once_with("chat", "queued", snapshot=ANY)
         assert controller.voice_events._thread is None
     finally:
         controller.voice_events.close()
@@ -208,7 +218,7 @@ def test_blocked_translation_never_revives_old_speech_and_new_chat_still_works(c
     def translate(*args, **kwargs):
         entered.set()
         assert release.wait(2)
-        return ['hello', 'こんにちは'], [True, True]
+        return ['hello', 'こんにちは'], [True, True], ['translated', 'translated']
 
     module.model.getInputTranslate.side_effect = translate
     controller = module.Controller()

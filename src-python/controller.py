@@ -1,47 +1,66 @@
+from models.network_policy import validate_api_url, DiscoveryScope, discovery_scope
 from typing import Callable, Any, List, Optional
 from contextlib import nullcontext
 from subprocess import Popen
-from threading import Thread, Lock
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Event, Thread, Lock, RLock
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeout
 from dataclasses import asdict, replace
 import copy
 import functools
 import re
+from models.obs.settings import parse_numeric_setting
 import time
 import sys
+from os import environ as os_environ
 from pathlib import Path
+from audio_device_identity import capture_key, device_id, device_options, resolve_device
 from device_manager import device_manager
 from config import config, ConfigValidationError, DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 from model import model, SETUP_LAUNCHED, SETUP_DOWNLOAD_FAILED, SETUP_VERIFY_FAILED
-from utils import removeLog, printLog, errorLogging, isConnectedNetwork, isValidIpAddress, isWildcardBindAddress, isAvailableWebSocketServer
-from errors import ErrorCode, OcrStartError, VRCTError
+from utils import removeLog, printLog, errorLogging, isConnectedNetwork, isValidIpAddress, isValidPort, isValidWebSocketHost, isAvailableWebSocketServer
+from errors import TranscriptionStartError, ErrorCode, OcrStartError, VRCTError
 from models.transcription.transcription_openai_compatible import TRANSCRIPTION_MODEL_KEYWORDS, TRANSCRIPTION_API_ENGINES
 from models.translation.translation_providers import TRANSLATION_PROVIDER_REGISTRY, CONNECTION_PROVIDER_REGISTRY
+from models.translation.translation_utils import ctranslate2_weights, isNonCommercialCTranslate2Weight, MissingCTranslate2Tokenizer
+from models.legacy_model_consent import legacyModelCatalog, recordLegacyConsent, consentedLegacyRequest
+from models.legacy_model_downloads import LegacyDownloads
+from uuid import uuid4
 from models.message_pipeline import MessageDirectionSpec, MIC_MESSAGE_SPEC, SPEAKER_MESSAGE_SPEC, CHAT_MESSAGE_SPEC, OCR_MESSAGE_SPEC
 from models.message_pipeline import REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC
-from models.transcription.realtime_settings import normalize_settings as normalize_realtime_settings, session_options, endpoint_dict
+from models.message_snapshot import MessageSnapshot, language_payload
+from models.transcription.utterance_diagnostics import SLOW_MS, utterance_diagnostics
+from models.transcription.realtime_settings import (
+    normalize_settings as normalize_realtime_settings, session_options, endpoint_dict,
+    realtime_endpoint, language_supported, SessionOptions)
 from models.transcription.realtime_session import RealtimeSession
 from models.transcription.realtime_delivery import RealtimeDelivery
-from models.transcription.capture_pipewire import enumerate_endpoints
+from models.transcription.capture_pipewire import enumerate_endpoints, default_endpoint
 from models.transcription.speechcpp_asr import SpeechCppASR
+from models.transcription.asr_vocabulary import merged_terms
 from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
 from models.tts.speechcpp_tts import SpeechError, SpeechCppTTS
-from models.speech_server.runtime import SpeechServers
+from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, SpeechServers, list_gpus
 from models.model_downloads.manager import Downloads
+from models.model_downloads.catalog import SPEECH_FIELDS as SPEECH_DOWNLOAD_FIELDS
 from models.model_downloads.hardware import HardwareProbe
+from models.voice_conversion.runtime_setup import RuntimeSetup
+from models.ocr import ocr_capture, ocr_chatbox_detector, ocr_languages, ocr_models
+from models.ocr import ocr_engine_rapidocr as ocr_engine
 from models.speech_server.settings import PROFILES, normalize_settings as normalize_speech_server_settings, start_options as speech_start_options
 from models.tts.message_hook import chat_event, microphone_event
 from models.audio_routing.audio_router import enumerate_outputs
+from models.audio_routing.devices_windows import carries_own_voice, same_output
 from models.audio_routing.managed_route import VoiceRoute
+from models.audio_routing.monitor_output import monitor_spec
 from models.audio_routing.mute_state import MuteState
 from models.audio_routing.pipewire_gate import PipeWireGate
-from models.audio_routing.source_bridge import enumerate_sources, parse_source
+from models.audio_routing.source_bridge import PIPEWIRE_MIC_HOST, enumerate_sources, microphone_names, parse_source
 from models.voice_conversion.direct_voice import DirectVoice, create_converted_process
 from models.voice_conversion.settings import DirectSettings, start_options
 from models.overlay.overlay_tooltip import validate_tooltip
-from models.overlay.overlay import PANEL_ANCHORS, computeVrLayout, clampPanelSize, mirrorHandPosition
+from models.overlay.overlay import PANEL_ANCHORS, computeVrLayout, clampPanelSize, mirrorHandPosition, vrPanelSupported
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
@@ -60,6 +79,11 @@ _DOWNLOAD_PROGRESS_MIN_INTERVAL_SEC = 0.5
 # 重なると片方が消えるので、読み書きを直列にする
 _VR_WINDOW_SETTINGS_LOCK = Lock()
 
+# Only short OCR intent updates belong here; model loading/joins stay outside.
+_OCR_CONTROL_LOCK = Lock()
+_OSC_CONTROL_LOCK = RLock()
+_LEGACY_DOWNLOAD_OWNER_LOCK = Lock()
+
 
 def vrLayoutToJson(layout: dict) -> dict:
     """VR画面の並びを UI へ送る形 (リスト) にする。src-ui/views/vr/vr_layout.json と同じ形。"""
@@ -73,6 +97,11 @@ def vrLayoutToJson(layout: dict) -> dict:
 # (8s) など、ロック保持中に自然完了しうる最長の単発処理より余裕を持たせつつ、
 # 万一ロックが本当に返ってこない場合でも終了処理自体を無期限に止めない。
 _SHUTDOWN_LIFECYCLE_LOCK_TIMEOUT_SEC = 20.0
+
+# 起動時の翻訳・音声認識エンジンの確認を待つ上限 (段階ごと)。ふだんは数秒で終わる
+# (実機で 2.3 秒)。個々の要求の時間の上限は SDK ごとに違い、少しずつ応答を返し続ける
+# サーバーではそれも効かないため、全体で区切る。間に合わなかったエンジンは使えない状態で起動する
+_ENGINE_CHECK_BUDGET_SEC = 30.0
 
 # shutdown() が OSC/WebSocket/OBS Browser Source/Overlay の各停止関数を
 # 待つ上限(フェーズ4項目30)。いずれも自前でタイムアウト付きjoinを持つ設計
@@ -171,7 +200,9 @@ def _configValidationErrorResponse(error_code: ErrorCode):
             try:
                 return func(*args, **kwargs)
             except ConfigValidationError as e:
-                return VRCTError.create_error_response(error_code, data=e.value)
+                # Restore the UI to the accepted value; rejected input may be
+                # nonfinite and cannot be serialized in an IPC response.
+                return VRCTError.create_error_response(error_code, data=getattr(config, e.attr_name, e.value))
         return wrapper
     return decorator
 
@@ -224,6 +255,7 @@ _SIMPLE_CONFIG_GETTERS = {
     "getConvertMessageToRomaji": "CONVERT_MESSAGE_TO_ROMAJI",
     "getConvertMessageToHiragana": "CONVERT_MESSAGE_TO_HIRAGANA",
     "getMainWindowSidebarCompactMode": "MAIN_WINDOW_SIDEBAR_COMPACT_MODE",
+    "getEnableForeground": "ENABLE_FOREGROUND",
     "getTransparency": "TRANSPARENCY",
     "getUiScaling": "UI_SCALING",
     "getTextboxUiScaling": "TEXTBOX_UI_SCALING",
@@ -280,6 +312,8 @@ _SIMPLE_CONFIG_GETTERS = {
     "getOverlayVrLauncherAutoHide": "OVERLAY_VR_LAUNCHER_AUTO_HIDE",
     "getOverlayVrTooltip": "OVERLAY_VR_TOOLTIP",
     "getOverlayLargeLogSettings": "OVERLAY_LARGE_LOG_SETTINGS",
+    "getOverlayDesktop": "OVERLAY_DESKTOP",
+    "getOverlayDesktopSettings": "OVERLAY_DESKTOP_SETTINGS",
     "getOverlayShowOnlyTranslatedMessages": "OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES",
     "getSendMessageToVrc": "SEND_MESSAGE_TO_VRC",
     "getSendReceivedMessageToVrc": "SEND_RECEIVED_MESSAGE_TO_VRC",
@@ -306,6 +340,11 @@ _SIMPLE_CONFIG_GETTERS = {
     "getOcrPollIntervalMs": "OCR_POLL_INTERVAL_MS",
     "getOcrMinConfidence": "OCR_MIN_CONFIDENCE",
     "getOcrBubbleMinTextLength": "OCR_BUBBLE_MIN_TEXT_LENGTH",
+    "getOcrCaptureRegion": "OCR_CAPTURE_REGION",
+    "getOcrVrCaptureRegion": "OCR_VR_CAPTURE_REGION",
+    "getOcrChatboxFilter": "OCR_CHATBOX_FILTER",
+    "getOcrUseChatboxDetector": "OCR_USE_CHATBOX_DETECTOR",
+    "getOcrPortalRestoreToken": "OCR_PORTAL_RESTORE_TOKEN",
 }
 
 # 起動時のエンジンの確認で、選んだモデルの設定とクライアントの生成に使う Model のメソッド名 (モデル一覧を持つエンジン)
@@ -319,6 +358,37 @@ _ENGINE_MODEL_CLIENT_CALLS = {
     "OpenAI_Compatible": ("setTranslatorOpenAICompatibleModel", "updateTranslatorOpenAICompatibleClient"),
     "Ollama": ("setTranslatorOllamaModel", "updateTranslatorOllamaClient"),
 }
+
+
+def _runEngineChecks(check, engines: list, label: str) -> dict:
+    """エンジンの確認を同時に走らせ、全体で _ENGINE_CHECK_BUDGET_SEC 秒まで待つ。
+
+    `check(engine)` は `(engine, *結果)` を返す。返り値は {engine: 結果のタプル}。
+    間に合わなかったエンジンは含めない (呼び出し元が使えない状態にする)。待ちきれなかった
+    確認の通信クライアントを閉じ、遅れた結果を捨てて起動を進める。そのスレッドは config に書かない。
+    """
+    results = {}
+    executor = ThreadPoolExecutor(max_workers=max(1, len(engines)))
+    scopes = {engine: DiscoveryScope(_ENGINE_CHECK_BUDGET_SEC) for engine in engines}
+    def checked(engine):
+        with discovery_scope(scopes[engine]):
+            return check(engine)
+    futures = {executor.submit(checked, engine): engine for engine in engines}
+    try:
+        for future in as_completed(futures, timeout=_ENGINE_CHECK_BUDGET_SEC):
+            try:
+                engine, *rest = future.result()
+            except TimeoutError:
+                continue
+            results[engine] = tuple(rest)
+    except FuturesTimeout:
+        late = [engine for future, engine in futures.items() if not future.done()]
+        printLog(f"{label} checks did not finish in {_ENGINE_CHECK_BUDGET_SEC:.0f}s; starting without them", {"engines": late})
+    finally:
+        for scope in scopes.values():
+            scope.close()
+        executor.shutdown(wait=False, cancel_futures=True)
+    return results
 
 
 class Controller:
@@ -353,23 +423,44 @@ class Controller:
         self._speech_settings = normalize_speech_server_settings(saved_servers if isinstance(saved_servers, dict) else {})
         self._speech_settings_lock = Lock()
         self.speech_servers = SpeechServers(on_end=self._speechServerEnded)
+        # TTS servers the main toggle started, as {profile: server generation}.
+        # The generation names one run, so a server the user starts from
+        # Settings is never adopted or stopped by the toggle.
+        self._tts_owner_lock = Lock()
+        self._tts_owned = {}
+        self._tts_released = {}
+        self._tts_ended = {}
+        self._tts_attempts = set()
+        self._tts_waiting = 0
         voice_settings = getattr(self._config, "VOICE_SETTINGS", {})
-        self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings if isinstance(voice_settings, dict) else {}),
-                                          resolve_server=self._ttsSpeechServer, enabled=False)
+        voice_settings = voice_settings if isinstance(voice_settings, dict) else {}
+        if voice_settings.get("routing") == "managed" and not sys.platform.startswith("linux"):
+            # Carried over from Linux. No such route exists here, and its mute could
+            # never be confirmed, so the setting could not be left afterwards.
+            voice_settings = {**voice_settings, "routing": "external", "mode": "off", "mic_mode": "off"}
+            self._config.VOICE_SETTINGS = voice_settings
+        self.voice_events = VoiceEventBus(VoiceSettings.from_dict(voice_settings),
+                                          resolve_server=self._ttsSpeechServer, enabled=False,
+                                          on_monitor_error=self._voiceMonitorFailed)
         config_path = getattr(self._config, '_PATH_CONFIG', 'config.json')
         if not isinstance(config_path, (str, Path)):
             config_path = 'config.json'
         self.model_downloads = Downloads(Path(config_path).absolute().parent / 'downloaded_models')
+        self.vc_runtimes = RuntimeSetup(Path(config_path).absolute().parent / 'vc_runtimes')
+        self.legacy_downloads = LegacyDownloads()
         self.model_hardware = HardwareProbe()
+        self.direct_voice = DirectVoice(converted_factory=create_converted_process)
         self.voice_route = VoiceRoute(self.voice_events, gate=PipeWireGate(),
-                                     store=MuteState(Path(config_path).with_name('voice_mute_state.json')))
+                                     store=MuteState(Path(config_path).with_name('voice_mute_state.json')),
+                                     on_muted=self.direct_voice.set_monitor_muted)
         self.voice_route.configure(self.voice_events.settings.routing == 'managed',
             suppress_direct=(self.voice_events.settings.mic_mode == 'translated'
                              and self.voice_events.settings.direct_policy == 'suppress'))
+        self._applyDirectPolicy(self.voice_events.settings)
         self._voice_settings_lock = Lock()
+        self._language_settings_lock = RLock()
         direct = getattr(self._config, 'DIRECT_VOICE_SETTINGS', {})
         self._direct_settings = DirectSettings.from_dict(direct if isinstance(direct, dict) else {})
-        self.direct_voice = DirectVoice(converted_factory=create_converted_process)
         self._direct_voice_closed = False
         choices = getattr(self._config, "REALTIME_ASR_SETTINGS", {})
         self._initRealtimeASR(choices if isinstance(choices, dict) else {})
@@ -388,11 +479,11 @@ class Controller:
         # _stopTranscriptionSendMessageLocked のようなロック不要の内部版を
         # 呼ぶことで再入を避けている (公開の stop*Message は自前でロックを
         # 取るため、start*Message の中から呼ぶとデッドロックする)。
-        self.mic_lifecycle_lock: Lock = Lock()
-        self.speaker_lifecycle_lock: Lock = Lock()
+        self.mic_lifecycle_lock = RLock()
+        self.speaker_lifecycle_lock = RLock()
 
     def getModelDownloadCatalog(self, *args, **kwargs):
-        return {'status': 200, 'result': self.model_downloads.catalog()}
+        return {'status': 200, 'result': {**self.model_downloads.catalog(), 'legacy_models': legacyModelCatalog()}}
 
     def getModelDownloadHardware(self, *args, **kwargs):
         return {'status': 200, 'result': self.model_hardware.state()}
@@ -422,6 +513,30 @@ class Controller:
                 or any(not isinstance(data[key], str) or not data[key] for key in ('id', 'job_id'))):
             raise ValueError('download_request_invalid')
 
+    def getVcRuntimeCatalog(self, *args, **kwargs):
+        return {'status': 200, 'result': self.vc_runtimes.catalog()}
+
+    def getVcRuntimeState(self, *args, **kwargs):
+        return {'status': 200, 'result': self.vc_runtimes.state()}
+
+    @staticmethod
+    def _vcRuntimeFailure(error):
+        conflict = {'vc_runtime_busy', 'vc_runtime_closed', 'stale_job'}
+        return {'status': 409 if str(error) in conflict else 400, 'result': {'error_code': str(error)}}
+
+    def startVcRuntimeSetup(self, data, *args, **kwargs):
+        try:
+            return {'status': 200, 'result': self.vc_runtimes.start(data)}
+        except ValueError as error:
+            return self._vcRuntimeFailure(error)
+
+    def cancelVcRuntimeSetup(self, data, *args, **kwargs):
+        try:
+            self._modelDownloadRequest(data)
+            return {'status': 200, 'result': self.vc_runtimes.cancel(data['id'], data['job_id'])}
+        except ValueError as error:
+            return self._vcRuntimeFailure(error)
+
     def startModelDownload(self, data, *args, **kwargs):
         try:
             return {'status': 200, 'result': self.model_downloads.start(data)}
@@ -440,6 +555,12 @@ class Controller:
             self._modelDownloadRequest(data, apply=True)
             def apply(entry, paths):
                 expected = data['expected']
+                if entry.target == 'ocr':
+                    # Chat reading finds verified downloads by catalog id; there is
+                    # no path setting to change (models/ocr/ocr_models.py).
+                    if expected not in ({}, None):
+                        raise ValueError('download_request_invalid')
+                    return
                 keys = {'model', 'index'} if entry.target == 'rvc' else {'model'}
                 if not isinstance(expected, dict) or set(expected) != keys or any(not isinstance(v, str) for v in expected.values()):
                     raise ValueError('download_request_invalid')
@@ -457,13 +578,15 @@ class Controller:
                         self._config.DIRECT_VOICE_SETTINGS = updated.to_dict()
                         self._direct_settings = updated
                 else:
+                    # A VAD file goes to the asr profile's vad_model; expected names that field's value.
+                    profile, field = SPEECH_DOWNLOAD_FIELDS[entry.target]
                     with self._speech_settings_lock:
-                        if self.speech_servers.state()[entry.target]['state'] not in ('stopped', 'failed'):
+                        if self.speech_servers.state()[profile]['state'] not in ('stopped', 'failed'):
                             raise ValueError('model_target_busy')
                         settings = copy.deepcopy(self._speech_settings)
-                        if settings['profiles'][entry.target]['model'] != expected['model']:
+                        if settings['profiles'][profile][field] != expected['model']:
                             raise ValueError('settings_changed')
-                        settings['profiles'][entry.target]['model'] = paths['model']
+                        settings['profiles'][profile][field] = paths['model']
                         self._config.SPEECH_SERVER_SETTINGS = settings
                         self._speech_settings = settings
             return {'status': 200, 'result': self.model_downloads.apply(data['id'], data['job_id'], apply)}
@@ -485,6 +608,9 @@ class Controller:
             self._config.SPEECH_SERVER_SETTINGS = settings
             self._speech_settings = settings
         return self.getSpeechServerSettings()
+
+    def getSpeechServerDevices(self, *args, **kwargs):
+        return {"status": 200, "result": {"devices": list_gpus()}}
 
     def getSpeechServerState(self, *args, **kwargs):
         return {"status": 200, "result": self.speech_servers.state()}
@@ -523,27 +649,106 @@ class Controller:
             return {"status": 409, "result": {"error_code": code}}
         return self.getSpeechServerState()
 
-    def _speechServerEnded(self, profile):
+    def _enableSpeechServerTts(self, roles, generation):
+        """Commit ON after rechecking bundled availability under the end lock."""
+        with self._tts_owner_lock:
+            settings = self.voice_events.settings
+            try:
+                for role in roles:
+                    if getattr(settings, role + '_server') == 'bundled':
+                        self.speech_servers.binding(role)
+            except RuntimeError:
+                return 'speech_server_not_ready'
+            # A terminal callback takes this lock too, so it cannot miss the
+            # dependency between the final readiness check and enabling TTS.
+            if not self.voice_events.set_enabled(True, expected_generation=generation):
+                return 'tts_state_changed'
+        return None
+
+    def _speechTtsDependency(self, profile, run):
+        """Snapshot the TTS epoch currently using this exact bundled run."""
+        while True:
+            state = self.voice_events.status()
+            if (not state['tts_enabled'] or state['closed']
+                    or self.speech_servers.current_run(profile) != run
+                    or getattr(self.voice_events.settings, profile + '_server') != 'bundled'):
+                return None
+            # Saves/language changes can alter the selected roles while TTS
+            # stays on. Stop/Mute can advance its epoch without ending it.
+            code, roles = self._ttsRolesLocked(state['tts_generation'], allow_muted=True)
+            if code == 'tts_state_changed':
+                continue
+            return state['tts_generation'] if code is None and profile in roles else None
+
+    def _speechServerEnded(self, profile, run=None):
         # Called after releasing hub locks, including on natural child failure.
-        # One shared TTS scheduler deliberately cancels all pending speech.
         if profile in ("japanese", "multilingual"):
-            self.voice_events.set_enabled(False)
+            with self._tts_owner_lock:
+                if run is None or run <= self._tts_ended.get(profile, -1):
+                    return
+                self._tts_ended[profile] = run
+                if self._tts_released.get(profile) == run:
+                    del self._tts_released[profile]
+                    return  # The end of a run the TTS toggle's own OFF stopped.
+                while True:
+                    generation = self._speechTtsDependency(profile, run)
+                    if generation is None:
+                        return
+                    # Settings/Stop/Mute can change the epoch without this lock.
+                    # Invalidate only the session whose dependency we checked.
+                    if self.voice_events.set_enabled(False, expected_generation=generation):
+                        break
+                owned = dict(self._tts_owned)
+            # TTS is off now, so servers the main toggle started for it go too.
+            # A waiting ON is not cancelled here: it reports this failure itself.
+            self._releaseTtsServers(only=owned)
         elif profile == "asr":
             with self._realtime_lock:
-                if self._realtime_settings["server"] == "bundled":
-                    for source in ("mic", "speaker"):
+                affected = []
+                for source in ("mic", "speaker"):
+                    if (run is not None and self._realtime_requested[source]
+                            and self._realtime_server_runs[source] == (self._realtime_generation[source], run)):
+                        affected.append(source)
                         self._invalidateRealtimeLocked(source)
+                row = self.speech_servers.state()["asr"] if affected else None
+            if affected:
+                # A crash is worth a notice; a Stop from Settings is the user's own.
+                reason = (row.get("error_code") or "speech_server_start_failed") if row["state"] == "failed" else None
+                for source in affected:
+                    self._publishRealtimeToggle(source, reason)
 
     def stopSpeechServer(self, data, *args, **kwargs):
         try:
             profile = self._speechRequest(data)
         except ValueError:
             return {"status": 400, "result": {"error_code": "speech_server_request_invalid"}}
+        if profile == "asr":
+            self._refuseResumeAfterAsrStop()
         # Revoke endpoint availability first; new work cannot bind between
         # invalidating clients and the Stop signal. Neither operation joins.
-        self.speech_servers.stop(profile)
-        self._speechServerEnded(profile)
+        self.speech_servers.stop(profile, on_stop=self._speechServerEnded)
         return self.getSpeechServerState()
+
+    def _refuseResumeAfterAsrStop(self):
+        """利用者が設定画面で内蔵の音声認識サーバーを止めた。閉じたときに入力を再開しない。
+
+        設定画面を開くと、UI はマイクと聞き取りを一時停止し、閉じるときに元へ戻す。入力を戻すと、
+        メインのスイッチは内蔵サーバーを自分で起動する。そのため、止めた 0.25 秒後に設定画面を
+        閉じると、サーバーが 4 秒ほどで起動し直し、マイクの認識が再開していた。読み上げでは、
+        設定から止めたら TTS もオフにしている。入力も同じ扱いにする。
+        """
+        settings = getattr(self, "_realtime_settings", None) or {}
+        if settings.get("server") != "bundled":
+            return  # 入力は別のサーバーを使っている。内蔵サーバーを止めても関係がない。
+        with self._realtime_lock:
+            self._realtime_resume_refused |= self._realtime_settings_paused
+
+    def _noteRealtimePause(self, source, data):
+        """入力をオフにした理由を覚える。設定画面による一時停止でなければ、利用者が自分で切った。"""
+        paused = isinstance(data, dict) and data.get("reason") == "settings_pause"
+        with self._realtime_lock:
+            (self._realtime_settings_paused.add if paused else self._realtime_settings_paused.discard)(source)
+            self._realtime_resume_refused.discard(source)
 
     def _initRealtimeASR(self, choices):
         self._realtime_settings = normalize_realtime_settings(choices)
@@ -552,8 +757,19 @@ class Controller:
         self._realtime_generation = {source: 0 for source in ("mic", "speaker")}
         self._realtime_requested = dict.fromkeys(self._realtime_generation, False)
         self._realtime_owners = dict.fromkeys(self._realtime_generation)
+        self._realtime_server_runs = dict.fromkeys(self._realtime_generation)
         self._realtime_errors = dict.fromkeys(self._realtime_generation)
         self._realtime_closed = False
+        # Linux main toggles: the state last shown for each source, a bundled
+        # ASR server a toggle started (its generation), and toggles starting.
+        self._realtime_toggle_lock = Lock()
+        self._realtime_toggle_shown = dict.fromkeys(self._realtime_generation, False)
+        # 設定画面を開いている間だけ止めている入力と、その間に利用者が内蔵の音声認識サーバーを
+        # 止めたために、設定画面を閉じても再開しない入力。
+        self._realtime_settings_paused = set()
+        self._realtime_resume_refused = set()
+        self._asr_server_owned = None
+        self._asr_toggle_starting = 0
 
     @staticmethod
     def _realtimeSource(data):
@@ -578,6 +794,7 @@ class Controller:
     def _invalidateRealtimeLocked(self, source):
         self._realtime_generation[source] += 1
         self._realtime_requested[source] = False
+        self._realtime_server_runs[source] = None
         if source == "mic":
             self._cancelMicVoice()
         owner = self._realtime_owners[source]
@@ -592,13 +809,15 @@ class Controller:
         with self._realtime_settings_lock:
             with self._realtime_lock:
                 old = self._realtime_settings
-                shared_changed = any(settings[key] != old[key] for key in ("server", "base_url", "model"))
+                shared_changed = any(settings[key] != old[key] for key in ("server", "base_url", "model", "vocabulary"))
                 for source in ("mic", "speaker"):
                     if shared_changed or settings[source] != old[source]:
                         self._invalidateRealtimeLocked(source)
                 self._realtime_settings = settings
             # Disk persistence never holds the fast-stop lock.
             config.REALTIME_ASR_SETTINGS = settings
+        for source in ("mic", "speaker"):
+            self._publishRealtimeToggle(source)
         return self.getRealtimeASRSettings()
 
     def getRealtimeASREndpoints(self, data, *args, **kwargs):
@@ -606,8 +825,8 @@ class Controller:
             source = self._realtimeSource(data)
         except ValueError:
             return {"status": 400, "result": {"error_code": "realtime_source_invalid"}}
-        if sys.platform != "linux":
-            return {"status": 200, "result": {"source": source, "endpoints": [], "error_code": "realtime_linux_only"}}
+        if sys.platform not in ("linux", "win32"):
+            return {"status": 200, "result": {"source": source, "endpoints": [], "error_code": "realtime_platform_unsupported"}}
         try:
             rows = [{"endpoint": endpoint_dict(row["endpoint"]), "label": row["label"]}
                     for row in enumerate_endpoints(source)]
@@ -653,6 +872,7 @@ class Controller:
             return {"status": 400, "result": {"error_code": "realtime_source_invalid"}}
         with self._realtime_lock:
             self._invalidateRealtimeLocked(source)
+        self._publishRealtimeToggle(source)
         return self.getRealtimeASRState()
 
     def _drainRealtimeASR(self, source, timeout=3.0):
@@ -689,25 +909,299 @@ class Controller:
                 raise ValueError()
         except ValueError:
             return {"status": 400, "result": {"error_code": "realtime_start_invalid"}}
+        result = self._startRealtime(source, expected)
+        self._publishRealtimeToggle(source)
+        return result
 
+    # ------------------------------------------------------------------
+    # Linux main Mic/Speaker toggles. PyAudioWPatch, the legacy recorder, is
+    # Windows-only, so on Linux these toggles start and stop the realtime
+    # session of their source with the saved realtime settings, and show its
+    # state. config.ENABLE_TRANSCRIPTION_* stays False there, so the legacy
+    # device-change paths keyed on it never start the legacy recorder.
+    # ------------------------------------------------------------------
+    # A started server enforces its own START_TIMEOUT; this only bounds the
+    # toggle's wait if that end state is somehow never published.
+    _ASR_SERVER_WAIT = SPEECH_START_TIMEOUT + 5
+    _ASR_START_FAILURES = ("speech_server_out_of_memory", "speech_server_start_timeout",
+                           "speech_server_vulkan_missing", "speech_server_device_failed")
+
+    def _realtimeToggles(self):
+        if sys.platform == "linux":
+            return True
+        # Windows keeps the legacy recorder until the user picks the bundled server.
+        settings = getattr(self, "_realtime_settings", None) or {}
+        return sys.platform == "win32" and settings.get("server") == "bundled"
+
+    def _realtimeActiveLocked(self, source):
+        owner = self._realtime_owners[source]
+        state = owner[0].health()["state"] if owner else "idle"
+        return self._realtime_requested[source] and state not in ("closed", "failed", "stopping")
+
+    def _realtimeNotReady(self, source, reason):
+        # details.reason names the missing piece; the UI turns it into the next step.
+        code = ErrorCode.TRANSCRIPTION_SEND_NOT_READY if source == "mic" else ErrorCode.TRANSCRIPTION_RECEIVE_NOT_READY
+        return VRCTError.create_error_response(code, data=False, details={"reason": str(reason)})
+
+    def _publishRealtimeToggle(self, source, reason=None):
+        """Show the realtime state as the Linux toggle; reason explains a stop nobody asked for."""
+        # Moving off the bundled server on Windows still has to clear a shown ON.
+        if not self._realtimeToggles() and not self._realtime_toggle_shown[source]:
+            return
+        direction = "send" if source == "mic" else "receive"
+        with self._realtime_toggle_lock:
+            with self._realtime_lock:
+                active = self._realtimeActiveLocked(source)
+            if active != self._realtime_toggle_shown[source]:
+                self._realtime_toggle_shown[source] = active
+                if not active and reason:
+                    response = self._realtimeNotReady(source, reason)
+                    self.run(response["status"], "/set/enable/transcription_" + direction, response["result"])
+                else:
+                    self.run(200, "/set/%s/transcription_%s" % ("enable" if active else "disable", direction), active)
+        self._releaseAsrServer()
+
+    def _realtimeEnded(self, source, generation):
+        """A session's delivery stopped. If it was still wanted, it failed: say why."""
+        if not self._realtimeToggles():
+            return
+        with self._realtime_lock:
+            wanted = self._realtime_generation[source] == generation and self._realtime_requested[source]
+            if wanted:
+                model.message_delivery.revoke(source)
+            owner = self._realtime_owners[source]
+            code = self._realtime_errors[source] or (owner[0].health().get("error_code") if owner else None)
+        self._publishRealtimeToggle(source, (code or "realtime_session_failed") if wanted else None)
+
+    def _releaseAsrServer(self):
+        """Stop a bundled ASR server a toggle started, once neither toggle uses it."""
+        with self._realtime_toggle_lock:
+            owned = self._asr_server_owned
+            if owned is None or self._asr_toggle_starting:
+                return
+            with self._realtime_lock:
+                if any(self._realtimeActiveLocked(source) for source in ("mic", "speaker")):
+                    return
+            self._asr_server_owned = None
+            # Non-joining. A server started from Settings has another generation
+            # and keeps running; so does one started after this run ended.
+            self.speech_servers.stop("asr", generation=owned)
+
+    def _realtimeStartCurrent(self, source, expected):
+        with self._realtime_lock:
+            return not self._realtime_closed and expected == self._realtime_generation[source]
+
+    def _awaitAsrServer(self, source, expected):
+        """Start the bundled ASR server if it is stopped, then wait until it is ready."""
+        if not self._realtimeStartCurrent(source, expected):
+            return "realtime_stale_start"
+        row = self.speech_servers.state()["asr"]
+        if row["state"] == "stopping":
+            return "speech_server_busy"
+        run = row["generation"]
+        if row["state"] not in ("ready", "preparing"):
+            with self._speech_settings_lock:
+                settings = copy.deepcopy(self._speech_settings)
+            profile = settings["profiles"]["asr"]
+            if not profile["model"].strip():
+                return "realtime_asr_model_missing"
+            if not profile["vad_model"].strip():
+                return "realtime_vad_model_missing"
+            try:
+                options = speech_start_options(settings, "asr")
+            except ValueError:
+                return "speech_server_model_invalid"
+            with self._realtime_toggle_lock:
+                try:
+                    self.speech_servers.start("asr", options, run)
+                except RuntimeError as exc:
+                    return "speech_server_busy" if str(exc) == "speech_server_busy" else "speech_server_start_failed"
+                run += 1  # start() succeeds only from that generation and takes the next.
+                self._asr_server_owned = run
+        deadline = time.monotonic() + self._ASR_SERVER_WAIT
+        while True:
+            if not self._realtimeStartCurrent(source, expected):
+                return "realtime_stale_start"
+            row = self.speech_servers.state()["asr"]
+            if row["state"] == "failed":
+                code = row.get("error_code")
+                return code if code in self._ASR_START_FAILURES else "speech_server_start_failed"
+            if row["generation"] != run or row["state"] in ("stopped", "stopping"):
+                return "speech_server_not_ready"  # Stopped from Settings meanwhile.
+            if row["state"] == "ready":
+                return None
+            if time.monotonic() >= deadline:
+                return "speech_server_start_timeout"
+            time.sleep(0.05)
+
+    def _prepareRealtimeToggle(self, source, expected):
+        """Check a toggle ON against settings and the server; (code, None) names what is missing."""
+        with self._realtime_lock:
+            if self._realtime_closed or expected != self._realtime_generation[source]:
+                return "realtime_stale_start", None
+            settings = normalize_realtime_settings(self._realtime_settings)
+        row = settings[source]
+        try:
+            # Fail before loading a model for a missing device or one that cannot be read.
+            endpoint = realtime_endpoint(settings, source) or default_endpoint(source)
+        except ValueError as exc:
+            return str(exc), None
+        if self._carriesOwnVoice(endpoint):
+            return "realtime_endpoint_feedback", None
+        if not self._realtimeStartCurrent(source, expected):
+            return "realtime_stale_start", None
+        if settings["server"] == "bundled":
+            code = self._awaitAsrServer(source, expected)
+            if code:
+                return code, None
+            try:
+                base_url = self.speech_servers.binding("asr")
+            except RuntimeError:
+                return "speech_server_not_ready", None
+        else:
+            base_url = settings["base_url"]
+        if not self._realtimeStartCurrent(source, expected):
+            return "realtime_stale_start", None
+        try:
+            models = SpeechCppASR(base_url, timeout=5).recognizers()
+        except Exception:
+            return "realtime_models_unavailable", None
+        if not self._realtimeStartCurrent(source, expected):
+            return "realtime_stale_start", None
+        chosen = next((m for m in models if m.id == settings["model"]), None)
+        if chosen is None and settings["server"] == "bundled" and len(models) == 1:
+            # The bundled server loads exactly one recognizer: switching the
+            # downloaded model must not also require picking its id again.
+            chosen = models[0]
+        if chosen is None:
+            return ("realtime_model_unavailable" if settings["model"] else "realtime_model_required"), None
+        if not language_supported(chosen, row["language"]):
+            return ("realtime_language_auto_unsupported" if row["language"] == "auto"
+                    else "realtime_language_unsupported"), None
+        return None, SessionOptions(base_url, chosen.id, row["language"], merged_terms(settings["vocabulary"]))
+
+    def _enableRealtimeToggle(self, source, data=None):
+        with self._realtime_lock:
+            # 設定画面を閉じたときの復帰 (reason: settings_resume) だけを断る。利用者がメイン画面で
+            # スイッチを押した場合は、止めたあとでも本人の新しい操作なので、そのまま始める。
+            refused = (isinstance(data, dict) and data.get("reason") == "settings_resume"
+                       and source in self._realtime_resume_refused)
+            self._realtime_settings_paused.discard(source)
+            self._realtime_resume_refused.discard(source)
+        if refused:
+            self._publishRealtimeToggle(source)
+            return {"status": 200, "result": False}
+        with self._realtime_lock:
+            # IPC supplies the receipt-time stamp. Direct callers take their
+            # snapshot here, before any potentially blocking preparation.
+            expected = self._realtime_generation[source]
+            if isinstance(data, dict):
+                expected = data.get("_realtime_generation", expected)
+            if type(expected) is not int or expected < 0:
+                return self._realtimeNotReady(source, "realtime_start_invalid")
+            if self._realtime_closed or expected != self._realtime_generation[source]:
+                return self._realtimeNotReady(source, "realtime_stale_start")
+            active = self._realtimeActiveLocked(source)
+        if not active:
+            with self._realtime_toggle_lock:
+                self._asr_toggle_starting += 1  # Keeps a just-started server from release.
+            try:
+                code, options = self._prepareRealtimeToggle(source, expected)
+                if code is None:
+                    result = self._startRealtime(source, expected, options)
+                    if result["status"] != 200:
+                        code = result["result"]["error_code"]
+            finally:
+                with self._realtime_toggle_lock:
+                    self._asr_toggle_starting -= 1
+                # Includes cancellation and preparation exceptions. Only stop
+                # the server incarnation owned by toggles, when none uses it.
+                self._releaseAsrServer()
+            if code is not None:
+                self._publishRealtimeToggle(source)
+                return self._realtimeNotReady(source, code)
+        with self._realtime_lock:
+            active = self._realtimeActiveLocked(source)
+            owner = self._realtime_owners[source]
+            code = self._realtime_errors[source] or (owner[0].health().get("error_code") if owner else None)
+        self._publishRealtimeToggle(source)
+        # A session can fail before this returns; report that, not a stale ON.
+        return {"status": 200, "result": True} if active else self._realtimeNotReady(source, code or "realtime_session_failed")
+
+    def _disableRealtimeToggle(self, source):
+        with self._realtime_lock:
+            self._invalidateRealtimeLocked(source)
+        self._publishRealtimeToggle(source)
+        return {"status": 200, "result": False}
+
+    def _realtimeFallbackLanguage(self, source):
+        # With "auto" the model names each final's language. Without one, use
+        # the language VRCT has for this side, as the legacy recorder does.
+        try:
+            languages = config.SELECTED_YOUR_LANGUAGES if source == "mic" else config.SELECTED_TARGET_LANGUAGES
+            return languages[config.SELECTED_TAB_NO]["1"]["language"]
+        except (KeyError, TypeError, AttributeError):
+            return None
+
+    def _carriesOwnVoice(self, endpoint):
+        return (self._directUsesOutputDevice()
+                and carries_own_voice(endpoint.name, self.voice_events.settings.output_device))
+
+    def _startRealtime(self, source, expected, prepared=None):
+        """prepared: SessionOptions that a main toggle already checked with the server."""
         def failure(code, status=409):
             return {"status": status, "result": {"error_code": code}}
 
+        def precheck():
+            if self._realtime_closed or expected != self._realtime_generation[source]:
+                return failure("realtime_stale_start")
+            if sys.platform not in ("linux", "win32"):
+                return failure("realtime_platform_unsupported")
+            if self._realtime_requested[source]:
+                owner = self._realtime_owners[source]
+                if owner is None or owner[0].health()["state"] not in ("closed", "failed"):
+                    return failure("realtime_already_started")
+            return None
+
         with getattr(self, source + "_lifecycle_lock"):
             with self._realtime_lock:
-                if self._realtime_closed or expected != self._realtime_generation[source]:
-                    return failure("realtime_stale_start")
-                if sys.platform != "linux":
-                    return failure("realtime_linux_only")
-                if self._realtime_requested[source]:
-                    owner = self._realtime_owners[source]
-                    if owner is None or owner[0].health()["state"] not in ("closed", "failed"):
-                        return failure("realtime_already_started")
+                refused = precheck()
+                row = self._realtime_settings[source]
+                follow = row["endpoint"] is None and row["follow_default"]
+            if refused:
+                return refused
+            default = None
+            if follow:
+                # Read the graph outside the fast-stop lock; a settings change
+                # meanwhile advances the generation and makes this start stale.
                 try:
-                    options, endpoint = session_options(self._realtime_settings, source)
+                    default = default_endpoint(source)
+                except ValueError as exc:
+                    return failure(str(exc))
+            with self._realtime_lock:
+                refused = precheck()
+                if refused:
+                    return refused
+                try:
+                    endpoint = realtime_endpoint(self._realtime_settings, source)
+                    if endpoint is None:
+                        endpoint = default
+                    if endpoint is None:
+                        raise ValueError("realtime_endpoint_required")
+                    if self._carriesOwnVoice(endpoint):
+                        raise ValueError("realtime_endpoint_feedback")
+                    if prepared is not None:
+                        options = prepared
+                    else:
+                        options, _ = session_options(self._realtime_settings, source)
+                    server_run = None
                     if self._realtime_settings["server"] == "bundled":
+                        server_run = self.speech_servers.current_run("asr")
                         options = replace(options, base_url=self.speech_servers.binding("asr"))
-                    language = self._realtimeLanguage(options.language)
+                        if server_run is None or self.speech_servers.current_run("asr") != server_run:
+                            return failure("speech_server_not_ready")
+                    detect = options.language == "auto"
+                    language = self._realtimeFallbackLanguage(source) if detect else self._realtimeLanguage(options.language)
                 except RuntimeError:
                     return failure("speech_server_not_ready")
                 except ValueError as exc:
@@ -719,6 +1213,9 @@ class Controller:
                 self._realtime_generation[source] += 1
                 generation = self._realtime_generation[source]
                 self._realtime_requested[source] = True
+                # Terminal handling takes this lock too, including while the
+                # source is still draining its previous capture owner.
+                self._realtime_server_runs[source] = (generation, server_run) if server_run is not None else None
                 self._realtime_errors[source] = None
 
             def current():
@@ -729,6 +1226,7 @@ class Controller:
             def fail_start(code):
                 with self._realtime_lock:
                     if self._realtime_generation[source] == generation:
+                        model.message_delivery.revoke(source)
                         self._invalidateRealtimeLocked(source)
                         self._realtime_errors[source] = code
                 return failure(code)
@@ -741,23 +1239,45 @@ class Controller:
             try:
                 setattr(config, "ENABLE_TRANSCRIPTION_" + direction, False)
                 setattr(config, "ENABLE_CHECK_ENERGY_" + direction, False)
-                self.run(200, "/set/disable/transcription_" + direction.lower(), False)
                 self.run(200, "/set/disable/check_" + source + "_threshold", False)
                 if model.stopCaptureForRealtime(source) is not True:
                     return fail_start("realtime_legacy_stop_failed")
+                # Where the Mic/Speaker toggles show realtime itself, turning them
+                # off here would undo this start. Elsewhere they showed the
+                # legacy recorder that just stopped.
+                if not self._realtimeToggles():
+                    self.run(200, "/set/disable/transcription_" + direction.lower(), False)
             except Exception:
                 return fail_start("realtime_legacy_stop_failed")
 
-            def publish(payload):
-                if current():
+            def publish(payload, admitted, snapshot):
+                if payload["state"] == "outcome":
+                    # RealtimeDelivery only emits this for a published final.
+                    # Settling its log row must outlive mute, stop and expiry.
                     self.run(200, "/run/realtime_caption", {**payload, "generation": generation})
+                    return True
+
+                def valid():
+                    return current() and admitted()
+
+                failures = []
+                spec = REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC
+                msg_id = payload["namespace"] + ":" + payload["item_id"]
+                shown = self._runMessageSink("ui", lambda: self.run(
+                    200, "/run/realtime_caption", {**payload, "generation": generation}),
+                    valid, failures, spec, msg_id)
+
+                def overlay():
                     if config.OVERLAY_LARGE_LOG is True and self._is_overlay_available():
                         def valid_overlay():
-                            return (current() and session.is_current(payload["namespace"])
+                            return (valid() and config.OVERLAY_LARGE_LOG and session.is_current(payload["namespace"])
                                     and (payload["state"] == "discarded" or time.monotonic_ns() < payload["expires_ns"]))
-                        languages = (config.SELECTED_TARGET_LANGUAGES if source == "mic" else config.SELECTED_YOUR_LANGUAGES)[config.SELECTED_TAB_NO]
-                        model.publishRealtimeCaptionOverlay(payload, language, languages, valid_overlay,
-                            only_translated=config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES)
+                        model.publishRealtimeCaptionOverlay(
+                            payload, snapshot.source_language, language_payload(snapshot.destinations), valid_overlay,
+                            only_translated=snapshot.overlay_only_translated)
+
+                self._runMessageSink("overlay_large", overlay, valid, failures, spec, msg_id)
+                return shown
 
             def clear_overlay():
                 with self._realtime_lock:
@@ -767,15 +1287,36 @@ class Controller:
                 if namespace and self._is_overlay_available():
                     model.clearRealtimeCaptionOverlay(source, namespace)
 
-            def process(update, valid):
+            def process(update, valid, admitted, mic_snapshot, snapshot, sequence):
                 def guard():
-                    return current() and valid()
-                if source == "mic" and getattr(config, "VRC_MIC_MUTE_SYNC", False) and model.mic_mute_status is True:
+                    return current() and valid() and admitted()
+                if not guard():
                     return None
                 return self._processMessage(
                     REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC,
-                    update.text, language, msg_id=update.namespace + ":" + update.item_id,
-                    publication_guard=guard, speech_update=update if source == "mic" else None)
+                    update.text, snapshot.source_language, msg_id=update.namespace + ":" + update.item_id,
+                    publication_guard=guard, speech_update=update if source == "mic" else None,
+                    mic_snapshot=mic_snapshot, settings_snapshot=snapshot, chatbox_sequence=sequence,
+                    output_progress=valid.output)
+
+            def admit(update):
+                admitted = self._messagePublicationGuard(source)
+                spec = REALTIME_MIC_SPEC if source == "mic" else REALTIME_SPEAKER_SPEC
+                spoken = language
+                if detect and getattr(update, "language", ""):
+                    try:
+                        spoken = self._realtimeLanguage(update.language)
+                    except ValueError:
+                        pass  # Keep the configured fallback for unknown language codes.
+                sequence = model.chatbox_order.admit() if source == "mic" and update.is_final else None
+                with self._voice_settings_lock, getattr(self, "_language_settings_lock", nullcontext()):
+                    snapshot = MessageSnapshot.capture(config, spec, spoken)
+                    mic_snapshot = update.voice_snapshot if source == "mic" and update.is_final else None
+                return (
+                    lambda payload: publish(payload, admitted, snapshot),
+                    lambda event, valid: process(event, valid, admitted, mic_snapshot, snapshot, sequence),
+                    admitted,
+                )
 
             def error(code):
                 with self._realtime_lock:
@@ -786,13 +1327,20 @@ class Controller:
                 if self._realtime_closed or self._realtime_generation[source] != generation:
                     return failure("realtime_stale_start")
                 try:
-                    session = RealtimeSession(source, options, endpoint)
-                    delivery = RealtimeDelivery(session, publish, process, error, on_stopped=clear_overlay)
+                    session = RealtimeSession(source, options, endpoint,
+                                              snapshot_voice=self._snapshotMicVoice if source == "mic" else None)
+                    def stopped():
+                        try:
+                            clear_overlay()
+                        finally:
+                            self._realtimeEnded(source, generation)
+                    delivery = RealtimeDelivery(session, publish, process, error, on_stopped=stopped, admit=admit)
                     self._realtime_owners[source] = (session, delivery)
                     # These only launch workers; neither waits for capture/network.
                     session.start()
                     delivery.start()
                 except Exception:
+                    model.message_delivery.revoke(source)
                     self._invalidateRealtimeLocked(source)
                     self._realtime_errors[source] = "realtime_start_failed"
                     return failure("realtime_start_failed")
@@ -884,9 +1432,28 @@ class Controller:
         Returns:
             dict with status 200 and result True on success.
         """
+        # Close admission and revoke existing work before any cleanup can wait.
+        model.message_delivery.close()
+        model.requestOSCShutdown()
+        # Signal both owners before either close can wait on a worker or lock.
+        for owner in (getattr(self, 'model_downloads', None), getattr(self, 'vc_runtimes', None),
+                      getattr(self, 'legacy_downloads', None)):
+            if owner is not None:
+                owner.request_close()
         if getattr(self, 'model_downloads', None) is not None:
             if not self.model_downloads.close():
-                printLog('[models] download cancellation pending; no model path will be applied')
+                printLog('[models] download/apply shutdown pending')
+        if getattr(self, 'vc_runtimes', None) is not None and not self.vc_runtimes.close():
+            printLog('[voice] runtime setup shutdown pending')
+        if getattr(self, 'legacy_downloads', None) is not None:
+            if not self.legacy_downloads.close():
+                printLog('[models] legacy download cancellation pending; publication is disabled')
+        with _OCR_CONTROL_LOCK:
+            self._ocr_shutting_down = True
+            config.ENABLE_OCR_CAPTURE = False
+            # Signal without waiting for a concurrent model load/lifecycle lock.
+            model.requestOCRShutdown()
+        self._stopServiceForShutdown(model.stopOCRCapture, "OCR capture")
         if getattr(self, 'model_hardware', None) is not None and not self.model_hardware.close():
             printLog('[models] hardware inspection shutdown pending')
         if not self._closeRealtimeASR():
@@ -992,6 +1559,7 @@ class Controller:
             config.saveConfigToFile()
         except Exception:
             errorLogging()
+        utterance_diagnostics.flush(reason="shutdown")
         try:
             model.telemetryShutdown()
             return {"status": 200, "result": True}
@@ -1014,6 +1582,18 @@ class Controller:
             False,
         )
 
+    @staticmethod
+    def _missingBuiltInModelInUse(ctranslate2_available: bool, whisper_available: bool) -> bool:
+        """いま選んでいるエンジンが、取得していない内蔵モデルを必要としているか。
+
+        以前は、どちらか一方でも無ければ起動のたびに警告していた。そのため、翻訳モデルを取得して
+        文字起こしは Google を選んでいる人や、どちらも外部のサービスを使う人にも、使わないモデルに
+        ついての警告が毎回出ていた。選んでいないエンジンのモデルは、選んだときに取得を案内する。
+        """
+        translation = config.SELECTED_TRANSLATION_ENGINES.get(config.SELECTED_TAB_NO) == "CTranslate2"
+        transcription = config.SELECTED_TRANSCRIPTION_ENGINE == "Whisper"
+        return (translation and not ctranslate2_available) or (transcription and not whisper_available)
+
     def enableAiModels(self) -> None:
         self.run(
             200,
@@ -1035,245 +1615,250 @@ class Controller:
             model.getListMicHost(),
         )
 
+    def _audioLock(self, source):
+        name = source + "_lifecycle_lock"
+        lock = getattr(self, name, None)
+        if lock is None:
+            lock = RLock()
+            setattr(self, name, lock)
+        return lock
+
+    def _audioGeneration(self, source, *, advance=False):
+        name = "_" + source + "_intent_generation"
+        generation = getattr(self, name, 0) + int(advance)
+        setattr(self, name, generation)
+        return generation
+
+    @staticmethod
+    def _audioFlags(source):
+        suffix = "SEND" if source == "mic" else "RECEIVE"
+        return "ENABLE_TRANSCRIPTION_" + suffix, "ENABLE_CHECK_ENERGY_" + suffix
+
+    def _audioDevices(self, source):
+        if source == "mic":
+            return [(host, d) for host, devices in device_manager.getMicDevices().items() for d in devices]
+        return [(None, d) for d in device_manager.getSpeakerDevices()]
+
+    def _selectedAudioDevice(self, source):
+        devices = [d for host, d in self._audioDevices(source)
+                   if source != "mic" or host == config.SELECTED_MIC_HOST]
+        return resolve_device(devices, getattr(config, "SELECTED_" + source.upper() + "_DEVICE_ID"),
+                              getattr(config, "SELECTED_" + source.upper() + "_DEVICE"))
+
+    def _audioTarget(self, source, *, follow_default=True):
+        selected = self._selectedAudioDevice(source)
+        auto = getattr(config, "AUTO_" + source.upper() + "_SELECT")
+        if selected is not None and not (auto and follow_default):
+            return selected
+        available = [d for _, d in self._audioDevices(source) if d.get("name") != "NoDevice"]
+        # Do not guess which of two identically named devices an old setting meant.
+        name = getattr(config, "SELECTED_" + source.upper() + "_DEVICE")
+        endpoint_id = getattr(config, "SELECTED_" + source.upper() + "_DEVICE_ID")
+        if not auto and not endpoint_id and len([d for d in available if d.get("name") == name]) > 1:
+            return None
+        default = (device_manager.getDefaultMicDevice() if source == "mic"
+                   else device_manager.getDefaultSpeakerDevice()).get("device", {})
+        matched = resolve_device(available, device_id(default), default.get("name"))
+        return matched or (available[0] if available else None)
+
+    def _publishAudioDeviceLocked(self, source, device, previous=None):
+        prefix = "SELECTED_" + source.upper() + "_DEVICE"
+        name = device.get("name", "NoDevice") if device else "NoDevice"
+        identity = device_id(device)
+        old_name = getattr(config, prefix)
+        ambiguous = (not device and not getattr(config, prefix + "_ID")
+                     and len([d for _, d in self._audioDevices(source) if d.get("name") == old_name]) > 1)
+        if source == "mic" and not ambiguous:
+            host = next((host for host, item in self._audioDevices(source)
+                         if capture_key(item) == capture_key(device)), device.get("host_name", "NoHost")) if device else "NoHost"
+            config.SELECTED_MIC_HOST = host
+            self.run(200, "/run/selectable_mic_host_list", list(device_manager.getMicDevices()))
+            self.run(200, self.run_mapping.get("selected_mic_host", "/run/selected_mic_host"), host)
+        if not ambiguous:
+            setattr(config, prefix, name)
+        setattr(config, prefix + "_ID", identity)
+        # Publish options first, so a newly opened fallback has a visible label.
+        self.run(200, "/run/selectable_" + source + "_device_options", self._audioDeviceOptionsLocked(source))
+        self.run(200, self.run_mapping.get("selected_" + source + "_device", "/run/selected_" + source + "_device"), name)
+        self.run(200, "/run/selected_" + source + "_device_id", identity)
+        if previous and device and (device_id(previous), previous.get("name")) != (identity, name):
+            self.run(200, "/run/audio_device_switched", {
+                "source": source,
+                "old_device": {"id": device_id(previous), "name": previous.get("name", "")},
+                "new_device": {"id": identity, "name": name},
+            })
+
+    def _audioDeviceOptions(self, source):
+        with self._audioLock(source):
+            return self._audioDeviceOptionsLocked(source)
+
+    def _audioDeviceOptionsLocked(self, source):
+        devices = [d for host, d in self._audioDevices(source)
+                   if source != "mic" or host == config.SELECTED_MIC_HOST]
+        session = getattr(model, "_" + source + "_session", None)
+        active = getattr(session, "_active_device", None)
+        if active and device_id(active):
+            # A refresh may precede the queued switch. Keep the current
+            # capture's label available until its owner has actually stopped.
+            devices = [active if device_id(d) == device_id(active) else d for d in devices]
+            if not any(device_id(d) == device_id(active) for d in devices):
+                devices.append(active)
+        return device_options(devices)
+
+    def _publishDeviceOptions(self, source):
+        self.run(200, "/run/selectable_" + source + "_device_options", self._audioDeviceOptions(source))
+
+    def _wireAudioSessionLocked(self, source):
+        model.ensure_initialized()
+        session = getattr(model, "_" + source + "_session")
+        generation = self._audioGeneration(source)
+        session.publication_guard_fnc = lambda: self._messagePublicationGuard(source)
+        session.device_fnc = lambda device, previous: self._publishAudioDeviceLocked(source, device, previous)
+        # Start/rollback callbacks run under the caller's source lock. Recorder
+        # errors arrive on another thread and must enter through the lock boundary.
+        session.error_fnc = lambda failure: self._audioPipelineFailedLocked(source, generation, failure)
+        session.runtime_error_fnc = lambda failure: self._audioPipelineFailed(source, generation, failure)
+        session.terminal_failure_fnc = lambda: self._audioTerminalFailureLocked(source, generation)
+        return session
+
+    def _audioTerminalFailureLocked(self, source, generation):
+        if generation == self._audioGeneration(source):
+            if any(getattr(config, flag) for flag in self._audioFlags(source)):
+                self._disableTranscriptionAfterPipelineErrorLocked(source)
+
+    def _audioPipelineFailed(self, source, generation, failure):
+        with self._audioLock(source):
+            self._audioPipelineFailedLocked(source, generation, failure, cleanup=True)
+
+    def _audioPipelineFailedLocked(self, source, generation, failure, *, cleanup=False):
+        if generation != self._audioGeneration(source):
+            return
+        revision = failure.get("capture_revision")
+        if revision is not None and not self._audioCaptureCurrentLocked(source, revision):
+            return
+        failed_device = failure.get("failed_device")
+        public_failure = {key: value for key, value in failure.items()
+                          if key not in ("failed_device", "capture_revision")}
+        if failed_device and failure.get("error_code") == "AUDIO_READ_ERROR":
+            # A read error can precede the device-list notification. Reconcile
+            # one fresh snapshot before declaring the user's capture ended.
+            worker = getattr(model, source + "_lifecycle_worker", None)
+            if worker is not None and worker.enqueue(
+                    lambda: self._recoverAudioDeviceLoss(source, generation, revision, failed_device, public_failure),
+                    coalesce_key=f"{source}_read_error_{generation}_{revision}") is not False:
+                return
+        if cleanup:
+            public_failure = self._disableAudioAfterDeviceLossLocked(source) or public_failure
+        else:
+            self._audioTerminalFailureLocked(source, generation)
+        self.run(200, self.run_mapping.get("transcription_recognition_error", "/run/transcription_recognition_error"), public_failure)
+
+    def _audioCaptureCurrentLocked(self, source, revision):
+        session = getattr(model, "_" + source + "_session")
+        return session._recorder is not None and session._capture_revision == revision
+
+    def _recoverAudioDeviceLoss(self, source, generation, revision, failed_device, failure):
+        with self._audioLock(source):
+            if (generation != self._audioGeneration(source)
+                    or not self._audioCaptureCurrentLocked(source, revision)):
+                return
+        refresh_failed = False
+        try:
+            device_manager.update()
+        except Exception:
+            refresh_failed = True
+            errorLogging()
+        with self._audioLock(source):
+            if (generation != self._audioGeneration(source)
+                    or not self._audioCaptureCurrentLocked(source, revision)):
+                return
+            available = [d for _, d in self._audioDevices(source)]
+            if not refresh_failed and not any(capture_key(d) == capture_key(failed_device) for d in available):
+                self._reconcileAudioLocked(source, generation, previous_device=failed_device)
+                return
+            failure = self._disableAudioAfterDeviceLossLocked(source) or failure
+            self.run(200, self.run_mapping.get("transcription_recognition_error", "/run/transcription_recognition_error"), failure)
+
+    def _queueAudioReconciliation(self, source):
+        with self._audioLock(source):
+            generation = self._audioGeneration(source)
+            flags = self._audioFlags(source)
+            if not any(getattr(config, flag) for flag in flags):
+                self._publishAudioDeviceLocked(source, self._audioTarget(source))
+                return
+        worker = getattr(model, source + "_lifecycle_worker", None)
+        job = lambda: self._reconcileAudio(source, generation)
+        if worker is not None:
+            worker.enqueue(job, coalesce_key=f"{source}_device_reconcile_{generation}")
+        else:
+            job()
+
+    def _reconcileAudio(self, source, generation=None, *, follow_default=True, device=None, previous_device=None):
+        with self._audioLock(source):
+            return self._reconcileAudioLocked(source, generation, follow_default=follow_default, device=device, previous_device=previous_device)
+
+    def _reconcileAudioLocked(self, source, generation=None, *, follow_default=True, device=None, previous_device=None):
+        if generation is not None and generation != self._audioGeneration(source):
+            return
+        transcript_flag, energy_flag = self._audioFlags(source)
+        transcript, energy = getattr(config, transcript_flag), getattr(config, energy_flag)
+        target = device if device is not None else self._audioTarget(source, follow_default=follow_default)
+        if not transcript and not energy:
+            self._publishAudioDeviceLocked(source, target)
+            return
+        if not target or target.get("name") == "NoDevice":
+            self._disableAudioAfterDeviceLossLocked(source)
+            self._publishAudioDeviceLocked(source, None)
+            return
+        session = self._wireAudioSessionLocked(source)
+        pause = getattr(device_manager, "pause" + source.capitalize() + "EndpointTracker")
+        resume = getattr(device_manager, "resume" + source.capitalize() + "EndpointTracker")
+        pause()
+        try:
+            # Flags and generation are checked under the same lock used by OFF.
+            previous = {"previous_device": previous_device} if previous_device else {}
+            session.reconfigure(transcript=transcript, energy=energy,
+                                device=target or {"name": "NoDevice"}, **previous)
+            if not session.features:
+                self._audioTerminalFailureLocked(source, self._audioGeneration(source))
+                self._publishAudioDeviceLocked(source, None)
+            elif session._active_device is not None:
+                self._publishAudioDeviceLocked(source, session._active_device)
+        except Exception:
+            errorLogging()
+            self._audioTerminalFailureLocked(source, self._audioGeneration(source))
+        finally:
+            resume()
+
     def updateMicDeviceList(self) -> None:
-        self._synchronizeMicSelectionAfterDeviceUpdate()
-        self.run(
-            200,
-            self.run_mapping["selectable_mic_device_list"],
-            model.getListMicDevice(),
-        )
+        self._queueAudioReconciliation("mic")
+        self.run(200, self.run_mapping["selectable_mic_device_list"], model.getListMicDevice())
+        self._publishDeviceOptions("mic")
 
     def updateSpeakerDeviceList(self) -> None:
-        self._synchronizeSpeakerSelectionAfterDeviceUpdate()
-        self.run(
-            200,
-            self.run_mapping["selectable_speaker_device_list"],
-            model.getListSpeakerDevice(),
-        )
+        self._queueAudioReconciliation("speaker")
+        self.run(200, self.run_mapping["selectable_speaker_device_list"], model.getListSpeakerDevice())
+        self._publishDeviceOptions("speaker")
 
-    @staticmethod
-    def _isMicSelectionAvailable(host: str, device: str) -> bool:
-        if host == "NoHost" or device == "NoDevice":
-            return False
-        try:
-            return any(
-                item.get("name") == device
-                for item in device_manager.getMicDevices().get(host, [])
-            )
-        except Exception:
-            errorLogging()
-            return False
+    def _synchronizeMicSelectionAfterDeviceUpdate(self):
+        self._queueAudioReconciliation("mic")
 
-    @staticmethod
-    def _getAvailableDefaultMicSelection() -> Optional[tuple[str, str]]:
-        try:
-            default = device_manager.getDefaultMicDevice()
-            host = default.get("host", {}).get("name", "NoHost")
-            device = default.get("device", {}).get("name", "NoDevice")
-            if Controller._isMicSelectionAvailable(host, device):
-                return host, device
-        except Exception:
-            errorLogging()
-        # デバイス抜去直後は、OS の既定デバイス情報だけが一時的に
-        # NoDevice になることがある。一覧に実デバイスが残っていれば、
-        # Auto Select ON ではその先頭を fallback として使う。
-        try:
-            for host, devices in device_manager.getMicDevices().items():
-                if host == "NoHost":
-                    continue
-                for item in devices:
-                    device = item.get("name")
-                    if device != "NoDevice" and isinstance(device, str):
-                        return host, device
-        except Exception:
-            errorLogging()
-        return None
+    def _synchronizeSpeakerSelectionAfterDeviceUpdate(self):
+        self._queueAudioReconciliation("speaker")
 
-    @staticmethod
-    def _isSpeakerSelectionAvailable(device: str) -> bool:
-        if device == "NoDevice":
-            return False
-        try:
-            return any(
-                item.get("name") == device
-                for item in device_manager.getSpeakerDevices()
-            )
-        except Exception:
-            errorLogging()
-            return False
+    def _disableAudioAfterDeviceLoss(self, source):
+        with self._audioLock(source):
+            self._disableAudioAfterDeviceLossLocked(source)
 
-    @staticmethod
-    def _getAvailableDefaultSpeakerSelection() -> Optional[str]:
-        try:
-            default = device_manager.getDefaultSpeakerDevice()
-            device = default.get("device", {}).get("name", "NoDevice")
-            if Controller._isSpeakerSelectionAvailable(device):
-                return device
-        except Exception:
-            errorLogging()
-        # Mic と同様、抜去直後に OS の既定値が NoDevice でも、検出済みの
-        # loopback デバイスが残っていれば Auto Select で継続できる。
-        try:
-            for item in device_manager.getSpeakerDevices():
-                device = item.get("name")
-                if device != "NoDevice" and isinstance(device, str):
-                    return device
-        except Exception:
-            errorLogging()
-        return None
-
-    def _setNoMicDeviceSelection(self) -> None:
-        config.SELECTED_MIC_HOST = "NoHost"
-        config.SELECTED_MIC_DEVICE = "NoDevice"
-        self.run(200, self.run_mapping["selected_mic_host"], config.SELECTED_MIC_HOST)
-        self.run(200, self.run_mapping["selected_mic_device"], config.SELECTED_MIC_DEVICE)
-
-    def _setNoSpeakerDeviceSelection(self) -> None:
-        config.SELECTED_SPEAKER_DEVICE = "NoDevice"
-        self.run(
-            200,
-            self.run_mapping["selected_speaker_device"],
-            config.SELECTED_SPEAKER_DEVICE,
-        )
-
-    def _stopMicAudioAfterDeviceLoss(self) -> None:
-        """選択デバイス消失時に mic の Session を強制停止する。"""
-        with self.mic_lifecycle_lock:
-            for stop_fn in (model.stopMicTranscript, model.stopCheckMicEnergy):
-                try:
-                    stop_fn()
-                except Exception:
-                    errorLogging()
-
-    def _stopSpeakerAudioAfterDeviceLoss(self) -> None:
-        """選択デバイス消失時に speaker の Session を強制停止する。"""
-        with self.speaker_lifecycle_lock:
-            for stop_fn in (model.stopSpeakerTranscript, model.stopCheckSpeakerEnergy):
-                try:
-                    stop_fn()
-                except Exception:
-                    errorLogging()
-
-    def _reconfigureMicAfterDeviceFallback(self) -> None:
-        """fallback 先へ切り替えた稼働中の mic Session を再構成する。"""
-        if not (
-            config.ENABLE_TRANSCRIPTION_SEND is True
-            or config.ENABLE_CHECK_ENERGY_SEND is True
-        ):
-            return
-        worker = getattr(model, "mic_lifecycle_worker", None)
-        if worker is not None:
-            worker.enqueue(
-                self._reopenMicAudioOnDeviceChange,
-                coalesce_key="mic_device_fallback",
-            )
-        else:
-            self._reopenMicAudioOnDeviceChange()
-
-    def _reconfigureSpeakerAfterDeviceFallback(self) -> None:
-        """fallback 先へ切り替えた稼働中の speaker Session を再構成する。"""
-        if not (
-            config.ENABLE_TRANSCRIPTION_RECEIVE is True
-            or config.ENABLE_CHECK_ENERGY_RECEIVE is True
-        ):
-            return
-        worker = getattr(model, "speaker_lifecycle_worker", None)
-        if worker is not None:
-            worker.enqueue(
-                self._reopenSpeakerAudioOnDeviceChange,
-                coalesce_key="speaker_device_fallback",
-            )
-        else:
-            self._reopenSpeakerAudioOnDeviceChange()
-
-    def _disableAudioAfterDeviceLoss(self, source: str) -> None:
-        """選択デバイス消失時に録音機能と UI 状態を停止する。"""
-        if source == "mic":
-            transcription_was_enabled = config.ENABLE_TRANSCRIPTION_SEND is True
-            energy_was_enabled = config.ENABLE_CHECK_ENERGY_SEND is True
-            config.ENABLE_TRANSCRIPTION_SEND = False
-            config.ENABLE_CHECK_ENERGY_SEND = False
-            worker = getattr(model, "mic_lifecycle_worker", None)
-            stop_fn = self._stopMicAudioAfterDeviceLoss
-            transcription_endpoint = self.run_mapping.get(
-                "disable_transcription_send", "/set/disable/transcription_send"
-            )
-            energy_endpoint = self.run_mapping.get(
-                "disable_check_mic_threshold", "/set/disable/check_mic_threshold"
-            )
-        elif source == "speaker":
-            transcription_was_enabled = config.ENABLE_TRANSCRIPTION_RECEIVE is True
-            energy_was_enabled = config.ENABLE_CHECK_ENERGY_RECEIVE is True
-            config.ENABLE_TRANSCRIPTION_RECEIVE = False
-            config.ENABLE_CHECK_ENERGY_RECEIVE = False
-            worker = getattr(model, "speaker_lifecycle_worker", None)
-            stop_fn = self._stopSpeakerAudioAfterDeviceLoss
-            transcription_endpoint = self.run_mapping.get(
-                "disable_transcription_receive", "/set/disable/transcription_receive"
-            )
-            energy_endpoint = self.run_mapping.get(
-                "disable_check_speaker_threshold", "/set/disable/check_speaker_threshold"
-            )
-        else:
-            return
-
-        if transcription_was_enabled:
-            self.run(200, transcription_endpoint, False)
-        if energy_was_enabled:
-            self.run(200, energy_endpoint, False)
-        if transcription_was_enabled or energy_was_enabled:
-            if worker is not None:
-                worker.enqueue(stop_fn, coalesce_key=f"{source}_device_loss_stop")
-            else:
-                stop_fn()
-
-    def _synchronizeMicSelectionAfterDeviceUpdate(self) -> None:
-        """一覧更新後に、消失した mic 選択値を現在の状態へ同期する。"""
-        selected_host = config.SELECTED_MIC_HOST
-        selected_device = config.SELECTED_MIC_DEVICE
-        if self._isMicSelectionAvailable(selected_host, selected_device):
-            return
-
-        fallback = self._getAvailableDefaultMicSelection()
-        if fallback is not None:
-            self.updateSelectedMicDevice(*fallback)
-            # Auto ON は既存の Before/After callback が stop→restart を
-            # 担当する。Auto OFF ではここで選択だけ更新すると既存の
-            # Session が抜去済みデバイスを保持するため、worker 経由で
-            # 現在の features を維持したまま再構成する。
-            if config.AUTO_MIC_SELECT is False:
-                self._reconfigureMicAfterDeviceFallback()
-            return
-
-        # 検出済みデバイスが一台もない場合だけ NoDevice にする。
-        if selected_host != "NoHost" or selected_device != "NoDevice":
-            self._setNoMicDeviceSelection()
-        if (
-            config.ENABLE_TRANSCRIPTION_SEND is True
-            or config.ENABLE_CHECK_ENERGY_SEND is True
-        ):
-            self._disableAudioAfterDeviceLoss("mic")
-
-    def _synchronizeSpeakerSelectionAfterDeviceUpdate(self) -> None:
-        """一覧更新後に、消失した speaker 選択値を現在の状態へ同期する。"""
-        selected_device = config.SELECTED_SPEAKER_DEVICE
-        if self._isSpeakerSelectionAvailable(selected_device):
-            return
-
-        fallback = self._getAvailableDefaultSpeakerSelection()
-        if fallback is not None:
-            self.updateSelectedSpeakerDevice(fallback)
-            if config.AUTO_SPEAKER_SELECT is False:
-                self._reconfigureSpeakerAfterDeviceFallback()
-            return
-
-        if selected_device != "NoDevice":
-            self._setNoSpeakerDeviceSelection()
-        if (
-            config.ENABLE_TRANSCRIPTION_RECEIVE is True
-            or config.ENABLE_CHECK_ENERGY_RECEIVE is True
-        ):
-            self._disableAudioAfterDeviceLoss("speaker")
+    def _disableAudioAfterDeviceLossLocked(self, source):
+        self._audioGeneration(source, advance=True)
+        # Revocation is a terminal intent change, never an internal switch.
+        # It must precede joins/cleanup so admitted output cannot escape meanwhile.
+        self._disableTranscriptionAfterPipelineErrorLocked(source)
+        session = self._wireAudioSessionLocked(source)
+        session.reconfigure(transcript=False, energy=False)
+        if session._cleanup_workers:
+            return session._make_pipeline_failure(ErrorCode.CLEANUP_TIMEOUT, "cleanup").to_notification()
 
     def updateConfigSettings(self) -> None:
         settings = {}
@@ -1295,29 +1880,19 @@ class Controller:
             settings,
         )
 
-    def restartAccessMicDevices(self) -> None:
-        if config.ENABLE_TRANSCRIPTION_SEND is True:
-            self.startTranscriptionSendMessage()
-        if config.ENABLE_CHECK_ENERGY_SEND is True:
-            self.startCheckMicEnergy()
+    def restartAccessMicDevices(self, generation=None) -> None:
+        self._reconcileAudio("mic", generation)
 
-    def restartAccessSpeakerDevices(self) -> None:
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            self.startTranscriptionReceiveMessage()
-        if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
-            self.startCheckSpeakerEnergy()
+    def restartAccessSpeakerDevices(self, generation=None) -> None:
+        self._reconcileAudio("speaker", generation)
 
     def stopAccessMicDevices(self) -> None:
-        if config.ENABLE_TRANSCRIPTION_SEND is True:
-            self.stopTranscriptionSendMessage()
-        if config.ENABLE_CHECK_ENERGY_SEND is True:
-            self.stopCheckMicEnergy()
+        with self._audioLock("mic"):
+            model.stopCaptureForRealtime("mic")
 
     def stopAccessSpeakerDevices(self) -> None:
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            self.stopTranscriptionReceiveMessage()
-        if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
-            self.stopCheckSpeakerEnergy()
+        with self._audioLock("speaker"):
+            model.stopCaptureForRealtime("speaker")
 
     def updateSelectedMicDevice(self, host, device) -> None:
         config.SELECTED_MIC_HOST = host
@@ -1335,6 +1910,9 @@ class Controller:
 
     def progressBarMicEnergy(self, energy) -> None:
         if energy is False:
+            config.ENABLE_CHECK_ENERGY_SEND = False
+            self.run(200, "/set/disable/check_mic_threshold", False)
+            self.run(200, "/run/check_mic_volume", 0)
             error_response = VRCTError.create_error_response(
                 ErrorCode.DEVICE_NO_MIC,
                 data=None
@@ -1353,6 +1931,9 @@ class Controller:
 
     def progressBarSpeakerEnergy(self, energy) -> None:
         if energy is False:
+            config.ENABLE_CHECK_ENERGY_RECEIVE = False
+            self.run(200, "/set/disable/check_speaker_threshold", False)
+            self.run(200, "/run/check_speaker_volume", 0)
             error_response = VRCTError.create_error_response(
                 ErrorCode.DEVICE_NO_SPEAKER,
                 data=None
@@ -1376,6 +1957,9 @@ class Controller:
             self.run = run
             self._last_progress = -1.0
             self._last_time = 0.0
+            self.job_id = uuid4().hex
+            self._terminal_lock = Lock()
+            self._terminal_sent = False
 
         def progressBar(self, progress) -> None:
             if not _shouldEmitDownloadProgress(self, progress):
@@ -1384,28 +1968,23 @@ class Controller:
             self.run(
                 200,
                 self.run_mapping["download_progress_ctranslate2_weight"],
-                {"weight_type": self.weight_type, "progress": progress},
+                {"weight_type": self.weight_type, "job_id": self.job_id, "progress": progress},
             )
 
-        def downloaded(self) -> None:
-            if model.checkTranslatorCTranslate2ModelWeight(self.weight_type) is True:
-                config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[self.weight_type] = True
-
-                self.run(
-                    200,
-                    self.run_mapping["downloaded_ctranslate2_weight"],
-                    self.weight_type,
-                )
+        def downloaded(self, ready=False, error=None) -> None:
+            with self._terminal_lock:
+                if self._terminal_sent:
+                    return
+                self._terminal_sent = True
+            config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[self.weight_type] = ready is True
+            data = {"weight_type": self.weight_type, "job_id": self.job_id, "downloaded": ready is True}
+            if ready is True:
+                self.run(200, self.run_mapping["downloaded_ctranslate2_weight"], data)
             else:
                 error_response = VRCTError.create_error_response(
-                    ErrorCode.WEIGHT_CTRANSLATE2_DOWNLOAD,
-                    data=None
+                    ErrorCode.WEIGHT_CTRANSLATE2_DOWNLOAD, data={**data, "reason": error},
                 )
-                self.run(
-                    error_response["status"],
-                    self.run_mapping["error_ctranslate2_weight"],
-                    error_response["result"],
-                )
+                self.run(error_response["status"], self.run_mapping["error_ctranslate2_weight"], error_response["result"])
 
     class DownloadWhisper:
         def __init__(self, run_mapping:dict, weight_type:str, run:Callable[[int, str, Any], None]) -> None:
@@ -1414,6 +1993,9 @@ class Controller:
             self.run = run
             self._last_progress = -1.0
             self._last_time = 0.0
+            self.job_id = uuid4().hex
+            self._terminal_lock = Lock()
+            self._terminal_sent = False
 
         def progressBar(self, progress) -> None:
             if not _shouldEmitDownloadProgress(self, progress):
@@ -1422,28 +2004,76 @@ class Controller:
             self.run(
                 200,
                 self.run_mapping["download_progress_whisper_weight"],
-                {"weight_type": self.weight_type, "progress": progress},
+                {"weight_type": self.weight_type, "job_id": self.job_id, "progress": progress},
             )
 
-        def downloaded(self) -> None:
-            if model.checkTranscriptionWhisperModelWeight(self.weight_type) is True:
-                config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[self.weight_type] = True
-
-                self.run(
-                    200,
-                    self.run_mapping["downloaded_whisper_weight"],
-                    self.weight_type,
-                )
+        def downloaded(self, ready=False, error=None) -> None:
+            with self._terminal_lock:
+                if self._terminal_sent:
+                    return
+                self._terminal_sent = True
+            config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[self.weight_type] = ready is True
+            data = {"weight_type": self.weight_type, "job_id": self.job_id, "downloaded": ready is True}
+            if ready is True:
+                self.run(200, self.run_mapping["downloaded_whisper_weight"], data)
             else:
                 error_response = VRCTError.create_error_response(
-                    ErrorCode.WEIGHT_WHISPER_DOWNLOAD,
-                    data=None
+                    ErrorCode.WEIGHT_WHISPER_DOWNLOAD, data={**data, "reason": error},
                 )
-                self.run(
-                    error_response["status"],
-                    self.run_mapping["error_whisper_weight"],
-                    error_response["result"],
-                )
+                self.run(error_response["status"], self.run_mapping["error_whisper_weight"], error_response["result"])
+
+    def _messagePublicationGuard(self, source, publication_guard=None):
+        def muted():
+            return (source == "mic" and config.VRC_MIC_MUTE_SYNC is True
+                    and model.mic_mute_status is not False)
+
+        # A result refused at admission must stay refused after unmute.
+        if muted():
+            return lambda: False
+        delivery = model.message_delivery
+        epoch = delivery.snapshot(source)
+
+        def current():
+            return (delivery.current(source, epoch) and not muted()
+                    and (publication_guard is None or publication_guard()))
+
+        return current
+
+    def _snapshotMicVoice(self):
+        with self._voice_settings_lock:
+            if getattr(self, "voice_events", None) is not None:
+                if self.voice_events.settings.mic_mode == "translated" and config.ENABLE_TRANSLATION:
+                    return (self.voice_events.settings, self.voice_events.generation(),
+                            self.voice_events.source_generation("mic"))
+        return None
+
+    def _runMessageSink(self, output, action, current, failures, spec, msg_id):
+        if not current():
+            return False
+        try:
+            action()
+            return True
+        except Exception:
+            failure = {"output": output, "error_code": ErrorCode.MESSAGE_OUTPUT_FAILED.value}
+            failures.append(failure)
+            # Diagnostic or notification failure must not escape into an ASR callback.
+            try:
+                errorLogging()
+            except Exception:
+                pass
+            if current():
+                try:
+                    response = VRCTError.create_error_response(
+                        ErrorCode.MESSAGE_OUTPUT_FAILED,
+                        data={"id": msg_id, "source": spec.kind, **failure})
+                    self.run(response["status"], self.run_mapping.get("message_output_error", "/run/message_output_error"),
+                             response["result"])
+                except Exception:
+                    try:
+                        errorLogging()
+                    except Exception:
+                        pass
+            return False
 
     def _processMessage(
         self,
@@ -1455,6 +2085,11 @@ class Controller:
         voice_generation: Optional[int] = None,
         publication_guard: Optional[Callable[[], bool]] = None,
         speech_update=None,
+        mic_snapshot=None,
+        settings_snapshot=None,
+        chatbox_sequence=None,
+        feature_enabled=None,
+        output_progress=None,
     ) -> Optional[dict]:
         """mic/speaker/chatMessage共通のパイプライン(バックエンドレビュー
         フェーズ3項目25、`MessageDirectionSpec`参照)。
@@ -1470,9 +2105,30 @@ class Controller:
         ワードフィルタ・繰り返し検出・VRAMエラーで早期returnした場合は
         `model.addTranslationHistory`を呼ばない(旧実装の挙動を踏襲)。
         """
-        current = publication_guard or (lambda: True)
+        current = self._messagePublicationGuard(spec.kind, publication_guard)
+        # Internal capture pauses/handoffs keep admitted work. Explicit OFF
+        # revokes its epoch instead of relying on a later live feature check.
+        if feature_enabled is None:
+            feature_enabled = spec.feature_gate_attr is None or getattr(config, spec.feature_gate_attr) is True
         if not current():
             return None
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            snapshot = settings_snapshot or MessageSnapshot.capture(config, spec, language)
+            voice_snapshot = None
+            if spec.kind == "chat" and getattr(self, "voice_events", None) is not None:
+                if self.voice_events.settings.mode != "off":
+                    voice_snapshot = (
+                        snapshot, self.voice_events.settings,
+                        voice_generation if type(voice_generation) is int else self.voice_events.generation())
+        if chatbox_sequence is None and spec.osc_send_gate_attr is not None:
+            chatbox_sequence = model.chatbox_order.admit()
+        failures = []
+
+        def sink(output, action):
+            self._runMessageSink(output, (lambda: output_progress(action)) if output_progress else action,
+                                 current, failures, spec, msg_id)
+
         if spec.has_word_filter and model.checkKeywords(message):
             if not current():
                 return None
@@ -1491,52 +2147,32 @@ class Controller:
         # した場合は出力自体が無いので測らない。
         pipeline_started_at = time.perf_counter()
         translate_elapsed_ms = 0
-        # Snapshot before translation can block; only the trusted realtime mic
-        # callback supplies a speech update. Other receive paths cannot speak.
-        voice_snapshot = None
-        mic_snapshot = None
+        # Realtime mic intent is stamped before entering the session mailbox.
+        # Typed chat carries the receiver's generation through translation.
         voice_started_ns = time.monotonic_ns()
-        if spec.kind == "chat" and getattr(self, "voice_events", None) is not None:
-            with self._voice_settings_lock:
-                if self.voice_events.settings.mode != "off":
-                    voice_snapshot = (
-                        config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"],
-                        copy.deepcopy(config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]),
-                        list(config.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST),
-                        self.voice_events.settings,
-                        (voice_generation if type(voice_generation) is int
-                         else self.voice_events.generation()),
-                    )
-
-        if (spec is REALTIME_MIC_SPEC and speech_update is not None
-                and getattr(self, "voice_events", None) is not None):
-            with self._voice_settings_lock:
-                if self.voice_events.settings.mic_mode == "translated" and config.ENABLE_TRANSLATION:
-                    mic_snapshot = (
-                        config.SELECTED_TAB_NO,
-                        copy.deepcopy(config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]),
-                        self.voice_events.settings, self.voice_events.generation(),
-                        self.voice_events.source_generation("mic"),
-                    )
 
         # Original speech has no dependency on the translator or text delivery.
         # The receiver's generation also invalidates chat waiting in Main.queue.
-        if voice_snapshot is not None and voice_snapshot[3].mode == "original":
-            self._publishChatVoice(voice_snapshot, message, [], msg_id, voice_started_ns)
+        if voice_snapshot is not None and voice_snapshot[1].mode == "original":
+            sink("tts", lambda: self._publishChatVoice(
+                voice_snapshot, message, [], [], [], msg_id, voice_started_ns, current))
 
         translation: list = []
         success: list = []
-        if config.ENABLE_TRANSLATION is False:
+        provenance: list = []
+        if snapshot.translation_enabled is False:
             pass
         else:
             translate_started_at = time.perf_counter()
+            translation_completed = False
             try:
                 translate = getattr(model, spec.translate_attr)
-                translation, success = translate(message, source_language=language)
+                translation, success, provenance = translate(
+                    message, source_language=snapshot.source_language, snapshot=snapshot, with_provenance=True)
                 if not current():
                     return None
                 if all(success) is not True:
-                    self.changeToCTranslate2Process()
+                    self.changeToCTranslate2Process(snapshot=snapshot)
                     error_response = VRCTError.create_error_response(
                         ErrorCode.TRANSLATION_ENGINE_LIMIT,
                         data=None
@@ -1546,6 +2182,7 @@ class Controller:
                         self.run_mapping["error_translation_engine"],
                         error_response["result"],
                     )
+                translation_completed = True
             except Exception as e:
                 if not current():
                     return None
@@ -1577,66 +2214,45 @@ class Controller:
                 if spec.delivery == "return":
                     # エラー時は翻訳なしで返す
                     return {
+                        **({"delivery_outcome": "failed", "delivery_reason": "processing_failed"}
+                           if spec in (REALTIME_MIC_SPEC, REALTIME_SPEAKER_SPEC) else {}),
                         "id": msg_id,
                         "original": {"message": message, "transliteration": []},
                         "translations": [
                             {"message": "", "transliteration": []}
-                            for _ in config.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST
+                            for _ in snapshot.target_slots
                         ],
                     }
                 return None
             finally:
                 translate_elapsed_ms = round((time.perf_counter() - translate_started_at) * 1000)
+                # Realtime expiry/stop can return inside this try. Keep slow
+                # translation evidence even when publication is invalidated.
+                if not translation_completed and spec.kind in ("mic", "speaker"):
+                    self._recordMessageLatency(
+                        spec, asr_ms, translate_elapsed_ms,
+                        round((time.perf_counter() - pipeline_started_at) * 1000),
+                        aborted=True,
+                    )
 
         if not current():
             return None
         transliteration_message: List[Any] = []
-        transliteration_translation: list = []
-        if config.CONVERT_MESSAGE_TO_HIRAGANA is True or config.CONVERT_MESSAGE_TO_ROMAJI is True:
-            if spec.own_transliteration_source == "your_language":
-                own_message_is_japanese = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"] == "Japanese"
-            else:
-                own_message_is_japanese = language == "Japanese"
-            if own_message_is_japanese:
+        transliteration_translation = []
+        if snapshot.hiragana or snapshot.romaji:
+            own_language = (snapshot.your_languages["1"]["language"]
+                            if spec.own_transliteration_source == "your_language"
+                            else snapshot.source_language)
+            if own_language == "Japanese":
                 transliteration_message = model.convertMessageToTransliteration(
-                    message,
-                    hiragana=config.CONVERT_MESSAGE_TO_HIRAGANA,
-                    romaji=config.CONVERT_MESSAGE_TO_ROMAJI
-                )
-
-            if spec.multi_target:
-                for i, no in enumerate(config.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST):
-                    if (config.ENABLE_TRANSLATION is True and
-                        config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO][no]["language"] == "Japanese" and
-                        config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO][no]["enable"] is True
-                        ):
-                        transliteration_translation.append(
-                            model.convertMessageToTransliteration(
-                                translation[i],
-                                hiragana=config.CONVERT_MESSAGE_TO_HIRAGANA,
-                                romaji=config.CONVERT_MESSAGE_TO_ROMAJI
-                            )
-                        )
-                    else:
-                        transliteration_translation.append([])
+                    message, hiragana=snapshot.hiragana, romaji=snapshot.romaji)
+        # Translation results are compacted to enabled slots, not fixed slot indices.
+        for slot, text in zip(snapshot.target_slots, translation):
+            if (snapshot.hiragana or snapshot.romaji) and snapshot.destinations[slot]["language"] == "Japanese":
+                transliteration_translation.append(model.convertMessageToTransliteration(
+                    text, hiragana=snapshot.hiragana, romaji=snapshot.romaji))
             else:
-                if (config.ENABLE_TRANSLATION is True and
-                    config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"] == "Japanese"
-                    ):
-                    transliteration_translation.append(
-                        model.convertMessageToTransliteration(
-                            translation[0],
-                            hiragana=config.CONVERT_MESSAGE_TO_HIRAGANA,
-                            romaji=config.CONVERT_MESSAGE_TO_ROMAJI
-                        )
-                    )
-                else:
-                    transliteration_translation.append([])
-        else:
-            if spec.multi_target:
-                transliteration_translation = [[] for _ in config.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST]
-            else:
-                transliteration_translation = [[]]
+                transliteration_translation.append([])
 
         if not current():
             return None
@@ -1660,144 +2276,145 @@ class Controller:
         if msg_id is not None:
             payload = {"id": msg_id, **payload}
 
-        if spec.feature_gate_attr is None or getattr(config, spec.feature_gate_attr) is True:
-            if spec.osc_send_gate_attr is not None and getattr(config, spec.osc_send_gate_attr) is True:
-                if config.SEND_ONLY_TRANSLATED_MESSAGES is True:
-                    if config.ENABLE_TRANSLATION is False:
-                        osc_message = self.messageFormatter(spec.osc_format_type, [], message)
-                    else:
-                        osc_message = self.messageFormatter(spec.osc_format_type, translation, "")
-                else:
-                    osc_message = self.messageFormatter(spec.osc_format_type, translation, message)
-                if not current():
-                    return None
-                model.oscSendMessage(osc_message)
+        if feature_enabled:
+            def send_osc():
+                if spec.osc_send_gate_attr is None:
+                    return
+                if not getattr(config, spec.osc_send_gate_attr):
+                    # The user's own message stayed out of the chatbox by their setting.
+                    # The row says so: "sent" alone would read as "it went to VRChat".
+                    if spec.osc_format_type == "SEND":
+                        payload["delivery_reason"] = "vrchat_off"
+                    return
+                original = "" if snapshot.send_only_translated and snapshot.translation_enabled else message
+                formatted = self.messageFormatter(spec.osc_format_type, translation, original, snapshot.format_parts)
+                osc_current = lambda: current() and getattr(config, spec.osc_send_gate_attr)
+                sent = model.chatbox_order.send(
+                    chatbox_sequence, lambda: model.oscSendMessage(formatted, current=osc_current), osc_current)
+                if sent is False:
+                    if spec is REALTIME_MIC_SPEC:
+                        payload.update(delivery_outcome="not_delivered", delivery_reason="superseded")
+                    printLog(f"[message][{spec.kind}] chatbox skipped: newer message already sent sequence={chatbox_sequence}")
+                return sent
 
-            if spec.render_overlay and spec.overlay_small_log and config.OVERLAY_SMALL_LOG is True and self._is_overlay_available():
-                if config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES is True:
-                    if len(translation) > 0:
-                        overlay_image = model.createOverlayImageSmallLog(
-                            None,
-                            None,
-                            translation,
-                            config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO],
-                            transliteration_message,
-                            transliteration_translation
-                        )
-                        if not current():
-                            return None
-                        model.updateOverlaySmallLog(overlay_image)
-                else:
-                    overlay_image = model.createOverlayImageSmallLog(
-                        message,
-                        language,
-                        translation,
-                        config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO],
-                        transliteration_message,
-                        transliteration_translation
-                    )
-                    if not current():
-                        return None
-                    model.updateOverlaySmallLog(overlay_image)
+            sink("osc", send_osc)
 
-            if spec.render_overlay and config.OVERLAY_LARGE_LOG is True and self._is_overlay_available():
-                if spec.overlay_direction == "send":
-                    overlay_own_language = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
-                    overlay_language_list = config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]
-                else:
-                    overlay_own_language = language
-                    overlay_language_list = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]
-                if config.OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES is True:
-                    if len(translation) > 0:
-                        overlay_image = model.createOverlayImageLargeLog(
-                            spec.overlay_direction,
-                            None,
-                            None,
-                            translation,
-                            overlay_language_list,
-                            transliteration_message,
-                            transliteration_translation
-                        )
-                        if not current():
-                            return None
-                        model.updateOverlayLargeLog(overlay_image)
-                else:
-                    overlay_image = model.createOverlayImageLargeLog(
-                        spec.overlay_direction,
-                        message,
-                        overlay_own_language,
-                        translation,
-                        overlay_language_list,
-                        transliteration_message,
-                        transliteration_translation
-                    )
-                    if not current():
-                        return None
-                    model.updateOverlayLargeLog(overlay_image)
+            def small_overlay():
+                if not (spec.render_overlay and spec.overlay_small_log and config.OVERLAY_SMALL_LOG
+                        and self._is_overlay_available()):
+                    return
+                if snapshot.overlay_only_translated and not translation:
+                    return
+                overlay_current = model.overlayPublicationGuard("small", current)
+                image = model.createOverlayImageSmallLog(
+                    None if snapshot.overlay_only_translated else message,
+                    None if snapshot.overlay_only_translated else snapshot.source_language,
+                    translation, language_payload(snapshot.destinations),
+                    transliteration_message, transliteration_translation)
+                if current() and config.OVERLAY_SMALL_LOG:
+                    model.updateOverlaySmallLog(image, current=overlay_current)
 
-            if spec.clipboard and config.ENABLE_CLIPBOARD is True:
-                clipboard_message = self.messageFormatter(spec.osc_format_type, translation, message)
-                if not current():
-                    return None
-                model.setCopyToClipboardAndPasteFromClipboard(clipboard_message)
+            sink("overlay_small", small_overlay)
 
+            def large_overlay():
+                if not (spec.render_overlay and config.OVERLAY_LARGE_LOG and self._is_overlay_available()):
+                    return
+                if snapshot.overlay_only_translated and not translation:
+                    return
+                model.publishMessageOverlayLargeLog(
+                    spec.overlay_direction,
+                    None if snapshot.overlay_only_translated else message,
+                    None if snapshot.overlay_only_translated else snapshot.source_language,
+                    translation, language_payload(snapshot.destinations),
+                    transliteration_message, transliteration_translation,
+                    current=lambda: current() and config.OVERLAY_LARGE_LOG)
+
+            sink("overlay_large", large_overlay)
+
+            def clipboard():
+                if spec.clipboard and config.ENABLE_CLIPBOARD:
+                    formatted = self.messageFormatter(spec.osc_format_type, translation, message, snapshot.format_parts)
+                    if current() and config.ENABLE_CLIPBOARD:
+                        return model.setCopyToClipboardAndPasteFromClipboard(formatted) is not False
+
+            sink("clipboard", clipboard)
             if spec.delivery == "push":
-                if not current():
-                    return None
-                self.run(200, self.run_mapping[spec.run_mapping_key], payload)
+                sink("ui", lambda: self.run(200, self.run_mapping[spec.run_mapping_key], payload))
 
-            if model.checkWebSocketServerAlive() is True:
-                if not current():
-                    return None
-                model.websocketSendMessage(
-                    {
+            def websocket():
+                if model.checkWebSocketServerAlive() is True and current():
+                    return model.websocketSendMessage({
                         "type": spec.ws_type,
-                        "src_languages": getattr(config, spec.ws_src_languages_attr)[config.SELECTED_TAB_NO],
-                        "dst_languages": getattr(config, spec.ws_dst_languages_attr)[config.SELECTED_TAB_NO],
-                        "message": message,
-                        "translation": translation,
-                        "transliteration": transliteration_translation
-                    }
-                )
+                        "src_languages": language_payload(snapshot.your_languages if spec.multi_target else snapshot.target_languages),
+                        "dst_languages": language_payload(snapshot.destinations),
+                        "message": message, "translation": translation,
+                        "transliteration": transliteration_translation,
+                    }) is not False
 
-            if config.LOGGER_FEATURE is True:
-                translation_text = f" ({'/'.join(translation)})" if translation else ""
-                if not current():
-                    return None
-                model.logger.info(f"{spec.logger_prefix} {message}{translation_text}")
+            sink("websocket", websocket)
+
+            def logger():
+                if config.LOGGER_FEATURE:
+                    translation_text = f" ({'/'.join(translation)})" if translation else ""
+                    model.logger.info(f"{spec.logger_prefix} {message}{translation_text}")
+                    return True
+
+            sink("logger", logger)
 
         if not current():
             return None
-        model.addTranslationHistory(spec.kind, message)
+        sink("history", lambda: model.addTranslationHistory(spec.kind, message, snapshot=snapshot))
 
-        if voice_snapshot is not None and voice_snapshot[3].mode == "translated":
-            self._publishChatVoice(voice_snapshot, message, translation, msg_id, voice_started_ns)
+        if voice_snapshot is not None and voice_snapshot[1].mode == "translated":
+            sink("tts", lambda: self._publishChatVoice(
+                voice_snapshot, message, translation, success, provenance, msg_id, voice_started_ns, current))
         if mic_snapshot is not None:
-            self._publishMicVoice(mic_snapshot, speech_update, language, translation, success, current)
+            sink("tts", lambda: self._publishMicVoice(
+                mic_snapshot, snapshot, speech_update, translation, success, provenance, current))
+        if failures:
+            payload["output_failures"] = list(failures)
 
         pipeline_elapsed_ms = round((time.perf_counter() - pipeline_started_at) * 1000)
-        # asr= は mic/speaker のみ (chat には ASR 段が無い)。
-        # output= は翻訳以外の全て (transliteration/OSC/オーバーレイ生成/
-        # クリップボード/UI配信/WebSocket/ロガー)。
-        # total= は ASR を含む「文字起こし結果が出てから出力完了まで」。
-        asr_part = f"asr={asr_ms}ms " if asr_ms is not None else ""
-        total_ms = pipeline_elapsed_ms + (asr_ms or 0)
-        printLog(
-            f"[latency][{spec.kind}] {asr_part}"
-            f"translate={translate_elapsed_ms}ms "
-            f"output={pipeline_elapsed_ms - translate_elapsed_ms}ms "
-            f"total={total_ms}ms"
-        )
+        self._recordMessageLatency(spec, asr_ms, translate_elapsed_ms, pipeline_elapsed_ms)
 
         if spec.delivery == "return":
             return {"id": msg_id, **payload}
         return None
 
+    @staticmethod
+    def _recordMessageLatency(spec, asr_ms, translate_elapsed_ms, pipeline_elapsed_ms, *, aborted=False):
+        # total は従来通り ASR + 出力処理。録音/VAD/キュー待ちは含まない。
+        # realtime の ASR 所要時間はサーバーから提供されない。
+        asr_part = f"asr={asr_ms}ms " if asr_ms is not None else ""
+        total_ms = pipeline_elapsed_ms + (asr_ms or 0)
+        detail = (
+            f"[latency][{spec.kind}] {asr_part}"
+            f"translate={translate_elapsed_ms}ms "
+            f"output={pipeline_elapsed_ms - translate_elapsed_ms}ms "
+            f"total={total_ms}ms"
+        )
+        if spec.kind not in ("mic", "speaker"):
+            printLog(detail)
+            return
+        realtime = spec is REALTIME_MIC_SPEC or spec is REALTIME_SPEAKER_SPEC
+        stages = {
+            "realtime_translate_ms" if realtime else "translate_ms": translate_elapsed_ms,
+            "output_ms": pipeline_elapsed_ms - translate_elapsed_ms,
+        }
+        if not realtime:
+            stages["total_ms"] = total_ms
+        utterance_diagnostics.record(
+            spec.kind, "message_aborted" if aborted else "message", stages,
+            detail + (" publication=aborted" if aborted else ""),
+            immediate=asr_ms is not None and asr_ms >= SLOW_MS["asr_ms"],
+        )
+
     def micMessage(self, result: dict) -> None:
+        batch_guard = result.get("_publication_guard")
+        current = self._messagePublicationGuard("mic", batch_guard)
         if (
             result.get("recognition_error") is not True
-            and config.VRC_MIC_MUTE_SYNC is True
-            and model.mic_mute_status is True
+            and not current()
         ):
             return
 
@@ -1831,18 +2448,21 @@ class Controller:
         message = result["text"]
         language = result["language"]
         if isinstance(message, bool) and message is False:
+            # Same shape as the energy meter's device error, so the UI shows
+            # its translated message instead of a generic one.
+            error_response = VRCTError.create_error_response(ErrorCode.DEVICE_NO_MIC, data=None)
             self.run(
-                400,
+                error_response["status"],
                 self.run_mapping["error_device"],
-                {
-                    "message":"No mic device detected",
-                    "data": None
-                },
+                error_response["result"],
             )
         elif isinstance(message, str) and len(message) > 0:
-            self._processMessage(MIC_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"))
+            self._processMessage(MIC_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"),
+                                 publication_guard=current, feature_enabled=True if batch_guard is not None else None)
 
     def speakerMessage(self, result:dict) -> None:
+        batch_guard = result.get("_publication_guard")
+        current = self._messagePublicationGuard("speaker", batch_guard)
         if result.get("recognition_error") is True:
             is_pipeline_error = all(
                 key in result for key in ("error_code", "stage", "source", "message", "recoverable")
@@ -1871,18 +2491,19 @@ class Controller:
         message = result["text"]
         language = result["language"]
         if isinstance(message, bool) and message is False:
+            # Same shape as the energy meter's device error, so the UI shows
+            # its translated message instead of a generic one.
+            error_response = VRCTError.create_error_response(ErrorCode.DEVICE_NO_SPEAKER, data=None)
             self.run(
-                400,
+                error_response["status"],
                 self.run_mapping["error_device"],
-                {
-                    "message":"No speaker device detected",
-                    "data": None
-                },
+                error_response["result"],
             )
         elif isinstance(message, str) and len(message) > 0:
-            self._processMessage(SPEAKER_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"))
+            self._processMessage(SPEAKER_MESSAGE_SPEC, message, language, asr_ms=result.get("asr_ms"),
+                                 publication_guard=current, feature_enabled=True if batch_guard is not None else None)
 
-    def ocrMessage(self, result: dict) -> None:
+    def ocrMessage(self, result: dict) -> bool:
         """OCRで読んだチャット吹き出しを、受信メッセージと同じ経路へ流す。
 
         speakerMessage と同じく `_processMessage` に委ねる。OCR固有の差分
@@ -1892,12 +2513,13 @@ class Controller:
         OSCチャットボックスへは送らない。他人の発言を自分のチャットボックスへ
         流し返すことになり、スパムに当たるため (設定ではなく仕様で封じている)。
         """
-        if config.ENABLE_OCR_CAPTURE is not True:
-            return
+        current = self._messagePublicationGuard("ocr")
+        if getattr(self, "_ocr_shutting_down", False) or config.ENABLE_OCR_CAPTURE is not True:
+            return False
 
         message = result.get("text")
         if not isinstance(message, str) or len(message) == 0:
-            return
+            return False
 
         # 読んでいるのは相手の発言なので、翻訳の原文言語もそちら側。空なら
         # getOutputTranslate が SELECTED_TARGET_LANGUAGES へフォールバックする。
@@ -1908,57 +2530,69 @@ class Controller:
 
         segment_id = result.get("segment_id")
         msg_id = f"transcription-ocr-{segment_id}" if segment_id is not None else None
-        self._processMessage(OCR_MESSAGE_SPEC, message, source_language, msg_id=msg_id)
+        self._processMessage(
+            OCR_MESSAGE_SPEC, message, source_language, msg_id=msg_id,
+            publication_guard=lambda: current() and not getattr(self, "_ocr_shutting_down", False),
+        )
+        return current() and not getattr(self, "_ocr_shutting_down", False)
 
     def _disableTranscriptionAfterPipelineError(self, source: str) -> None:
-        """エラー停止後の実状態を config と UI に同期する。"""
-        if source == "mic":
-            config.ENABLE_TRANSCRIPTION_SEND = False
-            endpoint = self.run_mapping.get(
-                "disable_transcription_send", "/set/disable/transcription_send"
-            )
-        elif source == "speaker":
-            config.ENABLE_TRANSCRIPTION_RECEIVE = False
-            endpoint = self.run_mapping.get(
-                "disable_transcription_receive", "/set/disable/transcription_receive"
-            )
-        else:
+        if source not in ("mic", "speaker"):
             return
-        # UI は既存の disable endpoint の run 通知を状態更新として処理する。
-        self.run(200, endpoint, False)
+        with self._audioLock(source):
+            self._disableTranscriptionAfterPipelineErrorLocked(source)
+
+    def _disableTranscriptionAfterPipelineErrorLocked(self, source: str) -> None:
+        transcript_flag, energy_flag = self._audioFlags(source)
+        transcript_enabled = getattr(config, transcript_flag)
+        energy_enabled = getattr(config, energy_flag)
+        setattr(config, transcript_flag, False)
+        setattr(config, energy_flag, False)
+        if transcript_enabled:
+            model.message_delivery.revoke(source)
+        direction = "send" if source == "mic" else "receive"
+        self.run(200, self.run_mapping.get("disable_transcription_" + direction,
+                                         "/set/disable/transcription_" + direction), False)
+        if energy_enabled:
+            self.run(200, "/set/disable/check_" + source + "_threshold", False)
+            self.run(200, "/run/check_" + source + "_volume", 0)
+
+    @staticmethod
+    def _voiceMonitorFailed(code):
+        # Monitor thread; the code is a fixed identifier, never a device name.
+        printLog("[voice] monitor output unavailable", code)
 
     def getVoiceSettings(self, *args, **kwargs) -> dict:
         return {"status": 200, "result": config.VOICE_SETTINGS}
 
-    def _publishChatVoice(self, snapshot, message, translations, msg_id, started_ns):
-        source_language, targets, slots, voice_settings, generation = snapshot
-        try:
-            with self._voice_settings_lock:
-                if self.voice_events.settings == voice_settings:
-                    self.voice_events.publish(chat_event(
-                        message, translations, event_id=msg_id, started_ns=started_ns,
-                        source_language=source_language, targets=targets, target_slots=slots,
-                        selected_slot=voice_settings.target_slot,
-                    ), expected_generation=generation)
-        except Exception:
-            # Optional speech must not change legacy OSC/UI/history delivery.
-            printLog("[voice] message enqueue failed")
+    def _publishChatVoice(self, voice_snapshot, message, translations, success, provenance, msg_id, started_ns, current):
+        snapshot, voice_settings, generation = voice_snapshot
+        with self._voice_settings_lock:
+            if current() and self.voice_events.settings == voice_settings:
+                event = chat_event(
+                    message, translations, success=success, provenance=provenance,
+                    event_id=msg_id, started_ns=started_ns, source_language=snapshot.source_language,
+                    targets=snapshot.target_languages, target_slots=snapshot.target_slots,
+                    selected_slot=voice_settings.target_slot)
+                if voice_settings.mode == "original" or event.translated_text is not None:
+                    self.voice_events.publish(event, expected_generation=generation)
 
-    def _publishMicVoice(self, snapshot, update, language, translations, success, current):
-        tab, targets, settings, generation, source_generation = snapshot
-        try:
-            with self._voice_settings_lock:
-                if (not current() or not config.ENABLE_TRANSLATION
-                        or self.voice_events.settings != settings or config.SELECTED_TAB_NO != tab
-                        or config.SELECTED_TARGET_LANGUAGES[tab] != targets):
-                    return
-                event = microphone_event(update, translations, success, source_language=language,
-                                         targets=targets, selected_slot=settings.target_slot)
-                if event is not None:
-                    self.voice_events.publish(event, expected_generation=generation,
-                                              expected_source_generation=source_generation)
-        except Exception:
-            printLog("[voice] microphone enqueue failed")
+    def _publishMicVoice(self, voice_snapshot, snapshot, update, translations, success, provenance, current):
+        settings, generation, source_generation = voice_snapshot
+        with self._voice_settings_lock:
+            if (not current() or self.voice_events.settings != settings
+                    or not config.ENABLE_TRANSLATION or config.SELECTED_TAB_NO != snapshot.tab):
+                return
+            # Text keeps its snapshot; speech also requires the selected target to remain current.
+            if (config.SELECTED_TARGET_LANGUAGES.get(snapshot.tab, {}).get(settings.target_slot)
+                    != snapshot.target_languages.get(settings.target_slot)):
+                return
+            usable = [ok is True and origin == "translated" for ok, origin in zip(success, provenance)]
+            event = microphone_event(update, translations, usable, source_language=snapshot.source_language,
+                                     targets=snapshot.target_languages, selected_slot=settings.target_slot)
+            if event is not None:
+                return self.voice_events.publish(event, expected_generation=generation,
+                                                 expected_source_generation=source_generation)
 
     def _cancelMicVoice(self):
         bus = getattr(self, "voice_events", None)
@@ -1966,23 +2600,28 @@ class Controller:
             bus.cancel_source("mic")
 
     def setVoiceSettings(self, data, *args, **kwargs) -> dict:
-        try:
-            settings = VoiceSettings.from_dict(data)
-            if settings.routing == 'managed' and not sys.platform.startswith('linux'):
-                raise ValueError('managed_route_linux_only')
-        except (ValueError, TypeError):
-            return {"status": 400, "result": {"error_code": "VOICE_SETTINGS_INVALID",
-                    "message": "Invalid voice settings; select an output and local server.", "data": None}}
         with self._voice_settings_lock:
-            if settings.routing != self.voice_events.settings.routing:
+            try:
+                settings = VoiceSettings.from_dict({**self.voice_events.settings.to_dict(), **data})
+                if settings.routing == 'managed' and not sys.platform.startswith('linux'):
+                    raise ValueError('managed_route_linux_only')
+            except (ValueError, TypeError):
+                return {"status": 400, "result": {"error_code": "VOICE_SETTINGS_INVALID",
+                        "message": "Invalid voice settings; select an output and local server.", "data": None}}
+            current = self.voice_events.settings
+            device_route = self._directUsesOutputDevice()
+            if (settings.routing != current.routing
+                    or (device_route and settings.output_device != current.output_device)):
                 direct = self.direct_voice.health()
                 if direct['requested'] or direct['pending'] or direct.get('stopping'):
                     return {'status': 409, 'result': {'error_code': 'direct_voice_stop_required'}}
             try:
-                if settings.routing != 'managed':
+                # On Windows direct voice writes to the external output device.
+                if settings.routing != 'managed' and not device_route:
                     self.direct_voice.stop()
                 self.voice_route.configure(settings.routing == 'managed',
                     suppress_direct=(settings.mic_mode == 'translated' and settings.direct_policy == 'suppress'))
+                self._applyDirectPolicy(settings)
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
             config.VOICE_SETTINGS = settings.to_dict()
@@ -1990,7 +2629,8 @@ class Controller:
         return self.getVoiceSettings()
 
     def getVoiceStatus(self, *args, **kwargs) -> dict:
-        return {"status": 200, "result": self.voice_events.status()}
+        # tts_server_starting: an ON request is waiting for a bundled server to load.
+        return {"status": 200, "result": dict(self.voice_events.status(), tts_server_starting=self._tts_waiting > 0)}
 
     def getTtsModelOptions(self, data, *args, **kwargs) -> dict:
         if (not isinstance(data, dict) or set(data) not in ({'role'}, {'role', 'request_id'})
@@ -2019,80 +2659,241 @@ class Controller:
             result['error_code'] = str(exc) if isinstance(exc, SpeechError) else 'tts_model_options_unavailable'
         return {'status': 200, 'result': result}
 
+    # A started server enforces its own START_TIMEOUT; this only bounds the
+    # toggle's wait if that end state is somehow never published.
+    _TTS_SERVER_WAIT = SPEECH_START_TIMEOUT + 5
+    # Server failures with their own next step; the rest share a generic code.
+    _TTS_START_FAILURES = ('speech_server_out_of_memory', 'speech_server_start_timeout',
+                           'speech_server_low_latency_requires_gpu_irodori',
+                           'speech_server_vulkan_missing', 'speech_server_device_failed')
+
     def enableTts(self, data, *args, **kwargs) -> dict:
         if (not isinstance(data, dict) or set(data) != {'generation'}
                 or type(data.get('generation')) is not int or data['generation'] < 0):
             return {'status': 400, 'result': {'error_code': 'invalid_tts_toggle'}}
+        attempt, started = Event(), {}
+        with self._tts_owner_lock:
+            self._tts_attempts.add(attempt)
+        try:
+            code = self._enableTts(data['generation'], attempt, started)
+        finally:
+            with self._tts_owner_lock:
+                self._tts_attempts.discard(attempt)
+        if code:
+            # A failed or cancelled ON leaves no server of its own running.
+            self._releaseTtsServers(only=started)
+            # OFF during ON is the user's choice, not an error to report.
+            return {'status': 409, 'result': {'error_code': 'tts_enable_cancelled' if attempt.is_set() else code}}
+        return self.getVoiceStatus()
+
+    def _enableTts(self, generation, attempt, started):
         with self._voice_settings_lock:
-            state = self.voice_events.status()
-            if data['generation'] != state['tts_generation']:
-                return {'status': 409, 'result': {'error_code': 'tts_state_changed'}}
-            # Name the blocking condition: the UI turns each code into its next step.
-            if state['closed']:
-                return {'status': 409, 'result': {'error_code': 'voice_route_closed'}}
-            if state['muted']:
-                return {'status': 409, 'result': {'error_code': 'voice_route_muted'}}
+            code, roles = self._ttsRolesLocked(generation)
+            if code:
+                return code
             settings = self.voice_events.settings
-            if settings.mode == 'off' and settings.mic_mode == 'off':
-                return {'status': 409, 'result': {'error_code': 'tts_source_not_selected'}}
+            bundled = sorted(role for role in roles if getattr(settings, role + '_server') == 'bundled')
+        if bundled:
+            # Loading a model takes seconds. Wait without the settings lock so
+            # saves and status polls are not blocked; OFF cancels the wait.
+            code = self._awaitTtsServers(bundled, generation, attempt, started)
+            if code:
+                return code
+        with self._voice_settings_lock:
+            code, roles = self._ttsRolesLocked(generation)
+            if code:
+                return code
+            settings = self.voice_events.settings
             try:
-                # Resolve only the selected sources/languages; do not require an
-                # unused multilingual model to enable Japanese-only speech.
-                languages = []
-                cfg = self._config
-                if settings.mode == 'original':
-                    languages.append(cfg.SELECTED_YOUR_LANGUAGES[cfg.SELECTED_TAB_NO]['1']['language'])
-                if settings.mode == 'translated' or settings.mic_mode == 'translated':
-                    target = cfg.SELECTED_TARGET_LANGUAGES[cfg.SELECTED_TAB_NO][settings.target_slot]
-                    if not cfg.ENABLE_TRANSLATION or target.get('enable') is not True:
-                        raise ValueError('tts_translation_not_ready')
-                    languages.append(target['language'])
-                from models.tts.settings import language_tag
-                urls = set()
-                for language in languages:
-                    try:
-                        tag = language_tag(language)
-                    except ValueError:
-                        raise ValueError('tts_language_unsupported') from None
-                    role = 'japanese' if tag == 'ja' else 'multilingual'
-                    url = (self._ttsSpeechServer(role) if getattr(settings, role + '_server') == 'bundled'
-                           else getattr(settings, role + '_url'))
-                    urls.add(url)
-                if not settings.playback_device.strip():
-                    raise ValueError('tts_output_missing')
+                urls = {self._ttsSpeechServer(role) if getattr(settings, role + '_server') == 'bundled'
+                        else getattr(settings, role + '_url') for role in roles}
                 for url in urls:
                     SpeechCppTTS(url).check_health()
             except SpeechError:
                 # A stopped bundled server and an unreachable external URL both
                 # need the user to start (or fix) the server for that language.
-                return {'status': 409, 'result': {'error_code': 'speech_server_not_ready'}}
-            except ValueError as exc:
-                code = str(exc)
-                if code not in ('tts_translation_not_ready', 'tts_language_unsupported', 'tts_output_missing'):
-                    code = 'speech_server_or_settings_not_ready'
-                return {'status': 409, 'result': {'error_code': code}}
-            except (KeyError, TypeError):
-                return {'status': 409, 'result': {'error_code': 'speech_server_or_settings_not_ready'}}
+                return 'speech_server_not_ready'
+            except (ValueError, KeyError, TypeError):
+                return 'speech_server_or_settings_not_ready'
             # OFF bypasses this lock; the epoch must be rechecked after probing.
-            if not self.voice_events.set_enabled(True, expected_generation=data['generation']):
-                return {'status': 409, 'result': {'error_code': 'tts_state_changed'}}
-        return self.getVoiceStatus()
+            return self._enableSpeechServerTts(roles, generation)
+
+    def _ttsRolesLocked(self, generation, *, allow_muted=False):
+        """Check selected roles at an epoch; allow mute only for end dependency checks."""
+        state = self.voice_events.status()
+        if generation != state['tts_generation']:
+            return 'tts_state_changed', None
+        # Name the blocking condition: the UI turns each code into its next step.
+        if state['closed']:
+            return 'voice_route_closed', None
+        if state['muted'] and not allow_muted:
+            return 'voice_route_muted', None
+        settings = self.voice_events.settings
+        if settings.mode == 'off' and settings.mic_mode == 'off':
+            return 'tts_source_not_selected', None
+        try:
+            # Resolve only the selected sources/languages; do not require an
+            # unused multilingual model to enable Japanese-only speech.
+            languages = []
+            cfg = self._config
+            if settings.mode == 'original':
+                languages.append(cfg.SELECTED_YOUR_LANGUAGES[cfg.SELECTED_TAB_NO]['1']['language'])
+            if settings.mode == 'translated' or settings.mic_mode == 'translated':
+                target = cfg.SELECTED_TARGET_LANGUAGES[cfg.SELECTED_TAB_NO][settings.target_slot]
+                if not cfg.ENABLE_TRANSLATION or target.get('enable') is not True:
+                    return 'tts_translation_not_ready', None
+                languages.append(target['language'])
+            from models.tts.settings import language_tag
+            roles = set()
+            for language in languages:
+                try:
+                    tag = language_tag(language)
+                except ValueError:
+                    return 'tts_language_unsupported', None
+                roles.add('japanese' if tag == 'ja' else 'multilingual')
+            # Checked before any server starts, so this never costs a model load.
+            if not settings.playback_device.strip():
+                return 'tts_output_missing', None
+        except (KeyError, TypeError):
+            return 'speech_server_or_settings_not_ready', None
+        return None, roles
+
+    def _awaitTtsServers(self, roles, generation, attempt, started):
+        """Start stopped bundled servers for roles, then wait until all are ready."""
+        state = self.speech_servers.state()
+        for role in roles:
+            row = state[role]
+            if row['state'] in ('ready', 'preparing'):
+                continue  # Started from Settings: wait for it, but never own it.
+            if row['state'] == 'stopping':
+                return 'speech_server_busy'
+            try:
+                options = speech_start_options(self.getSpeechServerSettings()['result'], role)
+            except ValueError as exc:
+                return 'speech_server_model_invalid' if str(exc) == 'speech_server_model_invalid' else 'speech_server_start_failed'
+            with self._tts_owner_lock:
+                # OFF takes this lock too: it either cancels first or sees ownership.
+                if attempt.is_set():
+                    return 'tts_enable_cancelled'
+                try:
+                    self.speech_servers.start(role, options, row['generation'])
+                except RuntimeError as exc:
+                    return 'speech_server_busy' if str(exc) == 'speech_server_busy' else 'speech_server_start_failed'
+                # start() succeeds only from this generation and takes the next one.
+                started[role] = self._tts_owned[role] = row['generation'] + 1
+        with self._tts_owner_lock:
+            self._tts_waiting += 1
+        try:
+            deadline = time.monotonic() + self._TTS_SERVER_WAIT
+            while not attempt.is_set():
+                state = self.speech_servers.state()
+                rows = {role: state[role] for role in roles}
+                # Report a failure before the TTS epoch bump that it causes.
+                failed = [row['error_code'] for row in rows.values() if row['state'] == 'failed']
+                if failed:
+                    return failed[0] if failed[0] in self._TTS_START_FAILURES else 'speech_server_start_failed'
+                if any(row['state'] in ('stopped', 'stopping') or row['generation'] != started.get(role, row['generation'])
+                       for role, row in rows.items()):
+                    return 'speech_server_not_ready'  # Stopped from Settings meanwhile.
+                if all(row['state'] == 'ready' for row in rows.values()):
+                    return None
+                if self.voice_events.generation() != generation:
+                    return 'tts_state_changed'
+                if time.monotonic() >= deadline:
+                    return 'speech_server_start_timeout'
+                attempt.wait(.05)
+            return 'tts_enable_cancelled'
+        finally:
+            with self._tts_owner_lock:
+                self._tts_waiting -= 1
+
+    def _releaseTtsServers(self, only=None, cancel=False):
+        """Stop TTS servers the main toggle started; servers started from Settings stay up."""
+        with self._tts_owner_lock:
+            if cancel:
+                for attempt in self._tts_attempts:
+                    attempt.set()
+            owned = {role: run for role, run in self._tts_owned.items() if only is None or only.get(role) == run}
+            for role, run in owned.items():
+                del self._tts_owned[role]
+                # Match the immutable run, not the public Stop/end generation.
+                # Its late end must not invalidate a quick OFF -> ON.
+                self._tts_released[role] = run
+        for role, run in owned.items():
+            # Non-joining like stopSpeechServer; a newer run is left alone.
+            if not self.speech_servers.stop(role, generation=run):
+                with self._tts_owner_lock:
+                    if self._tts_released.get(role) == run:
+                        del self._tts_released[role]
 
     def disableTts(self, *args, **kwargs) -> dict:
         self.voice_events.set_enabled(False)
+        # OFF also cancels an ON that is still waiting for its server.
+        self._releaseTtsServers(cancel=True)
         return self.getVoiceStatus()
+
+    @staticmethod
+    def _directUsesOutputDevice():
+        return sys.platform == 'win32'
+
+    def _applyDirectPolicy(self, settings):
+        # The managed route does this with an OS gate; a device route has none.
+        self.direct_voice.set_suppressed(self._directUsesOutputDevice() and settings.mic_mode == 'translated'
+                                         and settings.direct_policy == 'suppress')
+
+    def _directOutput(self, mode, options):
+        """Device for a Windows Start; None on Linux, where the managed route decides."""
+        settings = self.voice_events.settings
+        if not self._directUsesOutputDevice():
+            if not sys.platform.startswith('linux'):
+                raise RuntimeError('source_bridge_linux_only')
+            if settings.routing != 'managed':
+                raise RuntimeError('source_bridge_managed_required')
+            return None
+        if not settings.output_device:
+            raise RuntimeError('source_bridge_output_required')
+        return settings.output_device
 
     def getDirectVoiceSources(self, *args, **kwargs) -> dict:
         try:
             sources, error = enumerate_sources(), None
         except Exception:
             sources = []
-            error = ('source_bridge_linux_only' if not sys.platform.startswith('linux')
+            error = ('source_bridge_devices_unavailable' if self._directUsesOutputDevice()
+                     else 'source_bridge_linux_only' if not sys.platform.startswith('linux')
                      else 'source_bridge_graph_unavailable')
-        return {'status': 200, 'result': {'sources': sources, 'error': error}}
+        return {'status': 200, 'result': {'sources': sources, 'error': error,
+                                          'preferred': self._preferredDirectSource(sources)}}
+
+    def _preferredDirectSource(self, sources):
+        """The Device page Mic choice is the default RVC input; the UI applies it
+        only while the user has not picked another input on the RVC page."""
+        selected = getattr(config, 'SELECTED_MIC_DEVICE', None)
+        names = microphone_names(sources)
+        if not self._directUsesOutputDevice():
+            if getattr(config, 'SELECTED_MIC_HOST', None) != PIPEWIRE_MIC_HOST:
+                return None
+            return next((item['id'] for item, name in zip(sources, names) if name == selected), None)
+        # The Device page defaults to MME; its choice is the same hardware under a cut name.
+        match = next((item['id'] for item, name in zip(sources, names)
+                      if isinstance(selected, str) and same_output(name, selected)), None)
+        if match is not None or not sources:
+            return match
+        try:
+            default = default_endpoint('mic').name
+        except ValueError:
+            return None
+        return next((item['id'] for item in sources if item['id']['name'] == default), None)
 
     def getDirectVoiceState(self, *args, **kwargs) -> dict:
-        return {'status': 200, 'result': dict(self.direct_voice.health(), settings=self._direct_settings.to_dict())}
+        state = self.direct_voice.health()
+        # The VC router's stderr is not kept; log each new monitor code once here.
+        code = state.get('monitor_error')
+        if code and code != getattr(self, '_vc_monitor_logged', None):
+            self._voiceMonitorFailed(code)
+        self._vc_monitor_logged = code
+        return {'status': 200, 'result': dict(state, settings=self._direct_settings.to_dict(),
+                                              output_route='device' if self._directUsesOutputDevice() else 'managed')}
 
     def setDirectVoiceSettings(self, data, *args, **kwargs) -> dict:
         try:
@@ -2120,14 +2921,14 @@ class Controller:
             return {'status': 400, 'result': {'error_code': 'source_bridge_source_invalid'}}
         with self._voice_settings_lock:
             try:
-                if not sys.platform.startswith('linux'):
-                    raise RuntimeError('source_bridge_linux_only')
                 if self._direct_voice_closed:
                     raise RuntimeError('source_bridge_closed')
-                if self.voice_events.settings.routing != 'managed':
-                    raise RuntimeError('source_bridge_managed_required')
+                output = self._directOutput(mode, options)
+                # One monitor setting covers TTS and converted voice; passthrough is never monitored.
+                monitor = monitor_spec(self.voice_events.settings.monitor_choice) if mode == 'converted' else None
+                extra = {} if output is None else {'output': output}
                 self.direct_voice.start(source=source, expected_generation=data['_direct_generation'],
-                                        mode=mode, options=options)
+                                        mode=mode, options=options, monitor=monitor, **extra)
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
         return self.getDirectVoiceState()
@@ -2138,7 +2939,8 @@ class Controller:
         return self.getDirectVoiceState()
 
     def getVoiceRoute(self, *args, **kwargs) -> dict:
-        return {'status': 200, 'result': self.voice_route.status()}
+        return {'status': 200, 'result': dict(self.voice_route.status(),
+                                              covers_direct=self._directUsesOutputDevice())}
 
     def muteVoice(self, *args, **kwargs) -> dict:
         self.voice_route.mute()
@@ -2153,7 +2955,8 @@ class Controller:
 
     def getVoiceOutputDevices(self, *args, **kwargs) -> dict:
         try:
-            devices = enumerate_outputs()
+            settings = self.voice_events.settings
+            devices = enumerate_outputs((settings.output_device, settings.monitor_device))
             return {"status": 200, "result": {"devices": devices, "error": None}}
         except Exception:
             return {"status": 200, "result": {"devices": [], "error": "audio_devices_unavailable"}}
@@ -2163,6 +2966,9 @@ class Controller:
         return self.getVoiceStatus()
 
     def chatMessage(self, data) -> dict:
+        current = self._messagePublicationGuard("chat")
+        if not current():
+            return {"status": 200, "result": None}
         msg_id = data["id"]
         message = data["message"]
         if len(message) == 0:
@@ -2178,7 +2984,7 @@ class Controller:
                 },
             }
         result = self._processMessage(CHAT_MESSAGE_SPEC, message, None, msg_id=msg_id,
-                                      voice_generation=data.get("_voice_generation"))
+                                      voice_generation=data.get("_voice_generation"), publication_guard=current)
         return {"status": 200, "result": result}
 
 
@@ -2266,8 +3072,14 @@ class Controller:
                         model.changeTranslatorCTranslate2Model()
                         model.setChangedTranslatorParameters(False)
                     else:
-                        # その他のエラーは通常通り処理
                         errorLogging()
+                        # 理由を返す。False だけを返すと、画面ではスイッチが戻るだけで何も分からない
+                        missing = (isinstance(e, MissingCTranslate2Tokenizer) or
+                                   not model.hasTranslatorCTranslate2ModelWeightFile(config.CTRANSLATE2_WEIGHT_TYPE))
+                        return VRCTError.create_error_response(
+                            ErrorCode.TRANSLATION_MODEL_MISSING if missing else ErrorCode.TRANSLATION_MODEL_LOAD_FAILED,
+                            data=False,
+                        )
             else:
                 config.ENABLE_TRANSLATION = True
         return {"status":200, "result":config.ENABLE_TRANSLATION}
@@ -2293,10 +3105,11 @@ class Controller:
 
     def setSelectedTabNo(self, selected_tab_no:str, *args, **kwargs) -> dict:
         printLog("setSelectedTabNo", selected_tab_no)
-        with getattr(self, "_voice_settings_lock", nullcontext()):
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
             self._cancelMicVoice()
             config.SELECTED_TAB_NO = selected_tab_no
-        self.updateTranslationEngineAndEngineList()
+            self.updateTranslationEngineAndEngineList()
         return {"status":200, "result":config.SELECTED_TAB_NO}
 
     @staticmethod
@@ -2335,30 +3148,49 @@ class Controller:
 
 
     def setSelectedTranslationEngines(self, data:dict, *args, **kwargs) -> dict:
-        with getattr(self, "_voice_settings_lock", nullcontext()):
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            try:
+                config.SELECTED_TRANSLATION_ENGINES = data
+            except ConfigValidationError:
+                return VRCTError.create_error_response(
+                    ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
+                    data=config.SELECTED_TRANSLATION_ENGINES,
+                )
             self._cancelMicVoice()
-            config.SELECTED_TRANSLATION_ENGINES = data
-        # Resolves the engine (availability / same-language checks can still
-        # downgrade it to CTranslate2) and then validates the language
-        # against whichever engine actually ends up active.
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200,"result":config.SELECTED_TRANSLATION_ENGINES}
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.SELECTED_TRANSLATION_ENGINES}
 
 
     def setSelectedYourLanguages(self, select:dict, *args, **kwargs) -> dict:
-        with getattr(self, "_voice_settings_lock", nullcontext()):
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            try:
+                config.SELECTED_YOUR_LANGUAGES = select
+            except ConfigValidationError:
+                return VRCTError.create_error_response(
+                    ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
+                    data=config.SELECTED_YOUR_LANGUAGES,
+                )
             self._cancelMicVoice()
-            config.SELECTED_YOUR_LANGUAGES = select
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200, "result":config.SELECTED_YOUR_LANGUAGES}
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.SELECTED_YOUR_LANGUAGES}
 
 
     def setSelectedTargetLanguages(self, select:dict, *args, **kwargs) -> dict:
-        with getattr(self, "_voice_settings_lock", nullcontext()):
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            try:
+                config.SELECTED_TARGET_LANGUAGES = select
+            except ConfigValidationError:
+                return VRCTError.create_error_response(
+                    ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
+                    data=config.SELECTED_TARGET_LANGUAGES,
+                )
             self._cancelMicVoice()
-            config.SELECTED_TARGET_LANGUAGES = select
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200, "result":config.SELECTED_TARGET_LANGUAGES}
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.SELECTED_TARGET_LANGUAGES}
+
 
     @staticmethod
     def getTranscriptionEngines(*args, **kwargs) -> dict:
@@ -2368,7 +3200,7 @@ class Controller:
 
     def setSelectedTranscriptionEngine(self, data, *args, **kwargs) -> dict:
         # setSelectedTranslationEngines() -> updateTranslationEngineAndEngineList()
-        # と同じパターン: 希望値をまず渡し、可用性チェック・言語フォールバック・
+        # と同じパターン: 希望値をまず渡し、言語フォールバック・
         # 言語リストのpushは updateTranscriptionEngine() 側に集約する。
         self.updateTranscriptionEngine(requested_engine=str(data))
         return {"status":200, "result":config.SELECTED_TRANSCRIPTION_ENGINE}
@@ -2437,71 +3269,73 @@ class Controller:
     # model.setTranslatorXModel(...) 相当は行わず、
     # SELECTABLE_*_MODEL_LIST に含まれているかどうかだけで判定する。
     # ------------------------------------------------------------------
+    def _setTranscriptionCredential(self, engine, data, base_url=None):
+        printLog(f"Set {engine} Auth Key")
+        prefix = engine.upper()
+        try:
+            data = str(data).strip()
+            if not data:
+                raise ValueError("Empty credential")
+            if engine == "Deepgram":
+                if model.authenticationDeepgramApiKey(api_key=data) is not True:
+                    raise ValueError("Credential authentication failed")
+                models_detailed = model.getDeepgramModelListDetailed(api_key=data)
+                model_list = [item["name"] for item in models_detailed]
+                languages = {item["name"]: item["languages"] for item in models_detailed}
+            else:
+                if model.authenticationTranscriptionApiKey(api_key=data, base_url=base_url) is not True:
+                    raise ValueError("Credential authentication failed")
+                filters = {} if engine == "Custom_Whisper" else {"keyword_filter": TRANSCRIPTION_MODEL_KEYWORDS}
+                model_list = model.getTranscriptionApiModelList(api_key=data, base_url=base_url, **filters)
+            if not isinstance(model_list, list) or not model_list or any(
+                not isinstance(name, str) or not name.strip() for name in model_list
+            ):
+                raise ValueError("No supported models available")
+            model_list = list(model_list)
+            selected_model = getattr(config, f"SELECTED_{prefix}_MODEL")
+            if selected_model not in model_list:
+                selected_model = model_list[0]
+        except Exception:
+            errorLogging(provider=engine)
+            return VRCTError.create_error_response(
+                ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
+                data=config.TRANSCRIPTION_AUTH_KEYS.get(engine),
+            )
+        with config.credential_lock:
+            if engine == "Custom_Whisper" and config.TRANSCRIPTION_CUSTOM_URL != base_url:
+                return VRCTError.create_error_response(
+                    ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
+                    data=config.TRANSCRIPTION_AUTH_KEYS.get(engine),
+                )
+            config.updateCredential("TRANSCRIPTION_AUTH_KEYS", engine, data)
+            setattr(config, f"SELECTABLE_{prefix}_MODEL_LIST", model_list)
+            setattr(config, f"SELECTED_{prefix}_MODEL", selected_model)
+            if engine == "Deepgram":
+                config.DEEPGRAM_MODEL_LANGUAGES = languages
+            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
+            self.run(200, self.run_mapping[f"selectable_{engine.lower()}_model_list"], model_list)
+            self.run(200, self.run_mapping[f"selected_{engine.lower()}_model"], selected_model)
+            self.updateTranscriptionEngine()
+        return {"status": 200, "result": data}
+
     @staticmethod
     def getGroqWhisperAuthKey(*args, **kwargs) -> dict:
         return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS["Groq_Whisper"]}
 
     def setGroqWhisperAuthKey(self, data, *args, **kwargs) -> dict:
-        printLog("Set Groq Whisper Auth Key")
-        engine = "Groq_Whisper"
-        try:
-            data = str(data).strip()
-            if len(data) == 0:
-                response = VRCTError.create_error_response(
-                    ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                    data=None
-                )
-            else:
-                result = model.authenticationTranscriptionApiKey(api_key=data, base_url=config.GROQ_WHISPER_BASE_URL)
-                if result is True:
-                    model_list = model.getTranscriptionApiModelList(
-                        api_key=data, base_url=config.GROQ_WHISPER_BASE_URL, keyword_filter=TRANSCRIPTION_MODEL_KEYWORDS,
-                    )
-                    if len(model_list) == 0:
-                        response = VRCTError.create_error_response(
-                            ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                            data=None
-                        )
-                    else:
-                        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-                        auth_keys[engine] = data
-                        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-                        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
-                        config.SELECTABLE_GROQ_WHISPER_MODEL_LIST = model_list
-                        self.run(200, self.run_mapping["selectable_groq_whisper_model_list"], config.SELECTABLE_GROQ_WHISPER_MODEL_LIST)
-                        if config.SELECTED_GROQ_WHISPER_MODEL not in config.SELECTABLE_GROQ_WHISPER_MODEL_LIST:
-                            config.SELECTED_GROQ_WHISPER_MODEL = config.SELECTABLE_GROQ_WHISPER_MODEL_LIST[0]
-                        self.run(200, self.run_mapping["selected_groq_whisper_model"], config.SELECTED_GROQ_WHISPER_MODEL)
-                        self.updateTranscriptionEngine()
-                        response = {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                        data=None
-                    )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=None
-            )
-        if response["status"] == 400:
-            self.delGroqWhisperAuthKey()
-        return response
+        return self._setTranscriptionCredential("Groq_Whisper", data, base_url=config.GROQ_WHISPER_BASE_URL)
 
     def delGroqWhisperAuthKey(self, *args, **kwargs) -> dict:
-        engine = "Groq_Whisper"
-        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-        auth_keys[engine] = None
-        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-        config.SELECTABLE_GROQ_WHISPER_MODEL_LIST = []
-        config.SELECTED_GROQ_WHISPER_MODEL = None
-        self.run(200, self.run_mapping["selectable_groq_whisper_model_list"], config.SELECTABLE_GROQ_WHISPER_MODEL_LIST)
-        self.run(200, self.run_mapping["selected_groq_whisper_model"], config.SELECTED_GROQ_WHISPER_MODEL)
-        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-        self.updateTranscriptionEngine()
-        return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-
+        with config.credential_lock:
+            engine = "Groq_Whisper"
+            config.updateCredential("TRANSCRIPTION_AUTH_KEYS", engine, None)
+            config.SELECTABLE_GROQ_WHISPER_MODEL_LIST = []
+            config.SELECTED_GROQ_WHISPER_MODEL = None
+            self.run(200, self.run_mapping["selectable_groq_whisper_model_list"], config.SELECTABLE_GROQ_WHISPER_MODEL_LIST)
+            self.run(200, self.run_mapping["selected_groq_whisper_model"], config.SELECTED_GROQ_WHISPER_MODEL)
+            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
+            self.updateTranscriptionEngine()
+            return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
 
 
     @staticmethod
@@ -2521,66 +3355,19 @@ class Controller:
         return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS["OpenAI_Whisper"]}
 
     def setOpenAIWhisperAuthKey(self, data, *args, **kwargs) -> dict:
-        printLog("Set OpenAI Whisper Auth Key")
-        engine = "OpenAI_Whisper"
-        try:
-            data = str(data).strip()
-            if len(data) == 0:
-                response = VRCTError.create_error_response(
-                    ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                    data=None
-                )
-            else:
-                result = model.authenticationTranscriptionApiKey(api_key=data, base_url=config.OPENAI_WHISPER_BASE_URL)
-                if result is True:
-                    model_list = model.getTranscriptionApiModelList(
-                        api_key=data, base_url=config.OPENAI_WHISPER_BASE_URL, keyword_filter=TRANSCRIPTION_MODEL_KEYWORDS,
-                    )
-                    if len(model_list) == 0:
-                        response = VRCTError.create_error_response(
-                            ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                            data=None
-                        )
-                    else:
-                        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-                        auth_keys[engine] = data
-                        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-                        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
-                        config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST = model_list
-                        self.run(200, self.run_mapping["selectable_openai_whisper_model_list"], config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST)
-                        if config.SELECTED_OPENAI_WHISPER_MODEL not in config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST:
-                            config.SELECTED_OPENAI_WHISPER_MODEL = config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST[0]
-                        self.run(200, self.run_mapping["selected_openai_whisper_model"], config.SELECTED_OPENAI_WHISPER_MODEL)
-                        self.updateTranscriptionEngine()
-                        response = {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                        data=None
-                    )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=None
-            )
-        if response["status"] == 400:
-            self.delOpenAIWhisperAuthKey()
-        return response
+        return self._setTranscriptionCredential("OpenAI_Whisper", data, base_url=config.OPENAI_WHISPER_BASE_URL)
 
     def delOpenAIWhisperAuthKey(self, *args, **kwargs) -> dict:
-        engine = "OpenAI_Whisper"
-        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-        auth_keys[engine] = None
-        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-        config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST = []
-        config.SELECTED_OPENAI_WHISPER_MODEL = None
-        self.run(200, self.run_mapping["selectable_openai_whisper_model_list"], config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST)
-        self.run(200, self.run_mapping["selected_openai_whisper_model"], config.SELECTED_OPENAI_WHISPER_MODEL)
-        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-        self.updateTranscriptionEngine()
-        return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-
+        with config.credential_lock:
+            engine = "OpenAI_Whisper"
+            config.updateCredential("TRANSCRIPTION_AUTH_KEYS", engine, None)
+            config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST = []
+            config.SELECTED_OPENAI_WHISPER_MODEL = None
+            self.run(200, self.run_mapping["selectable_openai_whisper_model_list"], config.SELECTABLE_OPENAI_WHISPER_MODEL_LIST)
+            self.run(200, self.run_mapping["selected_openai_whisper_model"], config.SELECTED_OPENAI_WHISPER_MODEL)
+            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
+            self.updateTranscriptionEngine()
+            return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
 
 
     @staticmethod
@@ -2600,125 +3387,40 @@ class Controller:
         return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"]}
 
     def setCustomWhisperAuthKey(self, data, *args, **kwargs) -> dict:
-        printLog("Set Custom Whisper Auth Key")
-        engine = "Custom_Whisper"
-        try:
-            data = str(data).strip()
-            if len(data) == 0:
-                response = VRCTError.create_error_response(
-                    ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                    data=None
-                )
-            else:
-                result = model.authenticationTranscriptionApiKey(api_key=data, base_url=config.TRANSCRIPTION_CUSTOM_URL)
-                if result is True:
-                    # カスタムサーバーはどんなモデル名を使っているか分からないため絞り込まない
-                    model_list = model.getTranscriptionApiModelList(api_key=data, base_url=config.TRANSCRIPTION_CUSTOM_URL)
-                    if len(model_list) == 0:
-                        response = VRCTError.create_error_response(
-                            ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                            data=None
-                        )
-                    else:
-                        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-                        auth_keys[engine] = data
-                        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-                        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
-                        config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = model_list
-                        self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
-                        if config.SELECTED_CUSTOM_WHISPER_MODEL not in config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST:
-                            config.SELECTED_CUSTOM_WHISPER_MODEL = config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST[0]
-                        self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
-                        self.updateTranscriptionEngine()
-                        response = {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                        data=None
-                    )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=None
-            )
-        if response["status"] == 400:
-            self.delCustomWhisperAuthKey()
-        return response
+        return self._setTranscriptionCredential("Custom_Whisper", data, base_url=config.TRANSCRIPTION_CUSTOM_URL)
+
+    def setCustomWhisperAuthKeyAndURL(self, data, *args, **kwargs) -> dict:
+        return self._setEndpointCredential("Custom_Whisper", data)
 
     def delCustomWhisperAuthKey(self, *args, **kwargs) -> dict:
-        engine = "Custom_Whisper"
-        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-        auth_keys[engine] = None
-        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-        config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = []
-        config.SELECTED_CUSTOM_WHISPER_MODEL = None
-        self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
-        self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
-        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-        self.updateTranscriptionEngine()
-        return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
+        with config.credential_lock:
+            engine = "Custom_Whisper"
+            config.updateCredential("TRANSCRIPTION_AUTH_KEYS", engine, None)
+            config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = []
+            config.SELECTED_CUSTOM_WHISPER_MODEL = None
+            self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
+            self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
+            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
+            self.updateTranscriptionEngine()
+            return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
 
 
     def setCustomWhisperURL(self, data, *args, **kwargs) -> dict:
-        """URL 変更時は「認証成功後に URL を確定」する順序を守る
-        (翻訳側の OpenAI互換エンジンの setOpenAICompatibleURL と同じ)。
-
-        Auth Key が未設定の場合は URL だけ保存して終わる (次回 Auth Key 入力時に検証される)。
-        """
-        printLog("Set Custom Whisper URL", data)
-        engine = "Custom_Whisper"
+        """Require explicit key entry before changing a credential's destination."""
         try:
-            data = str(data).strip()
-            auth_key = config.TRANSCRIPTION_AUTH_KEYS[engine]
-
-            if not auth_key:
-                config.TRANSCRIPTION_CUSTOM_URL = data
-                return {"status":200, "result":config.TRANSCRIPTION_CUSTOM_URL}
-
-            result = model.authenticationTranscriptionApiKey(api_key=auth_key, base_url=data)
-            if result is True:
-                model_list = model.getTranscriptionApiModelList(api_key=auth_key, base_url=data)
-                if len(model_list) == 0:
-                    config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-                    config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = []
-                    config.SELECTED_CUSTOM_WHISPER_MODEL = None
-                    self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
-                    self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
-                    self.updateTranscriptionEngine()
-                    response = VRCTError.create_error_response(
-                        ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID,
-                        data=config.TRANSCRIPTION_CUSTOM_URL
-                    )
-                else:
-                    config.TRANSCRIPTION_CUSTOM_URL = data
-                    config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
-                    config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = model_list
-                    self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
-                    if config.SELECTED_CUSTOM_WHISPER_MODEL not in config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST:
-                        config.SELECTED_CUSTOM_WHISPER_MODEL = config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST[0]
-                    self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
-                    self.updateTranscriptionEngine()
-                    response = {"status":200, "result":config.TRANSCRIPTION_CUSTOM_URL}
-            else:
-                config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-                config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = []
-                config.SELECTED_CUSTOM_WHISPER_MODEL = None
-                self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST)
-                self.run(200, self.run_mapping["selected_custom_whisper_model"], config.SELECTED_CUSTOM_WHISPER_MODEL)
-                self.updateTranscriptionEngine()
-                response = VRCTError.create_error_response(
-                    ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID,
-                    data=config.TRANSCRIPTION_CUSTOM_URL
-                )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=config.TRANSCRIPTION_CUSTOM_URL
-            )
-        return response
-
+            data = validate_api_url(data.strip() if isinstance(data, str) else data)
+        except ValueError:
+            return VRCTError.create_error_response(
+                ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID, data=config.TRANSCRIPTION_CUSTOM_URL)
+        printLog("Set Custom Whisper URL", data)
+        with config.credential_lock:
+            if data == config.TRANSCRIPTION_CUSTOM_URL:
+                return {"status": 200, "result": config.TRANSCRIPTION_CUSTOM_URL}
+            if config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"]:
+                return VRCTError.create_error_response(
+                    ErrorCode.CREDENTIAL_REENTRY_REQUIRED, data=config.TRANSCRIPTION_CUSTOM_URL)
+            config.TRANSCRIPTION_CUSTOM_URL = data
+            return {"status": 200, "result": config.TRANSCRIPTION_CUSTOM_URL}
 
 
     @staticmethod
@@ -2738,67 +3440,20 @@ class Controller:
         return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS["Deepgram"]}
 
     def setDeepgramAuthKey(self, data, *args, **kwargs) -> dict:
-        printLog("Set Deepgram Auth Key")
-        engine = "Deepgram"
-        try:
-            data = str(data).strip()
-            if len(data) == 0:
-                response = VRCTError.create_error_response(
-                    ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                    data=None
-                )
-            else:
-                result = model.authenticationDeepgramApiKey(api_key=data)
-                if result is True:
-                    models_detailed = model.getDeepgramModelListDetailed(api_key=data)
-                    model_list = [m["name"] for m in models_detailed]
-                    if len(model_list) == 0:
-                        response = VRCTError.create_error_response(
-                            ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                            data=None
-                        )
-                    else:
-                        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-                        auth_keys[engine] = data
-                        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-                        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
-                        config.SELECTABLE_DEEPGRAM_MODEL_LIST = model_list
-                        config.DEEPGRAM_MODEL_LANGUAGES = {m["name"]: m["languages"] for m in models_detailed}
-                        self.run(200, self.run_mapping["selectable_deepgram_model_list"], config.SELECTABLE_DEEPGRAM_MODEL_LIST)
-                        if config.SELECTED_DEEPGRAM_MODEL not in config.SELECTABLE_DEEPGRAM_MODEL_LIST:
-                            config.SELECTED_DEEPGRAM_MODEL = config.SELECTABLE_DEEPGRAM_MODEL_LIST[0]
-                        self.run(200, self.run_mapping["selected_deepgram_model"], config.SELECTED_DEEPGRAM_MODEL)
-                        self.updateTranscriptionEngine()
-                        response = {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_API_AUTH_FAILED,
-                        data=None
-                    )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=None
-            )
-        if response["status"] == 400:
-            self.delDeepgramAuthKey()
-        return response
+        return self._setTranscriptionCredential("Deepgram", data, base_url=None)
 
     def delDeepgramAuthKey(self, *args, **kwargs) -> dict:
-        engine = "Deepgram"
-        auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-        auth_keys[engine] = None
-        config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-        config.SELECTABLE_DEEPGRAM_MODEL_LIST = []
-        config.DEEPGRAM_MODEL_LANGUAGES = {}
-        config.SELECTED_DEEPGRAM_MODEL = None
-        self.run(200, self.run_mapping["selectable_deepgram_model_list"], config.SELECTABLE_DEEPGRAM_MODEL_LIST)
-        self.run(200, self.run_mapping["selected_deepgram_model"], config.SELECTED_DEEPGRAM_MODEL)
-        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
-        self.updateTranscriptionEngine()
-        return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
-
+        with config.credential_lock:
+            engine = "Deepgram"
+            config.updateCredential("TRANSCRIPTION_AUTH_KEYS", engine, None)
+            config.SELECTABLE_DEEPGRAM_MODEL_LIST = []
+            config.DEEPGRAM_MODEL_LANGUAGES = {}
+            config.SELECTED_DEEPGRAM_MODEL = None
+            self.run(200, self.run_mapping["selectable_deepgram_model_list"], config.SELECTABLE_DEEPGRAM_MODEL_LIST)
+            self.run(200, self.run_mapping["selected_deepgram_model"], config.SELECTED_DEEPGRAM_MODEL)
+            config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
+            self.updateTranscriptionEngine()
+            return {"status":200, "result":config.TRANSCRIPTION_AUTH_KEYS[engine]}
 
 
     def setDeepgramModel(self, data, *args, **kwargs) -> dict:
@@ -2970,104 +3625,84 @@ class Controller:
 
 
     def applyAutoMicSelect(self) -> None:
-        # stopAccessMicDevices/restartAccessMicDevices は mic_lifecycle_lock
-        # を取得しつつ recorder の stop や PyAudio open を行う重い処理。
-        # device_manager.monitoring() 自身のスレッドで直接実行すると、その間
-        # monitoring が次の COM デバイス通知を取りこぼす。
-        # model.mic_lifecycle_worker 経由で専用スレッドに投げることで
-        # monitoring は即座に呼び出しから戻れる。Before/After は同じ worker の
-        # FIFO キューで順序が保たれる。speaker 側とはワーカーを分けており
-        # (フェーズ3項目21)、mic の重い処理が無関係な speaker 側の操作を
-        # 足止めしない。
-        device_manager.setCallbackProcessBeforeUpdateMicDevices(
-            lambda: model.mic_lifecycle_worker.enqueue(self.stopAccessMicDevices)
-        )
-        device_manager.setCallbackDefaultMicDevice(self.updateSelectedMicDevice)
-        device_manager.setCallbackProcessAfterUpdateMicDevices(
-            lambda: model.mic_lifecycle_worker.enqueue(self.restartAccessMicDevices)
-        )
-        # マイクの Auto Select は OS 既定デバイス追従のみ。speaker と違い
-        # ActiveEndpointTracker (peak 追従) は使わないため、endpoint 切替
-        # 起点の Recorder 差し替え callback は登録しない
-        # (device_manager.setMicAutoActive の docstring 参照。develop側の
-        # 6596c629で撤去された経緯があり、フェーズ3項目21のcoalesce_key
-        # 拡張はspeaker側の_reconfigureSpeakerDeviceLockedにのみ適用する)。
-        device_manager.forceUpdateAndSetMicDevices()
-        # monitoring スレッドの起動判断は DeviceManager 側に集約
-        # (speaker 側の状態を controller で気にする必要はもう無い)
-        device_manager.setMicAutoActive(True)
+        with self._audioLock("mic"):
+            if not config.AUTO_MIC_SELECT:
+                return
+            generation = self._audioGeneration("mic")
+            device_manager.clearCallbackProcessBeforeUpdateMicDevices()
+            device_manager.clearCallbackProcessAfterUpdateMicDevices()
+            device_manager.setCallbackDefaultMicDevice(lambda *args: self._queueAudioReconciliation("mic"))
+            device_manager.setMicAutoActive(True)
+        # Forced enumeration does not dispatch the old split callbacks. Apply
+        # its snapshot once, then publish the compatible name list as well.
+        device_manager.update()
+        self._reconcileAudio("mic", generation)
+        self.run(200, self.run_mapping.get("selectable_mic_device_list", "/run/selectable_mic_device_list"), model.getListMicDevice())
 
     def setEnableAutoMicSelect(self, *args, **kwargs) -> dict:
-        if config.AUTO_MIC_SELECT is False:
-            self.applyAutoMicSelect()
+        with self._audioLock("mic"):
             config.AUTO_MIC_SELECT = True
-        return {"status":200, "result":config.AUTO_MIC_SELECT}
+            self._audioGeneration("mic", advance=True)
+        self.applyAutoMicSelect()
+        return {"status": 200, "result": config.AUTO_MIC_SELECT}
 
-    @staticmethod
-    def setDisableAutoMicSelect(*args, **kwargs) -> dict:
-        if config.AUTO_MIC_SELECT is True:
-            device_manager.clearCallbackProcessBeforeUpdateMicDevices()
-            device_manager.clearCallbackDefaultMicDevice()
-            device_manager.clearCallbackProcessAfterUpdateMicDevices()
-            # monitoring の停止判断は DeviceManager 側に委譲。
-            # speaker 側が active なら monitoring は継続、両方 inactive で
-            # 初めて thread が停止する。以前ここで AUTO_SPEAKER_SELECT を
-            # 見てから stopMonitoring を叩いていた相互参照は不要になった。
-            device_manager.setMicAutoActive(False)
+    def setDisableAutoMicSelect(self, *args, **kwargs) -> dict:
+        with self._audioLock("mic"):
             config.AUTO_MIC_SELECT = False
-        return {"status":200, "result":config.AUTO_MIC_SELECT}
+            generation = self._audioGeneration("mic", advance=True)
+            device_manager.clearCallbackDefaultMicDevice()
+            device_manager.setMicAutoActive(False)
+        self._reconcileAudio("mic", generation, follow_default=False)
+        return {"status": 200, "result": config.AUTO_MIC_SELECT}
 
 
     def setSelectedMicHost(self, data, *args, **kwargs) -> dict:
-        previously_selected_device = config.SELECTED_MIC_DEVICE
-        config.SELECTED_MIC_HOST = data
-        # Keep using the same physical device if it is also exposed under the
-        # newly selected host (device names are often duplicated across host
-        # APIs). Only fall back to the host's first device when the
-        # previously selected one isn't available there, so switching hosts
-        # doesn't silently swap the currently used device for an unrelated
-        # "Default Device" entry.
-        if previously_selected_device in model.getListMicDevice():
-            config.SELECTED_MIC_DEVICE = previously_selected_device
-        else:
-            config.SELECTED_MIC_DEVICE = model.getMicDefaultDevice()
-        self._reopenMicAudioOnDeviceChange()
-        # host が切り替わると新ホストの selectable_mic_device_list を
-        # UI に push しないと、ドロップダウンが旧ホストのデバイス名一覧の
-        # ままになり、そこから選ばれた名前は新ホストの
-        # _mic_device_validator で弾かれて config が更新されない
-        # (setSelectedMicDevice が事実上 no-op になる)。selected_mic_device
-        # と一緒に必ずリストも再送する。
-        self.run(200, self.run_mapping["selectable_mic_device_list"], model.getListMicDevice())
-        self.run(200, self.run_mapping["selected_mic_device"], config.SELECTED_MIC_DEVICE)
-        return {"status":200, "result":config.SELECTED_MIC_HOST}
-
+        with self._audioLock("mic"):
+            devices = device_manager.getMicDevices().get(data)
+            if devices is None:
+                return VRCTError.create_error_response(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=config.SELECTED_MIC_HOST)
+            self._audioGeneration("mic", advance=True)
+            selected = resolve_device(devices, name=config.SELECTED_MIC_DEVICE)
+            if selected is None:
+                selected = next((d for d in devices if d.get("name") != "NoDevice"), None)
+            self._reconcileAudioLocked("mic", follow_default=False, device=selected or {"name": "NoDevice"})
+            self.run(200, self.run_mapping["selectable_mic_device_list"], model.getListMicDevice())
+            return {"status": 200, "result": config.SELECTED_MIC_HOST}
 
     def setSelectedMicDevice(self, data, *args, **kwargs) -> dict:
-        config.SELECTED_MIC_DEVICE = data
-        self._reopenMicAudioOnDeviceChange()
-        return {"status":200, "result": config.SELECTED_MIC_DEVICE}
+        with self._audioLock("mic"):
+            devices = [d for host, d in self._audioDevices("mic")
+                       if host == config.SELECTED_MIC_HOST]
+            device = resolve_device(devices, name=data)
+            if device is None:
+                return VRCTError.create_error_response(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=config.SELECTED_MIC_DEVICE)
+            self._audioGeneration("mic", advance=True)
+            self._reconcileAudioLocked("mic", follow_default=False, device=device)
+            return {"status": 200, "result": config.SELECTED_MIC_DEVICE}
+
+    def getSelectedMicDeviceId(self, *args, **kwargs):
+        return {"status": 200, "result": config.SELECTED_MIC_DEVICE_ID}
+
+    def getMicDeviceOptions(self, *args, **kwargs):
+        return {"status": 200, "result": self._audioDeviceOptions("mic")}
+
+    def setSelectedMicDeviceId(self, data, *args, **kwargs):
+        with self._audioLock("mic"):
+            devices = [d for host, d in self._audioDevices("mic")
+                       if host == config.SELECTED_MIC_HOST]
+            device = resolve_device(devices, endpoint_id=data) if data else None
+            if device is None:
+                return VRCTError.create_error_response(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=config.SELECTED_MIC_DEVICE_ID)
+            self._audioGeneration("mic", advance=True)
+            self._reconcileAudioLocked("mic", follow_default=False, device=device)
+            return {"status": 200, "result": config.SELECTED_MIC_DEVICE_ID}
 
     def _reopenMicAudioOnDeviceChange(self) -> None:
-        # デバイス切替時、稼働中のマイク Session を Session.reconfigure 経由で
-        # 新デバイスに差し替える。旧実装は feature 単位で stop→start を 2 段
-        # (transcription + energy) 呼んでいたため、両方 ON のときは Recorder が
-        # 2 回 close/open されていた。Session に device 差分検知を入れた今は
-        # 1 呼び出しで済み、config 上のデバイスと現在開いているデバイスが
-        # 同じなら no-op になる。
-        # config は呼び出し元 (setSelectedMicHost/Device) が既に書き換え済み。
-        with self.mic_lifecycle_lock:
-            model.reconfigureMicDevice()
+        self._reconcileAudio("mic", follow_default=False)
 
     def _changeMicTranscriptStatusLocked(self) -> None:
-        # OSC ミュート同期 (Model.changeHandlerMute) からのみ呼ばれる
-        # (model.setMicMuteStatusChangeCallback 経由で __init__ が登録)。
-        # 任意の OSC 受信スレッドで走るため、他の mic_lifecycle_lock
-        # 保持経路 (start/stop 系, Auto Select のデバイス切替) と
-        # 直列化されていなかった (壊れた Recorder への pause()/resume()
-        # で TypeError になったり、resume() が新しい _audio_queue を drain
-        # して録音済み音声を取りこぼす原因になっていた)。
-        with self.mic_lifecycle_lock:
+        # All mute-sync transitions share the mic start/stop/reconfigure lock.
+        with self._audioLock("mic"):
             model.changeMicTranscriptStatus()
 
 
@@ -3183,90 +3818,98 @@ class Controller:
     @staticmethod
     def setMicAvgLogprob(data, *args, **kwargs) -> dict:
         try:
+            if isinstance(data, bool):
+                raise ValueError("Boolean is not an ASR threshold")
             value = float(data)
-        except Exception:
+            config.MIC_AVG_LOGPROB = value
+        except (TypeError, ValueError, OverflowError, ConfigValidationError):
             return VRCTError.create_error_response(
-                ErrorCode.GENERAL_EXCEPTION,
+                ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
                 data=config.MIC_AVG_LOGPROB,
-                custom_message="Mic average logprob must be a number",
+                custom_message="Mic average logprob must be finite and between -2 and 0",
             )
-        config.MIC_AVG_LOGPROB = value
         return {"status":200, "result":config.MIC_AVG_LOGPROB}
 
 
     @staticmethod
     def setMicNoSpeechProb(data, *args, **kwargs) -> dict:
         try:
+            if isinstance(data, bool):
+                raise ValueError("Boolean is not an ASR threshold")
             value = float(data)
-        except Exception:
+            config.MIC_NO_SPEECH_PROB = value
+        except (TypeError, ValueError, OverflowError, ConfigValidationError):
             return VRCTError.create_error_response(
-                ErrorCode.GENERAL_EXCEPTION,
+                ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
                 data=config.MIC_NO_SPEECH_PROB,
-                custom_message="Mic no-speech probability must be a number",
+                custom_message="Mic no-speech probability must be finite and between 0 and 1",
             )
-        config.MIC_NO_SPEECH_PROB = value
         return {"status":200, "result":config.MIC_NO_SPEECH_PROB}
 
 
     def applyAutoSpeakerSelect(self) -> None:
-        # 詳細は applyAutoMicSelect のコメント参照:
-        # monitoring スレッドをブロックしないよう worker 経由で実行する。
-        # mic とはワーカーを分けている (フェーズ3項目21)。
-        device_manager.setCallbackProcessBeforeUpdateSpeakerDevices(
-            lambda: model.speaker_lifecycle_worker.enqueue(self.stopAccessSpeakerDevices)
-        )
-        device_manager.setCallbackDefaultSpeakerDevice(self.updateSelectedSpeakerDevice)
-        device_manager.setCallbackProcessAfterUpdateSpeakerDevices(
-            lambda: model.speaker_lifecycle_worker.enqueue(self.restartAccessSpeakerDevices)
-        )
-        # 詳細は applyAutoMicSelect のコメント参照 (ActiveEndpointTracker 連携・coalesce_key)
-        device_manager.setCallbackEndpointReconfiguredSpeaker(
-            lambda: model.speaker_lifecycle_worker.enqueue(
-                self._reconfigureSpeakerDeviceLocked, coalesce_key="speaker_reconfigure"
-            )
-        )
-        device_manager.forceUpdateAndSetSpeakerDevices()
-        device_manager.setSpeakerAutoActive(True)
+        with self._audioLock("speaker"):
+            if not config.AUTO_SPEAKER_SELECT:
+                return
+            generation = self._audioGeneration("speaker")
+            device_manager.clearCallbackProcessBeforeUpdateSpeakerDevices()
+            device_manager.clearCallbackProcessAfterUpdateSpeakerDevices()
+            device_manager.setCallbackDefaultSpeakerDevice(lambda *args: self._queueAudioReconciliation("speaker"))
+            device_manager.setSpeakerAutoActive(True)
+        # Forced enumeration does not dispatch the old split callbacks. Apply
+        # its snapshot once, then publish the compatible name list as well.
+        device_manager.update()
+        self._reconcileAudio("speaker", generation)
+        self.run(200, self.run_mapping.get("selectable_speaker_device_list", "/run/selectable_speaker_device_list"), model.getListSpeakerDevice())
 
     def setEnableAutoSpeakerSelect(self, *args, **kwargs) -> dict:
-        if config.AUTO_SPEAKER_SELECT is False:
-            self.applyAutoSpeakerSelect()
+        with self._audioLock("speaker"):
             config.AUTO_SPEAKER_SELECT = True
-        return {"status":200, "result":config.AUTO_SPEAKER_SELECT}
+            self._audioGeneration("speaker", advance=True)
+        self.applyAutoSpeakerSelect()
+        return {"status": 200, "result": config.AUTO_SPEAKER_SELECT}
 
-    @staticmethod
-    def setDisableAutoSpeakerSelect(*args, **kwargs) -> dict:
-        if config.AUTO_SPEAKER_SELECT is True:
-            device_manager.clearCallbackProcessBeforeUpdateSpeakerDevices()
-            device_manager.clearCallbackDefaultSpeakerDevice()
-            device_manager.clearCallbackProcessAfterUpdateSpeakerDevices()
-            device_manager.clearCallbackEndpointReconfiguredSpeaker()
-            # 詳細は setDisableAutoMicSelect のコメント参照:
-            # monitoring の停止判断は DeviceManager 側に委譲。
-            device_manager.setSpeakerAutoActive(False)
+    def setDisableAutoSpeakerSelect(self, *args, **kwargs) -> dict:
+        with self._audioLock("speaker"):
             config.AUTO_SPEAKER_SELECT = False
-        return {"status":200, "result":config.AUTO_SPEAKER_SELECT}
+            generation = self._audioGeneration("speaker", advance=True)
+            device_manager.clearCallbackDefaultSpeakerDevice()
+            device_manager.setSpeakerAutoActive(False)
+        self._reconcileAudio("speaker", generation, follow_default=False)
+        return {"status": 200, "result": config.AUTO_SPEAKER_SELECT}
 
 
     def setSelectedSpeakerDevice(self, data, *args, **kwargs) -> dict:
-        config.SELECTED_SPEAKER_DEVICE = data
-        self._reopenSpeakerAudioOnDeviceChange()
-        return {"status":200, "result":config.SELECTED_SPEAKER_DEVICE}
+        with self._audioLock("speaker"):
+            devices = [d for _, d in self._audioDevices("speaker")]
+            device = resolve_device(devices, name=data)
+            if device is None:
+                return VRCTError.create_error_response(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=config.SELECTED_SPEAKER_DEVICE)
+            self._audioGeneration("speaker", advance=True)
+            self._reconcileAudioLocked("speaker", follow_default=False, device=device)
+            return {"status": 200, "result": config.SELECTED_SPEAKER_DEVICE}
+
+    def getSelectedSpeakerDeviceId(self, *args, **kwargs):
+        return {"status": 200, "result": config.SELECTED_SPEAKER_DEVICE_ID}
+
+    def getSpeakerDeviceOptions(self, *args, **kwargs):
+        return {"status": 200, "result": self._audioDeviceOptions("speaker")}
+
+    def setSelectedSpeakerDeviceId(self, data, *args, **kwargs):
+        with self._audioLock("speaker"):
+            devices = [d for _, d in self._audioDevices("speaker")]
+            device = resolve_device(devices, endpoint_id=data) if data else None
+            if device is None:
+                return VRCTError.create_error_response(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=config.SELECTED_SPEAKER_DEVICE_ID)
+            self._audioGeneration("speaker", advance=True)
+            self._reconcileAudioLocked("speaker", follow_default=False, device=device)
+            return {"status": 200, "result": config.SELECTED_SPEAKER_DEVICE_ID}
 
     def _reopenSpeakerAudioOnDeviceChange(self) -> None:
-        # マイクと同様、Session.reconfigure 1 回に縮退。詳細は
-        # _reopenMicAudioOnDeviceChange のコメント参照。
-        with self.speaker_lifecycle_lock:
-            model.reconfigureSpeakerDevice()
+        self._reconcileAudio("speaker", follow_default=False)
 
     def _reconfigureSpeakerDeviceLocked(self) -> None:
-        # ActiveEndpointTracker (render) からの通知
-        # (setCallbackEndpointReconfiguredSpeaker) は他の speaker_lifecycle_lock
-        # 保持経路 (start/stop 系) と直列化されていないため、ここで明示的に
-        # ロックを取る。
-        with self.speaker_lifecycle_lock:
-            model.reconfigureSpeakerDevice()
-
+        self._reconcileAudio("speaker")
 
     @staticmethod
     def setSpeakerThreshold(data, *args, **kwargs) -> dict:
@@ -3377,73 +4020,65 @@ class Controller:
     @staticmethod
     def setSpeakerAvgLogprob(data, *args, **kwargs) -> dict:
         try:
+            if isinstance(data, bool):
+                raise ValueError("Boolean is not an ASR threshold")
             value = float(data)
-        except Exception:
+            config.SPEAKER_AVG_LOGPROB = value
+        except (TypeError, ValueError, OverflowError, ConfigValidationError):
             return VRCTError.create_error_response(
-                ErrorCode.GENERAL_EXCEPTION,
+                ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
                 data=config.SPEAKER_AVG_LOGPROB,
-                custom_message="Speaker average logprob must be a number",
+                custom_message="Speaker average logprob must be finite and between -2 and 0",
             )
-        config.SPEAKER_AVG_LOGPROB = value
         return {"status":200, "result":config.SPEAKER_AVG_LOGPROB}
 
 
     @staticmethod
     def setSpeakerNoSpeechProb(data, *args, **kwargs) -> dict:
         try:
+            if isinstance(data, bool):
+                raise ValueError("Boolean is not an ASR threshold")
             value = float(data)
-        except Exception:
+            config.SPEAKER_NO_SPEECH_PROB = value
+        except (TypeError, ValueError, OverflowError, ConfigValidationError):
             return VRCTError.create_error_response(
-                ErrorCode.GENERAL_EXCEPTION,
+                ErrorCode.VALIDATION_CONFIG_VALUE_INVALID,
                 data=config.SPEAKER_NO_SPEECH_PROB,
-                custom_message="Speaker no-speech probability must be a number",
+                custom_message="Speaker no-speech probability must be finite and between 0 and 1",
             )
-        config.SPEAKER_NO_SPEECH_PROB = value
         return {"status":200, "result":config.SPEAKER_NO_SPEECH_PROB}
 
 
     def setOscIpAddress(self, data, *args, **kwargs) -> dict:
-        if isValidIpAddress(data) is False:
-            response = VRCTError.create_error_response(
-                ErrorCode.VALIDATION_INVALID_IP,
-                data=config.OSC_IP_ADDRESS
-            )
-        else:
+        with _OSC_CONTROL_LOCK:
+            if isValidIpAddress(data) is False:
+                return VRCTError.create_error_response(
+                    ErrorCode.VALIDATION_INVALID_IP, data=config.OSC_IP_ADDRESS)
             try:
                 model.setOscIpAddress(data)
                 config.OSC_IP_ADDRESS = data
-                if model.getIsOscQueryEnabled() is True:
-                    self.enableOscQuery()
-                else:
-                    mute_sync_info_flag = False
-                    if config.VRC_MIC_MUTE_SYNC is True:
-                        self.setDisableVrcMicMuteSync()
-                        mute_sync_info_flag = True
-                    self.disableOscQuery(mute_sync_info=mute_sync_info_flag)
-
-                response = {"status":200, "result":config.OSC_IP_ADDRESS}
+                return {"status": 200, "result": config.OSC_IP_ADDRESS}
             except Exception:
-                model.setOscIpAddress(config.OSC_IP_ADDRESS)
-                response = VRCTError.create_error_response(
-                    ErrorCode.VALIDATION_CANNOT_SET_IP,
-                    data=config.OSC_IP_ADDRESS
-                )
-        return response
+                # The handler already attempted rollback under its lifecycle lock.
+                return VRCTError.create_error_response(
+                    ErrorCode.VALIDATION_CANNOT_SET_IP, data=config.OSC_IP_ADDRESS)
+            finally:
+                self._publishOscQueryReadiness()
 
 
-    @staticmethod
-    def setOscPort(data, *args, **kwargs) -> dict:
-        try:
-            port = int(data)
-        except Exception:
+    def setOscPort(self, data, *args, **kwargs) -> dict:
+        if not isValidPort(data):
             return VRCTError.create_error_response(
-                ErrorCode.VALIDATION_OSC_PORT_INVALID,
-                data=config.OSC_PORT,
-                custom_message="OSC port must be a number",
+                ErrorCode.VALIDATION_OSC_PORT_INVALID, data=config.OSC_PORT,
             )
-        config.OSC_PORT = port
-        model.setOscPort(config.OSC_PORT)
-        return {"status":200, "result":config.OSC_PORT}
+        port = data
+        with _OSC_CONTROL_LOCK:
+            try:
+                model.setOscPort(port)
+                config.OSC_PORT = port
+                return {"status":200, "result":config.OSC_PORT}
+            finally:
+                self._publishOscQueryReadiness()
 
 
     @staticmethod
@@ -3481,64 +4116,50 @@ class Controller:
 
     def _setTranslationEngineAuthKey(self, engine_key: str, data) -> dict:
         spec = TRANSLATION_PROVIDER_REGISTRY[engine_key]
-        bindings = _ENGINE_MODEL_BINDINGS[engine_key]
-        display_name = engine_key[:-len("_API")] if engine_key.endswith("_API") else engine_key
-        printLog(f"Set {display_name} Auth Key")
+        printLog(f"Set {engine_key} Auth Key")
         try:
             data = str(data)
-            if spec.auth_validate(data):
-                result = getattr(model, bindings["authenticate"])(auth_key=data)
-                if result is True:
-                    auth_keys = config.AUTH_KEYS
-                    auth_keys[engine_key] = data
-                    config.AUTH_KEYS = auth_keys
-                    config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine_key] = True
-                    model_list = getattr(model, bindings["get_model_list"])()
-                    setattr(config, spec.selectable_model_list_attr, model_list)
-                    self.run(200, self.run_mapping[spec.run_mapping_selectable_key], model_list)
-                    if getattr(config, spec.selected_model_attr) not in model_list:
-                        setattr(config, spec.selected_model_attr, model_list[0])
-                    getattr(model, bindings["set_model"])(model=getattr(config, spec.selected_model_attr))
-                    self.run(200, self.run_mapping[spec.run_mapping_selected_key], getattr(config, spec.selected_model_attr))
-                    getattr(model, bindings["update_client"])()
-                    self.updateTranslationEngineAndEngineList()
-                    response = {"status":200, "result":config.AUTH_KEYS[engine_key]}
-                else:
-                    response = VRCTError.create_error_response(
-                        spec.error_auth_failed,
-                        data=None
-                    )
-            else:
-                response = VRCTError.create_error_response(
-                    spec.error_auth_invalid,
-                    data=None
+            if not spec.auth_validate(data):
+                return VRCTError.create_error_response(
+                    spec.error_auth_invalid, data=config.AUTH_KEYS.get(engine_key),
                 )
+            previous_model = getattr(config, spec.selected_model_attr)
+            candidate = model.prepareTranslatorCredential(engine_key, data, selected_model=previous_model)
         except Exception:
-            errorLogging()
-            # SDK の例外内容には認証キーやリクエスト情報が含まれる
-            # 可能性があるため、そのまま UI へ返さない。詳細は
-            # errorLogging() で記録し、UI には認証失敗の安全な概要だけを
-            # 返す。
-            response = VRCTError.create_error_response(
-                spec.error_auth_failed,
-                data=None,
+            errorLogging(provider=engine_key)
+            return VRCTError.create_error_response(
+                spec.error_auth_failed, data=config.AUTH_KEYS.get(engine_key),
             )
-        if response["status"] == 400:
-            self._delTranslationEngineAuthKey(engine_key)
-        return response
+
+        _, model_list, selected_model = candidate
+        with config.credential_lock:
+            if getattr(config, spec.selected_model_attr) != previous_model:
+                return VRCTError.create_error_response(
+                    spec.error_auth_failed, data=config.AUTH_KEYS.get(engine_key),
+                )
+            config.updateCredential("AUTH_KEYS", engine_key, data)
+            setattr(config, spec.selectable_model_list_attr, model_list)
+            setattr(config, spec.selected_model_attr, selected_model)
+            model.commitTranslatorCredential(engine_key, candidate)
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine_key] = True
+            self.run(200, self.run_mapping[spec.run_mapping_selectable_key], model_list)
+            self.run(200, self.run_mapping[spec.run_mapping_selected_key], selected_model)
+            self.updateTranslationEngineAndEngineList()
+        return {"status": 200, "result": data}
+
 
     def _delTranslationEngineAuthKey(self, engine_key: str) -> dict:
-        spec = TRANSLATION_PROVIDER_REGISTRY[engine_key]
-        auth_keys = config.AUTH_KEYS
-        auth_keys[engine_key] = None
-        config.AUTH_KEYS = auth_keys
-        setattr(config, spec.selectable_model_list_attr, [])
-        setattr(config, spec.selected_model_attr, None)
-        self.run(200, self.run_mapping[spec.run_mapping_selectable_key], getattr(config, spec.selectable_model_list_attr))
-        self.run(200, self.run_mapping[spec.run_mapping_selected_key], getattr(config, spec.selected_model_attr))
-        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine_key] = False
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200, "result":config.AUTH_KEYS[engine_key]}
+        with config.credential_lock:
+            spec = TRANSLATION_PROVIDER_REGISTRY[engine_key]
+            config.updateCredential("AUTH_KEYS", engine_key, None)
+            setattr(config, spec.selectable_model_list_attr, [])
+            setattr(config, spec.selected_model_attr, None)
+            self.run(200, self.run_mapping[spec.run_mapping_selectable_key], getattr(config, spec.selectable_model_list_attr))
+            self.run(200, self.run_mapping[spec.run_mapping_selected_key], getattr(config, spec.selected_model_attr))
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine_key] = False
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.AUTH_KEYS[engine_key]}
+
 
     def _getTranslationEngineModelList(self, engine_key: str) -> dict:
         spec = self._resolveEngineSpec(engine_key)
@@ -3567,9 +4188,9 @@ class Controller:
                     data=getattr(config, spec.selected_model_attr)
                 )
         except Exception:
-            errorLogging()
+            errorLogging(provider=engine_key)
             # モデル SDK の例外詳細は UI に露出させず、選択失敗として
-            # 現在値を返す。traceback は errorLogging() に残す。
+            # 現在値を返す。診断ログには例外の種類と発生位置だけを残す。
             response = VRCTError.create_error_response(
                 spec.error_model_invalid,
                 data=getattr(config, spec.selected_model_attr),
@@ -3582,8 +4203,8 @@ class Controller:
         (LMStudio: `{"base_url": config.LMSTUDIO_URL}`、Ollama: `{}`)。
 
         接続 SDK の例外や、接続後に利用可能なモデルが無い場合も、UI には
-        `error_connection_failed` を返す。例外の詳細は errorLogging() に
-        記録し、レスポンスには含めない。
+        `error_connection_failed` を返す。診断ログには例外の種類と発生位置を
+        記録し、例外の本文はログにもレスポンスにも含めない。
         """
         spec = CONNECTION_PROVIDER_REGISTRY[engine_key]
         bindings = _ENGINE_MODEL_BINDINGS[engine_key]
@@ -3616,7 +4237,7 @@ class Controller:
                     data=False
                 )
         except Exception:
-            errorLogging()
+            errorLogging(provider=engine_key)
             config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine_key] = False
             setattr(config, spec.selectable_model_list_attr, [])
             setattr(config, spec.selected_model_attr, None)
@@ -3635,45 +4256,34 @@ class Controller:
 
     def setDeeplAuthKey(self, data, *args, **kwargs) -> dict:
         printLog("Set DeepL Auth Key")
-        translator_name = "DeepL_API"
+        engine = "DeepL_API"
         try:
             data = str(data)
-            if len(data) == 36 or len(data) == 39:
-                result = model.authenticationTranslatorDeepLAuthKey(auth_key=data)
-                if result is True:
-                    key = data
-                    auth_keys = config.AUTH_KEYS
-                    auth_keys[translator_name] = key
-                    config.AUTH_KEYS = auth_keys
-                    config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = True
-                    self.updateTranslationEngineAndEngineList()
-                    response = {"status":200, "result":config.AUTH_KEYS[translator_name]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.AUTH_DEEPL_FAILED,
-                        data=config.AUTH_KEYS[translator_name]
-                    )
-            else:
-                response = VRCTError.create_error_response(
-                    ErrorCode.AUTH_DEEPL_LENGTH,
-                    data=config.AUTH_KEYS[translator_name]
+            if len(data) not in (36, 39):
+                return VRCTError.create_error_response(
+                    ErrorCode.AUTH_DEEPL_LENGTH, data=config.AUTH_KEYS[engine],
                 )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=config.AUTH_KEYS[translator_name]
+            candidate = model.prepareTranslatorCredential(engine, data)
+        except Exception:
+            errorLogging(provider=engine)
+            return VRCTError.create_error_response(
+                ErrorCode.AUTH_DEEPL_FAILED, data=config.AUTH_KEYS[engine],
             )
-        return response
+        with config.credential_lock:
+            config.updateCredential("AUTH_KEYS", engine, data)
+            model.commitTranslatorCredential(engine, candidate)
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine] = True
+            self.updateTranslationEngineAndEngineList()
+        return {"status": 200, "result": data}
 
     def delDeeplAuthKey(self, *args, **kwargs) -> dict:
-        translator_name = "DeepL_API"
-        auth_keys = config.AUTH_KEYS
-        auth_keys[translator_name] = None
-        config.AUTH_KEYS = auth_keys
-        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200, "result":config.AUTH_KEYS[translator_name]}
+        with config.credential_lock:
+            translator_name = "DeepL_API"
+            config.updateCredential("AUTH_KEYS", translator_name, None)
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.AUTH_KEYS[translator_name]}
+
 
     def getPlamoAuthKey(self, *args, **kwargs) -> dict:
         return self._getTranslationEngineAuthKey("Plamo_API")
@@ -3773,6 +4383,11 @@ class Controller:
 
 
     def setTranslatorLMStudioURL(self, data, *args, **kwargs) -> dict:
+        try:
+            data = validate_api_url(data.strip() if isinstance(data, str) else data)
+        except ValueError:
+            return VRCTError.create_error_response(
+                ErrorCode.CONNECTION_LMSTUDIO_URL_INVALID, data=config.LMSTUDIO_URL)
         printLog("Set Translator LMStudio URL", data)
         translator_name = "LMStudio"
         try:
@@ -3804,7 +4419,7 @@ class Controller:
                     data=config.LMSTUDIO_URL
                 )
         except Exception:
-            errorLogging()
+            errorLogging(provider=translator_name)
             config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
             config.SELECTABLE_LMSTUDIO_MODEL_LIST = []
             config.SELECTED_LMSTUDIO_MODEL = None
@@ -3839,142 +4454,140 @@ class Controller:
     def getOpenAICompatibleAuthKey(*args, **kwargs) -> dict:
         return {"status":200, "result":config.AUTH_KEYS["OpenAI_Compatible"]}
 
+    def setOpenAICompatibleAuthKeyAndURL(self, data, *args, **kwargs) -> dict:
+        return self._setEndpointCredential("OpenAI_Compatible", data)
+
+    def _setEndpointCredential(self, engine, data):
+        """Authenticate the submitted URL/key pair before publishing either value."""
+        translation = engine == "OpenAI_Compatible"
+        map_name = "AUTH_KEYS" if translation else "TRANSCRIPTION_AUTH_KEYS"
+        url_name = "OPENAI_COMPATIBLE_URL" if translation else "TRANSCRIPTION_CUSTOM_URL"
+        prefix = "OPENAI_COMPATIBLE" if translation else "CUSTOM_WHISPER"
+        auth_error = ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED if translation else ErrorCode.TRANSCRIPTION_API_AUTH_FAILED
+        url_error = (ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID if translation
+                     else ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID)
+        if not isinstance(data, dict) or set(data) != {"url", "auth_key"}:
+            return VRCTError.create_error_response(auth_error, data=getattr(config, map_name)[engine])
+        try:
+            url = validate_api_url(data["url"].strip() if isinstance(data["url"], str) else data["url"])
+        except ValueError:
+            return VRCTError.create_error_response(url_error, data=getattr(config, url_name))
+        key = data["auth_key"]
+        if key is not None and not isinstance(key, str):
+            return VRCTError.create_error_response(auth_error, data=getattr(config, map_name)[engine])
+        key = (key.strip() or None) if isinstance(key, str) else None
+        with config.credential_lock:
+            previous = (getattr(config, url_name), getattr(config, map_name)[engine],
+                        getattr(config, f"SELECTED_{prefix}_MODEL"))
+        try:
+            if key and translation:
+                candidate = model.prepareTranslatorCredential(engine, key, selected_model=previous[2], base_url=url)
+            elif key:
+                if model.authenticationTranscriptionApiKey(api_key=key, base_url=url) is not True:
+                    raise ValueError("Credential authentication failed")
+                model_list = model.getTranscriptionApiModelList(api_key=key, base_url=url)
+                if not isinstance(model_list, list) or not model_list or any(
+                    not isinstance(name, str) or not name.strip() for name in model_list
+                ):
+                    raise ValueError("No supported models available")
+                model_list = list(model_list)
+                selected_model = previous[2] if previous[2] in model_list else model_list[0]
+        except Exception:
+            errorLogging(provider=engine)
+            return VRCTError.create_error_response(auth_error, data=getattr(config, map_name)[engine])
+        with config.credential_lock:
+            if previous != (getattr(config, url_name), getattr(config, map_name)[engine],
+                            getattr(config, f"SELECTED_{prefix}_MODEL")):
+                return VRCTError.create_error_response(auth_error, data=getattr(config, map_name)[engine])
+            setattr(config, url_name, url)
+            if key is None:
+                if translation:
+                    self.delOpenAICompatibleAuthKey()
+                else:
+                    self.delCustomWhisperAuthKey()
+            else:
+                config.updateCredential(map_name, engine, key)
+                if translation:
+                    self._commitOpenAICompatibleCandidate(candidate)
+                else:
+                    config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = model_list
+                    config.SELECTED_CUSTOM_WHISPER_MODEL = selected_model
+                    config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = True
+                    self.run(200, self.run_mapping["selectable_custom_whisper_model_list"], model_list)
+                    self.run(200, self.run_mapping["selected_custom_whisper_model"], selected_model)
+                    self.updateTranscriptionEngine()
+        return {"status": 200, "result": {"url": url, "auth_key": key}}
+
     def setOpenAICompatibleAuthKey(self, data, *args, **kwargs) -> dict:
         printLog("Set OpenAI Compatible Auth Key")
-        translator_name = "OpenAI_Compatible"
+        engine = "OpenAI_Compatible"
         try:
             data = str(data).strip()
-            if len(data) == 0:
-                response = VRCTError.create_error_response(
-                    ErrorCode.AUTH_OPENAI_COMPATIBLE_INVALID,
-                    data=None
+            if not data:
+                return VRCTError.create_error_response(
+                    ErrorCode.AUTH_OPENAI_COMPATIBLE_INVALID, data=config.AUTH_KEYS[engine],
                 )
-            else:
-                result = model.authenticationTranslatorOpenAICompatibleAuthKey(
-                    auth_key=data,
-                    base_url=config.OPENAI_COMPATIBLE_URL,
-                )
-                if result is True:
-                    model_list = model.getTranslatorOpenAICompatibleModelList()
-                    if len(model_list) == 0:
-                        response = VRCTError.create_error_response(
-                            ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED,
-                            data=None
-                        )
-                    else:
-                        auth_keys = config.AUTH_KEYS
-                        auth_keys[translator_name] = data
-                        config.AUTH_KEYS = auth_keys
-                        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = True
-                        config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = model_list
-                        self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
-                        if config.SELECTED_OPENAI_COMPATIBLE_MODEL not in config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST:
-                            config.SELECTED_OPENAI_COMPATIBLE_MODEL = config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST[0]
-                        model.setTranslatorOpenAICompatibleModel(model=config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                        self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                        model.updateTranslatorOpenAICompatibleClient()
-                        self.updateTranslationEngineAndEngineList()
-                        response = {"status":200, "result":config.AUTH_KEYS[translator_name]}
-                else:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED,
-                        data=None
-                    )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=None
+            base_url = config.OPENAI_COMPATIBLE_URL
+            previous_model = config.SELECTED_OPENAI_COMPATIBLE_MODEL
+            candidate = model.prepareTranslatorCredential(
+                engine, data, selected_model=previous_model,
+                base_url=base_url,
             )
-        if response["status"] == 400:
-            self.delOpenAICompatibleAuthKey()
-        return response
+        except Exception:
+            errorLogging(provider=engine)
+            return VRCTError.create_error_response(
+                ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED, data=config.AUTH_KEYS[engine],
+            )
+        with config.credential_lock:
+            # A related setting may change while the candidate is being checked.
+            if config.OPENAI_COMPATIBLE_URL != base_url or config.SELECTED_OPENAI_COMPATIBLE_MODEL != previous_model:
+                return VRCTError.create_error_response(
+                    ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED, data=config.AUTH_KEYS[engine],
+                )
+            config.updateCredential("AUTH_KEYS", engine, data)
+            self._commitOpenAICompatibleCandidate(candidate)
+        return {"status": 200, "result": data}
+
+    def _commitOpenAICompatibleCandidate(self, candidate):
+        """Publish prepared state while the caller holds credential_lock."""
+        _, model_list, selected_model = candidate
+        config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = model_list
+        config.SELECTED_OPENAI_COMPATIBLE_MODEL = selected_model
+        model.commitTranslatorCredential("OpenAI_Compatible", candidate)
+        config.SELECTABLE_TRANSLATION_ENGINE_STATUS["OpenAI_Compatible"] = True
+        self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], model_list)
+        self.run(200, self.run_mapping["selected_openai_compatible_model"], selected_model)
+        self.updateTranslationEngineAndEngineList()
 
     def delOpenAICompatibleAuthKey(self, *args, **kwargs) -> dict:
-        translator_name = "OpenAI_Compatible"
-        auth_keys = config.AUTH_KEYS
-        auth_keys[translator_name] = None
-        config.AUTH_KEYS = auth_keys
-        config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = []
-        config.SELECTED_OPENAI_COMPATIBLE_MODEL = None
-        self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
-        self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
-        self.updateTranslationEngineAndEngineList()
-        return {"status":200, "result":config.AUTH_KEYS[translator_name]}
+        with config.credential_lock:
+            translator_name = "OpenAI_Compatible"
+            config.updateCredential("AUTH_KEYS", translator_name, None)
+            config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = []
+            config.SELECTED_OPENAI_COMPATIBLE_MODEL = None
+            self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
+            self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
+            self.updateTranslationEngineAndEngineList()
+            return {"status":200, "result":config.AUTH_KEYS[translator_name]}
 
 
     def setOpenAICompatibleURL(self, data, *args, **kwargs) -> dict:
-        """URL 変更時は「認証成功後に URL を確定」する順序を守る。
-
-        Auth Key が未設定の場合は URL だけ保存して終わる（次回 Auth Key 入力時に検証される）。
-        """
-        printLog("Set OpenAI Compatible URL", data)
-        translator_name = "OpenAI_Compatible"
+        """Require explicit key entry before changing a credential's destination."""
         try:
-            data = str(data).strip()
-            if len(data) == 0:
+            data = validate_api_url(data.strip() if isinstance(data, str) else data)
+        except ValueError:
+            return VRCTError.create_error_response(
+                ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID, data=config.OPENAI_COMPATIBLE_URL)
+        printLog("Set OpenAI Compatible URL", data)
+        with config.credential_lock:
+            if data == config.OPENAI_COMPATIBLE_URL:
+                return {"status": 200, "result": config.OPENAI_COMPATIBLE_URL}
+            if config.AUTH_KEYS["OpenAI_Compatible"]:
                 return VRCTError.create_error_response(
-                    ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID,
-                    data=config.OPENAI_COMPATIBLE_URL
-                )
-
-            auth_key = config.AUTH_KEYS[translator_name]
-
-            if not auth_key:
-                # Auth Key 未設定：URL のみ更新して終了
-                config.OPENAI_COMPATIBLE_URL = data
-                return {"status":200, "result":config.OPENAI_COMPATIBLE_URL}
-
-            result = model.authenticationTranslatorOpenAICompatibleAuthKey(
-                auth_key=auth_key,
-                base_url=data,
-            )
-            if result is True:
-                model_list = model.getTranslatorOpenAICompatibleModelList()
-                if len(model_list) == 0:
-                    # URL は疎通したが翻訳可能モデルが 0 件
-                    config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
-                    config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = []
-                    config.SELECTED_OPENAI_COMPATIBLE_MODEL = None
-                    self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
-                    self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                    self.updateTranslationEngineAndEngineList()
-                    response = VRCTError.create_error_response(
-                        ErrorCode.AUTH_OPENAI_COMPATIBLE_FAILED,
-                        data=config.OPENAI_COMPATIBLE_URL
-                    )
-                else:
-                    config.OPENAI_COMPATIBLE_URL = data
-                    config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = True
-                    config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = model_list
-                    self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
-                    if config.SELECTED_OPENAI_COMPATIBLE_MODEL not in config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST:
-                        config.SELECTED_OPENAI_COMPATIBLE_MODEL = config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST[0]
-                    model.setTranslatorOpenAICompatibleModel(model=config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                    self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                    model.updateTranslatorOpenAICompatibleClient()
-                    self.updateTranslationEngineAndEngineList()
-                    response = {"status":200, "result":config.OPENAI_COMPATIBLE_URL}
-            else:
-                config.SELECTABLE_TRANSLATION_ENGINE_STATUS[translator_name] = False
-                config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST = []
-                config.SELECTED_OPENAI_COMPATIBLE_MODEL = None
-                self.run(200, self.run_mapping["selectable_openai_compatible_model_list"], config.SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST)
-                self.run(200, self.run_mapping["selected_openai_compatible_model"], config.SELECTED_OPENAI_COMPATIBLE_MODEL)
-                self.updateTranslationEngineAndEngineList()
-                response = VRCTError.create_error_response(
-                    ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID,
-                    data=config.OPENAI_COMPATIBLE_URL
-                )
-        except Exception as e:
-            errorLogging()
-            response = VRCTError.create_exception_error_response(
-                e,
-                data=config.OPENAI_COMPATIBLE_URL
-            )
-        return response
-
+                    ErrorCode.CREDENTIAL_REENTRY_REQUIRED, data=config.OPENAI_COMPATIBLE_URL)
+            config.OPENAI_COMPATIBLE_URL = data
+            return {"status": 200, "result": config.OPENAI_COMPATIBLE_URL}
 
 
     def setOpenAICompatibleModel(self, data, *args, **kwargs) -> dict:
@@ -3993,10 +4606,11 @@ class Controller:
                     data=config.SELECTED_OPENAI_COMPATIBLE_MODEL
                 )
         except Exception as e:
-            errorLogging()
+            errorLogging(provider="OpenAI_Compatible")
             response = VRCTError.create_exception_error_response(
                 e,
-                data=config.SELECTED_OPENAI_COMPATIBLE_MODEL
+                data=config.SELECTED_OPENAI_COMPATIBLE_MODEL,
+                provider="OpenAI_Compatible",
             )
         return response
 
@@ -4018,9 +4632,45 @@ class Controller:
 
 
     @staticmethod
-    def setCtranslate2WeightType(data, *args, **kwargs) -> dict:
-        config.CTRANSLATE2_WEIGHT_TYPE = str(data)
+    def _parseCtranslate2WeightRequest(data) -> tuple:
+        """Parse selection consent; acquisition uses the separate manifest consent."""
+        if isinstance(data, dict):
+            return str(data.get("weight_type")), data.get("accept_non_commercial_license") is True
+        return str(data), False
+
+    @staticmethod
+    def _ctranslate2LicenseConsentError(weight_type: str, accepted: bool) -> Optional[dict]:
+        """Error response when a non-commercial weight is requested without
+        the explicit opt-in, else None.
+
+        Keeping an existing selection is a no-op, including old NLLB defaults.
+        This exemption never authorizes acquisition; downloads use their own
+        model/manifest consent check.
+        """
+        if accepted or not isNonCommercialCTranslate2Weight(weight_type):
+            return None
+        if weight_type == config.CTRANSLATE2_WEIGHT_TYPE:
+            return None
+        return VRCTError.create_error_response(
+            ErrorCode.WEIGHT_CTRANSLATE2_LICENSE_CONSENT_REQUIRED,
+            data={"weight_type": weight_type, "selected": config.CTRANSLATE2_WEIGHT_TYPE},
+        )
+
+    def setCtranslate2WeightType(self, data, *args, **kwargs) -> dict:
+        weight_type, accepted = self._parseCtranslate2WeightRequest(data)
+        consent_error = self._ctranslate2LicenseConsentError(weight_type, accepted)
+        if consent_error is not None:
+            return consent_error
+        config.CTRANSLATE2_WEIGHT_TYPE = weight_type
+        if accepted and isNonCommercialCTranslate2Weight(config.CTRANSLATE2_WEIGHT_TYPE):
+            # The confirmation dialog already showed the license; the
+            # one-time startup notice would only repeat it.
+            config.CTRANSLATE2_LICENSE_NOTICE_SHOWN = True
         model.setChangedTranslatorParameters(True)
+        # Each weight has its own language table (M2M100 lacks e.g. Basque
+        # and Telugu, which NLLB has). Re-check the current selection now
+        # rather than letting the next translation fail on it.
+        self.updateTranslationEngineAndEngineList()
         return {"status":200, "result":config.CTRANSLATE2_WEIGHT_TYPE}
 
 
@@ -4086,33 +4736,57 @@ class Controller:
 
 
     @staticmethod
-    def syncOverlayRunning() -> None:
+    def syncOverlayRunning() -> bool:
         """字幕 (一行 / 複数行) と VR UI のどれかがONならオーバーレイを動かし、全部OFFなら止める。"""
-        model.setVrPanelEnabled(config.OVERLAY_VR_PANEL)
+        # VR UI を作れない OS では、保存済みの ON を無視する。作ろうとすると失敗して字幕も止まる。
+        vr_panel = config.OVERLAY_VR_PANEL and vrPanelSupported()
+        model.setVrPanelEnabled(vr_panel)
         model.setVrPanelLocked(config.OVERLAY_VR_PANEL_LOCKED)
         model.setVrLauncherAutoHide(config.OVERLAY_VR_LAUNCHER_AUTO_HIDE)
-        if config.OVERLAY_SMALL_LOG or config.OVERLAY_LARGE_LOG or config.OVERLAY_VR_PANEL:
-            model.startOverlay()
+        if config.OVERLAY_SMALL_LOG or config.OVERLAY_LARGE_LOG or vr_panel:
+            return model.startOverlay()
         else:
             model.shutdownOverlay()
+        return True
 
     @staticmethod
     def setEnableOverlaySmallLog(*args, **kwargs) -> dict:
         if config.OVERLAY_SMALL_LOG is False:
             config.OVERLAY_SMALL_LOG = True
-            Controller.syncOverlayRunning()
+            if Controller.syncOverlayRunning() is False or not config.OVERLAY_SMALL_LOG:
+                config.OVERLAY_SMALL_LOG = False
+                return VRCTError.create_error_response(ErrorCode.OVERLAY_RUNTIME_FAILED, data=False)
         return {"status":200, "result":config.OVERLAY_SMALL_LOG}
 
     @staticmethod
     def setDisableOverlaySmallLog(*args, **kwargs) -> dict:
         if config.OVERLAY_SMALL_LOG is True:
-            model.clearOverlayImageSmallLog()
             config.OVERLAY_SMALL_LOG = False
+            model.clearOverlayImageSmallLog()
             Controller.syncOverlayRunning()
         return {"status":200, "result":config.OVERLAY_SMALL_LOG}
 
 
+    # The desktop caption overlay is a window of the UI: the backend only keeps
+    # the switch and the look, and has nothing to start or stop.
     @staticmethod
+    def setEnableOverlayDesktop(*args, **kwargs) -> dict:
+        config.OVERLAY_DESKTOP = True
+        return {"status":200, "result":config.OVERLAY_DESKTOP}
+
+    @staticmethod
+    def setDisableOverlayDesktop(*args, **kwargs) -> dict:
+        config.OVERLAY_DESKTOP = False
+        return {"status":200, "result":config.OVERLAY_DESKTOP}
+
+    @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
+    def setOverlayDesktopSettings(data, *args, **kwargs) -> dict:
+        config.OVERLAY_DESKTOP_SETTINGS = data
+        return {"status":200, "result":config.OVERLAY_DESKTOP_SETTINGS}
+
+    @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
     def setOverlaySmallLogSettings(data, *args, **kwargs) -> dict:
         config.OVERLAY_SMALL_LOG_SETTINGS = data
         model.updateOverlaySmallLogSettings()
@@ -4123,22 +4797,29 @@ class Controller:
     def setEnableOverlayLargeLog(*args, **kwargs) -> dict:
         if config.OVERLAY_LARGE_LOG is False:
             config.OVERLAY_LARGE_LOG = True
-            Controller.syncOverlayRunning()
+            if Controller.syncOverlayRunning() is False or not config.OVERLAY_LARGE_LOG:
+                config.OVERLAY_LARGE_LOG = False
+                return VRCTError.create_error_response(ErrorCode.OVERLAY_RUNTIME_FAILED, data=False)
         return {"status":200, "result":config.OVERLAY_LARGE_LOG}
 
     @staticmethod
     def setDisableOverlayLargeLog(*args, **kwargs) -> dict:
         if config.OVERLAY_LARGE_LOG is True:
-            model.clearOverlayImageLargeLog()
             config.OVERLAY_LARGE_LOG = False
+            model.clearOverlayImageLargeLog()
             Controller.syncOverlayRunning()
         return {"status":200, "result":config.OVERLAY_LARGE_LOG}
 
     @staticmethod
     def setEnableOverlayVrPanel(*args, **kwargs) -> dict:
+        if not vrPanelSupported():
+            # 動いている字幕には触れずに断る。
+            return VRCTError.create_error_response(ErrorCode.OVERLAY_VR_PANEL_UNSUPPORTED, data=False)
         if config.OVERLAY_VR_PANEL is False:
             config.OVERLAY_VR_PANEL = True
-            Controller.syncOverlayRunning()
+            if Controller.syncOverlayRunning() is False or not config.OVERLAY_VR_PANEL:
+                config.OVERLAY_VR_PANEL = False
+                return VRCTError.create_error_response(ErrorCode.OVERLAY_RUNTIME_FAILED, data=False)
         return {"status":200, "result":config.OVERLAY_VR_PANEL}
 
     @staticmethod
@@ -4162,6 +4843,7 @@ class Controller:
 
 
     @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
     def setOverlayLargeLogSettings(data, *args, **kwargs) -> dict:
         config.OVERLAY_LARGE_LOG_SETTINGS = data
         model.updateOverlayLargeLogSettings()
@@ -4183,15 +4865,18 @@ class Controller:
 
     @staticmethod
     def setEnableSendMessageToVrc(*args, **kwargs) -> dict:
-        if config.SEND_MESSAGE_TO_VRC is False:
-            config.SEND_MESSAGE_TO_VRC = True
-        return {"status":200, "result":config.SEND_MESSAGE_TO_VRC}
+        with Controller._typing_lock:
+            if config.SEND_MESSAGE_TO_VRC is False:
+                config.SEND_MESSAGE_TO_VRC = True
+            return {"status":200, "result":config.SEND_MESSAGE_TO_VRC}
 
     @staticmethod
     def setDisableSendMessageToVrc(*args, **kwargs) -> dict:
-        if config.SEND_MESSAGE_TO_VRC is True:
-            config.SEND_MESSAGE_TO_VRC = False
-        return {"status":200, "result":config.SEND_MESSAGE_TO_VRC}
+        with Controller._typing_lock:
+            if config.SEND_MESSAGE_TO_VRC is True:
+                config.SEND_MESSAGE_TO_VRC = False
+            Controller.stopTypingMessageBox()
+            return {"status":200, "result":config.SEND_MESSAGE_TO_VRC}
 
 
     @staticmethod
@@ -4222,51 +4907,70 @@ class Controller:
         return {"status":200, "result":config.LOGGER_FEATURE}
 
 
-    @staticmethod
-    def setEnableVrcMicMuteSync(*args, **kwargs) -> dict:
-        if config.VRC_MIC_MUTE_SYNC is False:
-            if model.getIsOscQueryEnabled() is True:
+    def setEnableVrcMicMuteSync(self, *args, **kwargs) -> dict:
+        with _OSC_CONTROL_LOCK:
+            # Receiver setup may wait on networking. Never hold the mic lock here.
+            ready = model.getIsOscQueryEnabled() is True
+            with self._audioLock("mic"):
+                if not ready:
+                    return VRCTError.create_error_response(
+                        ErrorCode.VRC_MIC_MUTE_SYNC_OSC_DISABLED, data=config.VRC_MIC_MUTE_SYNC)
+                if config.VRC_MIC_MUTE_SYNC is True:
+                    return {"status": 200, "result": True}
                 config.VRC_MIC_MUTE_SYNC = True
-                model.setMuteSelfStatus()
+                generation = model.invalidateMuteSelfStatus()
                 model.changeMicTranscriptStatus()
-                response = {"status":200, "result":config.VRC_MIC_MUTE_SYNC}
-            else:
-                response = VRCTError.create_error_response(
-                    ErrorCode.VRC_MIC_MUTE_SYNC_OSC_DISABLED,
-                    data=config.VRC_MIC_MUTE_SYNC
-                )
-        else:
-            response = {"status":200, "result":config.VRC_MIC_MUTE_SYNC}
-        return response
+        if model.setMuteSelfStatus(generation) is True:
+            self._changeMicTranscriptStatusLocked()
+        return {"status": 200, "result": config.VRC_MIC_MUTE_SYNC}
 
-    @staticmethod
-    def setDisableVrcMicMuteSync(*args, **kwargs) -> dict:
-        if config.VRC_MIC_MUTE_SYNC is True:
-            config.VRC_MIC_MUTE_SYNC = False
-            model.changeMicTranscriptStatus()
-        return {"status":200, "result":config.VRC_MIC_MUTE_SYNC}
+    def setDisableVrcMicMuteSync(self, *args, **kwargs) -> dict:
+        with self._audioLock("mic"):
+            if config.VRC_MIC_MUTE_SYNC is True:
+                config.VRC_MIC_MUTE_SYNC = False
+                model.invalidateMuteSelfStatus()
+                model.changeMicTranscriptStatus()
+            return {"status": 200, "result": config.VRC_MIC_MUTE_SYNC}
 
-    def setEnableCheckSpeakerThreshold(self, *args, **kwargs) -> dict:
-        if config.ENABLE_CHECK_ENERGY_RECEIVE is False:
-            config.ENABLE_CHECK_ENERGY_RECEIVE = self.startCheckSpeakerEnergy()
-        return {"status":200, "result":config.ENABLE_CHECK_ENERGY_RECEIVE}
+    def setEnableCheckSpeakerThreshold(self, data=None, *args, **kwargs) -> dict:
+        with self._audioLock("speaker"):
+            if not config.ENABLE_CHECK_ENERGY_RECEIVE:
+                self._audioGeneration("speaker", advance=True)
+                config.ENABLE_CHECK_ENERGY_RECEIVE = True
+                try:
+                    config.ENABLE_CHECK_ENERGY_RECEIVE = self._startCheckSpeakerEnergyLocked()
+                except Exception:
+                    self._disableTranscriptionAfterPipelineErrorLocked("speaker")
+                    errorLogging()
+            return {"status": 200, "result": config.ENABLE_CHECK_ENERGY_RECEIVE}
 
-    def setDisableCheckSpeakerThreshold(self, *args, **kwargs) -> dict:
-        if config.ENABLE_CHECK_ENERGY_RECEIVE is True:
-            self.stopCheckSpeakerEnergy()
+    def setDisableCheckSpeakerThreshold(self, data=None, *args, **kwargs) -> dict:
+        with self._audioLock("speaker"):
+            self._audioGeneration("speaker", advance=True)
             config.ENABLE_CHECK_ENERGY_RECEIVE = False
-        return {"status":200, "result":config.ENABLE_CHECK_ENERGY_RECEIVE}
+            self._stopCheckSpeakerEnergyLocked()
+            return {"status": 200, "result": False}
 
-    def setEnableCheckMicThreshold(self, *args, **kwargs) -> dict:
-        if config.ENABLE_CHECK_ENERGY_SEND is False:
-            config.ENABLE_CHECK_ENERGY_SEND = self.startCheckMicEnergy()
-        return {"status":200, "result":config.ENABLE_CHECK_ENERGY_SEND}
 
-    def setDisableCheckMicThreshold(self, *args, **kwargs) -> dict:
-        if config.ENABLE_CHECK_ENERGY_SEND is True:
-            self.stopCheckMicEnergy()
+    def setEnableCheckMicThreshold(self, data=None, *args, **kwargs) -> dict:
+        with self._audioLock("mic"):
+            if not config.ENABLE_CHECK_ENERGY_SEND:
+                self._audioGeneration("mic", advance=True)
+                config.ENABLE_CHECK_ENERGY_SEND = True
+                try:
+                    config.ENABLE_CHECK_ENERGY_SEND = self._startCheckMicEnergyLocked()
+                except Exception:
+                    self._disableTranscriptionAfterPipelineErrorLocked("mic")
+                    errorLogging()
+            return {"status": 200, "result": config.ENABLE_CHECK_ENERGY_SEND}
+
+    def setDisableCheckMicThreshold(self, data=None, *args, **kwargs) -> dict:
+        with self._audioLock("mic"):
+            self._audioGeneration("mic", advance=True)
             config.ENABLE_CHECK_ENERGY_SEND = False
-        return {"status":200, "result":config.ENABLE_CHECK_ENERGY_SEND}
+            self._stopCheckMicEnergyLocked()
+            return {"status": 200, "result": False}
+
 
     @staticmethod
     def openFilepathLogs(*args, **kwargs) -> dict:
@@ -4278,71 +4982,176 @@ class Controller:
         Popen(['explorer', config.PATH_LOCAL.replace('/', '\\')], shell=False)
         return {"status":200, "result":True}
 
-    def setEnableTranscriptionSend(self, *args, **kwargs) -> dict:
-        if config.ENABLE_TRANSCRIPTION_SEND is False:
-            config.ENABLE_TRANSCRIPTION_SEND = self.startTranscriptionSendMessage()
-        return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
+    def setEnableTranscriptionSend(self, data=None, *args, **kwargs) -> dict:
+        if self._realtimeToggles():
+            return self._enableRealtimeToggle("mic", data)
+        with self._audioLock("mic"):
+            if config.SELECTED_TRANSCRIPTION_ENGINE is None:
+                return VRCTError.create_error_response(
+                    ErrorCode.TRANSCRIPTION_ENGINE_NOT_SELECTED, data=False)
+            if not config.ENABLE_TRANSCRIPTION_SEND:
+                self._audioGeneration("mic", advance=True)
+                config.ENABLE_TRANSCRIPTION_SEND = True
+                try:
+                    config.ENABLE_TRANSCRIPTION_SEND = self._startTranscriptionSendMessageLocked()
+                except Exception:
+                    self._disableTranscriptionAfterPipelineErrorLocked("mic")
+                    errorLogging()
+            return {"status": 200, "result": config.ENABLE_TRANSCRIPTION_SEND}
 
-    def setDisableTranscriptionSend(self, *args, **kwargs) -> dict:
-        if config.ENABLE_TRANSCRIPTION_SEND is True:
-            self.stopTranscriptionSendMessage()
+    def setDisableTranscriptionSend(self, data=None, *args, **kwargs) -> dict:
+        if not (isinstance(data, dict) and data.get("reason") == "settings_pause"):
+            model.message_delivery.revoke("mic")
+        if self._realtimeToggles():
+            self._noteRealtimePause("mic", data)
+        # A legacy recorder started before the server choice changed still stops as one.
+        if self._realtimeToggles() and not config.ENABLE_TRANSCRIPTION_SEND:
+            return self._disableRealtimeToggle("mic")
+        with self._audioLock("mic"):
+            self._audioGeneration("mic", advance=True)
             config.ENABLE_TRANSCRIPTION_SEND = False
-        return {"status":200, "result":config.ENABLE_TRANSCRIPTION_SEND}
+            self._stopTranscriptionSendMessageLocked()
+            return {"status": 200, "result": False}
 
-    def setEnableTranscriptionReceive(self, *args, **kwargs) -> dict:
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is False:
-            config.ENABLE_TRANSCRIPTION_RECEIVE = self.startTranscriptionReceiveMessage()
-        return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}
 
-    def setDisableTranscriptionReceive(self, *args, **kwargs) -> dict:
-        if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-            self.stopTranscriptionReceiveMessage()
+    def setEnableTranscriptionReceive(self, data=None, *args, **kwargs) -> dict:
+        if self._realtimeToggles():
+            return self._enableRealtimeToggle("speaker", data)
+        with self._audioLock("speaker"):
+            if config.SELECTED_TRANSCRIPTION_ENGINE is None:
+                return VRCTError.create_error_response(
+                    ErrorCode.TRANSCRIPTION_ENGINE_NOT_SELECTED, data=False)
+            if not config.ENABLE_TRANSCRIPTION_RECEIVE:
+                self._audioGeneration("speaker", advance=True)
+                config.ENABLE_TRANSCRIPTION_RECEIVE = True
+                try:
+                    config.ENABLE_TRANSCRIPTION_RECEIVE = self._startTranscriptionReceiveMessageLocked()
+                except Exception:
+                    self._disableTranscriptionAfterPipelineErrorLocked("speaker")
+                    errorLogging()
+            return {"status": 200, "result": config.ENABLE_TRANSCRIPTION_RECEIVE}
+
+    def setDisableTranscriptionReceive(self, data=None, *args, **kwargs) -> dict:
+        if not (isinstance(data, dict) and data.get("reason") == "settings_pause"):
+            model.message_delivery.revoke("speaker")
+        if self._realtimeToggles():
+            self._noteRealtimePause("speaker", data)
+        if self._realtimeToggles() and not config.ENABLE_TRANSCRIPTION_RECEIVE:
+            return self._disableRealtimeToggle("speaker")
+        with self._audioLock("speaker"):
+            self._audioGeneration("speaker", advance=True)
             config.ENABLE_TRANSCRIPTION_RECEIVE = False
-        return {"status":200, "result":config.ENABLE_TRANSCRIPTION_RECEIVE}
+            self._stopTranscriptionReceiveMessageLocked()
+            return {"status": 200, "result": False}
+
 
     def sendMessageBox(self, data, *args, **kwargs) -> dict:
         response = self.chatMessage(data)
         return response
 
+    # Typing endpoints and the output toggle run on different IPC workers.
+    _typing_lock = RLock()
+    _typing_active = False
+
     @staticmethod
     def typingMessageBox(*args, **kwargs) -> dict:
-        if config.SEND_MESSAGE_TO_VRC is True:
-            model.oscStartSendTyping()
+        with Controller._typing_lock:
+            if config.SEND_MESSAGE_TO_VRC is True:
+                model.oscStartSendTyping()
+                Controller._typing_active = True
         return {"status":200, "result":True}
 
     @staticmethod
     def stopTypingMessageBox(*args, **kwargs) -> dict:
-        if config.SEND_MESSAGE_TO_VRC is True:
-            model.oscStopSendTyping()
+        with Controller._typing_lock:
+            if Controller._typing_active:
+                model.oscStopSendTyping()
+                Controller._typing_active = False
         return {"status":200, "result":True}
 
     @staticmethod
     def sendTextOverlay(data, *args, **kwargs) -> dict:
         if config.OVERLAY_SMALL_LOG is True:
             if model.overlay.initialized is True:
+                current = model.overlayPublicationGuard("small")
                 overlay_image = model.createOverlayImageSmallMessage(data)
-                model.updateOverlaySmallLog(overlay_image)
+                if config.OVERLAY_SMALL_LOG and current():
+                    model.updateOverlaySmallLog(overlay_image, current=current)
 
         if config.OVERLAY_LARGE_LOG is True:
             if model.overlay.initialized is True:
+                current = model.overlayPublicationGuard("large")
                 overlay_image = model.createOverlayImageLargeMessage(data)
-                model.updateOverlayLargeLog(overlay_image)
+                if config.OVERLAY_LARGE_LOG and current():
+                    model.updateOverlayLargeLog(overlay_image, current=current)
         return {"status":200, "result":data}
 
 
+    # The notice a user answers once before any usage event is sent. Raise it when what is
+    # sent changes, so that everyone is told again.
+    TELEMETRY_NOTICE_VERSION = 1
+
+    @staticmethod
+    def _telemetryForcedOff() -> bool:
+        """VRCT_TELEMETRY=off: no usage event is sent and the notice is not asked, whatever the settings say.
+
+        For automated runs of the real app, and for anyone who wants it off from outside.
+        """
+        return os_environ.get("VRCT_TELEMETRY", "").strip().lower() == "off"
+
+    @staticmethod
+    def _telemetryAllowed() -> bool:
+        """Usage events may be sent: the setting is on and the user has answered the notice."""
+        return (not Controller._telemetryForcedOff() and config.ENABLE_TELEMETRY is True
+                and config.TELEMETRY_NOTICE >= Controller.TELEMETRY_NOTICE_VERSION)
+
     @staticmethod
     def setEnableTelemetry(*args, **kwargs) -> dict:
-        if config.ENABLE_TELEMETRY is False:
-            config.ENABLE_TELEMETRY = True
+        # Turning the setting on or off is an answer of its own: the notice is not asked again.
+        config.TELEMETRY_NOTICE = Controller.TELEMETRY_NOTICE_VERSION
+        config.ENABLE_TELEMETRY = True
+        if Controller._telemetryAllowed():
             model.telemetryInit(enabled=True, app_version=config.VERSION)
         return {"status":200, "result":config.ENABLE_TELEMETRY}
 
     @staticmethod
     def setDisableTelemetry(*args, **kwargs) -> dict:
+        config.TELEMETRY_NOTICE = Controller.TELEMETRY_NOTICE_VERSION
         if config.ENABLE_TELEMETRY is True:
             config.ENABLE_TELEMETRY = False
-            model.telemetryShutdown()
+        model.telemetryShutdown()
         return {"status":200, "result":config.ENABLE_TELEMETRY}
+
+    @staticmethod
+    def getTelemetryNotice(*args, **kwargs) -> dict:
+        """Whether the notice is still to be answered. Nothing is sent while it is."""
+        return {"status": 200, "result": {
+            "pending": (not Controller._telemetryForcedOff()
+                        and config.TELEMETRY_NOTICE < Controller.TELEMETRY_NOTICE_VERSION),
+            "enabled": config.ENABLE_TELEMETRY,
+        }}
+
+    @staticmethod
+    def getTelemetryPreview(*args, **kwargs) -> dict:
+        """What a usage event from this PC holds, for the user to read before and after choosing.
+
+        {"endpoint", "app_started": the event as it would be sent now, "sent": what was sent, oldest first}.
+        Answers while the notice is pending and while sending is off; nothing is sent by asking.
+        """
+        return {"status": 200, "result": model.telemetryPreview(app_version=config.VERSION)}
+
+    @staticmethod
+    def setTelemetryNotice(data, *args, **kwargs) -> dict:
+        """The user's answer to the notice, {"send": bool}. Sending starts only from here."""
+        if not isinstance(data, dict) or set(data) != {"send"} or type(data["send"]) is not bool:
+            return {"status": 400, "result": {"error_code": "telemetry_notice_invalid"}}
+        config.ENABLE_TELEMETRY = data["send"]
+        config.TELEMETRY_NOTICE = Controller.TELEMETRY_NOTICE_VERSION
+        if Controller._telemetryAllowed():
+            model.telemetryInit(enabled=True, app_version=config.VERSION)
+        else:
+            model.telemetryShutdown()
+        return Controller.getTelemetryNotice()
 
     @staticmethod
     def setEnableAutoDownloadModels(*args, **kwargs) -> dict:
@@ -4355,22 +5164,22 @@ class Controller:
         return {"status": 200, "result": config.AUTO_DOWNLOAD_MODELS}
 
     def swapYourLanguageAndTargetLanguage(self, *args, **kwargs) -> dict:
-        your_languages = config.SELECTED_YOUR_LANGUAGES
-        your_language_temp = your_languages[config.SELECTED_TAB_NO]["1"]
-
-        target_languages = config.SELECTED_TARGET_LANGUAGES
-        target_language_temp = target_languages[config.SELECTED_TAB_NO]["1"]
-
-        your_languages[config.SELECTED_TAB_NO]["1"] = target_language_temp
-        target_languages[config.SELECTED_TAB_NO]["1"] = your_language_temp
-
-        self.setSelectedYourLanguages(your_languages)
-        self.setSelectedTargetLanguages(target_languages)
-        return {
-            "status":200,
-            "result":{
-                "your":config.SELECTED_YOUR_LANGUAGES,
-                "target":config.SELECTED_TARGET_LANGUAGES,
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            your_languages = config.SELECTED_YOUR_LANGUAGES
+            target_languages = config.SELECTED_TARGET_LANGUAGES
+            tab = config.SELECTED_TAB_NO
+            your_languages[tab]["1"], target_languages[tab]["1"] = (
+                target_languages[tab]["1"], your_languages[tab]["1"]
+            )
+            config.setSelectedLanguages(your_languages, target_languages)
+            self._cancelMicVoice()
+            self.updateTranslationEngineAndEngineList()
+            return {
+                "status":200,
+                "result":{
+                    "your":config.SELECTED_YOUR_LANGUAGES,
+                    "target":config.SELECTED_TARGET_LANGUAGES,
                 }
             }
 
@@ -4403,45 +5212,74 @@ class Controller:
         th_start_update_cuda_software.start()
         return {"status":200, "result":True}
 
-    def downloadCtranslate2Weight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
-        weight_type = str(data)
-        download_ctranslate2 = self.DownloadCTranslate2(
-            self.run_mapping,
-            weight_type,
-            self.run
-            )
-
-        if asynchronous is True:
-            self.startThreadingDownloadCtranslate2Weight(
-                weight_type,
-                download_ctranslate2.progressBar,
-                download_ctranslate2.downloaded,
-                )
-        else:
-            model.downloadCTranslate2ModelWeight(weight_type, download_ctranslate2.progressBar, download_ctranslate2.downloaded)
-        model.downloadCTranslate2ModelTokenizer(weight_type)
-        return {"status":200, "result":True}
-
-    def downloadWhisperWeight(self, data:str, asynchronous:bool=True, *args, **kwargs) -> dict:
-        weight_type = str(data)
-        download_whisper = self.DownloadWhisper(
-            self.run_mapping,
-            weight_type,
-            self.run
+    @staticmethod
+    def _legacyDownloadConsentError(kind, data):
+        if recordLegacyConsent(config, kind, data):
+            return None
+        weight_type = data.get("weight_type") if isinstance(data, dict) else data
+        return VRCTError.create_error_response(
+            ErrorCode.WEIGHT_DOWNLOAD_CONSENT_REQUIRED,
+            data={"kind": kind, "weight_type": weight_type},
         )
-        if asynchronous is True:
-            self.startThreadingDownloadWhisperWeight(
-                weight_type,
-                download_whisper.progressBar,
-                download_whisper.downloaded,
-                )
-        else:
-            model.downloadWhisperModelWeight(weight_type, download_whisper.progressBar, download_whisper.downloaded)
-        return {"status":200, "result":True}
+
+    def _startupLegacyDownloadRequest(self, kind, weight_type):
+        request = consentedLegacyRequest(config, kind, weight_type)
+        if request is None:
+            response = VRCTError.create_error_response(
+                ErrorCode.WEIGHT_DOWNLOAD_CONSENT_REQUIRED,
+                data={"kind": kind, "weight_type": weight_type, "startup": True},
+            )
+            self.run(response["status"], self.run_mapping[f"error_{kind}_weight"], response["result"])
+        return request
+
+    def _legacyDownloads(self):
+        # Lazy fallback also supports model-free controller fixtures.
+        with _LEGACY_DOWNLOAD_OWNER_LOCK:
+            if getattr(self, "legacy_downloads", None) is None:
+                self.legacy_downloads = LegacyDownloads()
+            return self.legacy_downloads
+
+    def _downloadLegacyWeight(self, kind, data, asynchronous):
+        consent_error = self._legacyDownloadConsentError(kind, data)
+        if consent_error is not None:
+            return consent_error
+        weight_type = data["weight_type"]
+        notifier = (self.DownloadWhisper if kind == "whisper" else self.DownloadCTranslate2)(
+            self.run_mapping, weight_type, self.run)
+        owner = self._legacyDownloads()
+
+        def acquire(control):
+            if kind == "whisper":
+                downloaded = model.downloadWhisperModelWeight(weight_type, notifier.progressBar, control=control)
+                return downloaded is True and model.checkTranscriptionWhisperModelWeight(weight_type) is True
+            downloaded = model.downloadCTranslate2ModelWeight(weight_type, notifier.progressBar, control=control)
+            return downloaded is True and model.checkTranslatorCTranslate2ModelWeight(weight_type) is True
+
+        try:
+            owner.start((kind, weight_type), acquire, notifier.downloaded, job_id=notifier.job_id)
+        except Exception as exc:
+            # Rejected requests have one identified endpoint result, no worker notification.
+            return VRCTError.create_error_response(
+                ErrorCode.WEIGHT_WHISPER_DOWNLOAD if kind == "whisper" else ErrorCode.WEIGHT_CTRANSLATE2_DOWNLOAD,
+                data={"weight_type": weight_type, "job_id": notifier.job_id,
+                      "downloaded": False, "reason": str(exc),
+                      "active_job_id": owner.active_job((kind, weight_type))},
+            )
+        if not asynchronous:
+            owner.wait((kind, weight_type))
+        return {"status": 200, "result": {"weight_type": weight_type, "job_id": notifier.job_id}}
+
+    def downloadCtranslate2Weight(self, data:Any, asynchronous:bool=True, *args, **kwargs) -> dict:
+        return self._downloadLegacyWeight("ctranslate2", data, asynchronous)
+
+    def downloadWhisperWeight(self, data:Any, asynchronous:bool=True, *args, **kwargs) -> dict:
+        return self._downloadLegacyWeight("whisper", data, asynchronous)
 
     @staticmethod
-    def messageFormatter(format_type:str, translation:list, message:str) -> str:
-        if format_type == "RECEIVED":
+    def messageFormatter(format_type:str, translation:list, message:str, format_parts=None) -> str:
+        if format_parts is not None:
+            pass
+        elif format_type == "RECEIVED":
             format_parts = config.RECEIVED_MESSAGE_FORMAT_PARTS
         elif format_type == "SEND":
             format_parts = config.SEND_MESSAGE_FORMAT_PARTS
@@ -4463,70 +5301,99 @@ class Controller:
             osc_message = message_part
         return osc_message
 
-    def changeToCTranslate2Process(self) -> None:
-        selected_engines = config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
-        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[selected_engines] = False
-        # SELECTED_TRANSLATION_ENGINES は ValidatedProperty (生参照を返さない) なので
-        # read → 変更 → 再代入する必要がある。以前は config.X[...] = ... の直接代入で
-        # バリデータを一切通さずに内部状態を書き換えていた (P0-3 の生参照バグに依存していた
-        # 唯一の呼び出し箇所)。
-        engines = config.SELECTED_TRANSLATION_ENGINES
-        engines[config.SELECTED_TAB_NO] = "CTranslate2"
-        config.SELECTED_TRANSLATION_ENGINES = engines
-        selectable_engines = self.getTranslationEngines()["result"]
-        self.run(200, self.run_mapping["selected_translation_engines"], config.SELECTED_TRANSLATION_ENGINES)
-        self.run(200, self.run_mapping["translation_engines"], selectable_engines)
+    def changeToCTranslate2Process(self, snapshot=None) -> None:
+        with getattr(self, "_voice_settings_lock", nullcontext()), \
+                getattr(self, "_language_settings_lock", nullcontext()):
+            if snapshot is not None and (
+                    config.SELECTED_TAB_NO != snapshot.tab
+                    or config.SELECTED_TRANSLATION_ENGINES[snapshot.tab] != snapshot.engine
+                    or config.SELECTED_YOUR_LANGUAGES[snapshot.tab] != snapshot.your_languages
+                    or config.SELECTED_TARGET_LANGUAGES[snapshot.tab] != snapshot.target_languages):
+                # A late failure must not replace a newer language/engine selection.
+                return
+            selected_engines = config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
+            config.SELECTABLE_TRANSLATION_ENGINE_STATUS[selected_engines] = False
+            # SELECTED_TRANSLATION_ENGINES は ValidatedProperty (生参照を返さない) なので
+            # read → 変更 → 再代入する必要がある。以前は config.X[...] = ... の直接代入で
+            # バリデータを一切通さずに内部状態を書き換えていた (P0-3 の生参照バグに依存していた
+            # 唯一の呼び出し箇所)。
+            engines = config.SELECTED_TRANSLATION_ENGINES
+            engines[config.SELECTED_TAB_NO] = "CTranslate2"
+            config.SELECTED_TRANSLATION_ENGINES = engines
+            # Same reasoning as updateTranslationEngineAndEngineList(): if the
+            # CTranslate2 weight can't translate the current languages either,
+            # reset them (with a warning) instead of passing text through
+            # untranslated on every following message.
+            self.fallbackUnsupportedLanguagesForEngine(config.SELECTED_TAB_NO, "CTranslate2")
+            selectable_engines = self.getTranslationEngines()["result"]
+            self.run(200, self.run_mapping["selected_translation_engines"], config.SELECTED_TRANSLATION_ENGINES)
+            self.run(200, self.run_mapping["translation_engines"], selectable_engines)
 
     def startTranscriptionSendMessage(self) -> bool:
         with self.mic_lifecycle_lock:
-            self.stopRealtimeASR({"source": "mic"})
-            if not self._drainRealtimeASR("mic"):
-                return False
-            try:
-                started = model.startMicTranscript(self.micMessage)
-                if not started:
-                    config.ENABLE_TRANSCRIPTION_SEND = False
-                return started
-            except Exception as e:
-                # VRAM不足エラーの検出
-                is_vram_error, error_message = model.detectVRAMError(e)
-                if is_vram_error:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_VRAM_MIC,
-                        data=error_message
-                    )
+            return self._startTranscriptionSendMessageLocked()
+
+    def _startTranscriptionSendMessageLocked(self) -> bool:
+        if not config.ENABLE_TRANSCRIPTION_SEND:
+            return False
+        self._wireAudioSessionLocked("mic")
+        self.stopRealtimeASR({"source": "mic"})
+        if not self._drainRealtimeASR("mic"):
+            return False
+        try:
+            started = model.startMicTranscript(self.micMessage)
+            if not started:
+                config.ENABLE_TRANSCRIPTION_SEND = False
+                model.message_delivery.revoke("mic")
+            return started
+        except TranscriptionStartError as error:
+            config.ENABLE_TRANSCRIPTION_SEND = False
+            model.message_delivery.revoke("mic")
+            response = VRCTError.create_error_response(error.error_code, data=False)
+            self.run(response["status"], "/set/enable/transcription_send", response["result"])
+            return False
+        except Exception as e:
+            model.message_delivery.revoke("mic")
+            # VRAM不足エラーの検出
+            is_vram_error, error_message = model.detectVRAMError(e)
+            if is_vram_error:
+                response = VRCTError.create_error_response(
+                    ErrorCode.TRANSCRIPTION_VRAM_MIC,
+                    data=error_message
+                )
+                self.run(
+                    response["status"],
+                    self.run_mapping["error_transcription_mic_vram_overflow"],
+                    response["result"],
+                )
+                # ここでマイクの音声認識を停止。mic_lifecycle_lock を既に
+                # 保持しているため、ロックを取り直す公開版
+                # (stopTranscriptionSendMessage) ではなく内部版を呼ぶ。
+                self._stopTranscriptionSendMessageLocked()
+                # UI の状態同期は enable 通知ではなく、状態更新用の
+                # disable endpoint へ送る。_start() が先に構造化 pipeline
+                # error を通知していた場合は、micMessage() が既に config
+                # を False にしているため重複通知しない。
+                if config.ENABLE_TRANSCRIPTION_SEND is True:
                     self.run(
-                        response["status"],
-                        self.run_mapping["error_transcription_mic_vram_overflow"],
-                        response["result"],
+                        200,
+                        self.run_mapping.get(
+                            "disable_transcription_send",
+                            "/set/disable/transcription_send",
+                        ),
+                        False,
                     )
-                    # ここでマイクの音声認識を停止。mic_lifecycle_lock を既に
-                    # 保持しているため、ロックを取り直す公開版
-                    # (stopTranscriptionSendMessage) ではなく内部版を呼ぶ。
-                    self._stopTranscriptionSendMessageLocked()
-                    # UI の状態同期は enable 通知ではなく、状態更新用の
-                    # disable endpoint へ送る。_start() が先に構造化 pipeline
-                    # error を通知していた場合は、micMessage() が既に config
-                    # を False にしているため重複通知しない。
-                    if config.ENABLE_TRANSCRIPTION_SEND is True:
-                        self.run(
-                            200,
-                            self.run_mapping.get(
-                                "disable_transcription_send",
-                                "/set/disable/transcription_send",
-                            ),
-                            False,
-                        )
-                    config.ENABLE_TRANSCRIPTION_SEND = False
-                    return False
-                else:
-                    # その他のエラーは通常通り処理
-                    errorLogging()
-                    config.ENABLE_TRANSCRIPTION_SEND = False
-                    return False
+                config.ENABLE_TRANSCRIPTION_SEND = False
+                return False
+            else:
+                # その他のエラーは通常通り処理
+                errorLogging()
+                config.ENABLE_TRANSCRIPTION_SEND = False
+                return False
 
     def _stopTranscriptionSendMessageLocked(self) -> None:
         """mic_lifecycle_lock を既に保持している呼び出し元専用。"""
+        self._wireAudioSessionLocked("mic")
         model.stopMicTranscript()
 
     def stopTranscriptionSendMessage(self) -> None:
@@ -4535,51 +5402,66 @@ class Controller:
 
     def startTranscriptionReceiveMessage(self) -> bool:
         with self.speaker_lifecycle_lock:
-            self.stopRealtimeASR({"source": "speaker"})
-            if not self._drainRealtimeASR("speaker"):
-                return False
-            try:
-                started = model.startSpeakerTranscript(self.speakerMessage)
-                if not started:
-                    config.ENABLE_TRANSCRIPTION_RECEIVE = False
-                return started
-            except Exception as e:
-                # VRAM不足エラーの検出
-                is_vram_error, error_message = model.detectVRAMError(e)
-                if is_vram_error:
-                    response = VRCTError.create_error_response(
-                        ErrorCode.TRANSCRIPTION_VRAM_SPEAKER,
-                        data=error_message
-                    )
+            return self._startTranscriptionReceiveMessageLocked()
+
+    def _startTranscriptionReceiveMessageLocked(self) -> bool:
+        if not config.ENABLE_TRANSCRIPTION_RECEIVE:
+            return False
+        self._wireAudioSessionLocked("speaker")
+        self.stopRealtimeASR({"source": "speaker"})
+        if not self._drainRealtimeASR("speaker"):
+            return False
+        try:
+            started = model.startSpeakerTranscript(self.speakerMessage)
+            if not started:
+                config.ENABLE_TRANSCRIPTION_RECEIVE = False
+                model.message_delivery.revoke("speaker")
+            return started
+        except TranscriptionStartError as error:
+            config.ENABLE_TRANSCRIPTION_RECEIVE = False
+            model.message_delivery.revoke("speaker")
+            response = VRCTError.create_error_response(error.error_code, data=False)
+            self.run(response["status"], "/set/enable/transcription_receive", response["result"])
+            return False
+        except Exception as e:
+            model.message_delivery.revoke("speaker")
+            # VRAM不足エラーの検出
+            is_vram_error, error_message = model.detectVRAMError(e)
+            if is_vram_error:
+                response = VRCTError.create_error_response(
+                    ErrorCode.TRANSCRIPTION_VRAM_SPEAKER,
+                    data=error_message
+                )
+                self.run(
+                    response["status"],
+                    self.run_mapping["error_transcription_speaker_vram_overflow"],
+                    response["result"],
+                )
+                # ここでスピーカーの音声認識を停止 (内部版、詳細は
+                # startTranscriptionSendMessage 側のコメント参照)
+                self._stopTranscriptionReceiveMessageLocked()
+                # Mic と同様、UI の状態同期は disable endpoint に送る。
+                # pipeline error 経由で既に同期済みなら重複通知しない。
+                if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
                     self.run(
-                        response["status"],
-                        self.run_mapping["error_transcription_speaker_vram_overflow"],
-                        response["result"],
+                        200,
+                        self.run_mapping.get(
+                            "disable_transcription_receive",
+                            "/set/disable/transcription_receive",
+                        ),
+                        False,
                     )
-                    # ここでスピーカーの音声認識を停止 (内部版、詳細は
-                    # startTranscriptionSendMessage 側のコメント参照)
-                    self._stopTranscriptionReceiveMessageLocked()
-                    # Mic と同様、UI の状態同期は disable endpoint に送る。
-                    # pipeline error 経由で既に同期済みなら重複通知しない。
-                    if config.ENABLE_TRANSCRIPTION_RECEIVE is True:
-                        self.run(
-                            200,
-                            self.run_mapping.get(
-                                "disable_transcription_receive",
-                                "/set/disable/transcription_receive",
-                            ),
-                            False,
-                        )
-                    config.ENABLE_TRANSCRIPTION_RECEIVE = False
-                    return False
-                else:
-                    # その他のエラーは通常通り処理
-                    errorLogging()
-                    config.ENABLE_TRANSCRIPTION_RECEIVE = False
-                    return False
+                config.ENABLE_TRANSCRIPTION_RECEIVE = False
+                return False
+            else:
+                # その他のエラーは通常通り処理
+                errorLogging()
+                config.ENABLE_TRANSCRIPTION_RECEIVE = False
+                return False
 
     def _stopTranscriptionReceiveMessageLocked(self) -> None:
         """speaker_lifecycle_lock を既に保持している呼び出し元専用。"""
+        self._wireAudioSessionLocked("speaker")
         model.stopSpeakerTranscript()
 
     def stopTranscriptionReceiveMessage(self) -> None:
@@ -4592,8 +5474,10 @@ class Controller:
         開始できなければ、翻訳の TRANSLATION_DISABLED_VRAM と同じく
         OCR_DISABLED_* を /run/enable_ocr_capture へ送って False を返す。
         """
+        if getattr(self, "_ocr_shutting_down", False):
+            return False
         try:
-            return model.startOCRCapture(self.ocrMessage)
+            return model.startOCRCapture(self.ocrMessage, model_root=self._ocrModelRoot())
         except OcrStartError as e:
             error_code = e.error_code
         except Exception:
@@ -4610,6 +5494,81 @@ class Controller:
     @staticmethod
     def stopOcrCapture() -> None:
         model.stopOCRCapture()
+
+    def _ocrModelRoot(self):
+        downloads = getattr(self, "model_downloads", None)
+        return getattr(downloads, "root", None)
+
+    @staticmethod
+    def getOcrCaptureStatus(*args, **kwargs) -> dict:
+        """Read worker state only; never probe devices or load models for polling."""
+        pipeline = getattr(model, "ocr_pipeline", None)
+        active = bool(config.ENABLE_OCR_CAPTURE and pipeline is not None and pipeline.is_alive)
+        runtime = pipeline.runtimeStatus if active else {
+            "state": "stopped", "stage": None, "error_code": None, "detector": None}
+        active = active and runtime["state"] != "stopped"
+        capture = getattr(pipeline, "_capture", None) if active else None
+        return {"status": 200, "result": {
+            "active": active,
+            "source": getattr(capture, "source", None),
+            # Linux: "active" while a window the user shares is read, "ended" once it is gone.
+            "shared_window": getattr(capture, "sharedWindow", None),
+            "available_sources": ocr_capture.availableCaptureSources(),
+            **runtime,
+        }}
+
+    @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
+    def setOcrPortalRestoreToken(data, *args, **kwargs) -> dict:
+        """Remember what restores the shared window (Linux). The page sends what the desktop gave it.
+
+        Saving it starts nothing: the portal is only asked when the user presses the button.
+        """
+        config.OCR_PORTAL_RESTORE_TOKEN = data
+        return {"status": 200, "result": config.OCR_PORTAL_RESTORE_TOKEN}
+
+    @staticmethod
+    def getVrchatOscPresence(*args, **kwargs) -> dict:
+        """Whether a VRChat with OSC enabled is seen on this PC: "found", "not_found" or "unknown".
+
+        "Sent" in the log only means the message left; VRChat does not answer. This
+        is the nearest thing to a receipt, and the VRChat page and the quick settings
+        show it in words. "unknown" covers a destination on another machine.
+        """
+        return {"status": 200, "result": model.getVrchatOscPresence()}
+
+    def getOcrReadiness(self, *args, **kwargs) -> dict:
+        """What chat reading still needs before it can start (models, window).
+
+        The Config page shows this next to the download button, and the main
+        toggle reports the same reasons as OCR_DISABLED_* when it is turned on.
+        Probing the window opens and closes the X11 connection / finds the
+        HWND; it never captures a frame.
+        """
+        language = config.OCR_SOURCE_LANGUAGE
+        spec = ocr_languages.resolveModelSpec(language)
+        root = self._ocrModelRoot()
+        required = list(spec.model_ids) if spec is not None else []
+        missing = ocr_models.missingModels(root, spec) if spec is not None else []
+        try:
+            capture = ocr_capture.probeCapture(config.OCR_WINDOW_TITLE)
+        except Exception:
+            errorLogging()
+            capture = ocr_capture.CAPTURE_UNAVAILABLE
+        return {"status": 200, "result": {
+            "engine": ocr_engine.isAvailable(),
+            "language": language,
+            "language_supported": spec is not None,
+            "required_models": required,
+            "missing_models": missing,
+            "capture": capture,
+            "window_title": config.OCR_WINDOW_TITLE,
+            # Optional: VRCT-VOX's chatbox detector. Never a blocker for reading.
+            "detector_model": ocr_chatbox_detector.DETECTOR_MODEL_ID,
+            "detector_installed": ocr_chatbox_detector.isDetectorInstalled(root),
+            "detector_enabled": config.OCR_USE_CHATBOX_DETECTOR is True,
+            "runtime": model.getOCRRuntime(),
+        }}
 
     @staticmethod
     def replaceExclamationsWithRandom(text):
@@ -4665,6 +5624,10 @@ class Controller:
             config.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_DICT[weight_type] = model.checkTranslatorCTranslate2ModelWeight(weight_type)
 
     def updateTranslationEngineAndEngineList(self):
+        with getattr(self, "_language_settings_lock", nullcontext()):
+            self._updateTranslationEngineAndEngineListLocked()
+
+    def _updateTranslationEngineAndEngineListLocked(self):
         engines = config.SELECTED_TRANSLATION_ENGINES
         engine = engines[config.SELECTED_TAB_NO]
         selectable_engines = self.getTranslationEngines()["result"]
@@ -4725,9 +5688,11 @@ class Controller:
             for target_language in target_languages[tab_no].values()
             if target_language["enable"] is True
         }
+        reset_languages = []
         if not model.isLanguageSupportedByEngine(engine, your_language["language"]):
             default = model.pickDefaultLanguageForEngine(engine, enabled_target_languages)
             if default is not None:
+                reset_languages.append(your_language["language"])
                 your_languages[tab_no]["1"] = {**default, "enable": True}
                 config.SELECTED_YOUR_LANGUAGES = your_languages
                 changed = True
@@ -4746,6 +5711,7 @@ class Controller:
                 continue
             default = model.pickDefaultLanguageForEngine(engine, taken_languages)
             if default is not None:
+                reset_languages.append(target_language["language"])
                 target_language["language"] = default["language"]
                 target_language["country"] = default["country"]
                 target_changed = True
@@ -4757,8 +5723,42 @@ class Controller:
         if changed:
             self.run(200, self.run_mapping["selected_your_languages"], config.SELECTED_YOUR_LANGUAGES)
             self.run(200, self.run_mapping["selected_target_languages"], config.SELECTED_TARGET_LANGUAGES)
+            self._notifyUnsupportedLanguagesReset(engine, reset_languages)
 
         return changed
+
+    def _notifyUnsupportedLanguagesReset(self, engine: str, languages: list) -> None:
+        """Tell the user which languages were reset and why. Without this
+        the language dropdown just changes, which looks like a UI glitch
+        (most visibly after switching from an NLLB weight to M2M100)."""
+        endpoint = self.run_mapping.get("translation_language_unsupported")
+        if endpoint is None or not languages:
+            return
+        error_response = VRCTError.create_error_response(
+            ErrorCode.TRANSLATION_LANGUAGE_UNSUPPORTED,
+            data={
+                "engine": engine,
+                "weight_type": config.CTRANSLATE2_WEIGHT_TYPE if engine == "CTranslate2" else None,
+                "languages": list(dict.fromkeys(languages)),
+            },
+        )
+        self.run(error_response["status"], endpoint, error_response["result"])
+
+    def notifyNonCommercialCTranslate2Weight(self) -> None:
+        """One-time notice for a non-commercial weight saved by an older
+        version. Before M2M100 became the default, every install was given
+        nllb-200-distilled-600M (CC-BY-NC-4.0) without being asked, so the
+        saved value usually isn't an informed choice. The setting itself is
+        kept; this only tells the user and points at Config -> Translation."""
+        weight_type = config.CTRANSLATE2_WEIGHT_TYPE
+        if config.CTRANSLATE2_LICENSE_NOTICE_SHOWN is True or not isNonCommercialCTranslate2Weight(weight_type):
+            return
+        error_response = VRCTError.create_error_response(
+            ErrorCode.WEIGHT_CTRANSLATE2_NON_COMMERCIAL_NOTICE,
+            data={"weight_type": weight_type, "license": ctranslate2_weights[weight_type]["license"]},
+        )
+        self.run(error_response["status"], self.run_mapping["ctranslate2_license_notice"], error_response["result"])
+        config.CTRANSLATE2_LICENSE_NOTICE_SHOWN = True
 
     def updateDownloadedWhisperModelWeight(self) -> None:
         # キャッシュされた結果を使用（起動時の重複チェックを回避）
@@ -4774,51 +5774,10 @@ class Controller:
             config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[weight_type] = model.checkTranscriptionWhisperModelWeight(weight_type)
 
     def updateTranscriptionEngine(self, requested_engine: Optional[str] = None) -> None:
-        """SELECTED_TRANSCRIPTION_ENGINE を検証・更新する。
-
-        `requested_engine` を渡すと、まずそれを希望値として設定してから
-        検証する (setSelectedTranscriptionEngine からの明示的な変更用。
-        setSelectedTranslationEngines() -> updateTranslationEngineAndEngineList()
-        と同じパターン)。渡さなければ現在の値をそのまま検証する
-        (キー無効化等による自動フォールバック用。controller.init() や
-        setGroqWhisperAuthKey/delDeepgramAuthKey 等、多数の呼び出し元から
-        使われる)。
-
-        エンジンが実際に変化した場合、文字起こしエンジンごとに対応言語が
-        異なりうるため (Deepgram等)、選択中の言語をフォールバックさせ、
-        更新後の言語一覧を毎回 selectable_language_list でUIへpushする。
-        呼び出し元ごとに重複させず、「エンジンが変わる場所」であるここ
-        一箇所に集約することで、どの経路でエンジンが変わっても確実に
-        UIの言語リストが追従するようにする。
-        """
+        """Apply explicit selections only; availability never changes consent."""
         previous_engine = config.SELECTED_TRANSCRIPTION_ENGINE
         if requested_engine is not None:
             config.SELECTED_TRANSCRIPTION_ENGINE = requested_engine
-
-        weight_type = config.WHISPER_WEIGHT_TYPE
-        weight_type_dict = config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT
-        weight_available = bool(weight_type_dict.get(weight_type))
-        current_engine = config.SELECTED_TRANSCRIPTION_ENGINE
-        selected_engines = [key for key, value in config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS.items() if value is True]
-
-        # 選択可能なエンジンがなければ、Whisper に変更
-        if current_engine in {"Whisper", "Google"}:
-            if current_engine not in selected_engines:
-                if weight_available:
-                    alternate = "Google" if current_engine == "Whisper" else "Whisper"
-                    config.SELECTED_TRANSCRIPTION_ENGINE = alternate if alternate in selected_engines else None
-                else:
-                    config.SELECTED_TRANSCRIPTION_ENGINE = "Whisper"
-        elif current_engine in TRANSCRIPTION_API_ENGINES or current_engine == "Deepgram":
-            # Groq/OpenAI/カスタムサーバー/Deepgramはキー無効化等で使えなく
-            # なった場合のみ、ローカル Whisper (オフラインで最も安定) へ
-            # フォールバックする。まだ有効なら維持する (この elif が無いと
-            # 下の else に落ちて、新エンジンを選択した直後にここが呼ばれる
-            # たびに意図せず Whisper へ巻き戻ってしまう)。
-            if current_engine not in selected_engines:
-                config.SELECTED_TRANSCRIPTION_ENGINE = "Whisper"
-        else:
-            config.SELECTED_TRANSCRIPTION_ENGINE = "Whisper"
 
         if config.SELECTED_TRANSCRIPTION_ENGINE != previous_engine:
             self.fallbackUnsupportedLanguagesForTranscriptionEngine(config.SELECTED_TRANSCRIPTION_ENGINE)
@@ -4826,43 +5785,49 @@ class Controller:
 
     def startCheckMicEnergy(self) -> bool:
         with self.mic_lifecycle_lock:
-            with self._realtime_lock:
-                if self._realtime_requested["mic"]:
-                    return False
-            if not self._drainRealtimeASR("mic"):
+            return self._startCheckMicEnergyLocked()
+
+    def _startCheckMicEnergyLocked(self) -> bool:
+        if not config.ENABLE_CHECK_ENERGY_SEND:
+            return False
+        self._wireAudioSessionLocked("mic")
+        with self._realtime_lock:
+            if self._realtime_requested["mic"]:
                 return False
-            model.startCheckMicEnergy(self.progressBarMicEnergy)
-            return True
+        if not self._drainRealtimeASR("mic"):
+            return False
+        return model.startCheckMicEnergy(self.progressBarMicEnergy)
 
     def stopCheckMicEnergy(self) -> None:
         with self.mic_lifecycle_lock:
-            model.stopCheckMicEnergy()
+            return self._stopCheckMicEnergyLocked()
+
+    def _stopCheckMicEnergyLocked(self) -> None:
+        self._wireAudioSessionLocked("mic")
+        model.stopCheckMicEnergy()
 
     def startCheckSpeakerEnergy(self) -> bool:
         with self.speaker_lifecycle_lock:
-            with self._realtime_lock:
-                if self._realtime_requested["speaker"]:
-                    return False
-            if not self._drainRealtimeASR("speaker"):
+            return self._startCheckSpeakerEnergyLocked()
+
+    def _startCheckSpeakerEnergyLocked(self) -> bool:
+        if not config.ENABLE_CHECK_ENERGY_RECEIVE:
+            return False
+        self._wireAudioSessionLocked("speaker")
+        with self._realtime_lock:
+            if self._realtime_requested["speaker"]:
                 return False
-            model.startCheckSpeakerEnergy(self.progressBarSpeakerEnergy)
-            return True
+        if not self._drainRealtimeASR("speaker"):
+            return False
+        return model.startCheckSpeakerEnergy(self.progressBarSpeakerEnergy)
 
     def stopCheckSpeakerEnergy(self) -> None:
         with self.speaker_lifecycle_lock:
-            model.stopCheckSpeakerEnergy()
+            return self._stopCheckSpeakerEnergyLocked()
 
-    @staticmethod
-    def startThreadingDownloadCtranslate2Weight(weight_type:str, callback:Callable[[float], None], end_callback:Optional[Callable[..., None]] = None) -> None:
-        th_download = Thread(target=model.downloadCTranslate2ModelWeight, args=(weight_type, callback, end_callback))
-        th_download.daemon = True
-        th_download.start()
-
-    @staticmethod
-    def startThreadingDownloadWhisperWeight(weight_type:str, callback:Callable[[float], None], end_callback:Optional[Callable[..., None]] = None) -> None:
-        th_download = Thread(target=model.downloadWhisperModelWeight, args=(weight_type, callback, end_callback))
-        th_download.daemon = True
-        th_download.start()
+    def _stopCheckSpeakerEnergyLocked(self) -> None:
+        self._wireAudioSessionLocked("speaker")
+        model.stopCheckSpeakerEnergy()
 
     @staticmethod
     def startWatchdog(*args, **kwargs) -> dict:
@@ -4886,6 +5851,31 @@ class Controller:
 
 
     @staticmethod
+    def _restoreWebSocketServer(*, restore_obs: bool = False) -> None:
+        """ホストやポートの変更に失敗したあと、元のアドレスでサーバーを立て直す。
+
+        止めている間に元のポートをほかのプロセスが取ると、立て直しも失敗する。そのときは
+        WebSocket と、それに頼る OBS ブラウザソースをオフにする。オンのまま残すと、
+        有効と表示されたまま何も配信しない。UI はエラーを受けてこの2つを読み直す。
+        """
+        if model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT):
+            if restore_obs:
+                Controller._restoreObsBrowserSourceServer()
+            return
+        printLog("WebSocket server could not be restored on its previous address")
+        if config.OBS_BROWSER_SOURCE is True:
+            config.OBS_BROWSER_SOURCE = False
+            model.stopObsBrowserSourceServer()
+        config.WEBSOCKET_SERVER = False
+
+    @staticmethod
+    def _restoreObsBrowserSourceServer() -> None:
+        """Restore the saved OBS address, or expose the failed restore as off."""
+        if not model.startObsBrowserSourceServer(config.WEBSOCKET_HOST, config.OBS_BROWSER_SOURCE_PORT):
+            model.stopObsBrowserSourceServer()
+            config.OBS_BROWSER_SOURCE = False
+
+    @staticmethod
     def setWebSocketHost(data, *args, **kwargs) -> dict:
         # 0.0.0.0/:: (ワイルドカードアドレス) は「マシンが持つ全インター
         # フェースで listen する」ことを意味し、WebSocket サーバーは
@@ -4893,13 +5883,15 @@ class Controller:
         # 到達性まで許してしまう。特定の LAN IP を明示的に選ぶのとは
         # リスクの性質が異なるため、他の IP 検証と分けて拒否する。
         try:
-            if isValidIpAddress(data) is False or isWildcardBindAddress(data) is True:
+            if not isValidWebSocketHost(data):
                 response = VRCTError.create_error_response(
                     ErrorCode.VALIDATION_INVALID_IP,
                     data=config.WEBSOCKET_HOST
                 )
             else:
                 if model.checkWebSocketServerAlive() is False:
+                    # Also cancel an attempt still binding the previous address.
+                    model.stopWebSocketServer()
                     config.WEBSOCKET_HOST = data
                     response = {"status":200, "result":config.WEBSOCKET_HOST}
                 else:
@@ -4907,14 +5899,29 @@ class Controller:
                         response = {"status":200, "result":config.WEBSOCKET_HOST}
                     elif isAvailableWebSocketServer(data, config.WEBSOCKET_PORT):
                         model.stopWebSocketServer()
-                        model.startWebSocketServer(data, config.WEBSOCKET_PORT)
-                        config.WEBSOCKET_HOST = data
+                        if not model.startWebSocketServer(data, config.WEBSOCKET_PORT):
+                            # 新しいアドレスで bind できなかった。元のアドレスで立て直す
+                            Controller._restoreWebSocketServer()
+                            return VRCTError.create_error_response(
+                                ErrorCode.WEBSOCKET_HOST_INVALID,
+                                data=config.WEBSOCKET_HOST
+                            )
                         # The OBS overlay's HTTP server must stay bound to the
                         # same host the WebSocket server now listens on, or the
                         # overlay page it serves will point at a dead address.
                         if config.OBS_BROWSER_SOURCE is True:
                             model.stopObsBrowserSourceServer()
-                            model.startObsBrowserSourceServer(data, int(config.OBS_BROWSER_SOURCE_PORT))
+                            if not model.startObsBrowserSourceServer(data, int(config.OBS_BROWSER_SOURCE_PORT)):
+                                model.stopObsBrowserSourceServer()
+                                model.stopWebSocketServer()
+                                Controller._restoreWebSocketServer(restore_obs=True)
+                                return VRCTError.create_error_response(
+                                    ErrorCode.OBS_BROWSER_SOURCE_HOST_UNAVAILABLE,
+                                    data=config.WEBSOCKET_HOST,
+                                )
+                        # Commit only once both listeners are ready. Rollback
+                        # above uses the unchanged, previously saved address.
+                        config.WEBSOCKET_HOST = data
                         response = {"status":200, "result":config.WEBSOCKET_HOST}
                     else:
                         response = VRCTError.create_error_response(
@@ -4933,17 +5940,16 @@ class Controller:
 
     @staticmethod
     def setWebSocketPort(data, *args, **kwargs) -> dict:
-        try:
-            port = int(data)
-        except Exception:
+        if not isValidPort(data):
             return VRCTError.create_error_response(
                 ErrorCode.WEBSOCKET_PORT_INVALID,
                 data=config.WEBSOCKET_PORT,
-                custom_message="WebSocket port must be a number",
             )
+        port = data
 
         try:
             if model.checkWebSocketServerAlive() is False:
+                model.stopWebSocketServer()
                 config.WEBSOCKET_PORT = port
                 response = {"status":200, "result":config.WEBSOCKET_PORT}
             else:
@@ -4951,9 +5957,16 @@ class Controller:
                     return {"status":200, "result":config.WEBSOCKET_PORT}
                 elif isAvailableWebSocketServer(config.WEBSOCKET_HOST, port) is True:
                     model.stopWebSocketServer()
-                    model.startWebSocketServer(config.WEBSOCKET_HOST, port)
-                    config.WEBSOCKET_PORT = port
-                    response = {"status":200, "result":config.WEBSOCKET_PORT}
+                    if model.startWebSocketServer(config.WEBSOCKET_HOST, port):
+                        config.WEBSOCKET_PORT = port
+                        response = {"status":200, "result":config.WEBSOCKET_PORT}
+                    else:
+                        # 新しいポートで bind できなかった。元のポートで立て直す
+                        Controller._restoreWebSocketServer()
+                        response = VRCTError.create_error_response(
+                            ErrorCode.WEBSOCKET_PORT_UNAVAILABLE,
+                            data=config.WEBSOCKET_PORT
+                        )
                 else:
                     response = VRCTError.create_error_response(
                         ErrorCode.WEBSOCKET_PORT_UNAVAILABLE,
@@ -4984,8 +5997,10 @@ class Controller:
     def setEnableWebSocketServer(*args, **kwargs) -> dict:
         try:
             if config.WEBSOCKET_SERVER is False:
-                if isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True:
-                    model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                if (
+                    isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True
+                    and model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                ):
                     config.WEBSOCKET_SERVER = True
                     response = {"status":200, "result":config.WEBSOCKET_SERVER}
                 else:
@@ -5014,7 +6029,9 @@ class Controller:
                 config.OBS_BROWSER_SOURCE = False
                 model.stopObsBrowserSourceServer()
             config.WEBSOCKET_SERVER = False
-            model.stopWebSocketServer()
+        # The config remains False until startup succeeds. Stop must reach an
+        # in-flight enable too (including one requested by OBS).
+        model.stopWebSocketServer()
         return {"status":200, "result":config.WEBSOCKET_SERVER}
 
     # OBS Browser Source (local overlay for OBS)
@@ -5024,37 +6041,55 @@ class Controller:
         if config.OBS_BROWSER_SOURCE is True:
             return {"status":200, "result":config.OBS_BROWSER_SOURCE}
 
-        # OBS overlay depends on the WebSocket server to receive messages.
-        if model.checkWebSocketServerAlive() is False:
-            if isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True:
-                model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
-                config.WEBSOCKET_SERVER = True
-            else:
+        # The dispatcher holds the shared OBS/WebSocket lifecycle lock. No
+        # other IPC operation can acquire this attempt's WebSocket before its
+        # cleanup; an already running WebSocket remains independently owned.
+        started_websocket = False
+        obs_attempted = False
+        try:
+            if model.checkWebSocketServerAlive() is False:
+                if (
+                    isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is not True
+                    or not model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+                ):
+                    return VRCTError.create_error_response(
+                        ErrorCode.WEBSOCKET_SERVER_UNAVAILABLE,
+                        data=config.OBS_BROWSER_SOURCE,
+                    )
+                started_websocket = True
+
+            obs_host = config.WEBSOCKET_HOST
+            obs_port = int(config.OBS_BROWSER_SOURCE_PORT)
+
+            if isAvailableWebSocketServer(obs_host, obs_port) is not True:
+                return VRCTError.create_error_response(
+                    ErrorCode.OBS_BROWSER_SOURCE_PORT_UNAVAILABLE,
+                    data=config.OBS_BROWSER_SOURCE,
+                )
+
+            obs_attempted = True
+            if not model.startObsBrowserSourceServer(obs_host, obs_port):
                 return VRCTError.create_error_response(
                     ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE,
                     data=config.OBS_BROWSER_SOURCE,
-                    custom_message="WebSocket server host or port is not available",
                 )
 
-        obs_host = config.WEBSOCKET_HOST
-        obs_port = int(config.OBS_BROWSER_SOURCE_PORT)
-
-        if isAvailableWebSocketServer(obs_host, obs_port) is not True:
-            return VRCTError.create_error_response(
-                ErrorCode.OBS_BROWSER_SOURCE_PORT_UNAVAILABLE,
-                data=config.OBS_BROWSER_SOURCE_PORT
-            )
-
-        model.startObsBrowserSourceServer(obs_host, obs_port)
-
-        if model.checkObsBrowserSourceServerAlive() is not True:
+            config.WEBSOCKET_SERVER = True
+            config.OBS_BROWSER_SOURCE = True
+            return {"status":200, "result":config.OBS_BROWSER_SOURCE}
+        except Exception:
+            errorLogging()
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE,
-                data=config.OBS_BROWSER_SOURCE
+                data=config.OBS_BROWSER_SOURCE,
             )
-
-        config.OBS_BROWSER_SOURCE = True
-        return {"status":200, "result":config.OBS_BROWSER_SOURCE}
+        finally:
+            if config.OBS_BROWSER_SOURCE is not True:
+                if obs_attempted:
+                    model.stopObsBrowserSourceServer()
+                if started_websocket:
+                    model.stopWebSocketServer()
+                    config.WEBSOCKET_SERVER = False
 
     @staticmethod
     def setDisableObsBrowserSource(*args, **kwargs) -> dict:
@@ -5066,14 +6101,12 @@ class Controller:
 
     @staticmethod
     def setObsBrowserSourcePort(data, *args, **kwargs) -> dict:
-        try:
-            port = int(data)
-        except Exception:
+        if not isValidPort(data):
             return VRCTError.create_error_response(
-                ErrorCode.OBS_BROWSER_SOURCE_PORT_UNAVAILABLE,
+                ErrorCode.OBS_BROWSER_SOURCE_PORT_INVALID,
                 data=config.OBS_BROWSER_SOURCE_PORT,
-                custom_message="OBS Browser Source port must be a number",
             )
+        port = data
 
         if model.checkObsBrowserSourceServerAlive() is not True:
             config.OBS_BROWSER_SOURCE_PORT = port
@@ -5089,12 +6122,12 @@ class Controller:
             )
 
         model.stopObsBrowserSourceServer()
-        model.startObsBrowserSourceServer(config.WEBSOCKET_HOST, port)
-        if model.checkObsBrowserSourceServerAlive() is not True:
-            config.OBS_BROWSER_SOURCE = False
+        if not model.startObsBrowserSourceServer(config.WEBSOCKET_HOST, port):
+            model.stopObsBrowserSourceServer()
+            Controller._restoreObsBrowserSourceServer()
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE,
-                data=config.OBS_BROWSER_SOURCE
+                data=config.OBS_BROWSER_SOURCE_PORT,
             )
 
         config.OBS_BROWSER_SOURCE_PORT = port
@@ -5126,12 +6159,12 @@ class Controller:
 
     def setObsBrowserSourceMaxMessages(self, data, *args, **kwargs) -> dict:
         try:
-            value = int(data)
-        except Exception:
+            value = parse_numeric_setting("MAX_MESSAGES", data)
+        except (ValueError, TypeError):
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_MAX_MESSAGES_INVALID,
                 data=config.OBS_BROWSER_SOURCE_MAX_MESSAGES,
-                custom_message="OBS Browser Source max messages must be a number",
+                custom_message="Enter a whole number from 1 to 50",
             )
         config.OBS_BROWSER_SOURCE_MAX_MESSAGES = value
         self._pushObsBrowserSourceSettings()
@@ -5140,12 +6173,12 @@ class Controller:
 
     def setObsBrowserSourceDisplayDuration(self, data, *args, **kwargs) -> dict:
         try:
-            value = int(data)
-        except Exception:
+            value = parse_numeric_setting("DISPLAY_DURATION", data)
+        except (ValueError, TypeError):
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_DISPLAY_DURATION_INVALID,
                 data=config.OBS_BROWSER_SOURCE_DISPLAY_DURATION,
-                custom_message="OBS Browser Source display duration must be a number",
+                custom_message="Enter a whole number from 1 to 120",
             )
         config.OBS_BROWSER_SOURCE_DISPLAY_DURATION = value
         self._pushObsBrowserSourceSettings()
@@ -5154,12 +6187,12 @@ class Controller:
 
     def setObsBrowserSourceFadeoutDuration(self, data, *args, **kwargs) -> dict:
         try:
-            value = int(data)
-        except Exception:
+            value = parse_numeric_setting("FADEOUT_DURATION", data)
+        except (ValueError, TypeError):
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_FADEOUT_DURATION_INVALID,
                 data=config.OBS_BROWSER_SOURCE_FADEOUT_DURATION,
-                custom_message="OBS Browser Source fadeout duration must be a number",
+                custom_message="Enter a whole number from 0 to 120",
             )
         config.OBS_BROWSER_SOURCE_FADEOUT_DURATION = value
         self._pushObsBrowserSourceSettings()
@@ -5168,12 +6201,12 @@ class Controller:
 
     def setObsBrowserSourceFontSize(self, data, *args, **kwargs) -> dict:
         try:
-            value = int(data)
-        except Exception:
+            value = parse_numeric_setting("FONT_SIZE", data)
+        except (ValueError, TypeError):
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_FONT_SIZE_INVALID,
                 data=config.OBS_BROWSER_SOURCE_FONT_SIZE,
-                custom_message="OBS Browser Source font size must be a number",
+                custom_message="Enter a whole number from 10 to 200",
             )
         config.OBS_BROWSER_SOURCE_FONT_SIZE = value
         self._pushObsBrowserSourceSettings()
@@ -5194,12 +6227,12 @@ class Controller:
 
     def setObsBrowserSourceFontOutlineThickness(self, data, *args, **kwargs) -> dict:
         try:
-            value = int(data)
-        except Exception:
+            value = parse_numeric_setting("FONT_OUTLINE_THICKNESS", data)
+        except (ValueError, TypeError):
             return VRCTError.create_error_response(
                 ErrorCode.OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS_INVALID,
                 data=config.OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS,
-                custom_message="OBS Browser Source outline thickness must be a number",
+                custom_message="Enter a whole number from 0 to 20",
             )
         config.OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS = value
         self._pushObsBrowserSourceSettings()
@@ -5234,21 +6267,37 @@ class Controller:
     # ---------- VRChat chat-bubble OCR settings ----------
 
     def setEnableOcrCapture(self, *args, **kwargs) -> dict:
-        if config.ENABLE_OCR_CAPTURE is False:
-            config.ENABLE_OCR_CAPTURE = self.startOcrCapture()
+        with _OCR_CONTROL_LOCK:
+            if getattr(self, "_ocr_shutting_down", False):
+                return {"status": 200, "result": False}
+            enabled = config.ENABLE_OCR_CAPTURE
+        if enabled is False:
+            started = self.startOcrCapture()
+            with _OCR_CONTROL_LOCK:
+                config.ENABLE_OCR_CAPTURE = started and not getattr(self, "_ocr_shutting_down", False)
         return {"status": 200, "result": config.ENABLE_OCR_CAPTURE}
 
     def setDisableOcrCapture(self, *args, **kwargs) -> dict:
+        model.message_delivery.revoke("ocr")
         if config.ENABLE_OCR_CAPTURE is True:
-            self.stopOcrCapture()
             config.ENABLE_OCR_CAPTURE = False
+            self.stopOcrCapture()
         return {"status": 200, "result": config.ENABLE_OCR_CAPTURE}
 
-    @staticmethod
     @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
-    def setOcrSourceLanguage(data, *args, **kwargs) -> dict:
-        config.OCR_SOURCE_LANGUAGE = str(data)
-        model.updateOCRCaptureSettings()
+    def setOcrSourceLanguage(self, data, *args, **kwargs) -> dict:
+        previous = config.OCR_SOURCE_LANGUAGE
+        language = str(data)
+        if language not in ocr_languages.SELECTABLE_LANGUAGES:
+            return VRCTError.create_error_response(
+                ErrorCode.VALIDATION_CONFIG_VALUE_INVALID, data=previous)
+        try:
+            if not model.setOCRSourceLanguage(language, model_root=self._ocrModelRoot()):
+                return {"status": 423, "result": previous}
+        except OcrStartError as exc:
+            return VRCTError.create_error_response(
+                exc.error_code, data=previous,
+                details={"requested_language": language, "previous_language": previous})
         return {"status":200, "result":config.OCR_SOURCE_LANGUAGE}
 
     @staticmethod
@@ -5279,6 +6328,49 @@ class Controller:
         model.updateOCRCaptureSettings()
         return {"status":200, "result":config.OCR_BUBBLE_MIN_TEXT_LENGTH}
 
+    @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
+    def setOcrCaptureRegion(data, *args, **kwargs) -> dict:
+        # Round so slider jitter does not produce 17-digit values in config.json.
+        if isinstance(data, dict):
+            data = {k: round(v, 4) if isinstance(v, float) else v for k, v in data.items()}
+        config.OCR_CAPTURE_REGION = data
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_CAPTURE_REGION}
+
+    @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
+    def setOcrVrCaptureRegion(data, *args, **kwargs) -> dict:
+        if isinstance(data, dict):
+            data = {k: round(v, 4) if isinstance(v, float) else v for k, v in data.items()}
+        config.OCR_VR_CAPTURE_REGION = data
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_VR_CAPTURE_REGION}
+
+    @staticmethod
+    def setEnableOcrChatboxFilter(*args, **kwargs) -> dict:
+        config.OCR_CHATBOX_FILTER = True
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_CHATBOX_FILTER}
+
+    @staticmethod
+    def setDisableOcrChatboxFilter(*args, **kwargs) -> dict:
+        config.OCR_CHATBOX_FILTER = False
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_CHATBOX_FILTER}
+
+    @staticmethod
+    def setEnableOcrUseChatboxDetector(*args, **kwargs) -> dict:
+        config.OCR_USE_CHATBOX_DETECTOR = True
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_USE_CHATBOX_DETECTOR}
+
+    @staticmethod
+    def setDisableOcrUseChatboxDetector(*args, **kwargs) -> dict:
+        config.OCR_USE_CHATBOX_DETECTOR = False
+        model.updateOCRCaptureSettings()
+        return {"status":200, "result":config.OCR_USE_CHATBOX_DETECTOR}
+
     def initializationProgress(self, progress):
         self.run(200, self.run_mapping["initialization_progress"], progress)
 
@@ -5292,26 +6384,76 @@ class Controller:
             }
         )
 
-    def disableOscQuery(self, mute_sync_info:bool=False):
+    def disableOscQuery(self, mute_sync_info:bool=False, *, reason:str="setup_failed", microphone_stopped:bool=False):
+        """受信と公開が使えないことを UI へ知らせる。
+
+        reason は、送信先が別のマシン ("remote_destination") か、この PC 宛てなのに準備に失敗したか
+        ("setup_failed")。microphone_stopped は、同期がオンだったのでマイク入力を止めたかどうか。
+        UI はこの 2 つで文言を選ぶ。以前は 1 つの文言で、別のマシン宛ての人にも「ローカルの OSC 設定を
+        保存し直してください」と案内し、何も止めていなくても「マイク入力も停止しています」と書いていた。
+        """
         disabled_functions = []
         if mute_sync_info is True:
             disabled_functions.append("vrc_mic_mute_sync")
         self.run(200, self.run_mapping["enable_osc_query"], {
             "data": False,
-            "disabled_functions": disabled_functions
+            "disabled_functions": disabled_functions,
+            "reason": reason,
+            "microphone_stopped": microphone_stopped,
         })
 
-    def _initVrcMicMuteSync(self) -> None:
-        """VRC_MIC_MUTE_SYNC が有効な場合の、起動時のミュート状態初期同期。
+    def _publishOscQueryReadiness(self, *, startup: bool = False):
+        # A cancelled background startup must not rewrite saved user intent.
+        if getattr(model, "_osc_shutdown", False) is True:
+            return
+        if model.getIsOscQueryEnabled() is True:
+            self.enableOscQuery()
+            return
+        # 起動しただけで、何も止めておらず、送信先が別のマシン (設定で選んだ状態) なら、知らせない。
+        # 単体のヘッドセットへ送っている人には、毎回の起動で同じ警告が 10 秒出ていた。同期の欄には
+        # 使えない理由が出ているし、同期をオンにしようとすれば VRC_MIC_MUTE_SYNC_OSC_DISABLED で断る。
+        # 同期を止めたとき、設定を変えた直後、この PC 宛てなのに準備に失敗したときは、これまでどおり知らせる。
+        notify = True
+        stopped = False
+        remote = model.usesOscQuery(config.OSC_IP_ADDRESS) is False
+        try:
+            with self._audioLock("mic"):
+                if config.VRC_MIC_MUTE_SYNC is True:
+                    stopped = True
+                    # Losing sync must not resume a private microphone. Turn input off
+                    # before disabling sync; restarting input remains a user action.
+                    model.invalidateMuteSelfStatus()
+                    model.changeMicTranscriptStatus()
+                    self.setDisableTranscriptionSend()
+                    self.run(200, "/set/disable/transcription_send", False)
+                    config.VRC_MIC_MUTE_SYNC = False
+                    model.invalidateMuteSelfStatus()
+                    self.run(200, "/set/disable/vrc_mic_mute_sync", False)
+                elif startup and remote:
+                    notify = False
+        finally:
+            self.disableOscQuery(mute_sync_info=notify, reason="remote_destination" if remote else "setup_failed",
+                                 microphone_stopped=stopped)
 
-        VRChat が先に起動していれば、ここで MuteSelf を読んで同期する。VRCT が先に起動していると
-        読めず (`model.mic_mute_status` は `None`)、VRChat がアバターを読み込んだときに届く
-        `/avatar/change` で読み直して同期する (model.py の startReceiveOSC)。VRChat の OSCQuery が
-        mDNS に現れた瞬間はアバター読み込み前で MuteSelf が 404 になるため、そこでは問い合わせない。
-        """
-        model.setMuteSelfStatus()
-        if model.mic_mute_status is not None:
+    def _initVrcMicMuteSync(self) -> None:
+        with self._audioLock("mic"):
+            if config.VRC_MIC_MUTE_SYNC is not True:
+                return
+            generation = model.invalidateMuteSelfStatus()
             model.changeMicTranscriptStatus()
+        if model.setMuteSelfStatus(generation) is True:
+            self._changeMicTranscriptStatusLocked()
+
+    def _initOscReceive(self):
+        with _OSC_CONTROL_LOCK:
+            try:
+                model.startReceiveOSC()
+            except Exception:
+                printLog("OSC: receive/advertisement setup failed")
+            finally:
+                self._publishOscQueryReadiness(startup=True)
+        if model.getIsOscQueryEnabled() is True:
+            self._initVrcMicMuteSync()
 
     def _bootstrapModel(self) -> None:
         """`model.init()` + ミュート同期コールバック登録 (フェーズ3項目22)。
@@ -5354,6 +6496,7 @@ class Controller:
         except Exception:
             errorLogging()
         try:
+            self._model.setOverlayFailureCallback(self._onOverlayFailure)
             self._model.setOverlayPositionChangedCallback(self._onOverlayPositionChanged)
             self._model.setOverlayPointerCallback(self._onVrPanelPointer)
             self._model.setOverlayPanelOutOfViewCallback(self._onVrPanelLogOutOfView)
@@ -5361,6 +6504,20 @@ class Controller:
             self._model.setOverlayLayoutCallback(self._onVrPanelLayout)
         except Exception:
             errorLogging()
+
+    def _onOverlayFailure(self, reason):
+        """Report asynchronous owner/capture failure through the existing error route."""
+        if reason == "runtime":
+            config.OVERLAY_SMALL_LOG = False
+            config.OVERLAY_LARGE_LOG = False
+        config.OVERLAY_VR_PANEL = False
+        self._model.setVrPanelEnabled(False)
+        if not (config.OVERLAY_SMALL_LOG or config.OVERLAY_LARGE_LOG or config.OVERLAY_VR_PANEL):
+            self._model.shutdownOverlay()
+        response = VRCTError.create_error_response(ErrorCode.OVERLAY_RUNTIME_FAILED,
+                                                  data={"reason": reason})
+        self.run(response["status"], self.run_mapping.get("message_output_error", "/run/message_output_error"),
+                 response["result"])
 
     @staticmethod
     def setVrPanelWindows(data, *args, **kwargs) -> dict:
@@ -5531,8 +6688,9 @@ class Controller:
     def _onOverlayPositionChanged(self, size: str, position: dict) -> None:
         """VR内の掴み移動・拡大縮小で確定した位置と大きさを保存し、UIへ通知する (オーバーレイスレッドから呼ばれる)。
 
-        position["ui_scaling"] はオーバーレイの幅(m)。small は幅=設定値、large は幅=設定値*0.25
-        (Model.init参照)。設定画面のスライダーの範囲 (src-ui/logics/ui_configs.js の
+        position["ui_scaling"] は保存する設定値。small と large ではオーバーレイの幅(m) に対応し、
+        small は幅=設定値、large は幅=設定値*0.25 (Model.init参照)。ランチャーは旧来の帯の幅で
+        保存するので実際の幅とは異なる (regionWidthM参照)。設定画面のスライダーの範囲 (src-ui/logics/ui_configs.js の
         ui_scaling: 40〜200%) に収めてから保存し、収めた値をオーバーレイにも戻す。
         """
         def clamp(value: float) -> float:
@@ -5577,13 +6735,9 @@ class Controller:
         # がフィードを処理できる。よってここで起動しても安全。
         self.startWatchdog()
 
-        # Network check
-        connected_network = isConnectedNetwork()
-        if connected_network is True:
-            self.connectedNetwork()
-        else:
-            self.disconnectedNetwork()
-        printLog(f"Connected Network: {connected_network}")
+        # Unknown until an actual consented download/probe has an outcome.
+        connected_network = None
+        self.run(200, self.run_mapping["connected_network"], None)
 
         self.initializationProgress(1)
 
@@ -5593,64 +6747,27 @@ class Controller:
         # availabilityチェックで同じ重みを二重にロードして検証するのを避ける。
         ctranslate2_pre_available: Optional[bool] = None
         whisper_pre_available: Optional[bool] = None
-        # Preserve legacy on-disk migration when downloads are disabled,
-        # retaining its existing connected-startup condition.
-        if connected_network is True:
-            model.backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir()
-        if connected_network is True and config.AUTO_DOWNLOAD_MODELS is True:
-            printLog("Download CTranslate2 Model Weight")
-
-            weight_type = config.CTRANSLATE2_WEIGHT_TYPE
-            th_download_ctranslate2 = None
-            ctranslate2_pre_available = model.checkTranslatorCTranslate2ModelWeight(weight_type)
+        ctranslate2_request = None
+        whisper_request = None
+        # Migration is local and preserves conflicts, including offline startup.
+        model.backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir()
+        if config.AUTO_DOWNLOAD_MODELS is True:
+            ctranslate2_pre_available = model.checkTranslatorCTranslate2ModelWeight(config.CTRANSLATE2_WEIGHT_TYPE)
+            whisper_pre_available = model.checkTranscriptionWhisperModelWeight(config.WHISPER_WEIGHT_TYPE)
             if ctranslate2_pre_available is False:
-                th_download_ctranslate2 = Thread(target=self.downloadCtranslate2Weight, args=(weight_type, False))
-                th_download_ctranslate2.daemon = True
-                th_download_ctranslate2.start()
-
-            printLog("Download Whisper Model Weight")
-            weight_type = config.WHISPER_WEIGHT_TYPE
-            th_download_whisper = None
-            whisper_pre_available = model.checkTranscriptionWhisperModelWeight(weight_type)
+                ctranslate2_request = self._startupLegacyDownloadRequest("ctranslate2", config.CTRANSLATE2_WEIGHT_TYPE)
             if whisper_pre_available is False:
-                th_download_whisper = Thread(target=self.downloadWhisperWeight, args=(weight_type, False))
-                th_download_whisper.daemon = True
-                th_download_whisper.start()
-
-            # join() にタイムアウトを設ける: downloadCTranslate2Weight/
-            # downloadWhisperWeight は HTTP タイムアウト+リトライ (最大 3 回
-            # × 最大 70s + バックオフ) を持つため 1 ファイルあたりの worst
-            # case は数分程度で収まるが、重みセットが複数ファイルにまたがる
-            # ため、理論上の合計 worst case はさらに長くなりうる。無制限
-            # join だと万一そのバジェットを超えて本当にハングした場合に
-            # init() (ひいてはアプリの起動) が無期限に固まる。ここでの
-            # タイムアウトは「異常系での最終防波堤」として十分長く
-            # (30 分) 取り、正常系の低速回線でのリトライを誤って
-            # 中断しないようにする。タイムアウトした場合はダウンロード
-            # スレッド (daemon) をバックグラウンドで走らせたまま
-            # 初期化を先へ進める。
-            _WEIGHT_DOWNLOAD_JOIN_TIMEOUT_SEC = 1800
-            if isinstance(th_download_ctranslate2, Thread):
-                th_download_ctranslate2.join(timeout=_WEIGHT_DOWNLOAD_JOIN_TIMEOUT_SEC)
-                if th_download_ctranslate2.is_alive():
-                    printLog(
-                        f"CTranslate2 weight download did not finish within "
-                        f"{_WEIGHT_DOWNLOAD_JOIN_TIMEOUT_SEC}s; continuing "
-                        "initialization without waiting further (download "
-                        "continues in the background)"
-                    )
-                # ダウンロードを行った場合は結果が変わるため再検証が必要
-                ctranslate2_pre_available = None
-            if isinstance(th_download_whisper, Thread):
-                th_download_whisper.join(timeout=_WEIGHT_DOWNLOAD_JOIN_TIMEOUT_SEC)
-                if th_download_whisper.is_alive():
-                    printLog(
-                        f"Whisper weight download did not finish within "
-                        f"{_WEIGHT_DOWNLOAD_JOIN_TIMEOUT_SEC}s; continuing "
-                        "initialization without waiting further (download "
-                        "continues in the background)"
-                    )
-                whisper_pre_available = None
+                whisper_request = self._startupLegacyDownloadRequest("whisper", config.WHISPER_WEIGHT_TYPE)
+            if ctranslate2_request is not None or whisper_request is not None:
+                connected_network = isConnectedNetwork()
+                self.run(200, self.run_mapping["connected_network"], connected_network)
+            if connected_network is True:
+                if ctranslate2_request is not None:
+                    self.downloadCtranslate2Weight(ctranslate2_request, False)
+                    ctranslate2_pre_available = None
+                if whisper_request is not None:
+                    self.downloadWhisperWeight(whisper_request, False)
+                    whisper_pre_available = None
 
         # Check and disable/enable AI models (parallel)
         # 上の事前チェックで「ロード検証済みかつダウンロード不要」と分かっている場合は
@@ -5672,19 +6789,18 @@ class Controller:
             ctranslate2_available = future_ctranslate2.result()
             whisper_available = future_whisper.result()
 
-        # 初回ダウンロード後もまだロードできない重みがある場合、ユーザーに
-        # 「AIモデル未検出。VRCTを再起動してください」通知を出して手動再起動を
-        # 促す前に、アプリ自身が最大1回だけ同期的に再ダウンロードを試みる。
-        # (list_repo_files の一時失敗などで初回ダウンロードスレッドが丸ごと
-        #  取りこぼしたケースを吸収する)
+        # 同意済みで、前回のworkerを停止・joinできた重みだけ1回再試行する。
+        # 取消がまだ完了していなければ重ねて取得せず、取得済みとは扱わない。
         if (connected_network is True and config.AUTO_DOWNLOAD_MODELS is True
                 and (not ctranslate2_available or not whisper_available)):
-            if not ctranslate2_available:
+            if (not ctranslate2_available and ctranslate2_request is not None
+                    and self._legacyDownloads().stop(("ctranslate2", config.CTRANSLATE2_WEIGHT_TYPE))):
                 printLog("CTranslate2 weight unavailable after first download; retrying once")
-                self.downloadCtranslate2Weight(config.CTRANSLATE2_WEIGHT_TYPE, False)
-            if not whisper_available:
+                self.downloadCtranslate2Weight(ctranslate2_request, False)
+            if (not whisper_available and whisper_request is not None
+                    and self._legacyDownloads().stop(("whisper", config.WHISPER_WEIGHT_TYPE))):
                 printLog("Whisper weight unavailable after first download; retrying once")
-                self.downloadWhisperWeight(config.WHISPER_WEIGHT_TYPE, False)
+                self.downloadWhisperWeight(whisper_request, False)
 
             with ThreadPoolExecutor(max_workers=2) as executor:
                 future_ctranslate2 = executor.submit(
@@ -5700,7 +6816,7 @@ class Controller:
         self._ctranslate2_available_cache = ctranslate2_available
         self._whisper_available_cache = whisper_available
 
-        if not ctranslate2_available or not whisper_available:
+        if self._missingBuiltInModelInUse(ctranslate2_available, whisper_available):
             self.disableAiModels()
         else:
             self.enableAiModels()
@@ -5783,7 +6899,7 @@ class Controller:
                             else:
                                 auth_key_invalid = True
                     case "LMStudio":
-                        if config.LMSTUDIO_URL is not None:
+                        if config.LMSTUDIO_URL:
                             if model.authenticationTranslatorLMStudio(base_url=config.LMSTUDIO_URL) is True:
                                 model_list = model.getTranslatorLMStudioModelList()
                                 if len(model_list) > 0:
@@ -5809,10 +6925,9 @@ class Controller:
                                 selected_model = config.SELECTED_OLLAMA_MODEL if config.SELECTED_OLLAMA_MODEL in model_list else model_list[0]
                                 status = True
                     case _:
-                        status = connected_network is True
-            except Exception as e:
-                printLog(f"Error checking engine {engine}: {str(e)}")
-                errorLogging()
+                        status = True  # Availability is established by real requests, not a global probe.
+            except Exception:
+                errorLogging(provider=engine)
                 status = False
 
             if status and model_list is not None and engine in _ENGINE_MODEL_CLIENT_CALLS:
@@ -5824,9 +6939,8 @@ class Controller:
                 try:
                     getattr(model, set_model)(selected_model)
                     getattr(model, update_client)()
-                except Exception as e:
-                    printLog(f"Error preparing engine {engine}: {str(e)}")
-                    errorLogging()
+                except Exception:
+                    errorLogging(provider=engine)
                     status = False
 
             engine_check_elapsed[engine] = time.monotonic() - check_started
@@ -5838,17 +6952,13 @@ class Controller:
         # 確認は主にネットワーク待ち (認証・モデル一覧の取得)。エンジンの数 (13) より少ない並列数では、
         # 先に遅いエンジンが枠を埋めて、後ろのエンジンが待たされる (実機で、最大の確認が 1.53 秒なのに
         # 全体が 2.3 秒かかった)。エンジンごとに独立したクライアントなので、全部を同時に確認する。
-        with ThreadPoolExecutor(max_workers=max(1, len(engines_to_check))) as executor:
-            future_to_engine = {executor.submit(check_translation_engine, engine): engine 
-                              for engine in engines_to_check}
-
-            for future in as_completed(future_to_engine):
-                engine, status, auth_key_invalid, model_list, selected_model = future.result()
-                engine_results[engine] = (status, auth_key_invalid, model_list, selected_model)
+        engine_results = _runEngineChecks(check_translation_engine, engines_to_check, "Translation engine")
 
         # 結果を順番に適用（メインスレッドで実行）
         for engine in engines_to_check:
             if engine not in engine_results:
+                # 時間内に確認できなかった
+                config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine] = False
                 continue
 
             status, auth_key_invalid, model_list, selected_model = engine_results[engine]
@@ -5860,12 +6970,11 @@ class Controller:
             # ステータス設定
             config.SELECTABLE_TRANSLATION_ENGINE_STATUS[engine] = status
 
-            # 認証キー無効化
+            # 確認に失敗してもキーは消さない。認証の関数は、オフライン、タイムアウト、429、5xx でも
+            # False を返すので、キーが拒否されたのか一時的に届かなかったのかを区別できない。消すと、
+            # ネットワークのない起動のたびに保存したキーを失う。エンジンを使えない状態にするだけにする
             if auth_key_invalid:
-                auth_keys = config.AUTH_KEYS
-                auth_keys[engine] = None
-                config.AUTH_KEYS = auth_keys
-                printLog(f"{engine} auth key is invalid")
+                printLog(f"{engine} auth key could not be verified; keeping it")
             elif status:
                 printLog(f"{engine} is valid/available")
 
@@ -6004,10 +7113,9 @@ class Controller:
                                 auth_key_invalid = True
                     case _:
                         # Google 等、ネットワーク接続のみが条件のエンジン
-                        status = connected_network is True
-            except Exception as e:
-                printLog(f"Error checking transcription engine {engine}: {str(e)}")
-                errorLogging()
+                        status = True  # Availability is established by real requests, not a global probe.
+            except Exception:
+                errorLogging(provider=engine)
                 status = False
 
             transcription_check_elapsed[engine] = time.monotonic() - check_started
@@ -6017,28 +7125,22 @@ class Controller:
         transcription_engines_to_check = list(config.SELECTABLE_TRANSCRIPTION_ENGINE_LIST)
 
         # 翻訳エンジンの確認と同じ理由で、エンジンの数だけ同時に確認する
-        with ThreadPoolExecutor(max_workers=max(1, len(transcription_engines_to_check))) as executor:
-            future_to_transcription_engine = {
-                executor.submit(check_transcription_engine, engine): engine
-                for engine in transcription_engines_to_check
-            }
-            for future in as_completed(future_to_transcription_engine):
-                engine, status, auth_key_invalid, model_list, selected_model = future.result()
-                transcription_engine_results[engine] = (status, auth_key_invalid, model_list, selected_model)
+        transcription_engine_results = _runEngineChecks(
+            check_transcription_engine, transcription_engines_to_check, "Transcription engine")
 
         for engine in transcription_engines_to_check:
             if engine not in transcription_engine_results:
+                # 時間内に確認できなかった
+                config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
                 continue
 
             status, auth_key_invalid, model_list, selected_model = transcription_engine_results[engine]
 
             config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = status
 
+            # 翻訳と同じく、確認に失敗してもキーは消さない
             if auth_key_invalid:
-                auth_keys = config.TRANSCRIPTION_AUTH_KEYS
-                auth_keys[engine] = None
-                config.TRANSCRIPTION_AUTH_KEYS = auth_keys
-                printLog(f"{engine} transcription auth key is invalid")
+                printLog(f"{engine} transcription auth key could not be verified; keeping it")
             elif status:
                 printLog(
                     f"{engine} transcription engine is valid/available "
@@ -6125,28 +7227,7 @@ class Controller:
         # Init OSC Receive (Background)
         printLog("Init OSC Receive (Background)")
 
-        def init_osc_receive_background():
-            """OSC Receiveの初期化をバックグラウンドで実行"""
-            try:
-                model.startReceiveOSC()
-                osc_query_enabled = model.getIsOscQueryEnabled()
-                if osc_query_enabled is True:
-                    self.enableOscQuery()
-                    if config.VRC_MIC_MUTE_SYNC is True:
-                        self._initVrcMicMuteSync()
-                else:
-                    # OSC Query is disabled, so disable VRC some features
-                    mute_sync_info_flag = False
-                    if config.VRC_MIC_MUTE_SYNC is True:
-                        self.setDisableVrcMicMuteSync()
-                        mute_sync_info_flag = True
-                    self.disableOscQuery(mute_sync_info=mute_sync_info_flag)
-                printLog("[Background] OSC Receive initialization completed")
-            except Exception:
-                errorLogging()
-                printLog("[Background] OSC Receive initialization failed")
-
-        bg_thread = Thread(target=init_osc_receive_background)
+        bg_thread = Thread(target=self._initOscReceive)
         bg_thread.daemon = True
         bg_thread.start()
 
@@ -6176,39 +7257,71 @@ class Controller:
             config.WEBSOCKET_SERVER = True
 
         if config.WEBSOCKET_SERVER is True:
-            if isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True:
-                model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
-            else:
+            if not (
+                isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT) is True
+                and model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT)
+            ):
                 config.WEBSOCKET_SERVER = False
                 model.stopWebSocketServer()
                 printLog("WebSocket server host or port is not available")
 
         # Init OBS Browser Source Server
         printLog("Init OBS Browser Source Server")
+        obs_startup_error = None
         if config.OBS_BROWSER_SOURCE is True:
             if config.WEBSOCKET_SERVER is not True:
                 config.OBS_BROWSER_SOURCE = False
                 model.stopObsBrowserSourceServer()
                 printLog("OBS Browser Source requires WebSocket Server")
-            elif isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.OBS_BROWSER_SOURCE_PORT) is True:
-                model.startObsBrowserSourceServer(config.WEBSOCKET_HOST, config.OBS_BROWSER_SOURCE_PORT)
             else:
-                config.OBS_BROWSER_SOURCE = False
-                model.stopObsBrowserSourceServer()
-                printLog("OBS Browser Source server host or port is not available")
+                try:
+                    if isAvailableWebSocketServer(config.WEBSOCKET_HOST, config.OBS_BROWSER_SOURCE_PORT) is not True:
+                        obs_startup_error = ErrorCode.OBS_BROWSER_SOURCE_PORT_UNAVAILABLE
+                    elif not model.startObsBrowserSourceServer(config.WEBSOCKET_HOST, config.OBS_BROWSER_SOURCE_PORT):
+                        obs_startup_error = ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE
+                except Exception:
+                    errorLogging()
+                    obs_startup_error = ErrorCode.OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE
+                if obs_startup_error is not None:
+                    config.OBS_BROWSER_SOURCE = False
+                    model.stopObsBrowserSourceServer()
+                    printLog("OBS Browser Source server could not start")
 
         # Revalidate Selected Models
         printLog("Revalidate Selected Models")
         config.revalidate_selected_models()
 
         # telemetry Init
+        # Not before the user has answered the notice: a settings file from an older
+        # version, or a first start, sends nothing until then.
         printLog("Telemetry Init")
-        if config.ENABLE_TELEMETRY is True:
-            model.telemetryInit(enabled=config.ENABLE_TELEMETRY, app_version=config.VERSION)
+        if Controller._telemetryAllowed():
+            model.telemetryInit(enabled=True, app_version=config.VERSION)
 
         # Update Settings
         printLog("Update settings")
         self.updateConfigSettings()
+        if obs_startup_error is not None:
+            response = VRCTError.create_error_response(obs_startup_error, data=False)
+            self.run(response["status"], "/set/enable/obs_browser_source", response["result"])
+        # After initialization_complete so the UI is ready to show it.
+        self.notifyNonCommercialCTranslate2Weight()
+        for key in getattr(config, "INVALID_SAVED_API_URLS", []):
+            endpoint, error_code = {
+                "LMSTUDIO_URL": ("/set/data/lmstudio_url", ErrorCode.CONNECTION_LMSTUDIO_URL_INVALID),
+                "OPENAI_COMPATIBLE_URL": ("/set/data/openai_compatible_url", ErrorCode.CONNECTION_OPENAI_COMPATIBLE_URL_INVALID),
+                "TRANSCRIPTION_CUSTOM_URL": ("/set/data/custom_whisper_url", ErrorCode.CONNECTION_TRANSCRIPTION_CUSTOM_URL_INVALID),
+            }[key]
+            response = VRCTError.create_error_response(error_code, data="")
+            self.run(response["status"], endpoint, response["result"])
+        if getattr(config, "UNREADABLE_CONFIG_BACKUP", None):
+            self.run(200, self.run_mapping["config_file_unreadable"], {"backup": config.UNREADABLE_CONFIG_BACKUP})
+
+        # 設定を書き込めなかったら知らせる (書き直せたら、それも知らせる)
+        config.setSaveCallbacks(
+            lambda reason, path: self.run(200, self.run_mapping["config_save_failed"], {"reason": reason, "path": path}),
+            lambda: self.run(200, self.run_mapping["config_save_recovered"], True),
+        )
 
         printLog(f"End Initialization ({time.monotonic() - init_started:.2f}s)")
 

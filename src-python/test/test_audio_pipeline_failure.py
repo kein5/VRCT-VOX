@@ -38,7 +38,16 @@ class _PartiallyInitializedRecorder:
 
 
 class _FakeTranscriber:
+    def setAudioSource(self, source):
+        pass
+
     last_recognition_error = False
+
+    def getAudioWaitTimeout(self):
+        return None  # no pending phrase: wait for audio, stop or an error
+
+    def releaseModel(self) -> None:
+        pass
 
     def getTranscript(self) -> dict:
         return {"text": "", "language": None}
@@ -58,6 +67,12 @@ class _FailingTranscriber(_FakeTranscriber):
 
 
 class TestAudioPipelineFailure(unittest.TestCase):
+    def setUp(self):
+        # Recognizer preparation now precedes device creation.
+        transcriber = patch.object(MicSession, "_create_transcriber", return_value=_FakeTranscriber())
+        transcriber.start()
+        self.addCleanup(transcriber.stop)
+
     def test_recorder_creation_failure_rolls_back_and_notifies(self) -> None:
         received = []
         session = MicSession()
@@ -101,7 +116,7 @@ class TestAudioPipelineFailure(unittest.TestCase):
         session = MicSession()
         session.transcript_fnc = received.append
 
-        with patch.object(session, "_create_recorder", return_value=recorder), patch.object(
+        with patch.object(session, "_create_recorder", return_value=recorder) as open_recorder, patch.object(
             session, "_create_transcriber", side_effect=RuntimeError("model init failed")
         ):
             with self.assertRaises(RuntimeError):
@@ -112,7 +127,8 @@ class TestAudioPipelineFailure(unittest.TestCase):
         self.assertEqual(received[0]["stage"], "asr")
         self.assertEqual(received[0]["source"], "mic")
         self.assertFalse(received[0]["recoverable"])
-        recorder.stop.assert_called_once_with(wait_for_stop=True)
+        open_recorder.assert_not_called()
+        recorder.stop.assert_not_called()
         self.assertEqual(session.features, set())
         self.assertIsNone(session._recorder)
 
@@ -125,7 +141,6 @@ class TestAudioPipelineFailure(unittest.TestCase):
             "OSError",
         )
         recorder = _FakeRecorder(failure=failure)
-        recorder.device_error_event.set()
         received = []
         session = MicSession()
         session.transcript_fnc = received.append
@@ -134,6 +149,7 @@ class TestAudioPipelineFailure(unittest.TestCase):
             session, "_create_transcriber", return_value=_FakeTranscriber()
         ):
             session.reconfigure(transcript=True, device=DEVICE)
+            recorder.device_error_event.set()
 
         self.assertTrue(self._wait_for(lambda: len(received) == 1))
         self.assertEqual(received[0]["error_code"], ErrorCode.AUDIO_READ_ERROR.value)
@@ -151,6 +167,8 @@ class TestAudioPipelineFailure(unittest.TestCase):
             session, "_create_transcriber", return_value=_FailingTranscriber()
         ):
             session.reconfigure(transcript=True, device=DEVICE)
+            # The worker waits for audio, so feed one chunk to reach ASR.
+            recorder.audio_queue.put((b"\0\0", None))
 
         self.assertTrue(self._wait_for(lambda: len(received) == 1))
         self.assertEqual(received[0]["error_code"], ErrorCode.ASR_ERROR.value)
@@ -173,7 +191,6 @@ class TestAudioPipelineFailure(unittest.TestCase):
             "OSError",
         )
         recorder = _FakeRecorder(failure=failure, stop_fn=blocked_stop)
-        recorder.device_error_event.set()
         received = []
         session = MicSession()
         session.transcript_fnc = received.append
@@ -183,6 +200,7 @@ class TestAudioPipelineFailure(unittest.TestCase):
                 session, "_create_recorder", return_value=recorder
             ), patch.object(session, "_create_transcriber", return_value=_FakeTranscriber()):
                 session.reconfigure(transcript=True, device=DEVICE)
+                recorder.device_error_event.set()
                 self.assertTrue(self._wait_for(lambda: len(received) == 1))
                 self.assertEqual(received[0]["error_code"], ErrorCode.CLEANUP_TIMEOUT.value)
                 self.assertEqual(received[0]["stage"], "cleanup")

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useI18n } from "@useI18n";
 import styles from "./SplashComponent.module.scss";
 import { StartUpProgressContainer } from "./start_up_progress_container/StartUpProgressContainer";
 import { DownloadModelsContainer } from "./download_models_container/DownloadModelsContainer";
@@ -9,13 +10,14 @@ import { generateLocalizedDocumentUrl } from "@ui_configs";
 import { CloseButton } from "@common_components";
 
 export const SplashComponent = () => {
+    const { t } = useI18n();
     const { asyncCloseApp } = useWindow();
     return (
         <div className={styles.container}>
             <StartUpProgressContainer />
             <DownloadModelsContainer />
             <AnnouncementsContainer />
-            <CloseButton onClick={asyncCloseApp} />
+            <CloseButton aria-label={t("studio.close")} onClick={asyncCloseApp} />
         </div>
     );
 };
@@ -23,9 +25,8 @@ export const SplashComponent = () => {
 const SHOW_MEGAPHONE_TIME = 500;
 
 const AnnouncementsContainer = () => {
-    const labels = ["Check the Latest Status", "最新の状況を確認"];
+    const { t } = useI18n();
     const [is_shown, setIsShown] = useState(0);
-    const [currentLabelIndex, setCurrentLabelIndex] = useState(0);
     const [is_labels_active, setIsLabelsActive] = useState(false);
 
     useEffect(() => {
@@ -37,19 +38,11 @@ const AnnouncementsContainer = () => {
             setIsLabelsActive(true);
         }, SHOW_MEGAPHONE_TIME + 15000);
 
-        let labelInterval;
-        if (is_labels_active) {
-            labelInterval = setInterval(() => {
-                setCurrentLabelIndex((prevIndex) => (prevIndex + 1) % labels.length);
-            }, 4000);
-        }
-
         return () => {
             clearTimeout(showTimeout);
             clearTimeout(labelsTimeout);
-            if (labelInterval) clearInterval(labelInterval);
         };
-    }, [is_labels_active, labels.length]);
+    }, []);
 
 
     return (
@@ -65,7 +58,7 @@ const AnnouncementsContainer = () => {
             <button className={styles.announcements_button}>
                 <MegaphoneSvg className={styles.announcements_link_svg} />
                 <p className={styles.announcements_label}>
-                    {labels[currentLabelIndex]}
+                    {t("common.check_latest_status")}
                 </p>
             </button>
         </a>

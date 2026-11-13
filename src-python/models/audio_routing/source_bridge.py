@@ -15,10 +15,13 @@ import time
 from uuid import uuid4
 
 from .pipewire_gate import VC_SINK
+from .pipewire_graph import GraphUnavailable, graph_source, read_graph
 
 START_TIMEOUT = 3.0
 MONITOR_INTERVAL = .1
 BUILD = resource_root() / 'build'
+# Device page host for PipeWire inputs on Linux (no PyAudio host APIs there).
+PIPEWIRE_MIC_HOST = 'PipeWire'
 
 
 @dataclass(frozen=True)
@@ -56,9 +59,57 @@ def parse_source(value):
 
 
 def enumerate_sources():
+    if sys.platform == 'win32':
+        from .devices_windows import enumerate_endpoints
+        return [{'id': _source_id(row['endpoint']), 'label': row['label']}
+                for row in enumerate_endpoints('mic')]
+    if not sys.platform.startswith('linux'):
+        raise RuntimeError('source_bridge_linux_only')
+    return _sources(_read_graph())
+
+
+def microphone_names(sources):
+    """Device page names; a description shared by several inputs gets its node name."""
+    labels = [item['label'] for item in sources]
+    return [label if labels.count(label) == 1 else f"{label} ({item['id']['name']})"
+            for label, item in zip(labels, sources)]
+
+
+def microphone_devices():
+    """Device page list on Linux, where PyAudio is absent: (devices, default).
+
+    Uses the same filter as enumerate_sources so the selection maps onto an RVC
+    input. PipeWire's default may be the managed virtual microphone itself, so the
+    configured default and then the first real input are the fallbacks.
+    """
     if not sys.platform.startswith('linux'):
         raise RuntimeError('source_bridge_linux_only')
     graph = _read_graph()
+    sources = _sources(graph)
+    devices = [{'index': i, 'name': name, 'node_name': item['id']['name']}
+               for i, (item, name) in enumerate(zip(sources, microphone_names(sources)))]
+    defaults = {}
+    for item in graph:
+        if (item.get('type') != 'PipeWire:Interface:Metadata'
+                or item.get('props', {}).get('metadata.name') != 'default'):
+            continue
+        for entry in item.get('metadata') or []:
+            value = entry.get('value') if isinstance(entry, dict) else None
+            if isinstance(value, str):
+                try:
+                    value = json.loads(value)
+                except ValueError:
+                    continue
+            if isinstance(value, dict) and isinstance(value.get('name'), str):
+                defaults[entry.get('key')] = value['name']
+    for key in ('default.audio.source', 'default.configured.audio.source'):
+        match = [device for device in devices if device['node_name'] == defaults.get(key)]
+        if match:
+            return devices, match[0]
+    return devices, devices[0] if devices else None
+
+
+def _sources(graph):
     result = []
     for item in graph:
         if item.get('type') != 'PipeWire:Interface:Node':
@@ -113,11 +164,10 @@ def _sink(graph):
     return sink
 
 
-def _read_graph():
+def _read_graph(*, wait=True, after=None):
     try:
-        result = subprocess.run(['pw-dump'], env=external_process_env(), capture_output=True, check=True, timeout=1)
-        return json.loads(result.stdout)
-    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        return read_graph(wait=wait, after=after).data
+    except GraphUnavailable as exc:
         raise RuntimeError('source_bridge_graph_unavailable') from exc
 
 
@@ -255,6 +305,7 @@ class _Run:
     source: Endpoint
     tag: str = field(default_factory=lambda: uuid4().hex)
     stop: Event = field(default_factory=Event)
+    wake: Event = field(default_factory=Event)
     child: object = None
     thread: object = None
 
@@ -281,6 +332,7 @@ class SourceBridge:
                            generation=self._state['generation'] + 1)
         if self._run:
             self._run.stop.set()
+            self._run.wake.set()
             return self._run.child
         return None
 
@@ -338,7 +390,12 @@ class SourceBridge:
                 self._state.update(values)
 
     def _work(self, run):
+        observer = None
         try:
+            try:
+                observer = graph_source().subscribe(run.wake)
+            except GraphUnavailable as exc:
+                raise RuntimeError('source_bridge_graph_unavailable') from exc
             graph = _read_graph()
             if select_source(graph, run.source.name) != run.source:
                 raise RuntimeError('source_bridge_source_changed')
@@ -362,18 +419,22 @@ class SourceBridge:
                 except RuntimeError:
                     if time.monotonic() >= deadline:
                         raise
-                    run.stop.wait(MONITOR_INTERVAL)
+                    run.wake.wait(MONITOR_INTERVAL)
+                    run.wake.clear()
             else:
                 return
             if run.stop.is_set():
                 return
             _unmute(output, run.tag)
+            after = time.monotonic()
             while not run.stop.is_set():
                 if child.poll() is not None:
                     raise RuntimeError('source_bridge_process_exited')
-                _links(_read_graph(), run.source, sink, run.tag, child.pid, False)
+                _links(_read_graph(after=after), run.source, sink, run.tag, child.pid, False)
+                after = None
                 self._update(run, active=True, pending=False)
-                run.stop.wait(MONITOR_INTERVAL)
+                run.wake.wait(MONITOR_INTERVAL)
+                run.wake.clear()
         except Exception as exc:
             # No arbitrary subprocess output/paths in UI-facing diagnostics.
             code = str(exc) if isinstance(exc, RuntimeError) and str(exc).startswith('source_bridge_') else 'source_bridge_control_failed'
@@ -383,3 +444,5 @@ class SourceBridge:
                 _reap(run.child)
             finally:
                 self._update(run, requested=False, active=False, pending=False)
+                if observer is not None:
+                    observer.close()

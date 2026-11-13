@@ -1,12 +1,14 @@
 import { useResizable } from "react-resizable-layout";
-import { useRef, useEffect, useState, forwardRef } from "react";
+import { memo, useRef, useEffect, useState, forwardRef } from "react";
 import styles from "./MessageContainer.module.scss";
 import { LogBox } from "./log_box/LogBox";
 import { MessageLogSettingsContainer } from "./message_log_settings_container/MessageLogSettingsContainer";
 import { MessageInputBox } from "./message_input_box/MessageInputBox";
+import { ChatboxLengthWarning } from "./message_input_box/ChatboxLengthWarning";
 import { useMessageInputBoxRatio } from "@logics_main";
+import { MessageActionsProvider } from "@logics_common";
 
-export const MessageContainer = () => {
+export const MessageContainer = memo(function MessageContainer() {
     const { currentMessageInputBoxRatio, asyncSetMessageInputBoxRatio } = useMessageInputBoxRatio();
     const [ui_message_box_ratio, setUiMessageBoxRatio] = useState(false);
     const [is_hovered, setIsHovered] = useState(false);
@@ -59,6 +61,7 @@ export const MessageContainer = () => {
     }, [currentMessageInputBoxRatio]);
 
     return (
+        <MessageActionsProvider>
         <div className={styles.container} ref={container_ref}>
             <div
                 className={styles.log_box_resize_wrapper}
@@ -70,6 +73,7 @@ export const MessageContainer = () => {
                 <MessageLogSettingsContainer to_visible_toggle_bar={is_hovered} />
             </div>
             <Separator {...separatorProps} ref={separator_ref} />
+            <ChatboxLengthWarning />
             <div
                 className={styles.message_box_resize_wrapper}
                 ref={message_input_box_wrapper_ref}
@@ -78,8 +82,9 @@ export const MessageContainer = () => {
                 <MessageInputBox />
             </div>
         </div>
+        </MessageActionsProvider>
     );
-};
+});
 
 const Separator = forwardRef((props, ref) => (
     <div tabIndex={0} className={styles.separator} ref={ref} {...props}>

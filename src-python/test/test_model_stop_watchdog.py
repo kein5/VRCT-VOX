@@ -12,7 +12,8 @@ P-4 で shutdown() から stopWatchdog() を呼ぶようにしたが、実機で
 - `Watchdog.start()` は末尾で `time.sleep(self.interval)` する (既定20秒)
 - `threadFnc.stop()` は loop フラグを降ろすだけでこの sleep を中断できない
 - よって `join()` は最大 interval 秒ブロックする
-- `faulthandler.cancel_dump_traceback_later()` はその join の *後ろ* にあった
+- フリーズダンプの解除 (当時は `faulthandler.cancel_dump_traceback_later()`、いまは
+  `freeze_dump.FreezeDump.cancel()`) はその join の *後ろ* にあった
 - shutdown() 側の `_stopServiceForShutdown` は5秒で諦めるため、解除は
   一度も実行されなかった
 
@@ -39,6 +40,9 @@ class _NeverStoppingWatchdogThread(threadFnc):
         self.stop_called = False
         self.join_timeouts: list = []
 
+    def is_alive(self) -> bool:
+        return True
+
     def stop(self) -> None:
         self.stop_called = True
 
@@ -55,7 +59,7 @@ class TestStopWatchdogCancelsDumpBeforeJoining(unittest.TestCase):
         self.model.th_watchdog = self.thread
 
     def test_dump_timer_is_cancelled_even_though_join_would_block(self) -> None:
-        with patch.object(model_module.faulthandler, "cancel_dump_traceback_later") as mock_cancel:
+        with patch.object(model_module._freeze_dump, "cancel") as mock_cancel:
             self.model.stopWatchdog()
 
         mock_cancel.assert_called_once()
@@ -63,7 +67,7 @@ class TestStopWatchdogCancelsDumpBeforeJoining(unittest.TestCase):
 
     def test_join_is_bounded(self) -> None:
         """join を無期限にすると shutdown が最大 interval 秒待たされる。"""
-        with patch.object(model_module.faulthandler, "cancel_dump_traceback_later"):
+        with patch.object(model_module._freeze_dump, "cancel"):
             self.model.stopWatchdog()
 
         self.assertEqual(len(self.thread.join_timeouts), 1)
@@ -80,7 +84,7 @@ class TestStopWatchdogCancelsDumpBeforeJoining(unittest.TestCase):
 
         self.thread.join = lambda timeout=None: order.append("join")  # type: ignore[assignment]
 
-        with patch.object(model_module.faulthandler, "cancel_dump_traceback_later", record_cancel):
+        with patch.object(model_module._freeze_dump, "cancel", record_cancel):
             self.model.stopWatchdog()
 
         self.assertEqual(order, ["cancel", "join"])
@@ -89,7 +93,7 @@ class TestStopWatchdogCancelsDumpBeforeJoining(unittest.TestCase):
         """startWatchdog() より前に shutdown() が走る経路でも解除すること。"""
         self.model.th_watchdog = None
 
-        with patch.object(model_module.faulthandler, "cancel_dump_traceback_later") as mock_cancel:
+        with patch.object(model_module._freeze_dump, "cancel") as mock_cancel:
             self.model.stopWatchdog()
 
         mock_cancel.assert_called_once()

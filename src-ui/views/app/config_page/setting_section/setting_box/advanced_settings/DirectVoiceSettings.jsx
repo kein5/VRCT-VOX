@@ -1,14 +1,19 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useId, useMemo } from "react";
 import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
 import { VoiceRouteSummary, VoiceRouteControls } from "../device/VoiceRouteSettings";
 import { SectionLabelComponent } from "../_components/section_label_component/SectionLabelComponent";
 import styles from "./VoiceSettings.module.scss";
 import { useI18n } from "@useI18n";
-import { useVoice } from "../../../../../../logics/voice/useVoice";
+import { useVoice, sourceKey as key } from "../../../../../../logics/voice/useVoice";
+import { directRouteReady, usesOutputDevice } from "../../../../../../logics/voice/routeState";
 import { ModelDownloads } from "./ModelDownloads";
+import { VcRuntimeSetup } from "./VcRuntimeSetup";
+import { StatusLine } from "./StatusLine";
+import { SetupSection } from "../_components/setup_section/SetupSection";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { Description } from "../_components/description/Description";
+import { FormRow } from "../_components/form_row/FormRow";
 
-// Keep the complete backend identity. Refresh never rebinds a selected name.
-const key = id => JSON.stringify([id.cookie, id.serial, id.name, id.media_class]);
 const defaults = { mode: "passthrough", runtime: "", reference: "", engine: "seed-vc",
     rvc_runtime: "", rvc_model: "", rvc_index: "", rvc_pitch: 0, rvc_index_rate: 0 };
 
@@ -23,8 +28,19 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
         if (variant === "legacy" && value.engine === "rvc") return { ...value, mode: "passthrough", engine: "seed-vc" };
         return value;
     }, [directState.settings, variant]);
-    const form = useSettingsDraft(saved, directError, updateDirectError);
+    const busy = !!directPending || directState.requested || directState.pending || directState.stopping;
+    const validNumbers = draft => Number.isInteger(draft.rvc_pitch) && Math.abs(draft.rvc_pitch) <= 24 &&
+        Number.isFinite(draft.rvc_index_rate) && draft.rvc_index_rate >= 0 && draft.rvc_index_rate <= 1;
+    // The RVC page edits converted RVC; selecting it is itself a change to save.
+    const needsSelection = draft => draft.mode !== directState.settings?.mode || draft.engine !== directState.settings?.engine;
+    const label = ([name]) => t(name === "mode" ? "voice.direct_mode" : name === "engine" ? "voice.vc_engine" : `voice.vc_${name}`, { defaultValue: name });
+    const form = useSettingsDraft(saved, directError, updateDirectError, { label,
+        savedFromResponse: value => ({ ...defaults, ...value.settings }),
+        write: value => send("/set/data/direct_voice_settings", value), canSave: draft => !busy && validNumbers(draft),
+        pending: draft => needsSelection(draft) && JSON.stringify(draft) === JSON.stringify(saved) ? [t(variant === "rvc" ? "voice_ui.select_rvc" : "voice.direct_mode")] : [] });
     const { draft, setDraft, saving, dirty } = form;
+    const reasonId = useId();
+    const numbersErrorId = useId();
     useEffect(() => {
         setDirectDraftBlocked(dirty || saving);
         return () => setDirectDraftBlocked(false);
@@ -35,21 +51,19 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
         send("/get/data/direct_voice_state");
     }, [send]);
     if (!draft) return <p role="status">{t("voice.input_unknown")}</p>;
-    const needsSelection = draft.mode !== directState.settings?.mode || draft.engine !== directState.settings?.engine;
     const isRvc = directOwner === "rvc";
     const ownsInput = !!directOwner && (variant === "all" || (variant === "rvc" ? isRvc : !isRvc));
     const sources = directSources.sources || [];
     const source = sources.find(item => key(item.id) === selected);
     const managed = settings?.routing === "managed";
+    const deviceRoute = usesOutputDevice(directState);
+    const routeReady = directRouteReady(settings, directState);
     const unavailable = directSources.error || directError || directState.error;
-    const busy = !!directPending || directState.requested || directState.pending || directState.stopping;
     const converted = draft.mode === "converted";
     const rvc = draft.engine === "rvc";
-    const validNumbers = Number.isInteger(draft.rvc_pitch) && Math.abs(draft.rvc_pitch) <= 24 &&
-        Number.isFinite(draft.rvc_index_rate) && draft.rvc_index_rate >= 0 && draft.rvc_index_rate <= 1;
     const complete = !converted || (rvc ? (draft.rvc_runtime.trim() && /\.pth$/i.test(draft.rvc_model) &&
         (!draft.rvc_index || /\.index$/i.test(draft.rvc_index)) &&
-        (!draft.rvc_index_rate || draft.rvc_index) && validNumbers) : (draft.runtime.trim() && draft.reference.trim()));
+        (!draft.rvc_index_rate || draft.rvc_index) && validNumbers(draft)) : (draft.runtime.trim() && draft.reference.trim()));
     const options = rvc ? { engine: "rvc", runtime: draft.rvc_runtime, model: draft.rvc_model,
         index: draft.rvc_index, pitch: draft.rvc_pitch, index_rate: draft.rvc_index_rate } :
         { runtime: draft.runtime, reference: draft.reference };
@@ -60,10 +74,25 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
     else if (directState.active) status = directState.mode !== "converted" ? "voice.input_active" :
         directState.conversion_state === "idle" ? "voice.vc_idle" :
             directState.conversion_verified ? "voice.vc_active" : "voice.vc_ready";
+    // The first thing start waits for, as a voice_ui key, or null when it can start.
+    const startBlocked = !routeReady ? (deviceRoute ? "start_needs_output" : "start_needs_mic") : !source ? "start_needs_input" : !complete ? "start_needs_setup" :
+        dirty || saving || needsSelection(draft) ? "start_needs_save" : !route.ready || route.pending || !directState.observation_id ? "start_waiting_route" :
+        directSources.error ? "start_input_unavailable" : busy ? "start_running" : null;
+    const savedPaths = directState.settings || {};
+    const setupStatus = [
+        ...(converted ? [t(rvc ? (savedPaths.rvc_runtime ? "voice_ui.runtime_set" : "voice_ui.runtime_unset") : (savedPaths.runtime ? "voice_ui.runtime_set" : "voice_ui.runtime_unset")),
+            t((rvc ? /\.pth$/i.test(savedPaths.rvc_model || "") : !!savedPaths.reference) ? "speech_servers.model_set" : "speech_servers.model_unset")] : []),
+        t(deviceRoute ? (routeReady ? "voice_ui.output_ready" : "voice_ui.output_unready") : managed ? "voice_ui.mic_ready" : "voice_ui.mic_unready"),
+    ].join(" · ");
+    const tone = status === "voice.input_failed" ? "failed" : status === "voice.input_pending" ? "pending" :
+        ["voice.input_active", "voice.vc_idle", "voice.vc_active", "voice.vc_ready"].includes(status) ? "active" : "idle";
     return <section className={styles.container} aria-label={variant === "rvc" ? "RVC" : t("voice.input_title")} data-setting-id={variant === "rvc" ? "rvc_settings" : "direct_voice_settings"}>
         <SectionLabelComponent label={variant === "rvc" ? "RVC" : t("voice.input_title")} />
+        <StatusLine tone={tone}>{t(status)}</StatusLine>
         <VoiceRouteSummary />
-        <p>{t(variant === "rvc" ? "voice.vc_rvc_hint" : "voice.input_description")}</p>
+        <Description text={t(variant === "rvc" ? "voice.vc_rvc_hint" : "voice.input_description")} />
+        {/* Says what the unsaved change in the save bar is when the page opens. */}
+        {variant === "rvc" && needsSelection(draft) && <p>{t("voice_ui.select_rvc_pending")}</p>}
         {busy && !ownsInput && <p role="alert">{t("voice_ui.input_conflict")}</p>}
         <fieldset className={styles.fields} disabled={saving}>
         {variant !== "rvc" && <label>{t("voice.direct_mode")}
@@ -72,62 +101,71 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
                 <option value="converted">{t("voice.direct_converted")}</option>
             </select>
         </label>}
-        {converted && <>
-            {variant === "all" && <label>{t("voice.vc_engine")}
-                <select aria-label={t("voice.vc_engine")} value={draft.engine} disabled={busy} onChange={e => setDraft({ ...draft, engine: e.target.value })}>
-                    <option value="seed-vc">Seed-VC</option>
-                    <option value="rvc">RVC</option>
-                </select>
-            </label>}
-            <p>{t(rvc ? "voice.vc_rvc_hint" : "voice.vc_hint")}</p>
-            {(rvc ? ["rvc_runtime", "rvc_model", "rvc_index"] : ["runtime", "reference"]).map(name => <label key={name}>{t(`voice.vc_${name}`)}
-                <input type="text" value={draft[name]} disabled={busy} maxLength={4096}
-                    onChange={e => setDraft({ ...draft, [name]: e.target.value })} />
+        {converted && variant === "all" && <label>{t("voice.vc_engine")}
+            <select aria-label={t("voice.vc_engine")} value={draft.engine} disabled={busy} onChange={e => setDraft({ ...draft, engine: e.target.value })}>
+                <option value="seed-vc">Seed-VC</option>
+                <option value="rvc">RVC</option>
+            </select>
+        </label>}
+        {converted && rvc && [["rvc_pitch", -24, 24, 1], ["rvc_index_rate", 0, 1, 0.05]].map(([name, min, max, step]) =>
+            <label key={name}>{t(`voice.vc_${name}`)}
+                <input type="number" min={min} max={max} step={step} disabled={busy}
+                    aria-describedby={!validNumbers(draft) ? numbersErrorId : undefined}
+                    aria-invalid={name === "rvc_pitch" ? !Number.isInteger(draft[name]) || Math.abs(draft[name]) > 24 :
+                        !Number.isFinite(draft[name]) || draft[name] < 0 || draft[name] > 1}
+                    value={Number.isFinite(draft[name]) ? draft[name] : ""}
+                    onChange={e => setDraft({ ...draft, [name]: e.target.valueAsNumber })} />
             </label>)}
-            {rvc && [["rvc_pitch", -24, 24, 1], ["rvc_index_rate", 0, 1, 0.05]].map(([name, min, max, step]) =>
-                <label key={name}>{t(`voice.vc_${name}`)}
-                    <input type="number" min={min} max={max} step={step} disabled={busy}
-                        aria-invalid={name === "rvc_pitch" ? !Number.isInteger(draft[name]) || Math.abs(draft[name]) > 24 :
-                            !Number.isFinite(draft[name]) || draft[name] < 0 || draft[name] > 1}
-                        value={Number.isFinite(draft[name]) ? draft[name] : ""}
-                        onChange={e => setDraft({ ...draft, [name]: e.target.valueAsNumber })} />
-                </label>)}
-            {rvc && !validNumbers && <p role="alert">{t("voice_ui.invalid_rvc_numbers")}</p>}
-            {rvc && draft.rvc_index_rate > 0 && !draft.rvc_index && <p role="alert">{t("voice_ui.rvc_index_required")}</p>}
-        </>}
+        {converted && rvc && !validNumbers(draft) && <p id={numbersErrorId} role="alert">{t("voice_ui.invalid_rvc_numbers")}</p>}
+        {converted && rvc && draft.rvc_index_rate > 0 && !draft.rvc_index && <p role="alert">{t("voice_ui.rvc_index_required")}</p>}
         </fieldset>
-        {rvc && <ModelDownloads targets={["rvc"]} blocked={dirty || busy || saving}
-            expected={{ rvc: { model: directState.settings?.rvc_model || "", index: directState.settings?.rvc_index || "" } }} />}
-        <div className={styles.actions}>
-            <button className={styles.primary} type="button" disabled={busy || (!dirty && !needsSelection) || saving || !validNumbers}
-                onClick={() => form.submit(value => send("/set/data/direct_voice_settings", value))}>{t(saving ? "voice.saving" : "voice.direct_save")}</button>
-            <button type="button" disabled={!dirty || saving} onClick={form.discard}>{t("voice_ui.discard")}</button>
-            <span role="status">{t(`voice_ui.${form.saveState}`)}</span>
-        </div>
-        {form.navigationDialog}
-        <label>{t("voice.input_source")}
+        <FormRow label={t("voice.input_source")} description={t(deviceRoute ? "voice.input_selection_hint_device" : "voice.input_selection_hint")}
+            actions={<button type="button" onClick={() => send("/get/data/direct_voice_sources")}>{t("voice.refresh_inputs")}</button>}>
             <select aria-label={t("voice.input_source")} value={selected} disabled={busy} onChange={e => setSelected(e.target.value)}>
                 <option value="">{t("voice.select_input")}</option>
                 {selected && !source && <option value={selected}>{t("voice.disconnected")}</option>}
                 {sources.map(item => <option key={key(item.id)} value={key(item.id)}>{item.label}</option>)}
             </select>
-        </label>
-        <button type="button" onClick={() => send("/get/data/direct_voice_sources")}>{t("voice.refresh_inputs")}</button>
-        <p>{t("voice.input_selection_hint")}</p>
-        {!managed && <><p>{t("voice.input_requires_managed")}</p>
-            <button type="button" disabled={!settings || busy || saving}
-                onClick={() => send("/set/data/voice_settings", { ...settings, routing: "managed" })}>{t("voice.prepare_microphone")}</button>
-            {error && <p role="alert">{t(`voice_setup_errors.${error}`, { defaultValue: error })}</p>}
-        </>}
-        {managed && <VoiceRouteControls />}
-        <button type="button" disabled={!managed || !route.ready || route.pending || !source || !!directSources.error || !complete || dirty || saving ||
-            !directState.observation_id || busy || needsSelection}
-            onClick={() => send("/run/start_direct_voice", converted ? {
-                source: source.id, mode: "converted", options,
-            } : { source: source.id })}>{t("voice.input_start")}</button>
-        <button type="button" disabled={!ownsInput || !busy} onClick={() => send("/run/stop_direct_voice")}>{t("voice.input_stop")}</button>
-        <p role="status">{t(status)}</p>
-        <p>{t("voice.input_scope")}</p>
-        {unavailable && <p role="alert">{t("voice.input_error")}: {unavailable}</p>}
+        </FormRow>
+        {(managed || deviceRoute) && <VoiceRouteControls />}
+        <div className={styles.actions}>
+            <button type="button" className="primary" disabled={!!startBlocked} aria-describedby={startBlocked ? reasonId : undefined}
+                onClick={() => send("/run/start_direct_voice", converted ? {
+                    source: source.id, mode: "converted", options,
+                } : { source: source.id })}>{t("voice.input_start")}</button>
+            <button type="button" className={styles.quiet} disabled={!ownsInput || !busy} onClick={() => send("/run/stop_direct_voice")}>{t("voice.input_stop")}</button>
+        </div>
+        {/* A disabled start says what it waits for. */}
+        {startBlocked && !busy && <p id={reasonId}>{t(`voice_ui.${startBlocked}`)}</p>}
+        <SetupSection title={t(variant === "rvc" ? "voice_ui.setup_rvc" : "voice_ui.setup_input")} status={setupStatus} attention={!!error}>
+            {converted && <fieldset className={styles.fields} disabled={saving}>
+                {/* The RVC page already opens with the RVC hint. */}
+                {variant !== "rvc" && <Description text={t(rvc ? "voice.vc_rvc_hint" : "voice.vc_hint")} />}
+                {(rvc ? ["rvc_runtime", "rvc_model", "rvc_index"] : ["runtime", "reference"]).map(name => <label key={name}>{t(`voice.vc_${name}`)}
+                    <input type="text" value={draft[name]} disabled={busy} maxLength={4096}
+                        onChange={e => setDraft({ ...draft, [name]: e.target.value })} />
+                </label>)}
+            </fieldset>}
+            {converted && <VcRuntimeSetup engine={rvc ? "rvc" : "seed-vc"} current={rvc ? draft.rvc_runtime : draft.runtime} disabled={busy || saving}
+                onUse={path => setDraft({ ...draft, [rvc ? "rvc_runtime" : "runtime"]: path })} />}
+            {/* Other unsaved edits survive an apply; only edited model or index paths conflict. */}
+            {rvc && <ModelDownloads targets={["rvc"]} blocked={busy || saving ? "busy" :
+                draft.rvc_model !== saved.rvc_model || draft.rvc_index !== saved.rvc_index ? "edited" : false}
+                expected={{ rvc: { model: directState.settings?.rvc_model || "", index: directState.settings?.rvc_index || "" } }} />}
+            {deviceRoute && !routeReady && <Description text={t("voice.input_requires_output")} />}
+            {/* The route is unknown until the first state arrives, and Windows has no microphone to prepare. */}
+            {directState.observation_id && !managed && !deviceRoute && <><Description text={t("voice.input_requires_managed")} />
+                <button type="button" disabled={!settings || busy || saving}
+                    onClick={() => send("/set/data/voice_settings", { ...settings, routing: "managed" })}>{t("voice.prepare_microphone")}</button>
+                {error && <p role="alert">{t([`voice_setup_errors.${error}`, `voice_ui.errors.${error}`], { defaultValue: error })}</p>}
+            </>}
+        </SetupSection>
+        {/* The unsaved-changes dialog stays outside the fold so it shows while folded. */}
+        {form.navigationDialog}
+        {/* The TTS monitor setting also covers converted voice; it is fixed at Start. */}
+        <p>{t(!converted ? "voice.vc_monitor_passthrough" : settings?.monitor === "on" ? "voice.vc_monitor_on" : "voice.vc_monitor_off")}</p>
+        {directState.monitor_error && <EnvReadout tone="failed"><p>{t(`voice.monitor_errors.${directState.monitor_error}`, { defaultValue: t("voice.monitor_error") })}</p></EnvReadout>}
+        <Description text={t("voice.input_scope")} />
+        {unavailable && <p role="alert">{t("voice.input_error")}: {t(`voice.input_errors.${unavailable}`, { defaultValue: unavailable })}</p>}
     </section>;
 };

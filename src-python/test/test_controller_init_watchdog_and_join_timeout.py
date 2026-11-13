@@ -19,7 +19,6 @@ join() タイムアウトに関するテスト (ロードマップ項目 9、残
 """
 
 import unittest
-from threading import Thread
 from unittest.mock import MagicMock, patch
 
 from controller import Controller
@@ -30,102 +29,33 @@ class _Sentinel(Exception):
 
 
 class StartWatchdogRunsFirstTests(unittest.TestCase):
-    def test_start_watchdog_runs_before_the_network_check(self) -> None:
+    def test_start_watchdog_runs_before_startup_progress_without_network_probe(self) -> None:
         controller = Controller.__new__(Controller)
-        # Controller.__init__ をバイパスしているため、init() 冒頭の
-        # _bootstrapModel() (フェーズ3項目22) が使う self._model を手動で
-        # 用意する。無いと AttributeError が (_bootstrapModel 内の
-        # try/except で) 黙って握り潰されるだけでこのテスト自体は壊れないが、
-        # 実際に model.init() が呼ばれたことにして意図を明示する。
         controller._model = MagicMock()
+        controller.run = MagicMock()
+        controller.run_mapping = {"connected_network": "/run/connected_network"}
         calls = []
-        controller.startWatchdog = lambda *a, **k: calls.append("startWatchdog")
-
-        def fake_is_connected():
-            calls.append("isConnectedNetwork")
+        controller.startWatchdog = lambda: calls.append("startWatchdog")
+        def progress(_):
+            calls.append("progress")
             raise _Sentinel()
-
-        with patch("controller.isConnectedNetwork", side_effect=fake_is_connected), \
-             patch("controller.removeLog"):
+        controller.initializationProgress = progress
+        with patch("controller.isConnectedNetwork") as probe, patch("controller.removeLog"):
             with self.assertRaises(_Sentinel):
                 controller.init()
-
-        self.assertEqual(calls, ["startWatchdog", "isConnectedNetwork"])
-
-
-class _StubDownloadThread:
-    """weight download 用 Thread の代わり。is_alive()/join() の呼ばれ方を記録する。"""
-
-    def __init__(self, target=None, args=(), **_kwargs):
-        self.target = target
-        self.args = args
-        self.daemon = False
-        self.join_calls = []
-        self._alive = False
-
-    def start(self):
-        self._alive = False  # このスタブでは実行完了済み扱いにする
-
-    def join(self, timeout=None):
-        self.join_calls.append(timeout)
-
-    def is_alive(self):
-        return self._alive
+        self.assertEqual(calls, ["startWatchdog", "progress"])
+        probe.assert_not_called()
+        controller.run.assert_called_once_with(200, "/run/connected_network", None)
 
 
-class WeightDownloadJoinTimeoutTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self.controller = Controller.__new__(Controller)
-        self.controller.startWatchdog = lambda *a, **k: None
-        self.controller.connectedNetwork = lambda: None
-        self.controller.disconnectedNetwork = lambda: None
-        self.controller.initializationProgress = lambda *a, **k: None
-        self.controller.downloadCtranslate2Weight = lambda *a, **k: None
-        self.controller.downloadWhisperWeight = lambda *a, **k: None
-
-    def test_join_is_called_with_a_bounded_timeout(self) -> None:
-        created_threads = []
-
-        class _TrackingThread(_StubDownloadThread):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                created_threads.append(self)
-
-        def fake_check_ctranslate2(weight_type):
-            return False  # 未ダウンロード → スレッドが作られる
-
-        def fake_check_whisper(weight_type):
-            return False
-
-        with patch("controller.isConnectedNetwork", return_value=True), \
-             patch("controller.config", AUTO_DOWNLOAD_MODELS=True), \
-             patch("controller.removeLog"), \
-             patch("controller.Thread", _TrackingThread), \
-             patch("controller.model") as mock_model:
-            # Controller.__init__ をバイパスしているため、init() 冒頭の
-            # _bootstrapModel() (フェーズ3項目22) が使う self._model を
-            # 手動で用意する (patch("controller.model") はモジュール属性を
-            # 差し替えるだけで、既に __new__ 済みのインスタンス属性までは
-            # 遡って設定してくれない)。
-            self.controller._model = mock_model
-            mock_model.backwardCompatibleTranslatorCTranslate2ModelRenameWeightsDir = lambda: None
-            mock_model.checkTranslatorCTranslate2ModelWeight.side_effect = fake_check_ctranslate2
-            mock_model.checkTranscriptionWhisperModelWeight.side_effect = fake_check_whisper
-            # ダウンロードスレッドの join() 直後、後続の
-            # ThreadPoolExecutor 検証フェーズに入る前で打ち切る。
-            mock_model.checkTranslatorCTranslate2ModelWeight.side_effect = fake_check_ctranslate2
-
-            with patch("controller.ThreadPoolExecutor", side_effect=_Sentinel):
-                with self.assertRaises(_Sentinel):
-                    self.controller.init()
-
-        self.assertEqual(len(created_threads), 2, "ctranslate2/whisper 用に2本のスレッドが作られるはず")
-        for th in created_threads:
-            self.assertEqual(len(th.join_calls), 1)
-            timeout = th.join_calls[0]
-            self.assertIsNotNone(timeout, "join() が無制限 (timeout=None) のまま呼ばれている")
-            self.assertGreater(timeout, 0)
-
-
-if __name__ == "__main__":
-    unittest.main()
+def test_wait_timeout_cancels_and_joins_before_retry():
+    from models.legacy_model_downloads import LegacyDownloads
+    owner = LegacyDownloads()
+    control, thread = MagicMock(), MagicMock()
+    thread.is_alive.side_effect = [True, False]
+    owner.jobs["base"] = control, thread
+    assert owner.wait("base", timeout=0.01)
+    control.cancel.assert_called_once()
+    assert thread.join.call_args_list[0].args == (0.01,)
+    join_timeout = thread.join.call_args_list[1].args[0]
+    assert 0 <= join_timeout <= control.cancel.call_args.kwargs["timeout"] <= 2

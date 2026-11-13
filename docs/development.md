@@ -12,6 +12,8 @@ python tools/dev.py check
 
 `doctor` は不足を表示します。`setup` は指定した依存関係を導入します。`check` の既定値は `quick` で、開発CLIの試験、Nodeの試験、Ruffを実行します。詳しいコマンドは各サブコマンドの `--help` で確認できます。Linuxで `python` がない場合は `python3`、WindowsではPython 3.11以降の `py` でも起動できます。
 
+機能仕様書の一覧（`docs/spec/reference/` のエンドポイント、エラーコード、設定キー）はコードから生成します。エンドポイント、エラーコード、設定キーを変えたら `python tools/spec_catalog.py --write` で作り直します。`check` はこの一覧が最新かどうかも確かめます。仕様書の入口は [docs/spec/README.md](spec/README.md) です。
+
 npmからも `npm run doctor`、`npm run check`、`npm run check:all`、`npm run test:voice`、`npm run test:ui` を使えます。準備は `npm run setup:headless` と `npm run setup:browser`、コミット検証は `npm run check:commits -- --base origin/develop` です。追加オプションはnpmの `--` の後ろに渡します。`npm run dev:web` はWeb UIの開発サーバーを起動する別コマンドで、検証には含めません。
 
 ## 用意するツール
@@ -38,18 +40,18 @@ Linuxのトレイ用ライブラリは `ayatana-appindicator3-0.1` または `ap
 
 | スコープ | 実行内容と保存先 |
 | --- | --- |
-| `headless` | `requirements-voice-test.txt` を `build/dev/headless-venv` に導入 |
+| `headless` | `uv.lock` の `voice-test` グループだけを `build/dev/headless-venv` に同期 |
 | `ui` | `npm ci --ignore-scripts` でルートの `node_modules` を準備 |
-| `browser` | `requirements-voice-ui-test.txt` を `build/dev/browser-venv` に導入。既存venvへの追加も可 |
-| `backend` | Linuxの `requirements-linux-build.lock` を `build/dev/backend-venv` に同期 |
+| `browser` | `uv.lock` の `voice-ui-test` グループを `build/dev/browser-venv` に同期。既存venvへの追加も可 |
+| `backend` | `uv.lock` の本体・`dev`・`linux-build` を `build/dev/backend-venv` に同期（Linux） |
 | `rust` | `cargo fetch --locked` でCargo.lockに従う依存を取得 |
 | `sidecar` | Unixで既存Rustソースをコンパイルし、Tauri開発用wrapperと必要なplaceholderを準備 |
 
-専用venvには所有マーカーを保存します。同じ場所にマーカーのない既存ディレクトリやシンボリックリンクがある場合は停止し、削除しません。`headless` と `browser` のrequirementsは直接依存の一覧なので、`uv pip install` で間接依存も解決します。完全なlockがあるLinux backendだけは `uv pip sync` を使います。[uvの環境指定](https://docs.astral.sh/uv/pip/environments/)と[依存の固定・同期](https://docs.astral.sh/uv/pip/compile/)に沿った使い分けです。
+専用venvには所有マーカーを保存します。同じ場所にマーカーのない既存ディレクトリやシンボリックリンクがある場合は停止し、削除しません。Pythonのスコープはいずれも、`tools/check_python_lock.py`でロック全体のアーカイブのSHA-256とGit依存の完全なcommit SHAを検査します。続いて、`uv.lock` からハッシュと間接依存を含む一覧を `uv export` で `build/dev/<scope>-requirements.txt` に書き出し、専用venvへ `uv pip sync` で同期します。uvは一覧にあるハッシュを照合し、不一致なら停止します。Git依存にはアーカイブのハッシュを要求せず、固定commitを使います。`--python` で既存venvを指定した場合（`browser` のみ）は `uv pip install -r` で追加し、ほかのパッケージは削除しません。[uvの環境指定](https://docs.astral.sh/uv/pip/environments/)と[依存の固定・同期](https://docs.astral.sh/uv/pip/compile/)を参照してください。
 
 `setup --scope ui` は既存の `node_modules` をnpmの仕様どおり作り直します。package.jsonとpackage-lock.jsonに不一致があれば失敗し、lockを更新しません。[npm ciの仕様](https://docs.npmjs.com/cli/v11/commands/npm-ci)を参照してください。
 
-Windowsでも `headless`、`ui`、`browser`、`rust` は同じ入口です。backend自動準備は現在Linuxのlockを使うため、Windowsでは診断を出して終了します。既存のWindows全体セットアップは `npm run setup-python` ですが、現在のbatは `.venv` と `.venv_cuda` を作り直します。既存環境を保持したい場合には実行せず、利用できる環境を `--python` で検証に渡してください。
+Windowsでも `headless`、`ui`、`browser`、`rust` は同じ入口です。backend自動準備は現在Linuxのlockを使うため、Windowsでは診断を出して終了します。Windowsの全体セットアップは `npm run setup-python` です。このbatは `uv sync --frozen` で `.venv` と `.venv_cuda` を `uv.lock` に合わせるため、lockにないパッケージは削除されます。既存環境を保持したい場合には実行せず、利用できる環境を `--python` で検証に渡してください。
 
 ### Tauri開発用sidecarを準備する
 
@@ -82,7 +84,7 @@ python tools/dev.py doctor --scope browser --python .venv_linux/bin/python
 
 この操作は選んだPython 3.11のvenvに必要なパッケージを追加・更新します。無関係なパッケージをsyncで削除しません。システムPythonは拒否します。Windowsのvenvなら `.venv\Scripts\python.exe` のように実行ファイルを指定します。
 
-PlaywrightのPythonパッケージとChromium実行ファイルは別です。`setup --scope browser` はChromiumやOSライブラリを取得しません。既存ブラウザを使う試験には `VRCT_TEST_CHROMIUM` の指定が必要です。ブラウザ試験の実行条件は[モデル取得UIの検証記録](voice-stack/model-downloads.md)を参照してください。通常の `check` は実機・ブラウザ試験の有効化変数を除外するため、専用試験は個別の手順で実行します。
+PlaywrightのPythonパッケージとChromium実行ファイルは別です。`setup --scope browser` はChromiumやOSライブラリを取得しません。既存ブラウザを使う試験には `VRCT_TEST_CHROMIUM` の指定が必要です。ブラウザ試験の実行条件は[モデル取得UIの検証記録](voice-stack/model-downloads.md)を参照してください。通常の `check` は実機・ブラウザ試験の有効化変数を除外するため、専用試験は個別の手順で実行します。Windowsの長時間運転と実マイクの試験は[Windowsの実機試験](voice-stack/windows-field-tests.md)にあります。
 
 ## 検証する対象を選ぶ
 
@@ -124,6 +126,20 @@ Pythonは専用venvを優先し、次に既存 `.venv_linux`、`.venv` を探し
 | `130` | Ctrl+Cによる中断 |
 
 機械処理には `python tools/dev.py doctor --scope voice --json` を使います。未整備環境では `ok: false` と対処方法を返します。
+
+## VRの機器なしでVRの処理を試す
+
+`src-python/test/fake_openvr.py` は、SteamVRの代わりになる偽のOpenVRです。pyopenvrの定数と構造体は本物を使い、`openvr.init`、`IVRSystem`、`IVROverlay` など、SteamVRにつながる入口だけを差し替えます。製品のコードと設定は変えません。頭と両手の姿勢、ボタン、オーバーレイの表示・位置・画像、SteamVRの終了（`VREvent_Quit`）を扱えます。
+
+試験では `with FakeOpenVR() as vr:` の中でオーバーレイを動かし、`vr.overlay_by_key("VRCT0")` などで結果を確かめます。本物にはない検査として、`shutdown` の後に古いインターフェースを使うと `vr.misuse` に、消さずに残したオーバーレイを `vr.leaked` に記録します。呼び出しの形が本物とずれていないかは `test_fake_openvr.py` が確かめます。使用例は `test_overlay_fake_vr.py` にあります。
+
+アプリ全体では、次のように起動するとバックエンド（`src-python/mainloop.py`）だけが偽物につながります。`tools/fake_vr_site` を `PYTHONPATH` に入れ、Pythonの `sitecustomize` で差し込みます。
+
+```sh
+python tools/run_with_fake_vr.py --out build/fake-vr -- npx tauri dev
+```
+
+`--out` には、ヘッドセットに出るはずの画像（オーバーレイごとのPNGと、VR画面のテクスチャ全体）と、オーバーレイの状態の `state.json` を1秒ごとに書き出します。`control.json` を書き換えると、コントローラの向きやボタンを操作できます。書き方は `tools/fake_vr_site/fake_vr_recorder.py` の先頭にあります。ミラー画面（OCRのVRの撮影）は扱いません。実機のSteamVRでの見え方や性能の確認の代わりにはなりません。
 
 ## EditorConfigとコミット形式
 
@@ -171,4 +187,4 @@ python tools/build_voice_gate.py
 python tools/dev.py check --scope voice
 ```
 
-npmとCargoは既存のlockを使います。Linux backendは完全な依存一覧を使い、headless/browserは直接依存を固定しています。後者の間接依存、Pythonのpatch版、Rust、OSライブラリまではこのCLIで完全固定しません。同じビット列の配布物や全機種での動作を保証するものではありません。検証記録には `doctor --json` の結果、実行scope、commit、OSを併記します。
+npm、Cargo、Pythonはそれぞれ `package-lock.json`、`Cargo.lock`、`uv.lock` を使います。Pythonの検証対象はロックにある配布アーカイブとGitのcommitです。ソースビルド時に隔離環境へ追加されるビルド依存や、Python本体のpatch版、Rust、OSライブラリはこのCLIでは固定しません。同じビット列の配布物や全機種での動作を保証するものではありません。検証記録には `doctor --json` の結果、実行scope、commit、OSを併記します。

@@ -43,6 +43,8 @@
     }
     &.delete {
         padding: 0.2rem;
+        &:hover { background-color: var(--dark_825_color); }
+        &:active { background-color: var(--dark_850_color); }
     }
     &.redo {
         padding: 0.6rem;
@@ -51,7 +53,7 @@
 
 .delete_svg {
     width: 2.4rem;
-    color: var(--error_bc_color);
+    color: var(--vox_state_failed);
 }
 
 .redo_svg {
@@ -64,9 +66,14 @@
 
 .entry_section_wrapper {
     display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    min-width: 0;
     justify-content: center;
     align-items: center;
     gap: 2rem;
+    // Let the entry give space to Add, or put Add on the next line.
+    > :first-child { flex: 1 1 18rem; min-width: 0; max-width: 30rem; }
 }
 
 .add_button {
@@ -76,8 +83,10 @@
     border-radius: 0.4rem;
     text-align: center;
     flex-shrink: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
     &:hover {
-        background-color: var(--primary_500_color);
+        background-color: var(--primary_650_color);
     }
     &:active {
         background-color: var(--primary_700_color);

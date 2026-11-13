@@ -4,7 +4,7 @@ import copy
 from queue import Queue
 from threading import Event, Thread
 import time
-from unittest.mock import MagicMock, call
+from unittest.mock import ANY, MagicMock, call
 from uuid import uuid4
 
 import pytest
@@ -16,7 +16,8 @@ from test_realtime_delivery import Session, eventually
 
 
 def settings():
-    value = normalize_settings({"model": "asr"})
+    # Explicit languages: "auto" (the fresh speaker default) has its own tests.
+    value = normalize_settings({"model": "asr", "speaker": {"language": "ja"}})
     for source, media in (("mic", "Audio/Source"), ("speaker", "Audio/Sink")):
         value[source]["endpoint"] = dict(
             cookie="1", serial="2", name=source, media_class=media
@@ -27,8 +28,8 @@ def settings():
 class CaptureSession(Session):
     created = None
 
-    def __init__(self, source, options, endpoint):
-        super().__init__()
+    def __init__(self, source, options, endpoint, *, snapshot_voice=None):
+        super().__init__(snapshot_voice=snapshot_voice)
         self.source, self.options, self.endpoint = source, options, endpoint
         self.namespace = uuid4().hex
         self.active = False
@@ -55,6 +56,11 @@ def app(controller_module, monkeypatch):  # noqa: F811
     m.config.ENABLE_CHECK_ENERGY_SEND = m.config.ENABLE_CHECK_ENERGY_RECEIVE = True
     m.config.VRC_MIC_MUTE_SYNC = False
     m.model.stopCaptureForRealtime.return_value = True
+    # The model boundary reports actual start success, not a truthy Mock.
+    # These tests exercise controller ownership with fake model services.
+    for method in ("startMicTranscript", "startSpeakerTranscript",
+                   "startCheckMicEnergy", "startCheckSpeakerEnergy"):
+        getattr(m.model, method).return_value = True
     c = m.Controller()
     c.run = MagicMock()
     c.messageFormatter = MagicMock(return_value="formatted")
@@ -124,23 +130,33 @@ def test_settings_restore_choices_but_never_capture_and_validate_before_mutation
         other.voice_events.close()
 
 
-def test_sources_independent_and_legacy_capture_mutually_exclusive(app):
+def test_sources_independent_and_legacy_capture_mutually_exclusive(app, monkeypatch):
     c, m, made = app
     start(c)
     start(c, "speaker")
     assert all(session.active for session in made)
     assert m.model.stopCaptureForRealtime.call_args_list == [call("mic"), call("speaker")]
-    c.startCheckMicEnergy()
-    c.startCheckSpeakerEnergy()
+    assert c.setEnableCheckMicThreshold()["result"] is False
+    assert c.setEnableCheckSpeakerThreshold()["result"] is False
     m.model.startCheckMicEnergy.assert_not_called()
     m.model.startCheckSpeakerEnergy.assert_not_called()
     assert (
         not m.config.ENABLE_TRANSCRIPTION_SEND
         and not m.config.ENABLE_TRANSCRIPTION_RECEIVE
     )
-    assert c.startTranscriptionSendMessage()
+    # Realtime cleared legacy intent. Select the legacy user-action route while
+    # retaining the fake realtime owners; a raw restart must still refuse OFF.
+    assert c.startTranscriptionSendMessage() is False
+    m.model.startMicTranscript.assert_not_called()
+    monkeypatch.setattr(c, "_realtimeToggles", lambda: False)
+    def start_legacy(callback):
+        assert c._realtime_owners["mic"] is None
+        assert not made[0].active and made[1].active
+        return True
+    m.model.startMicTranscript.side_effect = start_legacy
+    assert c.setEnableTranscriptionSend()["result"] is True
     assert not made[0].active and made[1].active
-    m.model.startMicTranscript.assert_called_once()
+    m.model.startMicTranscript.assert_called_once_with(c.micMessage)
 
 
 def test_settings_invalidate_affected_source_and_shared_changes_stop_both(app):
@@ -182,13 +198,15 @@ def test_fast_stop_invalidates_start_waiting_for_legacy_cleanup(app):
         thread.join(2)
 
 
-def test_busy_previous_owner_blocks_restart_and_legacy_capture(app):
+def test_busy_previous_owner_blocks_restart_and_legacy_capture(app, monkeypatch):
     c, m, made = app
     start(c)
     made[0].busy = True
     c.stopRealtimeASR({"source": "mic"})
     assert c.startRealtimeASR(request(c))["status"] == 409
-    assert not c.startTranscriptionSendMessage()
+    monkeypatch.setattr(c, "_realtimeToggles", lambda: False)
+    assert c.setEnableTranscriptionSend()["result"] is False
+    assert c._realtime_owners["mic"][0] is made[0]
     m.model.startMicTranscript.assert_not_called()
     assert len(made) == 1
 
@@ -217,10 +235,19 @@ def test_legacy_meter_can_resume_only_after_stopped_owner_drains(app, source, ca
     start(c, source)
     made[0].busy = True
     c.stopRealtimeASR({"source": source})
-    assert getattr(c, "startCheck" + cap + "Energy")() is False
+    enable = getattr(c, "setEnableCheck" + cap + "Threshold")
+    model_start = getattr(m.model, "startCheck" + cap + "Energy")
+    assert enable()["result"] is False
+    model_start.assert_not_called()
+    assert c._realtime_owners[source][0] is made[0]
     made[0].busy = False
-    assert getattr(c, "startCheck" + cap + "Energy")() is True
-    getattr(m.model, "startCheck" + cap + "Energy").assert_called_once()
+    def start_meter(callback):
+        assert c._realtime_owners[source] is None
+        assert not made[0].active
+        return True
+    model_start.side_effect = start_meter
+    assert enable()["result"] is True
+    model_start.assert_called_once_with(getattr(c, "progressBar" + cap + "Energy"))
 
 
 @pytest.mark.parametrize("source", ["mic", "speaker"])
@@ -259,8 +286,8 @@ def test_partial_no_side_effects_and_final_once_with_speaker_never_rebroadcast(
     c, m, made = app
     m.config.ENABLE_TRANSLATION = True
     m.config.SEND_RECEIVED_MESSAGE_TO_VRC = True
-    m.model.getInputTranslate.return_value = (["hello"], [True])
-    m.model.getOutputTranslate.return_value = (["hello"], [True])
+    m.model.getInputTranslate.return_value = (["hello"], [True], ['translated'])
+    m.model.getOutputTranslate.return_value = (["hello"], [True], ['translated'])
     c.voice_events.publish = MagicMock()
     start(c, source)
     session = made[0]
@@ -277,10 +304,10 @@ def test_partial_no_side_effects_and_final_once_with_speaker_never_rebroadcast(
     translator = (
         m.model.getInputTranslate if source == "mic" else m.model.getOutputTranslate
     )
-    translator.assert_called_once_with("text", source_language="Japanese")
+    translator.assert_called_once_with("text", source_language="Japanese", snapshot=ANY, with_provenance=True)
     assert m.model.oscSendMessage.call_count == (1 if source == "mic" else 0)
     c.voice_events.publish.assert_not_called()
-    m.model.addTranslationHistory.assert_called_once_with(source, "text")
+    m.model.addTranslationHistory.assert_called_once_with(source, "text", snapshot=ANY)
     assert (
         m.model.websocketSendMessage.call_args.args[0]["type"]
         == "REALTIME_" + source.upper()
@@ -298,7 +325,7 @@ def test_stop_during_translation_discards_all_late_pipeline_effects(app, failure
         release.wait(2)
         if failure == "vram":
             raise RuntimeError("private provider message")
-        return ["translation"], [failure == "success"]
+        return ["translation"], [failure == "success"], ["translated" if failure == "success" else "failed"]
 
     m.model.getInputTranslate.side_effect = translate
     c.changeToCTranslate2Process = MagicMock()
@@ -343,7 +370,7 @@ def test_explicit_model_and_endpoint_lists_and_safe_errors(app, monkeypatch):
         "server_generation": None,
         "configured_url": "http://127.0.0.1:8080",
         "base_url": "http://127.0.0.1:8080",
-        "models": [{"id": "asr", "languages": ("ja",), "accepts_language": False}],
+        "models": [{"id": "asr", "languages": ("ja",), "accepts_language": False, "detects_language": False, "options": ()}],
         "error_code": None,
     }
     m.SpeechCppASR.assert_called_once_with("http://127.0.0.1:8080", timeout=5)
@@ -368,13 +395,13 @@ def test_explicit_model_and_endpoint_lists_and_safe_errors(app, monkeypatch):
         "models": [],
         "error_code": "realtime_models_unavailable",
     }
-    monkeypatch.setattr(m.sys, "platform", "win32")
+    monkeypatch.setattr(m.sys, "platform", "darwin")
     assert (
         c.getRealtimeASREndpoints({"source": "mic"})["result"]["error_code"]
-        == "realtime_linux_only"
+        == "realtime_platform_unsupported"
     )
     assert (
-        c.startRealtimeASR(request(c))["result"]["error_code"] == "realtime_linux_only"
+        c.startRealtimeASR(request(c))["result"]["error_code"] == "realtime_platform_unsupported"
     )
     assert not made
 
@@ -386,6 +413,7 @@ def test_real_config_persistence_contains_choices_not_capture_intent(tmp_path):
     cfg = object.__new__(Config)
     cfg.init_config()
     cfg._PATH_CONFIG = str(tmp_path / "config.json")
+    cfg.load_config()
     try:
         assert cfg.REALTIME_ASR_SETTINGS == normalize_settings({})
         cfg.REALTIME_ASR_SETTINGS = settings()

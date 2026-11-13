@@ -1,4 +1,5 @@
 import styles from "./SliderAndMeter.module.scss";
+import { useI18n } from "@useI18n";
 import {
     useStore_MicVolume,
     useStore_SpeakerVolume,
@@ -26,6 +27,7 @@ const toNumericThreshold = (val, fallback = 0) => {
 };
 
 const ThresholdVolumeMeter_Mic = (props) => {
+    const { t } = useI18n();
     const { currentMicVolume } = useStore_MicVolume();
 
     const { currentEnableAutomaticMicThreshold, currentMicVadFilter } = useDevice();
@@ -47,6 +49,8 @@ const ThresholdVolumeMeter_Mic = (props) => {
                     value={slider_value}
                     onChange={(e) => props.setUiThresholdFunction(e.target.value)}
                     onMouseUp={(e) => props.setThresholdFunction(e.target.value)}
+                    onKeyUp={(e) => props.setThresholdFunction(e.target.value)}
+                    aria-label={t(props.id === "mic_threshold" ? "vr_panel.mic_threshold" : "vr_panel.speaker_threshold")}
                     className={styles.threshold_slider}
                 />
             }
@@ -55,6 +59,7 @@ const ThresholdVolumeMeter_Mic = (props) => {
 };
 
 const ThresholdVolumeMeter_Speaker = (props) => {
+    const { t } = useI18n();
     const { currentSpeakerVolume } = useStore_SpeakerVolume();
 
     const { currentEnableAutomaticSpeakerThreshold, currentSpeakerVadFilter } = useDevice();
@@ -76,6 +81,8 @@ const ThresholdVolumeMeter_Speaker = (props) => {
                     value={slider_value}
                     onChange={(e) => props.setUiThresholdFunction(e.target.value)}
                     onMouseUp={(e) => props.setThresholdFunction(e.target.value)}
+                    onKeyUp={(e) => props.setThresholdFunction(e.target.value)}
+                    aria-label={t(props.id === "mic_threshold" ? "vr_panel.mic_threshold" : "vr_panel.speaker_threshold")}
                     className={styles.threshold_slider}
                 />
             }

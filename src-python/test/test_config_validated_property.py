@@ -31,6 +31,7 @@ class _DummyConfig:
     ValidatedProperty ディスクリプタと実際の本番バリデータだけを検証するための
     最小スタブ。"""
 
+    SELECTABLE_TAB_NO_LIST = ["tab1"]
     SELECTABLE_TRANSLATION_ENGINE_LIST = ["Google", "Bing", "DeepL"]
     SELECTED_TRANSLATION_ENGINES = ValidatedProperty(
         "SELECTED_TRANSLATION_ENGINES", _selected_translation_engines_validator
@@ -78,6 +79,7 @@ class ValidatorFallbackTests(unittest.TestCase):
 
     def setUp(self):
         self.inst = _DummyConfig()
+        self.inst.SELECTABLE_TAB_NO_LIST = ["tab1", "tab2"]
         self.inst._SELECTED_TRANSLATION_ENGINES = {"tab1": "Google", "tab2": "Bing"}
 
     def test_invalid_entry_falls_back_to_the_true_previous_value(self):

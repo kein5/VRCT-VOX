@@ -1,16 +1,24 @@
+from models.network_policy import CUSTOM_URL_KEYS, valid_saved_api_url
+from models.obs.settings import is_valid_numeric_setting
 import sys
 import copy
+import errno
+import math
+import contextlib
+import stat
+import exclusive_tempfile
 from os import path as os_path, makedirs as os_makedirs, replace as os_replace, fsync as os_fsync, remove as os_remove
 from json import load as json_load
 from json import dump as json_dump
 from secrets import token_urlsafe as secrets_token_urlsafe
 import threading
 from os import environ
+import os
 from models.tts.settings import VoiceSettings, normalize_settings
 from models.voice_conversion.settings import DirectSettings, normalize_settings as normalize_direct_settings
 from models.transcription.realtime_settings import normalize_settings as normalize_realtime_settings
 from models.speech_server.settings import normalize_settings as normalize_speech_server_settings
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 
 # Guard optional, potentially heavy or platform-specific imports so importing
 # config.py doesn't raise in environments missing those packages.
@@ -27,9 +35,10 @@ except Exception:  # pragma: no cover - optional runtime
         return {}
 
 try:
-    from models.translation.translation_utils import ctranslate2_weights
+    from models.translation.translation_utils import ctranslate2_weights, DEFAULT_CTRANSLATE2_WEIGHT_TYPE
 except Exception:  # pragma: no cover - optional runtime
     ctranslate2_weights = {}  # type: ignore
+    DEFAULT_CTRANSLATE2_WEIGHT_TYPE = "m2m100_418M-ct2-int8"
 
 try:
     from models.transcription.transcription_languages import transcription_lang
@@ -46,7 +55,7 @@ try:
 except Exception:  # pragma: no cover - optional runtime
     ocr_selectable_languages = ()  # type: ignore
 
-from utils import errorLogging, printLog, validateDictStructure, getComputeDeviceList, isValidIpAddress, isWildcardBindAddress
+from utils import errorLogging, printLog, validateDictStructure, getComputeDeviceList, isValidPort, isValidWebSocketHost
 
 # NOTE: MIC_VAD_FILTER/SPEAKER_VAD_FILTER/MIC_VAD_PARAMETERS/SPEAKER_VAD_PARAMETERS と
 # 対応する migration ヘルパは ADR-0004 でストリーミング/VAD 独自実装を撤退した際に
@@ -298,7 +307,9 @@ DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS = {
     "display_duration": 5,
     "fadeout_duration": 0,  # 常に表示
     "opacity": 1.0,
-    "ui_scaling": 0.1984,  # 横幅(m)。952x128px の帯 (左端のマーク込み)
+    # 帯が 952px 幅だとしたときの横幅(m) (LAUNCHER_SAVED_WIDTH_PX)。実際の 880px の帯は 0.1834m になる。
+    # 左端のマークがあった頃と同じ意味なので、保存済みの値は書き換えなくても同じ大きさで出る
+    "ui_scaling": 0.1984,
     "tracker": "LeftHand",
 }
 
@@ -330,7 +341,7 @@ class ConfigValidationError(Exception):
 # It performs optional type validation, optional allowed-values check, and calls
 # instance.saveConfig(...) on successful set.
 class ManagedProperty:
-    def __init__(self, name: str, type_: type = None, allowed=None, immediate_save: bool = False, serialize: bool = True, readonly: bool = False, mutable_tracking: bool = False):
+    def __init__(self, name: str, type_: type = None, allowed=None, immediate_save: bool = False, serialize: bool = True, readonly: bool = False, mutable_tracking: bool = False, allow_none: bool = False):
         self.name = name
         self.type_ = type_
         self.allowed = allowed
@@ -338,6 +349,7 @@ class ManagedProperty:
         self.serialize = serialize
         self.readonly = readonly
         self.mutable_tracking = mutable_tracking
+        self.allow_none = allow_none
         self.private_name = f"_{name}"
         self.wrapper_cache_name = f"_wrapper_{name}"
 
@@ -372,8 +384,15 @@ class ManagedProperty:
         if self.readonly:
             raise AttributeError(f"Cannot set read-only property '{self.name}'")
 
-        # Type check if requested（Noneは常に許可）
+        if value is None and not self.allow_none:
+            raise ConfigValidationError(self.name, value)
+
+        # Nullable selections opt in; booleans are not numeric settings.
         if self.type_ is not None and value is not None and not isinstance(value, self.type_):
+            raise ConfigValidationError(self.name, value)
+        if isinstance(value, bool) and self.type_ in (int, float, (int, float)):
+            raise ConfigValidationError(self.name, value)
+        if isinstance(value, float) and not math.isfinite(value):
             raise ConfigValidationError(self.name, value)
 
         # Allowed-values check: can be an iterable or a callable
@@ -414,7 +433,8 @@ class ManagedProperty:
 
         # Persist change
         try:
-            if self.serialize:
+            # Keep the pending saved values available to dependent validators.
+            if self.serialize and not getattr(instance, "_loading_saved_config", False):
                 instance.saveConfig(self.name, value, immediate_save=self.immediate_save)
         except Exception:
             # Keep setter robust during import-time initialization
@@ -471,7 +491,7 @@ class ValidatedProperty:
             normalized = copy.deepcopy(normalized)
         setattr(instance, self.private_name, normalized)
         try:
-            if self.serialize:
+            if self.serialize and not getattr(instance, "_loading_saved_config", False):
                 instance.saveConfig(self.name, normalized, immediate_save=self.immediate_save)
         except Exception:
             pass
@@ -480,6 +500,29 @@ class ValidatedProperty:
 # ============================================================================
 # Validator Functions for ValidatedProperty
 # ============================================================================
+
+# Smallest side of the OCR region (relative). Matches models/ocr/ocr_detection.py.
+_OCR_REGION_MIN_SIDE = 0.02
+
+
+def _ocr_capture_region_validator(val, inst):
+    """{"x", "y", "width", "height"} in window-relative units, inside the window."""
+    if not isinstance(val, dict) or set(val) != {"x", "y", "width", "height"}:
+        return False
+    if any(isinstance(val[k], bool) or not isinstance(val[k], (int, float)) for k in val):
+        return False
+    x, y, w, h = (float(val[k]) for k in ("x", "y", "width", "height"))
+    if not all(math.isfinite(v) for v in (x, y, w, h)):
+        return False
+    eps = 1e-6
+    return (0.0 <= x and 0.0 <= y and w >= _OCR_REGION_MIN_SIDE - eps and h >= _OCR_REGION_MIN_SIDE - eps
+            and x + w <= 1.0 + eps and y + h <= 1.0 + eps)
+
+
+def _ocr_portal_restore_token_validator(val, inst):
+    """Opaque text from the desktop: short, on one line. The portal decides whether it is still valid."""
+    return len(val) <= 512 and not any(ord(char) < 32 or ord(char) == 127 for char in val)
+
 
 def _main_window_geometry_validator(val, inst):
     if not (isinstance(val, dict) and set(val.keys()) == set(inst.MAIN_WINDOW_GEOMETRY.keys())):
@@ -492,13 +535,36 @@ def _main_window_geometry_validator(val, inst):
             new[key] = inst.MAIN_WINDOW_GEOMETRY[key]
     return new
 
-def _selected_transcription_compute_type_validator(val, inst):
+def _selected_compute_type_validator(val, inst, device_attr):
     if not isinstance(val, str):
         return None
-    compute_types = inst.SELECTED_TRANSCRIPTION_COMPUTE_DEVICE.get("compute_types", [])
-    if val in compute_types:
+    device = getattr(inst, device_attr)
+    if getattr(inst, "_loading_saved_config", False):
+        # The saved type can precede its device in config.json. Resolve against
+        # current capabilities without depending on the order of the setters.
+        saved_device = inst._config_data.get(device_attr, device)
+        device = _compute_device_validator(saved_device, inst) or device
+    if val in device.get("compute_types", []):
         return val
     return None
+
+
+def _selected_transcription_compute_type_validator(val, inst):
+    return _selected_compute_type_validator(val, inst, 'SELECTED_TRANSCRIPTION_COMPUTE_DEVICE')
+
+
+def _asr_timeout_allowed(value, inst, source, kind):
+    if not 0 <= value <= 30:
+        return False
+    other_kind = 'PHRASE' if kind == 'RECORD' else 'RECORD'
+    other_key = f'{source}_{other_kind}_TIMEOUT'
+    other = getattr(inst, other_key)
+    if getattr(inst, "_loading_saved_config", False):
+        saved = inst._config_data.get(other_key, other)
+        if type(saved) is int and 0 <= saved <= 30:
+            other = saved
+    return value <= other if kind == 'RECORD' else value >= other
+
 
 def _overlay_small_validator(val, inst):
     if not (isinstance(val, dict) and set(val.keys()) == set(inst.OVERLAY_SMALL_LOG_SETTINGS.keys())):
@@ -506,6 +572,8 @@ def _overlay_small_validator(val, inst):
     base = inst.OVERLAY_SMALL_LOG_SETTINGS
     new = dict(base)
     for key, v in val.items():
+        if isinstance(v, float) and not math.isfinite(v):
+            return None
         if key == 'tracker' and isinstance(v, str) and v in ['HMD', 'LeftHand', 'RightHand']:
             new[key] = v
         elif key in ['x_pos','y_pos','z_pos','x_rotation','y_rotation','z_rotation'] and isinstance(v,(int,float)):
@@ -513,6 +581,25 @@ def _overlay_small_validator(val, inst):
         elif key in ['display_duration','fadeout_duration'] and isinstance(v,int):
             new[key] = v
         elif key in ['opacity','ui_scaling'] and isinstance(v,(int,float)):
+            new[key] = float(v)
+    return new
+
+def _overlay_desktop_validator(val, inst):
+    """The desktop caption overlay's look. A value out of range keeps the current one."""
+    base = inst.OVERLAY_DESKTOP_SETTINGS
+    if not (isinstance(val, dict) and set(val.keys()) == set(base.keys())):
+        return None
+    new = dict(base)
+    for key, v in val.items():
+        if isinstance(v, bool) or (isinstance(v, float) and not math.isfinite(v)):
+            return None
+        if key == 'position' and v in ('bottom', 'top'):
+            new[key] = v
+        elif key == 'font_size' and isinstance(v, int) and 16 <= v <= 72:
+            new[key] = v
+        elif key == 'display_duration' and isinstance(v, int) and 1 <= v <= 60:
+            new[key] = v
+        elif key == 'opacity' and isinstance(v, (int, float)) and 0.0 <= v <= 1.0:
             new[key] = float(v)
     return new
 
@@ -528,6 +615,8 @@ def _validate_overlay_vr_window(val, current):
         return None
     new = dict(current)
     for key, v in val.items():
+        if isinstance(v, float) and not math.isfinite(v):
+            return None
         # Playspace: SteamVRの空間に固定 (VR UIのウィンドウだけが選べる)
         if key == 'tracker' and isinstance(v, str) and v in ['HMD', 'LeftHand', 'RightHand', 'Playspace']:
             new[key] = v
@@ -543,6 +632,8 @@ def _overlay_large_validator(val, inst):
     base = inst.OVERLAY_LARGE_LOG_SETTINGS
     new = dict(base)
     for key, v in val.items():
+        if isinstance(v, float) and not math.isfinite(v):
+            return None
         if key == 'tracker' and isinstance(v, str) and v in ['HMD', 'LeftHand', 'RightHand']:
             new[key] = v
         elif key in ['x_pos','y_pos','z_pos','x_rotation','y_rotation','z_rotation'] and isinstance(v,(int,float)):
@@ -589,60 +680,84 @@ def _mic_word_filter_validator(val, inst):
 def _selected_translation_engines_validator(val, inst):
     if not isinstance(val, dict):
         return None
-    old_value = inst.SELECTED_TRANSLATION_ENGINES
-    new = {}
-    for k, v in val.items():
-        if v in inst.SELECTABLE_TRANSLATION_ENGINE_LIST:
-            new[k] = v
-        else:
-            new[k] = old_value.get(k)
+    old = inst.SELECTED_TRANSLATION_ENGINES
+    tabs = inst.SELECTABLE_TAB_NO_LIST
+    loading = getattr(inst, "_loading_saved_config", False)
+    if not loading and (set(val) != set(tabs) or
+                        any(not isinstance(v, str) for v in val.values())):
+        return None
+    return {
+        tab: val[tab] if isinstance(val.get(tab), str) and
+        val[tab] in inst.SELECTABLE_TRANSLATION_ENGINE_LIST else old[tab]
+        for tab in tabs
+    }
+
+
+def _selected_languages_validator(val, inst, attr_name, slots):
+    if not isinstance(val, dict):
+        return None
+    old = getattr(inst, attr_name)
+    tabs = inst.SELECTABLE_TAB_NO_LIST
+    loading = getattr(inst, "_loading_saved_config", False)
+    fields = {"language", "country", "enable"}
+    # Runtime writes replace a complete map. Reject missing/unknown structure
+    # before storing anything; startup repairs damaged parts from the defaults.
+    if not loading:
+        if set(val) != set(tabs):
+            return None
+        for tab in tabs:
+            if not isinstance(val[tab], dict) or set(val[tab]) != set(slots):
+                return None
+            if any(not isinstance(entry, dict) or set(entry) != fields
+                   for entry in val[tab].values()):
+                return None
+    new = copy.deepcopy(old)
+    for tab in tabs:
+        entries = val.get(tab)
+        if not isinstance(entries, dict):
+            continue
+        for slot in slots:
+            entry = entries.get(slot)
+            if not isinstance(entry, dict) or set(entry) != fields:
+                continue
+            language, country, enable = entry["language"], entry["country"], entry["enable"]
+            if (isinstance(language, str) and isinstance(country, str) and
+                    language in transcription_lang and
+                    country in transcription_lang[language] and isinstance(enable, bool)):
+                new[tab][slot] = dict(entry)
     return new
+
 
 def _selected_your_languages_validator(val, inst):
-    if not isinstance(val, dict):
-        return None
-    old = inst.SELECTED_YOUR_LANGUAGES
-    new = {}
-    for k0, v0 in val.items():
-        new[k0] = {}
-        for k1, v1 in v0.items():
-            language = v1.get("language")
-            country = v1.get("country")
-            enable = v1.get("enable")
-            if (language not in list(transcription_lang.keys()) or
-                country not in list(transcription_lang.get(language, {}).keys()) or
-                not isinstance(enable, bool)):
-                new[k0][k1] = old.get(k0, {}).get(k1)
-            else:
-                new[k0][k1] = {"language": language, "country": country, "enable": enable}
-    return new
+    return _selected_languages_validator(val, inst, "SELECTED_YOUR_LANGUAGES", ("1",))
+
 
 def _selected_target_languages_validator(val, inst):
-    if not isinstance(val, dict):
-        return None
-    old = inst.SELECTED_TARGET_LANGUAGES
-    new = {}
-    for k0, v0 in val.items():
-        new[k0] = {}
-        for k1, v1 in v0.items():
-            language = v1.get("language")
-            country = v1.get("country")
-            enable = v1.get("enable")
-            if (language not in list(transcription_lang.keys()) or
-                country not in list(transcription_lang.get(language, {}).keys()) or
-                not isinstance(enable, bool)):
-                new[k0][k1] = old.get(k0, {}).get(k1)
-            else:
-                new[k0][k1] = {"language": language, "country": country, "enable": enable}
-    return new
+    return _selected_languages_validator(
+        val, inst, "SELECTED_TARGET_LANGUAGES", inst.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST
+    )
+
 
 def _selected_translation_compute_type_validator(val, inst):
-    if not isinstance(val, str):
-        return None
-    compute_types = inst.SELECTED_TRANSLATION_COMPUTE_DEVICE.get("compute_types", [])
-    if val in compute_types:
-        return val
-    return None
+    return _selected_compute_type_validator(val, inst, 'SELECTED_TRANSLATION_COMPUTE_DEVICE')
+
+def _keepSavedDeviceUntilListed(inst) -> bool:
+    """config.json を読む時点では、デバイスの一覧がまだ取れていない。
+
+    device_manager は起動時に OS の音声 API を触らず、一覧は監視スレッドの最初の
+    更新で埋まる。それまでの一覧は `NoHost`/`NoDevice` だけなので、保存した選択を
+    ここで検証すると毎回拒否され、手動で選んだマイクやスピーカーが起動のたびに
+    既定のデバイスへ戻っていた。読み込みの間に一覧が空なら保存値をそのまま受け取り、
+    一覧が取れたあと controller の `_synchronize*SelectionAfterDeviceUpdate()` が
+    存在を確かめる (無ければ既定へ戻す)。
+    """
+    if not getattr(inst, "_loading_saved_config", False):
+        return False
+    try:
+        return list(device_manager.getMicDevices().keys()) == ["NoHost"] \
+            and [d.get("name") for d in device_manager.getSpeakerDevices()] == ["NoDevice"]
+    except Exception:
+        return False
 
 def _mic_host_validator(val, inst):
     if device_manager is None:
@@ -655,7 +770,9 @@ def _mic_host_validator(val, inst):
     if val == "NoHost":
         return val
     hosts = list(device_manager.getMicDevices().keys())
-    return val if val in hosts else None
+    if val in hosts or _keepSavedDeviceUntilListed(inst):
+        return val
+    return None
 
 def _mic_device_validator(val, inst):
     if device_manager is None:
@@ -669,7 +786,9 @@ def _mic_device_validator(val, inst):
     try:
         devices = device_manager.getMicDevices().get(inst.SELECTED_MIC_HOST, [])
         names = [d.get('name') for d in devices]
-        return val if val in names else None
+        if val in names or _keepSavedDeviceUntilListed(inst):
+            return val
+        return None
     except Exception:
         return None
 
@@ -682,7 +801,9 @@ def _speaker_device_validator(val, inst):
         return val
     try:
         names = [d.get('name') for d in device_manager.getSpeakerDevices()]
-        return val if val in names else None
+        if val in names or _keepSavedDeviceUntilListed(inst):
+            return val
+        return None
     except Exception:
         return None
 
@@ -690,8 +811,9 @@ def _compute_device_validator(val, inst):
     if not isinstance(val, dict):
         return None
     for dev in inst.SELECTABLE_COMPUTE_DEVICE_LIST:
-        if dev == val:
-            return copy.deepcopy(val)
+        if all(key in val and type(val[key]) is type(dev[key]) and val[key] == dev[key]
+               for key in ('device', 'device_index', 'device_name')):
+            return copy.deepcopy(dev)
     return None
 
 def _allowed_in_populated(list_attr_name: str):
@@ -714,9 +836,8 @@ class Config:
     Responsibilities:
     - expose read-only and read-write configuration via properties
     - persist selected values to JSON with debounce
-    Implementation notes: initialization may depend on optional subsystems; any
-    exceptions during init/load are captured and logged to avoid import-time
-    crashes.
+    Initialization must finish before the singleton is published. Load failures
+    keep the original settings file and block persistence until a successful load.
     """
 
     _instance = None
@@ -724,6 +845,59 @@ class Config:
     _timer: Optional[threading.Timer] = None
     _debounce_time: int = 2
     _file_lock: threading.Lock = threading.Lock()
+    # Shared by translation and transcription credential commits. Provider
+    # requests must finish before taking this lock.
+    credential_lock = threading.RLock()
+
+    # In-memory privacy boundary, independent of saved config and IPC. Track
+    # committed values (after descriptor validation), including A -> B -> A
+    # changes with no intervening messages. Inactive destination edits also
+    # invalidate history conservatively. Never retain credentials in history.
+    translation_history_lock = threading.RLock()
+    translation_history_generation = 0
+    _TRANSLATION_HISTORY_SETTINGS = frozenset({
+        "_ENABLE_TRANSLATION", "_SELECTED_TAB_NO", "_SELECTED_TRANSLATION_ENGINES",
+        "_CTRANSLATE2_WEIGHT_TYPE", "_AUTH_KEYS",
+        "_LMSTUDIO_URL", "_OPENAI_COMPATIBLE_URL",
+        "_SELECTED_PLAMO_MODEL", "_SELECTED_GEMINI_MODEL", "_SELECTED_OPENAI_MODEL",
+        "_SELECTED_GROQ_MODEL", "_SELECTED_OPENROUTER_MODEL", "_SELECTED_LMSTUDIO_MODEL",
+        "_SELECTED_OPENAI_COMPATIBLE_MODEL", "_SELECTED_OLLAMA_MODEL",
+    })
+
+    def __setattr__(self, name, value):
+        if name in self._TRANSLATION_HISTORY_SETTINGS:
+            with self.translation_history_lock:
+                if getattr(self, name, None) != value:
+                    self.translation_history_generation += 1
+                object.__setattr__(self, name, value)
+        else:
+            object.__setattr__(self, name, value)
+
+    def updateCredential(self, map_name: str, engine_key: str, value: Optional[str]) -> None:
+        """Merge one credential without overwriting another provider's update.
+
+        Callers may hold credential_lock to publish prepared client/model state
+        in the same commit. This does not change the persistence policy.
+        """
+        if map_name not in ("AUTH_KEYS", "TRANSCRIPTION_AUTH_KEYS"):
+            raise ValueError("Unknown credential map")
+        if value is not None and not isinstance(value, str):
+            raise ValueError("Invalid credential value")
+        with self.credential_lock:
+            keys = getattr(self, map_name)
+            if engine_key not in keys:
+                raise ValueError("Unknown credential provider")
+            keys[engine_key] = value
+            setattr(self, map_name, keys)
+
+    # 保存の失敗を知らせる先。controller が起動時に設定する。
+    # on_save_failed(reason, path) と on_save_recovered() を呼ぶ
+    on_save_failed: Optional[Callable[[str, str], None]] = None
+    on_save_recovered: Optional[Callable[[], None]] = None
+    _save_failed: bool = False
+    _save_failure_reason: Optional[str] = None
+    _save_retry_timer: Optional[threading.Timer] = None
+    _save_retry_sec: int = 30
 
     # Fork packages are updated by their distribution channel. Re-enable only
     # after verifying fork installers; never replace an AUR-managed install.
@@ -760,35 +934,148 @@ class Config:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(Config, cls).__new__(cls)
+            instance = super(Config, cls).__new__(cls)
             try:
-                cls._instance.init_config()
+                instance.init_config()
             except Exception:
                 errorLogging()
-            try:
-                cls._instance.load_config()
-            except Exception:
-                errorLogging()
+                raise
+            instance.load_config()
+            cls._instance = instance
         return cls._instance
 
-    def saveConfigToFile(self) -> None:
-        # 永続化対象を descriptor 情報 (json_serializable_vars) から再構成
-        filtered = {}
-        for var_name, var_func in json_serializable_vars.items():
-            try:
-                filtered[var_name] = var_func(self)
-            except Exception:
-                pass
+    def setSelectedLanguages(self, your, target) -> None:
+        """Validate both maps before committing the pair or scheduling a save.
+
+        The controller holds its settings lock; the file lock also prevents a
+        persistence snapshot from observing only half of the swap.
+        """
         with self._file_lock:
-            self._config_data = filtered
-            # クラッシュ/強制終了時にconfig.jsonが破損しないよう、一時ファイルに書いてから
-            # アトミックにリネームする
-            tmp_path = f"{self.PATH_CONFIG}.tmp"
-            with open(tmp_path, "w", encoding="utf-8") as fp:
-                json_dump(filtered, fp, indent=4, ensure_ascii=False)
-                fp.flush()
-                os_fsync(fp.fileno())
-            os_replace(tmp_path, self.PATH_CONFIG)
+            normalized = []
+            for name, value in (("SELECTED_YOUR_LANGUAGES", your),
+                                ("SELECTED_TARGET_LANGUAGES", target)):
+                candidate = getattr(type(self), name).validator(value, self)
+                if candidate is None:
+                    raise ConfigValidationError(name, value)
+                normalized.append(copy.deepcopy(candidate))
+            self._SELECTED_YOUR_LANGUAGES, self._SELECTED_TARGET_LANGUAGES = normalized
+        self.saveConfig("SELECTED_YOUR_LANGUAGES", normalized[0])
+
+    @contextlib.contextmanager
+    def _configFileLock(self):
+        # Keep this inode in place: unlinking a lock file can split its owners.
+        fd = os.open(f"{self.PATH_CONFIG}.lock",
+                     os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise OSError(errno.EINVAL, "Config lock is not a regular file")
+            if os.name == "nt":
+                import msvcrt
+                # Byte-range locks may extend past EOF; do not alter the file.
+                msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                if os.name == "nt":
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+    def saveConfigToFile(self, *, _retry_timer=None) -> None:
+        # A persisted snapshot must not split a URL/key commit.
+        with self.credential_lock, self._file_lock:
+            if _retry_timer is not None:
+                # A cancelled callback can already be waiting for this lock.
+                if self._save_retry_timer is not _retry_timer:
+                    return
+                self._save_retry_timer = None
+            if not self._initialized or not self._config_loaded:
+                return
+            # Snapshot and write share one serialization boundary. An older
+            # debounced callback must never overwrite a newer immediate save.
+            tmp_path = None
+            try:
+                with self._configFileLock():
+                    # A failed getter invalidates the entire snapshot.
+                    filtered = {name: getter(self) for name, getter in json_serializable_vars.items()}
+                    self._config_data = filtered
+                    # Exclusive creation prevents temp collisions and symlink
+                    # traversal; mkstemp also restricts POSIX permissions to 0600.
+                    fd, tmp_path = exclusive_tempfile.mkstemp(
+                        prefix=os_path.basename(self.PATH_CONFIG) + ".", suffix=".tmp",
+                        dir=os_path.dirname(self.PATH_CONFIG))
+                    try:
+                        fp = os.fdopen(fd, "w", encoding="utf-8")
+                    except Exception:
+                        os.close(fd)
+                        raise
+                    with fp:
+                        json_dump(filtered, fp, indent=4, ensure_ascii=False, allow_nan=False)
+                        fp.flush()
+                        os_fsync(fp.fileno())
+                    os_replace(tmp_path, self.PATH_CONFIG)
+                    tmp_path = None
+            except Exception as e:
+                self._saveFailedLocked(e)
+                return
+            finally:
+                if tmp_path is not None:
+                    try:
+                        os_remove(tmp_path)
+                    except OSError:
+                        pass
+            recovered = self._save_failed
+            self._save_failed = False
+            if isinstance(self._save_retry_timer, threading.Timer):
+                self._save_retry_timer.cancel()
+                self._save_retry_timer = None
+        if recovered and self.on_save_recovered is not None:
+            self.on_save_recovered()
+
+    @staticmethod
+    def _saveFailureReason(error: Exception) -> str:
+        if getattr(error, "errno", None) == errno.ENOSPC:
+            return "disk_full"
+        if getattr(error, "errno", None) in (errno.EACCES, errno.EPERM):
+            return "permission_denied"
+        if getattr(error, "errno", None) == errno.EROFS:
+            return "read_only"
+        return "write_failed"
+
+    def _saveFailedLocked(self, error: Exception, *, retry: bool = True) -> None:
+        """書き込みに失敗した。値はメモリーに残っているので、知らせて、あとで書き直す。
+
+        以前は例外を setter が捨て、変更は保存されないまま成功を返していた (再起動で消える)。
+        容量を空けるなどして直れば次の書き直しで保存でき、そのときも知らせる。
+        """
+        errorLogging()
+        first = not self._save_failed
+        self._save_failed = True
+        if retry and self._save_retry_timer is None:
+            timer = threading.Timer(
+                self._save_retry_sec, lambda: self.saveConfigToFile(_retry_timer=timer)
+            )
+            self._save_retry_timer = timer
+            timer.daemon = True
+            timer.start()
+        self._save_failure_reason = self._saveFailureReason(error) if retry else "load_failed"
+        # 失敗が続く間は、最初の1回だけ知らせる
+        if first and self.on_save_failed is not None:
+            threading.Thread(target=self.on_save_failed, args=(self._save_failure_reason, self.PATH_CONFIG),
+                             daemon=True).start()
+
+    def setSaveCallbacks(self, on_failed: Callable[[str, str], None], on_recovered: Callable[[], None]) -> None:
+        """保存の失敗と回復を知らせる先を設定する。設定する前の失敗も、ここで知らせる。"""
+        with self._file_lock:
+            self.on_save_failed, self.on_save_recovered = on_failed, on_recovered
+            pending = self._save_failure_reason if self._save_failed else None
+        if pending is not None:
+            on_failed(pending, self.PATH_CONFIG)
 
     def saveConfig(self, key: str, value: Any, immediate_save: bool = False) -> None:
         # 実際に永続化される値は saveConfigToFile() が毎回
@@ -797,6 +1084,8 @@ class Config:
         # される (以前あった self._config_data[key] = value は
         # 何も読まれない dead code だったため削除)。
         with self._file_lock:
+            if not self._initialized or not self._config_loaded:
+                return
             if isinstance(self._timer, threading.Timer) and self._timer.is_alive():
                 self._timer.cancel()
 
@@ -842,7 +1131,8 @@ class Config:
     ENABLE_TRANSCRIPTION_SEND = ManagedProperty('ENABLE_TRANSCRIPTION_SEND', type_=bool, serialize=False)
     ENABLE_TRANSCRIPTION_RECEIVE = ManagedProperty('ENABLE_TRANSCRIPTION_RECEIVE', type_=bool, serialize=False)
     ENABLE_OCR_CAPTURE = ManagedProperty('ENABLE_OCR_CAPTURE', type_=bool, serialize=False)
-    ENABLE_FOREGROUND = ManagedProperty('ENABLE_FOREGROUND', type_=bool, serialize=False)
+    # Saved: the window opens on top again after a restart (the UI applies it).
+    ENABLE_FOREGROUND = ManagedProperty('ENABLE_FOREGROUND', type_=bool)
     ENABLE_CHECK_ENERGY_SEND = ManagedProperty('ENABLE_CHECK_ENERGY_SEND', type_=bool, serialize=False)
     ENABLE_CHECK_ENERGY_RECEIVE = ManagedProperty('ENABLE_CHECK_ENERGY_RECEIVE', type_=bool, serialize=False)
 
@@ -888,14 +1178,14 @@ class Config:
     MAIN_WINDOW_GEOMETRY = ValidatedProperty('MAIN_WINDOW_GEOMETRY', _main_window_geometry_validator, immediate_save=True)
 
     # --- Mic-related simple properties ---
-    MIC_THRESHOLD = ManagedProperty('MIC_THRESHOLD', type_=int)
+    MIC_THRESHOLD = ManagedProperty('MIC_THRESHOLD', type_=int, allowed=lambda v, inst: 0 <= v <= inst.MAX_MIC_THRESHOLD)
     MIC_AUTOMATIC_THRESHOLD = ManagedProperty('MIC_AUTOMATIC_THRESHOLD', type_=bool)
-    MIC_RECORD_TIMEOUT = ManagedProperty('MIC_RECORD_TIMEOUT', type_=int)
-    MIC_PHRASE_TIMEOUT = ManagedProperty('MIC_PHRASE_TIMEOUT', type_=int)
-    MIC_MAX_PHRASES = ManagedProperty('MIC_MAX_PHRASES', type_=int)
-    MIC_AVG_LOGPROB = ManagedProperty('MIC_AVG_LOGPROB', type_=(int, float))
-    MIC_NO_SPEECH_PROB = ManagedProperty('MIC_NO_SPEECH_PROB', type_=(int, float))
-    MIC_NO_REPEAT_NGRAM_SIZE = ManagedProperty('MIC_NO_REPEAT_NGRAM_SIZE', type_=int)
+    MIC_RECORD_TIMEOUT = ManagedProperty('MIC_RECORD_TIMEOUT', type_=int, allowed=lambda v, inst: _asr_timeout_allowed(v, inst, 'MIC', 'RECORD'))
+    MIC_PHRASE_TIMEOUT = ManagedProperty('MIC_PHRASE_TIMEOUT', type_=int, allowed=lambda v, inst: _asr_timeout_allowed(v, inst, 'MIC', 'PHRASE'))
+    MIC_MAX_PHRASES = ManagedProperty('MIC_MAX_PHRASES', type_=int, allowed=lambda v, inst: 0 <= v <= 30)
+    MIC_AVG_LOGPROB = ManagedProperty('MIC_AVG_LOGPROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and -2 <= v <= 0)
+    MIC_NO_SPEECH_PROB = ManagedProperty('MIC_NO_SPEECH_PROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and 0 <= v <= 1)
+    MIC_NO_REPEAT_NGRAM_SIZE = ManagedProperty('MIC_NO_REPEAT_NGRAM_SIZE', type_=int, allowed=lambda v, inst: v >= 0)
     HOTKEYS = ValidatedProperty('HOTKEYS',
         validator=lambda val, inst: (
             {**inst.HOTKEYS, **{k: (v if (isinstance(v, list) or v is None) else inst.HOTKEYS.get(k))
@@ -905,14 +1195,14 @@ class Config:
     )
 
     # --- Speaker-related simple properties ---
-    SPEAKER_THRESHOLD = ManagedProperty('SPEAKER_THRESHOLD', type_=int)
+    SPEAKER_THRESHOLD = ManagedProperty('SPEAKER_THRESHOLD', type_=int, allowed=lambda v, inst: 0 <= v <= inst.MAX_SPEAKER_THRESHOLD)
     SPEAKER_AUTOMATIC_THRESHOLD = ManagedProperty('SPEAKER_AUTOMATIC_THRESHOLD', type_=bool)
-    SPEAKER_RECORD_TIMEOUT = ManagedProperty('SPEAKER_RECORD_TIMEOUT', type_=int)
-    SPEAKER_PHRASE_TIMEOUT = ManagedProperty('SPEAKER_PHRASE_TIMEOUT', type_=int)
-    SPEAKER_MAX_PHRASES = ManagedProperty('SPEAKER_MAX_PHRASES', type_=int)
-    SPEAKER_AVG_LOGPROB = ManagedProperty('SPEAKER_AVG_LOGPROB', type_=(int, float))
-    SPEAKER_NO_SPEECH_PROB = ManagedProperty('SPEAKER_NO_SPEECH_PROB', type_=(int, float))
-    SPEAKER_NO_REPEAT_NGRAM_SIZE = ManagedProperty('SPEAKER_NO_REPEAT_NGRAM_SIZE', type_=int)
+    SPEAKER_RECORD_TIMEOUT = ManagedProperty('SPEAKER_RECORD_TIMEOUT', type_=int, allowed=lambda v, inst: _asr_timeout_allowed(v, inst, 'SPEAKER', 'RECORD'))
+    SPEAKER_PHRASE_TIMEOUT = ManagedProperty('SPEAKER_PHRASE_TIMEOUT', type_=int, allowed=lambda v, inst: _asr_timeout_allowed(v, inst, 'SPEAKER', 'PHRASE'))
+    SPEAKER_MAX_PHRASES = ManagedProperty('SPEAKER_MAX_PHRASES', type_=int, allowed=lambda v, inst: 0 <= v <= 60)
+    SPEAKER_AVG_LOGPROB = ManagedProperty('SPEAKER_AVG_LOGPROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and -2 <= v <= 0)
+    SPEAKER_NO_SPEECH_PROB = ManagedProperty('SPEAKER_NO_SPEECH_PROB', type_=(int, float), allowed=lambda v, inst: not isinstance(v, bool) and math.isfinite(v) and 0 <= v <= 1)
+    SPEAKER_NO_REPEAT_NGRAM_SIZE = ManagedProperty('SPEAKER_NO_REPEAT_NGRAM_SIZE', type_=int, allowed=lambda v, inst: v >= 0)
 
     # -- VAD (Silero) によるマイク/スピーカーの発話区間検出 ---
     # 既定は False (従来通りのエネルギー閾値方式)。過去に2度、この領域
@@ -935,8 +1225,8 @@ class Config:
             if isinstance(val, dict) else None
         )
     )
-    LMSTUDIO_URL = ManagedProperty('LMSTUDIO_URL', type_=str)
-    OPENAI_COMPATIBLE_URL = ManagedProperty('OPENAI_COMPATIBLE_URL', type_=str)
+    LMSTUDIO_URL = ManagedProperty('LMSTUDIO_URL', type_=str, allowed=lambda value, inst: valid_saved_api_url(value))
+    OPENAI_COMPATIBLE_URL = ManagedProperty('OPENAI_COMPATIBLE_URL', type_=str, allowed=lambda value, inst: valid_saved_api_url(value))
 
     # --- 文字起こし用 API キー・URL (翻訳用の AUTH_KEYS/OPENAI_COMPATIBLE_URL とは
     # 意図的に別管理にしている。レート制限/クォータの共有を避け、翻訳と
@@ -950,7 +1240,7 @@ class Config:
             if isinstance(val, dict) else None
         )
     )
-    TRANSCRIPTION_CUSTOM_URL = ManagedProperty('TRANSCRIPTION_CUSTOM_URL', type_=str)
+    TRANSCRIPTION_CUSTOM_URL = ManagedProperty('TRANSCRIPTION_CUSTOM_URL', type_=str, allowed=lambda value, inst: valid_saved_api_url(value))
 
     # --- Transcription settings ---
     SELECTED_TRANSCRIPTION_COMPUTE_TYPE = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_TYPE', _selected_transcription_compute_type_validator)
@@ -958,6 +1248,8 @@ class Config:
     # --- Overlay settings ---
     OVERLAY_SMALL_LOG_SETTINGS = ValidatedProperty('OVERLAY_SMALL_LOG_SETTINGS', _overlay_small_validator)
     OVERLAY_LARGE_LOG_SETTINGS = ValidatedProperty('OVERLAY_LARGE_LOG_SETTINGS', _overlay_large_validator)
+    # Captions over the desktop, for VRChat without a headset. The UI draws them in its own window.
+    OVERLAY_DESKTOP_SETTINGS = ValidatedProperty('OVERLAY_DESKTOP_SETTINGS', _overlay_desktop_validator)
     # VRパネルの位置。UIからは設定せず、VR内で掴んで動かした位置だけが保存される。
     OVERLAY_VR_PANEL_SETTINGS = ValidatedProperty('OVERLAY_VR_PANEL_SETTINGS', _make_overlay_vr_window_validator('OVERLAY_VR_PANEL_SETTINGS'))
     # VR UIのランチャー (手首の帯) の位置。OVERLAY_VR_PANEL_SETTINGS はログウィンドウの位置。
@@ -974,11 +1266,12 @@ class Config:
     SPEECH_SERVER_SETTINGS = ValidatedProperty('SPEECH_SERVER_SETTINGS', lambda value, instance: normalize_speech_server_settings(value))
     WEBSOCKET_SERVER = ManagedProperty('WEBSOCKET_SERVER', type_=bool)
     OSC_IP_ADDRESS = ManagedProperty('OSC_IP_ADDRESS', type_=str)
-    OSC_PORT = ManagedProperty('OSC_PORT', type_=int)
+    OSC_PORT = ManagedProperty('OSC_PORT', type_=int, allowed=lambda v, inst: isValidPort(v))
     AUTO_CLEAR_MESSAGE_BOX = ManagedProperty('AUTO_CLEAR_MESSAGE_BOX', type_=bool)
     SEND_ONLY_TRANSLATED_MESSAGES = ManagedProperty('SEND_ONLY_TRANSLATED_MESSAGES', type_=bool)
     OVERLAY_SMALL_LOG = ManagedProperty('OVERLAY_SMALL_LOG', type_=bool)
     OVERLAY_LARGE_LOG = ManagedProperty('OVERLAY_LARGE_LOG', type_=bool)
+    OVERLAY_DESKTOP = ManagedProperty('OVERLAY_DESKTOP', type_=bool)
     # VR UI (手首のランチャーとログ・言語・VR設定のウィンドウ)。字幕のオーバーレイとは別にON/OFFする
     OVERLAY_VR_PANEL = ManagedProperty('OVERLAY_VR_PANEL', type_=bool)
     # VR UIのログウィンドウを掴めなくする (操作バーのロック)
@@ -999,13 +1292,12 @@ class Config:
     # 入力検証だけでは、config.json に (過去バージョンや手動編集で)
     # 0.0.0.0 が既に保存されているケースを防げない。load_config() の
     # setattr() はディスクリプタ経由なのでこの allowed もそこで効き、
-    # 起動時に無認証の WebSocket サーバーを全インターフェースへ
-    # bind してしまう経路を塞ぐ。
+    # 全インターフェースへのbindを防ぐ。OBSと事前確認に合わせてIPv4に限る。
     WEBSOCKET_HOST = ManagedProperty(
         'WEBSOCKET_HOST', type_=str,
-        allowed=lambda v, inst: isValidIpAddress(v) and not isWildcardBindAddress(v),
+        allowed=lambda v, inst: isValidWebSocketHost(v),
     )
-    WEBSOCKET_PORT = ManagedProperty('WEBSOCKET_PORT', type_=int)
+    WEBSOCKET_PORT = ManagedProperty('WEBSOCKET_PORT', type_=int, allowed=lambda v, inst: isValidPort(v))
     # WebSocket サーバーへの接続トークン。127.0.0.1 バインドや Origin
     # ヘッダーだけでは「同じ PC 上で開いた任意の Web ページの JS が直接
     # ws://127.0.0.1:PORT に接続してマイク/スピーカーの文字起こしを
@@ -1014,41 +1306,60 @@ class Config:
     # 使う。初回起動時に 1 回だけ生成し、以降は config.json に永続化する
     # (プロセス起動ごとに変えると、OBS Browser Source や外部連携ツール
     # (例: VRCT-TTS) が再起動のたびに接続できなくなってしまうため)。
-    WEBSOCKET_AUTH_TOKEN = ManagedProperty('WEBSOCKET_AUTH_TOKEN', type_=str)
+    WEBSOCKET_AUTH_TOKEN = ManagedProperty(
+        'WEBSOCKET_AUTH_TOKEN', type_=str,
+        allowed=lambda v, inst: isinstance(v, str) and bool(v.strip()),
+    )
 
     # --- OBS Browser Source (overlay for OBS) ---
     OBS_BROWSER_SOURCE = ManagedProperty('OBS_BROWSER_SOURCE', type_=bool)
-    OBS_BROWSER_SOURCE_PORT = ManagedProperty('OBS_BROWSER_SOURCE_PORT', type_=int)
-    OBS_BROWSER_SOURCE_MAX_MESSAGES = ManagedProperty('OBS_BROWSER_SOURCE_MAX_MESSAGES', type_=int)
-    OBS_BROWSER_SOURCE_DISPLAY_DURATION = ManagedProperty('OBS_BROWSER_SOURCE_DISPLAY_DURATION', type_=int)
-    OBS_BROWSER_SOURCE_FADEOUT_DURATION = ManagedProperty('OBS_BROWSER_SOURCE_FADEOUT_DURATION', type_=int)
-    OBS_BROWSER_SOURCE_FONT_SIZE = ManagedProperty('OBS_BROWSER_SOURCE_FONT_SIZE', type_=int)
+    OBS_BROWSER_SOURCE_PORT = ManagedProperty('OBS_BROWSER_SOURCE_PORT', type_=int, allowed=lambda v, inst: isValidPort(v))
+    OBS_BROWSER_SOURCE_MAX_MESSAGES = ManagedProperty('OBS_BROWSER_SOURCE_MAX_MESSAGES', type_=int, allowed=lambda v, inst: is_valid_numeric_setting('MAX_MESSAGES', v))
+    OBS_BROWSER_SOURCE_DISPLAY_DURATION = ManagedProperty('OBS_BROWSER_SOURCE_DISPLAY_DURATION', type_=int, allowed=lambda v, inst: is_valid_numeric_setting('DISPLAY_DURATION', v))
+    OBS_BROWSER_SOURCE_FADEOUT_DURATION = ManagedProperty('OBS_BROWSER_SOURCE_FADEOUT_DURATION', type_=int, allowed=lambda v, inst: is_valid_numeric_setting('FADEOUT_DURATION', v))
+    OBS_BROWSER_SOURCE_FONT_SIZE = ManagedProperty('OBS_BROWSER_SOURCE_FONT_SIZE', type_=int, allowed=lambda v, inst: is_valid_numeric_setting('FONT_SIZE', v))
     OBS_BROWSER_SOURCE_FONT_COLOR = ManagedProperty('OBS_BROWSER_SOURCE_FONT_COLOR', type_=str)
-    OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS = ManagedProperty('OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS', type_=int)
+    OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS = ManagedProperty('OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS', type_=int, allowed=lambda v, inst: is_valid_numeric_setting('FONT_OUTLINE_THICKNESS', v))
     OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR = ManagedProperty('OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR', type_=str)
 
     # --- Telemetry Settings ---
+    # Usage events go to VRCT-VOX's own receiver unless the user turns this off
+    # (models/telemetry). Nothing is sent before the notice below has been shown.
     ENABLE_TELEMETRY = ManagedProperty('ENABLE_TELEMETRY', type_=bool)
+    # The version of the telemetry notice the user has seen; 0 for none. A settings file
+    # from before the notice existed carries ENABLE_TELEMETRY false without anyone having
+    # chosen it, so the choice counts only from the notice on.
+    TELEMETRY_NOTICE = ManagedProperty('TELEMETRY_NOTICE', type_=int, allowed=lambda v, inst: 0 <= v <= 1000,
+                                       immediate_save=True)
     AUTO_DOWNLOAD_MODELS = ManagedProperty('AUTO_DOWNLOAD_MODELS', type_=bool)
+    LEGACY_MODEL_DOWNLOAD_CONSENTS = ManagedProperty(
+        'LEGACY_MODEL_DOWNLOAD_CONSENTS', type_=dict, immediate_save=True,
+        allowed=lambda v, inst: all(isinstance(k, str) and isinstance(value, str) for k, value in v.items()))
 
     # --- Selection properties with validation (ManagedProperty) ---
     SELECTED_TAB_NO = ManagedProperty('SELECTED_TAB_NO', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TAB_NO_LIST)
-    SELECTED_TRANSCRIPTION_ENGINE = ManagedProperty('SELECTED_TRANSCRIPTION_ENGINE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST)
+    SELECTED_TRANSCRIPTION_ENGINE = ManagedProperty('SELECTED_TRANSCRIPTION_ENGINE', type_=str, allowed=lambda v, inst: v is None or v in inst.SELECTABLE_TRANSCRIPTION_ENGINE_LIST, allow_none=True)
     SELECTED_RELEASE_CHANNEL = ManagedProperty('SELECTED_RELEASE_CHANNEL', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_RELEASE_CHANNEL_LIST)
     CTRANSLATE2_WEIGHT_TYPE = ManagedProperty('CTRANSLATE2_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST)
+    # True once the user has seen the non-commercial license notice for the
+    # selected CTranslate2 weight, either because they confirmed it when
+    # choosing an NLLB weight or because Controller.init() showed the one-time
+    # notice for an NLLB weight saved by an older version (where NLLB was the
+    # default, so the saved value is usually not a deliberate choice).
+    CTRANSLATE2_LICENSE_NOTICE_SHOWN = ManagedProperty('CTRANSLATE2_LICENSE_NOTICE_SHOWN', type_=bool)
     WHISPER_WEIGHT_TYPE = ManagedProperty('WHISPER_WEIGHT_TYPE', type_=str, allowed=lambda v, inst: v in inst.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST)
-    SELECTED_PLAMO_MODEL = ManagedProperty('SELECTED_PLAMO_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_PLAMO_MODEL_LIST'))
-    SELECTED_GEMINI_MODEL = ManagedProperty('SELECTED_GEMINI_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GEMINI_MODEL_LIST'))
-    SELECTED_OPENAI_MODEL = ManagedProperty('SELECTED_OPENAI_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_MODEL_LIST'))
-    SELECTED_GROQ_MODEL = ManagedProperty('SELECTED_GROQ_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GROQ_MODEL_LIST'))
-    SELECTED_OPENROUTER_MODEL = ManagedProperty('SELECTED_OPENROUTER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENROUTER_MODEL_LIST'))
-    SELECTED_LMSTUDIO_MODEL = ManagedProperty('SELECTED_LMSTUDIO_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_LMSTUDIO_MODEL_LIST'))
-    SELECTED_OPENAI_COMPATIBLE_MODEL = ManagedProperty('SELECTED_OPENAI_COMPATIBLE_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST'))
-    SELECTED_OLLAMA_MODEL = ManagedProperty('SELECTED_OLLAMA_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OLLAMA_MODEL_LIST'))
-    SELECTED_GROQ_WHISPER_MODEL = ManagedProperty('SELECTED_GROQ_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GROQ_WHISPER_MODEL_LIST'))
-    SELECTED_OPENAI_WHISPER_MODEL = ManagedProperty('SELECTED_OPENAI_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_WHISPER_MODEL_LIST'))
-    SELECTED_CUSTOM_WHISPER_MODEL = ManagedProperty('SELECTED_CUSTOM_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_CUSTOM_WHISPER_MODEL_LIST'))
-    SELECTED_DEEPGRAM_MODEL = ManagedProperty('SELECTED_DEEPGRAM_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_DEEPGRAM_MODEL_LIST'))
+    SELECTED_PLAMO_MODEL = ManagedProperty('SELECTED_PLAMO_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_PLAMO_MODEL_LIST'), allow_none=True)
+    SELECTED_GEMINI_MODEL = ManagedProperty('SELECTED_GEMINI_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GEMINI_MODEL_LIST'), allow_none=True)
+    SELECTED_OPENAI_MODEL = ManagedProperty('SELECTED_OPENAI_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_MODEL_LIST'), allow_none=True)
+    SELECTED_GROQ_MODEL = ManagedProperty('SELECTED_GROQ_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GROQ_MODEL_LIST'), allow_none=True)
+    SELECTED_OPENROUTER_MODEL = ManagedProperty('SELECTED_OPENROUTER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENROUTER_MODEL_LIST'), allow_none=True)
+    SELECTED_LMSTUDIO_MODEL = ManagedProperty('SELECTED_LMSTUDIO_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_LMSTUDIO_MODEL_LIST'), allow_none=True)
+    SELECTED_OPENAI_COMPATIBLE_MODEL = ManagedProperty('SELECTED_OPENAI_COMPATIBLE_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_COMPATIBLE_MODEL_LIST'), allow_none=True)
+    SELECTED_OLLAMA_MODEL = ManagedProperty('SELECTED_OLLAMA_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OLLAMA_MODEL_LIST'), allow_none=True)
+    SELECTED_GROQ_WHISPER_MODEL = ManagedProperty('SELECTED_GROQ_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_GROQ_WHISPER_MODEL_LIST'), allow_none=True)
+    SELECTED_OPENAI_WHISPER_MODEL = ManagedProperty('SELECTED_OPENAI_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_OPENAI_WHISPER_MODEL_LIST'), allow_none=True)
+    SELECTED_CUSTOM_WHISPER_MODEL = ManagedProperty('SELECTED_CUSTOM_WHISPER_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_CUSTOM_WHISPER_MODEL_LIST'), allow_none=True)
+    SELECTED_DEEPGRAM_MODEL = ManagedProperty('SELECTED_DEEPGRAM_MODEL', type_=str, allowed=_allowed_in_populated('SELECTABLE_DEEPGRAM_MODEL_LIST'), allow_none=True)
 
     # --- Translation and language settings ---
     MIC_WORD_FILTER = ValidatedProperty('MIC_WORD_FILTER', _mic_word_filter_validator)
@@ -1062,6 +1373,8 @@ class Config:
     AUTO_SPEAKER_SELECT = ManagedProperty('AUTO_SPEAKER_SELECT', type_=bool)
     SELECTED_MIC_HOST = ValidatedProperty('SELECTED_MIC_HOST', _mic_host_validator)
     SELECTED_MIC_DEVICE = ValidatedProperty('SELECTED_MIC_DEVICE', _mic_device_validator)
+    SELECTED_MIC_DEVICE_ID = ValidatedProperty('SELECTED_MIC_DEVICE_ID', lambda v, _: v if isinstance(v, str) else None)
+    SELECTED_SPEAKER_DEVICE_ID = ValidatedProperty('SELECTED_SPEAKER_DEVICE_ID', lambda v, _: v if isinstance(v, str) else None)
     SELECTED_SPEAKER_DEVICE = ValidatedProperty('SELECTED_SPEAKER_DEVICE', _speaker_device_validator)
     SELECTED_TRANSLATION_COMPUTE_DEVICE = ValidatedProperty('SELECTED_TRANSLATION_COMPUTE_DEVICE', _compute_device_validator)
     SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = ValidatedProperty('SELECTED_TRANSCRIPTION_COMPUTE_DEVICE', _compute_device_validator)
@@ -1077,8 +1390,24 @@ class Config:
     OCR_POLL_INTERVAL_MS = ManagedProperty('OCR_POLL_INTERVAL_MS', type_=int, allowed=lambda v, inst: 100 <= v <= 5000)
     OCR_MIN_CONFIDENCE = ManagedProperty('OCR_MIN_CONFIDENCE', type_=(int, float), allowed=lambda v, inst: 0.1 <= v <= 0.99)
     OCR_BUBBLE_MIN_TEXT_LENGTH = ManagedProperty('OCR_BUBBLE_MIN_TEXT_LENGTH', type_=int, allowed=lambda v, inst: 1 <= v <= 50)
+    # The part of the window to read, and whether to keep only chatbox-style text
+    # (light glyphs on a dark panel); both apply with or without the detector.
+    # The detector switch only matters once its verified download is present.
+    # See ocr_detection.py and ocr_chatbox_detector.py.
+    OCR_CAPTURE_REGION = ManagedProperty('OCR_CAPTURE_REGION', type_=dict, allowed=_ocr_capture_region_validator)
+    # Keep the original key for the desktop window; VR has independent coordinates.
+    OCR_VR_CAPTURE_REGION = ManagedProperty('OCR_VR_CAPTURE_REGION', type_=dict, allowed=_ocr_capture_region_validator)
+    OCR_CHATBOX_FILTER = ManagedProperty('OCR_CHATBOX_FILTER', type_=bool)
+    OCR_USE_CHATBOX_DETECTOR = ManagedProperty('OCR_USE_CHATBOX_DETECTOR', type_=bool)
+    # Linux: what the desktop's ScreenCast portal hands out so that sharing the same window
+    # again needs no dialog. The desktop replaces it on every use, so it is saved at once; "" means none.
+    OCR_PORTAL_RESTORE_TOKEN = ManagedProperty('OCR_PORTAL_RESTORE_TOKEN', type_=str, allowed=_ocr_portal_restore_token_validator, immediate_save=True)
 
     def init_config(self):
+        self._initialized = False
+        self._config_loaded = False
+        self._SELECTED_MIC_DEVICE_ID = ''
+        self._SELECTED_SPEAKER_DEVICE_ID = ''
         # Read Only
         self._VERSION = "0.1.0"
         if getattr(sys, 'frozen', False):
@@ -1092,7 +1421,6 @@ class Config:
         state_dir = os_path.abspath(os_path.expanduser(environ.get("VRCT_CONFIG_DIR") or self._PATH_LOCAL))
         self._PATH_CONFIG = os_path.join(state_dir, "config.json")
         self._PATH_LOGS = os_path.join(state_dir, "logs")
-        os_makedirs(self._PATH_LOGS, exist_ok=True)
         self._GITHUB_URL = "https://api.github.com/repos/kein5/VRCT-VOX/releases/latest"
         self._GITHUB_RELEASES_LIST_URL = "https://api.github.com/repos/kein5/VRCT-VOX/releases"
         # VRCT-VOX numbers its own releases from 0.1.0, each with the version
@@ -1112,7 +1440,6 @@ class Config:
         # these external mappings may be empty dicts if the optional modules failed to import
         self._SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST = getattr(ctranslate2_weights, 'keys', lambda: [])()
         self._SELECTABLE_WHISPER_WEIGHT_TYPE_LIST = getattr(whisper_models, 'keys', lambda: [])()
-        translation_lang = loadTranslationLanguages(self.PATH_LOCAL)
         self._SELECTABLE_TRANSLATION_ENGINE_LIST = getattr(translation_lang, 'keys', lambda: [])()
         try:
             # transcription_lang is nested dict; attempt to extract keys defensively
@@ -1144,8 +1471,6 @@ class Config:
         for weight_type in self.SELECTABLE_WHISPER_WEIGHT_TYPE_LIST:
             self._SELECTABLE_WHISPER_WEIGHT_TYPE_DICT[weight_type] = False
         self._SELECTABLE_TRANSLATION_ENGINE_STATUS = {}
-        for engine in self.SELECTABLE_TRANSLATION_ENGINE_LIST:
-            self._SELECTABLE_TRANSLATION_ENGINE_STATUS[engine] = False
         self._SELECTABLE_TRANSCRIPTION_ENGINE_STATUS = {}
         for engine in self.SELECTABLE_TRANSCRIPTION_ENGINE_LIST:
             self._SELECTABLE_TRANSCRIPTION_ENGINE_STATUS[engine] = False
@@ -1190,7 +1515,7 @@ class Config:
                         "country": "United States",
                         "enable": True if tab_target_lang_no == self.SELECTED_TAB_TARGET_LANGUAGES_NO_LIST[0] else False,
                     }
-        self._SELECTED_TRANSCRIPTION_ENGINE = "Google"
+        self._SELECTED_TRANSCRIPTION_ENGINE = None
         self._CONVERT_MESSAGE_TO_ROMAJI = False
         self._CONVERT_MESSAGE_TO_HIRAGANA = False
         self._MAIN_WINDOW_SIDEBAR_COMPACT_MODE = False
@@ -1237,6 +1562,10 @@ class Config:
             "toggle_translation": None,
             "toggle_transcription_send": None,
             "toggle_transcription_receive": None,
+            "stop_voice": None,
+            "toggle_voice_mute": None,
+            "toggle_tts": None,
+            "toggle_rvc": None,
         }
         self._MIC_AVG_LOGPROB = -0.8
         self._MIC_NO_SPEECH_PROB = 0.6
@@ -1281,7 +1610,11 @@ class Config:
         self._TRANSCRIPTION_CUSTOM_URL = ""
         self._SELECTED_TRANSLATION_COMPUTE_DEVICE = copy.deepcopy(self.SELECTABLE_COMPUTE_DEVICE_LIST[0])
         self._SELECTED_TRANSCRIPTION_COMPUTE_DEVICE = copy.deepcopy(self.SELECTABLE_COMPUTE_DEVICE_LIST[0])
-        self._CTRANSLATE2_WEIGHT_TYPE = "nllb-200-distilled-600M-ct2-int8"
+        # MIT-licensed. Configs saved by older versions keep their stored
+        # value (load_config() overwrites this default), including the
+        # previous non-commercial default nllb-200-distilled-600M-ct2-int8.
+        self._CTRANSLATE2_WEIGHT_TYPE = DEFAULT_CTRANSLATE2_WEIGHT_TYPE
+        self._CTRANSLATE2_LICENSE_NOTICE_SHOWN = False
         self._SELECTED_PLAMO_MODEL = None
         self._SELECTED_GEMINI_MODEL = None
         self._SELECTED_OPENAI_MODEL = None
@@ -1328,6 +1661,13 @@ class Config:
             "opacity": 1.0,
             "ui_scaling": 1.0,
             "tracker": "LeftHand",
+        }
+        self._OVERLAY_DESKTOP = False
+        self._OVERLAY_DESKTOP_SETTINGS = {
+            "position": "bottom",
+            "font_size": 28,
+            "display_duration": 6,
+            "opacity": 0.6,
         }
         self._OVERLAY_VR_LAUNCHER_SETTINGS = dict(DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS)
         self._OVERLAY_VR_PANEL = False
@@ -1406,9 +1746,11 @@ class Config:
         self._OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS = 3
         self._OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR = "#000000"
         self._ENABLE_CLIPBOARD = False
-        self._ENABLE_TELEMETRY = False
+        self._ENABLE_TELEMETRY = True
+        self._TELEMETRY_NOTICE = 0
         # Existing weights remain usable; network downloads require opt-in.
         self._AUTO_DOWNLOAD_MODELS = False
+        self._LEGACY_MODEL_DOWNLOAD_CONSENTS = {}
 
         # OCR defaults (VRChat chat-bubble text capture)
         # PP-OCRv6 small が日英中＋ラテン文字系を1モデルで読むので "auto" が既定。
@@ -1423,33 +1765,112 @@ class Config:
         # 誤りの34%を落とせたのでこの値にしている。
         self._OCR_MIN_CONFIDENCE = 0.85
         self._OCR_BUBBLE_MIN_TEXT_LENGTH = 2
+        # Whole window until the user narrows it.
+        self._OCR_CAPTURE_REGION = {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
+        self._OCR_VR_CAPTURE_REGION = {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0}
+        self._OCR_CHATBOX_FILTER = True
+        # VRCT-VOX's chatbox detector is used whenever its verified download is present,
+        # unless turned off here. Without the download this has no effect.
+        self._OCR_USE_CHATBOX_DETECTOR = True
+        # Nothing to restore until the user has shared a window once.
+        self._OCR_PORTAL_RESTORE_TOKEN = ""
+
+        # Finish defaults before reading resources or creating directories.
+        loaded_translation_lang = loadTranslationLanguages(self.PATH_LOCAL)
+        self._SELECTABLE_TRANSLATION_ENGINE_LIST = getattr(loaded_translation_lang, 'keys', lambda: [])()
+        self._SELECTABLE_TRANSLATION_ENGINE_STATUS = {
+            engine: False for engine in self.SELECTABLE_TRANSLATION_ENGINE_LIST
+        }
+        self._initialized = True
+        try:
+            os_makedirs(self._PATH_LOGS, exist_ok=True)
+        except OSError:
+            # Diagnostics must not prevent complete settings initialization.
+            errorLogging()
+
+    def _moveUnreadableConfigAside(self) -> str:
+        """Reserve a unique backup name, then preserve the unreadable file."""
+        import time
+        fd, backup = exclusive_tempfile.mkstemp(
+            prefix=f"{os_path.basename(self.PATH_CONFIG)}.unreadable-{time.strftime('%Y%m%d-%H%M%S')}-",
+            dir=os_path.dirname(self.PATH_CONFIG))
+        os.close(fd)
+        try:
+            os_replace(self.PATH_CONFIG, backup)
+            return backup
+        except OSError:
+            os_remove(backup)
+            raise
 
     def load_config(self):
-        self._config_data = {}
-        if os_path.isfile(self.PATH_CONFIG) is not False:
-            with open(self.PATH_CONFIG, 'r', encoding="utf-8") as fp:
-                if fp.readable() and fp.seek(0, 2) > 0:
-                    fp.seek(0)
-                    self._config_data = json_load(fp)
+        with self._file_lock:
+            if not self._initialized:
+                raise RuntimeError("Config initialization is incomplete")
+            self._config_loaded = False
+            for name in ("_timer", "_save_retry_timer"):
+                timer = getattr(self, name)
+                if timer is not None:
+                    timer.cancel()
+                    setattr(self, name, None)
+        self._loading_saved_config = True
+        try:
+            self._loadConfig()
+        except Exception as error:
+            with self._file_lock:
+                # Retrying a write cannot repair a read or preservation failure.
+                self._saveFailedLocked(error, retry=False)
+            return
+        finally:
+            self._loading_saved_config = False
+        with self._file_lock:
+            self._config_loaded = True
+        self.saveConfigToFile()
 
-                    for key, value in self._config_data.items():
-                        # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。
-                        # 未知キー（Descriptorなし）は無視して注入を防止。
-                        try:
-                            descriptor = getattr(type(self), key, None)
-                            if isinstance(descriptor, ManagedProperty):
-                                if descriptor.readonly or not descriptor.serialize:
-                                    continue
-                                setattr(self, key, value)
-                            elif isinstance(descriptor, ValidatedProperty):
-                                if not descriptor.serialize:
-                                    continue
-                                setattr(self, key, value)
-                            else:
-                                # 不明キーは破棄（古い/不要/改竄の可能性）
-                                continue
-                        except Exception:
-                            errorLogging()
+    def _loadConfig(self):
+        self._config_data = {}
+        # Set when config.json could not be read and was moved aside, so the
+        # UI can say the app started with defaults and where the old file is.
+        self.UNREADABLE_CONFIG_BACKUP = None
+        try:
+            with open(self.PATH_CONFIG, 'r', encoding="utf-8") as fp:
+                self._config_data = json_load(fp)
+            if not isinstance(self._config_data, dict):
+                raise ValueError("config.json is not a JSON object")
+        except FileNotFoundError:
+            if os_path.lexists(self.PATH_CONFIG):
+                raise
+        except (ValueError, UnicodeDecodeError):
+            errorLogging()
+            self.UNREADABLE_CONFIG_BACKUP = self._moveUnreadableConfigAside()
+            self._config_data = {}
+        # Old single-region configs already use OCR_CAPTURE_REGION. Retain
+        # that window region and migrate VR to the full view, never a copy.
+        self._config_data.setdefault("OCR_VR_CAPTURE_REGION",
+                                     {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0})
+        self.INVALID_SAVED_API_URLS = []
+        for key, value in self._config_data.items():
+            if key in CUSTOM_URL_KEYS and not valid_saved_api_url(value):
+                # Empty disables discovery; never move a saved key to a fallback host.
+                setattr(self, "_" + key, "")
+                self.INVALID_SAVED_API_URLS.append(key)
+                continue
+            # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。
+            # 未知キー（Descriptorなし）は無視して注入を防止。
+            try:
+                descriptor = getattr(type(self), key, None)
+                if isinstance(descriptor, ManagedProperty):
+                    if descriptor.readonly or not descriptor.serialize:
+                        continue
+                    setattr(self, key, value)
+                elif isinstance(descriptor, ValidatedProperty):
+                    if not descriptor.serialize:
+                        continue
+                    setattr(self, key, value)
+                else:
+                    # 不明キーは破棄（古い/不要/改竄の可能性）
+                    continue
+            except ConfigValidationError:
+                errorLogging()
 
         # config.json から読み込んだ SELECTED_RELEASE_CHANNEL は、前回起動時に
         # UI でチャンネルを切り替えた「つもり」の値をそのまま引き継いでいる
@@ -1487,8 +1908,6 @@ class Config:
                     os_remove(installer_language_marker)
                 except Exception:
                     errorLogging()
-
-        self.saveConfigToFile()
 
     def revalidate_selected_models(self):
         pairs = [

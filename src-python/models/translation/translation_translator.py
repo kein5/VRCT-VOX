@@ -1,26 +1,29 @@
 from os import path as os_path
+from copy import copy
 from deepl import DeepLClient
 
 try:
+    from .translation_history import TranslationHistory
     from .translation_languages import translation_lang
-    from .translation_utils import ctranslate2_weights
+    from .translation_utils import MissingCTranslate2Tokenizer, UNLOADED, loadTransformers, resolveCTranslate2Weight, downloadCTranslate2Tokenizer
     from .translation_providers import TRANSLATION_PROVIDER_REGISTRY
+    from .translation_deepl import authenticateDeepL
 except Exception:
     import sys
     sys.path.append(os_path.dirname(os_path.dirname(os_path.dirname(os_path.abspath(__file__)))))
+    from translation_history import TranslationHistory
     from translation_languages import translation_lang
-    from translation_utils import ctranslate2_weights
+    from translation_utils import MissingCTranslate2Tokenizer, UNLOADED, loadTransformers, resolveCTranslate2Weight, downloadCTranslate2Tokenizer
     from translation_providers import TRANSLATION_PROVIDER_REGISTRY
+    from translation_deepl import authenticateDeepL
 
 from utils import errorLogging, getBestComputeType
 
 try:
-    # GPL の translators から、MIT 互換の自前実装に置き換えた
-    # (translator_engines)。Bing の認証情報パースはそちらに内蔵済み。
-    # Rust 製のビルド済み拡張 (src-python/translator_engines.pyd) を同梱している。
-    # ライセンスにより VRCT 以外への流用は不可 (translator_engines.LICENSE.txt)。
-    # translators と違い import 時に通信しないので、オフライン起動でも
-    # ENABLE_TRANSLATORS が False に落ちない。
+    # Upstream VRCT bundles translator_engines (Google/Bing/Papago web
+    # translation). Its license allows use and distribution only in official
+    # VRCT, so VRCT-VOX does not ship it and these engines stay disabled unless
+    # the module is installed separately.
     from translator_engines import translate_text as other_web_Translator
     ENABLE_TRANSLATORS = True
 except Exception:
@@ -33,6 +36,11 @@ except Exception:
 # NOTE: これは 1 リクエストあたりの値。Bing は認証ページの取得と翻訳、
 # さらにトークン失効時の 1 回のリトライで最大 4 リクエストを発行しうる。
 _WEB_TRANSLATOR_TIMEOUT_SECONDS = 10
+_CTRANSLATE2_MAX_INPUT_LENGTH = 1024
+_CTRANSLATE2_MAX_DECODING_LENGTH = 256
+# The num_beams of the model's own generation_config.json. CTranslate2's default
+# of 2 gave worse sentences ("we will meet our friends" for 友達に会います).
+_M2M100_BEAM_SIZE = 5
 
 import warnings
 from threading import RLock
@@ -56,12 +64,11 @@ try:
 except Exception:
     ctranslate2 = None  # type: ignore
 
-try:
-    import transformers  # noqa: F401
-except Exception:
-    transformers = None  # type: ignore
+# Loaded by the first local model, like the tokenizers in translation_utils.
+transformers = UNLOADED
 
-# 各プロバイダの LLM クライアント SDK は起動時にまとめて import する。
+# 各プロバイダのクライアントクラスは起動時にまとめて import する。重い SDK は
+# models.sdk_clients が最初のクライアント生成まで遅らせるので、ここは軽い。
 # try/except は Python パッケージ vs スクリプト実行の両方で動かすため
 # (`from .module` と `from module` の両パターン)。PyInstaller の import
 # scanner が静的に検出できるよう `from ... import Class` の形を維持する。
@@ -116,7 +123,6 @@ class Translator:
     """
 
     def __init__(self) -> None:
-        self.is_enable_translators = ENABLE_TRANSLATORS
         self.deepl_client: Optional[DeepLClient] = None
         # TRANSLATION_PROVIDER_REGISTRY に登録されたエンジン
         # (Plamo/Gemini/OpenAI/Groq/OpenRouter、フェーズ3項目17) の
@@ -133,6 +139,7 @@ class Translator:
         self.ollama_connected: bool = False
         self.ctranslate2_translator: Any = None
         self.ctranslate2_tokenizer: Any = None
+        self._ctranslate2_model_parameters: Optional[dict] = None
         self.is_loaded_ctranslate2_model: bool = False
         self.is_changed_translator_parameters: bool = False
         # ctranslate2_translator/ctranslate2_tokenizer は mic/speaker の
@@ -143,26 +150,63 @@ class Translator:
         # (クラッシュせず気付きにくい翻訳品質の劣化)、changeCTranslate2Model()
         # によるモデル差し替え中の破棄途中オブジェクトに translate_batch が
         # 入りうる。CTranslate2 の Translator 自体はスレッドセーフだが、
-        # これは tokenizer の保護にはならない。RLock なのは、将来
-        # 呼び出し元が既にロックを保持した状態で再入する可能性に備えるため
-        # (現状のコードパスでは再入は起きない)。
+        # これは tokenizer の保護にはならない。推論時の重み切り替えから
+        # changeCTranslate2Model() を呼ぶため、再入可能な RLock を使う。
         self._ctranslate2_lock: RLock = RLock()
+
+    def prepareCredential(self, engine_key: str, auth_key: str, selected_model=None,
+                          root_path=None, base_url=None):
+        """Build a usable candidate without changing any live client.
+
+        Authentication alone is insufficient: model discovery, selection and
+        SDK client construction must all succeed before the caller commits.
+        """
+        if engine_key == "DeepL_API":
+            client = authenticateDeepL(DeepLClient, auth_key)
+            return client, [], None
+        if engine_key == "OpenAI_Compatible":
+            client = OpenAICompatibleClient(base_url=base_url, root_path=root_path)
+        else:
+            client = TRANSLATION_PROVIDER_REGISTRY[engine_key].client_class(root_path=root_path)
+        if not client.setAuthKey(auth_key):
+            raise ValueError("Credential authentication failed")
+        model_list = client.getModelList()
+        if not isinstance(model_list, list) or not model_list or any(
+            not isinstance(name, str) or not name.strip() for name in model_list
+        ):
+            raise ValueError("No supported models available")
+        model_list = list(model_list)
+        if selected_model not in model_list:
+            selected_model = model_list[0]
+        if client.setModel(selected_model) is not True:
+            raise ValueError("Model selection failed")
+        client.updateClient()
+        return client, model_list, selected_model
+
+    def commitCredential(self, engine_key: str, candidate) -> None:
+        """Publish a prepared client under the caller's credential commit lock."""
+        client, _, _ = candidate
+        if engine_key == "DeepL_API":
+            self.deepl_client = client
+        elif engine_key == "OpenAI_Compatible":
+            self.openai_compatible_client = client
+        else:
+            self._provider_clients[engine_key] = client
 
     def authenticationDeepLAuthKey(self, auth_key: str) -> bool:
         """Authenticate DeepL API with the provided key.
 
         Returns True on success, False on failure.
         """
-        result = True
+        # 失敗したときは、前のキーのクライアントを残す。保存したキーは消さないので、
+        # 新しいキーを試して失敗しても、前のキーで翻訳を続けられる
         try:
-            self.deepl_client = DeepLClient(auth_key)
-            # quick smoke test
-            self.deepl_client.translate_text(" ", target_lang="EN-US")
+            client = authenticateDeepL(DeepLClient, auth_key)
         except Exception:
-            errorLogging()
-            self.deepl_client = None
-            result = False
-        return result
+            errorLogging(provider="DeepL")
+            return False
+        self.deepl_client = client
+        return True
 
     def authenticationRegistryAuthKey(self, engine_key: str, auth_key: str, root_path: str = None, **client_kwargs) -> bool:
         """`TRANSLATION_PROVIDER_REGISTRY` 登録エンジン共通の認証処理。
@@ -177,9 +221,8 @@ class Translator:
         if client.setAuthKey(auth_key):
             self._provider_clients[engine_key] = client
             return True
-        else:
-            self._provider_clients.pop(engine_key, None)
-            return False
+        # 失敗したときは、前のキーのクライアントを残す (DeepL と同じ)
+        return False
 
     def getRegistryModelList(self, engine_key: str) -> list[str]:
         """`TRANSLATION_PROVIDER_REGISTRY` 登録エンジン共通のモデル一覧取得。
@@ -289,12 +332,12 @@ class Translator:
         `base_url` は必須想定（None の場合は公式エンドポイントにフォールバック）。
         Returns True on success, False on failure.
         """
-        self.openai_compatible_client = OpenAICompatibleClient(base_url=base_url, root_path=root_path)
-        if self.openai_compatible_client.setAuthKey(auth_key):
+        client = OpenAICompatibleClient(base_url=base_url, root_path=root_path)
+        if client.setAuthKey(auth_key):
+            self.openai_compatible_client = client
             return True
-        else:
-            self.openai_compatible_client = None
-            return False
+        # 失敗したときは、前のキーと接続先のクライアントを残す (DeepL と同じ)
+        return False
 
     def getOpenAICompatibleModelList(self) -> list[str]:
         """Get available OpenAI-compatible endpoint models."""
@@ -452,32 +495,50 @@ class Translator:
         This sets internal translator/tokenizer objects and flips
         ``is_loaded_ctranslate2_model`` on success.
         """
+        global transformers
+        missing_runtime = RuntimeError("CTranslate2 and Transformers are required for local translation")
         if ctranslate2 is None or transformers is None:
-            return
+            raise missing_runtime
+        if transformers is UNLOADED:
+            # A first run has no weights yet. Say so before the import below, which
+            # took 22 s on a Windows PC and kept the model review from opening.
+            if resolveCTranslate2Weight(path, model_type) is None:
+                raise MissingCTranslate2Tokenizer(model_type)
+            transformers = loadTransformers()
+            if transformers is None:
+                raise missing_runtime
 
         with self._ctranslate2_lock:
-            self.is_loaded_ctranslate2_model = False
-            directory_name = ctranslate2_weights[model_type]["directory_name"]
-            tokenizer = ctranslate2_weights[model_type]["tokenizer"]
-            weight_path = os_path.join(path, "weights", "ctranslate2", directory_name)
-            tokenizer_path = os_path.join(path, "weights", "ctranslate2", directory_name, "tokenizer")
+            weight_path = resolveCTranslate2Weight(path, model_type)
+            if weight_path is None:
+                raise MissingCTranslate2Tokenizer(model_type)
+            tokenizer = downloadCTranslate2Tokenizer(path, model_type)
 
             if compute_type == "auto":
                 compute_type = getBestComputeType(device, device_index)
+            # Keep a valid old pair if preparation fails, but never allocate
+            # two native models at once. A failed replacement stays unloaded.
+            try:
+                if self.ctranslate2_translator is not None:
+                    self.ctranslate2_translator.unload_model()
+            finally:
+                self.ctranslate2_translator = None
+                self.ctranslate2_tokenizer = None
+                self._ctranslate2_model_parameters = None
+                self.is_loaded_ctranslate2_model = False
             self.ctranslate2_translator = ctranslate2.Translator(
-                weight_path,
+                str(weight_path),
                 device=device,
                 device_index=device_index,
                 compute_type=compute_type,
                 inter_threads=1,
                 intra_threads=4,
             )
-            try:
-                self.ctranslate2_tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer, cache_dir=tokenizer_path)
-            except Exception:
-                errorLogging()
-                tokenizer_path = os_path.join("./weights", "ctranslate2", directory_name, "tokenizer")
-                self.ctranslate2_tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer, cache_dir=tokenizer_path)
+            self.ctranslate2_tokenizer = tokenizer
+            self._ctranslate2_model_parameters = dict(
+                path=path, model_type=model_type, device=device,
+                device_index=device_index, compute_type=compute_type,
+            )
             self.is_loaded_ctranslate2_model = True
 
     def isLoadedCTranslate2Model(self) -> bool:
@@ -498,17 +559,35 @@ class Translator:
         with self._ctranslate2_lock:
             if self.is_loaded_ctranslate2_model is True:
                 try:
+                    parameters = self._ctranslate2_model_parameters
+                    if parameters is None:
+                        return False
+                    if parameters["model_type"] != weight_type:
+                        # Use the message's admitted weight, even if a newer
+                        # selection has already been used by another request.
+                        self.changeCTranslate2Model(**{**parameters, "model_type": weight_type})
                     self.ctranslate2_tokenizer.src_lang = source_language
-                    source = self.ctranslate2_tokenizer.convert_ids_to_tokens(self.ctranslate2_tokenizer.encode(message))
+                    source = self.ctranslate2_tokenizer.convert_ids_to_tokens(
+                        self.ctranslate2_tokenizer.encode(message, truncation=False))
+                    if len(source) > _CTRANSLATE2_MAX_INPUT_LENGTH:
+                        return False
+                    decoding = {}
                     match weight_type:
                         case "m2m100_418M-ct2-int8" | "m2m100_1.2B-ct2-int8":
                             target_prefix = [self.ctranslate2_tokenizer.lang_code_to_token[target_language]]
+                            decoding["beam_size"] = _M2M100_BEAM_SIZE
                         case "nllb-200-distilled-600M-ct2-int8" | "nllb-200-distilled-1.3B-ct2-int8" | "nllb-200-3.3B-ct2-int8":
                             target_prefix = [target_language]
                         case _:
                             return False
-                    results = self.ctranslate2_translator.translate_batch([source], target_prefix=[target_prefix])
-                    target = results[0].hypotheses[0][1:]
+                    results = self.ctranslate2_translator.translate_batch(
+                        [source], target_prefix=[target_prefix], max_input_length=0,
+                        max_decoding_length=_CTRANSLATE2_MAX_DECODING_LENGTH, return_end_token=True, **decoding,
+                    )
+                    target = results[0].hypotheses[0]
+                    if not target or target[-1] != self.ctranslate2_tokenizer.eos_token:
+                        return False
+                    target = target[1:-1]
                     result = self.ctranslate2_tokenizer.decode(self.ctranslate2_tokenizer.convert_tokens_to_ids(target))
                 except Exception:
                     errorLogging()
@@ -551,6 +630,22 @@ class Translator:
             ) from e
         return source_language, target_language
 
+    @staticmethod
+    def _translateLLM(client, message, source_language, target_language, context_history):
+        # Snapshot the adapter and its SDK reference before invoking it. Context
+        # must not persist on a shared adapter or race another target language.
+        # No settings lock is held during the provider request.
+        from config import config
+
+        with config.translation_history_lock:
+            request_client = copy(client)
+            history = context_history or []
+            if (isinstance(history, TranslationHistory)
+                    and history.generation != config.translation_history_generation):
+                history = []
+            request_client.setContextHistory(history)
+        return request_client.translate(message, input_lang=source_language, output_lang=target_language)
+
     def translate(self, translator_name: str, weight_type: str, source_language: str, target_language: str, target_country: str, message: str, context_history: Optional[list[dict]] = None) -> Any:
         """Translate `message` using the named translator backend.
 
@@ -584,15 +679,12 @@ class Translator:
             source_language, target_language = self.getLanguageCode(translator_name, weight_type, target_country, source_language, target_language)
             match translator_name:
                 case "DeepL_API":
-                    if self.is_enable_translators is True:
-                        if self.deepl_client is None:
-                            result = False
-                        else:
-                            result = self.deepl_client.translate_text(
-                                message,
-                                source_lang=source_language,
-                                target_lang=target_language
-                                ).text
+                    if self.deepl_client is not None:
+                        result = self.deepl_client.translate_text(
+                            message,
+                            source_lang=source_language,
+                            target_lang=target_language
+                            ).text
                 case name if name in TRANSLATION_PROVIDER_REGISTRY:
                     # Plamo_API/Gemini_API/OpenAI_API/Groq_API/OpenRouter_API
                     # (「認証キー+モデル一覧」型、フェーズ3項目17) は
@@ -604,46 +696,26 @@ class Translator:
                     if provider_client is None:
                         result = False
                     else:
-                        if context_history:
-                            provider_client.setContextHistory(context_history)
-                        result = provider_client.translate(
-                            message,
-                            input_lang=source_language,
-                            output_lang=target_language,
-                            )
+                        result = self._translateLLM(
+                            provider_client, message, source_language, target_language, context_history)
                 case "OpenAI_Compatible":
                     if self.openai_compatible_client is None:
                         result = False
                     else:
-                        if context_history:
-                            self.openai_compatible_client.setContextHistory(context_history)
-                        result = self.openai_compatible_client.translate(
-                            message,
-                            input_lang=source_language,
-                            output_lang=target_language,
-                        )
+                        result = self._translateLLM(
+                            self.openai_compatible_client, message, source_language, target_language, context_history)
                 case "LMStudio":
                     if self.lmstudio_client is None:
                         result = False
                     else:
-                        if context_history:
-                            self.lmstudio_client.setContextHistory(context_history)
-                        result = self.lmstudio_client.translate(
-                            message,
-                            input_lang=source_language,
-                            output_lang=target_language,
-                        )
+                        result = self._translateLLM(
+                            self.lmstudio_client, message, source_language, target_language, context_history)
                 case "Ollama":
                     if self.ollama_client is None:
                         result = False
                     else:
-                        if context_history:
-                            self.ollama_client.setContextHistory(context_history)
-                        result = self.ollama_client.translate(
-                            message,
-                            input_lang=source_language,
-                            output_lang=target_language,
-                        )
+                        result = self._translateLLM(
+                            self.ollama_client, message, source_language, target_language, context_history)
                 case "Google":
                     if ENABLE_TRANSLATORS is True and other_web_Translator is not None:
                         result = other_web_Translator(
@@ -681,7 +753,10 @@ class Translator:
         except UnsupportedLanguageError:
             result = None
         except Exception:
-            errorLogging()
+            if translator_name == "CTranslate2":
+                errorLogging()
+            else:
+                errorLogging(provider=translator_name)
             result = False
         return result
 

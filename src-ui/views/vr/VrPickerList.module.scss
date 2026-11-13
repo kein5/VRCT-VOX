@@ -1,0 +1,11 @@
+.list {
+    flex-shrink: 0;
+    min-width: 0;
+}
+
+.row {
+    display: grid;
+    column-gap: 8px;
+    // Padding is included in virtua's row measurement; external margins are not.
+    padding-bottom: 8px;
+}

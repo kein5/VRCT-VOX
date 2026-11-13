@@ -251,7 +251,7 @@ class LMStudioUrlEndpointTests(unittest.TestCase):
             "provider response contains a secret"
         )
 
-        response = self.controller.setTranslatorLMStudioURL("http://invalid")
+        response = self.controller.setTranslatorLMStudioURL("https://invalid.example")
 
         self.assertEqual(response["status"], 400)
         self.assertEqual(

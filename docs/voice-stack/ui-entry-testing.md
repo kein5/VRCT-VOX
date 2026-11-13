@@ -50,9 +50,8 @@ Linux、node_modules、PipeWire/WirePlumber、ビルド済み`build/vrct-voice-g
 試験依存は製品venvから分離する。新しいTTSモデルやbrowserの自動取得処理は持たない。
 
 ```sh
-uv venv /tmp/vrct-ui-tests
-uv pip install --python /tmp/vrct-ui-tests/bin/python -r requirements-voice-ui-test.txt
-uv run --no-project --python /tmp/vrct-ui-tests/bin/python python tests/voice/ui_entry_acceptance.py \
+python tools/dev.py setup --scope browser
+uv run --no-project --python build/dev/browser-venv/bin/python python tests/voice/ui_entry_acceptance.py \
   --chromium /path/to/existing/chrome --output /tmp/vrct-ui-fixture-new
 # 既存speech.cppを使う場合は次の引数を追加
 # --model /path/to/existing-Irodori-MF-F16.gguf

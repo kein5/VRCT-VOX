@@ -3,7 +3,7 @@ import http.client
 import json
 import socket
 import sys
-from threading import Event, Lock, Thread, Timer
+from threading import Event, Lock, Timer
 from time import monotonic
 from urllib.parse import urlsplit
 
@@ -12,6 +12,7 @@ from models.http_stream import InterruptibleSocket
 from .settings import local_url
 from .model_options import parse_options, SAFE_SEED_MAX
 from .listener_table import windows_listener_table
+from .listener_monitor import listener_monitors
 
 
 class SpeechError(Exception):
@@ -110,41 +111,50 @@ def _windows_listener_missing(address, stopped=None):
     """Winsock may retry refused connects beyond the short probe timeout.
 
     A successful Windows TCP table query can establish listener absence without
-    consuming response PCM. Failure to read the table remains inconclusive.
+    consuming response PCM. None means the table read was inconclusive.
     No remote connection addresses or process details are retained or published.
     """
     host, port = address
     addresses = {'::1', '::'} if host == '::1' else {'127.0.0.1', '0.0.0.0', '::'}
     if host == 'localhost':
         addresses.add('::1')
-    rows = windows_listener_table.read(stopped if stopped is not None else Event())
+    stopped = stopped if stopped is not None else Event()
+    started = monotonic()
+    rows = windows_listener_table.read(stopped)
     if rows is None:
-        return False
+        return None
+    if not any(ip in addresses and local_port == port for ip, local_port in rows):
+        # A newly opened listener can be absent from another address's cached
+        # snapshot. Confirm absence with a query started during this probe.
+        rows = windows_listener_table.read(stopped, timeout=max(0, .05 - (monotonic() - started)),
+                                            not_before=started)
+        if rows is None:
+            return None
     return not any(ip in addresses and local_port == port for ip, local_port in rows)
 
 
-def _watch_listener(address, token, stopped):
+def _listener_missing(address, stopped):
     """Detect a refused localhost listener independently of playback-paced reads.
 
     This is not a health check: a timeout or other inconclusive connect failure
     does not prove the server died. Existing HTTP/request deadlines still apply.
-    No PCM is read or queued here, and only this request's token is cancelled.
+    No PCM is read or queued here. The shared monitor cancels affected tokens.
     """
-    while not stopped.wait(.02) and not token.is_set():
-        if sys.platform == 'win32' and _windows_listener_missing(address, stopped):
-            if not stopped.is_set():
-                token.cancel("server_unavailable")
-            return
-        try:
-            with socket.create_connection(address, timeout=.1):
-                pass
-        except ConnectionRefusedError:
-            if not stopped.is_set():
-                token.cancel("server_unavailable")
-            return
-        except OSError:
-            # A busy listener, local resource pressure, etc. is inconclusive.
+    if sys.platform == 'win32':
+        missing = _windows_listener_missing(address, stopped)
+        if missing is not None:
+            return missing and not stopped.is_set()
+    if stopped.is_set():
+        return False
+    try:
+        with socket.create_connection(address, timeout=.1):
             pass
+    except ConnectionRefusedError:
+        return not stopped.is_set()
+    except OSError:
+        # A busy listener, local resource pressure, etc. is inconclusive.
+        pass
+    return False
 
 
 class SpeechCppTTS:
@@ -233,6 +243,10 @@ class SpeechCppTTS:
         watch_stopped, watcher = Event(), None
         try:
             cancel_token.check()
+            address = (url.hostname, url.port or 80)
+            # Capture the process generation before connecting, not after the
+            # first PCM: a restarted server may already be using the same port.
+            owner = listener_monitors.owned(address)
             conn.connect()
             sock = conn.sock = InterruptibleSocket(conn.sock)
 
@@ -286,10 +300,9 @@ class SpeechCppTTS:
                         # The generator may next be suspended inside a slow
                         # output.write; do not wait for its next HTTP read to
                         # notice that the external server is no longer there.
-                        watcher = Thread(target=_watch_listener,
-                                         args=((url.hostname, url.port or 80), cancel_token, watch_stopped),
-                                         name="vrct-vox-listener", daemon=True)
-                        watcher.start()
+                        watcher = listener_monitors.watch(address, cancel_token, watch_stopped,
+                                                           _listener_missing, owner=owner)
+                        cancel_token.check()
                     samples += complete // 2
                     if samples > rate * 60:
                         raise SpeechError("audio_duration_limit")
@@ -310,6 +323,7 @@ class SpeechCppTTS:
         finally:
             watch_stopped.set()
             if watcher is not None:
+                watcher.close()
                 watcher.join()
             if response is not None:
                 response.close()

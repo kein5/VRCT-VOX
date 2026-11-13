@@ -17,9 +17,16 @@ export const OpenQuickSettingButton = (props) => {
         );
     };
 
+    // row: one line of the quick settings menu, with the name on the left and the
+    // state on the right. A pending row stays focusable, so the keyboard keeps its place.
     return (
-        <div className={styles.container}>
-            <button type="button" disabled={is_pending || !is_available} aria-label={props.label}
+        <div className={clsx(styles.container, props.row && styles.row)}>
+            {/* The visible label and state are the name; toggles report pressed,
+                and the subtitle overlay button says it opens a dialog. */}
+            <button type="button" disabled={props.row ? !is_available : is_pending || !is_available}
+                aria-disabled={props.row && is_pending ? true : undefined}
+                aria-pressed={!props.opens_dialog && variable !== null ? variable : undefined}
+                aria-haspopup={props.opens_dialog ? "dialog" : undefined}
                 className={clsx(styles.button_wrapper, is_pending && styles.is_pending)}
                 onClick={is_pending ? undefined : props.onClickFunction}
             >
@@ -40,6 +47,7 @@ export const OpenQuickSettingButton = (props) => {
                     )
                 )}
             </button>
+            {props.note && <p className={styles.note}>{props.note}</p>}
         </div>
     );
 };

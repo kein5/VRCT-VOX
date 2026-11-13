@@ -24,9 +24,21 @@ export const useRealtimeASR = () => {
         atoms.set(realtimeStateAtom, next);
         const logs = atoms.get(Atom_MessageLogs);
         const pruned = pruneRealtimeCaptions({ rows: logs.data, retired: atoms.get(realtimeRetiredAtom) }, next);
-        atoms.set(Atom_MessageLogs, { ...logs, data: pruned.rows });
+        if (pruned.rows !== logs.data) atoms.set(Atom_MessageLogs, { ...logs, data: pruned.rows });
         atoms.set(realtimeRetiredAtom, pruned.retired);
     }, [atoms]);
+    const backendStopped = useCallback(() => {
+        updateError("backend_unavailable");
+        updateState(Object.fromEntries(Object.entries(atoms.get(realtimeStateAtom)).map(([source, row]) =>
+            [source, { ...row, requested: false, state: "failed", error_code: "backend_unavailable" }])));
+        // A lost sidecar cannot confirm delivery. Keep recognized text, and
+        // preserve outcomes already received before the connection closed.
+        const logs = atoms.get(Atom_MessageLogs);
+        const rows = logs.data.map(row => row.realtime && !row.realtime.outcome
+            ? { ...row, status: "failed", realtime: { ...row.realtime, outcome: "failed", reason: "backend_unavailable" } }
+            : row);
+        if (rows.some((row, index) => row !== logs.data[index])) atoms.set(Atom_MessageLogs, { ...logs, data: rows });
+    }, [atoms, updateError, updateState]);
     const reset = useCallback(() => {
         atoms.set(realtimeStateAtom, {});
         atoms.set(realtimeRetiredAtom, []);
@@ -61,8 +73,10 @@ export const useRealtimeASR = () => {
     // response batch before React rerenders. Hook closures are not authority.
     const send = useCallback(async (endpoint, data) => {
         if (endpoint !== "/get/data/realtime_asr_state") updateError(null);
-        if (!await asyncStdoutToPython(endpoint, data)) updateError("backend_unavailable");
+        const response = await asyncStdoutToPython(endpoint, data);
+        if (response === false) updateError("backend_unavailable");
+        return response;
     }, [updateError]);
     return { settings, state, endpoints, models, error, send, updateSettings,
-        updateState, updateEndpoints, updateModels, updateError, reset };
+        updateState, updateEndpoints, updateModels, updateError, reset, backendStopped };
 };

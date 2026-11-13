@@ -56,7 +56,7 @@ class UpdateTranscriptionEngineApiEnginesTests(unittest.TestCase):
         # エンジンは変化していないので、言語リストのpushは起きない
         self.assertEqual(self.calls, [])
 
-    def test_falls_back_to_whisper_when_api_engine_becomes_unavailable(self) -> None:
+    def test_keeps_api_selection_when_unavailable(self) -> None:
         config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT = {}
         config._SELECTED_TRANSCRIPTION_ENGINE = "Groq_Whisper"
         config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS = {
@@ -66,12 +66,11 @@ class UpdateTranscriptionEngineApiEnginesTests(unittest.TestCase):
 
         self.controller.updateTranscriptionEngine()
 
-        self.assertEqual(config.SELECTED_TRANSCRIPTION_ENGINE, "Whisper")
-        pushed_endpoints = [endpoint for _, endpoint, _ in self.calls]
-        self.assertIn("selectable_language_list", pushed_endpoints)
+        self.assertEqual(config.SELECTED_TRANSCRIPTION_ENGINE, "Groq_Whisper")
+        self.assertEqual(self.calls, [])
 
-    def test_google_still_falls_back_to_whisper_when_unavailable(self) -> None:
-        # 既存挙動 (Whisper/Google 間のフォールバック) の回帰チェック。
+    def test_keeps_saved_google_when_unavailable(self) -> None:
+        # Availability changes must never silently change the selected service.
         config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT = {"base": True}
         config._SELECTED_TRANSCRIPTION_ENGINE = "Google"
         config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS = {
@@ -81,7 +80,7 @@ class UpdateTranscriptionEngineApiEnginesTests(unittest.TestCase):
 
         self.controller.updateTranscriptionEngine()
 
-        self.assertEqual(config.SELECTED_TRANSCRIPTION_ENGINE, "Whisper")
+        self.assertEqual(config.SELECTED_TRANSCRIPTION_ENGINE, "Google")
 
     def test_keeps_deepgram_selected_while_still_available(self) -> None:
         config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT = {}
@@ -95,7 +94,7 @@ class UpdateTranscriptionEngineApiEnginesTests(unittest.TestCase):
         self.assertEqual(config.SELECTED_TRANSCRIPTION_ENGINE, "Deepgram")
         self.assertEqual(self.calls, [])
 
-    def test_falls_back_to_whisper_when_deepgram_becomes_unavailable(self) -> None:
+    def test_keeps_deepgram_selection_when_unavailable(self) -> None:
         config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT = {}
         config._SELECTED_TRANSCRIPTION_ENGINE = "Deepgram"
         config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS = {
@@ -104,9 +103,8 @@ class UpdateTranscriptionEngineApiEnginesTests(unittest.TestCase):
 
         self.controller.updateTranscriptionEngine()
 
-        self.assertEqual(config.SELECTED_TRANSCRIPTION_ENGINE, "Whisper")
-        pushed_endpoints = [endpoint for _, endpoint, _ in self.calls]
-        self.assertIn("selectable_language_list", pushed_endpoints)
+        self.assertEqual(config.SELECTED_TRANSCRIPTION_ENGINE, "Deepgram")
+        self.assertEqual(self.calls, [])
 
     def test_requested_engine_is_applied_before_validation(self) -> None:
         """setSelectedTranscriptionEngine() は requested_engine を渡して
@@ -121,7 +119,7 @@ class UpdateTranscriptionEngineApiEnginesTests(unittest.TestCase):
 
         self.assertEqual(config.SELECTED_TRANSCRIPTION_ENGINE, "Deepgram")
 
-    def test_requesting_an_unavailable_engine_falls_back(self) -> None:
+    def test_requesting_an_unavailable_engine_keeps_the_request(self) -> None:
         config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT = {}
         config._SELECTED_TRANSCRIPTION_ENGINE = "Google"
         config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS = {
@@ -130,7 +128,7 @@ class UpdateTranscriptionEngineApiEnginesTests(unittest.TestCase):
 
         self.controller.updateTranscriptionEngine(requested_engine="Deepgram")
 
-        self.assertEqual(config.SELECTED_TRANSCRIPTION_ENGINE, "Whisper")
+        self.assertEqual(config.SELECTED_TRANSCRIPTION_ENGINE, "Deepgram")
 
     def test_engine_change_resets_now_unsupported_language_and_pushes_list(self) -> None:
         config.SELECTABLE_WHISPER_WEIGHT_TYPE_DICT = {}
@@ -139,6 +137,7 @@ class UpdateTranscriptionEngineApiEnginesTests(unittest.TestCase):
             "Google": True, "Whisper": True, "Deepgram": True,
         }
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             "1": {"1": {"language": "Korean", "country": "South Korea", "enable": True}},
         }
         # ターゲット側に "Japanese" が有効で入っていると、フォールバック先の
@@ -146,7 +145,8 @@ class UpdateTranscriptionEngineApiEnginesTests(unittest.TestCase):
         # (pickDefaultLanguageAndCountryForTranscriptionEngine の衝突回避)。
         # ここでは日本語への復帰だけを検証したいので明示的に避けておく。
         config.SELECTED_TARGET_LANGUAGES = {
-            "1": {"1": {"language": "English", "country": "United States", "enable": True}},
+            **config.SELECTED_TARGET_LANGUAGES,
+            "1": {**config.SELECTED_TARGET_LANGUAGES["1"], "1": {"language": "English", "country": "United States", "enable": True}},
         }
         original_deepgram_model = config._SELECTED_DEEPGRAM_MODEL
         original_deepgram_languages = dict(config._DEEPGRAM_MODEL_LANGUAGES)

@@ -1,15 +1,31 @@
 .container {
+    grid-area: sidebar;
+    min-height: 0;
     width: var(--config_page_sidebar_width);
     flex-shrink: 0;
     padding: 0;
     position: relative;
-    transition: width 0.2s;
+    transition: width 0.12s ease-out;
     height: 100%;
 
+    // The rail expands for hover or focus (DESIGN.md). One state drives the
+    // width and the labels: :focus-within misses focus while the window itself
+    // is not focused (settings opened from the VR panel or a shortcut).
+    // The expanded rail lies over the page instead of pushing it aside, so the
+    // settings and top bar do not reflow while the pointer crosses the rail.
     &.is_small {
         width: 5.6rem;
-        &:hover {
+        .scroll_container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 5;
+            width: 5.6rem;
+            transition: width 0.12s ease-out, box-shadow 0.12s ease-out;
+        }
+        &.is_expanded .scroll_container {
             width: var(--config_page_sidebar_width);
+            box-shadow: .4rem 0 1.6rem rgba(0, 0, 0, .35);
         }
     }
 }
@@ -21,7 +37,8 @@
     height: 100%;
     width: 100%;
     background-color: var(--vox_rail);
-    padding-top: var(--config_page_content_padding_top);
+    // The page grid reserves the header's actual height above the rail.
+    padding-top: 0;
     padding-bottom: 0.8rem;
     overflow: hidden;
 }
@@ -66,6 +83,9 @@
     &:active {
         background-color: var(--vox_rail);
     }
+    :global(html[data-last-input="pointer"]) &:focus-visible {
+        outline: none;
+    }
     &.is_selected {
         background-color: var(--primary_900_color);
         color: var(--primary_200_color);
@@ -102,9 +122,6 @@
         width: 1.6rem;
         margin-top: 0.2rem;
     }
-    &.supporters_icon {
-        fill: var(--supporters_crown_color);
-    }
     &.updater_icon {
         transform: rotate(-30deg);
     }
@@ -128,13 +145,14 @@
     }
 }
 
+// One line: while the rail is narrow, a wrapping label would stretch the tab.
 .tab_text {
-    font-size: 1.35rem;
+    font-size: 1.4rem;
     position: relative;
-    white-space: normal;
+    white-space: nowrap;
     line-height: 1.4;
     opacity: 1;
-    transition: opacity 0.2s;
+    transition: opacity 0.12s ease-out;
     color: var(--dark_basic_text_color);
 
     &.hide {

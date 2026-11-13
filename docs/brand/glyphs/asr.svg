@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="title desc" >
+<title id="title">ASR — live captions</title>
+<desc id="desc">Original 24-unit glyph, 1.8-unit round stroke. Recolor with CSS currentColor when inlined.</desc>
+<g transform="translate(0 0) scale(1.0)"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.5" width="6" height="11" rx="3"/><path d="M2 10v2a6 6 0 0 0 12 0v-2M8 18v3.5M4.5 21.5h7M17 6h5M17 10h3M17 14h5"/></g></g>
+</svg>

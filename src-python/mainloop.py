@@ -1,9 +1,16 @@
 import atexit
+import importlib
 import os
 import sys
 
-from runtime_paths import bootstrap_linux_frozen
+import startup_timing
+from models.network_policy import scrub_network_environment
+scrub_network_environment()
+
+from runtime_paths import bootstrap_linux_frozen, limit_blas_threads
 bootstrap_linux_frozen()
+# Before anything imports numpy.
+limit_blas_threads()
 
 # The frozen sidecar doubles as the fixed lightweight transport entry. Dispatch
 # before importing Controller, UI services or their long-lived object graphs.
@@ -11,10 +18,17 @@ if __name__ == '__main__' and sys.argv[1:] == ['--voice-router-worker']:
     from models.voice_conversion.router_worker import main as voice_router_main
     raise SystemExit(voice_router_main())
 
+# The build runs the packaged backend with this to see that it can load what a feature
+# imports only when it turns on. Nothing else starts: no devices, no servers, no network.
+if __name__ == '__main__' and sys.argv[1:] == ['--self-check']:
+    from packaged_self_check import main as self_check_main
+    raise SystemExit(self_check_main())
+
 import json
 import time
 import faulthandler
-from typing import Any, Tuple
+from dataclasses import dataclass
+from typing import Any
 from threading import Thread, Event, Lock, Timer
 from queue import Queue, Empty
 import logging
@@ -44,8 +58,17 @@ warnings.filterwarnings(
     category=FutureWarning,
 )
 
+startup_timing.mark("bootstrap")
+# The controller imports these first anyway. Importing them here times them
+# apart: the first one also lists the audio devices.
+for _stage, _module in (("import_audio_devices", "device_manager"), ("import_config", "config"), ("import_model", "model")):
+    importlib.import_module(_module)
+    startup_timing.mark(_stage)
+
 from controller import Controller  # noqa: E402
-from utils import printLog, printResponse, errorLogging, encodeBase64, diagnosticLogPath # noqa: E402
+from utils import printLog, printResponse, errorLogging, encodeBase64, isQuietPoll, openTraceLog # noqa: E402
+
+startup_timing.mark("import_controller")
 
 logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
@@ -59,8 +82,7 @@ logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 # faulthandler は enable() 時点で fd を掴むため遅延 open できず、
 # クラッシュ無しの通常終了でも 0 バイトのファイルが残る。運用上のゴミ
 # 化を避けるため、atexit で「書き込みが無ければ削除」する。
-_crash_trace_path = diagnosticLogPath("crash_trace.log")
-_crash_trace_file = open(_crash_trace_path, "a", encoding="utf-8")
+_crash_trace_path, _crash_trace_file = openTraceLog("crash_trace.log")
 faulthandler.enable(file=_crash_trace_file, all_threads=True)
 
 
@@ -100,9 +122,12 @@ run_mapping = {
     "check_mic_volume":"/run/check_mic_volume",
     "check_speaker_volume":"/run/check_speaker_volume",
 
+    "audio_device_switched":"/run/audio_device_switched",
     "error_device":"/run/error_device",
     "error_translation_engine":"/run/error_translation_engine",
+    "message_output_error":"/run/message_output_error",
 
+    "error_translation_enable_vram_overflow":"/run/error_translation_enable_vram_overflow",
     "error_translation_chat_vram_overflow":"/run/error_translation_chat_vram_overflow",
     "error_translation_mic_vram_overflow":"/run/error_translation_mic_vram_overflow",
     "error_translation_speaker_vram_overflow":"/run/error_translation_speaker_vram_overflow",
@@ -115,12 +140,18 @@ run_mapping = {
     "download_progress_ctranslate2_weight":"/run/download_progress_ctranslate2_weight",
     "downloaded_ctranslate2_weight":"/run/downloaded_ctranslate2_weight",
     "error_ctranslate2_weight":"/run/error_ctranslate2_weight",
+    "ctranslate2_license_notice":"/run/ctranslate2_license_notice",
+    "translation_language_unsupported":"/run/translation_language_unsupported",
     "download_progress_whisper_weight":"/run/download_progress_whisper_weight",
     "downloaded_whisper_weight":"/run/downloaded_whisper_weight",
     "error_whisper_weight":"/run/error_whisper_weight",
 
     "selected_mic_host":"/run/selected_mic_host",
+    "selected_mic_device_id":"/run/selected_mic_device_id",
+    "selectable_mic_device_options":"/run/selectable_mic_device_options",
     "selected_mic_device":"/run/selected_mic_device",
+    "selected_speaker_device_id":"/run/selected_speaker_device_id",
+    "selectable_speaker_device_options":"/run/selectable_speaker_device_options",
     "selected_speaker_device":"/run/selected_speaker_device",
 
     "selected_translation_engines":"/run/selected_translation_engines",
@@ -174,12 +205,15 @@ run_mapping = {
 
     "initialization_progress":"/run/initialization_progress",
     "initialization_complete":"/run/initialization_complete",
+    "config_file_unreadable":"/run/config_file_unreadable",
+    "config_save_failed":"/run/config_save_failed",
+    "config_save_recovered":"/run/config_save_recovered",
 
     "enable_osc_query":"/run/enable_osc_query",
 }
 
 def run(status:int, endpoint:str, result:Any) -> None:
-    printResponse(status, endpoint, result)
+    printResponse(status, endpoint, result, notification=True)
 
 controller = Controller()
 controller.setRunMapping(run_mapping)
@@ -200,6 +234,7 @@ mapping = {
     "/set/enable/ocr_capture": {"status": False, "variable":controller.setEnableOcrCapture},
     "/set/disable/ocr_capture": {"status": False, "variable":controller.setDisableOcrCapture},
 
+    "/get/data/foreground": {"status": True, "variable":controller.getEnableForeground},
     "/set/enable/foreground": {"status": True, "variable":controller.setEnableForeground},
     "/set/disable/foreground": {"status": True, "variable":controller.setDisableForeground},
 
@@ -242,6 +277,7 @@ mapping = {
 
     "/get/data/custom_whisper_auth_key": {"status": True, "variable":controller.getCustomWhisperAuthKey},
     "/set/data/custom_whisper_auth_key": {"status": True, "variable":controller.setCustomWhisperAuthKey},
+    "/set/data/custom_whisper_auth_key_and_url": {"status": True, "variable":controller.setCustomWhisperAuthKeyAndURL},
     "/delete/data/custom_whisper_auth_key": {"status": True, "variable":controller.delCustomWhisperAuthKey},
     "/get/data/custom_whisper_url": {"status": True, "variable":controller.getCustomWhisperURL},
     "/set/data/custom_whisper_url": {"status": True, "variable":controller.setCustomWhisperURL},
@@ -273,6 +309,9 @@ mapping = {
     "/set/disable/auto_download_models" : {"status": True, "variable":controller.setDisableAutoDownloadModels},
     "/set/enable/telemetry" : {"status": True, "variable":controller.setEnableTelemetry},
     "/set/disable/telemetry" : {"status": True, "variable":controller.setDisableTelemetry},
+    "/get/data/telemetry_notice" : {"status": True, "variable":controller.getTelemetryNotice},
+    "/set/data/telemetry_notice" : {"status": True, "variable":controller.setTelemetryNotice},
+    "/get/data/telemetry_preview" : {"status": True, "variable":controller.getTelemetryPreview},
     "/run/shutdown": {"status": True, "variable":controller.shutdown},
 
     "/run/swap_your_language_and_target_language": {"status": True, "variable":controller.swapYourLanguageAndTargetLanguage},
@@ -381,6 +420,7 @@ mapping = {
 
     "/get/data/openai_compatible_auth_key": {"status": True, "variable":controller.getOpenAICompatibleAuthKey},
     "/set/data/openai_compatible_auth_key": {"status": True, "variable":controller.setOpenAICompatibleAuthKey},
+    "/set/data/openai_compatible_auth_key_and_url": {"status": True, "variable":controller.setOpenAICompatibleAuthKeyAndURL},
     "/delete/data/openai_compatible_auth_key": {"status": True, "variable":controller.delOpenAICompatibleAuthKey},
     "/get/data/openai_compatible_url": {"status": True, "variable":controller.getOpenAICompatibleURL},
     "/set/data/openai_compatible_url": {"status": True, "variable":controller.setOpenAICompatibleURL},
@@ -418,6 +458,9 @@ mapping = {
     "/get/data/selected_mic_host": {"status": True, "variable":controller.getSelectedMicHost},
     "/set/data/selected_mic_host": {"status": True, "variable":controller.setSelectedMicHost},
 
+    "/get/data/selected_mic_device_id": {"status": True, "variable":controller.getSelectedMicDeviceId},
+    "/set/data/selected_mic_device_id": {"status": True, "variable":controller.setSelectedMicDeviceId},
+    "/get/data/selectable_mic_device_options": {"status": True, "variable":controller.getMicDeviceOptions},
     "/get/data/selected_mic_device": {"status": True, "variable":controller.getSelectedMicDevice},
     "/set/data/selected_mic_device": {"status": True, "variable":controller.setSelectedMicDevice},
 
@@ -461,6 +504,9 @@ mapping = {
     "/set/enable/auto_speaker_select": {"status": True, "variable":controller.setEnableAutoSpeakerSelect},
     "/set/disable/auto_speaker_select": {"status": True, "variable":controller.setDisableAutoSpeakerSelect},
 
+    "/get/data/selected_speaker_device_id": {"status": True, "variable":controller.getSelectedSpeakerDeviceId},
+    "/set/data/selected_speaker_device_id": {"status": True, "variable":controller.setSelectedSpeakerDeviceId},
+    "/get/data/selectable_speaker_device_options": {"status": True, "variable":controller.getSpeakerDeviceOptions},
     "/get/data/selected_speaker_device": {"status": True, "variable":controller.getSelectedSpeakerDevice},
     "/set/data/selected_speaker_device": {"status": True, "variable":controller.setSelectedSpeakerDevice},
 
@@ -552,6 +598,13 @@ mapping = {
     "/get/data/overlay_large_log_settings": {"status": True, "variable":controller.getOverlayLargeLogSettings},
     "/set/data/overlay_large_log_settings": {"status": True, "variable":controller.setOverlayLargeLogSettings},
 
+    # Captions over the desktop (drawn by the UI in its own window)
+    "/get/data/overlay_desktop": {"status": True, "variable":controller.getOverlayDesktop},
+    "/set/enable/overlay_desktop": {"status": True, "variable":controller.setEnableOverlayDesktop},
+    "/set/disable/overlay_desktop": {"status": True, "variable":controller.setDisableOverlayDesktop},
+    "/get/data/overlay_desktop_settings": {"status": True, "variable":controller.getOverlayDesktopSettings},
+    "/set/data/overlay_desktop_settings": {"status": True, "variable":controller.setOverlayDesktopSettings},
+
     "/get/data/overlay_show_only_translated_messages": {"status": True, "variable":controller.getOverlayShowOnlyTranslatedMessages},
     "/set/enable/overlay_show_only_translated_messages": {"status": True, "variable":controller.setEnableOverlayShowOnlyTranslatedMessages},
     "/set/disable/overlay_show_only_translated_messages": {"status": True, "variable":controller.setDisableOverlayShowOnlyTranslatedMessages},
@@ -596,8 +649,13 @@ mapping = {
     "/run/start_model_download": {"status": True, "variable":controller.startModelDownload},
     "/run/cancel_model_download": {"status": True, "variable":controller.cancelModelDownload},
     "/run/apply_model_download": {"status": True, "variable":controller.applyModelDownload},
+    "/get/data/vc_runtime_catalog": {"status": True, "variable":controller.getVcRuntimeCatalog},
+    "/get/data/vc_runtime_state": {"status": True, "variable":controller.getVcRuntimeState},
+    "/run/start_vc_runtime_setup": {"status": True, "variable":controller.startVcRuntimeSetup},
+    "/run/cancel_vc_runtime_setup": {"status": True, "variable":controller.cancelVcRuntimeSetup},
     "/get/data/speech_server_settings": {"status": True, "variable":controller.getSpeechServerSettings},
     "/set/data/speech_server_settings": {"status": True, "variable":controller.setSpeechServerSettings},
+    "/get/data/speech_server_devices": {"status": True, "variable":controller.getSpeechServerDevices},
     "/get/data/speech_server_state": {"status": True, "variable":controller.getSpeechServerState},
     "/run/start_speech_server": {"status": True, "variable":controller.startSpeechServer},
     "/run/stop_speech_server": {"status": True, "variable":controller.stopSpeechServer},
@@ -672,6 +730,21 @@ mapping = {
     "/set/data/ocr_min_confidence": {"status": True, "variable":controller.setOcrMinConfidence},
     "/get/data/ocr_bubble_min_text_length": {"status": True, "variable":controller.getOcrBubbleMinTextLength},
     "/set/data/ocr_bubble_min_text_length": {"status": True, "variable":controller.setOcrBubbleMinTextLength},
+    "/get/data/ocr_capture_region": {"status": True, "variable":controller.getOcrCaptureRegion},
+    "/set/data/ocr_capture_region": {"status": True, "variable":controller.setOcrCaptureRegion},
+    "/get/data/ocr_vr_capture_region": {"status": True, "variable":controller.getOcrVrCaptureRegion},
+    "/set/data/ocr_vr_capture_region": {"status": True, "variable":controller.setOcrVrCaptureRegion},
+    "/get/data/ocr_capture_status": {"status": True, "variable":controller.getOcrCaptureStatus},
+    "/get/data/ocr_chatbox_filter": {"status": True, "variable":controller.getOcrChatboxFilter},
+    "/set/enable/ocr_chatbox_filter": {"status": True, "variable":controller.setEnableOcrChatboxFilter},
+    "/set/disable/ocr_chatbox_filter": {"status": True, "variable":controller.setDisableOcrChatboxFilter},
+    "/get/data/ocr_use_chatbox_detector": {"status": True, "variable":controller.getOcrUseChatboxDetector},
+    "/set/enable/ocr_use_chatbox_detector": {"status": True, "variable":controller.setEnableOcrUseChatboxDetector},
+    "/set/disable/ocr_use_chatbox_detector": {"status": True, "variable":controller.setDisableOcrUseChatboxDetector},
+    "/get/data/ocr_readiness": {"status": True, "variable":controller.getOcrReadiness},
+    "/get/data/vrchat_osc_presence": {"status": True, "variable":controller.getVrchatOscPresence},
+    "/get/data/ocr_portal_restore_token": {"status": True, "variable":controller.getOcrPortalRestoreToken},
+    "/set/data/ocr_portal_restore_token": {"status": True, "variable":controller.setOcrPortalRestoreToken},
 
     # Advanced Settings
     "/get/data/osc_ip_address": {"status": True, "variable":controller.getOscIpAddress},
@@ -700,23 +773,31 @@ mapping = {
 # 外しても取得経路は失われない。
 _INIT_MAPPING_EXCLUDED_ENDPOINTS = frozenset({
     "/get/data/available_releases",
+    # Probes the X11 display / VRChat window; the OCR page asks for it when shown.
+    "/get/data/ocr_readiness",
+    # Runtime-only state; the OCR page polls it while shown.
+    "/get/data/ocr_capture_status",
+    # What discovery has seen so far; at start-up that is nothing yet. The UI asks when it shows it.
+    "/get/data/vrchat_osc_presence",
+    # Asks the speech server over HTTP. Windows takes 2 s to refuse a closed local
+    # port, and a stalled server takes 5 s. The UI requests it after startup.
+    "/get/data/realtime_asr_models",
+    # Asks the bundled speech.cpp for the PC's devices (a child process, up to 3 s). The
+    # notice and the settings ask for it when the user opens what is sent.
+    "/get/data/telemetry_preview",
 })
 
 init_mapping = {
-    key: value for key, value in mapping.items()
+    key: {**value, "variable": startup_timing.timed(key, value["variable"])}
+    for key, value in mapping.items()
     if key.startswith("/get/data/") and key not in _INIT_MAPPING_EXCLUDED_ENDPOINTS
 }
 controller.setInitMapping(init_mapping)
 
 DEFAULT_WORKER_COUNT = 3  # 必要なら増やす
 
-# キュー要素は (endpoint, data, attempt) の 3-tuple。attempt は
-# 「同一ロックが処理中」「エンドポイントが初期化未完了 (423)」で再キューされた
-# 回数。無制限に再キューし続けると、応答を一切返さないまま
-# ワーカーを 1 本ずつ専有し、ワーカーが limited (DEFAULT_WORKER_COUNT 本)
-# なので詰まった要求が積み重なると他の全リクエストが処理できなくなる
-# (特に初期化ハングと重なると恒久的な無応答になる)。上限に達したら
-# 423 を応答として返し、再キューを打ち切る。
+# 初期化中の再試行と、同じロックの処理完了を待つ時間には上限を設ける。
+# ロック待ちは再キューせず、期限または処理完了の通知までキュー内で待つ。
 _LOCK_BUSY_RETRY_INTERVAL_SEC = 0.05
 _LOCK_BUSY_MAX_RETRIES = 400  # 0.05s × 400 ≈ 20s (同一ロックの処理完了を待つ上限)
 _ENDPOINT_LOCKED_RETRY_INTERVAL_SEC = 0.1
@@ -732,10 +813,106 @@ _ENDPOINT_LOCKED_MAX_RETRIES = 300  # 0.1s × 300 ≈ 30s (初期化完了を待
 # 場合でもプロセスは30秒で確実に終了するが、config保存やtelemetry送信
 # が間に合わない可能性がある。
 _WATCHDOG_GRACE_PERIOD_SEC = 30
+_WATCHDOG_FEED_ENDPOINT = "/run/feed_watchdog"
+
+def _request_error_result(endpoint: str, data: Any, result: Any, status: int) -> Any:
+    """Identify a failed legacy download without echoing arbitrary request data.
+
+    Different weights can be requested concurrently on the same endpoint, so
+    the UI cannot match a generic failure by endpoint alone.
+    """
+    if status not in {404, 423, 500} or endpoint not in {
+        "/run/download_ctranslate2_weight", "/run/download_whisper_weight"
+    }:
+        return result
+    weight_type = data.get("weight_type") if isinstance(data, dict) else data
+    if not isinstance(weight_type, str):
+        return result
+    payload = dict(result) if isinstance(result, dict) else {"message": result}
+    payload["data"] = {"weight_type": weight_type}
+    return payload
+
+
+@dataclass
+class _PendingRequest:
+    endpoint: str
+    data: Any
+    attempt: int
+    ready_at: float = 0.0
+    busy_until: float | None = None
+
+
+class _EndpointQueue(Queue):
+    """同じロックの先頭だけを取り出し、待機中はワーカーを専有しない。"""
+
+    def __init__(self, canonical_lock_key, endpoint_locks):
+        super().__init__()
+        self._canonical_lock_key = canonical_lock_key
+        self._endpoint_locks = endpoint_locks
+
+    def _put(self, item):
+        self.queue.append(_PendingRequest(*item))
+
+    def _get(self):
+        # 受信キューを直接読む既存の呼び出しでは従来の形式を保つ。
+        request = self.queue.popleft()
+        return request.endpoint, request.data, request.attempt
+
+    def get_ready(self, timeout):
+        deadline = time.monotonic() + timeout
+        with self.not_empty:
+            while True:
+                now = time.monotonic()
+                wake_at = deadline
+                seen_keys = set()
+                for index, request in enumerate(self.queue):
+                    key = self._canonical_lock_key(request.endpoint)
+                    if key in seen_keys:
+                        continue
+                    seen_keys.add(key)
+                    if request.ready_at > now:
+                        wake_at = min(wake_at, request.ready_at)
+                        continue
+                    lock = self._endpoint_locks.get(key)
+                    # 取り出しとロック取得を同じ条件変数の下で行う。
+                    # B を取り出したワーカーが遅れても C は先に実行できない。
+                    if lock is None or lock.acquire(blocking=False):
+                        del self.queue[index]
+                        return request, lock, False
+                    if request.busy_until is None:
+                        request.busy_until = now + max(
+                            0, _LOCK_BUSY_MAX_RETRIES - request.attempt
+                        ) * _LOCK_BUSY_RETRY_INTERVAL_SEC
+                    if now >= request.busy_until:
+                        del self.queue[index]
+                        return request, None, True
+                    wake_at = min(wake_at, request.busy_until)
+
+                remaining = wake_at - time.monotonic()
+                if remaining <= 0:
+                    raise Empty
+                # 完了・受信・期限だけで起こす。ロック待ちの sleep/requeue はしない。
+                self.not_empty.wait(remaining)
+
+    def finish(self, request, lock, retry=False):
+        with self.not_empty:
+            if retry:
+                request.attempt += 1
+                request.ready_at = time.monotonic() + _ENDPOINT_LOCKED_RETRY_INTERVAL_SEC
+                request.busy_until = None
+                # 初期化待ちでも同じロックの後続には追い越させない。
+                self.queue.appendleft(request)
+            if lock is not None:
+                lock.release()
+            if not retry:
+                self.unfinished_tasks -= 1
+                if self.unfinished_tasks == 0:
+                    self.all_tasks_done.notify_all()
+            self.not_empty.notify_all()
+
 
 class Main:
     def __init__(self, controller_instance: Controller, mapping_data: dict, worker_count: int = DEFAULT_WORKER_COUNT) -> None:
-        self.queue: "Queue[Tuple[str, Any, int]]" = Queue()
         self._stop_event: Event = Event()
         self.controller = controller_instance
         self.mapping = mapping_data
@@ -751,6 +928,31 @@ class Main:
         def _canonical_lock_key(endpoint: str) -> str:
             if not isinstance(endpoint, str):
                 return str(endpoint)
+            # START and STOP are one ordered intent stream. Reserving the lock
+            # at dequeue prevents STOP from overtaking a preempted START worker.
+            if endpoint in {"/run/typing_message_box", "/run/stop_typing_message_box"}:
+                return "/lock/typing_message_box"
+            # A prepared credential/client and its model belong to one intent
+            # stream. Different providers can still perform checks in parallel.
+            for provider in (
+                "deepl", "plamo", "gemini", "openai", "groq", "openrouter", "openai_compatible",
+                "groq_whisper", "openai_whisper", "custom_whisper", "deepgram",
+            ):
+                if endpoint in {
+                    f"/set/data/{provider}_auth_key", f"/delete/data/{provider}_auth_key",
+                    f"/set/data/selected_{provider}_model",
+                } or (provider in {"openai_compatible", "custom_whisper"}
+                      and endpoint in {f"/set/data/{provider}_url", f"/set/data/{provider}_auth_key_and_url"}):
+                    return f"/lock/credential/{provider}"
+            # OBS depends on WebSocket. Hold one transaction lock through
+            # preflight, startup/rebind, config commit and failure cleanup.
+            if endpoint in {
+                "/set/enable/websocket_server", "/set/disable/websocket_server",
+                "/set/enable/obs_browser_source", "/set/disable/obs_browser_source",
+                "/set/data/websocket_host", "/set/data/websocket_port",
+                "/set/data/obs_browser_source_port",
+            }:
+                return "/lock/obs_websocket_lifecycle"
             if endpoint.startswith("/set/enable/"):
                 return "/lock/set/" + endpoint[len("/set/enable/"):]
             if endpoint.startswith("/set/disable/"):
@@ -767,6 +969,8 @@ class Main:
 
         # 正規化関数をインスタンスに保存
         self._canonical_lock_key = _canonical_lock_key
+        self.queue = _EndpointQueue(self._canonical_lock_key, self._endpoint_locks)
+        self._feed_queue: Queue = Queue()
 
     def receiver(self) -> None:
         """Read lines from stdin, parse JSON and enqueue requests.
@@ -775,18 +979,28 @@ class Main:
         """
         while not self._stop_event.is_set():
             try:
-                line = sys.stdin.readline()
+                line = sys.stdin.readline() if sys.stdin is not None else ""
                 if not line:
-                    # EOF reached; sleep briefly and re-check stop event
-                    time.sleep(0.1)
-                    continue
+                    if self._stop_event.is_set():
+                        return
+                    # EOF は戻らない。UI (Tauri) が終わって入力が閉じたので、ウォッチドッグの
+                    # 期限 (60秒以上) を待たずに、設定を保存して終わる
+                    printLog("stdin closed; shutting down")
+                    self.escalateShutdown()
+                    return
                 received_data = json.loads(line.strip())
 
                 if received_data:
                     endpoint = received_data.get("endpoint")
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
-                    printLog(endpoint, {"receive_data": data})
+                    if not isQuietPoll(endpoint):
+                        printLog(endpoint, {"receive_data": data})
+                    if endpoint == _WATCHDOG_FEED_ENDPOINT:
+                        # 3本のワーカーが重い処理で埋まっていても生存の知らせが遅れないよう、
+                        # 専用のスレッドで処理する (遅れるとウォッチドッグが健全なアプリを止める)
+                        self._feed_queue.put(data)
+                        continue
                     if endpoint in {"/run/stop_voice", "/run/disable_tts", "/run/mute_voice", "/run/resume_voice", "/run/stop_direct_voice", "/run/stop_realtime_asr", "/run/stop_speech_server"}:
                         # These requests only signal workers; they do not
                         # join, infer, or close a driver here. Busy ordinary
@@ -801,6 +1015,13 @@ class Main:
                         data["_voice_generation"] = self.controller.voice_events.generation()
                     if endpoint == "/run/start_direct_voice" and isinstance(data, dict):
                         data['_direct_generation'] = self.controller.direct_voice.health()['generation']
+                    if endpoint in {"/set/enable/transcription_send", "/set/enable/transcription_receive"}:
+                        # Main toggles usually have no payload. Stamp before
+                        # queueing so a fast stop also cancels their preparation.
+                        source = "mic" if endpoint.endswith("_send") else "speaker"
+                        data = dict(data) if isinstance(data, dict) else {}
+                        state = self.controller.getRealtimeASRState()["result"]
+                        data["_realtime_generation"] = state[source]["generation"]
                     if endpoint == "/run/start_realtime_asr" and isinstance(data, dict):
                         state = self.controller.getRealtimeASRState()["result"]
                         source = data.get("source")
@@ -854,56 +1075,44 @@ class Main:
     def handler(self) -> None:
         while not self._stop_event.is_set():
             try:
-                endpoint, data, attempt = self.queue.get(timeout=0.5)
+                request, lock, busy = self.queue.get_ready(timeout=0.5)
             except Empty:
                 continue
 
-            # endpoint をロック用の正規化キーに変換してロックを取得
-            lock_key = self._canonical_lock_key(endpoint)
-            lock = self._endpoint_locks.get(lock_key)
-
-            if lock is not None:
-                acquired = lock.acquire(blocking=False)
-                if not acquired:
-                    # 同一機能で既に処理中 -> 少し待って再キュー。
-                    # 上限に達したら「本当にロック解放を待つべきか」を
-                    # 諦め、423 を応答して打ち切る (無応答のままワーカーを
-                    # 専有し続けるのを防ぐ)。
-                    if attempt >= _LOCK_BUSY_MAX_RETRIES:
-                        printLog(
-                            f"{endpoint}: lock busy retry limit "
-                            f"({_LOCK_BUSY_MAX_RETRIES}) exceeded; responding 423"
-                        )
-                        printLog(endpoint, {"status": 423, "send_data": "Locked endpoint (busy)"})
-                        printResponse(423, endpoint, "Locked endpoint (busy)")
-                        continue
-                    time.sleep(_LOCK_BUSY_RETRY_INTERVAL_SEC)
-                    self.queue.put((endpoint, data, attempt + 1))
-                    continue
-                try:
+            endpoint, data = request.endpoint, request.data
+            retry = False
+            try:
+                if busy:
+                    result, status = "Locked endpoint (busy)", 423
+                    printLog(f"{endpoint}: lock busy deadline exceeded; responding 423")
+                else:
                     result, status = self._call_handler(endpoint, data)
-                finally:
-                    lock.release()
-            else:
-                result, status = self._call_handler(endpoint, data)
-
-            if status == 423:
-                # エンドポイントがまだ初期化未完了でロックされている。上限まで
-                # 待っても解除されなければ、無応答のまま再キューし続けず
-                # 423 を応答して呼び出し元に判断を委ねる。
-                if attempt >= _ENDPOINT_LOCKED_MAX_RETRIES:
+                if status == 423 and not busy:
+                    if request.attempt < _ENDPOINT_LOCKED_MAX_RETRIES:
+                        retry = True
+                        continue
                     printLog(
                         f"{endpoint}: endpoint-locked retry limit "
                         f"({_ENDPOINT_LOCKED_MAX_RETRIES}) exceeded; responding 423"
                     )
+                if not isQuietPoll(endpoint, status):
                     printLog(endpoint, {"status": status, "send_data": result})
-                    printResponse(status, endpoint, result)
-                    continue
-                time.sleep(_ENDPOINT_LOCKED_RETRY_INTERVAL_SEC)
-                self.queue.put((endpoint, data, attempt + 1))
-            else:
-                printLog(endpoint, {"status": status, "send_data": result})
-                printResponse(status, endpoint, result)
+                printResponse(status, endpoint, _request_error_result(endpoint, data, result, status))
+            finally:
+                # 応答まで終わってから次の同一ロック要求を起こす。
+                self.queue.finish(request, lock, retry)
+
+    def feedHandler(self) -> None:
+        """/run/feed_watchdog だけを、ふつうのワーカーとは別に順に処理する。"""
+        while not self._stop_event.is_set():
+            try:
+                data = self._feed_queue.get(timeout=0.5)
+            except Empty:
+                continue
+            result, status = self._call_handler(_WATCHDOG_FEED_ENDPOINT, data)
+            if not isQuietPoll(_WATCHDOG_FEED_ENDPOINT, status):
+                printLog(_WATCHDOG_FEED_ENDPOINT, {"status": status, "send_data": result})
+            printResponse(status, _WATCHDOG_FEED_ENDPOINT, result)
 
     def startHandler(self) -> None:
         for i in range(max(1, self._worker_count)):
@@ -911,6 +1120,11 @@ class Main:
             th_handler.daemon = True
             th_handler.start()
             self._threads.append(th_handler)
+
+    def startFeedHandler(self) -> None:
+        th_feed = Thread(target=self.feedHandler, name="main_watchdog_feed", daemon=True)
+        th_feed.start()
+        self._threads.append(th_feed)
 
     def start(self) -> None:
         """Start the main loop to keep the program running."""
@@ -931,7 +1145,11 @@ class Main:
             self.controller.shutdown()
         except Exception:
             errorLogging()
-        
+        finally:
+            if sys.platform.startswith('linux'):
+                from models.audio_routing.pipewire_graph import shutdown
+                shutdown()
+
         self._stop_event.set()
         # give threads a chance to exit
         start = time.time()
@@ -979,9 +1197,15 @@ main_instance = Main(controller_instance=controller, mapping_data=mapping)
 if __name__ == "__main__":
     main_instance.startReceiver()
     main_instance.startHandler()
+    main_instance.startFeedHandler()
 
     main_instance.controller.setWatchdogCallback(main_instance.escalateShutdown)
+    from config import config
+    from models.sdk_clients import preloadSavedEngines
+    preloadSavedEngines(config.AUTH_KEYS, config.TRANSCRIPTION_AUTH_KEYS)
+    startup_timing.mark("import_saved_engine_sdks")
     main_instance.controller.init()
+    startup_timing.finish()
 
     # mappingのすべてのstatusをTrueにする
     for key in mapping.keys():

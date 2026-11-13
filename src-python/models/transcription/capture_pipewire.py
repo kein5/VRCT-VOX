@@ -5,6 +5,7 @@ False to reject input (for example, a closed RealtimeIngress). stop() reaps the
 native helper even if a callback misbehaves; a busy callback is reported rather
 than claiming that all Python delivery has stopped.
 """
+import json
 import os
 from pathlib import Path
 import select
@@ -20,13 +21,16 @@ from .capture_packets import CapturePackets
 
 HELPER = resource_root() / 'build' / 'vrct-asr-capture'
 EXCLUDED = ('vrct.managed.', 'vrct.source-bridge.', 'vrct.asr.capture.')
+# Four times the native 500 ms watchdog allows scheduling delays under audio load.
+_FRAME_TIMEOUT_NS = 2_000_000_000
 _NATIVE_ERRORS = frozenset('asr_capture_' + code for code in (
     'owner_gone stalled core_changed core_error stream_disconnected clock_changed '
     'latency_removed format_removed format_invalid latency_invalid latency_changed '
     'stream_identity_invalid clock_snapshot_inconsistent clock_position_missing '
     'clock_invalid buffer_corrupted discontinuity buffer_invalid timestamp_invalid '
     'stale_buffer pipe_blocked endpoint_changed unexpected_link endpoint_removed '
-    'link_removed endpoint_missing stream_create_failed stream_connect_failed'
+    'link_removed endpoint_missing stream_create_failed stream_connect_failed '
+    'pipewire_version_unsupported'
 ).split())
 _ERRORS = _NATIVE_ERRORS | frozenset('asr_capture_' + code for code in (
     'single_use start_timeout stopped consumer_busy consumer_closed helper_closed failed'
@@ -96,6 +100,9 @@ def _select(graph, name, source):
 
 def enumerate_endpoints(source):
     """Explicit microphone sources or speaker sinks; never resolve a default."""
+    if sys.platform == 'win32':
+        from .capture_windows import enumerate_endpoints as enumerate_windows
+        return enumerate_windows(source)
     if sys.platform != 'linux' or source not in ('mic', 'speaker'):
         raise ValueError('asr_capture_source_invalid')
     graph = _read_graph()
@@ -112,6 +119,60 @@ def enumerate_endpoints(source):
         label = props.get('node.description')
         result.append({'endpoint': endpoint, 'label': label if isinstance(label, str) and label else name})
     return result
+
+
+def default_endpoint(source):
+    """The session's default input or output, for a "follow default" choice.
+
+    Called once per start; the result is then pinned like an explicit choice,
+    so a later default change or unplug ends capture instead of moving it. When
+    the current default is one of VRCT's own nodes (the managed route can make
+    its mix the default sink), use the configured default instead: capturing
+    VRCT's output would transcribe its own speech.
+    """
+    if sys.platform == 'win32':
+        from .capture_windows import default_endpoint as default_windows
+        return default_windows(source)
+    if sys.platform != 'linux' or source not in ('mic', 'speaker'):
+        raise ValueError('asr_capture_source_invalid')
+    try:
+        graph = _read_graph()
+    except RuntimeError:
+        raise ValueError('realtime_default_endpoint_missing') from None
+    kind = 'source' if source == 'mic' else 'sink'
+    entries = {}
+    for item in graph:
+        if (item.get('type') == 'PipeWire:Interface:Metadata'
+                and (item.get('props') or {}).get('metadata.name') == 'default'):
+            for row in item.get('metadata') or []:
+                if isinstance(row, dict) and row.get('subject') == 0:
+                    entries[row.get('key')] = row.get('value')
+    blocked = False
+    for key in (f'default.audio.{kind}', f'default.configured.audio.{kind}'):
+        value = entries.get(key)
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except ValueError:
+                value = None
+        name = value.get('name') if isinstance(value, dict) else None
+        if not isinstance(name, str) or not name:
+            continue
+        try:
+            return _select(graph, name, source)
+        except ValueError:
+            blocked = True  # VRCT's own node; never capture it.
+        except (RuntimeError, KeyError, TypeError):
+            continue
+    raise ValueError('realtime_default_endpoint_feedback' if blocked else 'realtime_default_endpoint_missing')
+
+
+def open_capture(endpoint, source, on_audio, on_error):
+    """The capture for this platform; both honor the same start/stop contract."""
+    if sys.platform == 'win32':
+        from .capture_windows import WindowsCapture
+        return WindowsCapture(endpoint, source, on_audio, on_error)
+    return PipeWireCapture(endpoint, source, on_audio, on_error)
 
 
 class PipeWireCapture:
@@ -199,19 +260,24 @@ class PipeWireCapture:
             if process is None:
                 return
             os.set_blocking(process.stderr.fileno(), False)
+            last_frame_ns = None
             while not self._stop.is_set():
                 if code := diagnostics.read(process.stderr):
                     raise CaptureError(code)
                 if process.poll() is not None:
                     raise CaptureError(diagnostics.read(process.stderr) or 'asr_capture_helper_closed')
+                if last_frame_ns is not None and time.monotonic_ns() - last_frame_ns >= _FRAME_TIMEOUT_NS:
+                    raise CaptureError('asr_capture_stalled')
                 if not select.select([process.stdout], [], [], .05)[0]:
                     continue
                 raw = os.read(process.stdout.fileno(), 4096)
                 if not raw:
                     raise CaptureError(diagnostics.read(process.stderr) or 'asr_capture_helper_closed')
-                for frame in decoder.feed(raw, time.monotonic_ns()):
+                received_ns = time.monotonic_ns()
+                for frame in decoder.feed(raw, received_ns):
                     if self._stop.is_set():
                         break
+                    last_frame_ns = received_ns
                     if self._on_audio(frame) is False:
                         raise CaptureError('asr_capture_consumer_closed')
                     self._ready.set()

@@ -28,9 +28,12 @@ assert.equal(state.rows[1].id, id);
 assert.equal(state.rows[1].created_at, created);
 assert.equal(applyRealtimeCaption(state,event,active), state);
 state = applyRealtimeCaption(state, {...event, revision:3, state:'final', text:'final'}, active);
+assert.equal(state.rows[1].status, 'pending');
 state = applyRealtimeCaption(state, {...event, revision:4, state:'translated', text:'final',
  original:{message:'final',transliteration:[]}, translations:[{message:'訳文'}]}, active);
 assert.equal(state.rows.length, 2);
+assert.equal(state.rows[1].status, 'pending');
+state = applyRealtimeCaption(state, {...event, revision:5, state:'outcome', outcome:'delivered'}, active);
 assert.equal(state.rows[1].status, 'ok');
 assert.equal(state.rows[1].messages.translations[0].message, '訳文');
 assert.equal(applyRealtimeCaption(state,{...event,revision:99},active), state);
@@ -68,6 +71,7 @@ console.log('caption contracts passed');
         cwd=ROOT,
         text=True,
         capture_output=True,
-        timeout=15,
+        # Node's cold start alone has exceeded 15 s on busy Windows CI runners.
+        timeout=60,
     )
     assert result.returncode == 0, result.stdout + result.stderr

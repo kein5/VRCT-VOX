@@ -1,7 +1,5 @@
 import atexit
 import copy
-import asyncio
-import faulthandler
 import hashlib
 import json
 from subprocess import Popen
@@ -15,7 +13,7 @@ from psutil import Process as psutil_Process
 from datetime import datetime
 from time import sleep
 from queue import Queue, Empty
-from threading import Thread, Lock, Event, current_thread
+from threading import Thread, Lock, RLock, Event, current_thread
 from concurrent.futures import ThreadPoolExecutor
 from requests import get as requests_get
 from typing import Callable, Optional, cast
@@ -25,20 +23,26 @@ from dataclasses import dataclass
 from flashtext import KeywordProcessor
 
 from device_manager import device_manager
+from audio_device_identity import capture_key, resolve_device
 from config import config, DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS
 
 from models.translation.translation_translator import Translator
-from models.osc.osc import OSCHandler
+from models.translation.translation_history import TranslationHistory
+from models.message_delivery import ChatboxOrder, DeliveryEpochs
+from models.osc.osc import OSCHandler, OSC_STOP_TIMEOUT_SECONDS, usesOscQuery
 from models.transcription.transcription_recorder import (
+    AudioOpenBusy,
+    audioOpenOutstanding,
     SelectedMicEnergyAndAudioRecorder,
     SelectedSpeakerEnergyAndAudioRecorder,
     SelectedMicVadRecorder,
     SelectedSpeakerVadRecorder,
 )
 from models.transcription.transcription_transcriber import AudioTranscriber
+from models.transcription.utterance_diagnostics import utterance_diagnostics
 from models.translation.translation_languages import translation_lang
 from models.transcription.transcription_languages import transcription_lang
-from models.translation.translation_utils import checkCTranslate2Weight, downloadCTranslate2Weight, downloadCTranslate2Tokenizer, backwardCompatibleRenameWeightsDir
+from models.translation.translation_utils import checkCTranslate2Weight, hasCTranslate2WeightFile, downloadCTranslate2Weight, downloadCTranslate2Tokenizer, backwardCompatibleRenameWeightsDir
 from models.transcription.transcription_whisper import checkWhisperWeight, downloadWhisperWeight
 from models.transcription.transcription_openai_compatible import checkTranscriptionApiKey, getAvailableTranscriptionModels
 from models.transcription.transcription_deepgram import (
@@ -55,10 +59,15 @@ from models.websocket.websocket_server import WebSocketServer
 from models.obs.obs_browser_source_server import ObsBrowserSourceServer
 from models.clipboard.clipboard import Clipboard
 from models.ocr import OcrPipeline
+from models.ocr.ocr_chatbox_detector import buildChatboxDetector
 from models.ocr.ocr_languages import isSupported as isSupportedOcrLanguage
+from models.ocr.ocr_languages import resolveModelSpec
+from models.ocr.ocr_models import resolveModelFiles, OcrModelsMissing
+from models.ocr import ocr_engine_rapidocr as ocr_engine
 from models.telemetry import Telemetry
-from utils import errorLogging, setupLogger, printLog, diagnosticLogPath
-from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, OcrStartError
+from utils import ConversationLogger, errorLogging, printLog, openTraceLog
+from freeze_dump import FreezeDump
+from errors import AudioPipelineError, AudioPipelineFailure, ERROR_METADATA, ErrorCode, OcrStartError, TranscriptionStartError
 
 TRANSCRIPT_STOP_JOIN_TIMEOUT = 15
 
@@ -75,22 +84,25 @@ _HTTP_TIMEOUT = (10, 60)
 # ネイティブフォルト (access violation 等) 発生時にしか全スレッドの
 # コールスタックを記録しない。今回問題になっている「クラッシュではなく
 # 無応答のまま固まる」ケースはネイティブフォルトを伴わないため、それとは
-# 別に dump_traceback_later でタイムアウト検知のスタックダンプを取る。
+# 別にタイムアウト検知のスタックダンプを取る (freeze_dump.FreezeDump)。
 # feedWatchdog() が呼ばれるたびにタイマーを再武装し (呼び出しは
 # フロントエンドから ~WATCHDOG_INTERVAL 秒ごとに来る)、その周期を超えて
 # 次の feed が来なければ、その時点の全スレッドスタックを
-# freeze_trace.log に書き出す (exit=False なのでプロセスは落とさない)。
-# faulthandler は enable/dump_traceback_later 時点で fd を掴むため
+# freeze_trace.log に書き出す (プロセスは落とさない)。
+# faulthandler は書き出す時点で fd を掴むため
 # 遅延 open できず、フリーズ無しの通常終了でも 0 バイトのファイルが
 # 残る。運用上のゴミ化を避けるため atexit で「書き込みが無ければ削除」する。
-_freeze_trace_path = diagnosticLogPath("freeze_trace.log")
-_freeze_trace_file = open(_freeze_trace_path, "a", encoding="utf-8")
+_freeze_trace_path, _freeze_trace_file = openTraceLog("freeze_trace.log")
+_freeze_dump = FreezeDump(_freeze_trace_file)
 _FREEZE_DUMP_MARGIN_SEC = 15
 # watchdog スレッドの join 上限。Watchdog.start() 末尾の
 # time.sleep(interval) (既定20秒) は中断できないため、ここを無期限にすると
 # shutdown() が最大 interval 秒待たされる。daemon thread なので待ちきれ
 # なくても実害はない (stopWatchdog のコメント参照)。
 _WATCHDOG_JOIN_TIMEOUT_SEC = 1.0
+
+# WebSocket の起動全体の待ち時間。時間切れ後のキャンセルと join は別枠（最大2秒）。
+_WEBSOCKET_START_TIMEOUT = 6.0
 
 
 def _cleanupFreezeTraceIfEmpty() -> None:
@@ -173,6 +185,69 @@ class _DiscardQueue(Queue):
         pass
 
 
+class _AudioQueueEvent(Event):
+    """録音エラーを記録し、入力待ちの文字起こしも起こす。"""
+
+    def __init__(self, queue) -> None:
+        super().__init__()
+        self._queue = queue
+        self.on_error = None
+
+    def set(self) -> None:
+        with self._queue.not_empty:
+            super().set()
+            self._queue.not_empty.notify_all()
+        if self.on_error is not None:
+            self.on_error()
+
+
+class _AudioQueue(Queue):
+    """入力・フレーズ期限・停止・録音エラーまで待つ有界キュー。"""
+
+    def __init__(self) -> None:
+        super().__init__(maxsize=_AUDIO_QUEUE_MAXSIZE)
+        self._stopped = False
+        self.device_error_event = _AudioQueueEvent(self)
+
+    def waitForWork(self, timeout: Optional[float]) -> bool:
+        with self.not_empty:
+            self.not_empty.wait_for(
+                lambda: self._stopped or self._qsize() or self.device_error_event.is_set(),
+                timeout=timeout,
+            )
+            return not self._stopped
+
+    def stop(self) -> None:
+        # 終端値は drop-oldest で失われるため、停止状態はキューの外に持つ。
+        with self.not_empty:
+            self._stopped = True
+            self.not_empty.notify_all()
+
+
+class _EnergyQueue(Queue):
+    """最新の未読み取り値を保持し、停止でも待機中の consumer を起こす。"""
+
+    def __init__(self) -> None:
+        super().__init__(maxsize=1)
+        self._stopped = False
+
+    def getUntilStopped(self) -> Optional[float]:
+        with self.not_empty:
+            self.not_empty.wait_for(lambda: self._stopped or self._qsize())
+            if self._stopped:
+                return None
+            value = self._get()
+            self.not_full.notify()
+            return value
+
+    def stop(self) -> None:
+        # 終端値をキューへ積むと producer の古い値を捨てる処理と競合するため、
+        # 停止状態はキューの外に持ち、同じ条件変数で通知する。
+        with self.not_empty:
+            self._stopped = True
+            self.not_empty.notify_all()
+
+
 class threadFnc(Thread):
     """A tiny Thread wrapper that repeatedly calls a function.
 
@@ -210,45 +285,12 @@ class threadFnc(Thread):
 
 
 class AudioLifecycleWorker:
-    """デバイス変化に伴う recorder の stop/start を専用スレッドで直列実行する。
+    """Serialize each source's device reconciliation away from enumeration.
 
-    device_manager.monitoring() は Before/After コールバック
-    (Controller.stopAccess*Devices / restartAccess*Devices) を自分の
-    スレッド上で同期的に呼んでいた。これらは mic/speaker の
-    stop (最大 TRANSCRIPT_STOP_JOIN_TIMEOUT 秒の join) や PyAudio open を
-    含む重い処理のため、monitoring スレッドがその間ブロックされ、次の
-    COM デバイス通知を取りこぼす窓ができていた。
-    ここに enqueue することで monitoring スレッドは即座に呼び出しから
-    戻れる。関数は FIFO で 1 つずつ実行されるため、
-    Before → (デバイス列挙) → After の順序自体は保たれる。
-
-    フェーズ3項目21: 以前は mic/speaker が同じ1インスタンスを共有して
-    おり、片方の重い処理 (最大 TRANSCRIPT_STOP_JOIN_TIMEOUT +
-    _MIC_OPEN_TIMEOUT_SEC 秒) の間、無関係なもう片方の操作まで
-    無駄に足止めされていた (mic/speaker_lifecycle_lock を分けた意味が
-    薄れる)。呼び出し側 (model.py) で mic 用・speaker 用にそれぞれ
-    別インスタンスを持つことでこれを解消する。なお実際の PortAudio
-    呼び出し自体は pyaudio_op_lock で元々プロセス全体で直列化されて
-    いるため、この分離はドライバ競合対策ではなく、待つ必要のない
-    処理を無駄に待たせないための変更。
-
-    coalesce_key を指定すると、同じ key でまだ実行開始していない項目が
-    既にキューにある間は新規投入をスキップする。ActiveEndpointTracker
-    (250ms周期) からの reconfigure 要求のように、常に「現在の状態」を
-    読むだけの冪等な処理が実行速度を上回るペースで積み上がり、既に
-    古くなった内容を何度も無駄に実行し続ける (1回あたり最大20秒超)
-    のを防ぐ。実行が始まった項目の key は直ちにキューから外すため、
-    実行中に新しい要求が来れば改めて1件だけキューされる。
-    coalesce_key に渡す関数は、この「まだ実行開始していない重複は
-    捨てられる」性質上、引数を持たず常にその時点の「現在の状態」を
-    読むだけの冪等な処理である必要がある (呼び出し時点の特定の値を
-    クロージャで捕まえた関数を渡すと、後続の重複投入で握り潰される
-    可能性がある)。
-
-    enqueue()/stop() は同じロックで保護しており、「stop() 済みなのに
-    enqueue() がキューに積んでしまい、専用スレッドは既に終了していて
-    誰も処理しない」という取りこぼしが起きないようにしている
-    (コードレビュー指摘)。
+    Pending work with the same coalesce_key is skipped. Callers carrying an
+    intent generation include it in that key, so a newer request cannot be
+    swallowed by a pending job that OFF has invalidated. The job checks its
+    generation again under the source lifecycle lock before touching capture.
     """
 
     _STOP_SENTINEL = object()
@@ -331,8 +373,11 @@ class _AudioDeviceSession:
     Recorder クラス・AudioTranscriber の speaker フラグ) はサブクラスで
     _config / _recorder_cls 等として与える。
 
-    呼び出し元 (Model) が Controller.mic/speaker_lifecycle_lock で
-    直列化している前提とし、このクラス自体はロックを持たない。
+    Controller serializes entry points with the source lifecycle lock; this
+    session also owns _stop_lock for cleanup. Synchronous start callbacks run
+    under the caller's lock. Runtime error callbacks enter the controller on a
+    separate thread without holding _stop_lock, so it can decide whether to
+    continue capture or revoke delivery before cleanup.
     """
 
     _kind: str = ""  # "mic" / "speaker" — ログ・エラーメッセージ用
@@ -342,16 +387,23 @@ class _AudioDeviceSession:
         self._recorder = None
         self._transcriber: Optional[AudioTranscriber] = None
         self._audio_queue: Optional[Queue] = None
+        self._energy_queue: Optional[_EnergyQueue] = None
         self._print_transcript: Optional[threadFnc] = None
         self._energy_progressbar: Optional[threadFnc] = None
         self.transcript_fnc: Optional[Callable[[dict], None]] = None
+        self.publication_guard_fnc = None
         self.energy_fnc: Callable[[float], None] = lambda v: None
-        self._stop_lock = Lock()
+        self.error_fnc = None
+        self.runtime_error_fnc = None
+        self.terminal_failure_fnc = None
+        self.device_fnc = None
+        self._stop_lock = RLock()
         self._cleanup_workers = []
         self._cleanup_failed = Event()
         self._pipeline_error_lock = Lock()
         self._pipeline_error_started = False
         self._pipeline_error_notified = False
+        self._capture_revision = 0
         # 現在 Recorder が開いているデバイス (dict) を保持し、
         # reconfigure() で「同一デバイスかつ features 変化なし」なら no-op
         # にするために使う。
@@ -359,15 +411,7 @@ class _AudioDeviceSession:
 
     @staticmethod
     def _device_key(device: Optional[dict]) -> Optional[tuple]:
-        """デバイスの同一性判定に使う key。
-
-        pyaudio が返す dict は不安定なフィールド (defaultLowInputLatency 等) を
-        含むため生 dict 比較は使えない。ホスト内で一意な (name, index) の
-        タプルで判定する。
-        """
-        if device is None:
-            return None
-        return (device.get("name"), device.get("index"))
+        return capture_key(device)
 
     # --- サブクラスが実装するフック -------------------------------------
 
@@ -404,11 +448,12 @@ class _AudioDeviceSession:
                 "api_model": config.SELECTED_OPENAI_WHISPER_MODEL,
             }
         if engine == "Custom_Whisper":
-            return {
-                "api_key": config.TRANSCRIPTION_AUTH_KEYS.get("Custom_Whisper"),
-                "base_url": config.TRANSCRIPTION_CUSTOM_URL,
-                "api_model": config.SELECTED_CUSTOM_WHISPER_MODEL,
-            }
+            with config.credential_lock:
+                return {
+                    "api_key": config.TRANSCRIPTION_AUTH_KEYS.get("Custom_Whisper"),
+                    "base_url": config.TRANSCRIPTION_CUSTOM_URL,
+                    "api_model": config.SELECTED_CUSTOM_WHISPER_MODEL,
+                }
         if engine == "Deepgram":
             # Deepgram はエンドポイントが固定 (base_url入力欄が無い) ため
             # base_urlは渡さない。api_model_languagesは、選択中モデルが
@@ -430,6 +475,7 @@ class _AudioDeviceSession:
         transcript: Optional[bool] = None,
         energy: Optional[bool] = None,
         device: Optional[dict] = None,
+        previous_device: Optional[dict] = None,
     ) -> None:
         """transcript/energy を True で有効化、False で無効化、None で現状維持。
 
@@ -442,36 +488,55 @@ class _AudioDeviceSession:
         が変化した場合のみ stop→start する。これにより device 切替時に
         Recorder が二重に close/open されることを防ぐ。
         """
-        new_features = set(self.features)
-        if transcript is True:
-            new_features.add("transcript")
-        elif transcript is False:
-            new_features.discard("transcript")
-        if energy is True:
-            new_features.add("energy")
-        elif energy is False:
-            new_features.discard("energy")
+        with self._stop_lock:
+            new_features = set(self.features)
+            if transcript is True:
+                new_features.add("transcript")
+            elif transcript is False:
+                new_features.discard("transcript")
+            if energy is True:
+                new_features.add("energy")
+            elif energy is False:
+                new_features.discard("energy")
 
-        # override が指定されなければ config から解決 (下位互換)
-        resolved_device = self._resolve_device(override=device)
+            # override が指定されなければ config から解決 (下位互換)
+            resolved_device = self._resolve_device(override=device)
 
-        same_features = new_features == self.features
-        same_device = self._device_key(resolved_device) == self._device_key(self._active_device)
-        # `_recorder is not None` だけでは、_start() が Recorder を生成した
-        # 直後 (listener 起動前) に例外で失敗したケースを "起動済み" と誤認
-        # してしまう (P0-2)。_start() は失敗時に必ず _recorder を None へ
-        # 巻き戻すので通常はこの2つの判定は同じ結果になるが、"listener が
-        # 実際に走っているか" という本来知りたい条件をそのまま書いておく。
-        already_running = (not new_features) or (
-            self._recorder is not None and self._recorder.stop is not None
-        )
-        if same_features and same_device and already_running:
-            return
+            same_features = new_features == self.features
+            same_device = self._device_key(resolved_device) == self._device_key(self._active_device)
+            # `_recorder is not None` だけでは、_start() が Recorder を生成した
+            # 直後 (listener 起動前) に例外で失敗したケースを "起動済み" と誤認
+            # してしまう (P0-2)。_start() は失敗時に必ず _recorder を None へ
+            # 巻き戻すので通常はこの2つの判定は同じ結果になるが、"listener が
+            # 実際に走っているか" という本来知りたい条件をそのまま書いておく。
+            already_running = (not new_features) or (
+                self._recorder is not None and self._recorder.stop is not None
+                and not self._pipeline_error_started
+            )
+            if same_features and same_device and already_running:
+                return
 
-        self._stop()
-        self.features = new_features
-        if self.features:
-            self._start(device=resolved_device)
+            previous_device = self._active_device or previous_device
+            if new_features and resolved_device is None and callable(self.terminal_failure_fnc):
+                self.terminal_failure_fnc()
+            self._stop()
+            # A bounded join is not permission to reopen the device. Keep all old
+            # workers reachable, including recorder cleanup, until they have exited.
+            # _cleanup_failed (stop raised) only blocks the exclusive realtime
+            # handoff, as before; it never clears, so it must not lock out an
+            # ordinary restart for the rest of the session.
+            if self._cleanup_workers:
+                if new_features and callable(self.terminal_failure_fnc):
+                    self.terminal_failure_fnc()
+                return
+            self.features = new_features
+            if self.features:
+                try:
+                    self._start(device=resolved_device, previous_device=previous_device)
+                except Exception:
+                    if self._recorder is not None or self.features:
+                        self._stop()
+                    raise
 
     def pause(self) -> None:
         if self._recorder is not None and callable(self._recorder.pause):
@@ -517,23 +582,32 @@ class _AudioDeviceSession:
             exception_type=type(error).__name__ if error is not None else None,
         )
 
-    def _notify_pipeline_error(self, failure: AudioPipelineFailure) -> None:
+    def _notify_pipeline_error(self, failure: AudioPipelineFailure, callback=None, *, revision=None) -> None:
         with self._pipeline_error_lock:
+            if revision is not None and revision != self._capture_revision:
+                return
             if self._pipeline_error_notified:
                 return
             self._pipeline_error_notified = True
-        if callable(self.transcript_fnc):
+        callback = callback or self.error_fnc or self.transcript_fnc
+        if callable(callback):
             try:
-                self.transcript_fnc(failure.to_notification())
+                callback(failure.to_notification())
             except Exception:
                 errorLogging()
 
-    def _handle_pipeline_error(self, failure: AudioPipelineFailure) -> None:
+    def _handle_pipeline_error(self, failure: AudioPipelineFailure, recorder=None) -> None:
         """録音ワーカーからの異常を一度だけ停止・通知する。"""
         with self._pipeline_error_lock:
+            if recorder is not None and self._recorder is not recorder:
+                return
             if self._pipeline_error_started:
                 return
             self._pipeline_error_started = True
+            revision = self._capture_revision
+            error_callback = self.error_fnc or self.transcript_fnc
+            failed_device = self._active_device
+            runtime_callback = self.runtime_error_fnc
 
         # 自分自身を join できないため、現在の worker は先にループを
         # 終了させ、停止・後始末・通知は別スレッドで行う。
@@ -542,14 +616,29 @@ class _AudioDeviceSession:
             worker.stop()
 
         def cleanup_and_notify() -> None:
-            cleanup_timed_out = self._stop()
-            if cleanup_timed_out:
-                failure_to_notify = self._make_pipeline_failure(
-                    ErrorCode.CLEANUP_TIMEOUT, "cleanup"
-                )
+            if callable(runtime_callback):
+                # The controller decides continuation vs terminal failure under
+                # its source lock, then owns cleanup. Do not hold the session
+                # lock while crossing that boundary or stop before revocation.
+                self._notify_pipeline_error(failure, lambda data: runtime_callback(
+                    {**data, "failed_device": failed_device, "capture_revision": revision}),
+                    revision=revision)
+                return
+            with self._stop_lock:
+                if recorder is not None and self._recorder is not recorder:
+                    return
+                cleanup_timed_out = self._stop()
+                if cleanup_timed_out:
+                    failure_to_notify = self._make_pipeline_failure(
+                        ErrorCode.CLEANUP_TIMEOUT, "cleanup"
+                    )
+                else:
+                    failure_to_notify = failure
+            if self.error_fnc is not None and error_callback is not None:
+                callback = lambda data: error_callback({**data, "failed_device": failed_device})
             else:
-                failure_to_notify = failure
-            self._notify_pipeline_error(failure_to_notify)
+                callback = error_callback
+            self._notify_pipeline_error(failure_to_notify, callback, revision=revision)
 
         Thread(
             target=cleanup_and_notify,
@@ -559,7 +648,7 @@ class _AudioDeviceSession:
 
     # --- 内部実装 ---------------------------------------------------------
 
-    def _start(self, *, device: Optional[dict]) -> None:
+    def _start(self, *, device: Optional[dict], previous_device=None) -> None:
         # 呼び出し元 (reconfigure) が _resolve_device で解決済みの
         # デバイスを渡す。None は「使用可能なデバイス無し」を意味し、
         # ここで再解決はしない (再解決すると reconfigure の意図した
@@ -573,17 +662,50 @@ class _AudioDeviceSession:
             self._active_device = None
             return
 
-        # 現在開いているデバイスを記録 (reconfigure での差分検知に使用)
-        self._active_device = device
+        requested_device = device
 
         with self._pipeline_error_lock:
+            self._capture_revision += 1
             self._pipeline_error_started = False
             self._pipeline_error_notified = False
 
         start_failure: Optional[AudioPipelineFailure] = None
         try:
+            if "transcript" in self.features:
+                try:
+                    self._transcriber = self._create_transcriber()
+                except TranscriptionStartError:
+                    raise
+                except Exception as error:
+                    start_failure = self._make_pipeline_failure(
+                        ErrorCode.TRANSCRIBER_INIT_ERROR, "asr", error)
+                    raise
             try:
-                self._recorder = self._create_recorder(device)
+                candidates = [device]
+                if self._kind == "mic":
+                    default = device_manager.getDefaultMicDevice().get("device")
+                    available = [d for devices in device_manager.getMicDevices().values() for d in devices]
+                else:
+                    default = device_manager.getDefaultSpeakerDevice().get("device")
+                    available = device_manager.getSpeakerDevices()
+                for candidate in [default, *available]:
+                    if (candidate and candidate.get("name") != "NoDevice"
+                            and "node_name" not in candidate
+                            and capture_key(candidate) not in [capture_key(d) for d in candidates]):
+                        candidates.append(candidate)
+                for candidate in candidates:
+                    try:
+                        self._recorder = self._create_recorder(candidate)
+                        opened_device = getattr(getattr(self._recorder, "source", None), "opened_device", None)
+                        device = opened_device if isinstance(opened_device, dict) else candidate
+                        break
+                    except AudioOpenBusy:
+                        raise
+                    except OSError:
+                        if candidate is candidates[-1]:
+                            raise
+                        # process.log is cleared at startup; keep why the selection moved.
+                        errorLogging()
             except Exception as error:  # noqa: BLE001 - convert to safe UI error
                 start_failure = self._make_pipeline_failure(
                     ErrorCode.AUDIO_OPEN_ERROR,
@@ -592,23 +714,33 @@ class _AudioDeviceSession:
                 )
                 raise
 
-            audio_queue = Queue(maxsize=_AUDIO_QUEUE_MAXSIZE) if "transcript" in self.features else _DiscardQueue()
+            audio_queue = _AudioQueue() if "transcript" in self.features else _DiscardQueue()
             # energy_queue はメーター表示用で直近の値のみ意味を持つため、
             # audio_queue と同じ理由 (レビュー指摘、フェーズ3項目20) で
             # 有界化する。maxsize=1 で「最新の未読み取り値のみ保持」にする。
-            energy_queue: Optional[Queue] = Queue(maxsize=1) if "energy" in self.features else None
+            energy_queue = _EnergyQueue() if "energy" in self.features else None
             self._audio_queue = audio_queue
+            self._energy_queue = energy_queue
+            recorder = self._recorder
+            error_event = audio_queue.device_error_event if isinstance(audio_queue, _AudioQueue) else _AudioQueueEvent(audio_queue)
+            error_event.on_error = lambda: self._handle_pipeline_error(
+                getattr(recorder, "device_error_info", None)
+                or self._make_pipeline_failure(ErrorCode.AUDIO_READ_ERROR, "recording"), recorder)
+            had_error = recorder.device_error_event.is_set()
+            recorder.device_error_event = error_event
+            if had_error is True:
+                error_event.set()
+            if self._transcriber is not None:
+                self._transcriber.setAudioSource(recorder)
             self._recorder.recordIntoQueue(audio_queue, energy_queue)
-            if "transcript" in self.features:
-                try:
-                    self._transcriber = self._create_transcriber()
-                except Exception as error:  # noqa: BLE001 - initialization failure
-                    start_failure = self._make_pipeline_failure(
-                        ErrorCode.TRANSCRIBER_INIT_ERROR,
-                        "asr",
-                        error,
-                    )
-                    raise
+            if error_event.is_set():
+                raise OSError("Audio listener failed to start")
+        except TranscriptionStartError:
+            # No recorder was opened. The controller maps this to the setup UI.
+            if callable(self.terminal_failure_fnc):
+                self.terminal_failure_fnc()
+            self._stop()
+            raise
         except Exception:
             # Recorder open/listener または Transcriber 初期化が失敗した場合も、
             # 開始済みのリソースを同じ停止経路で回収してから UI へ通知する。
@@ -619,6 +751,8 @@ class _AudioDeviceSession:
                     ErrorCode.AUDIO_READ_ERROR,
                     "recording",
                 )
+            if callable(self.terminal_failure_fnc):
+                self.terminal_failure_fnc()
             cleanup_timed_out = self._stop()
             if cleanup_timed_out:
                 start_failure = self._make_pipeline_failure(ErrorCode.CLEANUP_TIMEOUT, "cleanup")
@@ -626,23 +760,33 @@ class _AudioDeviceSession:
                 self._notify_pipeline_error(start_failure)
             raise
 
+        self._active_device = dict(device)
+        if callable(self.device_fnc):
+            self.device_fnc(self._active_device, previous_device or requested_device)
+
         if "transcript" in self.features:
             transcriber = self._transcriber
             recorder = self._recorder
 
             def sendTranscript() -> None:
+                if not audio_queue.waitForWork(transcriber.getAudioWaitTimeout()):
+                    return
+                if self._recorder is not recorder:
+                    return
                 if recorder.device_error_event.is_set():
                     failure = getattr(recorder, "device_error_info", None)
-                    recorder.device_error_event.clear()
                     if failure is None:
                         failure = self._make_pipeline_failure(
                             ErrorCode.AUDIO_READ_ERROR,
                             "recording",
                         )
-                    self._handle_pipeline_error(failure)
+                    self._handle_pipeline_error(failure, recorder)
                     return
                 try:
+                    current = self.publication_guard_fnc() if callable(self.publication_guard_fnc) else None
                     self._transcribe(transcriber, audio_queue)
+                    if self._transcriber is not transcriber:
+                        return
                     # 溜まっている分を全て配信する。1回の transcribeAudioQueue()
                     # が複数件を積むことがある (Google の interim_send は
                     # キューから取り出したチャンクごとに走る) のに対し、
@@ -655,23 +799,40 @@ class _AudioDeviceSession:
                     if callable(self.transcript_fnc):
                         while transcriber.hasTranscript():
                             result = transcriber.getTranscript()
+                            # Keep the inference batch's ownership across slow callbacks.
+                            if current is not None:
+                                if not current():
+                                    while transcriber.hasTranscript():
+                                        transcriber.getTranscript()
+                                    break
+                                result["_publication_guard"] = current
                             result["recognition_error"] = transcriber.last_recognition_error
                             self.transcript_fnc(result)
                 except AudioPipelineError as error:
-                    self._handle_pipeline_error(error.failure)
+                    if self._transcriber is transcriber:
+                        self._handle_pipeline_error(error.failure, recorder)
                 except Exception as error:  # noqa: BLE001 - fail closed at ASR boundary
                     failure = self._make_pipeline_failure(ErrorCode.ASR_ERROR, "asr", error)
-                    self._handle_pipeline_error(failure)
+                    if self._transcriber is transcriber:
+                        self._handle_pipeline_error(failure, recorder)
 
             def endTranscript() -> None:
-                while not audio_queue.empty():
-                    audio_queue.get()
+                utterance_diagnostics.flush(self._kind)
+                while True:
+                    try:
+                        audio_queue.get_nowait()
+                    except Empty:
+                        break
                 # A timed-out old worker may finish after reconfigure() has
                 # already installed a new transcriber. Only clear the object
                 # owned by this worker; otherwise the late cleanup can make
                 # the new transcription pipeline fail with None.
                 if self._transcriber is transcriber:
                     self._transcriber = None
+                # sendTranscript and this function keep the transcriber in a
+                # reference cycle, so without this each mic toggle left a whole
+                # Whisper model and its threads behind until the next full GC.
+                transcriber.releaseModel()
                 # 明示 gc.collect() は呼ばない: ActiveEndpointTracker が別スレッド
                 # (CoInitialize 済み apartment) で保持している comtypes の COM
                 # ポインタが、この _print_transcript スレッド (CoInitialize
@@ -684,14 +845,16 @@ class _AudioDeviceSession:
             self._print_transcript.start()
 
         if "energy" in self.features:
+            energy_recorder = self._recorder
             def sendEnergy() -> None:
-                if not energy_queue.empty():
-                    energy = energy_queue.get()
-                    try:
-                        self.energy_fnc(energy)
-                    except Exception:
-                        errorLogging()
-                sleep(0.01)
+                energy = energy_queue.getUntilStopped()
+                if (energy is None or self._recorder is not energy_recorder
+                        or energy_recorder.device_error_event.is_set()):
+                    return
+                try:
+                    self.energy_fnc(energy)
+                except Exception:
+                    errorLogging()
 
             self._energy_progressbar = threadFnc(sendEnergy)
             self._energy_progressbar.daemon = True
@@ -702,9 +865,16 @@ class _AudioDeviceSession:
         cleanup_timed_out = False
         with self._stop_lock:
             self._cleanup_workers = [worker for worker in self._cleanup_workers if worker.is_alive()]
+            cleanup_timed_out = bool(self._cleanup_workers)
+            source = getattr(self._recorder, "source", None)
+            cancel = getattr(source, "cancel", None)
+            if callable(cancel):
+                cancel()
             transcript_thread = self._print_transcript
             if isinstance(transcript_thread, threadFnc):
                 transcript_thread.stop()
+                if isinstance(self._audio_queue, _AudioQueue):
+                    self._audio_queue.stop()
                 if transcript_thread is not current_thread():
                     transcript_thread.join(timeout=TRANSCRIPT_STOP_JOIN_TIMEOUT)
                     if transcript_thread.is_alive():
@@ -719,6 +889,8 @@ class _AudioDeviceSession:
             energy_thread = self._energy_progressbar
             if isinstance(energy_thread, threadFnc):
                 energy_thread.stop()
+                if self._energy_queue is not None:
+                    self._energy_queue.stop()
                 if energy_thread is not current_thread():
                     energy_thread.join(timeout=TRANSCRIPT_STOP_JOIN_TIMEOUT)
                     if energy_thread.is_alive():
@@ -740,10 +912,13 @@ class _AudioDeviceSession:
                 except Exception:
                     errorLogging()
 
-                if callable(recorder.stop):
+                if callable(recorder.stop) or callable(getattr(source, "close", None)):
                     def stop_recorder():
                         try:
-                            recorder.stop(wait_for_stop=True)
+                            if callable(recorder.stop):
+                                recorder.stop(wait_for_stop=True)
+                            elif callable(getattr(source, "close", None)):
+                                source.close()
                         except Exception:
                             # A dead cleanup thread is not proof that the device
                             # was released. Keep handoff blocked until restart.
@@ -774,6 +949,7 @@ class _AudioDeviceSession:
             self._audio_queue = None
             self._active_device = None
             self.features = set()
+        utterance_diagnostics.flush(self._kind)
         return cleanup_timed_out
 
     def stop_for_handoff(self) -> bool:
@@ -781,7 +957,8 @@ class _AudioDeviceSession:
         self._stop()
         with self._stop_lock:
             self._cleanup_workers = [worker for worker in self._cleanup_workers if worker.is_alive()]
-            return not self._cleanup_workers and not self._cleanup_failed.is_set()
+            return (not self._cleanup_workers and not self._cleanup_failed.is_set()
+                    and not audioOpenOutstanding(self._kind))
 
 
 class MicSession(_AudioDeviceSession):
@@ -796,10 +973,10 @@ class MicSession(_AudioDeviceSession):
         mic_host_name = config.SELECTED_MIC_HOST
         mic_device_name = config.SELECTED_MIC_DEVICE
         mic_device_list = device_manager.getMicDevices().get(mic_host_name, [{"name": "NoDevice"}])
-        selected_mic_device = [d for d in mic_device_list if d["name"] == mic_device_name]
-        if not selected_mic_device or mic_device_name == "NoDevice":
+        device = resolve_device(mic_device_list, config.SELECTED_MIC_DEVICE_ID, mic_device_name)
+        if device is None or "node_name" in device:
             return None
-        return selected_mic_device[0]
+        return device
 
     def _create_recorder(self, device: dict):
         record_timeout = config.MIC_RECORD_TIMEOUT
@@ -813,14 +990,13 @@ class MicSession(_AudioDeviceSession):
             energy_threshold=config.MIC_THRESHOLD,
             dynamic_energy_threshold=config.MIC_AUTOMATIC_THRESHOLD,
             phrase_time_limit=record_timeout,
-            record_timeout=record_timeout,
         )
 
     def _create_transcriber(self) -> AudioTranscriber:
         phrase_timeout = config.MIC_PHRASE_TIMEOUT
         return AudioTranscriber(
             speaker=False,
-            source=self._recorder,
+            source=None,
             phrase_timeout=phrase_timeout,
             max_phrases=config.MIC_MAX_PHRASES,
             transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
@@ -858,10 +1034,7 @@ class SpeakerSession(_AudioDeviceSession):
             return override
         speaker_device_name = config.SELECTED_SPEAKER_DEVICE
         speaker_device_list = device_manager.getSpeakerDevices()
-        selected_speaker_device = [d for d in speaker_device_list if d["name"] == speaker_device_name]
-        if not selected_speaker_device or speaker_device_name == "NoDevice":
-            return None
-        return selected_speaker_device[0]
+        return resolve_device(speaker_device_list, config.SELECTED_SPEAKER_DEVICE_ID, speaker_device_name)
 
     def _create_recorder(self, device: dict):
         record_timeout = config.SPEAKER_RECORD_TIMEOUT
@@ -875,14 +1048,13 @@ class SpeakerSession(_AudioDeviceSession):
             energy_threshold=config.SPEAKER_THRESHOLD,
             dynamic_energy_threshold=config.SPEAKER_AUTOMATIC_THRESHOLD,
             phrase_time_limit=record_timeout,
-            record_timeout=record_timeout,
         )
 
     def _create_transcriber(self) -> AudioTranscriber:
         phrase_timeout = config.SPEAKER_PHRASE_TIMEOUT
         return AudioTranscriber(
             speaker=True,
-            source=self._recorder,
+            source=None,
             phrase_timeout=phrase_timeout,
             max_phrases=config.SPEAKER_MAX_PHRASES,
             transcription_engine=config.SELECTED_TRANSCRIPTION_ENGINE,
@@ -912,12 +1084,29 @@ class SpeakerSession(_AudioDeviceSession):
 
 class Model:
     _instance = None
-    # mic_mute_status の確認と更新を一度に行う (OSC はパケットごとに別スレッドで届き、/avatar/change は
-    # 同じものが続けて届くことがある)
+    # 停止時に None にせず、メッセージ処理から常に安全に参照できるようにする。
+    logger = ConversationLogger()
+    message_delivery = DeliveryEpochs()
+    chatbox_order = ChatboxOrder()
+    # Model is a singleton. Serialize feature ownership even when start/stop
+    # arrive on different IPC handler threads.
+    _watchdog_lifecycle_lock = Lock()
+    _ocr_lifecycle_lock = Lock()
+    _ocr_shutdown_requested = False
+    _obs_lifecycle_lock = RLock()
+    # OSC 受信と OSCQuery の結果を反映するスレッドの間で、確認と更新を一度に行う。
     _mute_status_lock = Lock()
-    # /avatar/change で MuteSelf を問い合わせるスレッド。問い合わせ (HTTP、時間制限なし) を OSC の受信スレッドで
-    # 行うと、その間すべての OSC 受信が止まる
-    _avatar_query_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="osc_avatar_query")
+    _mute_status_generation = 0
+    # 確認待ちの最後の false が届いた世代。複数の通知でキューを増やさない。
+    _mute_verification_pending: Optional[int] = None
+    # /avatar/change とミュート解除の確認を行う。OSCHandler が問い合わせの待ち時間を制限する。
+    # OSC 受信スレッドとマイク操作のキューは、HTTP の待ちで止めない。
+    _avatar_query_executor = None
+    _osc_lifecycle_lock = RLock()
+    _osc_shutdown = False
+    _osc_query_admission = False
+    _mute_query_future = None
+    _mute_query_pending = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -952,7 +1141,6 @@ class Model:
         # 生成が失敗するケースは再試行しても直らないため、1 回で諦める。
         self._init_failed = True
 
-        self.logger = None
         self.th_check_device = None
         # startWatchdog() より前に shutdown() が走る経路 (init 失敗時など) で
         # stopWatchdog() の isinstance チェックが AttributeError にならないよう
@@ -1029,21 +1217,14 @@ class Model:
         self.transliterator = None
         self.osc_handler = OSCHandler(config.OSC_IP_ADDRESS, config.OSC_PORT)
         self.websocket_server = None
-        self.websocket_server_loop = False
-        self.websocket_server_alive = False
-        self.th_websocket_server = None
-        # start/stopWebSocketServer()のcheck-then-set(TOCTOU)を防ぐ。
-        # 以前は無ロックだったため、2本の別エンドポイント
-        # (/set/enable/websocket_server と /set/enable/obs_browser_source、
-        # 両方ともstartWebSocketServer()を呼びうる)がほぼ同時に呼ばれると
-        # 両方とも「未起動」を観測して同じポートへの2本目のbindを試み、
-        # 後勝ちのth_websocket_server代入で先に起動した方のスレッド参照が
-        # 失われ二度と停止できなくなり得た(バックエンドレビュー
-        # フェーズ4項目32)。
+        # Publish each server under the lock, then wait outside it so a stop
+        # can cancel startup. The server object is the attempt's identity.
         self._websocket_lifecycle_lock = Lock()
         self.obs_browser_source_server = None
         self.clipboard = Clipboard()
         self.ocr_pipeline: Optional[OcrPipeline] = None
+        self._ocr_model_root = None
+        self._ocr_detector_path: Optional[str] = None
         self.telemetry = Telemetry()
 
         self._inited = True
@@ -1064,7 +1245,13 @@ class Model:
         return backwardCompatibleRenameWeightsDir(config.PATH_DATA)
         
     def checkTranslatorCTranslate2ModelWeight(self, weight_type:str):
+        # The tokenizer files are hashed with the rest of the bundle. Building the
+        # tokenizer here would import Transformers on every start; enabling
+        # translation builds it and reports a failure.
         return checkCTranslate2Weight(config.PATH_DATA, weight_type)
+
+    def hasTranslatorCTranslate2ModelWeightFile(self, weight_type:str):
+        return hasCTranslate2WeightFile(config.PATH_DATA, weight_type)
 
     def changeTranslatorCTranslate2Model(self):
         self.ensure_initialized()
@@ -1076,11 +1263,11 @@ class Model:
             compute_type=config.SELECTED_TRANSLATION_COMPUTE_TYPE
             )
 
-    def downloadCTranslate2ModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadCTranslate2Weight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadCTranslate2ModelWeight(self, weight_type, callback=None, end_callback=None, *, control=None):
+        return downloadCTranslate2Weight(config.PATH_DATA, weight_type, callback, end_callback, control=control)
 
     def downloadCTranslate2ModelTokenizer(self, weight_type):
-        return downloadCTranslate2Tokenizer(config.PATH_DATA, weight_type)
+        return downloadCTranslate2Tokenizer(config.PATH_DATA, weight_type, local_files_only=True)
 
     def isLoadedCTranslate2Model(self):
         self.ensure_initialized()
@@ -1097,8 +1284,8 @@ class Model:
     def checkTranscriptionWhisperModelWeight(self, weight_type:str):
         return checkWhisperWeight(config.PATH_DATA, weight_type)
 
-    def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None):
-        return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback)
+    def downloadWhisperModelWeight(self, weight_type, callback=None, end_callback=None, *, control=None):
+        return downloadWhisperWeight(config.PATH_DATA, weight_type, callback, end_callback, control=control)
 
     def authenticationTranscriptionApiKey(self, api_key: str, base_url: str) -> bool:
         return checkTranscriptionApiKey(api_key, base_url)
@@ -1120,6 +1307,17 @@ class Model:
         self.ensure_initialized()
         del self.keyword_processor
         self.keyword_processor = KeywordProcessor()
+
+    def prepareTranslatorCredential(self, engine_key: str, auth_key: str,
+                                    selected_model=None, base_url=None):
+        self.ensure_initialized()
+        return self.translator.prepareCredential(
+            engine_key, auth_key, selected_model=selected_model,
+            root_path=config.PATH_LOCAL, base_url=base_url,
+        )
+
+    def commitTranslatorCredential(self, engine_key: str, candidate) -> None:
+        self.translator.commitCredential(engine_key, candidate)
 
     def authenticationTranslatorDeepLAuthKey(self, auth_key: str) -> bool:
         self.ensure_initialized()
@@ -1273,13 +1471,11 @@ class Model:
         self.ensure_initialized()
         os_makedirs(config.PATH_LOGS, exist_ok=True)
         file_name = os_path.join(config.PATH_LOGS, f"{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log")
-        self.logger = setupLogger("log", file_name)
-        self.logger.disabled = False
+        self.logger.start(file_name)
 
     def stopLogger(self):
         self.ensure_initialized()
-        self.logger.disabled = True
-        self.logger = None
+        self.logger.stop()
 
     def getListLanguageAndCountry(self):
         """List every language any translation engine supports for the UI.
@@ -1408,7 +1604,7 @@ class Model:
 
         return compatible_engines
 
-    def addTranslationHistory(self, source: str, text: str) -> None:
+    def addTranslationHistory(self, source: str, text: str, *, snapshot=None) -> None:
         """Add a message to translation context history.
         
         Args:
@@ -1424,41 +1620,67 @@ class Model:
             "text": text.strip(),
             "timestamp": datetime.now().isoformat(),
         }
-        self.translation_history.append(history_item)
-        
-        # 最大件数を超えた場合は古いものを削除
-        if len(self.translation_history) > self.translation_history_max_items:
+        with config.translation_history_lock:
+            self._syncTranslationHistory()
+            if not config.ENABLE_TRANSLATION:
+                return
+            if snapshot is not None and (
+                    not snapshot.translation_enabled
+                    or snapshot.translation_history_generation != config.translation_history_generation):
+                return  # Work admitted before a destination change cannot seed its history.
+            self.translation_history.append(history_item)
             self.translation_history = self.translation_history[-self.translation_history_max_items:]
+
+    def _syncTranslationHistory(self):
+        """Discard the previous generation; switching back never restores it."""
+        generation = config.translation_history_generation
+        if getattr(self, "_translation_history_generation", None) != generation:
+            self.translation_history = []
+            self._translation_history_generation = generation
     
     def getTranslationHistory(self, max_items: int = None) -> list[dict]:
         """Get recent translation context history.
         
         Args:
-            max_items: Maximum number of items to return (newest first)
+            max_items: Maximum number of recent items to return (oldest first)
         
         Returns:
             List of history items
         """
         self.ensure_initialized()
-        if max_items is None or max_items <= 0:
-            return self.translation_history
-        return self.translation_history[-max_items:]
+        with config.translation_history_lock:
+            self._syncTranslationHistory()
+            items = self.translation_history
+            if max_items is not None and max_items > 0:
+                items = items[-max_items:]
+            return TranslationHistory([dict(item) for item in items], self._translation_history_generation)
     
     def clearTranslationHistory(self) -> None:
         """Clear all translation context history."""
         self.ensure_initialized()
-        self.translation_history = []
+        with config.translation_history_lock:
+            self.translation_history = []
+            self._translation_history_generation = config.translation_history_generation
 
-    def getTranslate(self, translator_name, source_language, target_language, target_country, message):
+    def getTranslate(self, translator_name, source_language, target_language, target_country, message,
+                     *, weight_type=None, with_provenance=False, history_generation=None):
         self.ensure_initialized()
         success_flag = False
+        provenance = "translated"
+        weight_type = weight_type if weight_type is not None else config.CTRANSLATE2_WEIGHT_TYPE
         
         # Get context history for LLM-based translators
-        history = self.getTranslationHistory()
+        with config.translation_history_lock:
+            history = self.getTranslationHistory()
+            if (not config.ENABLE_TRANSLATION
+                    or translator_name != config.SELECTED_TRANSLATION_ENGINES.get(config.SELECTED_TAB_NO)
+                    or (history_generation is not None
+                        and history_generation != config.translation_history_generation)):
+                history = []
         
         translation = self.translator.translate(
                         translator_name=translator_name,
-                        weight_type=config.CTRANSLATE2_WEIGHT_TYPE,
+                        weight_type=weight_type,
                         source_language=source_language,
                         target_language=target_language,
                         target_country=target_country,
@@ -1466,17 +1688,25 @@ class Model:
                         context_history=history
                 )
 
+        # LLM は空の応答を返すことがある。空でない文の訳が空なら、訳せなかったとして扱う。
+        # 成功扱いにすると、「翻訳後のメッセージのみ送信する」で何も送られず、失敗の通知も出ない
+        if isinstance(translation, str) and not translation.strip() and str(message).strip():
+            translation = False
+
         # 翻訳失敗時のフェールセーフ処理
         # translation is None: 選択言語がこのエンジンで未対応（エンジン自体の障害ではない）
         # translation is False: エンジン側の実際の障害（レート制限・通信・認証・プロバイダエラー等）
         if isinstance(translation, str):
             success_flag = True
         else:
+            # False = the selected engine itself failed; None = it just
+            # doesn't support this language pair.
+            primary_failed = translation is False
             max_retries = 20  # 0.1s間隔で最大2秒。CTranslate2が使用不可な場合の無限ループを防ぐ
             for _ in range(max_retries):
                 translation = self.translator.translate(
                                     translator_name="CTranslate2",
-                                    weight_type=config.CTRANSLATE2_WEIGHT_TYPE,
+                                    weight_type=weight_type,
                                     source_language=source_language,
                                     target_language=target_language,
                                     target_country=target_country,
@@ -1500,42 +1730,66 @@ class Model:
                     # is_loaded_ctranslate2_model を True にしてから解放する)。
                     break
                 sleep(0.1)
+            if isinstance(translation, str) and not translation.strip() and str(message).strip():
+                translation = False  # 切り替え先の空の訳も、訳せなかったとして扱う
             if isinstance(translation, str):
                 success_flag = True
-            elif translation is None:
+            elif translation is None and not primary_failed:
                 # どちらのエンジンもこの言語ペアに未対応なだけ。実障害ではない。
                 success_flag = True
+                translation = message
+                provenance = "unsupported"
+            elif translation is None:
+                # 選択中のエンジンが実際に失敗し、CTranslate2 も選択中の重みでは
+                # この言語ペアに未対応 (例: M2M100 の Basque/Telugu)。以前は
+                # 原文を「成功」として黙って流していた。失敗として返すと
+                # controller が通知して CTranslate2 へ切り替え、
+                # fallbackUnsupportedLanguagesForEngine() が未対応言語を
+                # 理由付きでリセットする。
+                success_flag = False
+                printLog(
+                    "Translation failed and CTranslate2 cannot translate this language pair",
+                    {"engine": translator_name, "weight_type": weight_type,
+                     "source": source_language, "target": target_language},
+                )
                 translation = message
             else:
                 # CTranslate2フォールバック自体が実際に失敗した。
                 success_flag = False
                 errorLogging()
                 translation = message
+        if not success_flag:
+            provenance = "failed"
+        if with_provenance:
+            return translation, success_flag, provenance
         return translation, success_flag
 
-    def getInputTranslate(self, message, source_language=None):
+    def getInputTranslate(self, message, source_language=None, *, snapshot=None, with_provenance=False):
         self.ensure_initialized()
-        translator_name=config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
-        if source_language is None:
-            source_language=config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
-        target_languages=config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]
-
-        targets = []
-        for value in target_languages.values():
-            if value["enable"] is True:
-                target_language = value["language"]
-                target_country = value["country"]
-                if target_language is not None or target_country is not None:
-                    targets.append((target_language, target_country))
+        if snapshot is not None:
+            translator_name = snapshot.engine
+            source_language = snapshot.source_language
+            target_languages = snapshot.target_languages
+        else:
+            translator_name = config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
+            if source_language is None:
+                source_language = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
+            target_languages = config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]
+        options = {"with_provenance": True} if with_provenance else {}
+        if snapshot is not None:
+            options["weight_type"] = snapshot.weight_type
+            options["history_generation"] = snapshot.translation_history_generation
+        targets = [(value["language"], value["country"]) for value in target_languages.values()
+                   if value["enable"] is True]
 
         if not targets:
-            return [], []
+            return ([], [], []) if with_provenance else ([], [])
 
         if len(targets) == 1:
-            translation, success_flag = self.getTranslate(
-                translator_name, source_language, targets[0][0], targets[0][1], message
+            result = self.getTranslate(
+                translator_name, source_language, targets[0][0], targets[0][1], message, **options
             )
-            return [translation], [success_flag]
+            return tuple([item] for item in result)
 
         # ターゲット言語ごとの翻訳を常設スレッドプールで並列化する。
         # 逐次ループだった頃は3言語有効時に実機で約3.9秒 (1言語あたり
@@ -1558,30 +1812,32 @@ class Model:
         futures = [
             self._translation_executor.submit(
                 self.getTranslate,
-                translator_name, source_language, target_language, target_country, message,
+                translator_name, source_language, target_language, target_country, message, **options,
             )
             for target_language, target_country in targets
         ]
         results = [future.result() for future in futures]
 
-        return [r[0] for r in results], [r[1] for r in results]
+        return tuple([result[i] for result in results] for i in range(3 if with_provenance else 2))
 
-    def getOutputTranslate(self, message, source_language=None):
+    def getOutputTranslate(self, message, source_language=None, *, snapshot=None, with_provenance=False):
         self.ensure_initialized()
-        translator_name=config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
-        if source_language is None:
-            source_language=config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
-        target_language=config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
-        target_country=config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]["country"]
-
-        translation, success_flag = self.getTranslate(
-            translator_name,
-            source_language,
-            target_language,
-            target_country,
-            message
-            )
-        return [translation], [success_flag]
+        if snapshot is not None:
+            translator_name = snapshot.engine
+            source_language = snapshot.source_language
+            target = snapshot.your_languages["1"]
+        else:
+            translator_name = config.SELECTED_TRANSLATION_ENGINES[config.SELECTED_TAB_NO]
+            if source_language is None:
+                source_language = config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"]
+            target = config.SELECTED_YOUR_LANGUAGES[config.SELECTED_TAB_NO]["1"]
+        options = {"with_provenance": True} if with_provenance else {}
+        if snapshot is not None:
+            options["weight_type"] = snapshot.weight_type
+            options["history_generation"] = snapshot.translation_history_generation
+        result = self.getTranslate(
+            translator_name, source_language, target["language"], target["country"], message, **options)
+        return tuple([item] for item in result)
 
     def addKeywords(self):
         self.ensure_initialized()
@@ -1623,10 +1879,13 @@ class Model:
         if romaji:
             keys_to_keep.add("hepburn")
 
-        if self.transliterator is None:
-            self.startTransliteration()
+        # An admitted message may still need readings after the live switch is off.
+        # Keep a local owner so stopTransliteration cannot clear it mid-call.
+        transliterator = self.transliterator
+        if transliterator is None:
+            transliterator = Transliterator()
 
-        data_list = self.transliterator.analyze(message, use_macron=False)
+        data_list = transliterator.analyze(message, use_macron=False)
         filtered_list = [
             {key: value for key, value in item.items() if key in keys_to_keep}
             for item in data_list
@@ -1635,11 +1894,21 @@ class Model:
 
     def setOscIpAddress(self, ip_address):
         self.ensure_initialized()
-        self.osc_handler.setOscIpAddress(ip_address)
+        with self._osc_lifecycle_lock:
+            if self._osc_shutdown:
+                raise RuntimeError("OSC is shut down")
+            self.invalidateMuteSelfStatus()
+            self.osc_handler.setOscIpAddress(ip_address)
+            config.OSC_IP_ADDRESS = ip_address
 
     def setOscPort(self, port):
         self.ensure_initialized()
-        self.osc_handler.setOscPort(port)
+        with self._osc_lifecycle_lock:
+            if self._osc_shutdown:
+                raise RuntimeError("OSC is shut down")
+            self.invalidateMuteSelfStatus()
+            self.osc_handler.setOscPort(port)
+            config.OSC_PORT = port
 
     def oscStartSendTyping(self):
         self.ensure_initialized()
@@ -1649,104 +1918,179 @@ class Model:
         self.ensure_initialized()
         self.osc_handler.sendTyping(flag=False)
 
-    def oscSendMessage(self, message:str):
+    def oscSendMessage(self, message:str, current=None):
         self.ensure_initialized()
-        self.osc_handler.sendMessage(message=message, notification=config.NOTIFICATION_VRC_SFX)
+        return self.osc_handler.sendMessage(message=message, notification=config.NOTIFICATION_VRC_SFX,
+                                           current=current)
 
-    def setMuteSelfStatus(self):
+    def _queueMicMuteStatusChangeLocked(self):
+        self.mic_lifecycle_worker.enqueue(
+            self.mic_mute_status_change_callback or self.changeMicTranscriptStatus
+        )
+
+    def invalidateMuteSelfStatus(self):
+        """Invalidate in-flight verification before a toggle or receiver change."""
+        with self._mute_status_lock:
+            self._mute_status_generation += 1
+            self._mute_query_pending = None
+            self._mute_verification_pending = None
+            if config.VRC_MIC_MUTE_SYNC is True:
+                if self.mic_mute_status is not True:
+                    self.mic_mute_status = True
+                    self.message_delivery.revoke("mic")
+                    self._queueMicMuteStatusChangeLocked()
+            return self._mute_status_generation
+
+    def setMuteSelfStatus(self, generation=None):
+        """Wait outside the controller mic lock; apply only the current intent."""
         self.ensure_initialized()
-        self.mic_mute_status = self.osc_handler.getOSCParameterMuteSelf()
+        if generation is None:
+            generation = self.invalidateMuteSelfStatus()
+        with self._mute_status_lock:
+            if not self._muteQueryCurrentLocked(generation):
+                return
+        try:
+            mute = self.osc_handler.getOSCParameterMuteSelf()
+        except Exception:
+            printLog("OSC: mute state unavailable; keeping microphone muted")
+            mute = None
+        with self._mute_status_lock:
+            if self._muteQueryCurrentLocked(generation):
+                self._applyMuteStatusLocked(mute)
+                return True
+        return False
+
+    def _muteQueryCurrentLocked(self, generation):
+        return (self._osc_query_admission and not self._osc_shutdown
+                and config.VRC_MIC_MUTE_SYNC is True
+                and generation == self._mute_status_generation)
+
+    def _applyMuteStatusLocked(self, mute):
+        # Unknown includes missing local VRChat, invalid values and timed-out queries.
+        mute = mute is not False
+        if mute != self.mic_mute_status:
+            self.mic_mute_status = mute
+            if mute:
+                self.message_delivery.revoke("mic")
+            self._queueMicMuteStatusChangeLocked()
 
     def setMicMuteStatusChangeCallback(self, fn: Optional[Callable[[], None]]) -> None:
-        """OSC ミュート同期が pause()/resume() を実行する際に呼ぶ関数を登録する。
-
-        Controller.__init__ が自身の mic_lifecycle_lock を取得する
-        ラッパー (_changeMicTranscriptStatusLocked) を登録することで、
-        OSC 受信スレッド発の pause()/resume() を他の全ての start/stop 系
-        (mainloop ワーカーが直接呼ぶ startTranscriptionSendMessage 等も含む)
-        と完全に排他制御する。未登録なら changeMicTranscriptStatus() を直接
-        使う (Controller を経由しないテスト等でも壊れないようにするため)。
-        """
         self.mic_mute_status_change_callback = fn
 
-    def startReceiveOSC(self):
-        self.ensure_initialized()
-        def changeHandlerMute(address, osc_arguments):
-            # OSC の受信スレッド (osc.py の oscServerServe) で走る。受信を止めないよう、
-            # ここで待つ処理をしないこと。
-            # changeMicTranscriptStatus() を直接ここで呼ぶと、Auto Mic
-            # Select のデバイス切替や mainloop ワーカーが直接呼ぶ
-            # start/stop 系 (_stop()/_start() を実行中) と
-            # _mic_session.pause()/resume() が無ロックで交錯し得る
-            # (ミュート連打中にデバイスが切り替わると壊れた Recorder に
-            # 触れる)。mic_lifecycle_worker.enqueue() で Auto Select の
-            # 他のデバイス操作と同じ FIFO キューに直列化しつつ、実行される
-            # 関数自体は mic_mute_status_change_callback (= Controller の
-            # mic_lifecycle_lock 付きラッパー) にすることで、ロックを直接
-            # 取得する経路とも完全に排他制御する。
-            if config.VRC_MIC_MUTE_SYNC is True:
-                with self._mute_status_lock:
-                    if osc_arguments is True and self.mic_mute_status is False:
-                        self.mic_mute_status = osc_arguments
-                        self.mic_lifecycle_worker.enqueue(
-                            self.mic_mute_status_change_callback or self.changeMicTranscriptStatus
-                        )
-                    elif osc_arguments is False and self.mic_mute_status is True:
-                        self.mic_mute_status = osc_arguments
-                        self.mic_lifecycle_worker.enqueue(
-                            self.mic_mute_status_change_callback or self.changeMicTranscriptStatus
-                        )
+    def _requestMuteQueryLocked(self):
+        if not self._muteQueryCurrentLocked(self._mute_status_generation):
+            return
+        self._mute_query_pending = self._mute_status_generation
+        self._mute_verification_pending = self._mute_status_generation
+        if self._mute_query_future is None:
+            self._mute_query_future = self._avatar_query_executor.submit(
+                self._runMuteQuery, self._mute_status_generation)
 
-        def changeHandlerAvatar(address, *osc_arguments):
-            # アバターを読み込んだ (VRChat の起動・再起動・アバター変更)。ミュートの状態はアバターの
-            # パラメータなので、読み込むまで OSCQuery に無い (VRChat が現れた直後の問い合わせは 404)。
-            # ここで読み直して同期する。VRCT を先に起動した場合も、ここで初めて状態が決まる。
-            # 問い合わせは専用のスレッドで行う (OSC の受信スレッドもマイクのキューも HTTP の待ちで止めない)
-            if config.VRC_MIC_MUTE_SYNC is not True:
-                return
-            self._avatar_query_executor.submit(syncMuteSelfAfterAvatarLoad)
-
-        def syncMuteSelfAfterAvatarLoad():
-            try:  # executor の中の例外は黙って捨てられるので記録する
-                mute = self.osc_handler.getOSCParameterMuteSelf()
-                printLog("OSC: MuteSelf read on avatar change", {"mute": mute})
-                if mute is None:
+    def _runMuteQuery(self, generation):
+        try:
+            with self._mute_status_lock:
+                if not self._muteQueryCurrentLocked(generation):
                     return
-                with self._mute_status_lock:
-                    if mute == self.mic_mute_status:
-                        return
-                    self.mic_mute_status = mute
-                    self.mic_lifecycle_worker.enqueue(
-                        self.mic_mute_status_change_callback or self.changeMicTranscriptStatus
-                    )
-            except Exception:
-                errorLogging()
+            mute = self.osc_handler.getOSCParameterMuteSelf()
+            with self._mute_status_lock:
+                if not self._muteQueryCurrentLocked(generation):
+                    return
+                if mute is not False:
+                    printLog("OSC: unmute not confirmed by OSCQuery; keeping microphone muted")
+                self._applyMuteStatusLocked(mute)
+        except Exception:
+            printLog("OSC: unmute verification failed; keeping microphone muted")
+        finally:
+            with self._mute_status_lock:
+                pending = self._mute_query_pending
+                self._mute_query_future = None
+                if pending != generation and self._muteQueryCurrentLocked(pending):
+                    self._mute_query_future = self._avatar_query_executor.submit(self._runMuteQuery, pending)
+                else:
+                    self._mute_query_pending = None
+                    self._mute_verification_pending = None
 
-        dict_filter_and_target = {
-            self.osc_handler.osc_parameter_muteself: changeHandlerMute,
-            "/avatar/change": changeHandlerAvatar,
-        }
-        self.osc_handler.setDictFilterAndTarget(dict_filter_and_target)
-        self.osc_handler.receiveOscParameters()
+    def startReceiveOSC(self):
+        if self._osc_shutdown:
+            raise RuntimeError("OSC is shut down")
+        self.ensure_initialized()
+        with self._osc_lifecycle_lock:
+            if self._osc_shutdown:
+                raise RuntimeError("OSC is shut down")
+            with self._mute_status_lock:
+                self._mute_status_generation += 1
+                self._osc_query_admission = True
+                if self._avatar_query_executor is None:
+                    self._avatar_query_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="osc_avatar_query")
+
+            def changeHandlerMute(address, osc_arguments):
+                # Never wait on HTTP or the mic lock in the single receive loop.
+                with self._mute_status_lock:
+                    if not self._muteQueryCurrentLocked(self._mute_status_generation):
+                        return
+                    if osc_arguments is True:
+                        self._mute_status_generation += 1
+                        self._mute_query_pending = None
+                        self._applyMuteStatusLocked(True)
+                    elif osc_arguments is False and self.mic_mute_status is not False:
+                        self._requestMuteQueryLocked()
+
+            def changeHandlerAvatar(address, *osc_arguments):
+                with self._mute_status_lock:
+                    if not self._muteQueryCurrentLocked(self._mute_status_generation):
+                        return
+                    # One running/queued job and one latest-generation request.
+                    self._mute_status_generation += 1
+                    self._applyMuteStatusLocked(True)
+                    self._requestMuteQueryLocked()
+
+            self.osc_handler.setDictFilterAndTarget({
+                self.osc_handler.osc_parameter_muteself: changeHandlerMute,
+                "/avatar/change": changeHandlerAvatar,
+            })
+            self.osc_handler.receiveOscParameters()
+
+    def requestOSCShutdown(self):
+        # Admission closes before waiting on startup or a settings transaction.
+        with self._mute_status_lock:
+            self._osc_shutdown = True
+            self._osc_query_admission = False
+            self._mute_status_generation += 1
+            self._mute_query_pending = None
+            self._mute_verification_pending = None
+            if self._mute_query_future is not None:
+                self._mute_query_future.cancel()
+            if self._avatar_query_executor is not None:
+                self._avatar_query_executor.shutdown(wait=False, cancel_futures=True)
+        handler = getattr(self, "osc_handler", None)
+        if handler is not None:
+            handler.requestStop()
 
     def stopReceiveOSC(self):
-        """OSC受信サーバ(UDP + OSCQuery HTTP + zeroconf監視)を停止する。
+        """Close admission before waiting for owned network resources to stop."""
+        self.requestOSCShutdown()
+        if not self._osc_lifecycle_lock.acquire(timeout=OSC_STOP_TIMEOUT_SECONDS):
+            raise RuntimeError("OSC startup still owns lifecycle resources")
+        try:
+            handler = getattr(self, "osc_handler", None)
+            if handler is not None:
+                handler.oscServerStop()
+        finally:
+            self._osc_lifecycle_lock.release()
 
-        アプリ終了時(Controller.shutdown())専用の呼び出し口。
-        setOscIpAddress()/setOscPort()は再起動のため内部で直接
-        osc_handler.oscServerStop()を呼んでおり、このメソッドは経由しない。
-        以前はアプリ終了時にこれらを止める経路が無く(フェーズ3項目21で一度
-        「未使用」と判断され削除された`stopReceiveOSC`とは別の、実際に
-        呼ばれる経路として再設置)、OSCQueryのzeroconfサービス広告が
-        `close()`されないままプロセスが終了していた(バックエンドレビュー
-        フェーズ4項目30)。
-        """
-        self.ensure_initialized()
-        self.osc_handler.oscServerStop()
+    @staticmethod
+    def usesOscQuery(ip_address) -> bool:
+        """送信先がこの PC で、OSCQuery (受信と公開) を使う設定か。"""
+        return usesOscQuery(ip_address)
 
     def getIsOscQueryEnabled(self):
         self.ensure_initialized()
         return self.osc_handler.getIsOscQueryEnabled()
+
+    def getVrchatOscPresence(self) -> str:
+        """"found", "not_found", or "unknown" when this PC cannot tell (see OSCHandler.localVrchatPresence)."""
+        self.ensure_initialized()
+        return {True: "found", False: "not_found"}.get(self.osc_handler.localVrchatPresence(), "unknown")
 
     @staticmethod
     def _isVersionSupported(version_str: str) -> bool:
@@ -2136,17 +2480,8 @@ class Model:
         return False, None
 
     def changeMicTranscriptStatus(self):
-        if config.VRC_MIC_MUTE_SYNC is True:
-            match self.mic_mute_status:
-                case True:
-                    self.pauseMicTranscript()
-                case False:
-                    self.resumeMicTranscript()
-                case None:
-                    # mute selfの状態が不明な場合は一時停止しない
-                    self.resumeMicTranscript()
-                case _:
-                    pass
+        if config.VRC_MIC_MUTE_SYNC is True and self.mic_mute_status is not False:
+            self.pauseMicTranscript()
         else:
             self.resumeMicTranscript()
 
@@ -2160,12 +2495,13 @@ class Model:
             raise ValueError("realtime_source_invalid")
         return getattr(self, "_" + source + "_session").stop_for_handoff()
 
-    def startCheckMicEnergy(self, fnc:Optional[Callable[[float], None]]=None) -> None:
+    def startCheckMicEnergy(self, fnc:Optional[Callable[[float], None]]=None) -> bool:
         self.ensure_initialized()
         # fnc may be None or a callable. Use cast after checking for None to satisfy type checker.
         if fnc is not None:
             self._mic_session.energy_fnc = cast(Callable[[float], None], fnc)
         self._mic_session.reconfigure(energy=True)
+        return "energy" in self._mic_session.features and self._mic_session._recorder is not None
 
     def stopCheckMicEnergy(self):
         self.ensure_initialized()
@@ -2181,85 +2517,195 @@ class Model:
         self.ensure_initialized()
         self._speaker_session.reconfigure(transcript=False)
 
-    def startOCRCapture(self, fnc: Callable[[dict], None]) -> bool:
+    def startOCRCapture(self, fnc: Callable[[dict], None], model_root=None) -> bool:
         """Start the VRChat chat-bubble OCR pipeline.
 
         The callback receives dicts shaped like mic/speaker transcripts so
         Controller.ocrMessage can share the mic/speaker translation path.
+        model_root is the consented-download directory holding the PP-OCR
+        models (Controller.model_downloads.root).
         Returns True once the pipeline started (models loaded). Raises
         OcrStartError carrying the OCR_DISABLED_* reason when it cannot start.
         """
+        if self._ocr_shutdown_requested:
+            return False
         self.ensure_initialized()
-        if isinstance(self.ocr_pipeline, OcrPipeline):
-            # Already running.
+        with self._ocr_lifecycle_lock:
+            if self._ocr_shutdown_requested:
+                return False
+            if isinstance(self.ocr_pipeline, OcrPipeline):
+                if self.ocr_pipeline.is_alive:
+                    # False when the previous stop is still waiting for cleanup.
+                    return self.ocr_pipeline.start()
+
+            # 読み取る言語の扱いは models/ocr/ocr_languages.py を参照。
+            # "auto" は PP-OCRv6 small (日英中+ラテン文字系を1モデル) を使い、
+            # ハングル・キリル・タイ・アラビア・デーヴァナーガリーだけ明示選択で
+            # PP-OCRv5 のスクリプト別モデルへ切り替える。未対応なら起動しない。
+            # 以前 auto を SELECTED_TARGET_LANGUAGES から解決していた頃は、
+            # 日本語話者が英語へ翻訳する設定だと日本語の吹き出しが読めなかった。
+            source_language = config.OCR_SOURCE_LANGUAGE
+            if not isSupportedOcrLanguage(source_language):
+                printLog(f"OCR: source language {source_language!r} is not selected or not supported, refusing to start")
+                raise OcrStartError(ErrorCode.OCR_DISABLED_UNSUPPORTED_LANGUAGE)
+
+            # VRCT-VOX's own chatbox detector, only from its hash-verified download.
+            self._ocr_model_root = model_root
+            detector = self._ocrChatboxDetector()
+            try:
+                self.ocr_pipeline = OcrPipeline(
+                    callback=fnc,
+                    source_language=source_language,
+                    window_title=config.OCR_WINDOW_TITLE,
+                    poll_interval_ms=config.OCR_POLL_INTERVAL_MS,
+                    min_confidence=config.OCR_MIN_CONFIDENCE,
+                    min_text_length=config.OCR_BUBBLE_MIN_TEXT_LENGTH,
+                    model_root=model_root,
+                    region=config.OCR_CAPTURE_REGION,
+                    chatbox_filter=config.OCR_CHATBOX_FILTER,
+                    detector=detector,
+                    activation_ready=lambda: config.ENABLE_OCR_CAPTURE is True,
+                )
+                # Queue before start: the worker applies both source regions before
+                # its first capture. No window coordinates can leak into VR.
+                self.ocr_pipeline.applyConfig({"regions": {
+                    "window": config.OCR_CAPTURE_REGION,
+                    "vr": config.OCR_VR_CAPTURE_REGION,
+                }})
+                self._ocr_detector_path = getattr(detector, "model_path", None)
+                # Shutdown may have raced construction before publication.
+                if self._ocr_shutdown_requested:
+                    self.ocr_pipeline.requestShutdown()
+                    return False
+                return self.ocr_pipeline.start()
+            except Exception:
+                self.ocr_pipeline = None
+                raise
+
+    def getOCRRuntime(self) -> dict:
+        """Read worker state without probing capture, loading models or changing settings."""
+        pipeline = getattr(self, "ocr_pipeline", None)
+        if isinstance(pipeline, OcrPipeline) and pipeline.is_alive:
+            return pipeline.runtimeStatus
+        return {"state": "stopped", "stage": None, "error_code": None, "detector": None}
+
+    def _ocrChatboxDetector(self):
+        """The chatbox detector to read with, or None for detector-free reading.
+
+        Used when the switch is on and the download is present and verified.
+        """
+        if config.OCR_USE_CHATBOX_DETECTOR is not True:
+            return None
+        return buildChatboxDetector(getattr(self, "_ocr_model_root", None))
+
+    def setOCRSourceLanguage(self, language: str, model_root=None) -> bool:
+        """While active, validate and load before saving; the worker only swaps readers.
+
+        Serialize with start/stop so a new pipeline cannot start on the old
+        setting while this request is preparing its reader. Never download.
+        """
+        if self._ocr_shutdown_requested:
+            return False
+        with self._ocr_lifecycle_lock:
+            if self._ocr_shutdown_requested:
+                return False
+            spec = resolveModelSpec(language)
+            if spec is None:
+                raise OcrStartError(ErrorCode.OCR_DISABLED_UNSUPPORTED_LANGUAGE)
+            pipeline = getattr(self, "ocr_pipeline", None)
+            active = isinstance(pipeline, OcrPipeline) and pipeline.is_alive
+            if not active:
+                # The download list follows the selected language, so a stopped
+                # pipeline accepts it; missing files are reported at start.
+                config.OCR_SOURCE_LANGUAGE = language
+                return True
+            try:
+                files = resolveModelFiles(model_root, spec)
+                reader = ocr_engine.getReader(spec, files)
+                if reader is None:
+                    raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
+            except OcrModelsMissing:
+                raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_MISSING)
+            except OcrStartError:
+                raise
+            except Exception:
+                errorLogging()
+                raise OcrStartError(ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
+            if self._ocr_shutdown_requested:
+                return False
+            config.OCR_SOURCE_LANGUAGE = language
+            pipeline.applyLanguage(language, reader)
             return True
-
-        # 読み取る言語の扱いは models/ocr/ocr_languages.py を参照。
-        # "auto" は PP-OCRv6 small (日英中+ラテン文字系を1モデル) を使い、
-        # ハングル・キリル・タイ・アラビア・デーヴァナーガリーだけ明示選択で
-        # PP-OCRv5 のスクリプト別モデルへ切り替える。未対応なら起動しない。
-        # 以前 auto を SELECTED_TARGET_LANGUAGES から解決していた頃は、
-        # 日本語話者が英語へ翻訳する設定だと日本語の吹き出しが読めなかった。
-        source_language = config.OCR_SOURCE_LANGUAGE
-        if not isSupportedOcrLanguage(source_language):
-            printLog(f"OCR: source language {source_language!r} is not selected or not supported, refusing to start")
-            raise OcrStartError(ErrorCode.OCR_DISABLED_UNSUPPORTED_LANGUAGE)
-
-        try:
-            self.ocr_pipeline = OcrPipeline(
-                callback=fnc,
-                source_language=source_language,
-                window_title=config.OCR_WINDOW_TITLE,
-                poll_interval_ms=config.OCR_POLL_INTERVAL_MS,
-                min_confidence=config.OCR_MIN_CONFIDENCE,
-                min_text_length=config.OCR_BUBBLE_MIN_TEXT_LENGTH,
-            )
-            return self.ocr_pipeline.start()
-        except Exception:
-            self.ocr_pipeline = None
-            raise
 
     def updateOCRCaptureSettings(self) -> None:
         """設定変更を実行中のOCRパイプラインへ渡す。停止中なら何もしない。
 
-        OFF→ONを挟まずに言語やしきい値を切り替えられるようにするための経路。
+        OFF→ONを挟まずにしきい値などを切り替える。言語は専用のsetterで扱う。
         """
-        pipeline = self.ocr_pipeline
-        if not isinstance(pipeline, OcrPipeline):
-            return
-        try:
-            pipeline.applyConfig({
-                "source_language": config.OCR_SOURCE_LANGUAGE,
-                "window_title": config.OCR_WINDOW_TITLE,
-                "poll_interval_ms": config.OCR_POLL_INTERVAL_MS,
-                "min_confidence": config.OCR_MIN_CONFIDENCE,
-                "min_text_length": config.OCR_BUBBLE_MIN_TEXT_LENGTH,
-            })
-        except Exception:
-            errorLogging()
-
-    def stopOCRCapture(self) -> None:
-        self.ensure_initialized()
-        pipeline = self.ocr_pipeline
-        if isinstance(pipeline, OcrPipeline):
+        # Endpoint locks are separate. Keep snapshot, detector selection (including
+        # its remembered path), and enqueue ordered together across all endpoints
+        # and start/stop. A later request must never queue an older region last.
+        with self._ocr_lifecycle_lock:
+            pipeline = self.ocr_pipeline
+            if self._ocr_shutdown_requested or not isinstance(pipeline, OcrPipeline):
+                return
             try:
-                pipeline.stop()
+                pipeline.applyConfig({
+                    "window_title": config.OCR_WINDOW_TITLE,
+                    "poll_interval_ms": config.OCR_POLL_INTERVAL_MS,
+                    "min_confidence": config.OCR_MIN_CONFIDENCE,
+                    "min_text_length": config.OCR_BUBBLE_MIN_TEXT_LENGTH,
+                    "regions": {
+                        "window": config.OCR_CAPTURE_REGION,
+                        "vr": config.OCR_VR_CAPTURE_REGION,
+                    },
+                    "chatbox_filter": config.OCR_CHATBOX_FILTER,
+                    **self._ocrDetectorChange(),
+                })
             except Exception:
                 errorLogging()
-        self.ocr_pipeline = None
-        # 明示 gc.collect() は呼ばない: この関数は Controller から別スレッドで
-        # 呼ばれる。同じ理由 (comtypes の COM ポインタが CoInitialize していない
-        # スレッドで Release され access violation になる、_print_transcript の
-        # コメント参照) で禁止している。gc は import されておらず、ここは
-        # NameError になって stopOcrCapture スレッドが毎回落ちていた
-        # (2026-09-18 実機のstderrで発覚)。
 
-    def startCheckSpeakerEnergy(self, fnc:Optional[Callable[[float], None]]=None) -> None:
+    def _ocrDetectorChange(self) -> dict:
+        """{"detector": ...} when the detector to use differs from the running one."""
+        detector = self._ocrChatboxDetector()
+        path = getattr(detector, "model_path", None)
+        if path == getattr(self, "_ocr_detector_path", None):
+            return {}
+        self._ocr_detector_path = path
+        return {"detector": detector}
+
+    def requestOCRShutdown(self) -> None:
+        """Close admission and signal the worker without a blocking lock/join."""
+        self._ocr_shutdown_requested = True
+        pipeline = getattr(self, "ocr_pipeline", None)
+        if isinstance(pipeline, OcrPipeline):
+            pipeline.requestShutdown()
+
+    def stopOCRCapture(self) -> None:
+        with self._ocr_lifecycle_lock:
+            pipeline = getattr(self, "ocr_pipeline", None)
+            if isinstance(pipeline, OcrPipeline):
+                try:
+                    if pipeline.stop() is False:
+                        return
+                except Exception:
+                    errorLogging()
+                    return
+            self.ocr_pipeline = None
+            # 明示 gc.collect() は呼ばない: この関数は Controller から別スレッドで
+            # 呼ばれる。同じ理由 (comtypes の COM ポインタが CoInitialize していない
+            # スレッドで Release され access violation になる、_print_transcript の
+            # コメント参照) で禁止している。gc は import されておらず、ここは
+            # NameError になって stopOcrCapture スレッドが毎回落ちていた
+            # (2026-09-18 実機のstderrで発覚)。
+
+    def startCheckSpeakerEnergy(self, fnc:Optional[Callable[[float], None]]=None) -> bool:
         self.ensure_initialized()
         # Accept None as default and assign safely with cast after None-check
         if fnc is not None:
             self._speaker_session.energy_fnc = cast(Callable[[float], None], fnc)
         self._speaker_session.reconfigure(energy=True)
+        return "energy" in self._speaker_session.features and self._speaker_session._recorder is not None
 
     def stopCheckSpeakerEnergy(self):
         self.ensure_initialized()
@@ -2341,9 +2787,16 @@ class Model:
         self.ensure_initialized()
         self.overlay.clearImage("small")
 
-    def updateOverlaySmallLog(self, img):
+    def overlayPublicationGuard(self, size, current=lambda: True):
         self.ensure_initialized()
-        self.overlay.updateImage(img, "small")
+        generation = self.overlay.publicationToken(size)
+        enabled = "OVERLAY_SMALL_LOG" if size == "small" else "OVERLAY_LARGE_LOG"
+        return lambda: (current() and getattr(config, enabled)
+                        and self.overlay.publicationCurrent(size, generation, lambda: True))
+
+    def updateOverlaySmallLog(self, img, *, current=lambda: True):
+        self.ensure_initialized()
+        return self.overlay.updateImage(img, "small", current=self.overlayPublicationGuard("small", current))
 
     def updateOverlaySmallLogSettings(self):
         self.ensure_initialized()
@@ -2405,14 +2858,35 @@ class Model:
         self.ensure_initialized()
         self.overlay.clearImage("large")
 
-    def updateOverlayLargeLog(self, img):
+    def updateOverlayLargeLog(self, img, *, current=lambda: True):
         self.ensure_initialized()
         with self.overlay_image.log_lock:
             if self.overlay_image.isCurrentLargeLog(img):
-                self.overlay.updateImage(img, "large")
+                return self.overlay.updateImage(img, "large", current=self.overlayPublicationGuard("large", current))
+        return False
+
+    def publishMessageOverlayLargeLog(self, *args, current):
+        """Keep a revoked render out of history used by later publications."""
+        current = self.overlayPublicationGuard("large", current)
+        if not current():
+            return
+        self.ensure_initialized()
+        with self.overlay_image.log_lock:
+            if not current():
+                return
+            checkpoint = self.overlay_image.checkpointCaptionState()
+            committed = False
+            try:
+                image = self.createOverlayImageLargeLog(*args)
+                if current():
+                    committed = self.updateOverlayLargeLog(image, current=current) is True
+            finally:
+                if not committed:
+                    self.overlay_image.restoreCaptionState(checkpoint)
 
     def publishRealtimeCaptionOverlay(self, payload, language, target_languages, current, *, only_translated=False):
         """Serialize history/render/publication; caller runs outside the WS loop."""
+        current = self.overlayPublicationGuard("large", current)
         if not current():
             return
         self.ensure_initialized()
@@ -2437,8 +2911,7 @@ class Model:
                 if image is None:
                     committed = True  # An old/terminal revision changed nothing.
                 elif current():
-                    self.updateOverlayLargeLog(image)
-                    committed = True
+                    committed = self.updateOverlayLargeLog(image, current=current) is True
             finally:
                 if not committed:
                     self.overlay_image.rejectCaptionUpdate(checkpoint, identity, payload["revision"])
@@ -2446,8 +2919,10 @@ class Model:
     def clearRealtimeCaptionOverlay(self, source, namespace):
         self.ensure_initialized()
         with self.overlay_image.log_lock:
+            current = self.overlayPublicationGuard("large")
             image = self.overlay_image.discardCaptionNamespace(source, namespace)
-            self.updateOverlayLargeLog(image)
+            if current():
+                self.updateOverlayLargeLog(image, current=current)
 
     def updateOverlayLargeLogSettings(self):
         self.ensure_initialized()
@@ -2475,7 +2950,7 @@ class Model:
             self.overlay.updateFadeoutDuration(config.OVERLAY_LARGE_LOG_SETTINGS["fadeout_duration"], size)
         if (self.overlay.settings[size]["opacity"] != config.OVERLAY_LARGE_LOG_SETTINGS["opacity"]):
             self.overlay.updateOpacity(config.OVERLAY_LARGE_LOG_SETTINGS["opacity"], size, True)
-        if (self.overlay.settings[size]["ui_scaling"] != config.OVERLAY_LARGE_LOG_SETTINGS["ui_scaling"]):
+        if (self.overlay.settings[size]["ui_scaling"] != config.OVERLAY_LARGE_LOG_SETTINGS["ui_scaling"] * 0.25):
             self.overlay.updateUiScaling(config.OVERLAY_LARGE_LOG_SETTINGS["ui_scaling"] * 0.25, size)
 
     def setVrPanelWindows(self, log: bool, popup: bool) -> None:
@@ -2570,9 +3045,13 @@ class Model:
         self.ensure_initialized()
         self.overlay.position_changed_callback = fn
 
+    def setOverlayFailureCallback(self, fn):
+        self.ensure_initialized()
+        self.overlay.failure_callback = fn
+
     def startOverlay(self):
         self.ensure_initialized()
-        self.overlay.startOverlay()
+        return self.overlay.startOverlay()
 
     def shutdownOverlay(self):
         self.ensure_initialized()
@@ -2580,10 +3059,14 @@ class Model:
 
     def startWatchdog(self):
         self.ensure_initialized()
-        self.th_watchdog = threadFnc(self.watchdog.start)
-        self.th_watchdog.daemon = True
-        self.th_watchdog.start()
-        self._armFreezeDump()
+        with self._watchdog_lifecycle_lock:
+            if self.th_watchdog is not None and self.th_watchdog.is_alive():
+                return
+            self._watchdog_stop_logged = False
+            self.th_watchdog = threadFnc(self.watchdog.start)
+            self.th_watchdog.daemon = True
+            self.th_watchdog.start()
+            self._armFreezeDump()
 
     def feedWatchdog(self):
         self.ensure_initialized()
@@ -2593,13 +3076,11 @@ class Model:
     def _armFreezeDump(self):
         """次の feed が freeze 判定になるより前に、全スレッドスタックを
         freeze_trace.log へ書き出すタイマーを (再) 武装する。呼ぶたびに
-        以前のタイマーは自動的に上書きされる (faulthandler の仕様)。
+        以前の期限は置き換わる。
         """
         timeout = self.watchdog.interval + _FREEZE_DUMP_MARGIN_SEC
         try:
-            faulthandler.dump_traceback_later(
-                timeout, repeat=False, file=_freeze_trace_file, exit=False
-            )
+            _freeze_dump.arm(timeout)
         except Exception:
             errorLogging()
 
@@ -2645,137 +3126,117 @@ class Model:
 
     def stopWatchdog(self):
         self.ensure_initialized()
-        # ダンプタイマーの解除を必ず先に行う。Watchdog.start() は末尾で
-        # time.sleep(self.interval) する (既定20秒) 一方、threadFnc.stop() は
-        # loop フラグを降ろすだけでこの sleep を中断できないため、join は
-        # 最大 interval 秒ブロックする。以前はこの解除が join の後ろにあり、
-        # shutdown() 側の _stopServiceForShutdown が5秒で諦めた時点で
-        # 一度も実行されず、「正常終了なのに freeze_trace.log へダンプが出る」
-        # という当初直したかった現象がそのまま残っていた (実機ログで確認)。
-        # 解除自体はスレッドと独立した faulthandler の操作なので先に行える。
-        try:
-            faulthandler.cancel_dump_traceback_later()
-        except Exception:
-            errorLogging()
-        if isinstance(self.th_watchdog, threadFnc):
-            self.th_watchdog.stop()
-            # 上記のとおり sleep は中断できないので join は無期限にしない。
-            # daemon thread なので、起きそこねてもプロセス終了時に破棄される。
-            self.th_watchdog.join(timeout=_WATCHDOG_JOIN_TIMEOUT_SEC)
-            self.th_watchdog = None
+        with self._watchdog_lifecycle_lock:
+            # ダンプタイマーの解除を必ず先に行う。Watchdog.start() は末尾で
+            # time.sleep(self.interval) する (既定20秒) 一方、threadFnc.stop() は
+            # loop フラグを降ろすだけでこの sleep を中断できないため、join は
+            # 最大 interval 秒ブロックする。以前はこの解除が join の後ろにあり、
+            # shutdown() 側の _stopServiceForShutdown が5秒で諦めた時点で
+            # 一度も実行されず、「正常終了なのに freeze_trace.log へダンプが出る」
+            # という当初直したかった現象がそのまま残っていた (実機ログで確認)。
+            # 解除自体は watchdog のスレッドと独立した操作なので先に行える。
+            try:
+                _freeze_dump.cancel()
+            except Exception:
+                errorLogging()
+            if isinstance(self.th_watchdog, threadFnc):
+                self.th_watchdog.stop()
+                # 上記のとおり sleep は中断できないので join は無期限にしない。
+                # daemon thread なので、起きそこねてもプロセス終了時に破棄される。
+                self.th_watchdog.join(timeout=_WATCHDOG_JOIN_TIMEOUT_SEC)
+                if self.th_watchdog.is_alive():
+                    if not getattr(self, "_watchdog_stop_logged", False):
+                        self._watchdog_stop_logged = True
+                        printLog("Watchdog: stop timed out; restart deferred until the worker exits")
+                    return
+                self.th_watchdog = None
 
-    def message_handler(self, websocket, message):
+    def message_handler(self, server, websocket, message):
         """WebSocketメッセージ受信時の処理"""
         pass
 
-    def startWebSocketServer(self, host, port):
-        """WebSocketサーバーを起動し、別スレッドで実行する"""
+    def startWebSocketServer(self, host, port) -> bool:
+        """Wait up to six seconds for listening; cancel and reap a failed attempt."""
         self.ensure_initialized()
         with self._websocket_lifecycle_lock:
-            if self.websocket_server_alive is True:
-                # サーバーが既に起動している場合は何もしない
-                return
-
-            self.websocket_server_loop = True
-            self.websocket_server_alive = False  # 初期状態を明示
-
-            async def WebSocketServerMain():
-                try:
-                    self.websocket_server = WebSocketServer(
-                        host=host,
-                        port=port,
-                        token=config.WEBSOCKET_AUTH_TOKEN,
-                    )
-                    self.websocket_server.set_message_handler(self.message_handler)
-                    self.websocket_server.start()
-                    self.websocket_server_alive = True
-
-                    # イベントループが終了するまで待機
-                    while self.websocket_server_loop:
-                        # self.websocket_server.send("Server is running...")
-                        await asyncio.sleep(0.5)  # 応答性向上のため間隔短縮
-
-                except Exception:
-                    errorLogging()
-                    # 具体的なエラー内容をログに残す場合
-                    # self.logger.error(f"WebSocket server error: {str(e)}")
-                finally:
-                    # 確実にサーバーを停止
-                    if hasattr(self, 'websocket_server') and self.websocket_server:
-                        self.websocket_server.stop()
-                    self.websocket_server_alive = False
-
-            self.th_websocket_server = Thread(target=lambda: asyncio.run(WebSocketServerMain()))
-            self.th_websocket_server.daemon = True
-            self.th_websocket_server.start()
-
-    def stopWebSocketServer(self):
-        """WebSocketサーバーを停止する"""
-        self.ensure_initialized()
-        with self._websocket_lifecycle_lock:
-            if not hasattr(self, 'th_websocket_server') or self.th_websocket_server is None:
-                return
-
-            self.websocket_server_loop = False
-
+            server = self.websocket_server
+            if server is None or server.is_stopped:
+                server = WebSocketServer(host=host, port=port, token=config.WEBSOCKET_AUTH_TOKEN)
+                server.set_message_handler(self.message_handler)
+                self.websocket_server = server
             try:
-                # 一定時間待機してからタイムアウト
-                self.th_websocket_server.join(timeout=2.0)
-
-                if self.th_websocket_server.is_alive():
-                    # タイムアウト後もスレッドが生きている場合の処理。
-                    # 以前はself.logger.warning(...)だったが、self.loggerは
-                    # LOGGER_FEATURE無効時(既定)はNoneのため、この警告経路
-                    # 自体がAttributeErrorになり本来のメッセージが記録され
-                    # ずに失われていた(バックエンドレビュー フェーズ4
-                    # 項目32)。self.loggerに依存しないprintLogに変更。
-                    printLog("WebSocket server thread did not terminate properly")
+                attempt = server.begin_start(timeout=_WEBSOCKET_START_TIMEOUT)
             except Exception:
                 errorLogging()
-            finally:
-                self.th_websocket_server = None
-                self.websocket_server = None
-                self.websocket_server_alive = False
-
-    def checkWebSocketServerAlive(self):
-        """WebSocketサーバーの稼働状態を確認する"""
-        self.ensure_initialized()
-        return self.websocket_server_alive
-
-    def startObsBrowserSourceServer(self, host: str, port: int) -> None:
-        """Start the local HTTP server used as an OBS Browser Source."""
-        self.ensure_initialized()
+                return False
 
         try:
-            if (
-                isinstance(self.obs_browser_source_server, ObsBrowserSourceServer)
-                and self.obs_browser_source_server.is_running
-                and self.obs_browser_source_server.host == host
-                and self.obs_browser_source_server.port == port
-            ):
-                return
-        except Exception:
-            # If anything goes wrong while checking state, restart.
-            pass
-
-        self.stopObsBrowserSourceServer()
-
-        try:
-            self.obs_browser_source_server = ObsBrowserSourceServer(host=host, port=port, ws_token=config.WEBSOCKET_AUTH_TOKEN)
-            self.obs_browser_source_server.start()
+            server.wait_started(attempt)
         except Exception:
             errorLogging()
-            self.obs_browser_source_server = None
+            # Cleanup owns only this server, not a replacement published by a
+            # concurrent enable. Keep a stuck worker reachable until it exits.
+            with self._websocket_lifecycle_lock:
+                if self.websocket_server is server and server.is_stopped:
+                    self.websocket_server = None
+            return False
+        with self._websocket_lifecycle_lock:
+            return self.websocket_server is server and server.is_running
+
+    def stopWebSocketServer(self):
+        """Cancel pending startup as well as an already listening server."""
+        self.ensure_initialized()
+        with self._websocket_lifecycle_lock:
+            server = self.websocket_server
+            if server is None:
+                return
+            server.stop()
+            if server.is_stopped:
+                self.websocket_server = None
+            else:
+                # Don't forget the old attempt or allow a competing bind while
+                # its resources are still being released. A later start retries.
+                printLog("WebSocket server thread did not terminate properly")
+
+    def checkWebSocketServerAlive(self):
+        self.ensure_initialized()
+        with self._websocket_lifecycle_lock:
+            return self.websocket_server is not None and self.websocket_server.is_running
+
+    def startObsBrowserSourceServer(self, host: str, port: int) -> bool:
+        """Return true only when OBS is listening on the requested address."""
+        self.ensure_initialized()
+        with self._obs_lifecycle_lock:
+            server = self.obs_browser_source_server
+            if (server is not None and server.is_running
+                    and server.host == host and server.port == port):
+                return True
+            self.stopObsBrowserSourceServer()
+            if self.obs_browser_source_server is not None:
+                return False  # The previous worker still owns its server.
+            try:
+                server = ObsBrowserSourceServer(host=host, port=port, ws_token=config.WEBSOCKET_AUTH_TOKEN)
+                self.obs_browser_source_server = server
+                server.start()
+                return server.is_running
+            except Exception:
+                errorLogging()
+                self.stopObsBrowserSourceServer()
+                return False
 
     def stopObsBrowserSourceServer(self) -> None:
         self.ensure_initialized()
-        try:
-            if isinstance(self.obs_browser_source_server, ObsBrowserSourceServer):
-                self.obs_browser_source_server.stop()
-        except Exception:
-            errorLogging()
-        finally:
-            self.obs_browser_source_server = None
+        with self._obs_lifecycle_lock:
+            server = self.obs_browser_source_server
+            if server is None:
+                return
+            try:
+                server.stop()
+            except Exception:
+                errorLogging()
+                return
+            if server.is_stopped:
+                self.obs_browser_source_server = None
 
     def checkObsBrowserSourceServerAlive(self) -> bool:
         self.ensure_initialized()
@@ -2795,11 +3256,15 @@ class Model:
         :return: 送信成功したかどうか
         """
         self.ensure_initialized()
-        if not self.websocket_server_alive or not self.websocket_server:
+        if not self.checkWebSocketServerAlive():
             return False
         try:
             message_json = json.dumps(message_dict)
             return self.websocket_server.send(message_json)
+        except BufferError:
+            # Let the existing per-output failure notification report admission
+            # limits without losing the other conversation outputs.
+            raise
         except Exception:
             errorLogging()
             return False
@@ -2823,7 +3288,26 @@ class Model:
                 storage_path = os_path.join(config.PATH_DATA, "telemetry_state.json")
             except Exception:
                 storage_path = None
-        self.telemetry.init(enabled=enabled, app_version=app_version, storage_path=storage_path)
+        try:
+            locale = config.UI_LANGUAGE
+        except Exception:
+            locale = ""
+        self.telemetry.init(enabled=enabled, app_version=app_version, storage_path=storage_path, locale=locale)
+
+    def telemetryPreview(self, app_version: str) -> dict:
+        """What a usage event from this PC holds now, and what was sent before (Telemetry.preview)."""
+        try:
+            # Before the first send (the notice is pending, or sending is off) the record
+            # of what was sent has not been opened yet.
+            if not self.telemetry.get_state().get("storage_path"):
+                self.telemetry.state.set_storage_path(os_path.join(config.PATH_DATA, "telemetry_state.json"))
+        except Exception:
+            pass
+        try:
+            locale = config.UI_LANGUAGE
+        except Exception:
+            locale = ""
+        return self.telemetry.preview(app_version=app_version, locale=locale)
 
     def telemetryShutdown(self):
         """Model cleanup on application shutdown."""

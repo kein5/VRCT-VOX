@@ -6,6 +6,9 @@ import os
 from urllib.parse import urlsplit
 
 import pytest
+from ui_details import open_setup
+from ui_details import open_engine_settings
+from models.model_downloads.manager import Downloads
 from models.tts.settings import VoiceSettings
 from test_speech_servers_ui import ui as ui
 
@@ -18,7 +21,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def pages(ui, request):
+def pages(ui, request, tmp_path):
     page, peer, reply = ui
     original_url = page.url
     page.goto("about:blank")
@@ -60,6 +63,9 @@ def pages(ui, request):
             rvc_index_rate=0,
         ),
     )
+    peer.catalog = Downloads(tmp_path / "models").catalog()
+    peer.download_jobs = {}
+    peer.preferred = None
     peer.sources = [
         dict(
             label="Test microphone",
@@ -137,7 +143,7 @@ def pages(ui, request):
         elif ep == "/get/data/direct_voice_state":
             reply(ep, dict(peer.direct, observation_id=observation))
         elif ep == "/get/data/direct_voice_sources":
-            reply(ep, dict(sources=peer.sources, error=None))
+            reply(ep, dict(sources=peer.sources, error=None, preferred=peer.preferred))
         elif ep == "/get/data/voice_output_devices":
             reply(
                 ep,
@@ -152,6 +158,17 @@ def pages(ui, request):
         elif ep == "/set/data/direct_voice_settings":
             peer.direct["settings"] = data
             reply(ep, dict(peer.direct, observation_id=observation))
+        elif ep == "/get/data/model_download_catalog":
+            reply(ep, peer.catalog)
+        elif ep == "/get/data/model_download_state":
+            reply(ep, dict(observation_id=observation, jobs=peer.download_jobs))
+        elif ep == "/run/apply_model_download":
+            job = peer.download_jobs[data["id"]]
+            peer.direct["settings"].update(
+                rvc_model=job["paths"]["model"], rvc_index=job["paths"]["index"]
+            )
+            job["phase"] = "applied"
+            reply(ep, dict(observation_id=observation, jobs=peer.download_jobs))
         else:
             # Existing speech/ASR fixture handles the other production endpoints.
             peer.sent.pop()
@@ -178,17 +195,21 @@ def test_separate_pages_search_and_asr_placement(pages):
     expect(page.get_by_label("Chat voice", exact=True)).to_be_visible()
     expect(page.get_by_role("group", name="ASR + VAD", exact=True)).to_have_count(0)
     page.get_by_role("button", name="RVC", exact=True).click()
-    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_be_visible()
+    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_have_count(1)
     expect(page.get_by_label("Chat voice", exact=True)).to_have_count(0)
     page.get_by_role("button", name="Advanced", exact=True).click()
     expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_have_count(0)
     expect(page.get_by_label("Chat voice", exact=True)).to_have_count(0)
     page.get_by_role("button", name="Transcription", exact=True).click()
+    open_engine_settings(page)
     expect(page.get_by_role("group", name="ASR + VAD", exact=True)).to_be_visible()
     expect(page.get_by_role("group", name="Japanese TTS", exact=True)).to_have_count(0)
     page.get_by_label("Search settings", exact=True).fill("RVC")
-    page.get_by_label("Search results", exact=True).get_by_role("button").first.click()
-    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_be_visible()
+    results = page.get_by_label("Search results", exact=True).get_by_role("button")
+    # The Device page Mic selection is also the RVC input on Linux, so it is found too.
+    expect(results.filter(has_text="Device: Mic Device")).to_be_visible()
+    results.filter(has_text="RVC: RVC").click()
+    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_have_count(1)
     assert not any(ep.startswith("/run/start_") for ep, _ in peer.sent)
 
 
@@ -225,9 +246,14 @@ def test_rvc_can_prepare_route_without_losing_model_or_output_settings(pages):
 
     page, peer, reply = pages
     page.get_by_role("button", name="RVC", exact=True).click()
+    # The RVC hint opens the page once; the converted fields do not repeat it.
+    expect(
+        page.get_by_text("Use a separately installed RVC runtime", exact=False)
+    ).to_have_count(1)
     page.get_by_label("Input to forward", exact=True).select_option(
         label="Test microphone"
     )
+    open_setup(page)
     model = page.get_by_label("Permitted RVC model (.pth)", exact=True)
     model.fill("/permitted/model.pth")
     previous = dict(peer.voice)
@@ -260,6 +286,43 @@ def test_rvc_can_prepare_route_without_losing_model_or_output_settings(pages):
     expect(page.get_by_role("button", name="Resume voice", exact=True)).to_be_disabled()
 
 
+def test_rvc_download_applies_without_saving_other_edits_first(pages):
+    from playwright.sync_api import expect
+
+    # Regression: an unsaved runtime folder used to disable Apply until saved.
+    page, peer, reply = pages
+    page.get_by_role("button", name="RVC", exact=True).click()
+    open_setup(page)
+    runtime = page.get_by_label("RVC runtime folder", exact=True)
+    runtime.fill("/unsaved/runtime")
+    paths = dict(model="/verified/saisho.pth", index="/verified/saisho.index")
+    peer.download_jobs["rvc-saisho"] = dict(
+        job_id="job1", phase="ready", received_bytes=1, total_bytes=1,
+        paths=paths, error_code=None,
+    )
+    reply(
+        "/get/data/model_download_state",
+        dict(observation_id="100000", jobs=peer.download_jobs),
+    )
+    apply = page.get_by_role("button", name="Apply model path", exact=True)
+    expect(apply).to_be_enabled()
+    apply.click()
+    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_have_value(
+        paths["model"]
+    )
+    expect(
+        page.get_by_label("RVC retrieval index (.index, optional)", exact=True)
+    ).to_have_value(paths["index"])
+    expect(runtime).to_have_value("/unsaved/runtime")
+    expect(page.get_by_text("Unsaved changes", exact=True)).to_be_visible()
+    assert next(data for ep, data in peer.sent if ep == "/run/apply_model_download")[
+        "expected"
+    ] == {"model": "", "index": ""}
+    assert peer.direct["settings"]["rvc_runtime"] == ""
+    assert not any(ep == "/set/data/direct_voice_settings" for ep, _ in peer.sent)
+    assert not any(ep == "/run/start_direct_voice" for ep, _ in peer.sent)
+
+
 def test_unsaved_changes_require_ack_and_navigation_confirmation(pages):
     from playwright.sync_api import expect
 
@@ -267,7 +330,7 @@ def test_unsaved_changes_require_ack_and_navigation_confirmation(pages):
     mode = page.get_by_label("Chat voice", exact=True)
     mode.select_option("original")
     page.get_by_label("Output device", exact=True).select_option("headphones")
-    save = page.get_by_role("button", name="Save voice settings", exact=True)
+    save = page.get_by_role("button", name="Save changes", exact=True)
     peer.reject_voice = True
     save.click()
     expect(
@@ -287,7 +350,7 @@ def test_unsaved_changes_require_ack_and_navigation_confirmation(pages):
     reply("/set/data/voice_settings", peer.voice)
     expect(save).to_be_disabled()
     page.get_by_role("button", name="RVC", exact=True).click()
-    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_be_visible()
+    expect(page.get_by_label("Permitted RVC model (.pth)", exact=True)).to_have_count(1)
 
 
 def test_input_identity_survives_pages_and_stale_state(pages):
@@ -323,6 +386,45 @@ def test_input_identity_survives_pages_and_stale_state(pages):
     ).to_be_disabled()
 
 
+def test_device_page_mic_preselects_rvc_input_until_rvc_page_choice(pages):
+    from playwright.sync_api import expect
+
+    page, peer, reply = pages
+    first = peer.sources[0]["id"]
+    second = dict(first, serial=16, name="second-source")
+    peer.sources.append(dict(label="Second microphone", id=second))
+
+    def key(id):
+        return json.dumps([id["cookie"], id["serial"], id["name"], id["media_class"]], separators=(",", ":"))
+
+    peer.preferred = first
+    page.get_by_role("button", name="RVC", exact=True).click()
+    source = page.get_by_label("Input to forward", exact=True)
+    expect(source).to_have_value(key(first))
+    # Device page Mic changed: the UI refetches and follows the new default.
+    peer.preferred = second
+    reply("/run/selected_mic_device", "Second microphone")
+    expect(source).to_have_value(key(second))
+
+    def sources(preferred):
+        received = reply("/get/data/direct_voice_sources", dict(sources=peer.sources, error=None, preferred=preferred))
+        page.wait_for_function("id => window.received.includes(id)", arg=received)
+
+    # An input picked on the RVC page wins over later Device page defaults.
+    source.select_option(label="Test microphone")
+    sources(second)
+    expect(source).to_have_value(key(first))
+    # Never retarget a running input, even while following the Device page.
+    source.select_option(label="Second microphone")
+    sources(second)
+    peer.direct.update(requested=True, active=True, mode="converted")
+    reply("/get/data/direct_voice_state", dict(peer.direct, observation_id="100000"))
+    expect(source).to_be_disabled()
+    sources(first)
+    expect(source).to_have_value(key(second))
+    assert not any(ep == "/run/start_direct_voice" for ep, _ in peer.sent)
+
+
 def test_discard_before_closing_restores_mounted_form(pages):
     from playwright.sync_api import expect
 
@@ -337,7 +439,91 @@ def test_discard_before_closing_restores_mounted_form(pages):
     page.wait_for_function("window.didLeave === true")
     expect(mode).to_have_value(peer.voice["mode"])
     expect(
-        page.get_by_role("button", name="Save voice settings", exact=True)
+        page.get_by_role("button", name="Save changes", exact=True)
     ).to_be_disabled()
     page.get_by_role("button", name="RVC", exact=True).click()
     expect(page.get_by_role("dialog")).to_have_count(0)
+
+
+def test_unset_voice_name_reads_as_not_set_and_stays_none(pages):
+    from playwright.sync_api import expect
+
+    page, peer, _ = pages
+    page.get_by_role("button", name="TTS", exact=True).click()
+    voice = page.get_by_label("Japanese voice name", exact=True)
+    # "none" is the stored "no particular voice": shown as unset, not as a name.
+    assert peer.voice["japanese_voice"] == "none"
+    expect(voice).to_have_value("")
+    expect(voice).to_have_attribute("placeholder", "Not set")
+    voice.fill("kei")
+    # Clearing the field goes back to "none", so nothing is left to save.
+    voice.fill("")
+    expect(page.get_by_role("button", name="Save changes", exact=True)).to_be_disabled()
+    voice.fill("kei")
+    page.get_by_role("button", name="Save changes", exact=True).click()
+    expect(page.get_by_role("button", name="Save changes", exact=True)).to_be_disabled()
+    assert peer.voice["japanese_voice"] == "kei"
+
+
+def test_top_bar_mute_shows_the_reported_state_and_names_what_it_silences(pages):
+    from playwright.sync_api import expect
+
+    page, peer, reply = pages
+    page.get_by_role("button", name="TTS", exact=True).click()
+    actions = page.get_by_role("group", name="Stop", exact=True)
+    mute = actions.get_by_role("button", name="Mute speech", exact=True)
+    expect(mute).to_have_attribute("aria-pressed", "false")
+    # Muted on the managed route: the whole virtual microphone is silenced.
+    reply("/get/data/voice_route", dict(observation_id="900", managed=True, ready=True, pending=False,
+                                        requested_muted=True, observed_muted=True))
+    mic = actions.get_by_role("button", name="Mute virtual mic", exact=True)
+    expect(mic).to_have_attribute("aria-pressed", "true")
+    expect(mic).to_contain_text("Muted")
+    before = len(peer.sent)
+    mic.click()
+    for _ in range(50):
+        if any(ep == "/run/resume_voice" for ep, _ in peer.sent[before:]):
+            break
+        page.wait_for_timeout(50)
+    assert [ep for ep, _ in peer.sent[before:] if ep.startswith("/run/")] == ["/run/resume_voice"]
+    # While the route is not ready, resuming is not offered.
+    reply("/get/data/voice_route", dict(observation_id="901", managed=True, ready=False, pending=True,
+                                        requested_muted=True, observed_muted=True))
+    expect(mic).to_be_disabled()
+
+
+def test_rows_keep_the_description_under_the_label_and_linked_to_the_control(pages):
+    from playwright.sync_api import expect
+
+    page, _, _ = pages
+    page.get_by_role("button", name="TTS", exact=True).click()
+    device = page.get_by_label("Output device", exact=True)
+    expect(device).to_be_visible()
+    description_id = device.get_attribute("aria-describedby")
+    assert description_id
+    description = page.locator(f'[id="{description_id}"]')
+    # The description sits under the label, before the control in reading order.
+    assert description.evaluate("(node, control) => !!(node.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING)",
+                                device.element_handle())
+    expect(description).to_contain_text("headphones")
+
+
+def test_disabled_actions_say_what_they_wait_for(pages):
+    from playwright.sync_api import expect
+
+    page, peer, _ = pages
+    page.get_by_role("button", name="RVC", exact=True).click()
+    start = page.get_by_role("button", name="Start input forwarding", exact=True)
+    expect(start).to_be_disabled()
+    reason = page.locator(f'[id="{start.get_attribute("aria-describedby")}"]')
+    expect(reason).to_have_text("To start, prepare the virtual mic in the setup section below")
+    # Setup is folded with a status line; preparing the mic happens inside it.
+    summary = page.locator("details[data-setup] > summary")
+    expect(summary).to_contain_text("Models and runtime")
+    expect(summary).to_contain_text("Virtual mic not prepared")
+    page.get_by_role("button", name="TTS", exact=True).click()
+    check = page.get_by_role("group", name="Multilingual TTS · Text to voice (speech.cpp)", exact=True).get_by_role(
+        "button", name="Check model options", exact=True)
+    assert peer.voice["multilingual_url"] == ""
+    expect(check).to_be_disabled()
+    expect(page.locator(f'[id="{check.get_attribute("aria-describedby")}"]')).to_have_text("Enter and save the server URL to check")

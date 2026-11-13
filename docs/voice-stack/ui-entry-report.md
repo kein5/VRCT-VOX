@@ -98,7 +98,7 @@ Linuxネイティブ起動の事前確認もPythonの`psutil`不足とCargo offl
 これは現環境の不足であり、Linux起動が不可能だという判断ではない。
 
 追加の試験依存はuvで隔離したvenvへ導入した。Playwright 1.64.1（installed metadata: Apache-2.0）、
-python-osc 1.9.0（同: Unlicense）、pytest、requestsを[任意試験用requirements](../../requirements-voice-ui-test.txt)に固定する。
+python-osc 1.9.0（同: Unlicense）、pytest、requestsを`pyproject.toml`の`voice-ui-test`グループ（`uv.lock`）に固定する。
 既存Chromiumを利用し、browser・モデル・音声binaryを取得・同梱していない。製品依存と[ライセンス台帳](licensing.md)の境界は維持する。
 
 全最終試行で試験processの終了、独立runtimeの削除、route/busの終了を確認した。

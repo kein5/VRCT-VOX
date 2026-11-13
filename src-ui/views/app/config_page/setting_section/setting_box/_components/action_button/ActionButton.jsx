@@ -8,22 +8,37 @@ export const ActionButton = ({
     clicked_duration = 1000,
     onclickFunction,
     onErrorFunction,
+    label,
+    "aria-describedby": describedBy,
 }) => {
     const [is_clicked, setIsClicked] = useState(false);
+    const [is_pending, setIsPending] = useState(false);
+    const running = useRef(false);
+    const mounted = useRef(true);
     const timer_ref = useRef(null);
 
-    useEffect(() => () => clearTimeout(timer_ref.current), []);
+    useEffect(() => {
+        mounted.current = true;
+        return () => { mounted.current = false; clearTimeout(timer_ref.current); };
+    }, []);
 
     const onClick = async () => {
-        if (is_clicked) return;
+        if (running.current) return;
+        running.current = true;
+        setIsPending(true);
         try {
             await onclickFunction?.();
-            if (ClickedIconComponent) {
+            if (mounted.current && ClickedIconComponent) {
                 setIsClicked(true);
-                timer_ref.current = setTimeout(() => setIsClicked(false), clicked_duration);
+                timer_ref.current = setTimeout(() => { running.current = false; setIsClicked(false); }, clicked_duration);
+            } else {
+                running.current = false;
             }
         } catch (error) {
-            onErrorFunction?.(error);
+            running.current = false;
+            if (mounted.current) onErrorFunction?.(error);
+        } finally {
+            if (mounted.current) setIsPending(false);
         }
     };
 
@@ -32,8 +47,12 @@ export const ActionButton = ({
 
     return (
         <div className={styles.container}>
-            <button className={clsx(styles.button_wrapper, active_class)} onClick={onClick}>
-                <ShownIcon className={clsx(styles.button_svg, active_class)} />
+            <button type="button" className={clsx(styles.button_wrapper, active_class)} onClick={onClick}
+                aria-disabled={is_pending || is_clicked} aria-busy={is_pending}
+                aria-describedby={describedBy}
+                aria-label={typeof label === "string" ? label : undefined}>
+                <ShownIcon className={clsx(styles.button_svg, active_class, { [styles.is_pending]: is_pending })} aria-hidden="true" />
+                {is_pending && <span className={styles.loader} aria-hidden="true" />}
             </button>
         </div>
     );

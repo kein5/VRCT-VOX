@@ -37,9 +37,12 @@
 
 .dropdown_menu_container {
     position: relative;
+    border: 0;
+    color: inherit;
+    font: inherit;
     background-color: var(--dark_888_color);
     width: 100%;
-    padding: 0.4rem 0;
+    padding: 0.4rem 1.8rem;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -56,6 +59,8 @@
 }
 
 .selected_language {
+    max-width: 100%;
+    overflow-wrap: anywhere;
     font-size: 1.2rem;
 }
 

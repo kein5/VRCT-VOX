@@ -1,8 +1,11 @@
 # P1 Linux / CachyOS / WiVRn
 
+このページはソースcheckoutでの開発・CLI試験の手順。配布版のLinuxアプリは
+[AppImageガイド](appimage.md)と[Linuxビルド手順](linux-build-pipeline.md)を参照。
+
 ヘッドレスCLIはWindowsのPyAudioWPatch/pycaw/windows-captureをimportしない。
 Pythonは標準ライブラリだけで発声でき、`pw-cat` / `pw-dump` が必要。
-VRCT全GUIのLinux互換化はP5。以下のCLI→仮想マイク→VRChat desktopの経路は、
+検証の記載は、2026-10-27以降の各作業時点のもの。以下のCLI→仮想マイク→VRChat desktopの経路は、
 ユーザーが内蔵マイクテストの再生で声を確認済み。途中停止後のメーター停止も確認。
 実VRCTアプリからVRChatの音声・OSCへ同時配信する一連の動作、他ユーザーでの受信、HMDは未検証。
 取得済みIrodori MF / speech.cpp 0.8.11の単発PoCと、0.9.0の専用PipeWireグラフでの
@@ -25,13 +28,41 @@ Tauri画面・音声入出力はこの試験の範囲外。[継続記録](comple
 
 ```sh
 uv venv --python 3.11 .venv_linux
-uv pip install --python .venv_linux/bin/python -r requirements.txt -r requirements-dev.txt --excludes requirements-linux-exclude.txt
-mkdir -p src-tauri/bin/_internal
-rustc --edition=2021 utils/dev_sidecar/src/main.rs -o src-tauri/bin/VRCT-sidecar-x86_64-unknown-linux-gnu
+UV_PROJECT_ENVIRONMENT=.venv_linux uv sync --frozen --python 3.11
+python tools/dev.py setup --scope sidecar
 ```
 
-Windows専用の3依存はrequirementsのOS markerで選択する。Linuxでは任意OCRのRapidOCRをexcludeし、
-同じ`cv2`を提供する2種類のOpenCVの同時導入を避ける。Linuxの従来ASR録音・画面OCR・VRパネルcaptureは未対応。
+sidecarは `src-tauri/bin/vrct-vox-sidecar-x86_64-unknown-linux-gnu` に作られる。詳しくは[開発ガイド](../development.md#tauri開発用sidecarを準備する)を参照。
+
+### 同梱サーバーと音声ヘルパーを用意する
+
+開発起動のバックエンドは、同梱speech.cppサーバーと音声経路のヘルパーをソースツリーの`build/`から読む。
+新しいcheckoutやworktreeには`build/`がないので、用意しないと設定の「TTS」や「音声認識」で「サーバーを起動」を押しても失敗する。
+
+```sh
+python tools/build_voice_gate.py
+python tools/speechcpp_bundle.py --variant linux-x64-vulkan --archive /path/to/speech-0.10.0-linux-x64-vulkan.zip --output build/speechcpp
+```
+
+`build_voice_gate.py`は、`build/vrct-voice-gate`、`vrct-source-bridge`、`vrct-vc-worker`、`vrct-asr-capture`、`vrct-screen-capture`をビルドする。`libpipewire-0.3-dev`が必要。
+`vrct-screen-capture`がないと、チャット読み取りの「ウィンドウを共有…」は`screencast_helper_missing`で止まる。
+`vrct-vc-worker`がないと、同梱サーバーの起動は`speech_server_launch_failed`で止まる。
+`vrct-vc-worker`は推論デバイスとして、`auto`、`cpu`、`gpu`と、`speech devices`が表示するGPUの名前（`Vulkan0`など）を受け付ける。設定でGPUを名前で選ぶ機能より前にビルドしたヘルパーは名前を拒否するので、作り直す。
+
+`speechcpp_bundle.py`は、版とSHA-256を固定した書庫から、`speech`本体と同梱のライセンス文書を`build/speechcpp`に置く。
+書庫が手元になければ、`--archive`の代わりに`--download`を指定すると取得する。通信するのは`--download`を指定したときだけ。
+GPUを使わない場合は`--variant linux-x64-cpu`を選ぶ。出力先がすでにあると、上書きせずに止まる。
+Linux候補をビルド済みなら、`build/linux/resources/build/speechcpp`を`cp -a`でコピーしてもよい。
+アプリは起動のたびに版とハッシュを検査し、シンボリックリンクは受け付けないので、リンクではなくコピーにする。
+`build/speechcpp`がないか検査に合わないと、同梱サーバーの起動は`speech_bundle_missing_or_invalid`で止まる。
+
+開発起動で取得したモデルは`src-python/downloaded_models/`に保存される。このディレクトリはgitの対象外にしてある。
+
+Windows専用の3依存（PyAudioWPatch、windows-capture、pycaw）は`pyproject.toml`のOS markerで選択する。チャット読み取りのRapidOCRはLinuxにも入る。
+`opencv-python`は`tool.uv.exclude-dependencies`で除き、同じ`cv2`を提供する2種類のOpenCVの同時導入を避ける。
+Linuxのチャット読み取りは、VRChatのウィンドウをX11/XWayland経由で取り込む。SteamVRが動いている間は、ヘッドセットの映像をOpenGLで読む（偽のSteamVRでだけ確認）。Waylandネイティブのウィンドウは、利用者が設定の「チャット読み取り」で共有すると読み取れる（XDG ScreenCast portal。開発ビルドは`build/vrct-screen-capture`を使う）。従来ASRの録音は未対応。
+2026-11-11に、Protonで動く実際のVRChat（ローカルの試験インスタンスにクライアントを2つ）と、実際のPP-OCRのモデルで確認した（CachyOS、KDE Plasma 6.8、Wayland）。X11/XWaylandの経路は、もう一方のクライアントが送ったチャットを読めた。共有の経路は、入れ子のXwayland（KWinから見るとWaylandネイティブのウィンドウ）の中で動かしたVRChatを共有して読めた。このとき「6文のうち5文（開発ビルド）、4文（AppImage）」と記録したが、読めなかったのではなく、確認の手順の誤りだった（2026-11-12に訂正）。会話ログは画面に見えている行だけを描くので、ログが画面を埋めたあとの行を数えられていなかった。gamescopeの中のVRChatと、WineのWaylandドライバーで動くVRChatでは確認できていない（gamescope 3.17はウィンドウが落ち、使ったProton-GEはWaylandドライバーの指定を受け付けなかった）。音声タイピングモードの貼り付けは、実際のVRChatのチャット欄に文字が入ることを確認した。GNOMEなど、KDE以外のデスクトップでは確認できていない。
+2026-11-12に、同じ構成で12文（日本語と英語、2行に折り返す長さの文を含む）を10秒おきに送って測り直した（開発ビルド、develop `5d4b1a16`に#196の変更を足したもの）。X11/XWaylandの経路、共有の経路とも12文すべてを読み、送ってからログに出るまでは0.6〜1.5秒だった（X11の1文だけ4.2秒）。吹き出しの検出モデルは入れていないので、看板の文字も結果に混じる。試験用のワールドは数秒ごとに話し手とカメラの位置を変えるため、距離や背景は文ごとに違う。確認のときは、名前の検索が話し手側のウィンドウを拾わないよう、話し手側のウィンドウのタイトルを変えた（2つのクライアントがどちらも`VRChat`という名前になるため）。
 この手順はPython依存のみを取得し、ASR/TTS/VC重みの取得スクリプトは実行しない。
 Pythonの取得・package通信にはネットワークが必要。システムのGTK/WebKitGTK依存は
 [Tauri公式の準備手順](https://v2.tauri.app/start/prerequisites/)を参照。
@@ -51,6 +82,40 @@ VRCT_TEST_NATIVE=1 uv run --no-project --python .venv_linux/bin/python -m pytest
 試験は新規設定でテレメトリ、録音、自動デバイス選択、OSC送信をOFFにする。実サービスを差し替えず初期化し、
 日本語の音声設定を保存、shutdown後に再起動して復元と音声OFFを確認する。
 HTTPモデル取得の条件自体はネットワーク状態を注入した別の単体試験で検証する。
+
+## RVCとSeed-VCの実行環境
+
+Linux（x86-64）でも、RVCとSeed-VCの実行環境をアプリから取得できます。画面と流れはWindowsと同じです。「設定」→「RVC」、または「高度な設定」の「入力音声の転送」に、「RVCの実行環境」「Seed-VCの実行環境」の欄があります。「取得内容を確認」を押し、ライセンス、サイズ、保存先を確認して同意すると始まります。同意するまで、何も取得しません。
+
+必要なものは次のとおりです。
+
+- NVIDIAのGPUと、NVIDIAのドライバー。アプリは`/proc/driver/nvidia/version`があるかどうかで、ドライバーが動いているかを確かめます。nouveauなど、このファイルがない環境では「取得内容を確認」を押せません。Torchはアプリに読み込みません。
+- x86-64のPC。それ以外では、取得の欄を表示しません。
+
+同意すると、次を順に行います。Gitも開発環境もいりません。
+
+1. 固定版の`uv`を取得します。公式リリースの`uv-x86_64-unknown-linux-gnu.tar.gz`で、サイズとSHA-256を照合します。
+2. Pythonと、ハッシュを固定した依存を入れます。RVCは`integrations/rvc/requirements-cuda.lock`と`requirements.lock`、Seed-VCは`integrations/seed_vc/requirements.lock`を使います。
+3. エンジン本体を取得して、内容を検証します。Seed-VCには同梱のパッチを当てます。
+4. 基礎モデルを取得して、ハッシュを検証します。
+5. 実行環境のPythonで`torch.cuda.is_available()`を確かめます。
+
+| | RVC | Seed-VC |
+|---|---|---|
+| 通信量の目安 | 約4.9 GB | 約6.4 GB |
+| 必要な空き容量 | 約16 GB | 約18 GB |
+| 完了後の大きさ | 約8.0 GB | 約9.5 GB |
+| 依存のPython | 3.12 | 3.11 |
+
+この表は、2026-11-11に1台のPCで1回ずつ取得して測った値です（CachyOS、RTX 4080 SUPER、NVIDIAドライバー620.70.06、btrfs、有線の回線）。通信量は、取得中にネットワーク機器が受信したバイト数です（RVCは4.83 GB、Seed-VCは6.28 GB）。必要な空き容量は、取得中のフォルダーの大きさ（`du -sb`）の最大値を切り上げた値で、RVCは15.6 GB、Seed-VCは17.5 GBでした。`uv`のキャッシュと導入先を別々に数えています。`uv`は、ファイルシステムが対応していれば両者でデータを共有するので（reflinkまたはハードリンク）、その場合に実際に使う容量はこれより小さくなります。かかった時間はRVCが62秒、Seed-VCが139秒ですが、回線の速さで大きく変わります。
+
+保存先は、`config.json`と同じフォルダーの`vc_runtimes`です。配布版では`~/.config/vrct-vox/vc_runtimes`、ソースからの開発起動では`src-python/vc_runtimes`になります（gitの対象外です）。途中で失敗したり中止したりしても、終わった手順は次回に飛ばします。中止すると、`uv`と、`uv`が起動したプロセスをまとめて止めます。アプリが異常終了したときも、`uv`は一緒に終わります。終わったら「この実行環境を使う」を押して保存します。消したいときは、このフォルダーを削除します。
+
+声のモデルは別です。RVCの設定画面の取得欄から取得するか、権利を確認したものを指定します。Seed-VCには、利用が許可された参照音声（1〜30秒のWAV）を指定します。
+
+確認できたのは、上のPCでの取得と、取得した実行環境でRVCとSeed-VCのワーカーを起動して、合成した音声を変換するところまでです。音質、ほかのディストリビューション、配布版（AppImage）からの取得は確かめていません。
+
+手動で用意する場合は、[RVCのREADME](../../integrations/rvc/README.md)と[Seed-VCのREADME](../../integrations/seed_vc/README.md)の手順を使います。
 
 ## 一時的な仮想マイク
 

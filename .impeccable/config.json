@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src-ui/views/app/config_page/setting_section/setting_box/_components/env_readout/EnvReadout.module.scss"
+        ],
+        "createdAt": "2026-11-01T06:11:00.406Z",
+        "reason": "DESIGN.md env-readout rule: the 3px left rule marks environment readouts"
+      }
+    ]
+  }
+}

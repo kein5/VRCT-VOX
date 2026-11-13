@@ -1,4 +1,5 @@
 import { VoiceRouteSettings } from "./VoiceRouteSettings";
+import { VrcMicMuteSyncContainer } from "../shared_items/SharedItems";
 import { useI18n } from "@useI18n";
 import styles from "./Device.module.scss";
 import clsx from "clsx";
@@ -36,13 +37,13 @@ const MicContainer = () => {
     const {
         currentEnableAutoMicSelect,
         toggleEnableAutoMicSelect,
-        currentMicDeviceList,
+        currentMicDeviceOptions,
         currentMicHostList,
 
         currentSelectedMicHost,
         setSelectedMicHost,
-        currentSelectedMicDevice,
-        setSelectedMicDevice,
+        currentSelectedMicDeviceId,
+        setSelectedMicDeviceId,
 
         currentMicVadFilter,
         toggleMicVadFilter,
@@ -55,7 +56,7 @@ const MicContainer = () => {
     };
 
     const selectFunction_device = (selected_data) => {
-        setSelectedMicDevice(selected_data.selected_id);
+        setSelectedMicDeviceId(selected_data.selected_id);
     };
 
     const is_disabled_selector = currentEnableAutoMicSelect.data === true || currentEnableAutoMicSelect.state === "pending";
@@ -89,6 +90,8 @@ const MicContainer = () => {
             <MultiDropdownMenuContainer
                 setting_id="mic_host_device"
                 label={t("config_page.device.mic_host_device.label")}
+                // Say what this choice drives; only Linux lists PipeWire inputs.
+                desc={currentSelectedMicHost.data === "PipeWire" ? t("config_page.device.mic_host_device.desc_pipewire") : t("config_page.device.mic_host_device.desc")}
                 dropdown_settings={[
                     {
                         insert_component: SwitchBox,
@@ -111,10 +114,10 @@ const MicContainer = () => {
                     {
                         dropdown_id: "mic_device",
                         secondary_label: t("config_page.device.label_device"),
-                        selected_id: currentSelectedMicDevice.data,
-                        list: currentMicDeviceList.data,
+                        selected_id: currentSelectedMicDeviceId.data,
+                        list: currentMicDeviceOptions.data,
                         selectFunction: selectFunction_device,
-                        state: currentSelectedMicDevice.state,
+                        state: currentSelectedMicDeviceId.state,
                         is_disabled: is_disabled_selector,
                     }
                 ]}
@@ -154,6 +157,8 @@ const MicContainer = () => {
                     />
                 </div>
             </div>
+            {/* Also on the VRChat page: it pauses this mic while VRChat is muted. */}
+            <VrcMicMuteSyncContainer />
         </div>
     );
 };
@@ -163,9 +168,9 @@ const SpeakerContainer = () => {
     const {
         currentEnableAutoSpeakerSelect,
         toggleEnableAutoSpeakerSelect,
-        currentSpeakerDeviceList,
-        currentSelectedSpeakerDevice,
-        setSelectedSpeakerDevice,
+        currentSpeakerDeviceOptions,
+        currentSelectedSpeakerDeviceId,
+        setSelectedSpeakerDeviceId,
         currentSpeakerVadFilter,
         toggleSpeakerVadFilter,
         currentEnableAutomaticSpeakerThreshold,
@@ -173,7 +178,7 @@ const SpeakerContainer = () => {
     } = useDevice();
 
     const selectFunction = (selected_data) => {
-        setSelectedSpeakerDevice(selected_data.selected_id);
+        setSelectedSpeakerDeviceId(selected_data.selected_id);
     };
 
     const is_disabled_selector = currentEnableAutoSpeakerSelect.data === true || currentEnableAutoSpeakerSelect.state === "pending";
@@ -221,10 +226,10 @@ const SpeakerContainer = () => {
                         dropdown_id="speaker_device"
                         secondary_label={t("config_page.device.label_device")}
                         label={t("config_page.device.speaker_device.label")}
-                        selected_id={currentSelectedSpeakerDevice.data}
-                        list={currentSpeakerDeviceList.data}
+                        selected_id={currentSelectedSpeakerDeviceId.data}
+                        list={currentSpeakerDeviceOptions.data}
                         selectFunction={selectFunction}
-                        state={currentSelectedSpeakerDevice.state}
+                        state={currentSelectedSpeakerDeviceId.state}
                         is_disabled={is_disabled_selector}
                     />
                 </div>

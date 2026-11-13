@@ -9,6 +9,8 @@ import { VoiceRouteSettings } from "../../../src-ui/views/app/config_page/settin
 import { MainFunctionSwitch } from "../../../src-ui/views/app/main_page/sidebar_section/main_function_switch/MainFunctionSwitch";
 import { VoiceSettings } from "../../../src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/VoiceSettings";
 import { useVoice } from "../../../src-ui/logics/voice/useVoice";
+import { MessageActionsProvider } from "../../../src-ui/logics/common/MessageActions";
+import { SaveBar } from "../../../src-ui/views/app/config_page/topbar/Topbar";
 import "../../../locales/config";
 
 store.log_box_ref = { current: null };
@@ -39,8 +41,10 @@ function App() {
         return () => { active = false; };
     }, []);
     return <main style={{ maxWidth: 900, margin: "24px auto", color: "#222", background: "#fff" }}>
+        <SaveBar />
         <p>Integration fixture — production VRCT components; substituted desktop transport and inactive services.</p>
-        <div data-testid="chat" style={{ height: 110 }}><MessageInputBox /></div>
+        {/* MessageContainer provides this in production. */}
+        <div data-testid="chat" style={{ height: 110 }}><MessageActionsProvider><MessageInputBox /></MessageActionsProvider></div>
         <MainFunctionSwitch /><VoiceRouteSettings /><VoiceSettings /><DirectVoiceSettings />
         <pre data-testid="message-log">{JSON.stringify(currentMessageLogs.data, null, 2)}</pre>
     </main>;

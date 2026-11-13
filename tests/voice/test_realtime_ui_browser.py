@@ -30,7 +30,7 @@ def test_selection_caption_replacement_stop_and_stale_responses(tmp_path):
         vite = subprocess.Popen(
             [
                 "node",
-                "node_modules/vite/bin/vite.js",
+                "node_modules/vite/bin/vite.js", ".",
                 "--host",
                 "127.0.0.1",
                 "--port",
@@ -60,7 +60,7 @@ def test_selection_caption_replacement_stop_and_stale_responses(tmp_path):
         )
         stack.callback(browser.close)
         page = browser.new_page(viewport={"width": 1200, "height": 1600})
-        stack.callback(lambda: (tmp_path / "page.html").write_text(page.content()))
+        stack.callback(lambda: (tmp_path / "page.html").write_text(page.content(), encoding="utf-8"))
         page.set_default_timeout(5000)
         replies, requests, errors = [], [], []
         page.on("pageerror", lambda error: errors.append(str(error)))

@@ -5,14 +5,13 @@ import {
     Appearance,
     Translation,
     Transcription,
-    Others,
+    Vrchat,
+    Ocr,
     AdvancedSettings,
     Vr,
     Hotkeys,
-    Supporters,
     AboutVrct,
     Updater,
-    Ocr,
 } from "@setting_box";
 
 export const SettingBox = () => {
@@ -28,8 +27,6 @@ export const SettingBox = () => {
             return <Translation />;
         case "transcription":
             return <Transcription />;
-        case "others":
-            return <Others />;
         case "vr":
             return <Vr />;
         case "hotkeys":
@@ -38,10 +35,13 @@ export const SettingBox = () => {
             return <AdvancedSettings />;
         case "updater":
             return <Updater />;
+        // The main page has a chat reading switch, so settings have a page of that
+        // name. The VRChat page points to it, and holds the old "others" page.
         case "ocr":
             return <Ocr />;
-        case "supporters":
-            return <Supporters />;
+        case "vrchat":
+        case "others":
+            return <Vrchat />;
         case "about_vrct":
             return <AboutVrct />;
 

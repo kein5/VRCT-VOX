@@ -18,6 +18,6 @@ export const RealtimeControls = () => {
                 {t(`realtime.stop_${source}`)}
             </button>
         </div>)}
-        {error && <p role="alert">{error}</p>}
+        {error && <p role="alert">{t([`realtime_toggle.${error}`, `voice_ui.errors.${error}`], { defaultValue: error })}</p>}
     </section>;
 };

@@ -1,11 +1,13 @@
 """Security boundaries exercised without starting Explorer or using the network."""
 from pathlib import Path
+import http.client
 import re
+import ssl
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
+from email.message import Message
 
 import pytest
-import requests
 import yaml
 
 from test_controller_integration import controller_module  # noqa: F401
@@ -32,18 +34,60 @@ def test_directory_path_is_one_literal_argument(controller_module, monkeypatch, 
     assert kwargs.get("shell", False) is False
 
 
-def test_network_probe_uses_tls_and_preserves_certificate_verification(monkeypatch):
+@pytest.fixture
+def recording_probe(monkeypatch):
+    """Use real urllib/TLS setup, replacing HTTP I/O before a socket is opened."""
+    state = SimpleNamespace(status=200, location=None, error=None, requests=[])
+
+    def request(connection, method, url, body=None, headers=None, **kwargs):
+        state.requests.append({"host": connection.host, "method": method, "url": url,
+                               "body": body, "timeout": connection.timeout,
+                               "verify_mode": connection._context.verify_mode,
+                               "check_hostname": connection._context.check_hostname})
+        if state.error:
+            raise state.error
+
+    def response(connection):
+        headers = Message()
+        if state.location:
+            headers["Location"] = state.location
+        result = MagicMock(status=state.status, code=state.status, reason="recorded", headers=headers)
+        result.info.return_value = headers
+        result.__enter__.return_value = result
+        return result
+
+    monkeypatch.setattr(http.client.HTTPSConnection, "request", request)
+    monkeypatch.setattr(http.client.HTTPSConnection, "getresponse", response)
+    plaintext_request = Mock(side_effect=AssertionError("Probe must never downgrade to plain HTTP"))
+    monkeypatch.setattr(http.client.HTTPConnection, "request", plaintext_request)
+    yield state
+    # The probe catches transport errors; check attempts as well as its result.
+    plaintext_request.assert_not_called()
+
+
+def test_network_probe_uses_tls_and_preserves_certificate_verification(recording_probe):
     import utils
-    request = Mock(return_value=SimpleNamespace(status_code=200))
-    monkeypatch.setattr(utils.requests, "get", request)
+    probe = recording_probe
     assert utils.isConnectedNetwork()
-    args, kwargs = request.call_args
-    assert args[0].startswith("https://")
-    assert kwargs.get("verify", True) is True
-    assert kwargs["timeout"] == 3
-    request.side_effect = requests.exceptions.SSLError("invalid certificate")
+    assert probe.requests == [{"host": "huggingface.co", "method": "HEAD", "url": "/",
+                               "body": None, "timeout": 3, "verify_mode": ssl.CERT_REQUIRED,
+                               "check_hostname": True}]
+    probe.error = ssl.SSLCertVerificationError("invalid certificate")
     assert not utils.isConnectedNetwork()
-    assert request.call_count == 2  # no plaintext retry on TLS failure
+    assert len(probe.requests) == 2  # No retry or plaintext fallback on TLS failure.
+
+
+@pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
+@pytest.mark.parametrize("location", [
+    "https://unselected.example/", "https://cdn-lfs.huggingface.co/", "http://huggingface.co/",
+])
+def test_network_probe_never_follows_redirects(recording_probe, status, location):
+    import utils
+    probe = recording_probe
+    probe.status, probe.location = status, location
+    assert not utils.isConnectedNetwork()
+    assert len(probe.requests) == 1
+    assert probe.requests[0]["host"] == "huggingface.co"
 
 
 @pytest.mark.parametrize("workflow", sorted((ROOT / ".github/workflows").glob("*.yml")), ids=lambda p: p.name)
@@ -61,6 +105,18 @@ def test_workflows_pin_external_code_and_keep_inputs_out_of_scripts(workflow):
         assert "tools.prepare_release" in commands
         assert "'--draft'" in commands
         assert "release', 'edit'" not in commands
+    elif workflow.name == "pages.yml":
+        # Deploying to GitHub Pages needs pages:write and id-token:write. Only the
+        # deploy job gets them, only on develop in this repository, never for a PR.
+        assert document["permissions"] == {"contents": "read"}
+        assert set(document["jobs"]) == {"build", "deploy"}
+        assert "permissions" not in document["jobs"]["build"]
+        deploy = document["jobs"]["deploy"]
+        assert deploy["permissions"] == {"pages": "write", "id-token": "write"}
+        assert "github.repository == 'kein5/VRCT-VOX'" in deploy["if"]
+        assert "github.ref == 'refs/heads/develop'" in deploy["if"]
+        assert "github.event_name != 'pull_request'" in deploy["if"]
+        assert all("run" not in step for step in deploy["steps"])
     else:
         assert document["permissions"] == {"contents": "read"}
         assert all("permissions" not in job for job in document["jobs"].values())

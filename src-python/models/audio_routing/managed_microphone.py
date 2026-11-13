@@ -82,7 +82,7 @@ class ManagedMicrophone:
     def _validate_units(self, directory, units):
         for name, content in units.items():
             path = directory/name
-            if path.is_symlink() or (path.exists() and path.read_text() != content):
+            if path.is_symlink() or (path.exists() and path.read_text(encoding='utf-8') != content):
                 raise RuntimeError('managed_setup_conflict')
             result = self._run('show', '--property=LoadState', '--property=FragmentPath',
                                '--property=DropInPaths', name)

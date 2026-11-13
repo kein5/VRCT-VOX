@@ -15,6 +15,7 @@ export const HotkeysEntry = (props) => {
     const entryRef = useRef(null);
     const pressedKeys = useRef(new Set());
     const keysRef = useRef([]);
+    const editVersion = useRef(0);
 
     useEffect(() => {
         const hotkey = props.value[props.hotkey_id];
@@ -25,13 +26,20 @@ export const HotkeysEntry = (props) => {
 
 
     const updateHotkeys = async (keys) => {
+        const version = ++editVersion.current;
         entryRef.current.blur();
         const result = await props.setHotkeys({ [props.hotkey_id]: keys });
-        if (result === false) setDisplayValue("");
+        if (result === false && editVersion.current === version) setDisplayValue(committedDisplayValueRef.current);
     };
 
-    const processKey = (key) => {
+    // Key names as stored and as the shortcut parsers read them ("Ctrl", "Q").
+    // Space is spelled out: " " cannot be joined into "Control+Space". A digit
+    // is taken from the key itself, since Shift turns "1" into "!" on keydown
+    // but not on a keyup after Shift was released.
+    const processKey = ({ key, code }) => {
+        if (key === " " || code === "Space") return "Space";
         if (/^[a-zA-Z]$/.test(key)) return key.toUpperCase();
+        if (/^Digit[0-9]$/.test(code ?? "")) return code.slice(-1);
         if (key === "Meta") return "Super";
         return key;
     };
@@ -47,7 +55,7 @@ export const HotkeysEntry = (props) => {
             }
         });
 
-        const key = processKey(event.key);
+        const key = processKey(event);
         if (!["Control", "Shift", "Alt", "Meta"].includes(event.key)) {
             keys.push(key);
             nonModifierKeys.push(key);
@@ -63,6 +71,14 @@ export const HotkeysEntry = (props) => {
     };
 
     const handleKeyDown = (event) => {
+        if (event.key === "Tab" || event.key === "Escape") {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            cancelInput();
+            return;
+        }
         event.preventDefault();
         if (lastKeyRef.current === event.key) return;
 
@@ -71,9 +87,11 @@ export const HotkeysEntry = (props) => {
     };
 
     const handleKeyUp = (event) => {
+        if (event.key === "Tab" || event.key === "Escape") return;
         lastKeyRef.current = null;
 
-        const key = processKey(event.key);
+        const key = processKey(event);
+        if (!pressedKeys.current.has(key)) return;
         pressedKeys.current.delete(key);
 
         if (isModifierOnlyRef.current) {
@@ -93,13 +111,21 @@ export const HotkeysEntry = (props) => {
         }
     };
 
+    const cancelInput = () => {
+        pressedKeys.current.clear();
+        keysRef.current = [];
+        lastKeyRef.current = null;
+        isModifierOnlyRef.current = false;
+        setDisplayValue(committedDisplayValueRef.current);
+    };
+
     const handleBlur = () => {
         setIsAcceptingInput(false);
-        pressedKeys.current.clear();
-        if (!displayValue) setDisplayValue(committedDisplayValueRef.current);
+        cancelInput();
     };
 
     const handleFocus = () => {
+        editVersion.current++;
         setIsAcceptingInput(true);
         setDisplayValue("");
     };
@@ -110,24 +136,27 @@ export const HotkeysEntry = (props) => {
     };
 
     const is_pending = props.state === "pending";
+    const is_assigned = !!props.value[props.hotkey_id]?.length;
     return (
         <div className={styles.container}>
             {is_pending && <span className={styles.loader}></span>}
             <_Entry
+                aria-describedby={props["aria-describedby"]}
                 aria-label={props.label}
                 ref={entryRef}
                 onFocus={handleFocus}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
                 onKeyUp={handleKeyUp}
-                placeholder={isAcceptingInput ? t("config_page.hotkeys.input_placeholder") : ""}
+                placeholder={t(isAcceptingInput ? "config_page.hotkeys.input_placeholder" : "config_page.hotkeys.unassigned_placeholder")}
                 ui_variable={displayValue}
                 width="20rem"
                 is_activated={isAcceptingInput}
                 is_disabled={is_pending}
                 readOnly
             />
-            <button aria-label={t("quick_chat.clear_shortcut", { action: props.label })} disabled={is_pending} className={clsx(styles.delete_button, { [styles.is_pending]: is_pending })} onClick={handleDelete}>
+            {/* Nothing to clear while no key is set. */}
+            <button type="button" aria-label={t("quick_chat.clear_shortcut", { action: props.label })} disabled={is_pending || !is_assigned} className={clsx(styles.delete_button, { [styles.is_pending]: is_pending })} onClick={handleDelete}>
                 <DeleteSvg className={styles.delete_svg}/>
             </button>
         </div>

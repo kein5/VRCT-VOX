@@ -1,7 +1,7 @@
 # speech.cpp binary component
 
-This component contains the unmodified `speech` executable extracted from an
-official speech.cpp 0.10.0 Linux release. `bundle.json` records the selected
+This component contains the unmodified `speech` (Linux) or `speech.exe` (Windows)
+executable extracted from an official speech.cpp 0.10.0 release. `bundle.json` records the selected
 archive, its SHA256, the source commit and the hashes of the files included here.
 No speech model, reference recording, libspeech shared library or VC engine is
 included. This is a VRCT-VOX packaging component, not an upstream release of VRCT.
@@ -28,6 +28,11 @@ The executable includes the following code; preserve the accompanying notices:
 The upstream build links GGML, libstdc++ and libgcc statically; this does not make
 every part of the resulting executable exclusively MIT-licensed. The runtime
 exception covers eligible compilation as specified in its exact text.
+
+The official Windows executable carries an MSVC build header and imports no C
+runtime DLL, so it holds no GCC runtime; the two GCC documents apply to the Linux
+executable only. It requires `vulkan-1.dll`, which GPU drivers install. That
+library and the drivers are not redistributed in this component.
 
 The Linux executable requires a compatible operating system (upstream states
 glibc 2.34 or newer). The Vulkan variant also requires an installed Vulkan loader

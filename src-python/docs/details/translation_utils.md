@@ -38,7 +38,7 @@ ctranslate2_weights = {
 
 `weight_type`（辞書のキー）は `config.CTRANSLATE2_WEIGHT_TYPE` に保存される値、かつ UI（`SELECTABLE_CTRANSLATE2_WEIGHT_TYPE_LIST` 経由）の選択肢と一致します。新しいCTranslate2モデルを追加する場合は、この辞書にエントリを追加し、`translation_settings/languages/languages.yml` の `CTranslate2` セクションに同名キーで言語マッピングを追加します（NLLB系モデルは Flores-200 言語コードを共有しているため `&nllb_langs` / `*nllb_langs` の YAML アンカーを再利用できます）。
 
-デフォルトモデル（`config.py` の `CTRANSLATE2_WEIGHT_TYPE` 初期値）は `nllb-200-distilled-600M-ct2-int8`（新規インストール時）。m2m100系はレガシー選択肢として引き続き利用可能です。
+デフォルトモデル（`config.py` の `CTRANSLATE2_WEIGHT_TYPE` 初期値）は `DEFAULT_CTRANSLATE2_WEIGHT_TYPE` = `m2m100_418M-ct2-int8`（MIT）。各エントリは `license`（`"MIT"` / `"CC-BY-NC-4.0"`）と `commercial_use`（bool）も持ちます。`commercial_use` が `False` の NLLB 系はオプトインでのみ選択・ダウンロードでき、判定には `isNonCommercialCTranslate2Weight(weight_type)` を使います。UI 側の表示用コピーは `src-ui/logics/ui_configs.js` の `ctranslate2_weight_type_status` にあり、`test_translation_ctranslate2_license.py` が一致を確認します。
 
 ## 主要関数
 

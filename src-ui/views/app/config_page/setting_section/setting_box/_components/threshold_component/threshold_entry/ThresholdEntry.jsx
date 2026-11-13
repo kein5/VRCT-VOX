@@ -14,6 +14,13 @@ const ThresholdEntryInput = (props) => {
     const isFocusedRef = useRef(false);
 
     useEffect(() => {
+        const confirmed = props.confirmedThreshold;
+        if (!confirmed || confirmed.state === "pending" || props.is_disable) return;
+        setInputValue(confirmed.data);
+        lastSavedValueRef.current = confirmed.data;
+    }, [props.confirmedThreshold, props.is_disable]);
+
+    useEffect(() => {
         if (props.ui_threshold !== "" && props.ui_threshold !== null && props.ui_threshold !== undefined) {
             lastSavedValueRef.current = props.ui_threshold;
         }
@@ -111,13 +118,14 @@ const ThresholdEntryInput = (props) => {
         commitValue(inputValue);
     };
 
-    const handleEnterPressed = (e) => {
-        commitValue(inputValue);
-        e.target.blur();
+    const handleEnterPressed = () => {
+        if (!props.is_disable && !props.is_disabled) commitValue(inputValue);
     };
 
     return (
         <_Entry
+            aria-label={props["aria-label"]}
+            aria-describedby={props["aria-describedby"]}
             width="6rem"
             type="text"
             inputMode="numeric"

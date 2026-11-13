@@ -6,16 +6,27 @@ from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread, current_thread
 from time import monotonic_ns
 
+from models.failure_report import report_failure
 from models.tts.speechcpp_tts import CancelToken
-from .capture_pipewire import PipeWireCapture, _validate
+from .capture_pipewire import _validate, open_capture
 from .realtime_audio import RealtimeIngress
-from .realtime_settings import SessionOptions
+from .realtime_settings import SessionOptions, language_supported
+from .asr_vocabulary import request_options
 from .speechcpp_asr import SpeechCppASR
-from .speechcpp_realtime import SpeechCppRealtime
+from .speechcpp_realtime import RealtimeError, SpeechCppRealtime
+from .utterance_diagnostics import utterance_diagnostics
 
 
 class SessionError(RuntimeError):
     """Fixed diagnostic code only."""
+
+
+def _failure_code(exc):
+    if isinstance(exc, SessionError):
+        return str(exc)
+    if isinstance(exc, RealtimeError) and str(exc) in ("utterance_timeout", "commit_ack_timeout"):
+        return "realtime_asr_timeout"
+    return "realtime_session_failed"
 
 
 class RealtimeSession:
@@ -25,14 +36,16 @@ class RealtimeSession:
         options,
         endpoint,
         *,
-        capture_factory=PipeWireCapture,
+        capture_factory=open_capture,
         client_factory=SpeechCppRealtime,
+        snapshot_voice=None,
     ):
         _validate(endpoint, source)
         if not isinstance(options, SessionOptions):
             raise ValueError("realtime_options_invalid")
         self.source, self.options, self.endpoint = source, options, endpoint
         self._capture_factory, self._client_factory = capture_factory, client_factory
+        self._snapshot_voice = snapshot_voice
         self._lock = Lock()
         self._stop = Event()
         self._cancel = CancelToken()
@@ -116,8 +129,11 @@ class RealtimeSession:
 
     def _fail(self, code):
         with self._lock:
+            first = self._state != "failed"
             self._error, self._state = code, "failed"
         self.request_stop()
+        if first:
+            report_failure("realtime", code)
 
     def _thread_main(self):
         try:
@@ -131,9 +147,11 @@ class RealtimeSession:
                 if self._state != "failed":
                     self._state = "closed"
                 self._loop = self._stop_async = None
+            utterance_diagnostics.flush(self.source)
 
     def _preflight(self):
-        models = SpeechCppASR(self.options.base_url, timeout=5).recognizers(
+        """(request options, diarization) for this session, from what the server holds."""
+        models, diarizes = SpeechCppASR(self.options.base_url, timeout=5).survey(
             self._cancel
         )
         selected = next(
@@ -141,18 +159,29 @@ class RealtimeSession:
         )
         if selected is None:
             raise SessionError("realtime_model_unavailable")
-        if self.options.language not in selected.languages:
-            raise SessionError("realtime_language_unsupported")
+        if not language_supported(selected, self.options.language):
+            raise SessionError(
+                "realtime_language_auto_unsupported"
+                if self.options.language == "auto"
+                else "realtime_language_unsupported"
+            )
+        # Only the speaker side holds several voices: the microphone is the user alone.
+        # A server with a diarization model is the user's choice to tell them apart
+        # (the bundled server loads one only when its settings name the file).
+        return request_options(selected.options, self.options.vocabulary), diarizes and self.source == "speaker"
 
     async def _consume(self):
-        await asyncio.to_thread(self._preflight)
+        extra, diarization = await asyncio.to_thread(self._preflight)
         if self._stop.is_set():
             return
+        # Named only when asked for, so a client without the argument still fits.
         client = self._client_factory(
             self.options.base_url,
             self.options.model,
             self.options.language,
             self.source,
+            options=extra,
+            **({"diarization": True} if diarization else {}),
         )
         with self._lock:
             self._client, self._namespace = client, client.namespace
@@ -162,7 +191,10 @@ class RealtimeSession:
         ingress = RealtimeIngress(48000, 1)
 
         def capture_error(code):
-            self._fail("realtime_capture_failed")
+            # A closed ingress is this session no longer listening, not the device
+            # failing. Whatever closed it reports the reason from _serve.
+            if code != "asr_capture_consumer_closed":
+                self._fail("realtime_capture_failed")
 
         with self._lock:
             if self._stop.is_set():
@@ -186,6 +218,8 @@ class RealtimeSession:
                 update = await client.next_update()
                 if not update.received_ns:
                     update = replace(update, received_ns=monotonic_ns())
+                if update.is_final and self._snapshot_voice is not None:
+                    update = replace(update, voice_snapshot=self._snapshot_voice())
                 with self._lock:
                     if self._stop.is_set():
                         return
@@ -215,11 +249,7 @@ class RealtimeSession:
             pass
         except Exception as exc:
             if not self._stop.is_set():
-                self._fail(
-                    str(exc)
-                    if isinstance(exc, SessionError)
-                    else "realtime_session_failed"
-                )
+                self._fail(_failure_code(exc))
         finally:
             self.request_stop()
             if self._client:

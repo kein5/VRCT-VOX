@@ -1,11 +1,38 @@
-use tauri::{Manager, PhysicalPosition, Runtime, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+#[cfg(not(target_os = "linux"))]
+use tauri::PhysicalPosition;
+use tauri::{Manager, RunEvent, Runtime, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::{Error, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+mod caption_overlay;
 mod quick_chat;
+mod single_instance;
 #[cfg(target_os = "linux")]
 mod portal_shortcuts;
+#[cfg(target_os = "linux")]
+mod portal_screencast;
+#[cfg(target_os = "linux")]
+mod vr_panel_surface;
+#[cfg(not(target_os = "linux"))]
+mod portal_screencast {
+    //! Sharing a window through the XDG ScreenCast portal exists only on Linux desktops.
+    #[derive(Default)]
+    pub struct Screencast;
+    #[tauri::command]
+    pub fn screencast_support() -> serde_json::Value {
+        serde_json::json!({ "supported": false, "active": false })
+    }
+    #[tauri::command]
+    pub fn screencast_start() -> Result<(), String> {
+        Err("screencast_unavailable".into())
+    }
+    #[tauri::command]
+    pub fn screencast_stop() -> Result<(), String> {
+        Ok(())
+    }
+    pub fn shutdown<R: tauri::Runtime>(_app: &tauri::AppHandle<R>) {}
+}
 #[cfg(not(target_os = "linux"))]
 mod portal_shortcuts {
     //! The XDG GlobalShortcuts portal exists only on Linux desktops.
@@ -22,13 +49,13 @@ mod portal_shortcuts {
 // 隠れたウィンドウの描画停止を無効にする (VRパネルは画面外に置いて撮影するため)。
 const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --disable-renderer-backgrounding";
 
-// VRオーバーレイに映す画面。Python側 (models/overlay) がタイトルで見つけて撮影・入力する。
+// VRオーバーレイに映す画面。Python側 (models/overlay) が撮影・入力する (Windows はタイトルで見つける)。
 // VR UI が ON の間だけ作る (set_vr_panel_window)。OFF の間も動かしておくと、使わない人にも負荷がかかる
-fn create_vr_panel_window<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Result<()> {
+fn create_vr_panel_window<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Result<tauri::WebviewWindow<R>> {
     let window = WebviewWindowBuilder::new(manager, "vr_panel", WebviewUrl::App("vr.html".into()))
         .title("VRCT-VOX VR Panel")
         // 既定の並び (src-ui/views/vr/vr_layout.json の atlas)。ログの大きさを変えると Python が合わせて変える
-        .inner_size(1690.0, 880.0)
+        .inner_size(1628.0, 880.0)
         .decorations(false)
         .resizable(false)
         .skip_taskbar(true)
@@ -37,10 +64,14 @@ fn create_vr_panel_window<R: Runtime, M: Manager<R>>(manager: &M) -> tauri::Resu
         .additional_browser_args(BROWSER_ARGS)
         .build()?;
     // 画面外に置く。Windows ではビルダーの .position() が効かず既定の位置 (画面内) に出るため、
-    // 作ってから動かし、動かした後で表示する (撮影のため、表示状態で画面外に置いておく)
-    window.set_position(PhysicalPosition::new(-10000, -10000))?;
-    window.show()?;
-    Ok(())
+    // 作ってから動かし、動かした後で表示する (撮影のため、表示状態で画面外に置いておく)。
+    // Linux ではウィンドウを表示せず、中のページだけを画面に出ない場所へ移す (vr_panel_surface)。
+    #[cfg(not(target_os = "linux"))]
+    {
+        window.set_position(PhysicalPosition::new(-10000, -10000))?;
+        window.show()?;
+    }
+    Ok(window)
 }
 
 fn startup_log_path(executable_path: &Path) -> PathBuf {
@@ -83,6 +114,11 @@ fn startup_log(message: &str) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     startup_log("VRCT startup began");
+    // Before the backend starts: it learns from its environment where the VR page will be served.
+    #[cfg(target_os = "linux")]
+    if vr_panel_surface::prepare().is_none() {
+        startup_log("VR panel surface unavailable: no runtime directory");
+    }
     let context = tauri::generate_context!();
     #[cfg(target_os = "linux")]
     let context = {
@@ -101,7 +137,28 @@ pub fn run() {
         }
         context
     };
-    let result = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    if single_instance::single_instance_enabled(
+        cfg!(debug_assertions),
+        std::env::var_os("VRCT_CONFIG_DIR").as_deref(),
+    ) {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let Some(window) = app.get_webview_window("main") else {
+                return;
+            };
+            startup_log("Second launch requested; restoring main window");
+            if let Err(error) = window.show() {
+                startup_log(&format!("Main window show failed: {error}"));
+            }
+            if let Err(error) = window.unminimize() {
+                startup_log(&format!("Main window unminimize failed: {error}"));
+            }
+            if let Err(error) = window.set_focus() {
+                startup_log(&format!("Main window focus failed: {error}"));
+            }
+        }));
+    }
+    let result = builder
         .setup(|app| {
             let main_window = app.get_webview_window("main").ok_or_else(|| {
                 Error::other("main webview window was not created")
@@ -136,13 +193,27 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(quick_chat::QuickChatState::default())
+        .manage(caption_overlay::CaptionOverlayState::default())
         .manage(portal_shortcuts::PortalShortcuts::default())
-        .invoke_handler(tauri::generate_handler![get_font_list, download_zip_asset, set_vr_panel_window,
+        .manage(portal_screencast::Screencast::default())
+        .invoke_handler(tauri::generate_handler![get_font_list, set_vr_panel_window, main_window_restore,
             quick_chat::quick_chat_context, quick_chat::quick_chat_configure, quick_chat::quick_chat_submit,
             quick_chat::quick_chat_take, quick_chat::quick_chat_finish, quick_chat::quick_chat_hide,
             quick_chat::quick_chat_show, quick_chat::quick_chat_shortcut_platform,
-            portal_shortcuts::portal_shortcuts_bind])
-        .run(context);
+            caption_overlay::caption_overlay_supported, caption_overlay::caption_overlay_set,
+            caption_overlay::caption_overlay_update, caption_overlay::caption_overlay_snapshot,
+            portal_shortcuts::portal_shortcuts_bind,
+            portal_screencast::screencast_support, portal_screencast::screencast_start,
+            portal_screencast::screencast_stop])
+        .build(context)
+        .map(|app| app.run(|app, event| {
+            // A shared window must not stay shared after the app is gone.
+            if let RunEvent::Exit = event {
+                portal_screencast::shutdown(app);
+            }
+        }));
+    #[cfg(target_os = "linux")]
+    vr_panel_surface::cleanup();
     match result {
         Ok(()) => startup_log("VRCT event loop ended"),
         Err(error) => {
@@ -153,6 +224,26 @@ pub fn run() {
 }
 
 
+/// Brings the minimized main window back for the "minimize or restore" hotkey.
+///
+/// On native Wayland a client cannot raise itself without an activation token, and
+/// the portal that reports the hotkey gives none; KWin can do it on the user's behalf.
+#[tauri::command]
+async fn main_window_restore(window: tauri::WebviewWindow) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("main_window_forbidden".into());
+    }
+    window.unminimize().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())?;
+    #[cfg(target_os = "linux")]
+    if quick_chat::native_wayland() {
+        portal_shortcuts::raise_with_kwin(MAIN_TITLE);
+    }
+    Ok(())
+}
+#[cfg(target_os = "linux")]
+const MAIN_TITLE: &str = "VRCT-VOX";
+
 // VR UI の ON/OFF に合わせて、VR画面のウィンドウを作る・消す (メイン画面が設定に合わせて呼ぶ)。
 // ウィンドウを作るので async にする (同期コマンドから作ると Windows で固まることがある)
 //
@@ -162,14 +253,31 @@ pub fn run() {
 static VR_PANEL_LOCK: tauri::async_runtime::Mutex<()> = tauri::async_runtime::Mutex::const_new(());
 
 #[tauri::command]
-async fn set_vr_panel_window(app: tauri::AppHandle, open: bool) -> Result<(), String> {
+async fn set_vr_panel_window(window: tauri::WebviewWindow, app: tauri::AppHandle, open: bool) -> Result<(), String> {
+    if window.label() != "main" {
+        return Err("vr_panel_forbidden".into());
+    }
     let _guard = VR_PANEL_LOCK.lock().await;
     match (open, app.get_webview_window("vr_panel")) {
-        (true, None) => create_vr_panel_window(&app).map_err(|error| {
-            startup_log(&format!("VR panel window creation failed: {error}"));
-            error.to_string()
-        }),
+        (true, None) => {
+            let created = create_vr_panel_window(&app).map_err(|error| {
+                startup_log(&format!("VR panel window creation failed: {error}"));
+                error.to_string()
+            })?;
+            #[cfg(target_os = "linux")]
+            if let Err(error) = vr_panel_surface::attach(&created).await {
+                startup_log(&format!("VR panel surface failed: {error}"));
+                vr_panel_surface::detach(&app).await;
+                let _ = created.destroy();
+                return Err(error);
+            }
+            #[cfg(not(target_os = "linux"))]
+            let _ = created;
+            Ok(())
+        }
         (false, Some(window)) => {
+            #[cfg(target_os = "linux")]
+            vr_panel_surface::detach(&app).await;
             window.destroy().map_err(|error| error.to_string())?;
             // 消えるのを待つ (最大2秒)。待たずに戻ると、次の ON がまだ残っているウィンドウを見てしまう
             for _ in 0..40 {
@@ -206,27 +314,6 @@ async fn get_font_list() -> Vec<String> {
     font_families.into_iter().collect()
 }
 
-
-use base64::engine::general_purpose::STANDARD as BASE64;
-use base64::Engine;
-
-#[tauri::command]
-async fn download_zip_asset(url: String) -> Result<String, String> {
-    use reqwest;
-
-    let client = reqwest::Client::new();
-    let resp = client.get(&url)
-        .header("Accept", "application/octet-stream")
-        .send()
-        .await.map_err(|e| format!("Request error: {}", e))?;
-    if !resp.status().is_success() {
-        return Err(format!("HTTP error: {}", resp.status()));
-    }
-
-    let bytes = resp.bytes().await.map_err(|e| format!("Reading bytes error: {}", e))?;
-
-    Ok(BASE64.encode(&bytes))
-}
 
 #[cfg(test)]
 mod tests {

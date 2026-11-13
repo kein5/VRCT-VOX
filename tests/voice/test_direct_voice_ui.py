@@ -12,6 +12,7 @@ import subprocess
 import time
 
 import pytest
+from ui_details import open_setup
 
 from models.tts.settings import VoiceSettings
 from models.voice_conversion.settings import DirectSettings
@@ -30,7 +31,7 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         port = sock.getsockname()[1]
         sock.close()
         log = stack.enter_context((tmp_path / 'vite.log').open('w'))
-        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '--host', '127.0.0.1',
+        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '.', '--host', '127.0.0.1',
                                  '--port', str(port), '--strictPort'], cwd=ROOT, stdout=log, stderr=log)
         def close_vite():
             vite.terminate()
@@ -48,6 +49,8 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         stack.callback(browser.close)
         page = browser.new_page(viewport={'width': 1200, 'height': 1200})
         page.set_default_timeout(4000)
+        # A cold Vite compiles every module on the first load, which takes longer than this on Windows.
+        page.set_default_navigation_timeout(30000)
         errors, sent, replies = [], [], []
         page.on('pageerror', lambda e: errors.append(str(e)))
         sources = {'sources': [{'id': ID, 'label': 'External voice'}], 'error': None}
@@ -75,7 +78,8 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
                 state.update(settings=saved, observation_id=str(int(state['observation_id'])+10))
                 reply(endpoint, dict(state))
             elif endpoint == '/set/data/voice_settings':
-                saved = VoiceSettings.from_dict(json.loads(base64.b64decode(request['data']))).to_dict()
+                # The form sends only changed fields; the real setter merges them.
+                saved = VoiceSettings.from_dict({**voice_settings, **json.loads(base64.b64decode(request['data']))}).to_dict()
                 voice_settings.clear()
                 voice_settings.update(saved)
                 reply(endpoint, saved)
@@ -105,8 +109,8 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         policy = page.get_by_role('combobox', name='Direct input while translating', exact=True)
         expect(policy).to_have_value('suppress')
         policy.select_option('mix')
-        page.get_by_role('button', name='Save voice settings', exact=True).click()
-        expect(page.get_by_role('button', name='Save voice settings', exact=True)).to_be_disabled()
+        page.get_by_role('button', name='Save changes', exact=True).click()
+        expect(page.get_by_role('button', name='Save changes', exact=True)).to_be_disabled()
         assert voice_settings['mic_mode'] == 'translated' and voice_settings['direct_policy'] == 'mix'
         assert not any(r['endpoint'].startswith('/run/start') for r in sent)
         page.reload()
@@ -148,18 +152,20 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         expect(start).to_be_enabled()
         start.click()
         reply('/run/start_direct_voice', {'error_code': 'source_bridge_stale_start'}, 409)
-        expect(page.get_by_role('alert').filter(has_text='source_bridge_stale_start')).to_be_visible()
+        expect(page.get_by_role('alert').filter(has_text='The input changed while starting')).to_be_visible()
         expect(page.get_by_text('Input forwarding stopped', exact=True)).to_be_visible()
         mode = page.get_by_role('combobox', name='Direct voice mode', exact=True)
         mode.select_option('converted')
+        open_setup(page)
         page.get_by_role('textbox', name='Seed runtime folder', exact=True).fill('/allowed/runtime')
         page.get_by_role('textbox', name='Permitted reference WAV', exact=True).fill('/allowed/reference.wav')
         expect(start).to_be_disabled()  # Unsaved intent cannot start a different producer.
-        page.get_by_role('button', name='Save input settings', exact=True).click()
+        page.get_by_role('button', name='Save changes', exact=True).click()
         expect(start).to_be_enabled()
         assert len([r for r in sent if r['endpoint'] == '/run/start_direct_voice']) == 2
         page.reload()
         expect(mode).to_have_value('converted')
+        open_setup(page)
         expect(page.get_by_role('textbox', name='Seed runtime folder', exact=True)).to_have_value('/allowed/runtime')
         expect(start).to_be_disabled()  # Input selection is never restored.
         selector.select_option(replacement)
@@ -188,11 +194,11 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         page.get_by_role('textbox', name='RVC retrieval index (.index, optional)', exact=True).fill('/allowed/voice.index')
         pitch = page.get_by_role('spinbutton', name='Pitch shift (semitones)', exact=True)
         pitch.fill('25')
-        expect(page.get_by_role('button', name='Save input settings', exact=True)).to_be_disabled()
+        expect(page.get_by_role('button', name='Save changes', exact=True)).to_be_disabled()
         pitch.fill('-3')
         page.get_by_role('spinbutton', name='Retrieval blend (0–1)', exact=True).fill('0.5')
         expect(start).to_be_disabled()
-        page.get_by_role('button', name='Save input settings', exact=True).click()
+        page.get_by_role('button', name='Save changes', exact=True).click()
         expect(start).to_be_enabled()
         page.reload()
         expect(engine).to_have_value('rvc')
@@ -215,7 +221,8 @@ def test_explicit_selection_no_rebind_and_stale_response_ordering(tmp_path):
         expect(engine).to_be_enabled()
         sources.update(sources=[], error='source_bridge_linux_only')
         page.get_by_role('button', name='Refresh inputs', exact=True).click()
-        expect(page.get_by_role('alert').filter(has_text='source_bridge_linux_only')).to_be_visible()
+        # The code is shown as its message (voice.input_errors in locales/).
+        expect(page.get_by_role('alert').filter(has_text='Input forwarding is not available on this system.')).to_be_visible()
         expect(start).to_be_disabled()
         assert len([r for r in sent if r['endpoint'] == '/run/start_direct_voice']) == 4
         assert not any(r['endpoint'] == '/run/resume_voice' for r in sent)

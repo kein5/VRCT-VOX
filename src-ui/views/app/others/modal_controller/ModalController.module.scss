@@ -1,18 +1,28 @@
 .container {
-    position: relative;
+    position: fixed;
+    inset: var(--title_bar_height) 0 0;
     width: 100%;
-    height: 100%;
-    display: flex;
+    height: calc(100% - var(--title_bar_height));
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    color: var(--dark_200_color);
+    background: transparent;
+    &[open] { display: flex; }
     justify-content: center;
     align-items: center;
+    &::backdrop {
+        background-color: var(--dark_550_color_22);
+        backdrop-filter: blur(0.2rem);
+    }
 }
 
 .bg_onclick_close_area {
     position: absolute;
     width: 100%;
     height: 100%;
-    background-color: var(--dark_550_color_22);
-    backdrop-filter: blur(0.2rem);
 }
 
 .wrapper {
@@ -26,4 +36,14 @@
     height: 96%;
     padding: 2rem;
     border-radius: 0.6rem;
+}
+// Stays in view while the dialog scrolls; the shared secondary settings button.
+.close_button {
+    position: sticky; top: 0; z-index: 1; display: block; margin-left: auto;
+    font-size: 1.4rem; font-weight: 600; min-height: 3.6rem; padding: .6rem 1.4rem;
+    color: var(--dark_200_color); background: var(--dark_850_color); border: .1rem solid transparent;
+    border-radius: var(--vox_radius); cursor: pointer;
+    &:hover { background: var(--vox_secondary_hover); }
+    &:active { background: var(--dark_925_color); }
+    &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }
 }

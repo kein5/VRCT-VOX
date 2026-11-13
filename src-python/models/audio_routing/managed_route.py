@@ -15,8 +15,9 @@ def _next_observation():
 
 
 class VoiceRoute:
-    def __init__(self, bus, *, gate, store, poll_interval=0.1):
+    def __init__(self, bus, *, gate, store, poll_interval=0.1, on_muted=None):
         self.bus, self.gate, self.store = bus, gate, store
+        self._on_muted = on_muted
         self.poll_interval = poll_interval
         self._condition = Condition()
         self._wake = Event()
@@ -39,8 +40,14 @@ class VoiceRoute:
         except Exception:
             self._desired, self._ready = True, False
             self._error = 'mute_state_unavailable'
-        self.bus.set_muted(self._desired)
+        self._set_muted(self._desired)
         self._observed = self._desired
+
+    def _set_muted(self, muted):
+        self.bus.set_muted(muted)
+        if self._on_muted is not None:
+            # Nonblocking intent only. The VC owner handles delivery/health.
+            self._on_muted(muted)
 
     def status(self):
         with self._condition:
@@ -63,7 +70,7 @@ class VoiceRoute:
         self._pending = True
         self._error = None
         # Even resume keeps software closed until native + persistence confirmation.
-        self.bus.set_muted(True)
+        self._set_muted(True)
         if self._thread is None:
             self._thread = Thread(target=self._work, name='vrct-voice-gate', daemon=True)
             self._thread.start()
@@ -117,6 +124,14 @@ class VoiceRoute:
             self._wake.set()
 
     def _work(self):
+        try:
+            self._work_loop()
+        finally:
+            close = getattr(self.gate, 'close_observer', None)
+            if close:
+                close()
+
+    def _work_loop(self):
         while True:
             self._wake.wait(self.poll_interval)
             self._wake.clear()
@@ -128,11 +143,14 @@ class VoiceRoute:
                 direct_identity = self._direct_identity
                 suppress_direct = self._suppress_direct
                 pending = self._pending
-                if not managed and not pending:
-                    continue
             observed = None
             direct_observed = None
             try:
+                observe = getattr(self.gate, 'observe', None)
+                if observe:
+                    observe(managed, self._wake)
+                if not managed and not pending:
+                    continue
                 if managed:
                     with self._condition:
                         prepare = self._prepare_needed and not self._closed
@@ -160,7 +178,7 @@ class VoiceRoute:
                             if revision != self._revision:
                                 continue
                             self._desired = desired = True
-                            self.bus.set_muted(True)
+                            self._set_muted(True)
                             self._identity = state['identity']
                             identity = state['identity']
                             self._direct_identity = direct['identity']
@@ -202,7 +220,7 @@ class VoiceRoute:
                     self._observed = observed
                     self._direct_observed = direct_observed
                     self._ready, self._pending, self._error = True, False, None
-                    self.bus.set_muted(desired if not self._closed else True)
+                    self._set_muted(desired if not self._closed else True)
                     self._condition.notify_all()
                     if self._closed:
                         return
@@ -223,7 +241,7 @@ class VoiceRoute:
                         continue
                     # A failed resume can never remain authorized for auto-retry.
                     self._desired = True
-                    self.bus.set_muted(True)
+                    self._set_muted(True)
                     self._revision += 1
                     self._observed = observed
                     self._direct_observed = direct_observed
@@ -243,7 +261,7 @@ class VoiceRoute:
                     self._request_locked(True)
                 self._closed = True  # Reject new requests, but drain the final pending mute.
                 self._revision += 1
-                self.bus.set_muted(True)
+                self._set_muted(True)
                 self._wake.set()
         if self._thread:
             self._thread.join(timeout)

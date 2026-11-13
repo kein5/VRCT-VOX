@@ -31,7 +31,6 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
     from models.tts.speechcpp_tts import CancelToken, SpeechCppTTS
     from tools.display_power_guard import check_displays_on
     from tools.live_tts_acceptance import SpeechServer, SHORT, LONG, captures
-    from tools.managed_vrchat_probe import require_continuous_capture
     from tools.voice_acceptance import wait_for
     from tools.voice_b_poc import ToneCapture, settled
     from tools.vrchat_audio_probe import compare_pcm, silence_pcm
@@ -94,7 +93,7 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
                 # A debug app can also own inspector/VR panel windows. Select
                 # the configured main title AND PID; verify PID before actions.
                 candidates = command("kdotool", "search", "--all", "--pid",
-                                     str(ui.app_process.pid), "--title", "^VRCT$").splitlines()
+                                     str(ui.app_process.pid), "--title", "^VRCT-VOX$").splitlines()
                 assert len(candidates) == 1, "ambiguous_owned_tauri_window"
                 native_window = candidates[0]
 
@@ -105,27 +104,40 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
                     native()
                     ui.open_voice_settings()
 
+                def route_settings():
+                    native()
+                    ui.open_route_settings()
+
                 def status(text):
-                    ui.wait(f"return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === {json.dumps(text)})")
+                    ui.wait(f"return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === {json.dumps(text)})")
+
+                def saved(key):
+                    return json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get(key)
 
                 def save(mode):
-                    ui.select("Audio route", "managed")
-                    ui.select("Read aloud", mode)
+                    # The route is on the Device page, the voice on the TTS page.
+                    route_settings()
+                    if ui.evaluate("return arguments[0].value", ui.control("Audio route")) != "managed":
+                        ui.select("Audio route", "managed")
+                        ui.click_text("button", "Save changes")
+                        wait_for(lambda: saved("routing") == "managed")
+                    ui.open_voice_settings()
+                    ui.select("Chat voice", mode)
                     ui.fill("Japanese server (Irodori)", server.url)
-                    ui.click_text("button", "Save voice settings")
-                    wait_for(lambda: json.loads((state / "config.json").read_text()).get("VOICE_SETTINGS", {}).get("mode") == mode)
+                    ui.click_text("button", "Save changes")
+                    wait_for(lambda: saved("mode") == mode)
 
                 def home():
                     ui.close_settings()
 
                 def send(text):
                     native()
-                    field = ui.command("POST", "/element", {"using": "css selector", "value": "textarea"})
+                    field = ui.command("POST", "/element", {"using": "css selector", "value": "textarea[class*=message_box_input_area]"})
                     ui.element_command(field, "clear")
                     ui.element_command(field, "value", {"text": text})
                     started = time.monotonic_ns()
                     ui.click('[class*="message_send_button"]')
-                    ui.wait("return document.querySelector('textarea').value === ''")
+                    ui.wait("return document.querySelector('textarea[class*=message_box_input_area]').value === ''")
                     return started
 
                 def first_audio(start):
@@ -136,13 +148,29 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
 
                 def done(name, **observations):
                     check_displays_on()
-                    require_continuous_capture(capture.snapshot())
+                    health = capture.snapshot()
+                    # Kept in the report, so a failure says how long the reader was late.
+                    report["capture_health"] = {key: health[key] for key in (
+                        "capture_gaps_over_100ms", "max_read_gap_ms", "reader_eof", "reader_error")}
+                    # The reader is a thread of this process and shares the PC with whatever else
+                    # runs: with other test runs going on beside it, one read came more than
+                    # 100 ms late in the stop case (two runs on 2026-11-13); alone it stayed
+                    # under 50 ms. A late read can only make the measured click-to-silence
+                    # longer, never shorter, so it cannot hide a slow stop. Refuse a quarter of
+                    # a second, an end or an error: that is a stalled reader.
+                    assert (not health["reader_eof"] and not health["reader_error"]
+                            and health["max_read_gap_ms"] < 250), report["capture_health"]
                     assert gate.inspect()["identity"] == identity
                     assert verify_route(SOURCE, replay) == report["route_before"]
                     report["cases"].append({"name": name, "status": "passed", **observations})
                     print(name + ": passed", flush=True)
 
                 def replay_case(name, silent=False):
+                    if not silent:
+                        # Text is spoken only while the main TTS switch is on; a mute,
+                        # a failed server or "off" turns it off again.
+                        native()
+                        ui.set_switch("TTS")
                     settled(capture, time.monotonic_ns(), "before_send_not_silent", silent=True)
                     output = tmp_path / name
                     output.mkdir()
@@ -177,8 +205,8 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
                     done(name, captures=recorded, audio=audio,
                          click_to_source_ms=None if first is None else (first - start) / 1e6)
 
-                voice_settings()
                 save("original")
+                route_settings()
                 status("Muted (confirmed)")
                 ui.click_text("button", "Resume voice")
                 status("Voice enabled (confirmed)")
@@ -186,9 +214,11 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
                 replay_case("normal_exactly_once")
 
                 for name, button in [("stop", "Stop playback and clear queue"), ("mute", "Mute until resumed")]:
+                    native()
+                    ui.set_switch("TTS")
                     start = send(LONG)
                     first_audio(start)
-                    voice_settings()
+                    (voice_settings if name == "stop" else route_settings)()
                     before = time.monotonic_ns()
                     ui.click_text("button", button)
                     quiet = settled(capture, before, name + "_not_silent", silent=True)
@@ -198,18 +228,19 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
                     home()
 
                 replay_case("held_mute_stays_silent", silent=True)
-                voice_settings()
                 save("off")
+                route_settings()
                 ui.click_text("button", "Resume voice")
                 status("Voice enabled (confirmed)")
                 home()
                 replay_case("off_keeps_text_silent", silent=True)
 
-                voice_settings()
                 save("original")
                 home()
                 replay_case("off_to_original_exactly_once")
 
+                native()
+                ui.set_switch("TTS")
                 start = send(LONG)
                 first_audio(start)
                 crashed = time.monotonic_ns()

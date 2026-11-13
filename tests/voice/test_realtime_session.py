@@ -37,21 +37,25 @@ class Dependencies:
         self.capture_release.set()
         self.models = (RecognitionModel("asr", ("ja",), True),)
         self.preflight_started = Event()
+        # Whether the server holds a diarization model, and what each client was asked for.
+        self.diarizes = False
+        self.asked_diarization = []
 
     def rest(self, url, timeout):
         owner = self
 
         class REST:
-            def recognizers(self, cancel_token):
+            def survey(self, cancel_token):
                 owner.preflight_started.set()
                 while not owner.preflight_release.wait(0.005):
                     cancel_token.check()
-                return owner.models
+                return owner.models, owner.diarizes
 
         return REST()
 
-    def client(self, url, model, language, source):
+    def client(self, url, model, language, source, options=None, diarization=False):
         owner = self
+        owner.asked_diarization.append(diarization)
 
         class Client:
             namespace = uuid4().hex
@@ -120,8 +124,10 @@ class Dependencies:
                             )
                             is False
                         ):
+                            on_error("asr_capture_consumer_closed")
                             break
 
+                self.on_error = on_error
                 self.thread = Thread(target=feed, daemon=True)
                 self.thread.start()
 
@@ -138,7 +144,7 @@ class Dependencies:
         return capture
 
 
-def session(monkeypatch, source="mic", dependencies=None):
+def session(monkeypatch, source="mic", dependencies=None, **kwargs):
     m = importlib.import_module("models.transcription.realtime_session")
     settings = importlib.import_module("models.transcription.realtime_settings")
     deps = dependencies or Dependencies()
@@ -152,8 +158,58 @@ def session(monkeypatch, source="mic", dependencies=None):
         endpoint,
         capture_factory=deps.capture,
         client_factory=deps.client,
+        **kwargs,
     )
     return instance, deps
+
+
+@pytest.mark.parametrize("source,diarizes,asked", [
+    ("speaker", True, True),     # several voices, and a server that can tell them apart
+    ("speaker", False, False),   # no diarization model: the session is as before
+    ("mic", True, False),        # the microphone is the user alone
+])
+def test_only_a_speaker_session_asks_a_diarizing_server_who_speaks(monkeypatch, source, diarizes, asked):
+    d = Dependencies()
+    d.diarizes = diarizes
+    s, _ = session(monkeypatch, source=source, dependencies=d)
+    try:
+        s.start()
+        eventually(lambda: s.health()["state"] == "ready")
+        assert d.asked_diarization == [asked]
+    finally:
+        assert s.close()
+
+
+def test_final_voice_ownership_is_bound_before_waiting_in_session_mailbox(monkeypatch):
+    generation = [1]
+    captured = []
+
+    async def inline(function, *args):
+        return function(*args)
+
+    # This mailbox test uses immediate fake preflight/capture operations.
+    monkeypatch.setattr(asyncio, "to_thread", inline)
+
+    def snapshot():
+        captured.append(generation[0])
+        return ("settings", generation[0], 0)
+
+    s, d = session(monkeypatch, snapshot_voice=snapshot)
+    try:
+        s.start()
+        eventually(lambda: s.health()["state"] == "ready")
+        c = d.clients[0]
+        c.incoming.put(TranscriptUpdate("mic", c.namespace, "partial", 1, "part", False, "partial"))
+        c.incoming.put(TranscriptUpdate("mic", c.namespace, "final", 1, "text", True, "final"))
+        eventually(lambda: s._updates.qsize() == 2)
+        generation[0] = 2
+        assert s.pop_update().voice_snapshot is None
+        assert s.pop_update().voice_snapshot == ("settings", 1, 0)
+        assert captured == [1]
+        c.incoming.put(TranscriptUpdate("mic", c.namespace, "new", 1, "new", True, "final"))
+        assert s.pop_update(timeout=1).voice_snapshot == ("settings", 2, 0)
+    finally:
+        assert s.close()
 
 
 def test_updates_keep_namespace_source_and_stop_discards_queued_results(monkeypatch):
@@ -185,6 +241,53 @@ def test_updates_keep_namespace_source_and_stop_discards_queued_results(monkeypa
         )
         with pytest.raises(RuntimeError):
             s.start()
+    finally:
+        s.close()
+
+
+@pytest.mark.parametrize(
+    "server_code,reported",
+    [
+        ("utterance_timeout", "realtime_asr_timeout"),
+        ("commit_ack_timeout", "realtime_asr_timeout"),
+        ("stream_failed", "realtime_session_failed"),
+    ],
+)
+def test_a_server_failure_is_not_reported_as_the_device(monkeypatch, server_code, reported):
+    realtime = importlib.import_module("models.transcription.speechcpp_realtime")
+    s, d = session(monkeypatch)
+    try:
+        s.start()
+        eventually(lambda: s.health()["state"] == "ready")
+        c = d.clients[0]
+        eventually(lambda: c.feed_count > 0)
+        c.incoming.put(realtime.RealtimeError(server_code))
+        eventually(lambda: s.health()["state"] == "failed")
+        assert s.health()["error_code"] == reported
+    finally:
+        s.close()
+
+
+def test_a_capture_that_only_saw_the_session_close_reports_nothing(monkeypatch):
+    s, d = session(monkeypatch)
+    try:
+        s.start()
+        eventually(lambda: s.health()["state"] == "ready")
+        d.captures[0].on_error("asr_capture_consumer_closed")
+        time.sleep(0.05)
+        assert s.health()["state"] == "ready" and s.health()["error_code"] is None
+    finally:
+        s.close()
+
+
+def test_a_device_failure_is_still_reported_as_the_device(monkeypatch):
+    s, d = session(monkeypatch)
+    try:
+        s.start()
+        eventually(lambda: s.health()["state"] == "ready")
+        d.captures[0].on_error("asr_capture_stream_disconnected")
+        eventually(lambda: s.health()["state"] == "failed")
+        assert s.health()["error_code"] == "realtime_capture_failed"
     finally:
         s.close()
 

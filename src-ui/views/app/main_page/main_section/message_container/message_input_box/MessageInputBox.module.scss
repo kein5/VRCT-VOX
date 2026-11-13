@@ -44,3 +44,7 @@
 }
 .message_box_wrapper:focus-within { border-color: var(--primary_300_color); }
 .message_box_input_area::placeholder { color: var(--dark_450_color); }
+// A short box at a large UI size: the hint stays on one line, and an empty box
+// shows no scrollbar for it.
+.message_box_input_area::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.message_box_input_area:placeholder-shown { overflow-y: hidden; }

@@ -1,6 +1,6 @@
 # Linux build pipeline
 
-`tools/build_linux.py` builds an **unpublished x86_64 candidate**: frozen Python sidecar,
+`tools/build_linux.py` builds an x86_64 candidate: frozen Python sidecar,
 Tauri frontend, four C audio helpers and pinned speech.cpp 0.10.0 CPU or Vulkan.
 The default output is a `tar.gz`, SHA-256 sidecar and JSON file inventory. Use tar with symlink
 preservation; copying only the executable or flattening `_internal` is unsupported.
@@ -10,8 +10,10 @@ see [AppImage build and acceptance](appimage.md). The CI builds both formats.
 The GitHub Actions workflow `VRCT-VOX Linux candidate (no publication)` targets Ubuntu 24.04.
 It runs on relevant pull requests or manual dispatch, tests the relocated package,
 and the AppImage extraction fallback, then retains successful candidates for seven days. It has `contents: read`, no
-publishing credentials and no release/AUR/upstream actions. Creating the workflow
-does not mean a hosted run has already passed.
+publishing credentials and no release/AUR actions. The Linux packages of the
+[`v0.1.0-beta.1` prerelease](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.1)
+are candidates from this workflow, published through the
+[release draft gate](release-candidates.md). A local build is an unpublished candidate.
 
 ## Build locally
 
@@ -53,11 +55,22 @@ Choose `--variant linux-x64-cpu` with the corresponding CPU archive for CPU buil
 reference recordings are fetched. `--backend-only` is a diagnostic mode and produces
 no distributable. `--profile debug` is also diagnostic; normal output is release.
 
-The builder syncs `requirements-linux-build.lock` into `build/linux/venv`, uses
-`npm ci --ignore-scripts`, and builds Cargo with `--locked` in a copied workspace.
+The builder uses `uv sync --frozen --no-install-project --group dev --group linux-build`
+with `UV_PROJECT_ENVIRONMENT` set to the dedicated `build/linux/venv` (or the selected
+work directory). uv reads `uv.lock` directly and verifies downloaded index archives
+against its SHA-256 hashes; a mismatch aborts the build. Before invoking uv,
+`tools/check_python_lock.py` checks every locked package: each non-VCS archive must
+have a SHA-256 hash, and each Git source must have matching full 40-character commit
+SHAs in its requested revision and resolved commit. Missing/malformed hashes,
+unpinned Git sources and local path dependencies stop the build, even on a cache hit.
+Only the uninstalled virtual root project is exempt. This uses the existing uv 0.13.5
+toolchain and keeps the same project, `dev` and `linux-build` dependency set.
+
+The builder also uses `npm ci --ignore-scripts` and builds Cargo with `--locked` in a copied workspace.
 It does not replace `src-tauri/bin` or reuse its development Python wrapper.
-Python packages are exact versions and Git dependencies are full commits; this is
-**not** a claim of bit-for-bit reproducible builds or a fully hash-locked wheel set.
+Hash verification covers the locked distribution archives; Git sources are verified
+by commit rather than archive hashes. Extra dependencies fetched by isolated source
+build backends are outside `uv.lock`. This is **not** a claim of bit-for-bit reproducible builds.
 Rust, system libraries and actual ELF version requirements remain host dependent.
 The inventory records the build commit, tracked dirty state, host, hashes and ELF versions.
 
@@ -109,6 +122,14 @@ This extracts to a path containing spaces, makes the installation read-only,
 checks restart/settings persistence, the frozen router and bundled engine entry,
 and verifies installation hashes did not change. For GUI tests also set
 `VRCT_TEST_NATIVE_GUI=1` and `VRCT_TEST_DRIVER` to a tauri-driver 2.1.0 executable.
+The shared `NativeWebDriver` launcher passes `VRCT_CONFIG_DIR` explicitly, defaulting
+to its existing `$XDG_CONFIG_HOME/vrct-vox` location and preserving caller overrides.
+This lets release-build tests run beside the installed app: debug builds and launches
+with `VRCT_CONFIG_DIR` set bypass the [single-instance guard](../spec/ipc-protocol.md#起動と初期化).
+For manual tests with isolated `XDG_*` directories, also pass `VRCT_CONFIG_DIR`
+pointing to that same config directory; changing `XDG_*` alone does not bypass the guard.
+To test duplicate-launch prevention itself, leave `VRCT_CONFIG_DIR` unset and use
+a release build with a working D-Bus session bus shared by both launches.
 On a physical desktop run under `tools/display_power_guard.py` via system Python/Gio.
 CI explicitly uses `VRCT_TEST_XVFB=1` with Xvfb, checks its server and real rendering.
 Setting `VRCT_TEST_NATIVE_ROUTE=1` additionally tests a private PipeWire graph and
@@ -129,7 +150,8 @@ explicitly subject to the final attribution audit. OCR weights are excluded rega
 
 ## Remaining release gates
 
-- Hosted Ubuntu workflow and clean-distribution runtime acceptance must actually run.
+- The hosted Ubuntu workflow runs for every candidate. Runtime acceptance on clean
+  installations of other distributions remains a release gate.
 - All bundled native/Python/Rust/frontend components need a completed license/SBOM
   audit, including GPL/LGPL corresponding-source/relink obligations, and the
   user-requested Trail of Bits Skills security review. Collected notices alone
@@ -137,7 +159,7 @@ explicitly subject to the final attribution audit. OCR weights are excluded rega
 - Real model, listening quality, physical latency, Windows and cross-distribution
   tests retain their existing acceptance status; these smoke tests do not replace them.
 - AUR needs a real approved release URL/hash, PKGBUILD/.SRCINFO, clean-chroot and
-  install/update/remove tests. No AUR submission or upstream PR is performed here.
+  install/update/remove tests. No AUR submission is performed here.
 
 ## Primary evidence
 

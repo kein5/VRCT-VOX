@@ -47,8 +47,6 @@ class _RegistryEndpointTestMixin:
     MODEL_ATTR: str  # config.SELECTED_*_MODEL
     VALID_KEY: str  # auth_validate を満たすサンプルキー
     INVALID_KEY: str  # auth_validate を満たさないサンプルキー
-    AUTHENTICATE_MOCK: str  # model.<...AuthKey> のメソッド名
-    GET_MODEL_LIST_MOCK: str  # model.getTranslator...ModelList のメソッド名
     SET_MODEL_MOCK: str  # model.setTranslator...Model のメソッド名
     UPDATE_CLIENT_MOCK: str  # model.updateTranslator...Client のメソッド名
 
@@ -78,8 +76,8 @@ class _RegistryEndpointTestMixin:
 
     @patch("controller.model")
     def test_set_auth_key_success_populates_model_list_and_status(self, mock_model) -> None:
-        getattr(mock_model, self.AUTHENTICATE_MOCK).return_value = True
-        getattr(mock_model, self.GET_MODEL_LIST_MOCK).return_value = ["fake-model-a"]
+        candidate = (object(), ["fake-model-a"], "fake-model-a")
+        mock_model.prepareTranslatorCredential.return_value = candidate
 
         response = self._auth_method()(self.VALID_KEY)
 
@@ -88,7 +86,7 @@ class _RegistryEndpointTestMixin:
         self.assertTrue(config.SELECTABLE_TRANSLATION_ENGINE_STATUS[self.ENGINE_KEY])
         self.assertEqual(getattr(config, self.MODEL_LIST_ATTR), ["fake-model-a"])
         self.assertEqual(getattr(config, self.MODEL_ATTR), "fake-model-a")
-        getattr(mock_model, self.UPDATE_CLIENT_MOCK).assert_called_once()
+        mock_model.commitTranslatorCredential.assert_called_once_with(self.ENGINE_KEY, candidate)
 
     @patch("controller.model")
     def test_set_auth_key_format_invalid_is_rejected_without_calling_model(self, mock_model) -> None:
@@ -99,12 +97,15 @@ class _RegistryEndpointTestMixin:
             response["result"]["error_code"],
             TRANSLATION_PROVIDER_REGISTRY[self.ENGINE_KEY].error_auth_invalid.value,
         )
-        getattr(mock_model, self.AUTHENTICATE_MOCK).assert_not_called()
+        mock_model.prepareTranslatorCredential.assert_not_called()
         self.assertIsNone(config.AUTH_KEYS[self.ENGINE_KEY])
 
     @patch("controller.model")
-    def test_set_auth_key_auth_failure_clears_key_via_del(self, mock_model) -> None:
-        getattr(mock_model, self.AUTHENTICATE_MOCK).return_value = False
+    def test_set_auth_key_auth_failure_keeps_the_saved_key(self, mock_model) -> None:
+        # 確認の失敗はオフラインや 429 でも起きる。保存してあるキーと、それで使えている状態は残す
+        config.AUTH_KEYS = {**config.AUTH_KEYS, self.ENGINE_KEY: "saved-key"}
+        config.SELECTABLE_TRANSLATION_ENGINE_STATUS[self.ENGINE_KEY] = True
+        mock_model.prepareTranslatorCredential.side_effect = ValueError("Authentication failed")
 
         response = self._auth_method()(self.VALID_KEY)
 
@@ -113,13 +114,14 @@ class _RegistryEndpointTestMixin:
             response["result"]["error_code"],
             TRANSLATION_PROVIDER_REGISTRY[self.ENGINE_KEY].error_auth_failed.value,
         )
-        self.assertIsNone(config.AUTH_KEYS[self.ENGINE_KEY])
-        self.assertFalse(config.SELECTABLE_TRANSLATION_ENGINE_STATUS[self.ENGINE_KEY])
+        self.assertEqual(response["result"]["data"], "saved-key")  # 画面の欄を保存してあるキーに戻す
+        self.assertEqual(config.AUTH_KEYS[self.ENGINE_KEY], "saved-key")
+        self.assertTrue(config.SELECTABLE_TRANSLATION_ENGINE_STATUS[self.ENGINE_KEY])
 
     @patch("controller.errorLogging")
     @patch("controller.model")
     def test_set_auth_key_exception_returns_safe_provider_error(self, mock_model, mock_error_logging) -> None:
-        getattr(mock_model, self.AUTHENTICATE_MOCK).side_effect = RuntimeError(
+        mock_model.prepareTranslatorCredential.side_effect = RuntimeError(
             "provider response contains a secret"
         )
 
@@ -190,8 +192,6 @@ class PlamoEndpointTests(_RegistryEndpointTestMixin, unittest.TestCase):
     MODEL_ATTR = "SELECTED_PLAMO_MODEL"
     VALID_KEY = "a" * 72
     INVALID_KEY = "a" * 71
-    AUTHENTICATE_MOCK = "authenticationTranslatorPlamoAuthKey"
-    GET_MODEL_LIST_MOCK = "getTranslatorPlamoModelList"
     SET_MODEL_MOCK = "setTranslatorPlamoModel"
     UPDATE_CLIENT_MOCK = "updateTranslatorPlamoClient"
 
@@ -204,8 +204,6 @@ class OpenAIEndpointTests(_RegistryEndpointTestMixin, unittest.TestCase):
     MODEL_ATTR = "SELECTED_OPENAI_MODEL"
     VALID_KEY = "sk-" + "a" * 161
     INVALID_KEY = "sk-" + "a" * 160
-    AUTHENTICATE_MOCK = "authenticationTranslatorOpenAIAuthKey"
-    GET_MODEL_LIST_MOCK = "getTranslatorOpenAIModelList"
     SET_MODEL_MOCK = "setTranslatorOpenAIModel"
     UPDATE_CLIENT_MOCK = "updateTranslatorOpenAIClient"
 
@@ -218,8 +216,6 @@ class GroqEndpointTests(_RegistryEndpointTestMixin, unittest.TestCase):
     MODEL_ATTR = "SELECTED_GROQ_MODEL"
     VALID_KEY = "gsk" + "a" * 37
     INVALID_KEY = "gsk" + "a" * 36
-    AUTHENTICATE_MOCK = "authenticationTranslatorGroqAuthKey"
-    GET_MODEL_LIST_MOCK = "getTranslatorGroqModelList"
     SET_MODEL_MOCK = "setTranslatorGroqModel"
     UPDATE_CLIENT_MOCK = "updateTranslatorGroqClient"
 
@@ -232,8 +228,6 @@ class OpenRouterEndpointTests(_RegistryEndpointTestMixin, unittest.TestCase):
     MODEL_ATTR = "SELECTED_OPENROUTER_MODEL"
     VALID_KEY = "a" * 20
     INVALID_KEY = "a" * 19
-    AUTHENTICATE_MOCK = "authenticationTranslatorOpenRouterAuthKey"
-    GET_MODEL_LIST_MOCK = "getTranslatorOpenRouterModelList"
     SET_MODEL_MOCK = "setTranslatorOpenRouterModel"
     UPDATE_CLIENT_MOCK = "updateTranslatorOpenRouterClient"
 

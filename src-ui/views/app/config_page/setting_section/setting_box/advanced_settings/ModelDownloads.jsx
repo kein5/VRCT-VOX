@@ -5,20 +5,66 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useModelDownloads } from "../../../../../../logics/voice/useModelDownloads";
 import { modelAdvice } from "../../../../../../logics/voice/modelHardwareAdvice";
 import styles from "./VoiceSettings.module.scss";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { useConsentDialog } from "../../../../../../logics/common/useConsentDialog";
 
 const activePhases = ["queued", "downloading", "verifying", "cancelling"];
 const bytes = value => `${Number(value).toLocaleString("en-US")} bytes (${(value / 1073741824).toFixed(2)} GiB)`;
+// The page lists sizes in GiB; the consent dialog keeps the exact byte counts.
+const gib = value => `${(value / 1073741824).toFixed(2)} GiB`;
 
-export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode = 'auto' }) => {
+const reserveBytes = reserve => (reserve === 'vr' ? 2 : .5) * 1024 ** 3;
+
+// One GPU/memory reading for a page with several TTS engines: the headroom
+// choice, the refresh action and the measured device. Each engine's
+// ModelDownloads takes the same reserve and reads the same shared hardware.
+export const HardwareReadout = ({ reserve, setReserve }) => {
+    const { t } = useI18n();
+    const { hardware, send, ensureHardware } = useModelDownloads();
+    const [, setNow] = useState(Date.now());
+    useEffect(() => { ensureHardware(); }, [hardware.phase, ensureHardware]);
+    useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 5000);
+        return () => clearInterval(timer);
+    }, []);
+    // The device line uses the same pick as the per-engine advice (first GPU).
+    const reading = modelAdvice([], hardware, { now: Date.now(), reserveBytes: reserveBytes(reserve) });
+    const memory = value => Number.isFinite(value) ? gib(value) : t('model_downloads.hardware_unknown');
+    return <div className={styles.hardware} aria-label={t('model_downloads.hardware_title')} role="group">
+        <h3>{t('model_downloads.hardware_title')}</h3>
+        <label>{t('model_downloads.headroom')}<select aria-label={t('model_downloads.headroom')} value={reserve} onChange={event => setReserve(event.target.value)}>
+            <option value="vr">{t('model_downloads.headroom_vr')}</option>
+            <option value="alone">{t('model_downloads.headroom_alone')}</option>
+        </select></label>
+        <div className={styles.actions}>
+            <button type="button" disabled={hardware.phase === 'probing'} onClick={() => send('/run/refresh_model_download_hardware', {})}>
+                {t('model_downloads.hardware_refresh')}</button>
+            {hardware.phase === 'probing' && <span aria-busy="true">{t('model_downloads.hardware_probing')}</span>}
+        </div>
+        {(reading.device || hardware.measured_at_ms) && <EnvReadout live={false}>
+            {reading.device && <p>{reading.device.name}: {reading.device.description} · {t('model_downloads.hardware_free')}: {memory(reading.device.memory_free)} / {t('model_downloads.hardware_total')}: {memory(reading.device.memory_total)}</p>}
+            {hardware.measured_at_ms && <p>{t('model_downloads.hardware_measured')}: {new Date(hardware.measured_at_ms).toLocaleTimeString()}</p>}
+            {reading.multiple && <p>{t('model_downloads.multiple_gpus')}</p>}
+        </EnvReadout>}
+        <details className={styles.more}><summary>{t('model_downloads.memory_boundary_summary')}</summary>
+            <p>{t('model_downloads.memory_boundary')}</p>
+        </details>
+    </div>;
+};
+
+// `reserve` comes from a shared HardwareReadout; without it this card shows its own.
+export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode = 'auto', reserve: sharedReserve }) => {
     const { t } = useI18n();
     const { catalog, state, hardware, error, pending, send, ensureHardware } = useModelDownloads();
     const [selected, setSelected] = useState(null), [consent, setConsent] = useState(false);
     const [linkError, setLinkError] = useState(null);
-    const [choices, setChoices] = useState({}), [reserve, setReserve] = useState('vr');
+    const [choices, setChoices] = useState({}), [ownReserve, setReserve] = useState('vr');
+    const shared = sharedReserve !== undefined, reserve = shared ? sharedReserve : ownReserve;
     const [, setNow] = useState(Date.now());
     const ttsTargets = targets.filter(target => ['japanese', 'multilingual'].includes(target));
     const hasTTS = ttsTargets.length > 0;
-    const dialog = useRef(null);
+    const section = useRef(null);
+    const { dialog, close: closeDialog } = useConsentDialog(!!selected, section);
     useEffect(() => {
         send("/get/data/model_download_catalog"); send("/get/data/model_download_state");
     }, [send]);
@@ -28,9 +74,8 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
         const timer = setInterval(() => setNow(Date.now()), 5000);
         return () => clearInterval(timer);
     }, [hasTTS]);
-    useEffect(() => { if (selected) dialog.current?.showModal(); }, [selected]);
     const busy = !!pending || Object.values(state.jobs).some(job => activePhases.includes(job.phase));
-    const close = () => { setSelected(null); setConsent(false); setLinkError(null); };
+    const close = () => { closeDialog(); setSelected(null); setConsent(false); setLinkError(null); };
     const openLink = async (event, url) => {
         if (!isTauri()) return;
         event.preventDefault();
@@ -41,29 +86,29 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
     const failure = code => t(`model_downloads.errors.${code}`, { defaultValue: t("model_downloads.errors.download_failed") });
     const matching = catalog?.models.filter(entry => targets.includes(entry.target)) ?? [];
     const advice = Object.fromEntries(targets.map(target => [target, modelAdvice(matching.filter(entry => entry.target === target),
-        hardware, { now: Date.now(), deviceMode, reserveBytes: (reserve === 'vr' ? 2 : .5) * 1024 ** 3 })]));
+        hardware, { now: Date.now(), deviceMode, reserveBytes: reserveBytes(reserve) })]));
     const choice = target => matching.find(entry => entry.target === target && entry.id === choices[target])?.id
         ?? advice[target].recommended ?? matching.find(entry => entry.target === target)?.id;
     const memory = value => Number.isFinite(value) ? `${(value / 1024 ** 3).toFixed(2)} GiB` : t('model_downloads.hardware_unknown');
-    return <section className={styles.container} aria-label={t("model_downloads.title")}>
-        <h4>{t("model_downloads.title")}</h4>
+    return <section ref={section} tabIndex={-1} className={styles.container} aria-label={t("model_downloads.title")}>
+        <h3>{t("model_downloads.title")}</h3>
         <p>{t("model_downloads.help")}</p>
         {!catalog && <p aria-busy="true">{t("model_downloads.loading")}</p>}
         {hasTTS && <>
-            <label>{t('model_downloads.headroom')}<select aria-label={t('model_downloads.headroom')} value={reserve} onChange={event => setReserve(event.target.value)}>
+            {!shared && <><label>{t('model_downloads.headroom')}<select aria-label={t('model_downloads.headroom')} value={reserve} onChange={event => setReserve(event.target.value)}>
                 <option value="vr">{t('model_downloads.headroom_vr')}</option>
                 <option value="alone">{t('model_downloads.headroom_alone')}</option>
             </select></label>
             <button type="button" disabled={hardware.phase === 'probing'} onClick={() => send('/run/refresh_model_download_hardware', {})}>
                 {t('model_downloads.hardware_refresh')}</button>
-            {hardware.phase === 'probing' && <p aria-busy="true">{t('model_downloads.hardware_probing')}</p>}
+            {hardware.phase === 'probing' && <p aria-busy="true">{t('model_downloads.hardware_probing')}</p>}</>}
             {ttsTargets.map(target => {
                 const hint = advice[target], rows = matching.filter(entry => entry.target === target);
                 return <div key={target}>
-                    {hint.device && <p>{hint.device.name}: {hint.device.description} · {t('model_downloads.hardware_free')}: {memory(hint.device.memory_free)} / {t('model_downloads.hardware_total')}: {memory(hint.device.memory_total)}</p>}
-                    {hardware.measured_at_ms && <p>{t('model_downloads.hardware_measured')}: {new Date(hardware.measured_at_ms).toLocaleTimeString()}</p>}
+                    {!shared && hint.device && <p>{hint.device.name}: {hint.device.description} · {t('model_downloads.hardware_free')}: {memory(hint.device.memory_free)} / {t('model_downloads.hardware_total')}: {memory(hint.device.memory_total)}</p>}
+                    {!shared && hardware.measured_at_ms && <p>{t('model_downloads.hardware_measured')}: {new Date(hardware.measured_at_ms).toLocaleTimeString()}</p>}
                     <p>{t(`model_downloads.advice_${hint.reason}`)}</p>
-                    {hint.multiple && <p>{t('model_downloads.multiple_gpus')}</p>}
+                    {!shared && hint.multiple && <p>{t('model_downloads.multiple_gpus')}</p>}
                     {rows.length > 0 && <label>{t('model_downloads.variant')}<select aria-label={t('model_downloads.variant')} value={choice(target)}
                         onChange={event => setChoices(previous => ({ ...previous, [target]: event.target.value }))}>
                         {rows.map(entry => <option key={entry.id} value={entry.id}>{entry.name} · {memory(entry.total_bytes)}</option>)}
@@ -72,43 +117,54 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
                     {hint.recommended && choice(target) !== hint.recommended && <p>{t('model_downloads.manual_choice')}</p>}
                 </div>;
             })}
-            <p>{t('model_downloads.memory_boundary')}</p>
+            {!shared && <details className={styles.more}><summary>{t('model_downloads.memory_boundary_summary')}</summary>
+                <p>{t('model_downloads.memory_boundary')}</p>
+            </details>}
         </>}
-        {matching.filter(entry => entry.id === choice(entry.target) || activePhases.includes(state.jobs[entry.id]?.phase) || state.jobs[entry.id]?.phase === 'ready').map(entry => {
+        {targets.includes("asr") && <p>{t("model_downloads.asr_choice")}</p>}
+        {/* TTS variants are one choice per target; ASR and VAD entries are different models, so list them all. */}
+        {matching.filter(entry => !ttsTargets.includes(entry.target) || entry.id === choice(entry.target) || activePhases.includes(state.jobs[entry.id]?.phase) || state.jobs[entry.id]?.phase === 'ready').map(entry => {
             const job = state.jobs[entry.id], active = activePhases.includes(job?.phase);
-            return <div key={entry.id}>
+            return <div key={entry.id} data-model-download tabIndex={-1} role="group" aria-label={entry.name} className={styles.download_entry}>
                 <strong>{entry.name}</strong>
-                <p>{entry.provider} · {bytes(entry.total_bytes)} · {entry.license}</p>
-                {entry.guidance?.reference_memory_bytes && <>
+                <p>{entry.provider} · {gib(entry.total_bytes)} · {entry.license}</p>
+                {entry.guidance?.reference_memory_bytes && <details className={styles.more}><summary>{t('model_downloads.guidance_summary')}</summary>
                     <p>{t(`model_downloads.tier_${entry.guidance.tier}`)} · {t('model_downloads.memory_reference')}: {memory(entry.guidance.reference_memory_bytes)}</p>
                     <p>{t(`model_downloads.validation_${entry.guidance.validation.state}`)} {entry.guidance.validation.device ?? ''}</p>
                     {entry.guidance.validation.scope && <p>{t(`model_downloads.scope_${entry.guidance.validation.scope}`)}</p>}
                     {advice[entry.target].device && advice[entry.target].device.description !== entry.guidance.validation.device && <p>{t('model_downloads.gpu_unverified')}</p>}
-                </>}
+                </details>}
                 {entry.target === "rvc" && <p>{t("model_downloads.rvc_requirements")}</p>}
                 {entry.target === "asr" && <p>{t("model_downloads.asr_requirements")}</p>}
-                {job && <p role="status">{t(`model_downloads.phase_${job.phase}`)}</p>}
-                {active && <><progress aria-label={t("model_downloads.progress")} value={job.received_bytes} max={job.total_bytes} />
-                    <p>{bytes(job.received_bytes)} / {bytes(job.total_bytes)}</p>
-                    <button type="button" disabled={!!pending || job.phase === "cancelling"}
-                        onClick={() => request("/run/cancel_model_download", entry, job)}>{t("model_downloads.cancel")}</button></>}
+                {entry.target === "vad" && <p>{t("model_downloads.vad_requirements")}</p>}
+                {entry.target === "diarization" && <p>{t("model_downloads.diarization_requirements")}</p>}
+                {job && <EnvReadout tone={job.phase === "ready" ? "active" : job.phase === "failed" ? "failed" : "neutral"}>
+                    <p>{t(`model_downloads.phase_${job.phase}`)}{active && ` · ${gib(job.received_bytes)} / ${gib(job.total_bytes)}`}</p>
+                </EnvReadout>}
+                {/* The bar spans the entry under its readout; the actions share one row below. */}
+                {active && <progress className={styles.progress} aria-label={t("model_downloads.progress")} value={job.received_bytes} max={job.total_bytes} />}
                 {job?.error_code && <p role="alert">{failure(job.error_code)}</p>}
-                <button type="button" disabled={busy} onClick={() => { setConsent(false); setSelected({ ...entry, catalog_version: catalog.catalog_version }); }}>{t("model_downloads.review")}</button>
-                {job?.phase === "ready" && <>
-                    <p>{t("model_downloads.apply_hint")}</p>
-                    <button type="button" disabled={busy || blocked || !expected?.[entry.target]}
-                        onClick={() => send("/run/apply_model_download", { id: entry.id, job_id: job.job_id, expected: expected[entry.target] })}>{t("model_downloads.apply")}</button>
-                    {blocked && <p>{t("model_downloads.blocked")}</p>}
-                </>}
+                {job?.phase === "ready" && <p>{t("model_downloads.apply_hint")}</p>}
+                <div className={styles.actions}>
+                    {active && <button type="button" disabled={job.phase === "cancelling" || !!pending?.some(request =>
+                        request.endpoint !== "/run/apply_model_download" || request.id !== entry.id || request.job_id !== job.job_id)}
+                        onClick={() => request("/run/cancel_model_download", entry, job)}>{t("model_downloads.cancel")}</button>}
+                    {job?.phase === "ready" && <button type="button" disabled={busy || blocked || !expected?.[entry.target]}
+                        onClick={() => send("/run/apply_model_download", { id: entry.id, job_id: job.job_id, expected: expected[entry.target] })}>{t("model_downloads.apply")}</button>}
+                    <button type="button" disabled={busy} onClick={() => { setConsent(false); setSelected({ ...entry, catalog_version: catalog.catalog_version }); }}>{t("model_downloads.review")}</button>
+                </div>
+                {job?.phase === "ready" && blocked && <p>{t(blocked === "edited" ? "model_downloads.blocked_edited" : "model_downloads.blocked")}</p>}
             </div>;
         })}
-        {selected && <dialog ref={dialog} aria-label={t("model_downloads.warning_title")} onCancel={close}>
+        {selected && <dialog ref={dialog} aria-label={t("model_downloads.warning_title")} onCancel={event => { event.preventDefault(); close(); }}>
             <h3>{t("model_downloads.warning_title")}</h3>
             <p>{selected.name} · {selected.provider}</p>
             <p>{bytes(selected.total_bytes)} · {selected.license}</p>
             <p>{t(`model_downloads.notice_${selected.notice}`)}</p>
             {selected.target === "rvc" && <p>{t("model_downloads.rvc_requirements")}</p>}
             {selected.target === "asr" && <p>{t("model_downloads.asr_requirements")}</p>}
+            {selected.target === "vad" && <p>{t("model_downloads.vad_requirements")}</p>}
+            {selected.target === "diarization" && <p>{t("model_downloads.diarization_requirements")}</p>}
             <p>{t("model_downloads.connection_notice")}</p>
             <p>{t("model_downloads.no_start")}</p>
             <p>{t("model_downloads.source")}: <a href={selected.source} onClick={event => openLink(event, selected.source)} target="_blank" rel="noreferrer">{selected.repo}</a></p>
@@ -120,6 +176,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
             <div className={styles.actions}>
                 <button type="button" autoFocus onClick={close}>{t("model_downloads.back")}</button>
                 <button type="button" disabled={!consent || busy} onClick={() => {
+                    if (!consent || busy) return;
                     send("/run/start_model_download", { id: selected.id, consent: true, catalog_version: selected.catalog_version }); close();
                 }}>{t("model_downloads.start")}</button>
             </div>

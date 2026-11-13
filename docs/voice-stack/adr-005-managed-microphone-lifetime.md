@@ -24,7 +24,13 @@ managed選択・アプリ再起動・endpoint変更・制御失敗は新たな�
 
 OS gate変更は短命のC helperがsystem libpipewireを使って行う。cookie/serialに一致するproxyを
 同一接続でbindし、node.infoのmarker/classを確認してからset-paramする。
-制御workerは既定0.1秒周期＋実行時間で状態を確認する。音声PCMを取り込む独自daemonは作らない。
+状態の観測は、共通workerが最短0.1秒間隔で取得する`pw-dump`のsnapshotを使う。
+VoiceRoute、passthrough、Linuxの入力デバイス一覧は同じ観測を参照し、隔離した変換processにも
+専用pipeで観測番号・取得開始時刻とともに渡す。変換の音声loopはsubprocessを待たない。
+取得失敗・worker終了・取得開始から1秒以上経過した観測は使わず、従来のmute/stopとerrorへ進む。
+gate操作の確認には、操作完了後に取得を開始した観測が必要。観測更新は制御workerを起こし、
+従来の0.1秒周期＋最大1秒の取得待ちを超えて古い状態を使わない。最後の利用者の停止と
+sidecar終了時に取得processを回収する。音声PCMを取り込む独自daemonは作らない。
 通常の外部ケーブル設定は既定のまま。Windowsでmanagedの新規選択を拒否する。
 
 ## 他案と判断を覆す条件

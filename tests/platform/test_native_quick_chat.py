@@ -216,7 +216,7 @@ def test_shortcut_focus_escape_and_single_pipeline(tmp_path):
             assert ui.evaluate('return arguments[0].value', ui.control('Message')) == 'retained draft'
             ui.fill('Message', 'Quick chat integration')
             xdo('key', 'Return')
-            ui.wait("return document.querySelector('textarea').value === ''")
+            ui.wait("return document.querySelector('textarea[class*=message_box_input_area]').value === ''")
             wait_for(lambda: len(translation.requests) == 1 and len(tts.requests) == 1)
             (tmp_path / 'quick-chat.png').write_bytes(base64.b64decode(ui.command('GET', '/screenshot')))
             assert sidecars(ui) == before, 'the mini window must not spawn a second sidecar'
@@ -250,7 +250,7 @@ def test_wayland_explains_shortcut_limit_and_opens_from_button(tmp_path, monkeyp
         ui.wait("return document.querySelector('textarea[class*=message_box_input_area]') !== null")
         main = ui.command('GET', '/window')
         ui.open_voice_page('Hotkeys', '[data-setting-id="open_quick_chat"] input')
-        ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent.includes('unavailable in native Wayland'))")
+        ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent.includes('unavailable in native Wayland'))")
         ui.click_text('button', 'Open input window')
         ui.wait("return document.querySelector('[class*=show_main]') !== null")
         chat, = [handle for handle in ui.command('GET', '/window/handles') if handle != main]

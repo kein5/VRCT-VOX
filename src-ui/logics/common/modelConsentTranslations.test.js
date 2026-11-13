@@ -9,11 +9,10 @@ const resources = Object.fromEntries(["en", "ja", "ko"].map(language => [languag
 }]));
 
 for (const language of ["en", "ja", "ko"]) {
-    test(`${language}: consent and existing telemetry controls resolve readable translations`, async () => {
+    test(`${language}: the model download consent resolves readable translations`, async () => {
         const translations = i18next.createInstance();
         await translations.init({ lng: language, fallbackLng: "en", resources });
-        for (const path of ["auto_download_models.label", "auto_download_models.desc",
-            "telemetry.label", "telemetry.desc", "telemetry.aptabase_privacy_policy_label"]) {
+        for (const path of ["auto_download_models.label", "auto_download_models.desc"]) {
             const key = `config_page.others.${path}`;
             assert.equal(translations.exists(key), true, `missing ${language}: ${key}`);
             assert.equal(typeof translations.t(key), "string");

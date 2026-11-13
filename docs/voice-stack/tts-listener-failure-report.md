@@ -25,16 +25,41 @@ listenerが残る故障や即時再起動を短時間で必ず検出する必要
 
 ## 実装の契約
 
-[SpeechCppTTS](../../src-python/models/tts/speechcpp_tts.py)の最初のPCM取得後に、要求ごとの監視threadを開始する。
-20ms待ってから、同じ数値localhostアドレス・portへtimeout 100msのTCP connectを行い、すぐに閉じる。
-HTTP要求、推論要求、音声データは追加送信しない。最大約50 connect/秒で、失敗・終了時は監視を終える。
+2026-11-03更新。上の選択表と下の実機測定は2026-10-27時点の記録であり、以下の変更後の実機測定ではない。
+
+[SpeechCppTTS](../../src-python/models/tts/speechcpp_tts.py)は最初のPCM取得後に
+[共有監視](../../src-python/models/tts/listener_monitor.py)へ要求を登録する。
+sidecarが所有するserverは、runtimeが公開前に登録したprocessの`wait()`で終了を検出する。
+processごとに待機threadを1つ持ち、監視用TCP connectやPythonの定期pollは行わない。
+HTTP接続前にprocessの参照を固定し、同じportで再起動した別processへ監視を付け替えない。
+低遅延standbyも同じ登録を使う。Linuxで所有するhandleはsupervisorであり、
+その内部にはspeech childの終了を最大20ms間隔で確かめる既存処理がある。
+
+外部serverは同じlocalhostアドレス・portへの要求で監視threadを共有する。
+20ms待ってからtimeout 100msのTCP connectを行い、すぐに閉じる。
+最大約50 connect/秒は同じ接続先全体の値となり、並行する要求数には比例しない。
+WindowsのTCP listener tableはprocess内で共有し、query開始から20ms以内の結果を再利用する。
+遅いqueryの終了時刻で鮮度を延長せず、query失敗は不明として扱う。
+cacheに接続先がない場合は今回のprobe開始後のqueryで確認し、新しいlistenerを古い不在情報で取り消さない。
+この再確認も従来のtable待ち時間50msの範囲内で行う。
+Windowsではtableで受付の有無が分かればTCP connectを省き、tableが不明の場合だけTCPへ戻す。
+HTTP要求、推論要求、音声データは追加送信しない。
 初音待ちの前提条件やGUIの待ち処理には加えない。
 
-- 明示的な接続拒否のみで`server_unavailable`としてその要求のCancelTokenを取り消す。
+- 所有processの終了、明示的な接続拒否、またはWindows tableでの受付消失を確認した場合に、
+  その監視に登録中の要求だけを`server_unavailable`として取り消す。
 - 取消は既存のHTTP shutdown・出力write中断へ伝わり、PCMをdrainせず出力を閉じる。
 - timeout・その他のOSErrorは故障の証拠にせず、元のHTTP/request timeoutに任せる。
-- 正常EOF・途中close・取消・例外で監視を停止し、threadをjoinしてからHTTP資源を解放する。
+- 正常EOF・途中close・取消・例外で要求の登録を外す。外部監視は最後の登録がなくなると停止し、
+  cleanup時のjoinは200msまで待つ。進行中のprobeは既存のtimeoutで終わる。
+  所有processの待機threadはserverの寿命に属し、要求の終了ではjoinしない。
 - 全体mute、VC経路、既定デバイス、再送キューは操作しない。復旧後は新しい要求だけを処理する。
+
+所有handleの終了通知には定期監視の待ち時間がない。外部監視は従来どおり20msとprobe処理時間が必要で、
+Windows tableの再利用には最大20msの古さが加わる。timeoutだけでは消失と判断しない。
+これらはOS schedulingや実音声の停止時間の保証ではない。
+[fakeによる回帰試験](../../src-python/test/test_tts_listener_monitor.py)で共有、要求の分離、
+process終了、standby、cacheの期限、停止との競合を確かめる。
 
 接続拒否とその他の接続エラーの区別はPython標準の
 [ConnectionRefusedError](https://docs.python.org/3.13/library/exceptions.html#ConnectionRefusedError)と
@@ -117,7 +142,8 @@ runnerは各faultの無音化が250ms以内かを個別判定し、30反復時�
 ## 残る限界
 
 - listenerが開いたままのHTTP connection単独故障、モデル停止、proxy経由の故障は早期検出の対象外。
-- portを即座に再利用する再起動や別processを識別しない。監視周期の間に復旧すると見逃す可能性がある。
+- 外部serverはportを即座に再利用する再起動や別processを識別しない。監視周期の間に復旧すると見逃す可能性がある。
+  所有serverはHTTP接続前に固定したprocessの終了を検出する。
 - TCP connect成功はモデルの健全性を意味しない。OS schedulingがあるため20msを検出上限とは呼ばない。
 - 音声queueの総量を制限した変更ではない。通信停止・メモリ圧迫・長文の別試験は引き続き必要。
 - WindowsのAPIは共通だが、実機・blocking audio writeの停止時間は未検証。

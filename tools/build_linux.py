@@ -14,11 +14,13 @@ import subprocess
 import sys
 
 try:
+    from .check_python_lock import validate_lock
     from .linux_package import check_tree, inventory, normalize_modes, pack
-    from .speechcpp_bundle import VARIANTS, stage_bundle, fetch_archive, load_manifest, verify_bundle
+    from .speechcpp_bundle import LINUX_VARIANTS, stage_bundle, fetch_archive, load_manifest, verify_bundle
 except ImportError:
+    from check_python_lock import validate_lock
     from linux_package import check_tree, inventory, normalize_modes, pack
-    from speechcpp_bundle import VARIANTS, stage_bundle, fetch_archive, load_manifest, verify_bundle
+    from speechcpp_bundle import LINUX_VARIANTS, stage_bundle, fetch_archive, load_manifest, verify_bundle
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,6 +43,19 @@ def prepare_work(path):
 def run(argv, *, cwd=ROOT, env=None):
     print('+ ' + ' '.join(map(str, argv)), flush=True)
     subprocess.run(list(map(str, argv)), cwd=cwd, env=env, check=True)
+
+
+def sync_dependencies(uv, venv, python_selector):
+    # Validate before creating/modifying the environment, including cached builds.
+    validate_lock(ROOT / 'uv.lock')
+    python = venv / 'bin/python'
+    if not python.exists():
+        run([*uv, 'venv', '--python', python_selector, venv])
+    # uv sync checks the lock's archive hashes and preserves pinned Git sources.
+    # --python alone selects an interpreter, not the destination environment.
+    run([*uv, 'sync', '--frozen', '--no-install-project', '--python', python,
+         '--group', 'dev', '--group', 'linux-build'], cwd=ROOT,
+        env=dict(os.environ, UV_PROJECT_ENVIRONMENT=str(venv.resolve())))
 
 
 def environment_resources(destination):
@@ -71,17 +86,28 @@ def environment_resources(destination):
     (destination / 'python-environment.json').write_text(json.dumps(rows, ensure_ascii=False, indent=2) + '\n')
 
 
+# The sidecar sets a runtime up from these; the requirements for Windows stay out.
+SETUP_FILES = {'rvc': ('requirements-cuda.lock', 'requirements.lock'),
+               'seed_vc': ('requirements.lock', 'offline-loader.patch')}
+
+
 def copy_adapters(resources):
     for engine in ('rvc', 'seed_vc'):
         source = ROOT / 'integrations' / engine
         for file in source.iterdir():
-            if file.is_file() and (file.suffix == '.py' or file.name.startswith(('LICENSE', 'README'))):
+            if file.is_file() and (file.suffix == '.py' or file.name.startswith(('LICENSE', 'README'))
+                                   or file.name in SETUP_FILES[engine]):
                 target = resources / 'integrations' / engine / file.name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(file, target)
+    # The Seed-VC adapter reads its reviewed file list through these two paths.
+    for name in ('tools/seedvc_artifacts.py', 'docs/voice-stack/seed-vc-poc-artifacts.json'):
+        target = resources / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / name, target)
     # External inference interpreters cannot read the frozen sidecar's PYZ.
     # Ship only their small, dependency-free contract modules as ordinary files.
-    for name in ('__init__.py', 'voice_conversion/__init__.py',
+    for name in ('__init__.py', 'owned_child.py', 'voice_conversion/__init__.py',
                  'voice_conversion/protocol.py', 'voice_conversion/settings.py'):
         source = ROOT / 'src-python/models' / name
         target = resources / 'src-python/models' / name
@@ -124,7 +150,7 @@ def main():
     parser.add_argument('--work-dir', type=Path, default=ROOT / 'build/linux')
     parser.add_argument('--output-dir', type=Path, default=ROOT / 'build/linux/artifacts')
     parser.add_argument('--python', default='3.11', help='uv interpreter selector for the isolated build venv')
-    parser.add_argument('--variant', choices=VARIANTS, default='linux-x64-vulkan')
+    parser.add_argument('--variant', choices=LINUX_VARIANTS, default='linux-x64-vulkan')
     source = parser.add_mutually_exclusive_group()
     source.add_argument('--speech-archive', type=Path)
     source.add_argument('--download-speech', action='store_true', help='fetch only the pinned engine binary, never weights')
@@ -146,9 +172,7 @@ def main():
     venv = work / 'venv'
     python = venv / 'bin/python'
     uv = ['uv', '--offline'] if args.offline else ['uv']
-    if not python.exists():
-        run([*uv, 'venv', '--python', args.python, venv])
-    run([*uv, 'pip', 'sync', '--python', python, ROOT / 'requirements-linux-build.lock'])
+    sync_dependencies(uv, venv, args.python)
     run([python, '-c', 'import sys; assert sys.version_info[:2] == (3, 11), "Python 3.11 required"'])
     resources = work / 'resources'
     if resources.exists():
@@ -163,7 +187,7 @@ def main():
     verify_bundle(resources / 'build/speechcpp')
     copy_adapters(resources)
     shutil.copytree(ROOT / 'config/pipewire', resources / 'config/pipewire')
-    (resources / 'docs').mkdir()
+    (resources / 'docs').mkdir(exist_ok=True)  # copy_adapters may have made it.
     for name in ('local-setup-linux.md', 'licensing.md', 'linux-build-pipeline.md'):
         shutil.copyfile(ROOT / 'docs/voice-stack' / name, resources / 'docs' / name)
     run([python, Path(__file__).resolve(), '--collect-environment', resources])

@@ -12,7 +12,7 @@ export const QuickChatController = () => {
     const { currentIsBackendReady } = useIsBackendReady();
     const { currentIsSoftwareUpdating } = useIsSoftwareUpdating();
     const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
-    const { currentSendMessageButtonType } = useAppearance();
+    const { currentSendMessageButtonType, currentUiScaling, currentSelectedFontFamily } = useAppearance();
     const { currentEnableAutoClearMessageInputBox } = useOthers();
     const ready = currentIsBackendReady.data && !currentIsSoftwareUpdating.data && !currentIsOpenedConfigPage.data;
     const current = useRef();
@@ -34,8 +34,10 @@ export const QuickChatController = () => {
     }, []);
     useEffect(() => {
         invoke('quick_chat_configure', { context: { ready: !!ready, language: i18n.language,
+            ui_scaling: currentUiScaling.data, font_family: currentSelectedFontFamily.data,
             enter_to_send: currentSendMessageButtonType.data !== 'show_and_disable_enter_key',
             clear_on_send: !!currentEnableAutoClearMessageInputBox.data } }).catch(console.error);
-    }, [ready, i18n.language, currentSendMessageButtonType.data, currentEnableAutoClearMessageInputBox.data]);
+    }, [ready, i18n.language, currentSendMessageButtonType.data, currentEnableAutoClearMessageInputBox.data,
+        currentUiScaling.data, currentSelectedFontFamily.data]);
     return null;
 };

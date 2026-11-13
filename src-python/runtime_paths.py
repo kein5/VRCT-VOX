@@ -49,12 +49,71 @@ def bootstrap_linux_frozen():
     os.chdir(dirs["data"])
 
 
+_backend_only_env = set()
+_OPENMP_WAIT_SETTINGS = {"KMP_BLOCKTIME": "0", "KMP_USE_YIELD": "0"}
+
+
+def limit_openmp_spinning():
+    """Make CTranslate2's OpenMP threads sleep instead of spinning or yielding.
+
+    With more runnable threads than cores (VRChat, a game) one Whisper call went
+    from 1 s to minutes. Intel OpenMP spins for 200 ms between parallel regions,
+    which takes the CPU from threads that still have work. It also waits in a
+    SwitchToThread loop: each poll gives a whole time slice to another process, and
+    a waiting thread then shows as Ready with almost no CPU time.
+
+    Both settings are needed. With KMP_BLOCKTIME alone, two models in one process
+    still stalled for minutes; with KMP_USE_YIELD alone a call still took 18 s.
+    The price on an idle PC is about 0.08 s per translated sentence. Whisper did not
+    get slower.
+
+    Call this before ctranslate2 loads. A value the user set is kept.
+    """
+    for name, value in _OPENMP_WAIT_SETTINGS.items():
+        if name not in os.environ:
+            os.environ[name] = value
+            _backend_only_env.add(name)
+
+
+def limit_blas_threads():
+    """Keep numpy's OpenBLAS from starting worker threads in the backend.
+
+    The backend's only linear algebra is on 4x4 matrices (the overlay's poses), where
+    one thread is as fast as many. OpenBLAS still starts a worker per core, and each
+    worker spins in sched_yield for a while after every call. The VR overlay makes such
+    a call on every pass, so the workers never get to sleep: with the overlay running
+    on Linux (subtitles alone, 24 logical cores), three threads stayed at 97% CPU each.
+    With one thread there are no workers and nothing spins.
+
+    Call this before numpy loads. A value the user set is kept. Programs the backend
+    starts (voice conversion runtimes with their own numpy and Torch) do not get it.
+    """
+    if "OPENBLAS_NUM_THREADS" not in os.environ:
+        os.environ["OPENBLAS_NUM_THREADS"] = "1"
+        _backend_only_env.add("OPENBLAS_NUM_THREADS")
+
+
 def external_process_env():
     env = dict(os.environ)
+    for name in _backend_only_env:
+        env.pop(name, None)
     if is_linux_frozen():
         original = env.pop("LD_LIBRARY_PATH_ORIG", None)
         if original:
             env["LD_LIBRARY_PATH"] = original
         else:
             env.pop("LD_LIBRARY_PATH", None)
+    return env
+
+
+def voice_worker_env():
+    """The environment of a voice conversion worker, whose Torch also uses Intel OpenMP.
+
+    A block arrives every 80 ms, well inside the 200 ms that the threads spin. On the
+    measured PC, Seed-VC kept four threads busy (about 420% CPU, 124% with these
+    settings) and converted fewer blocks in the same time.
+    """
+    env = external_process_env()
+    for name, value in _OPENMP_WAIT_SETTINGS.items():
+        env.setdefault(name, value)
     return env

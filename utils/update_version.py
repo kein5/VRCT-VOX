@@ -18,6 +18,7 @@ def update_versions():
 
     with open(tauri_conf_path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(tauri_conf, f, indent=4, ensure_ascii=False)
+        f.write("\n")
 
     # config.pyを更新
     config_path = os.path.join(root, "src-python", "config.py")
@@ -32,6 +33,17 @@ def update_versions():
 
     with open(config_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(new_content)
+
+    # pyproject.toml carries the same version; uv.lock records it, so relock.
+    pyproject_path = os.path.join(root, "pyproject.toml")
+    with open(pyproject_path, "r", encoding="utf-8") as f:
+        pyproject = f.read()
+    updated = re.sub(r'(?m)^(version = ")[^"]+(")', rf'\g<1>{version}\g<2>', pyproject, count=1)
+    if updated != pyproject:
+        with open(pyproject_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(updated)
+        import subprocess
+        subprocess.run(["uv", "lock"], cwd=root, check=True)
 
     print(f"updated to version {version}")
 

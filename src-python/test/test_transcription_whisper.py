@@ -1,112 +1,79 @@
-import unittest
-from unittest.mock import MagicMock, patch
+"""Whisper downloads and admission use tiny local pins; no model or network."""
+import hashlib
+import io
+from unittest.mock import Mock
 
-from models.transcription import transcription_whisper
+import pytest
 
-
-class TestDownloadWhisperWeight(unittest.TestCase):
-    """Different upstream repos (Systran/faster-whisper-* vs Zoont/deepdml
-    faster-whisper-large-v3-turbo conversions) ship different file sets.
-    downloadWhisperWeight used to request a fixed candidate list regardless
-    of what a given repo actually contains, producing 404s for files the
-    repo never had (e.g. Systran repos have no preprocessor_config.json/
-    vocabulary.json; Zoont/deepdml repos have no vocabulary.txt)."""
-
-    def setUp(self) -> None:
-        # downloadWhisperWeight always calls os_makedirs on the target path
-        # before checking what to download; without this patch a real
-        # directory (e.g. D:\tmp\root\weights\...) gets created on disk.
-        self._makedirs_patch = patch.object(transcription_whisper, "os_makedirs")
-        self._makedirs_patch.start()
-
-    def tearDown(self) -> None:
-        self._makedirs_patch.stop()
-
-    @patch.object(transcription_whisper, "checkWhisperWeight", return_value=False)
-    @patch.object(transcription_whisper, "downloadFile")
-    @patch("huggingface_hub.list_repo_files")
-    @patch("huggingface_hub.hf_hub_url", side_effect=lambda repo, filename: f"https://hf.example/{repo}/{filename}")
-    def test_skips_files_absent_from_the_repo(
-        self, mock_hub_url, mock_list_repo_files, mock_download_file, mock_check_weight
-    ) -> None:
-        # Systran-style repo: no preprocessor_config.json / vocabulary.json.
-        mock_list_repo_files.return_value = [
-            ".gitattributes", "README.md", "config.json", "model.bin",
-            "tokenizer.json", "vocabulary.txt",
-        ]
-
-        transcription_whisper.downloadWhisperWeight("/tmp/root", "base")
-
-        downloaded_filenames = {call.args[0].split("/")[-1] for call in mock_download_file.call_args_list}
-        self.assertEqual(
-            downloaded_filenames,
-            {"config.json", "model.bin", "tokenizer.json", "vocabulary.txt"},
-        )
-        self.assertNotIn("preprocessor_config.json", downloaded_filenames)
-        self.assertNotIn("vocabulary.json", downloaded_filenames)
-
-    @patch.object(transcription_whisper, "checkWhisperWeight", return_value=False)
-    @patch.object(transcription_whisper, "downloadFile")
-    @patch("huggingface_hub.list_repo_files")
-    @patch("huggingface_hub.hf_hub_url", side_effect=lambda repo, filename: f"https://hf.example/{repo}/{filename}")
-    def test_downloads_preprocessor_and_vocabulary_json_when_present(
-        self, mock_hub_url, mock_list_repo_files, mock_download_file, mock_check_weight
-    ) -> None:
-        # Zoont/deepdml-style repo: has preprocessor_config.json/vocabulary.json,
-        # no vocabulary.txt.
-        mock_list_repo_files.return_value = [
-            ".gitattributes", "README.md", "config.json", "model.bin",
-            "preprocessor_config.json", "tokenizer.json", "vocabulary.json",
-        ]
-
-        transcription_whisper.downloadWhisperWeight("/tmp/root", "large-v3-turbo")
-
-        downloaded_filenames = {call.args[0].split("/")[-1] for call in mock_download_file.call_args_list}
-        self.assertEqual(
-            downloaded_filenames,
-            {"config.json", "model.bin", "preprocessor_config.json", "tokenizer.json", "vocabulary.json"},
-        )
-        self.assertNotIn("vocabulary.txt", downloaded_filenames)
-
-    @patch.object(transcription_whisper, "checkWhisperWeight", return_value=False)
-    @patch.object(transcription_whisper, "downloadFile")
-    @patch("huggingface_hub.list_repo_files", side_effect=Exception("network error"))
-    @patch("huggingface_hub.hf_hub_url", side_effect=lambda repo, filename: f"https://hf.example/{repo}/{filename}")
-    @patch.object(transcription_whisper, "errorLogging")
-    def test_falls_back_to_full_candidate_list_when_listing_fails(
-        self, mock_error_logging, mock_hub_url, mock_list_repo_files, mock_download_file, mock_check_weight
-    ) -> None:
-        transcription_whisper.downloadWhisperWeight("/tmp/root", "base")
-
-        downloaded_filenames = {call.args[0].split("/")[-1] for call in mock_download_file.call_args_list}
-        self.assertEqual(downloaded_filenames, set(transcription_whisper._FILENAMES))
-        mock_error_logging.assert_called_once()
-
-    @patch.object(transcription_whisper, "checkWhisperWeight", return_value=True)
-    @patch.object(transcription_whisper, "downloadFile")
-    @patch("huggingface_hub.list_repo_files")
-    def test_skips_download_entirely_when_weight_already_verified(
-        self, mock_list_repo_files, mock_download_file, mock_check_weight
-    ) -> None:
-        transcription_whisper.downloadWhisperWeight("/tmp/root", "base")
-
-        mock_download_file.assert_not_called()
-        mock_list_repo_files.assert_not_called()
-
-    @patch.object(transcription_whisper, "checkWhisperWeight", return_value=False)
-    @patch.object(transcription_whisper, "downloadFile")
-    @patch("huggingface_hub.list_repo_files")
-    @patch("huggingface_hub.hf_hub_url", side_effect=lambda repo, filename: f"https://hf.example/{repo}/{filename}")
-    def test_calls_end_callback_after_download(
-        self, mock_hub_url, mock_list_repo_files, mock_download_file, mock_check_weight
-    ) -> None:
-        mock_list_repo_files.return_value = ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]
-        end_callback = MagicMock()
-
-        transcription_whisper.downloadWhisperWeight("/tmp/root", "base", end_callback=end_callback)
-
-        end_callback.assert_called_once()
+from models import legacy_model_downloads as downloads
+from models.transcription import transcription_whisper as whisper
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.fixture
+def pinned(tmp_path, monkeypatch):
+    bodies = {"model.bin": b"weights", "tokenizer.json": b"tokenizer"}
+    repo = whisper._MODELS["base"]
+    pin = {"revision": "a" * 40, "files": {
+        name: (len(body), hashlib.sha256(body).hexdigest()) for name, body in bodies.items()
+    }}
+    monkeypatch.setitem(whisper.MODEL_PINS, repo, pin)
+    requests = []
+
+    def transport(url, **kwargs):
+        requests.append((url, kwargs))
+        return io.BytesIO(bodies[url.rsplit("/", 1)[-1]])
+
+    monkeypatch.setattr(downloads, "open_public", transport)
+    return tmp_path, bodies, pin, requests
+
+
+def test_downloads_full_pinned_set_and_settles_already_present_shortcut(pinned):
+    root, bodies, pin, requests = pinned
+    end = Mock()
+    for _ in range(2):
+        assert whisper.downloadWhisperWeight(root, "base", end_callback=end)
+    assert end.call_count == 2
+    assert len(requests) == len(bodies)
+    for url, options in requests:
+        assert f"/resolve/{pin['revision']}/" in url
+        assert options["timeout"] == 60
+    assert whisper.checkWhisperWeight(root, "base")
+
+
+def test_invalid_existing_bytes_are_never_loaded_or_deleted(pinned, monkeypatch):
+    root, bodies, _, requests = pinned
+    path = root / "weights/whisper/base"
+    path.mkdir(parents=True)
+    for name, body in bodies.items():
+        (path / name).write_bytes(b"x" * len(body))
+    loader = Mock()
+    monkeypatch.setattr(whisper, "WhisperModel", loader)
+    assert not whisper.checkWhisperWeight(root, "base")
+    with pytest.raises(FileNotFoundError):
+        whisper.getWhisperModel(root, "base")
+    loader.assert_not_called()
+    assert not requests
+    assert (path / "model.bin").read_bytes() == b"x" * len(bodies["model.bin"])
+
+
+def test_load_uses_verified_local_bundle_and_rejects_tamper(pinned, monkeypatch):
+    root, bodies, _, _ = pinned
+    assert whisper.downloadWhisperWeight(root, "base")
+    loader = Mock()
+    monkeypatch.setattr(whisper, "WhisperModel", loader)
+    whisper.getWhisperModel(root, "base", compute_type="int8")
+    assert loader.call_args.kwargs["local_files_only"] is True
+    (root / "weights/whisper/base/tokenizer.json").write_bytes(b"tamper")
+    with pytest.raises(FileNotFoundError):
+        whisper.getWhisperModel(root, "base", compute_type="int8")
+    assert loader.call_count == 1
+
+
+def test_exception_still_calls_end_once_and_never_admits(pinned, monkeypatch):
+    root, _, _, _ = pinned
+    end = Mock()
+    monkeypatch.setattr(downloads, "open_public", Mock(side_effect=RuntimeError("transport failed")))
+    with pytest.raises(RuntimeError):
+        whisper.downloadWhisperWeight(root, "base", end_callback=end)
+    end.assert_called_once()
+    assert not whisper.checkWhisperWeight(root, "base")

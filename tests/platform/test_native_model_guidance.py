@@ -80,9 +80,9 @@ def test_native_gpu_choices_apply_and_owned_server_lifecycle(tmp_path):
                     after = json.loads(config.read_text())['SPEECH_SERVER_SETTINGS']['profiles'][target]
                     assert {k:v for k,v in after.items() if k!='model'} == {k:v for k,v in before.items() if k!='model'}
                     button(ui, profile, 'Start server')
-                    ui.wait("return [...document.querySelectorAll('fieldset')].some(e => e.querySelector('legend')?.textContent === " + json.dumps(profile) + " && [...e.querySelectorAll('[role=status]')].some(s => s.textContent === 'Ready'))", timeout=120)
+                    ui.wait("return [...document.querySelectorAll('fieldset')].some(e => e.querySelector('legend')?.textContent === " + json.dumps(profile) + " && [...e.querySelectorAll('[role=status], [role=status] p')].some(s => s.textContent === 'Ready'))", timeout=120)
                     button(ui, profile, 'Stop server')
-                    ui.wait("return [...document.querySelectorAll('fieldset')].some(e => e.querySelector('legend')?.textContent === " + json.dumps(profile) + " && [...e.querySelectorAll('[role=status]')].some(s => s.textContent === 'Stopped'))", timeout=15)
+                    ui.wait("return [...document.querySelectorAll('fieldset')].some(e => e.querySelector('legend')?.textContent === " + json.dumps(profile) + " && [...e.querySelectorAll('[role=status], [role=status] p')].some(s => s.textContent === 'Stopped'))", timeout=15)
                     report['cases'].append(dict(model_id=model_id, chosen_options=options, warning=warning, before=before, after=after, owned_load_stop=True))
                 assert not any(n.startswith('vrct.asr.capture.') for n in nodes())
                 ui.assert_rendered()
@@ -92,7 +92,7 @@ def test_native_gpu_choices_apply_and_owned_server_lifecycle(tmp_path):
                 ui.open_voice_settings()
                 for profile, target, _ in choices:
                     assert ui.evaluate('return arguments[0].value', control(ui, profile, 'Model GGUF path')) == paths[target]
-                assert not ui.evaluate("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Ready')")
+                assert not ui.evaluate("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Ready')")
                 ui.close_app()
         report['status'] = 'passed'
     except BaseException as error:

@@ -31,14 +31,14 @@ def test_split_settings_small_window_keyboard_and_long_paths(tmp_path, scaling):
         ui.element_command(seed, 'value', {'text': '\ue004'})  # Native Tab.
         assert ui.evaluate("return document.activeElement.getAttribute('aria-label')") == 'Instruction'
         ui.fill('Instruction', '改行を含む\n保存の試験')
-        ui.click_text('button', 'Save voice settings')
-        ui.wait("return [...document.querySelectorAll('button')].some(e => e.textContent === 'Save voice settings' && e.disabled)")
+        ui.click_text('button', 'Save changes')
+        ui.wait("return [...document.querySelectorAll('button')].some(e => e.textContent === 'Save changes' && e.disabled)")
         ui.open_rvc_settings()
         model = '/private/' + 'permitted-long-folder/' * 15 + 'voice.pth'
         ui.fill('Permitted RVC model (.pth)', model)
         assert ui.evaluate('return arguments[0].value', ui.control('Permitted RVC model (.pth)')) == model
-        ui.click_text('button', 'Save input settings')
-        ui.wait("return [...document.querySelectorAll('button')].some(e => e.textContent === 'Save input settings' && e.disabled)")
+        ui.click_text('button', 'Save changes')
+        ui.wait("return [...document.querySelectorAll('button')].some(e => e.textContent === 'Save changes' && e.disabled)")
         report = ui.evaluate('''
             const form = document.querySelector('[data-setting-id=rvc_settings]');
             return [...form.querySelectorAll('input,select,button')].map(e => {

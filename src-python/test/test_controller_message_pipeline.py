@@ -15,12 +15,15 @@ WebSocket送信・ロガー・エラーハンドリング)を固定化するた�
 """
 
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import ANY, ANY, MagicMock, patch
 
 from controller import Controller, config
+from models.message_delivery import ChatboxOrder, DeliveryEpochs
 
 
 _CONFIG_KEYS = [
+    "SELECTED_TRANSLATION_ENGINES",
+    "CTRANSLATE2_WEIGHT_TYPE",
     "ENABLE_TRANSLATION",
     "ENABLE_TRANSCRIPTION_SEND",
     "ENABLE_TRANSCRIPTION_RECEIVE",
@@ -49,6 +52,7 @@ _RUN_MAPPING = {
     "transcription_ocr": "/run/transcription_ocr_message",
     "error_device": "/run/error_device",
     "error_translation_engine": "/run/error_translation_engine",
+    "message_output_error": "/run/message_output_error",
     "error_translation_chat_vram_overflow": "/run/error_translation_chat_vram_overflow",
     "error_translation_mic_vram_overflow": "/run/error_translation_mic_vram_overflow",
     "error_translation_speaker_vram_overflow": "/run/error_translation_speaker_vram_overflow",
@@ -108,16 +112,25 @@ class _MessagePipelineTestBase(unittest.TestCase):
         import controller as controller_module
         self._model = controller_module.model
         self._model_patches: dict = {}
+
+        def publish_large(*args, current):
+            if current():
+                image = self._model.createOverlayImageLargeLog(*args)
+                if current():
+                    self._model.updateOverlayLargeLog(image)
+
         for name, value in (
+            ("overlayPublicationGuard", MagicMock(side_effect=lambda size, current=lambda: True: current)),
             ("checkKeywords", MagicMock(return_value=False)),
             ("detectRepeatSendMessage", MagicMock(return_value=False)),
             ("detectRepeatReceiveMessage", MagicMock(return_value=False)),
-            ("getInputTranslate", MagicMock(return_value=([], [True]))),
-            ("getOutputTranslate", MagicMock(return_value=([], [True]))),
+            ("getInputTranslate", MagicMock(return_value=([], [True], ['translated']))),
+            ("getOutputTranslate", MagicMock(return_value=([], [True], ['translated']))),
             ("detectVRAMError", MagicMock(return_value=(False, ""))),
             ("convertMessageToTransliteration", MagicMock(return_value=["TRANSLITERATED"])),
             ("oscSendMessage", MagicMock()),
             ("createOverlayImageLargeLog", MagicMock(return_value="LARGE_IMG")),
+            ("publishMessageOverlayLargeLog", MagicMock(side_effect=publish_large)),
             ("createOverlayImageSmallLog", MagicMock(return_value="SMALL_IMG")),
             ("updateOverlayLargeLog", MagicMock()),
             ("updateOverlaySmallLog", MagicMock()),
@@ -126,6 +139,9 @@ class _MessagePipelineTestBase(unittest.TestCase):
             ("websocketSendMessage", MagicMock()),
             ("addTranslationHistory", MagicMock()),
             ("logger", MagicMock()),
+            # Fresh per test; injected models (tests/voice) have no Model class attribute.
+            ("message_delivery", DeliveryEpochs()),
+            ("chatbox_order", ChatboxOrder()),
         ):
             self._model_patches[name] = getattr(self._model, name, None)
             setattr(self._model, name, value)
@@ -188,16 +204,16 @@ class TestMicMessage(_MessagePipelineTestBase):
         self.assertEqual(result["translations"], [])
 
     def test_translation_success_calls_get_input_translate_and_reports(self) -> None:
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
-        self._model.getInputTranslate.assert_called_once_with("hello", source_language="English")
+        self._model.getInputTranslate.assert_called_once_with("hello", source_language="English", snapshot=ANY, with_provenance=True)
         _, endpoint, result = self.run_calls[-1]
         self.assertEqual(endpoint, "/run/transcription_send_mic_message")
         self.assertEqual(result["translations"], [{"message": "hola", "transliteration": []}])
-        self._model.addTranslationHistory.assert_called_once_with("mic", "hello")
+        self._model.addTranslationHistory.assert_called_once_with("mic", "hello", snapshot=ANY)
 
     def test_translation_engine_limit_falls_back_and_reports_error(self) -> None:
-        self._model.getInputTranslate.return_value = ([], [False])
+        self._model.getInputTranslate.return_value = ([], [False], ['failed'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         self.controller.changeToCTranslate2Process.assert_called_once()
         status, endpoint, result = self.run_calls[0]
@@ -229,7 +245,7 @@ class TestMicMessage(_MessagePipelineTestBase):
         your_langs["1"]["1"]["language"] = "Japanese"
         your_langs["1"]["1"]["country"] = "Japan"
         config.SELECTED_YOUR_LANGUAGES = your_langs
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         self._model.convertMessageToTransliteration.assert_any_call(
             "hello", hiragana=True, romaji=False
@@ -244,7 +260,7 @@ class TestMicMessage(_MessagePipelineTestBase):
         your_langs["1"]["1"]["language"] = "English"
         your_langs["1"]["1"]["country"] = "United States"
         config.SELECTED_YOUR_LANGUAGES = your_langs
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         calls = [c.args[0] for c in self._model.convertMessageToTransliteration.call_args_list]
         self.assertNotIn("hello", calls)
@@ -255,7 +271,7 @@ class TestMicMessage(_MessagePipelineTestBase):
         _set_target_language("1", "Japanese", "Japan")
         _set_target_language("2", "English", "United States")
         _set_target_language("3", "Japanese", "Japan")
-        self._model.getInputTranslate.return_value = (["ja1", "en", "ja3"], [True, True, True])
+        self._model.getInputTranslate.return_value = (["ja1", "en", "ja3"], [True, True, True], ['translated', 'translated', 'translated'])
 
         self.controller.micMessage({"text": "hello", "language": "English"})
 
@@ -270,55 +286,55 @@ class TestMicMessage(_MessagePipelineTestBase):
 
     def test_send_disabled_suppresses_all_output(self) -> None:
         config.ENABLE_TRANSCRIPTION_SEND = False
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         self.assertEqual(self.run_calls, [])
         self._model.oscSendMessage.assert_not_called()
         self._model.websocketSendMessage.assert_not_called()
         # ENABLE_TRANSCRIPTION_SEND に関わらず履歴だけは記録される。
-        self._model.addTranslationHistory.assert_called_once_with("mic", "hello")
+        self._model.addTranslationHistory.assert_called_once_with("mic", "hello", snapshot=ANY)
 
     def test_osc_send_respects_send_message_to_vrc_flag(self) -> None:
         config.SEND_MESSAGE_TO_VRC = False
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         self._model.oscSendMessage.assert_not_called()
 
     def test_osc_send_only_translated_uses_translation_only(self) -> None:
         config.SEND_ONLY_TRANSLATED_MESSAGES = True
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
-        self._model.oscSendMessage.assert_called_once_with("hola")
+        self._model.oscSendMessage.assert_called_once_with("hola", current=ANY)
 
     def test_osc_send_combines_message_and_translation_by_default(self) -> None:
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         # SEND_MESSAGE_FORMAT_PARTS の既定は translation_first=False なので
         # メッセージが先、翻訳が後になる。
-        self._model.oscSendMessage.assert_called_once_with("hello\nhola")
+        self._model.oscSendMessage.assert_called_once_with("hello\nhola", current=ANY)
 
     def test_clipboard_copies_when_enabled(self) -> None:
         config.ENABLE_CLIPBOARD = True
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         self._model.setCopyToClipboardAndPasteFromClipboard.assert_called_once_with("hello\nhola")
 
     def test_clipboard_not_copied_when_disabled(self) -> None:
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         self._model.setCopyToClipboardAndPasteFromClipboard.assert_not_called()
 
     def test_overlay_skipped_when_unavailable(self) -> None:
         config.OVERLAY_LARGE_LOG = True
         self.controller._is_overlay_available = lambda: False
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         self._model.updateOverlayLargeLog.assert_not_called()
 
     def test_overlay_updates_when_available(self) -> None:
         config.OVERLAY_LARGE_LOG = True
         self.controller._is_overlay_available = lambda: True
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         self._model.createOverlayImageLargeLog.assert_called_once()
         args = self._model.createOverlayImageLargeLog.call_args.args
@@ -336,7 +352,7 @@ class TestMicMessage(_MessagePipelineTestBase):
 
     def test_websocket_sent_when_server_alive(self) -> None:
         self._model.checkWebSocketServerAlive.return_value = True
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         self._model.websocketSendMessage.assert_called_once()
         payload = self._model.websocketSendMessage.call_args.args[0]
@@ -346,7 +362,7 @@ class TestMicMessage(_MessagePipelineTestBase):
 
     def test_logger_writes_when_enabled(self) -> None:
         config.LOGGER_FEATURE = True
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English"})
         self._model.logger.info.assert_called_once()
         self.assertIn("[SENT]", self._model.logger.info.call_args.args[0])
@@ -386,16 +402,16 @@ class TestSpeakerMessage(_MessagePipelineTestBase):
         self.assertEqual(self.run_calls, [])
 
     def test_translation_uses_single_your_language_target(self) -> None:
-        self._model.getOutputTranslate.return_value = (["hola"], [True])
+        self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.speakerMessage({"text": "hello", "language": "English"})
-        self._model.getOutputTranslate.assert_called_once_with("hello", source_language="English")
+        self._model.getOutputTranslate.assert_called_once_with("hello", source_language="English", snapshot=ANY, with_provenance=True)
         _, endpoint, result = self.run_calls[-1]
         self.assertEqual(endpoint, "/run/transcription_receive_speaker_message")
         self.assertEqual(result["translations"], [{"message": "hola", "transliteration": []}])
-        self._model.addTranslationHistory.assert_called_once_with("speaker", "hello")
+        self._model.addTranslationHistory.assert_called_once_with("speaker", "hello", snapshot=ANY)
 
     def test_translation_engine_limit_falls_back_and_reports_error(self) -> None:
-        self._model.getOutputTranslate.return_value = ([], [False])
+        self._model.getOutputTranslate.return_value = ([], [False], ['failed'])
         self.controller.speakerMessage({"text": "hello", "language": "English"})
         self.controller.changeToCTranslate2Process.assert_called_once()
         status, endpoint, result = self.run_calls[0]
@@ -414,7 +430,7 @@ class TestSpeakerMessage(_MessagePipelineTestBase):
         your_langs = config.SELECTED_YOUR_LANGUAGES
         your_langs["1"]["1"]["language"] = "English"  # 自分の言語は英語
         config.SELECTED_YOUR_LANGUAGES = your_langs
-        self._model.getOutputTranslate.return_value = (["hola"], [True])
+        self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
         # 受信メッセージ自体は日本語として検出された、という想定。
         self.controller.speakerMessage({"text": "hello", "language": "Japanese"})
         self._model.convertMessageToTransliteration.assert_any_call(
@@ -424,10 +440,10 @@ class TestSpeakerMessage(_MessagePipelineTestBase):
     def test_small_log_overlay_updates_when_available(self) -> None:
         config.OVERLAY_SMALL_LOG = True
         self.controller._is_overlay_available = lambda: True
-        self._model.getOutputTranslate.return_value = (["hola"], [True])
+        self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.speakerMessage({"text": "hello", "language": "English"})
         self._model.createOverlayImageSmallLog.assert_called_once()
-        self._model.updateOverlaySmallLog.assert_called_once_with("SMALL_IMG")
+        self._model.updateOverlaySmallLog.assert_called_once_with("SMALL_IMG", current=ANY)
 
     def test_small_log_overlay_skipped_when_unavailable(self) -> None:
         config.OVERLAY_SMALL_LOG = True
@@ -438,7 +454,7 @@ class TestSpeakerMessage(_MessagePipelineTestBase):
     def test_large_log_overlay_direction_is_receive(self) -> None:
         config.OVERLAY_LARGE_LOG = True
         self.controller._is_overlay_available = lambda: True
-        self._model.getOutputTranslate.return_value = (["hola"], [True])
+        self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.speakerMessage({"text": "hello", "language": "English"})
         args = self._model.createOverlayImageLargeLog.call_args.args
         self.assertEqual(args[0], "receive")
@@ -446,35 +462,35 @@ class TestSpeakerMessage(_MessagePipelineTestBase):
     def test_no_clipboard_step_for_speaker(self) -> None:
         # speakerMessage は clipboard 機能を一切持たない (mic だけの機能)。
         self.assertFalse(hasattr(self._model, "setCopyToClipboardAndPasteFromClipboard_called"))
-        self._model.getOutputTranslate.return_value = (["hola"], [True])
+        self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.speakerMessage({"text": "hello", "language": "English"})
         self._model.setCopyToClipboardAndPasteFromClipboard.assert_not_called()
 
     def test_osc_received_echo_respects_flag(self) -> None:
         config.SEND_RECEIVED_MESSAGE_TO_VRC = False
-        self._model.getOutputTranslate.return_value = (["hola"], [True])
+        self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.speakerMessage({"text": "hello", "language": "English"})
         self._model.oscSendMessage.assert_not_called()
 
     def test_websocket_payload_type_is_received(self) -> None:
         self._model.checkWebSocketServerAlive.return_value = True
-        self._model.getOutputTranslate.return_value = (["hola"], [True])
+        self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.speakerMessage({"text": "hello", "language": "English"})
         payload = self._model.websocketSendMessage.call_args.args[0]
         self.assertEqual(payload["type"], "RECEIVED")
 
     def test_logger_prefix_is_received(self) -> None:
         config.LOGGER_FEATURE = True
-        self._model.getOutputTranslate.return_value = (["hola"], [True])
+        self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.speakerMessage({"text": "hello", "language": "English"})
         self.assertIn("[RECEIVED]", self._model.logger.info.call_args.args[0])
 
     def test_receive_disabled_suppresses_output(self) -> None:
         config.ENABLE_TRANSCRIPTION_RECEIVE = False
-        self._model.getOutputTranslate.return_value = (["hola"], [True])
+        self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.speakerMessage({"text": "hello", "language": "English"})
         self.assertEqual(self.run_calls, [])
-        self._model.addTranslationHistory.assert_called_once_with("speaker", "hello")
+        self._model.addTranslationHistory.assert_called_once_with("speaker", "hello", snapshot=ANY)
 
     def test_recognition_error_emits_notification(self) -> None:
         self.controller.speakerMessage({
@@ -502,26 +518,24 @@ class TestChatMessage(_MessagePipelineTestBase):
     def test_no_word_filter_for_typed_chat(self) -> None:
         # chatMessage はタイプ入力なのでワードフィルタを一切適用しない(意図的な仕様)。
         self._model.checkKeywords.return_value = True
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         result = self.controller.chatMessage({"id": "1", "message": "hello"})
         self._model.checkKeywords.assert_not_called()
         self.assertEqual(result["result"]["translations"][0]["message"], "hola")
 
     def test_translation_success_returns_shape(self) -> None:
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         result = self.controller.chatMessage({"id": "42", "message": "hello"})
-        # MessagePipeline統合により、以前は省略していた source_language を
-        # 明示的に None として渡すようになった(model.getInputTranslate側の
-        # 既定値と同じなので、渡し方が変わっただけで挙動は同じ)。
-        self._model.getInputTranslate.assert_called_once_with("hello", source_language=None)
+        # Translation receives the admitted source language and immutable settings.
+        self._model.getInputTranslate.assert_called_once_with("hello", source_language=ANY, snapshot=ANY, with_provenance=True)
         self.assertEqual(result["status"], 200)
         self.assertEqual(result["result"]["id"], "42")
         self.assertEqual(result["result"]["original"]["message"], "hello")
         self.assertEqual(result["result"]["translations"], [{"message": "hola", "transliteration": []}])
-        self._model.addTranslationHistory.assert_called_once_with("chat", "hello")
+        self._model.addTranslationHistory.assert_called_once_with("chat", "hello", snapshot=ANY)
 
     def test_translation_engine_limit_falls_back_and_reports_error(self) -> None:
-        self._model.getInputTranslate.return_value = ([], [False])
+        self._model.getInputTranslate.return_value = ([], [False], ['failed'])
         self.controller.chatMessage({"id": "1", "message": "hello"})
         self.controller.changeToCTranslate2Process.assert_called_once()
         status, endpoint, result = self.run_calls[0]
@@ -542,7 +556,7 @@ class TestChatMessage(_MessagePipelineTestBase):
         _set_target_language("1", "Japanese", "Japan")
         _set_target_language("2", "English", "United States")
         _set_target_language("3", "Japanese", "Japan")
-        self._model.getInputTranslate.return_value = (["ja1", "en", "ja3"], [True, True, True])
+        self._model.getInputTranslate.return_value = (["ja1", "en", "ja3"], [True, True, True], ['translated', 'translated', 'translated'])
 
         result = self.controller.chatMessage({"id": "1", "message": "hello"})
 
@@ -553,15 +567,15 @@ class TestChatMessage(_MessagePipelineTestBase):
 
     def test_osc_send_only_translated_uses_translation_only(self) -> None:
         config.SEND_ONLY_TRANSLATED_MESSAGES = True
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.chatMessage({"id": "1", "message": "hello"})
-        self._model.oscSendMessage.assert_called_once_with("hola")
+        self._model.oscSendMessage.assert_called_once_with("hola", current=ANY)
 
     def test_osc_send_respects_send_message_to_vrc_flag(self) -> None:
         # 訂正: chatMessage も mic と同じ SEND_MESSAGE_TO_VRC ゲートを持つ
         # (当初「無い」と誤って想定していたが、実装を再確認して訂正)。
         config.SEND_MESSAGE_TO_VRC = False
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.chatMessage({"id": "1", "message": "hello"})
         self._model.oscSendMessage.assert_not_called()
 
@@ -572,34 +586,34 @@ class TestChatMessage(_MessagePipelineTestBase):
         """
         config.OVERLAY_LARGE_LOG = True
         self.controller._is_overlay_available = lambda: False
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.chatMessage({"id": "1", "message": "hello"})
         self._model.updateOverlayLargeLog.assert_not_called()
 
     def test_overlay_updates_when_available(self) -> None:
         config.OVERLAY_LARGE_LOG = True
         self.controller._is_overlay_available = lambda: True
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.chatMessage({"id": "1", "message": "hello"})
         self._model.updateOverlayLargeLog.assert_called_once()
 
     def test_websocket_payload_type_is_chat(self) -> None:
         self._model.checkWebSocketServerAlive.return_value = True
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.chatMessage({"id": "1", "message": "hello"})
         payload = self._model.websocketSendMessage.call_args.args[0]
         self.assertEqual(payload["type"], "CHAT")
 
     def test_logger_prefix_is_chat(self) -> None:
         config.LOGGER_FEATURE = True
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.chatMessage({"id": "1", "message": "hello"})
         self.assertIn("[CHAT]", self._model.logger.info.call_args.args[0])
 
     def test_return_value_delivery_not_push(self) -> None:
         # chatMessage は self.run() を介さず、戻り値で結果を返す
         # (同期リクエスト/レスポンス型エンドポイントのため)。
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         result = self.controller.chatMessage({"id": "1", "message": "hello"})
         self.assertEqual(self.run_calls, [])
         self.assertIn("result", result)
@@ -620,6 +634,12 @@ class TestLatencyInstrumentation(_MessagePipelineTestBase):
         self._saved_print_log = controller_module.printLog
         self.logs: list = []
         controller_module.printLog = lambda msg: self.logs.append(msg)
+        from models.transcription.utterance_diagnostics import UtteranceDiagnostics
+        self.now = 0.0
+        self.diagnostics = UtteranceDiagnostics(clock=lambda: self.now, log=self.logs.append)
+        diagnostics = patch.object(controller_module, "utterance_diagnostics", self.diagnostics)
+        diagnostics.start()
+        self.addCleanup(diagnostics.stop)
 
     def tearDown(self) -> None:
         import controller as controller_module
@@ -630,29 +650,68 @@ class TestLatencyInstrumentation(_MessagePipelineTestBase):
         return [line for line in self.logs if line.startswith("[latency]")]
 
     def test_mic_latency_line_includes_asr_time_from_the_transcriber(self) -> None:
-        self._model.getInputTranslate.return_value = (["hola"], [True])
-        self.controller.micMessage({"text": "hello", "language": "English", "asr_ms": 890})
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
+        self.controller.micMessage({"text": "hello", "language": "English", "asr_ms": 5890})
 
         lines = self._latencyLines()
-        self.assertEqual(len(lines), 1, f"[latency] は1発話につき1行: {self.logs}")
+        self.assertEqual(len(lines), 1, f"遅い発話は従来通り詳細を残す: {self.logs}")
         line = lines[0]
         self.assertIn("[latency][mic]", line)
-        self.assertIn("asr=890ms", line)
+        self.assertIn("asr=5890ms", line)
         self.assertIn("translate=", line)
         self.assertIn("output=", line)
         self.assertIn("total=", line)
 
     def test_speaker_latency_line_is_tagged_by_direction(self) -> None:
-        self._model.getOutputTranslate.return_value = (["hola"], [True])
-        self.controller.speakerMessage({"text": "hello", "language": "English", "asr_ms": 12})
+        self._model.getOutputTranslate.return_value = (["hola"], [True], ['translated'])
+        self.controller.speakerMessage({"text": "hello", "language": "English", "asr_ms": 5012})
 
         lines = self._latencyLines()
         self.assertEqual(len(lines), 1)
         self.assertIn("[latency][speaker]", lines[0])
-        self.assertIn("asr=12ms", lines[0])
+        self.assertIn("asr=5012ms", lines[0])
+
+    def test_routine_latency_is_aggregated_without_private_text(self):
+        self._model.getInputTranslate.return_value = (["private translation"], [True], ['translated'])
+        with patch("controller.time.perf_counter", return_value=0):
+            for _ in range(30):
+                self.controller.micMessage({"text": "private original", "language": "English", "asr_ms": 100})
+        self.assertEqual(self.logs, [])
+        self.now = 60
+        self.diagnostics.record("mic", "speech_start")
+        self.assertEqual(len(self.logs), 1)
+        self.assertIn("message=30", self.logs[0])
+        self.assertIn("total_ms(n=30,samples=30,p50=100.0,p95=100.0,max=100.0)", self.logs[0])
+        self.assertNotIn("private", self.logs[0])
+        self.assertEqual(len(self.run_calls), 30)
+
+    def test_slow_translation_keeps_all_latency_fields(self):
+        with patch("controller.time.perf_counter", side_effect=[0, 0, 5, 5]):
+            self.controller.micMessage({"text": "private", "language": "English", "asr_ms": 100})
+        self.assertEqual(self.logs, ["[latency][mic] asr=100ms translate=5000ms output=0ms total=5100ms"])
+
+    def test_realtime_expired_translation_is_logged_without_publishing(self):
+        from models.message_pipeline import REALTIME_MIC_SPEC
+
+        def translate(*args, **kwargs):
+            self.now = 3
+            return ["private translation"], [True], ['translated']
+
+        self._model.getInputTranslate.side_effect = translate
+        with patch("controller.time.perf_counter", side_effect=lambda: self.now):
+            result = self.controller._processMessage(
+                REALTIME_MIC_SPEC, "private original", "English",
+                publication_guard=lambda: self.now < 2,
+            )
+        self.assertIsNone(result)
+        self.assertEqual(self.run_calls, [])
+        self.assertEqual(self.logs, ["[latency][mic] translate=3000ms output=0ms total=3000ms publication=aborted"])
+        self.diagnostics.flush("mic")
+        self.assertIn("message_aborted=1", self.logs[-1])
+        self.assertIn("realtime_translate_ms(n=1,samples=1,p50=3000.0,p95=3000.0,max=3000.0)", self.logs[-1])
 
     def test_chat_latency_line_omits_asr_because_there_is_no_asr_stage(self) -> None:
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.chatMessage({"id": "1", "message": "hello"})
 
         lines = self._latencyLines()
@@ -662,7 +721,7 @@ class TestLatencyInstrumentation(_MessagePipelineTestBase):
 
     def test_total_includes_the_asr_time(self) -> None:
         """total は ASR を含む「文字起こし結果が出てから出力完了まで」。"""
-        self._model.getInputTranslate.return_value = (["hola"], [True])
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
         self.controller.micMessage({"text": "hello", "language": "English", "asr_ms": 5000})
 
         line = self._latencyLines()[0]
@@ -708,7 +767,7 @@ class TestOcrMessage(_MessagePipelineTestBase):
 
     def test_payload_carries_the_ocr_source_and_id(self) -> None:
         # UIは source でOCR由来のメッセージにバッジを出す (MessageContainer.jsx)。
-        self._model.getOutputTranslate.return_value = (["hello"], [True])
+        self._model.getOutputTranslate.return_value = (["hello"], [True], ['translated'])
         self.controller.ocrMessage({"text": "こんにちは", "language": "Japanese",
                                     "segment_id": "abc123"})
         status, endpoint, result = self.run_calls[0]
@@ -740,9 +799,10 @@ class TestOcrMessage(_MessagePipelineTestBase):
 
     def test_blank_language_falls_back_to_the_target_language(self) -> None:
         # 空文字を自分の言語へフォールバックさせてはいけない (自分の言語から
-        # 自分の言語への翻訳を頼むことになる)。None を渡して getOutputTranslate に任せる。
+        # 自分の言語への翻訳を頼むことになる)。相手の言語を受付時に固定する。
         self.controller.ocrMessage({"text": "hello", "language": ""})
-        self.assertIsNone(self._model.getOutputTranslate.call_args.kwargs["source_language"])
+        self.assertEqual(self._model.getOutputTranslate.call_args.kwargs["source_language"],
+                         config.SELECTED_TARGET_LANGUAGES[config.SELECTED_TAB_NO]["1"]["language"])
 
     def test_does_not_use_the_small_overlay(self) -> None:
         # 小さいオーバーレイは音声の受信専用。
@@ -755,4 +815,4 @@ class TestOcrMessage(_MessagePipelineTestBase):
 
     def test_history_is_recorded_as_ocr(self) -> None:
         self.controller.ocrMessage({"text": "こんにちは", "language": "Japanese"})
-        self._model.addTranslationHistory.assert_called_once_with("ocr", "こんにちは")
+        self._model.addTranslationHistory.assert_called_once_with("ocr", "こんにちは", snapshot=ANY)

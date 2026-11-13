@@ -7,7 +7,7 @@
     justify-content: center;
     align-items: end;
     aspect-ratio: 1 / 1;
-    transition: all 0.1s ease;
+    transition: background-color 0.1s ease;
 }
 
 .size_large {
@@ -60,5 +60,5 @@
 .x_mark_svg {
     transform: rotate(-45deg);
     color: var(--dark_700_color);
-    transition: transform 0.3s ease;
+    transition: transform 0.12s ease-out;
 }

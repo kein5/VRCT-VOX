@@ -21,7 +21,8 @@ on:
       - 'config/pipewire/**'
       - 'integrations/**'
       - 'spec/backend_linux.spec'
-      - 'requirements*'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - 'package*.json'
       - 'packaging/appimage/**'
       - 'tools/**'
@@ -52,12 +53,19 @@ jobs:
       SPEECH_VARIANT: ${{ inputs.speech_variant || 'linux-x64-vulkan' }}
       UV_PYTHON: '3.11'
     steps:
+      # The tar.gz, the AppDir and the AppImage together nearly fill the
+      # runner disk; drop preinstalled SDKs this job never uses.
+      - name: Free runner disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
         with:
           version: '0.13.5'
           enable-cache: true
-          cache-dependency-glob: requirements-linux-build.lock
+          cache-dependency-glob: uv.lock
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.15.0'
@@ -65,13 +73,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - name: System build and runtime dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config binutils libwebkit2gtk-4.1-dev libssl-dev \
-            libxdo-dev libayatana-appindicator3-dev librsvg2-dev libpipewire-0.3-dev \
-            pipewire-bin libvulkan1 libglfw3 libportaudio2 libasound2-dev \
-            webkit2gtk-driver xvfb xauth x11-utils dbus-x11 fonts-noto-cjk \
-            desktop-file-utils libgtk-3-dev libgdk-pixbuf-2.0-dev glib-networking \
-            imagemagick xdotool meson ninja-build libsndfile1-dev libglib2.0-dev liblua5.4-dev
+          packages="build-essential pkg-config binutils libwebkit2gtk-4.1-dev libssl-dev
+            libxdo-dev libayatana-appindicator3-dev librsvg2-dev libpipewire-0.3-dev
+            pipewire-bin libvulkan1 libglfw3 libportaudio2 libasound2-dev
+            webkit2gtk-driver xvfb xauth x11-utils dbus-x11 fonts-noto-cjk
+            desktop-file-utils libgtk-3-dev libgdk-pixbuf-2.0-dev glib-networking
+            imagemagick xdotool meson ninja-build libsndfile1-dev libglib2.0-dev liblua5.4-dev"
+          # The runner's package mirror sometimes cannot be resolved for a while. Try again before failing the job.
+          for attempt in 1 2 3 4; do
+            sudo apt-get update && sudo apt-get install -y $packages && break
+            if [ "$attempt" = 4 ]; then exit 1; fi
+            sleep $((attempt * 20))
+          done
       - name: Prepare tested PipeWire API in an isolated prefix
         run: |
           bash tools/ci/setup_pipewire.sh "$RUNNER_TEMP/vrct-pipewire"
@@ -122,15 +135,15 @@ jobs:
         env:
           CANDIDATE_COMMIT: ${{ github.sha }}
         run: |
-          python tools/release_candidate.py stage build/linux/candidate --platform linux --commit "$CANDIDATE_COMMIT" \
+          python tools/release_candidate.py stage build/linux/release-candidate --platform linux --commit "$CANDIDATE_COMMIT" \
             --asset build/linux/artifacts/*.AppImage --asset build/linux/artifacts/*.tar.gz
-          python tools/release_candidate.py verify build/linux/candidate --platform linux --commit "$CANDIDATE_COMMIT"
+          python tools/release_candidate.py verify build/linux/release-candidate --platform linux --commit "$CANDIDATE_COMMIT"
       # Candidate storage only. No release creation, package registry, or secrets.
       - name: Store inspected candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: VRCT-VOX-linux-x86_64-candidate
-          path: build/linux/candidate/*
+          path: build/linux/release-candidate/*
           if-no-files-found: error
           retention-days: 7
           compression-level: 0

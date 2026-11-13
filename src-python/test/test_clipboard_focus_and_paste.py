@@ -198,11 +198,11 @@ class PasteViaCtrlVTests(unittest.TestCase):
 
 
 class NativeClipboardFallbackTests(unittest.TestCase):
-    def test_non_windows_copies_without_attempting_focus_or_keys(self):
+    def test_other_systems_copy_without_attempting_focus_or_keys(self):
         instance = native_clipboard.Clipboard.__new__(native_clipboard.Clipboard)
         instance.app_name = None
         # Replace the module reference, not the shared sys.platform attribute.
-        with patch.object(native_clipboard, "sys", SimpleNamespace(platform="linux")), \
+        with patch.object(native_clipboard, "sys", SimpleNamespace(platform="darwin")), \
              patch.object(native_clipboard, "copy_to_clipboard", return_value=True) as copy, \
              patch.object(native_clipboard, "paste_via_ctrl_v") as paste:
             self.assertFalse(instance.copy_and_paste("こんにちは", window_name="VRChat"))
@@ -210,7 +210,7 @@ class NativeClipboardFallbackTests(unittest.TestCase):
         paste.assert_not_called()
 
     def test_non_windows_direct_paste_is_unsupported(self):
-        with patch.object(native_clipboard, "sys", SimpleNamespace(platform="linux")):
+        with patch.object(native_clipboard, "sys", SimpleNamespace(platform="darwin")):
             self.assertFalse(native_clipboard.paste_via_ctrl_v())
 
     def test_windows_test_module_does_not_replace_native_module_or_host_platform(self):
@@ -222,3 +222,107 @@ class NativeClipboardFallbackTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FakePaster:
+    """Stands in for the X11 connection: no display, window manager or key is touched."""
+
+    made = 0
+
+    def __init__(self, *, available=True, window=42, focus=True, paste=True, error=None):
+        type(self).made += 1
+        self.available, self.window, self.focused, self.pasted, self.error = available, window, focus, paste, error
+        self.calls = []
+
+    def isAvailable(self):
+        return self.available
+
+    def find(self, name):
+        self.calls.append(("find", name))
+        return self.window
+
+    def focus(self, window):
+        self.calls.append(("focus", window))
+        if self.error:
+            raise self.error
+        return self.focused
+
+    def paste(self):
+        self.calls.append(("paste",))
+        return self.pasted
+
+    def close(self):
+        self.calls.append(("close",))
+
+
+class LinuxPasteTests(unittest.TestCase):
+    """Linux pastes into X11/XWayland windows; the text is on the clipboard whatever happens."""
+
+    def setUp(self) -> None:
+        with patch.object(native_clipboard.Clipboard, "_initialize"):
+            self.instance = native_clipboard.Clipboard()
+        for target, value in (("sys", SimpleNamespace(platform="linux")), ("time", SimpleNamespace(sleep=lambda seconds: None))):
+            patcher = patch.object(native_clipboard, target, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = patch.object(native_clipboard, "copy_to_clipboard", return_value=True)
+        self.copy = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def paste(self, paster, name="VRChat"):
+        self.instance._x11_paster = paster
+        return self.instance.copy_and_paste("こんにちは", window_name=name)
+
+    def test_the_window_is_brought_forward_before_the_keys_are_sent(self):
+        paster = FakePaster()
+        self.assertTrue(self.paste(paster))
+        self.copy.assert_called_once_with("こんにちは")
+        self.assertEqual(paster.calls, [("find", "VRChat"), ("focus", 42), ("paste",)])
+
+    def test_no_keys_are_sent_unless_the_window_came_forward(self):
+        for paster in (FakePaster(window=None), FakePaster(focus=False), FakePaster(available=False)):
+            self.copy.reset_mock()
+            self.assertFalse(self.paste(paster))
+            self.copy.assert_called_once_with("こんにちは")  # still copied, for a paste by hand
+            self.assertNotIn(("paste",), paster.calls)
+
+    def test_without_a_known_game_window_it_only_copies(self):
+        paster = FakePaster()
+        self.assertFalse(self.paste(paster, name=None))
+        self.assertEqual(paster.calls, [])
+
+    def test_a_failed_copy_sends_nothing(self):
+        self.copy.return_value = False
+        paster = FakePaster()
+        self.assertFalse(self.paste(paster))
+        self.assertEqual(paster.calls, [])
+
+    def test_the_connection_is_kept_so_the_desktops_permission_lasts(self):
+        paster = FakePaster()
+        self.assertTrue(self.paste(paster))
+        self.assertTrue(self.instance.copy_and_paste("again", window_name="VRChat"))
+        self.assertIs(self.instance._x11_paster, paster)
+        self.assertNotIn(("close",), paster.calls)
+
+    def test_a_broken_connection_is_closed_and_replaced_next_time(self):
+        broken = FakePaster(error=RuntimeError("display lost"))
+        self.assertFalse(self.paste(broken))
+        self.assertEqual(broken.calls[-1], ("close",))
+        self.assertIsNone(self.instance._x11_paster)
+        FakePaster.made = 0
+        with patch("models.clipboard.x11_paste.X11Paster", FakePaster):
+            self.assertTrue(self.instance.copy_and_paste("again", window_name="VRChat"))
+        self.assertEqual(FakePaster.made, 1)
+
+
+class X11PasteModuleTests(unittest.TestCase):
+    def test_without_a_display_it_is_unavailable(self):
+        from models.clipboard import x11_paste
+
+        with patch.dict(x11_paste.os.environ, {}, clear=True):
+            self.assertFalse(x11_paste.X11Paster().isAvailable())
+
+    def test_the_event_is_as_large_as_xlib_reads(self):
+        from models.clipboard import x11_paste
+
+        self.assertEqual(ctypes.sizeof(x11_paste._Event), 24 * ctypes.sizeof(ctypes.c_long))

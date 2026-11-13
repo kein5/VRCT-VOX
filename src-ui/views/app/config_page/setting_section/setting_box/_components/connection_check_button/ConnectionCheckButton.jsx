@@ -1,21 +1,25 @@
 import styles from "./ConnectionCheckButton.module.scss";
 import { useI18n } from "@useI18n";
+import { EnvReadout } from "../env_readout/EnvReadout";
 
+// The connection state is an environment readout in words (DESIGN.md); its
+// color repeats the words. The check is the shared secondary settings button.
 export const ConnectionCheckButton = (props) => {
     const { t } = useI18n();
-
-    const label = props.state === "pending"
-        ? `${t("config_page.common.connection_check.checking")} 🌀`
-        : props.variable === true
-            ? `${t("config_page.common.connection_check.connected")} ✅`
-            : `${t("config_page.common.connection_check.disconnected")} ❌`;
+    const pending = props.state === "pending";
+    const state = pending ? "checking" : props.variable === true ? "connected" : "disconnected";
 
     return (
-        <div className={styles.container}>
-            <p className={styles.status_label}>{label}</p>
-            <button className={styles.button_wrapper} onClick={props.checkFunction}>
-                <p className={styles.button_label}>{t("config_page.common.connection_check.button_label")}</p>
-            </button>
-        </div>
+        <EnvReadout
+            className={styles.container}
+            tone={state === "connected" ? "active" : "neutral"}
+            actions={
+                <button aria-describedby={props["aria-describedby"]} type="button" className={styles.button} disabled={pending} onClick={props.checkFunction}>
+                    {t("config_page.common.connection_check.button_label")}
+                </button>
+            }
+        >
+            <p>{t(`config_page.common.connection_check.${state}`)}</p>
+        </EnvReadout>
     );
 };

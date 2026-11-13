@@ -3,11 +3,13 @@
 2026-10-27に提供されたevidence mapと以下の一次資料を参照。
 この冒頭表は初期調査時点の記録。後日、ユーザー承認済みの開発用モデル取得とSeed外部worker実装を行った。配布許可とは区別し、各PoC報告と下記追記を参照。
 
+2026-10-31に`v0.1.0-beta.1`（プレリリース）を公開した。Linux配布物（tar.gz・AppImage）には固定speech.cpp 0.10.0の実行ファイルと通知を同梱した。Windows版にはこの時点で同梱していない（2026-11-07に同梱を追加。下記参照）。配布物のLGPL/GPL部品は[NOTICE](../../NOTICE.md#lgpl-and-gpl-components-in-vrct-vox-builds)に記載。以下の各節は日付ごとの記録で、「未公開」「次工程」などはその時点の状態を表す。
+
 | 対象 | 確認した根拠 | 今回の扱い |
 |---|---|---|
 | VRCTコード | [LICENSE](../../LICENSE), [NOTICE](../../NOTICE.md) | MIT帰属を維持 |
 | upstream OCR検出重み | [モデルライセンス](../../src-python/models/ocr/onnx/LICENSE.txt) | fork成果物から除外。ソース内の開発用ファイルは保持 |
-| speech.cpp | [検証済みv0.10.0のMIT](https://github.com/nyosegawa/speech.cpp/blob/v0.10.0/LICENSE) | 2026-10-29承認後、固定CPU/Vulkan実行ファイルと依存通知の配布部品を作成・検証。GUI/アプリ全体への同梱は次工程、未公開。下記追記参照 |
+| speech.cpp | [検証済みv0.10.0のMIT](https://github.com/nyosegawa/speech.cpp/blob/v0.10.0/LICENSE) | 2026-10-29承認後、固定CPU/Vulkan実行ファイルと依存通知の配布部品を作成・検証。Linux配布物に同梱し、0.1.0-beta.1で公開。下記追記参照 |
 | Irodori v4.1 Small MF | [モデルカード](https://huggingface.co/Aratako/Irodori-TTS-v4.1-Small-MF) | 日本語のみ。MIT表示に加え、声の本人の明示同意・なりすまし/誤情報禁止の記載を確認。ユーザー管理のvoiceだけ利用 |
 | Irodori Large | [モデル説明](https://github.com/nyosegawa/speech.cpp/blob/main/docs/models/irodori-tts.md) | Smallと条件を混同しない。今回は同梱・検証なし |
 | Qwen3-TTS | [モデル説明](https://github.com/nyosegawa/speech.cpp/tree/main/docs/models) | ユーザーが選んだ重みの条件・hashを実機導入時に記録。モデル取得なし |
@@ -31,6 +33,25 @@ OCR重みを展開済みdatas/binariesのsource/destination両方で除外する
 元LICENSE/NOTICE、OCRモデル通知を明示収集。ZIP/NSIS検査は失敗時に配布処理を止める。
 Windows最終実物、Linux製品package、全同梱依存の最終ライセンス監査は未完了。
 モデル取得承認を再配布承認へ読み替えない。speech.cpp GUI管理はP5-Bで実装済み、未公開。
+
+## Windowsインストーラーの通知とzeroconfの版（2026-11-06）
+
+NScurlと依存部品の通知7点は、`src-tauri/nsis/licenses/nscurl/`の原文を保持し、
+NSISインストーラー内の`$PLUGINSDIR/licenses/nscurl/`へ同梱する。
+アプリ本体の取得に失敗した場合も、setup.exeを7-Zipで展開して読める。
+CPU版・CUDA版のZIPにも`_internal/licenses/nscurl/`として収集し、
+[NOTICE](../../NOTICE.md#windows-installer-download-component)に場所を記載する。
+最終NSIS成果物の検査では、この7点のいずれかが欠けていれば失敗する。
+Windows実物の展開結果と、同梱DLLの版に対応する通知一式かどうかの確認は別途必要。
+
+zeroconfのNOTICEは、`uv.lock`に固定された0.152.0と、そのソース配布物のURLへ訂正した。
+各specの`.py`収集設定は維持する。凍結後のファイル構成の確認や、配布条件全体の監査を
+完了したという意味ではない。
+
+配布物の検査では、ZIPとtar内のZIPを拡張子や先頭の署名だけでなく末尾の情報でも識別する。
+ネストしたZIPは1個128 MiBまで、ZIP・tarそれぞれの検査全体は展開後16 GiB・10万エントリーまで、
+ZIPの入れ子は4段までとし、上限を超えた場合は検査失敗とする。
+OCRのディレクトリー情報は入れ子の中でも引き継ぎ、ホスト上の作業ディレクトリー名は判定に使わない。
 
 ## Managed route追加分（2026-10-27）
 
@@ -61,9 +82,12 @@ Windowsはartifact検査のみ、実行試験ではない。numpy1.26.4との実
 [固定LICENSE](https://github.com/dofuuz/python-soxr/blob/91479780e687fa994daabcff074e5960dc0bd4e2/LICENSE.txt)、
 [固定build](https://github.com/dofuuz/python-soxr/blob/91479780e687fa994daabcff074e5960dc0bd4e2/CMakeLists.txt)、
 [PyPI固定配布](https://pypi.org/project/soxr/1.1.0/)。native libsoxrは拡張へ静的組込み。
-**バイナリ配布前の残件:** LGPL§4/§6に沿った対応ソース/置換・再リンク方法、nanobindの実ビルド版と通知の網羅性を確認する。
-noticeが入っているだけで最終配布条件を満たすとは判断しない。現段階は開発環境への導入で、配布物は作成していない。
-既存transitive PyAVのwheelについても最終bundle監査の対象として保持する。
+2026-10-31（0.1.0前）: 配布物のLGPL/GPL部品を[NOTICE](../../NOTICE.md#lgpl-and-gpl-components-in-vrct-vox-builds)に列挙し、
+対応ソースの入手先、差し替え方法、3年間のソース提供の申し出を記載した。libsoxrは拡張モジュール（別ファイル）として差し替え可能。
+LGPLの純Pythonパッケージ`zeroconf`はPYZへ入れず`.py`のまま同梱する。PyAVの公式wheelは12〜18系のLinux/Windowsいずれも
+GPLのx264/x265を同梱していたため配布せず、`packaging/pyinstaller-stubs/av`の代用モジュールを使う
+（faster-whisperはnumpy配列の入力ではデコードしない）。配布ポリシーがPyAVのネイティブライブラリとx264/x265を拒否する。
+nanobind（BSD-3-Clause）の実ビルド版の特定は未了。
 
 ## RVC追加分（2026-10-29、モデル未取得）
 
@@ -98,6 +122,14 @@ HuBERT/RMVPEの固定4ファイルは今回明示承認され、370,392,700 byte
 実行環境全体へ一般化しない。Torch/torchaudio、FAISS、Transformers、NumPy/SciPy、
 librosa、libsndfile等を含む最終runtime配布条件の監査は引き続きP5で必要。
 
+## speech.cpp配布部品（Windows、2026-11-07）
+
+Windows版にも固定speech.cpp 0.10.0の公式Vulkan版`speech.exe`と通知を同梱する。元ZIPのサイズとSHA-256は[固定台帳](speechcpp-bundle-artifacts.json)にある。ZIP内の`speech.dll`、`speech.h`、`speech.lib`は使わないので含めない。`speech.exe`はMSVCのビルド情報を持ち、Cランタイムの動的ライブラリを読み込まないので、GCCのランタイムは含まない。GCCの文書はLinux版のための通知で、同じ通知一式に残る。`vulkan-1.dll`とGPUドライバーは配布物に含まない。
+
+RVCとSeed-VCの実行環境、基礎モデル、声のモデルは、WindowsでもLinuxでも配布物に含まない。アプリの準備機能は、利用者の同意を得て提供元からこのPCへ直接取得するだけで、再配布はしない。取得先はGitHub（uv、Python、エンジン本体）、PyPI、PyTorch、Hugging Faceで、同意画面にライセンスのリンクとサイズを示す。Windowsの配布物の`_internal/voice_worker/integrations/seed_vc/`にはGPL-3.0-onlyのアダプターを、`_internal/licenses/python/`には凍結したPythonパッケージのライセンス文書を含む。
+
+Linuxの配布物も、2026-11-11から同じ準備機能を持つ。取得するuvはLinux用の公式リリース（x86-64、glibc版）で、版・サイズ・SHA-256を固定する。そのために`_internal/integrations/rvc/`と`_internal/integrations/seed_vc/`へ、ハッシュを固定した依存の一覧（`requirements-cuda.lock`、`requirements.lock`）と、Seed-VCのパッチ（`offline-loader.patch`、GPL-3.0-only）を加えた。Linux用のPyTorch（CUDA版）は、NVIDIAのライブラリを別のパッケージ（`nvidia-*-cu12`など）として取得する。これらもNVIDIAのライセンスに従い、配布物には含まない。
+
 ## speech.cpp配布部品（2026-10-29）
 
 固定0.9.0の公式Linux CPU/Vulkan ZIPをサイズ・SHA256で照合し、実行ファイルと通知のみを抽出。
@@ -109,3 +141,26 @@ miniaudioの二重ライセンス、静的GCCランタイムのGPLv3＋Runtime L
 この部品の確認をアプリ全体・別VCランタイムの配布監査完了とは扱わない。未公開。
 
 2026-10-31に固定版を0.10.0（commit 06590811a90041f935a470ba0e2b85346d2fc041）へ更新。speech.cpp/cpp-httplib/miniaudio/GGMLのライセンス文は0.9.0と同一で、vendorは無変更、GGMLはsubmodule 700c9d743ed7cc583c0f1b6507afebb6c0e88bc0へ更新。公式Vulkan実行ファイルのGCCは同じUbuntu 11.4.0-1ubuntu1~22.04.3。新規に同梱する第三者コードはない。
+
+## 内蔵Whisper・CTranslate2の取得条件
+
+WhisperはOpenAIのMITモデルを元にしたSystran・Zoont・deepdmlのCTranslate2変換版で、同梱しない。[NOTICE](../../NOTICE.md#downloadable-whisper-weights)に提供元を記載し、取得画面でMITと固定ファイルの正確な合計容量を表示する。CTranslate2翻訳はM2M100とその文章分割ファイルがMIT、NLLBとその文章分割ファイルがCC-BY-NC-4.0（非商用）。[NOTICEの一覧](../../NOTICE.md#downloadable-ctranslate2-translation-weights)を正本とする。非商用モデルは既定にしない。
+
+内蔵モデルの取得は、選択済みのNLLBや同じ一式に含まれるtokenizerも含め、モデルと固定した一覧への明示的な同意を必要とする。起動時の取得は、その同意の記録がある版だけに限る。tokenizerはCTranslate2変換リポジトリ内の固定済みファイルを使い、容量・SHA-256を検証する。確認画面の合計容量に含め、取得元の変更によりmanifestの再同意が必要になる。ライセンスの条件は変えない。この追記で配布許可や完全性の検証完了を主張しない。取得画面と移行の詳細は[モデル取得](model-downloads.md#内蔵whisperctranslate2と文章分割ファイル)を参照する。
+
+## 話者分離モデル（2026-11-13）
+
+ゲーム音声の字幕で話者を区別するために、取得できるモデルへNemotron 3 Diarization（Q8_0）を足した。配布物には含めない。利用者が同意画面で確認してから、Hugging Faceの固定revisionからこのPCへ取得する。
+
+| 項目 | 内容 |
+|---|---|
+| 提供元 | NVIDIA（[nvidia/Nemotron-3-Diarization](https://huggingface.co/nvidia/Nemotron-3-Diarization)）。GGUFへの変換はsakasegawa |
+| 取得元 | [sakasegawa/Nemotron-3-Diarization-GGUF](https://huggingface.co/sakasegawa/Nemotron-3-Diarization-GGUF/tree/9096d41cb78bba7ac882b96d453e25239eac692b) @ `9096d41cb78bba7ac882b96d453e25239eac692b` |
+| ファイル | `Nemotron-3-Diarization-99M-Q8_0.gguf`、106,179,488 bytes、SHA-256 `336df6350dce2ea5ff06aa6e2b249d331a859ced13305fbb45c44bdb3c0abe20` |
+| ライセンス | [OpenMDW-1.1](https://openmdw.ai/license/1-1/)。リポジトリに`LICENSE.OpenMDW-1.1`がある。取得にログインは要らない |
+
+2026-11-13にOpenMDW-1.1の本文を読んだ。モデルと関連物を制限なく扱える許諾で、配布するときは契約の写しと著作権表示・出所の表示を残す条件である。特許や著作権の侵害を主張する訴訟を起こすと許諾が終わる。出力の利用には制限も義務も課さない。VRCT-VOXはこのモデルを再配布しないので、配布時の条件は当てはまらない。同意画面ではモデルカードとリポジトリ内のライセンス文へのリンクを示す。
+
+元のモデルカードは学習データに日本語を挙げていない。日本語での精度は提供元も変換者も公表していない。この条件と手元での試験の結果は[話者分離の選定と試験](speaker-diarization-2026-11-13.md)に記録した。
+
+候補のうち、Streaming Sortformer v2.1（NVIDIA Open Model License）とMultitalker Parakeet（同）は採用していない。Sortformer v1（CC-BY-NC-4.0）は非商用なので候補から外した。pyannoteのモデルは取得にログインと利用規約への同意が要るので、カタログに載せられない。

@@ -1,9 +1,18 @@
 """Persist local model choices without persisting permission to start a process."""
 from pathlib import Path
+import re
 import stat
 
 PROFILES = ('japanese', 'multilingual', 'asr')
-DEFAULT = dict(model='', vad_model='', voice_file='', device='auto', low_latency=False)
+# diarization_model is optional and for the asr profile only: with it the server
+# also tells who speaks in each utterance (models/transcription/speechcpp_realtime.py).
+DEFAULT = dict(model='', vad_model='', diarization_model='', voice_file='', device='auto', low_latency=False)
+# One of the names `speech devices` prints. native/vc-worker checks the same form on Linux.
+NAMED_GPU = re.compile(r'Vulkan[0-9]{1,2}')
+
+
+def _device_allowed(device):
+    return device in ('auto', 'cpu', 'gpu') or NAMED_GPU.fullmatch(device) is not None
 
 
 def normalize_settings(value):
@@ -24,8 +33,8 @@ def normalize_settings(value):
                 any(not isinstance(v,str) or len(v)>4096 or any(ord(c)<32 for c in v)
                     for k,v in row.items() if k != 'low_latency')):
             raise ValueError('speech_server_settings_invalid')
-        if (row['device'] not in ('auto','cpu','gpu') or
-                (row['voice_file'] if profile=='asr' else row['vad_model'])):
+        if (not _device_allowed(row['device']) or
+                (row['voice_file'] if profile=='asr' else row['vad_model'] or row['diarization_model'])):
             raise ValueError('speech_server_settings_invalid')
         result['profiles'][profile]=row
     return result
@@ -53,6 +62,8 @@ def start_options(settings, profile):
     row['model']=_gguf(row['model'])
     if profile=='asr':
         row['vad_model']=_gguf(row['vad_model'])
+        if row['diarization_model']:
+            row['diarization_model']=_gguf(row['diarization_model'])
     elif row['voice_file']:
         row['voice_file']=_gguf(row['voice_file'])
     return row

@@ -62,7 +62,7 @@ export const TranslatorSelectorOpenButton = () => {
     };
 
     const is_loading = currentTranslationEngines.state === "pending";
-    const selected_label = is_loading ? "Loading..." : getSelectedLabel();
+    const selected_label = is_loading ? t("common.loading") : getSelectedLabel();
 
 
     const { currentIsOpenedTranslatorSelector, updateIsOpenedTranslatorSelector} = useStore_IsOpenedTranslatorSelector();
@@ -73,7 +73,8 @@ export const TranslatorSelectorOpenButton = () => {
 
     return (
         <div className={styles.container}>
-            <div className={styles.translator_selector_button} onClick={openTranslatorSelector}>
+            <div className={styles.translator_selector_button} onClick={openTranslatorSelector}
+                role="button" tabIndex={0} aria-expanded={currentIsOpenedTranslatorSelector.data === true} onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); if (event.repeat) return; openTranslatorSelector(); } }}>
                 <p className={styles.label}>{t("main_page.translator")}:</p>
                 <p className={styles.label}>{selected_label}</p>
                 {is_selected_same_language

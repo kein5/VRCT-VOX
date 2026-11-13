@@ -27,7 +27,7 @@
 telemetry無効化・fork identity/README/支援窓口分離を実装。
 アプリ内更新を停止し、workflowは手動の候補ビルド/検査のみ。
 [配布境界報告](fork-distribution-isolation.md)に実測と未検証を記録。
-[AUR案](linux-distribution-proposal.md)と[上流候補patch/PR文案](upstream-contribution-candidates.md)を作成。
+[AUR案](linux-distribution-proposal.md)と上流候補patch/PR文案を作成（2026-11-01、上流へ提案しない方針になったため削除）。
 Linux製品package、Windows ZIP/NSIS実物、最終ライセンス・Trail of Bits監査は未完。
 公開、push、上流への連絡・PR、AUR登録は実行していない。
 

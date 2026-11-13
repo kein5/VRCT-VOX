@@ -24,7 +24,7 @@
     transform: translate(-50%, -50%);
 }
 
-.chato_box {
+.mark_box {
     position: relative;
     top: 50%;
     left: 50%;
@@ -34,19 +34,11 @@
     overflow: hidden;
 }
 
-.chato_img {
+// VRCT-VOX's icon, upright inside the turning progress ring.
+.mark_img {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     width: 4.8rem;
-    animation: infinite-rotation 20s linear infinite 0.5s;
-}
-@keyframes infinite-rotation {
-    from {
-        transform: translate(-50%, -50%) rotate(0deg);
-    }
-    to {
-        transform: translate(-50%, -50%) rotate(360deg);
-    }
 }

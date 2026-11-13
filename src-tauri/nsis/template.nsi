@@ -28,6 +28,8 @@ ${StrLoc}
 !define HEADERIMAGE "{{header_image}}"
 !define MAINBINARYNAME "{{main_binary_name}}"
 !define MAINBINARYSRCPATH "{{main_binary_path}}"
+; The Python sidecar from tauri.conf.json bundle.externalBin ("bin/vrct-vox-sidecar").
+!define SIDECARBINARYNAME "vrct-vox-sidecar"
 !define BUNDLEID "{{bundle_id}}"
 !define COPYRIGHT "{{copyright}}"
 !define OUTFILE "{{out_file}}"
@@ -243,7 +245,8 @@ FunctionEnd
 ; latest release of the channel this installer itself was published for,
 ; with no extra decisions to make.
 
-!insertmacro MUI_PAGE_COMPONENTS
+; No components page: EarlyChecks, WebView2 and Install are all required.
+; The page only let a user untick the WebView2 runtime or the app itself.
 
 ; 4-4. Custom page to ask user if he wants to reinstall/uninstall
 ;    only if a previous installtion was detected
@@ -366,7 +369,14 @@ Function PageReinstallUpdateSelection
     StrCpy $ReinstallPageCheck 2
   ${EndIf}
 FunctionEnd
+Var deferred_kind
+Var deferred_uninstall
+Var deferred_location
 Function PageLeaveReinstall
+  ; Back may change the choice, so never carry a previous decision forward.
+  StrCpy $deferred_kind ""
+  StrCpy $deferred_uninstall ""
+  StrCpy $deferred_location ""
   ${NSD_GetState} $R2 $R1
 
   ; $R5 holds whether we are reinstalling the same version or not
@@ -374,11 +384,22 @@ Function PageLeaveReinstall
   ; $R5 == "2" -> same version
   ;
   ; $R1 holds the radio buttons state. its meaning is dependant on the context
-  StrCmp $R5 "1" 0 +2 ; Existing install is not the same version?
-    StrCmp $R1 "1" reinst_uninstall reinst_done ; $R1 == "1", then user chose to uninstall existing version, otherwise skip uninstalling
+  ${If} $R5 == "1"
+    ${If} $R1 == "1"
+      ${If} $R7 == "wix"
+        StrCpy $deferred_kind "wix"
+        ReadRegStr $deferred_uninstall HKLM "$R6" "UninstallString"
+        ReadRegStr $deferred_location HKLM "$R6" "InstallLocation"
+      ${Else}
+        StrCpy $deferred_kind "nsis"
+        ReadRegStr $deferred_uninstall SHCTX "${UNINSTKEY}" "UninstallString"
+        ReadRegStr $deferred_location SHCTX "${MANUPRODUCTKEY}" ""
+      ${EndIf}
+    ${EndIf}
+    Return
+  ${EndIf}
   StrCmp $R1 "1" reinst_done ; Same version? skip uninstalling
 
-  reinst_uninstall:
     HideWindow
     ClearErrors
 
@@ -504,6 +525,15 @@ Var TargetVersion
 Var UILang
 Var SelectedChannel
 Function .onInit
+  ; Embed notices in setup.exe even when the application download fails.
+  InitPluginsDir
+  Push $OUTDIR
+  SetOutPath "$PLUGINSDIR\licenses\nscurl"
+  File "..\..\..\..\nsis\licenses\nscurl\LICENSE*.md"
+  Pop $0
+  SetOutPath "$0"
+  ClearErrors
+
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   IfErrors +2 0
     StrCpy $PassiveMode 1
@@ -715,15 +745,55 @@ SectionEnd
         Abort "$(appRunning)"
   ${EndIf}
   app_check_done:
+  ; Killing the main process skips the shell plugin's exit handler, so the
+  ; Python sidecar keeps running until its own watchdog stops it (1-2 min).
+  ; Meanwhile its exe and loaded libraries cannot be deleted, and its final
+  ; save can write config.json again. The main app is gone at this point:
+  ; it was not running, or the user agreed to stop it above.
+  !if "${INSTALLMODE}" == "currentUser"
+    nsis_tauri_utils::FindProcessCurrentUser "${SIDECARBINARYNAME}.exe"
+  !else
+    nsis_tauri_utils::FindProcess "${SIDECARBINARYNAME}.exe"
+  !endif
+  Pop $R0
+  ${If} $R0 = 0
+    !if "${INSTALLMODE}" == "currentUser"
+      nsis_tauri_utils::KillProcessCurrentUser "${SIDECARBINARYNAME}.exe"
+    !else
+      nsis_tauri_utils::KillProcess "${SIDECARBINARYNAME}.exe"
+    !endif
+    Pop $R0
+    Sleep 500
+    ${If} $R0 <> 0
+      ; Its watchdog may have ended it between the two calls.
+      !if "${INSTALLMODE}" == "currentUser"
+        nsis_tauri_utils::FindProcessCurrentUser "${SIDECARBINARYNAME}.exe"
+      !else
+        nsis_tauri_utils::FindProcess "${SIDECARBINARYNAME}.exe"
+      !endif
+      Pop $R0
+      ${IfThen} $R0 = 0 ${|} Abort "$(failedToKillApp)" ${|}
+    ${EndIf}
+  ${EndIf}
 !macroend
 
+Function CheckAppIsRunning
+  !insertmacro CheckIfAppIsRunning
+FunctionEnd
+
 Var /GLOBAL existing_install
+Var install_started
+Var upd_dir
+Var upd_entry
+Var upd_find
+Var upd_failed
 
 
 Section Install
   ; Remember whether this is an update before SetOutPath can create the
   ; directory.  A failed update must not remove an existing installation or
   ; user data that the installer did not create.
+  StrCpy $install_started "1"
   StrCpy $existing_install "0"
   ${If} ${FileExists} "$INSTDIR\uninstall.exe"
   ${OrIf} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
@@ -731,7 +801,17 @@ Section Install
     StrCpy $existing_install "1"
   ${EndIf}
 
-  !insertmacro CheckIfAppIsRunning
+  Call CheckAppIsRunning
+
+  ; A marker means a previous process stopped while replacing app files.
+  ${If} ${FileExists} "$INSTDIR\.upd\committing"
+    Call RollbackInstall
+    ${IfThen} $upd_failed == "1" ${|} Abort ${|}
+  ${EndIf}
+  RMDir /r "$INSTDIR\.upd"
+  ${If} ${FileExists} "$INSTDIR\.upd"
+    Abort "Could not remove the previous update work folder: $INSTDIR\.upd"
+  ${EndIf}
 
   !addplugindir "..\..\..\..\nsis\plugins\x86-unicode"
   ; 指定のURLからファイルをダウンロード
@@ -739,8 +819,9 @@ Section Install
   !define SOFTWARE_DOWNLOAD_FILENAME_GPU "VRCT-VOX_cuda.zip"
 
   ; Free-space budget (MiB) per edition. The compressed archive is written to
-  ; %TEMP%, the extracted tree to $INSTDIR, and both exist at once during
-  ; extraction, so a same-drive install needs DOWNLOAD + EXTRACT together.
+  ; %TEMP%, the new tree to $INSTDIR\.upd\new. The old installation stays
+  ; on disk until commit finishes. These are additional FREE-space budgets:
+  ; the install drive needs DOWNLOAD + EXTRACT beyond the existing tree.
   ; Measured 2026-08: VRCT.zip ~485MB / ~1.5GB unpacked; VRCT_cuda.zip
   ; ~3461MB / ~5757MB unpacked. Values below add headroom -- re-measure and
   ; bump them when the packages grow.
@@ -786,8 +867,9 @@ Section Install
   ${EndIf}
 
   ; --- Pre-flight: refuse to start if either target volume is too small ---
-  ; $TEMP holds the download, $INSTDIR holds the extracted app. When they are
-  ; on the same volume the archive and the extracted tree must fit together.
+  ; $TEMP holds the download; $INSTDIR\.upd holds the staged app alongside
+  ; the old installation, and the archive while tar reads it. So the install
+  ; volume needs both allocations whether or not $TEMP is on it.
   ; DriveSpace returns "" on failure -> treat as "unknown" and don't block.
   ${GetRoot} "$TEMP" $R0
   ${GetRoot} "$INSTDIR" $R1
@@ -796,8 +878,8 @@ Section Install
   ${IfThen} $R2 == "" ${|} StrCpy $R2 -1 ${|}
   ${IfThen} $R3 == "" ${|} StrCpy $R3 -1 ${|}
 
+  IntOp $R4 $req_dl_mb + $req_extract_mb
   ${If} $R0 == $R1
-    IntOp $R4 $req_dl_mb + $req_extract_mb
     ${If} $R2 >= 0
     ${AndIf} $R2 < $R4
       DetailPrint "Aborted: need $R4 MB free on $R0, only $R2 MB available"
@@ -812,9 +894,9 @@ Section Install
       Abort
     ${EndIf}
     ${If} $R3 >= 0
-    ${AndIf} $R3 < $req_extract_mb
-      DetailPrint "Aborted: need $req_extract_mb MB free on install drive $R1, only $R3 MB available"
-      MessageBox MB_OK|MB_ICONSTOP "Not enough free space on the install drive $R1 for the $SelectedEdition version.$\r$\n$\r$\nRequired: about $req_extract_mb MB$\r$\nAvailable: $R3 MB$\r$\n$\r$\nFree up space (or choose another drive) and run the installer again." /SD IDOK
+    ${AndIf} $R3 < $R4
+      DetailPrint "Aborted: need $R4 MB free on install drive $R1, only $R3 MB available"
+      MessageBox MB_OK|MB_ICONSTOP "Not enough free space on the install drive $R1 for the $SelectedEdition version.$\r$\n$\r$\nRequired: about $R4 MB$\r$\nAvailable: $R3 MB$\r$\n$\r$\nFree up space (or choose another drive) and run the installer again." /SD IDOK
       Abort
     ${EndIf}
   ${EndIf}
@@ -830,15 +912,15 @@ Section Install
   StrCpy $cmder_dl "https://github.com/kein5/VRCT-VOX/releases/download/$release_revision/$file_name"
   DetailPrint "Got URL : $cmder_dl"
 
-  ; New releases publish a SHA-256 sidecar next to each package. Download it
-  ; before the large archive so a package can be rejected before extraction.
-  ; A missing sidecar is treated as a legacy release for backward-compatible
-  ; rollback support; other sidecar download failures are fatal.
+  ; Every VRCT-VOX release publishes a SHA-256 sidecar next to each package.
+  ; Download it before the large archive so a package can be rejected before
+  ; extraction. Any failure, including a missing sidecar (HTTP 404), is fatal:
+  ; continuing without it would skip the integrity check.
   StrCpy $package_hash_path "$TEMP\$file_name.sha256"
   Delete "$package_hash_path"
   StrCpy $package_hash_available "0"
   DetailPrint "Downloading package checksum..."
-  NScurl::http GET "$cmder_dl.sha256" "$package_hash_path" /BACKGROUND /COMPLETETIMEOUT 30s /END
+  NScurl::http GET "$cmder_dl.sha256" "$package_hash_path" /TAG "package" /BACKGROUND /COMPLETETIMEOUT 30s /END
   Pop $package_hash_id
   NScurl::wait /ID $package_hash_id /END
   NScurl::query /ID $package_hash_id "@ERROR@"
@@ -861,17 +943,14 @@ Section Install
 
   NScurl::query /ID $package_hash_id "@ERRORTYPE@|@ERRORCODE@"
   Pop $1
-  ${If} $1 == "HTTP|404"
-    DetailPrint "Package checksum is unavailable; using legacy size-only validation"
-    Delete "$package_hash_path"
-    Goto package_hash_ready
-  ${EndIf}
   DetailPrint "Could not download package checksum ($1)"
+  Call StopPackageTransfers
   Delete "$package_hash_path"
   MessageBox MB_OK|MB_ICONSTOP "Could not download the package checksum. Installation was aborted to protect the integrity of the downloaded package." /SD IDOK
   Abort
 
   package_hash_file_invalid:
+    Call StopPackageTransfers
     Delete "$package_hash_path"
     DetailPrint "Package checksum could not be read"
     MessageBox MB_OK|MB_ICONSTOP "The package checksum could not be read. Installation was aborted to protect the integrity of the downloaded package." /SD IDOK
@@ -879,12 +958,14 @@ Section Install
 
   package_hash_read_invalid:
     FileClose $0
+    Call StopPackageTransfers
     Delete "$package_hash_path"
     DetailPrint "Package checksum could not be read"
     MessageBox MB_OK|MB_ICONSTOP "The package checksum could not be read. Installation was aborted to protect the integrity of the downloaded package." /SD IDOK
     Abort
 
   package_hash_invalid:
+    Call StopPackageTransfers
     Delete "$package_hash_path"
     DetailPrint "Package checksum is invalid"
     MessageBox MB_OK|MB_ICONSTOP "The package checksum is invalid. Installation was aborted to protect the integrity of the downloaded package." /SD IDOK
@@ -915,7 +996,9 @@ Section Install
   ; probe fails, $dl_total stays "0" and a single stream is used instead.
   StrCpy $dl_total "0"
   ${DisableX64FSRedirection}
-  nsExec::ExecToStack '"$SYSDIR\curl.exe" -sIL --fail --retry 2 -o NUL -w "%header{content-length}" "$cmder_dl"'
+  ; Match the checksum request's 30s completion budget per attempt. Bound
+  ; retry admission too (curl may finish one last attempt after that budget).
+  nsExec::ExecToStack '"$SYSDIR\curl.exe" -sIL --fail --connect-timeout 10 --max-time 30 --retry 2 --retry-max-time 30 -o NUL -w "%header{content-length}" "$cmder_dl"'
   Pop $0
   Pop $1
   ${EnableX64FSRedirection}
@@ -946,10 +1029,19 @@ Section Install
   ; Download + extract is retried as a single unit: a transfer the downloader
   ; reports as OK can still be truncated (the HuggingFace CDN does this on
   ; multi-GB files), which only surfaces when the unpack fails. So on ANY
-  ; failure (download error, or an unpack that yields no ${MAINBINARYNAME}.exe)
+  ; failure (download error, tar error, or an incomplete staged package)
   ; we wipe the archive and pull a completely fresh copy.
   StrCpy $dl_retries 0
   install_attempt:
+    Call StopPackageTransfers
+    RMDir /r "$INSTDIR\.upd\new"
+    ${If} ${FileExists} "$INSTDIR\.upd\new"
+      Abort "Could not empty the update staging folder: $INSTDIR\.upd\new"
+    ${EndIf}
+    ClearErrors
+    CreateDirectory "$INSTDIR\.upd\new"
+    IfErrors attempt_failed
+    Delete "$INSTDIR\.upd\$file_name"
     Delete "$TEMP\$file_name"
     Delete "$TEMP\$file_name.p0"
     Delete "$TEMP\$file_name.p1"
@@ -959,7 +1051,7 @@ Section Install
     ${If} $dl_parallel != "1"
       ; -------- Single connection (size unknown, tight disk, or retry) --------
       DetailPrint "Downloading $file_name..."
-      NScurl::http GET "$cmder_dl" "$TEMP\$file_name" /INSIST /RESUME /BACKGROUND /END
+      NScurl::http GET "$cmder_dl" "$TEMP\$file_name" /INSIST /RESUME /TAG "package" /BACKGROUND /END
       Pop $dl_transfer_id
       StrCpy $dl_tick 0
       StrCpy $R4 0
@@ -1008,21 +1100,21 @@ Section Install
       Pop $R0
       System::Int64Op $R0 - 1
       Pop $R1
-      NScurl::http GET "$cmder_dl" "$TEMP\$file_name.p0" /HEADER "Range: bytes=0-$R1" /INSIST /BACKGROUND /END
+      NScurl::http GET "$cmder_dl" "$TEMP\$file_name.p0" /HEADER "Range: bytes=0-$R1" /INSIST /TAG "package" /BACKGROUND /END
       Pop $dl_id0
       System::Int64Op $R0 * 2
       Pop $R2
       System::Int64Op $R2 - 1
       Pop $R1
-      NScurl::http GET "$cmder_dl" "$TEMP\$file_name.p1" /HEADER "Range: bytes=$R0-$R1" /INSIST /BACKGROUND /END
+      NScurl::http GET "$cmder_dl" "$TEMP\$file_name.p1" /HEADER "Range: bytes=$R0-$R1" /INSIST /TAG "package" /BACKGROUND /END
       Pop $dl_id1
       System::Int64Op $R0 * 3
       Pop $R3
       System::Int64Op $R3 - 1
       Pop $R1
-      NScurl::http GET "$cmder_dl" "$TEMP\$file_name.p2" /HEADER "Range: bytes=$R2-$R1" /INSIST /BACKGROUND /END
+      NScurl::http GET "$cmder_dl" "$TEMP\$file_name.p2" /HEADER "Range: bytes=$R2-$R1" /INSIST /TAG "package" /BACKGROUND /END
       Pop $dl_id2
-      NScurl::http GET "$cmder_dl" "$TEMP\$file_name.p3" /HEADER "Range: bytes=$R3-" /INSIST /BACKGROUND /END
+      NScurl::http GET "$cmder_dl" "$TEMP\$file_name.p3" /HEADER "Range: bytes=$R3-" /INSIST /TAG "package" /BACKGROUND /END
       Pop $dl_id3
 
       StrCpy $dl_tick 0
@@ -1038,6 +1130,27 @@ Section Install
         Pop $3
         NScurl::query /ID $dl_id3 "@STATUS@"
         Pop $4
+        ; One completed error must cancel its siblings even while they run.
+        ${If} $1 == "Complete"
+          NScurl::query /ID $dl_id0 "@ERROR@"
+          Pop $0
+          ${IfThen} $0 != "OK" ${|} Goto par_failed ${|}
+        ${EndIf}
+        ${If} $2 == "Complete"
+          NScurl::query /ID $dl_id1 "@ERROR@"
+          Pop $0
+          ${IfThen} $0 != "OK" ${|} Goto par_failed ${|}
+        ${EndIf}
+        ${If} $3 == "Complete"
+          NScurl::query /ID $dl_id2 "@ERROR@"
+          Pop $0
+          ${IfThen} $0 != "OK" ${|} Goto par_failed ${|}
+        ${EndIf}
+        ${If} $4 == "Complete"
+          NScurl::query /ID $dl_id3 "@ERROR@"
+          Pop $0
+          ${IfThen} $0 != "OK" ${|} Goto par_failed ${|}
+        ${EndIf}
         ${If} $1 == "Aborted"
         ${OrIf} $2 == "Aborted"
         ${OrIf} $3 == "Aborted"
@@ -1094,6 +1207,7 @@ Section Install
         DetailPrint "Parallel download failed ($1 / $2 / $3 / $4)"
         Goto par_failed
       ${EndIf}
+      NScurl::wait /TAG "package" /END
       DetailPrint "Combining parts..."
       nsExec::ExecToLog 'cmd /c copy /b "$TEMP\$file_name.p0"+"$TEMP\$file_name.p1"+"$TEMP\$file_name.p2"+"$TEMP\$file_name.p3" "$TEMP\$file_name"'
       Pop $0
@@ -1119,6 +1233,7 @@ Section Install
       NScurl::sha256 -file "$TEMP\$file_name"
       Pop $actual_package_hash
       ${If} $actual_package_hash != $expected_package_hash
+        Call StopPackageTransfers
         DetailPrint "Package SHA-256 mismatch"
         Delete "$TEMP\$file_name"
         Delete "$package_hash_path"
@@ -1138,18 +1253,40 @@ Section Install
     ; entries, ~5.8GB unpacked). -v prints each file as it is written so the
     ; details view scrolls during extraction instead of sitting on
     ; "Extracting ..." until done.
-    SetOutPath $INSTDIR
-    ${DisableX64FSRedirection}
-    nsExec::ExecToLog '"$SYSDIR\tar.exe" -xvf "$TEMP\$file_name" -C "$INSTDIR"'
-    Pop $0
-    ${EnableX64FSRedirection}
+    ;
+    ; tar.exe converts its arguments to the ANSI code page. A character outside
+    ; it (a Japanese user name on an English Windows, for example) becomes "?",
+    ; and tar can open neither the archive nor a -C folder. The working
+    ; directory is no argument and stays Unicode, so run tar inside the staging
+    ; folder and pass only a relative ASCII path. $file_name is ASCII, and the
+    ; archive sits beside that folder for this step. Rename also moves a file
+    ; to another volume; the pre-flight check budgets for it there.
+    ClearErrors
+    Rename "$TEMP\$file_name" "$INSTDIR\.upd\$file_name"
+    IfErrors attempt_failed
+    StrCpy $0 "not started"
+    ClearErrors
+    SetOutPath "$INSTDIR\.upd\new"
+    ${IfNot} ${Errors}
+      ${DisableX64FSRedirection}
+      nsExec::ExecToLog '"$SYSDIR\tar.exe" -xvf "..\$file_name"'
+      Pop $0
+      ${EnableX64FSRedirection}
+    ${EndIf}
+    ; Never hold a working directory inside the tree being replaced.
+    SetOutPath "$TEMP"
     ${If} $0 == 0
-    ${AndIf} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
+    ${AndIf} ${FileExists} "$INSTDIR\.upd\new\${MAINBINARYNAME}.exe"
+    ${AndIf} ${FileExists} "$INSTDIR\.upd\new\_internal\*.*"
+      Delete "$INSTDIR\.upd\$file_name"
       Goto install_ready
     ${EndIf}
-    DetailPrint "Unpack failed (tar exit $0; $INSTDIR\${MAINBINARYNAME}.exe missing) -- archive likely corrupt"
+    DetailPrint "Unpack failed (tar exit $0; $INSTDIR\.upd\new package incomplete) -- archive likely corrupt"
+    ; Retries and the kept .bad archive both work from $TEMP.
+    Rename "$INSTDIR\.upd\$file_name" "$TEMP\$file_name"
 
   attempt_failed:
+    Call StopPackageTransfers
     IntOp $dl_retries $dl_retries + 1
     ${If} $dl_retries < 3
       DetailPrint "Retrying download + unpack ($dl_retries/3)..."
@@ -1168,8 +1305,95 @@ Section Install
   ; The archive is no longer needed once it is unpacked; reclaim the space.
   Delete "$TEMP\$file_name"
 
-  ; Create uninstaller
+  ; Downloads can take hours; check again immediately before changing files.
+  Call CheckAppIsRunning
+  ${If} $deferred_kind == "wix"
+    ClearErrors
+    ExecWait '$deferred_uninstall' $0
+    ${IfThen} ${Errors} ${|} StrCpy $0 2 ${|}
+    ${If} $0 != 0
+      MessageBox MB_OK|MB_ICONEXCLAMATION "$(unableToUninstall)" /SD IDOK
+      Abort
+    ${EndIf}
+  ${EndIf}
+
+  ClearErrors
+  CreateDirectory "$INSTDIR\.upd\old"
+  CreateDirectory "$INSTDIR\.upd\add"
+  CreateDirectory "$INSTDIR\.upd\discard"
+  IfErrors commit_failed
+  FileOpen $0 "$INSTDIR\.upd\committing" w
+  IfErrors commit_failed
+  FileClose $0
+  IfErrors commit_failed
+
+  ${If} ${FileExists} "$INSTDIR\uninstall.exe"
+    ClearErrors
+    Rename "$INSTDIR\uninstall.exe" "$INSTDIR\.upd\old\uninstall.exe"
+    IfErrors commit_failed
+  ${Else}
+    ; WriteUninstaller also creates an app-owned entry on a fresh install.
+    ClearErrors
+    FileOpen $0 "$INSTDIR\.upd\add\uninstall.exe" w
+    IfErrors commit_failed
+    FileClose $0
+    IfErrors commit_failed
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\update.exe"
+    ClearErrors
+    Rename "$INSTDIR\update.exe" "$INSTDIR\.upd\old\update.exe"
+    IfErrors commit_failed
+  ${EndIf}
+
+  ; Replace the executable first, making dependency-rename failures exercise
+  ; rollback of an already replaced executable as well.
+  StrCpy $upd_entry "${MAINBINARYNAME}.exe"
+  Call CommitStagedEntry
+  ${IfThen} $upd_failed == "1" ${|} Goto commit_failed ${|}
+  commit_next:
+    StrCpy $upd_dir "$INSTDIR\.upd\new"
+    Call FirstUpdateEntry
+    ${IfThen} $upd_failed == "1" ${|} Goto commit_failed ${|}
+    StrCmp $upd_entry "" commit_done
+    Call CommitStagedEntry
+    ${IfThen} $upd_failed == "1" ${|} Goto commit_failed ${|}
+    Goto commit_next
+  commit_done:
+
+  ClearErrors
   WriteUninstaller "$INSTDIR\uninstall.exe"
+  IfErrors commit_failed
+
+  ; Retire the marker before old-location uninstall/registry side effects:
+  ; if its deletion fails, rollback still has the complete previous state.
+  ; Once it is gone, leftovers are safe to remove on the next run.
+  ClearErrors
+  Delete "$INSTDIR\.upd\committing"
+  IfErrors commit_failed
+  RMDir /r "$INSTDIR\.upd"
+
+  ; An in-place NSIS uninstall would delete the newly committed app. When
+  ; moving locations, uninstall only after the replacement is ready, and
+  ; before writing the registry keys that the old uninstaller removes.
+  ; An unknown location may be $INSTDIR, and UninstallString may name the
+  ; uninstaller just written there, so leave that old install alone.
+  ${If} $deferred_kind == "nsis"
+  ${AndIf} $deferred_location != ""
+  ${AndIf} $deferred_uninstall != ""
+  ${AndIf} $deferred_location != $INSTDIR
+    ClearErrors
+    ExecWait '$deferred_uninstall /P _?=$deferred_location' $0
+    ${IfThen} ${Errors} ${|} StrCpy $0 2 ${|}
+    ${If} $0 != 0
+      DetailPrint "$(unableToUninstall)"
+      MessageBox MB_OK|MB_ICONEXCLAMATION "$(unableToUninstall)" /SD IDOK
+    ${Else}
+      StrCpy $0 $deferred_uninstall 1
+      ${IfThen} $0 == '"' ${|} StrCpy $deferred_uninstall $deferred_uninstall -1 1 ${|}
+      Delete "$deferred_uninstall"
+      RMDir "$deferred_location"
+    ${EndIf}
+  ${EndIf}
 
   ; Save $INSTDIR in registry for future installations
   WriteRegStr SHCTX "${MANUPRODUCTKEY}" "" $INSTDIR
@@ -1194,6 +1418,9 @@ Section Install
   WriteRegDWORD SHCTX "${UNINSTKEY}" "NoRepair" "1"
   WriteRegDWORD SHCTX "${UNINSTKEY}" "EstimatedSize" "${ESTIMATEDSIZE}"
 
+  ; Preserve the shortcut working directory after staging and cleanup.
+  SetOutPath "$INSTDIR"
+
   ; Create start menu shortcut (GUI)
   !insertmacro MUI_STARTMENU_WRITE_BEGIN Application
     Call CreateStartMenuShortcut
@@ -1212,43 +1439,151 @@ Section Install
       Call CreateStartMenuShortcut
   shortcuts_done:
 
+  Goto install_finished
+  commit_failed:
+    Call CleanupFailedInstall
+    MessageBox MB_OK|MB_ICONSTOP "Could not replace the application files. Installation was aborted." /SD IDOK
+    Abort
+  install_finished:
   ; Auto close this page for passive mode
   ${IfThen} $PassiveMode == 1 ${|} SetAutoClose true ${|}
 SectionEnd
 
-Function CleanupFailedInstall
-  ; Keep the .bad archive for diagnostics, but remove temporary fragments and
-  ; the checksum sidecar regardless of whether this was a new install or an
-  ; update.
-  Delete "$TEMP\$file_name"
-  Delete "$TEMP\$file_name.p0"
-  Delete "$TEMP\$file_name.p1"
-  Delete "$TEMP\$file_name.p2"
-  Delete "$TEMP\$file_name.p3"
-  Delete "$package_hash_path"
+Function StopPackageTransfers
+  NScurl::cancel /TAG "package"
+  ; Also runs from .onInstFailed, where no progress bar should appear.
+  NScurl::wait /TAG "package" /SILENT /END
+FunctionEnd
 
-  ; Updating in place can leave a mixture of old and new files after a failed
-  ; extraction.  Without a staging directory or rollback manifest, preserving
-  ; the existing tree is safer than deleting user data or the previous app.
+; Return one entry, closing the enumeration before callers rename anything.
+Function FirstUpdateEntry
+  StrCpy $upd_failed "0"
+  StrCpy $upd_entry ""
+  ClearErrors
+  FindFirst $upd_find $upd_entry "$upd_dir\*.*"
+  IfErrors update_find_failed
+  update_find_next:
+    StrCmp $upd_entry "." update_find_skip
+    StrCmp $upd_entry ".." update_find_skip
+    Goto update_find_done
+  update_find_skip:
+    FindNext $upd_find $upd_entry
+    IfErrors update_find_empty
+    Goto update_find_next
+  update_find_empty:
+    StrCpy $upd_entry ""
+  update_find_done:
+    FindClose $upd_find
+    Return
+  update_find_failed:
+    StrCpy $upd_failed "1"
+FunctionEnd
+
+Function CommitStagedEntry
+  StrCpy $upd_failed "0"
+  ClearErrors
+  ${If} ${FileExists} "$INSTDIR\$upd_entry"
+    Rename "$INSTDIR\$upd_entry" "$INSTDIR\.upd\old\$upd_entry"
+    IfErrors commit_entry_failed
+  ${Else}
+    FileOpen $0 "$INSTDIR\.upd\add\$upd_entry" w
+    IfErrors commit_entry_failed
+    FileClose $0
+    IfErrors commit_entry_failed
+  ${EndIf}
+  ClearErrors
+  Rename "$INSTDIR\.upd\new\$upd_entry" "$INSTDIR\$upd_entry"
+  IfErrors commit_entry_failed
+  Return
+  commit_entry_failed:
+    StrCpy $upd_failed "1"
+FunctionEnd
+
+Function DiscardInstalledEntry
+  StrCpy $upd_failed "0"
+  ${If} ${FileExists} "$INSTDIR\$upd_entry"
+    ; A previous rollback may have stopped after a discard rename.
+    RMDir /r "$INSTDIR\.upd\discard\$upd_entry"
+    Delete "$INSTDIR\.upd\discard\$upd_entry"
+    ClearErrors
+    Rename "$INSTDIR\$upd_entry" "$INSTDIR\.upd\discard\$upd_entry"
+    IfErrors discard_failed
+  ${EndIf}
+  Return
+  discard_failed:
+    StrCpy $upd_failed "1"
+FunctionEnd
+
+Function RollbackInstall
+  StrCpy $upd_failed "0"
+  ; Never hold a working directory inside the tree being removed.
+  SetOutPath "$TEMP"
+  CreateDirectory "$INSTDIR\.upd\discard"
+  rollback_add:
+    StrCpy $upd_dir "$INSTDIR\.upd\add"
+    Call FirstUpdateEntry
+    ${IfThen} $upd_failed == "1" ${|} Goto rollback_failed ${|}
+    StrCmp $upd_entry "" rollback_old
+    Call DiscardInstalledEntry
+    ${IfThen} $upd_failed == "1" ${|} Goto rollback_failed ${|}
+    ClearErrors
+    Delete "$INSTDIR\.upd\add\$upd_entry"
+    IfErrors rollback_failed
+    Goto rollback_add
+  rollback_old:
+    StrCpy $upd_dir "$INSTDIR\.upd\old"
+    Call FirstUpdateEntry
+    ${IfThen} $upd_failed == "1" ${|} Goto rollback_failed ${|}
+    StrCmp $upd_entry "" rollback_done
+    Call DiscardInstalledEntry
+    ${IfThen} $upd_failed == "1" ${|} Goto rollback_failed ${|}
+    ClearErrors
+    Rename "$INSTDIR\.upd\old\$upd_entry" "$INSTDIR\$upd_entry"
+    IfErrors rollback_failed
+    Goto rollback_old
+  rollback_done:
+    ClearErrors
+    Delete "$INSTDIR\.upd\committing"
+    IfErrors rollback_failed
+    RMDir /r "$INSTDIR\.upd"
+    Return
+  rollback_failed:
+    StrCpy $upd_failed "1"
+    DetailPrint "Could not restore the previous installation; keep $INSTDIR\.upd"
+    MessageBox MB_OK|MB_ICONSTOP "Could not restore all previous application files.$\r$\n$\r$\nThe remaining previous files are in:$\r$\n$INSTDIR\.upd\old$\r$\n$\r$\nClose applications using these files and run this installer again. Do not delete the .upd folder." /SD IDOK
+FunctionEnd
+
+Function CleanupFailedInstall
+  Call StopPackageTransfers
+  ; EarlyChecks/WebView2 can abort before this invocation owns any work files.
+  ${IfThen} $install_started != "1" ${|} Return ${|}
+  ${If} ${FileExists} "$INSTDIR\.upd\committing"
+    Call RollbackInstall
+  ${Else}
+    StrCpy $upd_failed "0"
+  ${EndIf}
+  ; Keep the .bad archive for diagnostics, but remove temporary fragments.
+  ${If} $file_name != ""
+    Delete "$TEMP\$file_name"
+    Delete "$TEMP\$file_name.p0"
+    Delete "$TEMP\$file_name.p1"
+    Delete "$TEMP\$file_name.p2"
+    Delete "$TEMP\$file_name.p3"
+  ${EndIf}
+  ${IfThen} $package_hash_path != "" ${|} Delete "$package_hash_path" ${|}
+  ${IfThen} $upd_failed == "1" ${|} Return ${|}
+  ; Extraction only touches staging; a failed commit restores app-owned entries.
+  SetOutPath "$TEMP"
+  RMDir /r "$INSTDIR\.upd"
   ${If} $existing_install == "1"
     DetailPrint "Existing installation preserved after failure"
-    Return
+  ${Else}
+    RMDir "$INSTDIR"
   ${EndIf}
+FunctionEnd
 
-  ; For a new install, remove only files owned by the generated installer.
-  ; User data is intentionally not targeted here.
-  Delete "$INSTDIR\${MAINBINARYNAME}.exe"
-  {{#each resources}}
-    Delete "$INSTDIR\\{{this.[1]}}"
-  {{/each}}
-  {{#each binaries}}
-    Delete "$INSTDIR\\{{this}}"
-  {{/each}}
-  RmDir /r "$INSTDIR\_internal"
-  {{#each resources_ancestors}}
-    RMDir "$INSTDIR\\{{this}}"
-  {{/each}}
-  RMDir "$INSTDIR"
+Function .onInstFailed
+  Call CleanupFailedInstall
 FunctionEnd
 
 Function .onInstSuccess
@@ -1334,12 +1669,17 @@ Section Uninstall
     Delete "$INSTDIR\\{{this}}"
   {{/each}}
 
-  ; ユーザーデータ (config.json / ログ / weights) は既定では保持する。
-  ; 上書きインストール時 (PageLeaveReinstall が既存 uninstaller を呼ぶ) にも
+  ; ユーザーデータ (config.json / ログ / weights / downloaded_models) は既定では保持する。
+  ; 別の保存先への更新後に既存 uninstaller を呼ぶ場合にも
   ; この Section が実行されるため、無条件削除すると全設定が失われる。
   ; 完全削除は「Delete AppData」チェックが入った場合のみ。
+  ; config.json の隣に置くファイルは docs/spec/data-and-persistence.md の表を参照。
   ${If} $DeleteAppDataCheckboxState == 1
     Delete "$INSTDIR\config.json"
+    Delete "$INSTDIR\config.json.unreadable-*"
+    Delete "$INSTDIR\voice_mute_state.json"
+    RmDir /r "$INSTDIR\downloaded_models"
+    RmDir /r "$INSTDIR\vc_runtimes"
     Delete "$INSTDIR\process.log"
     Delete "$INSTDIR\error.log"
     Delete "$INSTDIR\crash_trace.log"
@@ -1357,6 +1697,9 @@ Section Uninstall
 
   ; Delete update.exe
   Delete "$INSTDIR\update.exe"
+
+  ; Remove abandoned update work files too.
+  RmDir /r "$INSTDIR\.upd"
 
   ; Delete _internal folder (アプリ本体の一部なので常に削除)
   RmDir /r "$INSTDIR\_internal"

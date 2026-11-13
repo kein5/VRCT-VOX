@@ -4,6 +4,7 @@ import { store } from "@store";
 import { useReceiveRoutes } from "@useReceiveRoutes";
 import { SpeechServers } from "../../../src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/SpeechServers";
 import { ModelDownloads } from "../../../src-ui/views/app/config_page/setting_section/setting_box/advanced_settings/ModelDownloads";
+import { SaveBar } from "../../../src-ui/views/app/config_page/topbar/Topbar";
 import "../../../locales/config";
 store.backend_subprocess = { write: line => window.sidecarWrite(line) };
 function App() {
@@ -15,6 +16,7 @@ function App() {
     }, []);
     const asr = new URLSearchParams(location.search).get("view") === "asr";
     return <main style={{ maxWidth: 900, margin: 24, color: "#222", background: "#fff" }}>
+        <SaveBar />
         {asr ? <SpeechServers profiles={["asr"]} /> : <>
             <SpeechServers profiles={["japanese"]} /><ModelDownloads targets={["rvc"]} expected={{ rvc: { model: "", index: "" } }} />
         </>}

@@ -1,5 +1,126 @@
 .container {
     display: flex;
     flex-direction: column;
-    gap: 6.4rem;
+}
+
+// An environment readout (EnvReadout) with the re-check action beside it.
+.readiness {
+    justify-content: space-between;
+    margin: 1.6rem 0;
+    button {
+        flex-shrink: 0;
+        min-height: 3.6rem;
+        padding: .6rem 1.2rem;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        background: var(--dark_850_color, #25364f);
+        border: .1rem solid transparent;
+        border-radius: var(--vox_radius, .8rem);
+        &:hover { background: var(--vox_secondary_hover); }
+    }
+}
+
+.models {
+    padding-top: 0;
+}
+
+.modelRow {
+    display: grid;
+    gap: .6rem;
+}
+
+.detector {
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 1.6rem;
+    border-bottom: .1rem solid var(--dark_800_color, #34363b);
+    // The download section below the status draws its own divider; one is enough.
+    &:has(> section) { padding-bottom: 0; border-bottom: 0; }
+}
+
+.detectorStatus {
+    font-size: 1.2rem;
+    line-height: 1.6;
+    color: var(--dark_400_color, #9ca3af);
+    &[data-state="on"] { color: var(--primary_300_color); }
+}
+
+.region {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    padding: 1.6rem 0;
+    border-bottom: .1rem solid var(--dark_800_color, #34363b);
+}
+
+.regionHeader {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 2.4rem;
+    flex-wrap: wrap;
+}
+
+.regionLabel {
+    font-size: 1.4rem;
+    color: var(--dark_200_color, #e5e7eb);
+}
+
+.regionDesc {
+    margin-top: .4rem;
+    font-size: 1.2rem;
+    line-height: 1.6;
+    color: var(--dark_400_color, #9ca3af);
+}
+
+.preview {
+    position: relative;
+    flex-shrink: 0;
+    width: 16rem;
+    aspect-ratio: 16 / 9;
+    background: var(--dark_900_color, #1d1f22);
+    border: .1rem solid var(--dark_650_color, #5e6570);
+    border-radius: .4rem;
+    overflow: hidden;
+}
+
+.previewArea {
+    position: absolute;
+    box-sizing: border-box;
+    background: color-mix(in srgb, var(--primary_400_color, #4d8ef7) 30%, transparent);
+    border: .2rem solid var(--primary_400_color, #4d8ef7);
+}
+
+.resetButton {
+    align-self: flex-start;
+    margin-top: .8rem;
+    min-height: 3.6rem;
+    padding: .6rem 1.2rem;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    background: var(--dark_850_color, #25364f);
+    border: .1rem solid transparent;
+    border-radius: var(--vox_radius, .8rem);
+    &:hover:enabled { background: var(--vox_secondary_hover); }
+    &:disabled { opacity: .6; cursor: not-allowed; }
+}
+
+// Sharing a window (Linux, Wayland): the status line, then the buttons, which wrap in a narrow window.
+.sharedStatus {
+    margin: 1.2rem 0 0;
+}
+
+.sharedActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .8rem;
+    .resetButton[aria-disabled="true"] { opacity: .6; cursor: not-allowed; }
+    .resetButton[aria-disabled="true"]:hover { background: var(--dark_850_color, #25364f); }
+}
+
+.resetButton:focus-visible {
+    outline: .2rem solid var(--vox_focus, #a9ccff);
+    outline-offset: .2rem;
 }

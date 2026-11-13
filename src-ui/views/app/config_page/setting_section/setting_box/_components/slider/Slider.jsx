@@ -12,8 +12,10 @@ export const Slider = (props) => {
         marks
     } = useSliderLogic({
         variable: props.variable,
+        state: props.state,
         setterFunction: props.setterFunction,
         setter_timing: props.setter_timing,
+        debounce_ms: props.debounce_ms,
         postUpdateAction: props.postUpdateAction,
         min: props.min,
         max: props.max,
@@ -30,6 +32,7 @@ export const Slider = (props) => {
     const trackRef = useRef(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
+    const [isFocused, setIsFocused] = useState(false);
 
     const decimalPlaces = step && step.toString().includes('.')
         ? step.toString().split('.')[1].length
@@ -81,10 +84,14 @@ export const Slider = (props) => {
         // Ensure thumb gets focus-like behavior manually, though we rely on drag state
     };
 
+    const dragRef = useRef(null);
+    dragRef.current = { calculateValue, ui_value, onChangeFunction, onChangeCommittedFunction };
+
     useEffect(() => {
         if (!isDragging) return;
 
         const handlePointerMove = (e) => {
+            const { calculateValue, ui_value, onChangeFunction } = dragRef.current;
             const newValue = calculateValue(e.clientX, e.clientY);
             setLocalValue(newValue);
             if (newValue !== ui_value) {
@@ -93,6 +100,7 @@ export const Slider = (props) => {
         };
 
         const handlePointerUp = (e) => {
+            const { calculateValue, onChangeCommittedFunction } = dragRef.current;
             setIsDragging(false);
             const newValue = calculateValue(e.clientX, e.clientY);
             setLocalValue(newValue);
@@ -108,7 +116,28 @@ export const Slider = (props) => {
             window.removeEventListener("pointermove", handlePointerMove);
             window.removeEventListener("pointerup", handlePointerUp);
         };
-    }, [isDragging, calculateValue, onChangeFunction, onChangeCommittedFunction, ui_value]);
+    }, [isDragging]);
+
+    // Keyboard: arrows move one step, PageUp/PageDown ten, Home/End to the
+    // ends. Each key is a finished change, like releasing the pointer.
+    const handleKeyDown = (e) => {
+        const unit = step || (max - min) / 100;
+        const moves = {
+            ArrowRight: unit, ArrowUp: unit, ArrowLeft: -unit, ArrowDown: -unit,
+            PageUp: unit * 10, PageDown: -unit * 10,
+        };
+        let next;
+        if (e.key in moves) next = localValue + moves[e.key];
+        else if (e.key === "Home") next = min;
+        else if (e.key === "End") next = max;
+        else return;
+        e.preventDefault();
+        next = Math.max(min, Math.min(parseFloat(next.toFixed(decimalPlaces)), max));
+        if (next === localValue) return;
+        setLocalValue(next);
+        onChangeFunction(next);
+        if (onChangeCommittedFunction) onChangeCommittedFunction(next);
+    };
 
     const handleMouseEnter = () => {
         setIsHovered(true);
@@ -135,7 +164,8 @@ export const Slider = (props) => {
         return displayValue;
     })();
     const valueLabelDisplay = props.valueLabelDisplay || "auto";
-    const showValueLabel = valueLabelDisplay === "on" || (valueLabelDisplay === "auto" && (isHovered || isDragging));
+    const showValueLabel = valueLabelDisplay === "on" || (valueLabelDisplay === "auto" && (isHovered || isDragging || isFocused));
+    const accessibleName = props["aria-label"] ?? (typeof props.label === "string" ? props.label : undefined);
 
     return (
         <div
@@ -170,17 +200,16 @@ export const Slider = (props) => {
 
                 {marks && marks.map((mark, i) => {
                     const markPercent = Math.max(0, Math.min((mark.value - min) / (max - min), 1)) * 100;
-                    const isActive = mark.value <= localValue;
                     return (
                         <div
                             key={i}
-                            className={clsx(styles.mark, { [styles.markActive]: isActive })}
+                            className={styles.mark}
                             style={{
                                 ...(isVertical ? { bottom: `${markPercent}%` } : { left: `${markPercent}%` })
                             }}
                         >
                             {mark.label && (
-                                <span className={clsx(styles.markLabel, { [styles.markLabelActive]: isActive })}>
+                                <span className={styles.markLabel}>
                                     {mark.label}
                                 </span>
                             )}
@@ -190,6 +219,18 @@ export const Slider = (props) => {
 
                 <div
                     className={clsx(styles.thumb, { [styles.thumbActive]: isDragging })}
+                    role="slider"
+                    tabIndex={0}
+                    aria-label={accessibleName}
+                    aria-describedby={props["aria-describedby"]}
+                    aria-valuemin={min}
+                    aria-valuemax={max}
+                    aria-valuenow={localValue}
+                    aria-valuetext={String(valueLabelStr)}
+                    aria-orientation={isVertical ? "vertical" : "horizontal"}
+                    onKeyDown={handleKeyDown}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
                     style={{
                         ...(isVertical ? { bottom: `${percentage}%` } : { left: `${percentage}%` })
                     }}

@@ -40,6 +40,10 @@ if mode.startswith('oom'):
     if mode=='oom_ansi': message='\\x1b[31m'+message+'\\x1b[0m'
     sys.stderr.write(message + ('' if mode=='oom_unterminated' else '\\n'))
     sys.stderr.flush(); sys.exit(1)
+if mode.startswith('device'):
+    message='speech: device: the device Vulkan0 failed to compute a graph: /private/model.gguf'
+    if mode=='device_option': message='speech: device (--device): no device is named /private/Vulkan9'
+    sys.stderr.write(message+'\\n'); sys.stderr.flush(); sys.exit(1)
 if mode=='wait': time.sleep(30); sys.exit(0)
 if mode=='overflow': sys.stderr.write('x'*70000); sys.stderr.flush(); time.sleep(30)
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -48,6 +52,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if mode=='badhealth': self.send_error(500); return
         tasks=(['recognition','detection'] if mode=='asr' else ['synthesis'])
+        # A third model before the options is a diarization model, if its file says so.
+        if mode=='asr' and Path(sys.argv[4]).stem=='diarization': tasks.append('diarization')
         if mode=='wrong': tasks=[]
         payload=({'status':'ok'} if self.path=='/health' else
                  {'data':[{'id':task,'speech':{'task':task,
@@ -58,8 +64,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(200); self.send_header('Content-Type','application/json')
         self.send_header('Content-Length',str(len(body))); self.end_headers(); self.wfile.write(body)
     def do_POST(self):
-        data=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-        assert data['input']=='あ。' and data['seed']==0 and data['voice']=='none'
+        raw=self.rfile.read(int(self.headers['Content-Length']))
+        if self.path=='/v1/audio/transcriptions':
+            body=b'{"text":""}'
+            self.send_response(200);self.send_header('Content-Type','application/json')
+            self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
+            return
+        data=json.loads(raw)
+        assert data['voice']=='none' and (data['input']!='あ。' or data['seed']==0)
         body=b'\\x01\\x00'*480
         self.send_response(200);self.send_header('Content-Type','audio/pcm')
         self.send_header('X-Sample-Rate','48000');self.send_header('Content-Length',str(len(body)))
@@ -74,7 +86,8 @@ server.serve_forever()
     return binary, helper
 
 
-def options(tmp_path, name="tts", profile="japanese"):
+def options(tmp_path, name="tts", profile="japanese", diarization=None):
+    """diarization: the file name of a diarization model for the asr profile."""
     settings, _ = modules()
     model = tmp_path / (name + ".gguf")
     model.write_bytes(b"GGUF" + b"\0" * 16)
@@ -84,6 +97,10 @@ def options(tmp_path, name="tts", profile="japanese"):
         vad = tmp_path / "vad.gguf"
         vad.write_bytes(b"GGUF" + b"\0" * 16)
         value["profiles"][profile]["vad_model"] = str(vad)
+    if diarization:
+        path = tmp_path / (diarization + ".gguf")
+        path.write_bytes(b"GGUF" + b"\0" * 16)
+        value["profiles"][profile]["diarization_model"] = str(path)
     return settings.start_options(value, profile)
 
 
@@ -101,13 +118,18 @@ def test_choices_persist_without_recording_process_intent():
         "version": 1,
         "profiles": {
             name: dict(
-                model="", vad_model="", voice_file="", device="auto", low_latency=False
+                model="", vad_model="", diarization_model="", voice_file="", device="auto", low_latency=False
             )
             for name in ("japanese", "multilingual", "asr")
         },
     }
     default["profiles"]["asr"]["model"] = "/absent/user-choice.gguf"
+    default["profiles"]["asr"]["diarization_model"] = "/absent/who-speaks.gguf"
     assert settings.normalize_settings(default) == default
+    # Settings saved before the diarization model existed load with none.
+    older = {"profiles": {"asr": {"model": "/m.gguf", "vad_model": "/v.gguf", "voice_file": "", "device": "gpu",
+                                  "low_latency": False}}}
+    assert settings.normalize_settings(older)["profiles"]["asr"]["diarization_model"] == ""
 
 
 @pytest.mark.parametrize(
@@ -120,6 +142,9 @@ def test_choices_persist_without_recording_process_intent():
         {"profiles": {"japanese": {"device": "cuda:0"}}},
         {"profiles": {"japanese": {"model": "bad\npath"}}},
         {"profiles": {"japanese": {"vad_model": "wrong.gguf"}}},
+        {"profiles": {"japanese": {"diarization_model": "wrong.gguf"}}},
+        {"profiles": {"multilingual": {"diarization_model": "wrong.gguf"}}},
+        {"profiles": {"asr": {"diarization_model": 1}}},
         {"profiles": {"asr": {"voice_file": "wrong.gguf"}}},
     ],
 )
@@ -128,7 +153,7 @@ def test_invalid_settings_rejected(value):
         modules()[0].normalize_settings(value)
 
 
-@pytest.mark.parametrize("fault", ["absent", "alias", "magic", "vad"])
+@pytest.mark.parametrize("fault", ["absent", "alias", "magic", "vad", "diarization"])
 def test_start_requires_local_gguf_files(tmp_path, fault):
     settings, _ = modules()
     value = settings.normalize_settings({})
@@ -144,8 +169,36 @@ def test_start_requires_local_gguf_files(tmp_path, fault):
         path = tmp_path / "asr.gguf"
         path.write_bytes(b"GGUF")
         value["profiles"]["asr"]["model"] = str(path)
+        if fault == "diarization":
+            # The recognizer and the detector are fine; the optional third file is not there.
+            value["profiles"]["asr"]["vad_model"] = str(path)
+            value["profiles"]["asr"]["diarization_model"] = str(tmp_path / "absent.gguf")
     with pytest.raises(ValueError, match="speech_server_"):
-        settings.start_options(value, "asr" if fault == "vad" else "japanese")
+        settings.start_options(value, "japanese" if fault in ("absent", "alias", "magic") else "asr")
+
+
+def test_the_diarization_model_is_optional_and_checked_when_named(tmp_path):
+    assert options(tmp_path, "asr", "asr")["diarization_model"] == ""
+    named = options(tmp_path, "asr", "asr", diarization="diarization")
+    assert named["diarization_model"] == str((tmp_path / "diarization.gguf").resolve())
+
+
+@pytest.mark.parametrize("name,state,code", [
+    ("diarization", "ready", None),
+    # The file named for diarization is some other model: the server does not report the task.
+    ("another", "failed", "speech_server_model_tasks"),
+])
+def test_an_asr_server_loads_the_diarization_model_it_is_given(tmp_path, fake, name, state, code):
+    _, runtime = modules()
+    binary, helper = fake
+    server = runtime.SpeechServer("asr", options(tmp_path, "asr", "asr", diarization=name), binary=binary, helper=helper)
+    try:
+        server.start()
+        wait_for(lambda: server.health()["state"] in ("ready", "failed"), timeout=4)
+        assert server.health()["state"] == state, server.health()
+        assert server.health()["error_code"] == code
+    finally:
+        server.close()
 
 
 @pytest.mark.parametrize(
@@ -289,6 +342,23 @@ def test_ready_server_death_invalidates_endpoint(tmp_path, fake):
         wait_for(lambda: server.health()["state"] == "failed", timeout=4)
         assert server.health()["base_url"] is None
         assert ended == ["japanese"]
+    finally:
+        server.close()
+
+
+@pytest.mark.parametrize("mode", ["device", "device_option"])
+def test_a_device_that_cannot_run_the_model_is_named(tmp_path, fake, mode):
+    """A GPU that lists itself and then fails to compute, or a device name the engine refuses."""
+    _, runtime = modules()
+    binary, helper = fake
+    server = runtime.SpeechServer("asr", options(tmp_path, mode, "asr"), binary=binary, helper=helper)
+    try:
+        server.start()
+        wait_for(lambda: server.health()["state"] == "failed", timeout=4)
+        assert server.health() == dict(
+            state="failed", base_url=None, error_code="speech_server_device_failed"
+        )
+        assert "/private/" not in json.dumps(server.health())
     finally:
         server.close()
 

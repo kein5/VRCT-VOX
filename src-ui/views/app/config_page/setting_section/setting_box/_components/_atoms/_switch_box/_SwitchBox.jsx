@@ -21,7 +21,7 @@ export const _SwitchBox = (props) => {
     const onMouseUp = () => setIsMouseDown(false);
 
     const toggleFunction = () => {
-        props.toggleFunction();
+        if (!is_pending) props.toggleFunction();
     };
 
 
@@ -33,6 +33,10 @@ export const _SwitchBox = (props) => {
                 onMouseDown={onMouseDown}
                 onMouseUp={onMouseUp}
                 onClick={toggleFunction}
+                role="switch" tabIndex={0} aria-checked={props.variable.data === true} aria-busy={is_pending} aria-disabled={is_pending}
+                aria-describedby={props["aria-describedby"]}
+                aria-label={props["aria-label"] ?? props.secondary_label ?? (typeof props.label === "string" ? props.label : undefined)}
+                onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); toggleFunction(); } }}
             >
                 <div className={getClassNames(styles.toggle_control)}>
                     <span className={getClassNames(styles.control)}></span>

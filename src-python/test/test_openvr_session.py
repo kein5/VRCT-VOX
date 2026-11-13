@@ -162,7 +162,7 @@ class OpenvrSessionSharingTests(unittest.TestCase):
         self.assertIsNone(clipboard.app_name)
         self.assertFalse(openvr_session.is_active())
 
-    def test_overlay_init_and_shutdown_route_through_the_shared_session(
+    def test_overlay_init_and_owner_teardown_route_through_the_shared_session(
         self,
     ) -> None:
         # Proves Overlay's own lifecycle goes through openvr_session too
@@ -174,10 +174,8 @@ class OpenvrSessionSharingTests(unittest.TestCase):
              patch("models.openvr_session.release") as release_mock:
             acquire_mock.return_value = MagicMock(spec=_RealIVRSystem)
 
-            # openvr.IVROverlay/IVRSystem only need faking for the init()
-            # call itself; scoping this patch tighter than acquire/release
-            # means it is back to the real class before shutdownOverlay()
-            # runs its isinstance() checks below.
+            # Only fake constructors during acquisition; teardown uses the registered
+            # ownership rather than testing native facade types.
             with patch("openvr.IVROverlay") as ivroverlay_cls, patch("openvr.IVRSystem"):
                 ivroverlay_cls.return_value = MagicMock(spec=_RealIVROverlay)
                 overlay = Overlay(_overlay_settings())
@@ -186,9 +184,10 @@ class OpenvrSessionSharingTests(unittest.TestCase):
             acquire_mock.assert_called_once_with(openvr.VRApplication_Background)
             self.assertTrue(overlay.initialized)
 
-            # acquire/release are still patched here, so this exercises the
-            # real shutdownOverlay() -> openvr_session.release() wiring.
+            # This test thread acquired the resources, so it also owns teardown.
             overlay.shutdownOverlay()
+            release_mock.assert_not_called()
+            overlay.teardown()
             release_mock.assert_called_once()
 
 
@@ -212,7 +211,8 @@ class OpenvrSessionSharingTests(unittest.TestCase):
 
         overlay_ref = openvr_session.acquire()  # Overlay already running
         capture = OpenVRMirrorCapture()
-        with patch.object(OpenVRMirrorCapture, "isAvailable", return_value=True):
+        with patch.object(OpenVRMirrorCapture, "isAvailable", return_value=True), \
+             patch("models.ocr.ocr_capture_openvr.sys.platform", "win32"):
             self.assertTrue(capture._init())
 
         self.assertIsNotNone(overlay_ref)

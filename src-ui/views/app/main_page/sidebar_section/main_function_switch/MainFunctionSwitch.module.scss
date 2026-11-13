@@ -12,6 +12,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: .8rem;
     min-height: 4.8rem;
     padding: 1.2rem 1.4rem;
     border-radius: var(--vox_radius);
@@ -27,6 +28,14 @@
     &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: -.3rem; }
     @include toggle_interactive_parent;
 
+    // On is seen at a glance, also in the icon rail: a blue tint on the row and
+    // a blue icon. The switch, and in the rail the bar on the right, still say it.
+    &.is_active {
+        background-color: var(--vox_highlight_tint);
+        &:hover { background-color: color-mix(in srgb, var(--primary_400_color) 26%, transparent); }
+        &:active { background-color: color-mix(in srgb, var(--primary_400_color) 12%, transparent); }
+    }
+
     &.is_compact_mode {
         padding: 1.5rem;
         justify-content: center;
@@ -35,6 +44,11 @@
         pointer-events: none;
         &.cancellable { pointer-events: auto; }
     }
+    &.is_unavailable {
+        cursor: not-allowed;
+        background-color: var(--dark_925_color);
+        color: var(--dark_350_color);
+    }
 }
 
 .label_wrapper {
@@ -42,6 +56,8 @@
     justify-content: left;
     align-items: center;
     gap: 0.8rem;
+    min-width: 0;
+    flex-wrap: wrap;
 }
 
 $pending_label_color: var(--dark_500_color);
@@ -54,6 +70,18 @@ $pending_label_color: var(--dark_500_color);
         color: $pending_label_color;
     }
 }
+.switch_status {
+    font-size: 1.2rem;
+    color: $pending_label_color;
+    &.is_unavailable {
+        color: var(--dark_350_color);
+        flex-basis: 100%;
+        overflow-wrap: anywhere;
+    }
+    &.is_compact_mode {
+        display: none;
+    }
+}
 
 .switch_svg {
     width: 1.8rem;
@@ -63,6 +91,9 @@ $pending_label_color: var(--dark_500_color);
     &:not(.is_compact_mode) {
         width: 1.6rem;
         color: var(--dark_350_color);
+    }
+    &.is_active:not(.is_pending) {
+        color: var(--vox_state_active);
     }
 }
 

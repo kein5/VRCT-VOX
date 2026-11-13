@@ -53,6 +53,13 @@ async def mock_server(mode="normal"):
                 return
             if mode == "bad_config":
                 config["session"]["audio"]["input"]["format"]["rate"] = 16000
+            if mode == "drop_diarization":
+                # A server that does not take the member, or one that turns it on unasked.
+                audio = config["session"]["audio"]["input"]
+                if "diarization" in audio:
+                    del audio["diarization"]
+                else:
+                    audio["diarization"] = {}
             await send(
                 ws,
                 "session.updated",
@@ -96,6 +103,14 @@ async def mock_server(mode="normal"):
                 if mode == "large":
                     await ws.send("x" * (1024 * 1024 + 1))
                     continue
+                if mode == "backlog":
+                    for item_id in ("1", "2"):
+                        await send(ws, "input_audio_buffer.committed", item_id=item_id, previous_item_id=None)
+                    await asyncio.sleep(0.25)
+                    for item_id in ("1", "2"):
+                        await send(ws, PREFIX + "completed", item_id=item_id, transcript="確定", stop="complete")
+                        await asyncio.sleep(0.1)
+                    continue
                 item += 1
                 item_id = str(item)
                 await send(
@@ -104,7 +119,7 @@ async def mock_server(mode="normal"):
                     item_id=item_id,
                     previous_item_id=None,
                 )
-                if mode == "pending":
+                if mode == "pending" or (mode == "first_only" and item > 1):
                     continue
                 for _ in range(40 if mode == "flood" else 1):
                     await send(ws, PREFIX + "delta", item_id=item_id, delta="途中")
@@ -114,6 +129,9 @@ async def mock_server(mode="normal"):
                     item_id=item_id,
                     transcript="確定",
                     stop="complete",
+                    **({"speakers": [{"speaker": "C", "start_ms": 24290, "end_ms": 28560},
+                                     {"speaker": "B", "start_ms": 26970, "end_ms": 28150}]}
+                       if mode == "speakers" else {}),
                 )
                 await send(
                     ws,
@@ -171,6 +189,46 @@ def test_protocol_config_audio_and_duplicate_final(monkeypatch):
                 await client.next_update()
 
     asyncio.run(run())
+
+
+def test_diarization_is_asked_for_and_the_final_names_its_speakers():
+    async def run():
+        async with mock_server("speakers") as (url, server):
+            client = module().SpeechCppRealtime(url, "asr", "auto", "speaker", server_vad=False, diarization=True)
+            await client.start()
+            # speech.cpp's own member: {} asks for the diarization model's defaults.
+            assert server.requests[0]["session"]["audio"]["input"]["diarization"] == {}
+            await client.commit()
+            partial = await asyncio.wait_for(client.next_update(), 1)
+            final = await asyncio.wait_for(client.next_update(), 1)
+            assert partial.speakers == () and final.is_final and final.speakers == ("C", "B")
+            await client.stop()
+
+        # Without the argument the member is not sent.
+        async with mock_server("speakers") as (url, server):
+            client = module().SpeechCppRealtime(url, "asr", "auto", "speaker", server_vad=False)
+            await client.start()
+            assert "diarization" not in server.requests[0]["session"]["audio"]["input"]
+            await client.stop()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("diarization", [True, False])
+def test_a_server_that_answers_another_diarization_setting_is_refused(diarization):
+    async def run():
+        async with mock_server("drop_diarization") as (url, _):
+            c = module().SpeechCppRealtime(url, "asr", "auto", "speaker", diarization=diarization)
+            with pytest.raises(module().RealtimeError) as caught:
+                await c.start()
+            assert str(caught.value) == "configuration_rejected" and c.state == "failed"
+
+    asyncio.run(run())
+
+
+def test_diarization_must_be_a_flag():
+    with pytest.raises(ValueError):
+        module().SpeechCppRealtime("http://127.0.0.1:8080", "asr", "ja", "speaker", diarization={})
 
 
 def test_sources_and_explicit_reconnect_use_separate_namespaces():
@@ -255,12 +313,66 @@ def test_transport_fault_or_unconsumed_results_closes_and_discards(mode, monkeyp
     async def run():
         async with mock_server(mode) as (url, _):
             monkeypatch.setattr(module(), "PENDING_TIMEOUT", 0.1)
+            monkeypatch.setattr(module(), "FIRST_RESULT_TIMEOUT", 0.1)
             c = module().SpeechCppRealtime(url, "asr", "ja", "mic", server_vad=False)
             await c.start()
             await c.commit()
             await until(lambda: c.state == "failed")
             with pytest.raises(module().RealtimeError):
                 await c.next_update()
+            await c.stop()
+
+    asyncio.run(run())
+
+
+def test_the_first_result_may_take_longer_than_the_rest(monkeypatch):
+    monkeypatch.setattr(module(), "PENDING_TIMEOUT", 0.05)
+    monkeypatch.setattr(module(), "FIRST_RESULT_TIMEOUT", 30)
+
+    async def run():
+        async with mock_server("pending") as (url, _):
+            c = module().SpeechCppRealtime(url, "asr", "ja", "mic", server_vad=False)
+            await c.start()
+            await c.commit()
+            await asyncio.sleep(0.3)
+            assert c.state == "ready"
+            await c.stop()
+
+    asyncio.run(run())
+
+
+def test_later_results_keep_the_short_limit(monkeypatch):
+    monkeypatch.setattr(module(), "PENDING_TIMEOUT", 0.1)
+    monkeypatch.setattr(module(), "FIRST_RESULT_TIMEOUT", 30)
+
+    async def run():
+        async with mock_server("first_only") as (url, _):
+            c = module().SpeechCppRealtime(url, "asr", "ja", "mic", server_vad=False)
+            await c.start()
+            await c.commit()
+            await c.next_update()
+            assert (await c.next_update()).is_final
+            await c.commit()
+            await until(lambda: c.state == "failed")
+            assert c.error == "utterance_timeout"
+            await c.stop()
+
+    asyncio.run(run())
+
+
+def test_items_queued_behind_the_first_result_get_a_fresh_limit(monkeypatch):
+    monkeypatch.setattr(module(), "PENDING_TIMEOUT", 0.2)
+    monkeypatch.setattr(module(), "FIRST_RESULT_TIMEOUT", 30)
+
+    async def run():
+        async with mock_server("backlog") as (url, _):
+            c = module().SpeechCppRealtime(url, "asr", "ja", "mic", server_vad=False)
+            await c.start()
+            await c.commit()
+            finals = 0
+            while finals < 2:
+                finals += (await asyncio.wait_for(c.next_update(), 1)).is_final
+            assert c.state == "ready"
             await c.stop()
 
     asyncio.run(run())

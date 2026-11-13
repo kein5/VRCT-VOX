@@ -1,4 +1,6 @@
+import { store } from "@store";
 import { useEffect } from "react";
+import { useI18n } from "@useI18n";
 import * as realtime from "./transcription/useRealtimeASR";
 import * as common from "@logics_common";
 import * as main from "@logics_main";
@@ -6,12 +8,21 @@ import * as configs from "@logics_configs";
 import * as voice from "./voice/useVoice";
 import * as speech from "./voice/useSpeechServers";
 import * as downloads from "./voice/useModelDownloads";
+import * as vcRuntimes from "./voice/useVcRuntimes";
 import { _useBackendErrorHandling } from "./_useBackendErrorHandling";
 import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import { useStdoutToPython } from "@useStdoutToPython";
-import { receiveLanguageMutation, resetLanguageMutations } from "./main/languageMutations";
+import { pendingRequestRecovery, featureResyncReads } from "./common/pendingRequestRecovery.js";
+import { receiveLanguageMutation, resetLanguageMutations, isLanguageMutation } from "./main/languageMutations";
+import { applyInitializationFields, createInitializationValidators } from "./common/initializationFields.js";
+import { isBackendUpdate, rejectExpectedExit } from "./common/sidecarExitExpectation.js";
+import { settingsWriteResponses } from "./common/settingsWriteResponses.js";
+
+const INIT_FIELD_VALIDATORS = createInitializationValidators(SETTINGS_ARRAY);
 
 export const STATIC_ROUTE_META_LIST = [
+    { endpoint: "/set/data/openai_compatible_auth_key_and_url", ns: configs, hook_name: "useTranslation", method_name: "setSuccessOpenAICompatibleAuthKey", url_method_name: "updateOpenAICompatibleURL" },
+    { endpoint: "/set/data/custom_whisper_auth_key_and_url", ns: configs, hook_name: "useTranscription", method_name: "setSuccessCustomWhisperAuthKey", url_method_name: "updateCustomWhisperURL" },
     { endpoint: "/get/data/model_download_catalog", ns: downloads, hook_name: "useModelDownloads", method_name: "updateCatalog" },
     { endpoint: "/get/data/model_download_hardware", ns: downloads, hook_name: "useModelDownloads", method_name: "updateHardware" },
     { endpoint: "/run/refresh_model_download_hardware", ns: downloads, hook_name: "useModelDownloads", method_name: "updateHardware" },
@@ -19,8 +30,13 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/run/start_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
     { endpoint: "/run/cancel_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
     { endpoint: "/run/apply_model_download", ns: downloads, hook_name: "useModelDownloads", method_name: "acknowledge" },
+    { endpoint: "/get/data/vc_runtime_catalog", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "updateCatalog" },
+    { endpoint: "/get/data/vc_runtime_state", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "updateState" },
+    { endpoint: "/run/start_vc_runtime_setup", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "acknowledge" },
+    { endpoint: "/run/cancel_vc_runtime_setup", ns: vcRuntimes, hook_name: "useVcRuntimes", method_name: "acknowledge" },
     { endpoint: "/get/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
     { endpoint: "/set/data/speech_server_settings", ns: speech, hook_name: "useSpeechServers", method_name: "updateSettings" },
+    { endpoint: "/get/data/speech_server_devices", ns: speech, hook_name: "useSpeechServers", method_name: "updateDevices" },
     { endpoint: "/get/data/speech_server_state", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
     { endpoint: "/run/start_speech_server", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
     { endpoint: "/run/stop_speech_server", ns: speech, hook_name: "useSpeechServers", method_name: "updateState" },
@@ -55,6 +71,15 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/get/data/compute_mode", ns: common, hook_name: "useComputeMode", method_name: "updateComputeMode" },
 
     { endpoint: "/run/update_software", ns: null, hook_name: null, method_name: null },
+    { endpoint: "/run/audio_device_switched", ns: null, hook_name: null, method_name: null },
+    { endpoint: "/run/config_file_unreadable", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
+    { endpoint: "/run/config_save_failed", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
+    // Fire-and-forget actions from the VR settings (sample text, sent repeatedly while
+    // started, and launcher reset): the answer needs no handling, but without a route
+    // each one was logged as an invalid endpoint.
+    { endpoint: "/run/send_text_overlay", ns: null, hook_name: null, method_name: null },
+    { endpoint: "/run/vr_launcher_reset", ns: null, hook_name: null, method_name: null },
+    { endpoint: "/run/config_save_recovered", ns: null, hook_name: null, method_name: null }, // Shown by receiveRoutes itself.
 
     // VR UI のポインタ位置 (ホバー表示用)。VR ウィンドウへ転送する
     { endpoint: "/run/vr_panel_pointer", ns: common, hook_name: "useVrPanelPointer", method_name: "forwardVrPanelPointer" },
@@ -117,6 +142,9 @@ export const STATIC_ROUTE_META_LIST = [
     // Main Page
     // Page Controls
     { endpoint: "/get/data/main_window_sidebar_compact_mode", ns: main, hook_name: "useIsMainPageCompactMode", method_name: "updateIsMainPageCompactMode" },
+    { endpoint: "/get/data/foreground", ns: main, hook_name: "useMainFunction", method_name: "restoreForeground" },
+    { endpoint: "/set/enable/foreground", ns: main, hook_name: "useMainFunction", method_name: "updateForegroundStatus" },
+    { endpoint: "/set/disable/foreground", ns: main, hook_name: "useMainFunction", method_name: "updateForegroundStatus" },
     { endpoint: "/set/enable/main_window_sidebar_compact_mode", ns: main, hook_name: "useIsMainPageCompactMode", method_name: "updateIsMainPageCompactMode" },
     { endpoint: "/set/disable/main_window_sidebar_compact_mode", ns: main, hook_name: "useIsMainPageCompactMode", method_name: "updateIsMainPageCompactMode" },
 
@@ -162,23 +190,29 @@ export const STATIC_ROUTE_META_LIST = [
 
     // // Config Page
     // Hotkeys
+    // Saved after sharing a window, not from a settings control: no "saved" notice.
+    { endpoint: "/set/data/ocr_portal_restore_token", ns: configs, hook_name: "useOcr", method_name: "updateFromBackendOcrPortalRestoreToken" },
     { endpoint: "/get/data/hotkeys", ns: configs, hook_name: "useHotkeys", method_name: "updateHotkeys" },
     { endpoint: "/set/data/hotkeys", ns: configs, hook_name: "useHotkeys", method_name: "setSuccessHotkeys" },
 
     // // Not Implemented.
-    { endpoint: "/get/data/selectable_transcription_engines", ns: null, hook_name: null, method_name: null }, // Not implemented on UI yet. (if ai_models has not been detected, this will be blank array[]. if the ai_models are ok but just network has not connected, it'l be only ["Whisper"])
     { endpoint: "/run/shutdown", ns: null, hook_name: null, method_name: null }, // Not implemented on UI.
     { endpoint: "/get/data/selectable_release_channels", ns: null, hook_name: null, method_name: null }, // Not implemented on UI yet; release_channel options are hardcoded in Updater.jsx for now.
 ];
 
+const TRANSCRIPTION_TOGGLES = ["/set/enable/transcription_send", "/set/disable/transcription_send",
+    "/set/enable/transcription_receive", "/set/disable/transcription_receive"];
+
 export const useReceiveRoutes = () => {
-    const { showNotification_Error } = common.useNotificationStatus();
+    const { showNotification_Error, showNotification_Warning, showNotification_Success, dismissNotification } = common.useNotificationStatus();
+    const { t, i18n } = useI18n();
     const { errorHandling_Backend } = _useBackendErrorHandling();
-    const { settings: voiceSettings, send: sendVoice, reset: resetVoice, updateTtsError, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
+    const { settings: voiceSettings, status: voiceStatus, send: sendVoice, reset: resetVoice, backendStopped: stopVoicePending, updateTtsError, updateError: updateVoiceError, updateDirectError } = voice.useVoice();
     const voiceConnected = voiceSettings !== null;
     useEffect(() => {
         if (!voiceConnected) return;
         const poll = () => {
+            if (store.backend_stopped) return;
             sendVoice("/get/data/voice_status");
             sendVoice("/get/data/voice_route");
             sendVoice("/get/data/direct_voice_state");
@@ -187,23 +221,24 @@ export const useReceiveRoutes = () => {
         const timer = setInterval(poll, 1000);
         return () => clearInterval(timer);
     }, [voiceConnected, sendVoice]);
-    const { state: speechState, pending: speechPending, send: sendSpeech, updateError: updateSpeechError, reset: resetSpeech } = speech.useSpeechServers();
-    const speechActive = Object.values(speechState).some(row => ["preparing", "ready", "stopping"].includes(row.state)) || Object.keys(speechPending).length > 0;
+    const { state: speechState, pending: speechPending, send: sendSpeech, updateError: updateSpeechError, reset: resetSpeech, backendStopped: stopSpeechPending } = speech.useSpeechServers();
+    const speechActive = Object.values(speechState).some(row => ["preparing", "ready", "stopping"].includes(row.state)) || Object.keys(speechPending).length > 0
+        || voiceStatus.tts_server_starting === true;
     useEffect(() => {
         if (!speechActive) return;
-        const timer = setInterval(() => sendSpeech("/get/data/speech_server_state"), 500);
+        const timer = setInterval(() => !store.backend_stopped && sendSpeech("/get/data/speech_server_state"), 500);
         return () => clearInterval(timer);
     }, [speechActive, sendSpeech]);
-    const { state: downloadState, hardware: modelHardware, pending: downloadPending, send: sendDownload, updateError: updateDownloadError, reset: resetDownloads } = downloads.useModelDownloads();
+    const { state: downloadState, hardware: modelHardware, pending: downloadPending, send: sendDownload, updateError: updateDownloadError, reset: resetDownloads, backendStopped: stopDownloadPending } = downloads.useModelDownloads();
     useEffect(() => {
         if (modelHardware.phase !== 'probing') return;
-        const timer = setInterval(() => sendDownload('/get/data/model_download_hardware'), 500);
+        const timer = setInterval(() => !store.backend_stopped && sendDownload('/get/data/model_download_hardware'), 500);
         return () => clearInterval(timer);
     }, [modelHardware.phase, sendDownload]);
     const downloadActive = !!downloadPending || Object.values(downloadState.jobs).some(job => ["queued", "downloading", "verifying", "cancelling"].includes(job.phase));
     useEffect(() => {
         if (!downloadActive) return;
-        const timer = setInterval(() => sendDownload("/get/data/model_download_state"), 750);
+        const timer = setInterval(() => !store.backend_stopped && sendDownload("/get/data/model_download_state"), 750);
         return () => clearInterval(timer);
     }, [downloadActive, sendDownload]);
     useEffect(() => {
@@ -211,17 +246,23 @@ export const useReceiveRoutes = () => {
         const timer = setTimeout(() => updateDownloadError("request_unconfirmed"), 10000);
         return () => clearTimeout(timer);
     }, [downloadPending, updateDownloadError]);
-    const { state: realtimeState, send: sendRealtime, updateError: updateRealtimeError, reset: resetRealtime } = realtime.useRealtimeASR();
+    const { state: runtimeState, pending: runtimePending, send: sendRuntime, updateError: updateRuntimeError, reset: resetRuntimes, backendStopped: stopRuntimePending } = vcRuntimes.useVcRuntimes();
+    const runtimeActive = runtimePending || Object.values(runtimeState.jobs).some(job => vcRuntimes.activeSetupPhases.includes(job.phase));
+    useEffect(() => {
+        if (!runtimeActive) return;
+        const timer = setInterval(() => !store.backend_stopped && sendRuntime("/get/data/vc_runtime_state"), 750);
+        return () => clearInterval(timer);
+    }, [runtimeActive, sendRuntime]);
+    const { state: realtimeState, send: sendRealtime, updateError: updateRealtimeError, reset: resetRealtime, backendStopped: stopRealtimePending } = realtime.useRealtimeASR();
     const realtimeActive = Object.values(realtimeState).some(value => value.requested);
     useEffect(() => {
         if (!realtimeActive) return;
-        const timer = setInterval(() => sendRealtime("/get/data/realtime_asr_state"), 500);
+        const timer = setInterval(() => !store.backend_stopped && sendRealtime("/get/data/realtime_asr_state"), 500);
         return () => clearInterval(timer);
     }, [realtimeActive, sendRealtime]);
     const { updateIsBackendReady } = common.useIsBackendReady();
+    const { updateIsSoftwareUpdating } = common.useIsSoftwareUpdating();
     const { asyncStdoutToPython } = useStdoutToPython();
-
-    const ROUTE_META_LIST = buildRouteMetaList();
 
     const handleInvalidEndpoint = (parsed_data) => {
         console.error(`Invalid endpoint: ${parsed_data.endpoint}\nresult: ${JSON.stringify(parsed_data.result)}`);
@@ -243,29 +284,69 @@ export const useReceiveRoutes = () => {
     const noop = () => {};
 
     const routes = Object.fromEntries(
-        ROUTE_META_LIST.map(({ endpoint, hook_name, method_name }) => {
+        ROUTE_META_LIST.map(({ endpoint, hook_name, method_name, url_method_name }) => {
             const result_obj = hook_results[hook_name] || {};
             const fn = result_obj[method_name];
+            if (url_method_name) return [endpoint, value => {
+                result_obj[url_method_name](value.url);
+                fn(value.auth_key);
+            }];
             if (fn === undefined && method_name !== null) {
                 console.error("Method not found.", { endpoint, hook_name, method_name, result_obj, fn });
             }
-            return [endpoint, typeof fn === "function" ? fn : noop];
+            return [endpoint, typeof fn === "function"
+                ? (hook_name === "useModelDownloads" && method_name === "acknowledge" ? value => fn(value, endpoint) : fn)
+                : noop];
         })
     );
 
 
+    // Speech that waited too long is skipped without any other sign, so warn when
+    // the backend's count rises. The first reading and a restarted backend do not.
+    const noticeExpiredSpeech = expired => {
+        if (!Number.isSafeInteger(expired)) return;
+        if (store.expired_speech !== null && expired > store.expired_speech)
+            showNotification_Warning(t("voice_ui.speech_expired"), { category_id: "speech_expired" });
+        store.expired_speech = expired;
+    };
+
     const receiveRoutes = (parsed_data) => {
-        const { endpoint, status, result } = parsed_data;
-        if (status !== 200 && endpoint.includes("model_download")) {
-            updateDownloadError(result?.error_code || "download_failed");
+        const { endpoint = "", status, result } = parsed_data;
+        if (endpoint === "/get/data/voice_status" && status === 200) noticeExpiredSpeech(result?.expired);
+        if (status !== 200 && (isBackendUpdate(endpoint) || endpoint === "/run/shutdown")) {
+            rejectExpectedExit(store.backend_session, endpoint);
+            if (isBackendUpdate(endpoint)) updateIsSoftwareUpdating(false);
+        }
+        if (!pendingRequestRecovery.acceptResponse(endpoint)) return;
+        pendingRequestRecovery.receive(parsed_data, asyncStdoutToPython);
+        settingsWriteResponses.receive(parsed_data);
+        if (endpoint === "/run/send_message_box" && [400, 404, 423, 500].includes(status)) {
+            hook_results.useMessage.failSentMessageLog(result?.data ?? result);
+        }
+        if (status === 500 && featureResyncReads[endpoint]) asyncStdoutToPython(featureResyncReads[endpoint]);
+        if (status !== 200 && endpoint.includes("vc_runtime")) {
+            updateRuntimeError(result?.error_code || "vc_runtime_failed");
             return;
+        }
+        if (status !== 200 && endpoint.includes("model_download")) {
+            updateDownloadError(result?.error_code || "download_failed", endpoint);
+            return;
+        }
+        // Enabling OBS also starts the WebSocket server it depends on.
+        if (status === 200 && endpoint === "/set/enable/obs_browser_source") asyncStdoutToPython("/get/data/websocket_server");
+        // On Linux the Device page Mic choice is the default RVC input (`preferred`).
+        if (status === 200 && ["/set/data/selected_mic_host", "/set/data/selected_mic_device",
+            "/run/selected_mic_host", "/run/selected_mic_device"].includes(endpoint)) {
+            sendVoice("/get/data/direct_voice_sources");
         }
         if (status === 200 && endpoint === "/run/apply_model_download") {
             sendSpeech("/get/data/speech_server_settings");
             sendVoice("/get/data/direct_voice_state");
         }
+        // The main TTS toggle can start or stop a bundled server; keep Settings in step.
+        if (["/run/enable_tts", "/run/disable_tts"].includes(endpoint)) sendSpeech("/get/data/speech_server_state");
         if (status !== 200 && ["/run/enable_tts", "/run/disable_tts"].includes(endpoint)) {
-            updateTtsError(result?.error_code || "voice_request_failed", endpoint);
+            updateTtsError(result?.error_code || "voice_request_failed", endpoint, status);
             sendVoice("/get/data/voice_status");
             return;
         }
@@ -274,12 +355,19 @@ export const useReceiveRoutes = () => {
             if (endpoint !== "/get/data/speech_server_state") sendSpeech("/get/data/speech_server_state");
             return;
         }
+        // On Linux these switches drive realtime ASR and may start or stop the
+        // bundled ASR server; keep Settings in step with them.
+        if (TRANSCRIPTION_TOGGLES.includes(endpoint)) {
+            sendSpeech("/get/data/speech_server_state");
+            sendRealtime("/get/data/realtime_asr_state");
+        }
         if (status !== 200 && endpoint.includes("realtime_asr")) {
             updateRealtimeError(result?.error_code || "realtime_request_failed");
             return;
         }
         if (status !== 200 && endpoint.includes("direct_voice")) {
-            updateDirectError(result?.error_code || "source_bridge_request_failed", endpoint);
+            updateDirectError(result?.error_code || "source_bridge_request_failed", endpoint, status);
+            if ([404, 423, 500].includes(status) && endpoint !== "/get/data/direct_voice_state") sendVoice("/get/data/direct_voice_state");
             return;
         }
         if (status !== 200 && (endpoint.includes("/voice_") || ["/run/stop_voice", "/run/mute_voice", "/run/resume_voice"].includes(endpoint))) {
@@ -291,6 +379,7 @@ export const useReceiveRoutes = () => {
             resetDownloads();
             sendDownload("/get/data/model_download_catalog");
             sendDownload("/get/data/model_download_state");
+            resetRuntimes();
             resetVoice();
             sendVoice("/get/data/voice_settings");
             sendVoice("/get/data/direct_voice_sources");
@@ -300,16 +389,49 @@ export const useReceiveRoutes = () => {
             resetRealtime();
             sendRealtime("/get/data/realtime_asr_settings");
             sendRealtime("/get/data/realtime_asr_state");
+            sendRealtime("/get/data/realtime_asr_models");
             for (const source of ["mic", "speaker"]) sendRealtime("/get/data/realtime_asr_endpoints", { source });
-            Object.entries(result).forEach(([ep, value]) => {
-                if (ep in routes) {
-                    routes[ep](value);
-                } else {
-                    handleInvalidEndpoint({ endpoint: ep, result: value });
-                }
-            });
+            const failedFields = applyInitializationFields(result, routes, INIT_FIELD_VALIDATORS, handleInvalidEndpoint);
             updateIsBackendReady(true);
             resetLanguageMutations();
+            if (failedFields.length > 0) {
+                // The UI language from this same result is applied later by an effect.
+                const language = result?.["/get/data/ui_language"];
+                const translate = typeof language === "string" && i18n?.getFixedT ? i18n.getFixedT(language) : t;
+                showNotification_Warning(translate("common_warning.startup_degraded"),
+                    { hide_duration: null, category_id: "startup_degraded" });
+            }
+            return;
+        }
+
+        // config.json could not be read: the app runs on defaults and the old
+        // file was kept beside it.
+        if (status === 200 && endpoint === "/run/audio_device_switched") {
+            if (["mic", "speaker"].includes(result?.source)
+                && typeof result?.old_device?.name === "string" && typeof result?.new_device?.name === "string") {
+                const sameName = result.old_device.name === result.new_device.name;
+                const label = device => sameName && device.id ? `${device.name} (${device.id})` : device.name;
+                showNotification_Warning(t(`common_warning.audio_device_switched.${result.source}`, {
+                    old: label(result.old_device), new: label(result.new_device),
+                }), { category_id: `audio_device_switched.${result.source}` });
+            }
+            return;
+        }
+        if (endpoint === "/run/config_save_failed") {
+            // Failed writes retry; failed loads preserve the original until restart.
+            const reason = ["disk_full", "permission_denied", "read_only", "load_failed"].includes(result?.reason) ? result.reason : "write_failed";
+            showNotification_Error(t(`common_error.config_save_failed.${reason}`, { file: result?.path ?? "" }),
+                { hide_duration: null, category_id: "config_save_failed" });
+            return;
+        }
+        if (endpoint === "/run/config_save_recovered") {
+            dismissNotification("config_save_failed");
+            showNotification_Success(t("common_error.config_save_failed.recovered"), { category_id: "config_save_recovered" });
+            return;
+        }
+        if (endpoint === "/run/config_file_unreadable") {
+            showNotification_Warning(t("common_warning.config_file_unreadable", { file: result?.backup ?? "" }),
+                { hide_duration: null, category_id: "config_file_unreadable" });
             return;
         }
 
@@ -339,9 +461,17 @@ export const useReceiveRoutes = () => {
                 // console.log(`from backend: %c ${JSON.stringify(parsed_data)}`, style_348);
                 break;
 
+            case 404:
+            case 423:
+                // Language mutations already publish their own failure notice.
+                if (!isLanguageMutation(endpoint)) showNotification_Error(t(`common_error.request_${status}`),
+                    { category_id: `request_${status}` });
+                console.error("Sidecar request rejected", parsed_data);
+                break;
+
             case 500:
-                showNotification_Error(
-                    `An error occurred. Please restart VRCT or contact the developers. ${JSON.stringify(parsed_data.result)}`, { hide_duration: null });
+                console.error("Unexpected sidecar error", parsed_data);
+                showNotification_Error(t("common_error.unexpected_error", { code: parsed_data.endpoint ?? "500" }), { hide_duration: null });
                 break;
 
             default:
@@ -349,7 +479,17 @@ export const useReceiveRoutes = () => {
         }
     };
 
-    return { receiveRoutes };
+    const backendStopped = () => {
+        pendingRequestRecovery.stop();
+        hook_results.useMessage.failSentMessageLog();
+        resetLanguageMutations();
+        stopVoicePending();
+        stopSpeechPending();
+        stopDownloadPending();
+        stopRuntimePending();
+        stopRealtimePending();
+    };
+    return { receiveRoutes, backendStopped };
 };
 
 const style_348 = [
@@ -483,6 +623,7 @@ const buildRouteMetaList = () => {
             ns: item.ns ?? null,
             hook_name: item.hook_name ?? null,
             method_name: item.method_name ?? null,
+            url_method_name: item.url_method_name,
         });
     }
 
@@ -529,3 +670,5 @@ const buildRouteMetaList = () => {
 
     return mergedList;
 };
+
+const ROUTE_META_LIST = buildRouteMetaList();

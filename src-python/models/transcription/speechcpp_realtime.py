@@ -15,8 +15,12 @@ from websockets.asyncio.client import connect
 from models.tts.settings import local_url
 from models.voice_events import AudioFrame
 from .realtime_events import TranscriptEvents
+from .utterance_diagnostics import utterance_diagnostics
 
 PENDING_TIMEOUT = 15.0
+# The first result of a connection can wait for the GPU driver to build its kernels,
+# which took 25.7 s on an RTX 3060 Ti with an empty driver cache.
+FIRST_RESULT_TIMEOUT = 120.0
 MAX_EVENT = 1024 * 1024
 
 
@@ -32,8 +36,10 @@ class _NoRedirect(connect):
 
 
 class SpeechCppRealtime:
-    def __init__(self, base_url, model, language, source, server_vad=True):
+    def __init__(self, base_url, model, language, source, server_vad=True, options=None, diarization=False):
+        """diarization: ask the server's diarization model who speaks in each utterance."""
         self.base_url = local_url(base_url)
+        options = dict(options or {})
         if (
             any(
                 not isinstance(v, str)
@@ -42,9 +48,15 @@ class SpeechCppRealtime:
                 for v in (model, language)
             )
             or type(server_vad) is not bool
+            or type(diarization) is not bool
+            # Only the vocabulary members; their values are checked by asr_vocabulary.
+            or set(options) - {"keywords", "prompt"}
+            or not isinstance(options.get("keywords", []), list)
+            or not isinstance(options.get("prompt", ""), str)
         ):
             raise ValueError("invalid_realtime_settings")
         self.model, self.language, self.server_vad = model, language, server_vad
+        self.options, self.diarization = options, diarization
         self.namespace = uuid4().hex
         self._events = TranscriptEvents(source, self.namespace)
         self.state, self.error = "new", None
@@ -53,22 +65,23 @@ class SpeechCppRealtime:
         self._ws = self._reader = self._starting = None
         self._sending = False
         self._pending_since = {}
+        self._first_result_seen = False
         self._commit_sent_at = None
 
     def _settings(self):
-        return {
-            "type": "transcription",
-            "audio": {
-                "input": {
-                    "format": {"type": "audio/pcm", "rate": 24000},
-                    "transcription": {"model": self.model, "language": self.language},
-                    "turn_detection": {"type": "server_vad"}
-                    if self.server_vad
-                    else None,
-                    "noise_reduction": None,
-                }
-            },
+        audio = {
+            "format": {"type": "audio/pcm", "rate": 24000},
+            "transcription": {"model": self.model, "language": self.language, **self.options},
+            "turn_detection": {"type": "server_vad"}
+            if self.server_vad
+            else None,
+            "noise_reduction": None,
         }
+        if self.diarization:
+            # speech.cpp's own member: {} is the diarization model's defaults (low_latency).
+            # Each completed utterance then waits about a second more and carries "speakers".
+            audio["diarization"] = {}
+        return {"type": "transcription", "audio": {"input": audio}}
 
     @staticmethod
     def _decode(raw):
@@ -96,8 +109,10 @@ class SpeechCppRealtime:
                 and audio["format"] == {"type": "audio/pcm", "rate": 24000}
                 and transcription["model"] == self.model
                 and transcription["language"] == self.language
+                # The server echoes the vocabulary it will use; anything else is not ours.
+                and all(transcription.get(key) == value for key, value in self.options.items())
                 and audio.get("noise_reduction") is None
-                and audio.get("diarization") is None
+                and audio.get("diarization") == ({} if self.diarization else None)
                 and (
                     (isinstance(vad, dict) and vad.get("type") == "server_vad")
                     if self.server_vad
@@ -199,8 +214,9 @@ class SpeechCppRealtime:
                     and monotonic() - self._commit_sent_at > PENDING_TIMEOUT
                 ):
                     raise RealtimeError("commit_ack_timeout")
+                limit = PENDING_TIMEOUT if self._first_result_seen else FIRST_RESULT_TIMEOUT
                 if any(
-                    monotonic() - stamp > PENDING_TIMEOUT
+                    monotonic() - stamp > limit
                     for stamp in self._pending_since.values()
                 ):
                     raise RealtimeError("utterance_timeout")
@@ -212,7 +228,17 @@ class SpeechCppRealtime:
                 if event["type"] == "session.updated":
                     self._check_config(event)
                 previous_pending = self._events.pending_ids
+                first_result = False
                 for update in self._events.accept(event):
+                    if update.is_final:
+                        first_result = first_result or not self._first_result_seen
+                        started = self._pending_since.get(update.item_id)
+                        stages = {} if started is None else {"realtime_pending_ms": (monotonic() - started) * 1000}
+                        pending = f"{stages['realtime_pending_ms']:.1f}ms" if stages else "unknown"
+                        utterance_diagnostics.record(
+                            update.source, "realtime_final" if update.text.strip() else "realtime_empty_final", stages,
+                            f"[ASR-realtime][{update.source}] state={update.state} pending={pending}",
+                        )
                     self._updates.put_nowait(replace(update, received_ns=monotonic_ns()))
                 pending = self._events.pending_ids
                 # Manual mode has no speech_started: a successful commit must
@@ -224,9 +250,13 @@ class SpeechCppRealtime:
                     and event["item_id"] not in previous_pending
                 ):
                     self._commit_sent_at = None
+                now = monotonic()
+                # Items queued behind the first result waited for the same kernels.
                 self._pending_since = {
-                    item: self._pending_since.get(item, monotonic()) for item in pending
+                    item: now if first_result else self._pending_since.get(item, now)
+                    for item in pending
                 }
+                self._first_result_seen = self._first_result_seen or first_result
                 if (
                     event["type"] == "input_audio_buffer.cleared"
                     and self.state == "clearing"

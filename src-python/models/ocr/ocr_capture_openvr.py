@@ -3,19 +3,20 @@
 Grabs the HMD left-eye image so OCR still works when the VRChat desktop
 mirror window is minimized (a common VR-mode setup).
 
-Reads IVRCompositor::GetMirrorTextureD3D11 through ocr_capture_d3d11.py.
-The OpenGL variant (GetMirrorTextureGL) is not an option: SteamVR fails to
+Windows reads IVRCompositor::GetMirrorTextureD3D11 through ocr_capture_d3d11.py.
+The OpenGL variant (GetMirrorTextureGL) is not an option there: SteamVR fails to
 import its own D3D11 texture into GL ("Invalid format") and always returns
 CompositorError_InvalidTexture (ValveSoftware/openvr#178, #1410; reproduced
-on hardware 2026-09-27).
+on hardware 2026-09-27). Linux has no D3D11, so it reads the OpenGL variant
+through ocr_capture_gl.py (checked against the fake compositor only).
 
 Three lifecycle rules matter here:
 
 1. OpenVR is initialized **per process** and shared with Overlay and
    Clipboard, so the session goes through models/openvr_session.py
    (acquire()/release()), never openvr.init()/shutdown() directly.
-2. The mirror texture is acquired once and reused every frame; the D3D11
-   objects are created, read and released on the OCR worker thread.
+2. The mirror texture is acquired once and reused every frame; the D3D11 or
+   OpenGL objects are created, read and released on the OCR worker thread.
 3. Only VRChat's frames are read: while another scene app (SteamVR Home
    etc.) is presenting, capture() returns None so the facade can fall back
    to the desktop window.
@@ -24,6 +25,7 @@ Three lifecycle rules matter here:
 from __future__ import annotations
 
 import sys
+import time
 from typing import Optional
 
 import numpy as np
@@ -44,6 +46,8 @@ except Exception:  # pragma: no cover
     Process = None  # type: ignore
 
 from .ocr_capture_d3d11 import D3D11Mirror
+from .ocr_capture_gl import GlMirror
+from .ocr_failure import OcrFailureLog
 
 try:
     from utils import errorLogging, printLog
@@ -54,6 +58,18 @@ except Exception:  # pragma: no cover
 
     def printLog(*args, **kwargs):
         print(*args, **kwargs)
+
+
+_GL_RETRY_SEC = 30.0
+
+
+def _glAvailable() -> bool:
+    """The OpenGL window library and bindings the Linux reader needs are installed."""
+    from importlib.util import find_spec
+    try:
+        return find_spec("glfw") is not None and find_spec("OpenGL") is not None
+    except (ImportError, ValueError):
+        return False
 
 
 class OpenVRMirrorCapture:
@@ -67,14 +83,19 @@ class OpenVRMirrorCapture:
     def __init__(self, eye: str = "left") -> None:
         self._eye_name = eye
         self._compositor = None
-        self._mirror: Optional[D3D11Mirror] = None
+        self._mirror = None  # D3D11Mirror (Windows) or GlMirror (Linux)
         self._session_held = False
-        # 失敗が続く間 (SteamVR再起動中など) は5秒ごとに再試行するので、
-        # トレースバックは最初の1回だけ残す。成功したら次の失敗をまた残す。
-        self._failure_logged = False
+        # Linux: a failed start opens and closes an OpenGL context, and whether SteamVR hands out
+        # the texture there is untested, so do not try again on every recheck of the facade.
+        self._retry_at = 0.0
+        self._failures = OcrFailureLog("OCR OpenVR capture", lambda: errorLogging(), lambda message: printLog(message))
 
     def isAvailable(self) -> bool:
-        return openvr is not None and sys.platform == "win32"
+        if openvr is None:
+            return False
+        if sys.platform == "win32":
+            return True
+        return sys.platform == "linux" and _glAvailable()
 
     @property
     def _eye(self):
@@ -82,17 +103,10 @@ class OpenVRMirrorCapture:
             return 0
         return openvr.Eye_Right if self._eye_name == "right" else openvr.Eye_Left
 
-    def _logFailure(self, message: str) -> None:
-        if self._failure_logged:
-            return
-        self._failure_logged = True
-        errorLogging()
-        printLog(f"OCR: {message} (further failures are not logged until a frame is read)")
-
     def _init(self) -> bool:
         if self._mirror is not None:
             return True
-        if not self.isAvailable():
+        if not self.isAvailable() or time.monotonic() < self._retry_at:
             return False
         try:
             # Join (or create) the process-wide OpenVR session. Background
@@ -100,11 +114,14 @@ class OpenVRMirrorCapture:
             system = openvr_session.acquire(openvr.VRApplication_Background)
             self._session_held = True
             self._compositor = openvr.IVRCompositor()
-            self._mirror = D3D11Mirror(system, self._compositor, self._eye)
+            reader = D3D11Mirror if sys.platform == "win32" else GlMirror
+            self._mirror = reader(system, self._compositor, self._eye)
             return True
-        except Exception:
-            self._logFailure("could not open the OpenVR mirror texture")
+        except Exception as exc:
+            self._failures.failure(exc)
             self._resetVrState()
+            if sys.platform != "win32":
+                self._retry_at = time.monotonic() + _GL_RETRY_SEC
             return False
 
     def _resetVrState(self) -> None:
@@ -146,19 +163,20 @@ class OpenVRMirrorCapture:
             return False
 
     def capture(self) -> Optional[np.ndarray]:
+        self._failures.report(time.monotonic())
         if not self._init():
             return None
         try:
             if not self._isVrchatScene():
                 return None
             rgb = self._mirror.read()
-        except Exception:
+        except Exception as exc:
             # The compositor session may have been torn down (SteamVR restart).
             # Drop everything so the next tick re-acquires.
-            self._logFailure("reading the OpenVR mirror texture failed")
+            self._failures.failure(exc)
             self._resetVrState()
             return None
-        self._failure_logged = False
+        self._failures.success()
         # D3D11Mirror returns RGB (for the tools); OCR uses BGR like the HWND path.
         return np.ascontiguousarray(rgb[:, :, ::-1])
 
@@ -169,3 +187,4 @@ class OpenVRMirrorCapture:
         released theirs too (models/openvr_session.py).
         """
         self._resetVrState()
+        self._failures.reset()

@@ -1,4 +1,6 @@
-import { store, useStore_Hotkeys } from "@store";
+import { useEffect, useRef } from "react";
+import { getDefaultStore } from "jotai";
+import { store, useStore_Hotkeys, Atom_IsOpenedConfigPage, Atom_IsBackendReady, Atom_IsSoftwareUpdating, Atom_Hotkeys } from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useNotificationStatus } from "@logics_common";
 import { useMainFunction } from "@logics_main";
@@ -6,6 +8,7 @@ import { register, unregister, unregisterAll } from "@tauri-apps/plugin-global-s
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useI18n } from "@useI18n";
+import { voiceActions } from "../../../voice/voiceActions.js";
 
 // Native Wayland grants no global key grab: the desktop binds the keys
 // through the GlobalShortcuts portal and Rust forwards each press here.
@@ -19,15 +22,76 @@ const shortcutPlatform = () => {
 };
 let portalHandler = null;
 let portalPaused = true; // Like the plugin's unregisterAll while settings are open.
-let portalListener = null;
-const ensurePortalListener = () => {
-    portalListener ??= listen("portal-shortcut", ({ payload }) => {
-        if (!portalPaused && portalHandler) portalHandler(payload.id, payload.activation_token ?? null);
-    });
-    return portalListener;
+// A Wayland client is never told that it is minimized, so isMinimized() stays false there.
+// Remember that the hotkey minimized the window; getting the focus back means it is up again.
+let minimizedByHotkey = false;
+let focusWatch = null;
+let registrationGeneration = 0;
+let registrationOwner = null;
+let disposed = false;
+// Keep native mutations ordered too: a register already in flight may finish
+// after an acknowledgement starts the next reconciliation.
+let nativeRegistration = Promise.resolve();
+const pendingEdits = new Map();
+const reconcileNative = operation => {
+    const result = nativeRegistration.then(operation);
+    nativeRegistration = result.catch(() => {});
+    return result;
 };
+// Remember that a bind may have reached Rust, even if its UI owner was disposed.
+let portalBound = import.meta.hot?.data.portalBound ?? false;
+let portalListener = null;
+const shortcutsEnabled = () => {
+    const atoms = getDefaultStore();
+    return atoms.get(Atom_IsBackendReady).data === true &&
+        atoms.get(Atom_IsOpenedConfigPage).data === false &&
+        atoms.get(Atom_IsSoftwareUpdating).data === false;
+};
+const pauseShortcuts = () => {
+    registrationGeneration++;
+    portalPaused = true;
+    portalHandler = null;
+};
+const disposePortalListener = () => {
+    pauseShortcuts();
+    registrationOwner = null;
+    const listener = portalListener;
+    portalListener = null;
+    listener?.unlisten?.();
+};
+const ensurePortalListener = () => {
+    if (!portalListener) {
+        const listener = { unlisten: null, ready: null };
+        portalListener = listener;
+        listener.ready = listen("portal-shortcut", ({ payload }) => {
+            if (portalListener === listener && !portalPaused && shortcutsEnabled() && portalHandler) {
+                portalHandler(payload.id, payload.activation_token ?? null);
+            }
+        }).then(unlisten => {
+            if (portalListener !== listener) unlisten();
+            else listener.unlisten = unlisten;
+        }).catch(error => {
+            if (portalListener === listener) portalListener = null;
+            throw error;
+        });
+    }
+    return portalListener.ready;
+};
+if (import.meta.hot) import.meta.hot.dispose(data => {
+    data.portalBound = portalBound;
+    disposed = true;
+    disposePortalListener();
+});
 
 export const useHotkeys = () => {
+    const owner = useRef({ mounted: true }).current;
+    useEffect(() => {
+        owner.mounted = true;
+        return () => {
+            owner.mounted = false;
+            if (registrationOwner === owner) disposePortalListener();
+        };
+    }, [owner]);
     const appWindow = store.appWindow;
     const { t, i18n } = useI18n();
 
@@ -68,13 +132,21 @@ export const useHotkeys = () => {
                 break;
             }
             case "toggle_vrct_visibility": {
-                const minimized = await appWindow.isMinimized();
+                const wayland = await currentPlatform() === "wayland";
+                if (wayland) focusWatch ??= appWindow.onFocusChanged?.(({ payload: focused }) => { if (focused) minimizedByHotkey = false; });
+                const minimized = wayland ? minimizedByHotkey : await appWindow.isMinimized();
                 if (minimized) {
-                    await appWindow.unminimize();
-                    await appWindow.setFocus();
+                    minimizedByHotkey = false;
+                    // The desktop gives a portal shortcut no right to raise a window; Rust asks KWin.
+                    if (wayland) await invoke("main_window_restore");
+                    else {
+                        await appWindow.unminimize();
+                        await appWindow.setFocus();
+                    }
                     store.text_area_ref.current?.focus();
                 } else {
                     await appWindow.minimize();
+                    minimizedByHotkey = wayland;
                 }
                 break;
             }
@@ -90,6 +162,23 @@ export const useHotkeys = () => {
                 toggleTranscriptionReceive();
                 break;
             }
+            // The switches and the stop actions on the main page own these; see voiceActions.js.
+            case "stop_voice": {
+                voiceActions.stop?.();
+                break;
+            }
+            case "toggle_voice_mute": {
+                voiceActions.toggleMute?.();
+                break;
+            }
+            case "toggle_tts": {
+                voiceActions.toggleTts?.();
+                break;
+            }
+            case "toggle_rvc": {
+                voiceActions.toggleRvc?.();
+                break;
+            }
             default: {
                 console.warn(`No handler defined for action: ${actionKey}`);
                 break;
@@ -97,14 +186,22 @@ export const useHotkeys = () => {
         }
     };
 
-    const registerPortalShortcuts = async () => {
-        await unregisterAll();
+    const registerPortalShortcuts = async (isCurrent) => {
+        await reconcileNative(() => unregisterAll());
+        if (!isCurrent()) return;
         portalHandler = runAction;
         const shortcuts = Object.fromEntries(Object.entries(currentHotkeys.data ?? {}).filter(([, keys]) => keys));
+        if (!Object.keys(shortcuts).length && !portalBound) {
+            portalPaused = false;
+            return;
+        }
         try {
             await ensurePortalListener();
+            if (!isCurrent()) return;
+            portalBound = true;
             // The desktop may show its confirmation dialog the first time.
             const assigned = await invoke("portal_shortcuts_bind", { shortcuts });
+            if (!isCurrent()) return;
             portalPaused = false;
             // The desktop may keep another key, e.g. when VRCT's is taken.
             for (const [actionKey, row] of Object.entries(assigned ?? {})) {
@@ -116,6 +213,7 @@ export const useHotkeys = () => {
                 }), { hide_duration: 10000 });
             }
         } catch (code) {
+            if (!isCurrent()) return;
             const key = `quick_chat.portal_errors.${code}`;
             showNotification_Error(i18n.exists(key) ? t(key) : t("quick_chat.portal_failed", { code: String(code) }),
                 { hide_duration: 8000 });
@@ -124,116 +222,119 @@ export const useHotkeys = () => {
 
     const setHotkeys = async (hotkeys) => {
         const [targetActionKey, targetHotkey] = Object.entries(hotkeys)[0];
-
-        // 削除の場合は競合チェックなしで保存
-        if (!targetHotkey) {
-            pendingHotkeys();
-            const updatedHotkeys = { ...currentHotkeys.data, [targetActionKey]: null };
-            updateHotkeys(updatedHotkeys);
-            asyncStdoutToPython("/set/data/hotkeys", updatedHotkeys);
-            closeNotification();
-            return true;
-        }
-
-        const platform = await currentPlatform();
-        if (targetActionKey === "open_quick_chat" && !platform) return false;
-
-        const targetShortcut = parseHotkey(targetHotkey);
-        const targetDisplay = targetHotkey.join(" + ");
-        const actionLabel = getHotkeyActionLabel(targetActionKey, t);
-
-        // 1. VRCT内の他のホットキーと重複していないかチェック
-        for (const [actionKey, hotkey] of Object.entries(currentHotkeys.data)) {
-            if (actionKey === targetActionKey || !hotkey) continue;
-            const shortcut = parseHotkey(hotkey);
-            if (shortcut === targetShortcut) {
-                showNotification_Error(
-                    t("config_page.hotkeys.error_in_use", {
-                        action_name: actionLabel,
-                        hotkey: targetDisplay,
-                    })
-                );
-                return false;
-            }
-        }
-
-        // 2. OS / 他のアプリケーションで既に使用されていないか（テスト登録）
-        // On native Wayland the desktop resolves conflicts when binding.
-        let isOsConflict = false;
-        if (platform !== "wayland") {
-            try {
-                await register(targetShortcut, () => {});
-                await unregister(targetShortcut);
-            } catch (err) {
-                console.warn(`Hotkey registration test failed for ${targetShortcut}:`, err);
-                isOsConflict = true;
-            }
-        }
-
-        if (isOsConflict) {
-            showNotification_Error(
-                t("config_page.hotkeys.error_in_use", {
-                    action_name: actionLabel,
-                    hotkey: targetDisplay,
-                })
-            );
+        if (pendingEdits.get(targetActionKey)?.sent) return false;
+        const acknowledged = () => getDefaultStore().get(Atom_Hotkeys).data;
+        const initial = JSON.stringify(acknowledged()[targetActionKey]);
+        const session = store.backend_session;
+        const edit = { keys: targetHotkey };
+        const isCurrent = () => !disposed && owner.mounted && pendingEdits.get(targetActionKey) === edit &&
+            store.backend_session === session && JSON.stringify(acknowledged()[targetActionKey]) === initial;
+        const conflict = () => {
+            if (!targetHotkey) return false;
+            const latest = [...Object.entries(acknowledged()), ...[...pendingEdits].map(([key, value]) => [key, value.keys])];
+            return latest.some(([key, keys]) => key !== targetActionKey && keys && parseHotkey(keys) === parseHotkey(targetHotkey));
+        };
+        const reportConflict = () => {
+            showNotification_Error(t("config_page.hotkeys.error_in_use", {
+                action_name: getHotkeyActionLabel(targetActionKey, t), hotkey: targetHotkey.join(" + "),
+            }));
             return false;
+        };
+        if (conflict()) return reportConflict();
+        // Reserve the proposed content before the first await, across hook instances.
+        pendingEdits.set(targetActionKey, edit);
+        try {
+            if (targetHotkey) {
+                const platform = await currentPlatform();
+                if (!isCurrent() || (targetActionKey === "open_quick_chat" && !platform)) return false;
+                if (conflict()) return reportConflict();
+                if (platform !== "wayland") {
+                    try {
+                        await reconcileNative(async () => {
+                            if (!isCurrent()) return;
+                            const shortcut = parseHotkey(targetHotkey);
+                            await register(shortcut, () => {});
+                            await unregister(shortcut);
+                        });
+                    } catch (error) {
+                        if (!isCurrent()) return false;
+                        console.warn("Hotkey registration test failed:", error);
+                        return reportConflict();
+                    }
+                }
+            }
+            if (!isCurrent()) return false;
+            if (conflict()) return reportConflict();
+            pendingHotkeys();
+            closeNotification();
+            edit.sent = true;
+            const response = await asyncStdoutToPython("/set/data/hotkeys", { [targetActionKey]: targetHotkey });
+            return response !== false && (!response?.status || response.status === 200);
+        } finally {
+            if (pendingEdits.get(targetActionKey) === edit) pendingEdits.delete(targetActionKey);
         }
-
-        // 3. 競合なし：保存してバックエンドに送信
-        pendingHotkeys();
-        const updatedHotkeys = { ...currentHotkeys.data, [targetActionKey]: targetHotkey };
-        updateHotkeys(updatedHotkeys);
-        asyncStdoutToPython("/set/data/hotkeys", updatedHotkeys);
-        closeNotification();
-        return true;
     };
 
     const registerShortcuts = async () => {
-        if (await currentPlatform() === "wayland") return registerPortalShortcuts();
-        try {
-            await unregisterAll();
+        pauseShortcuts();
+        registrationOwner = owner;
+        const generation = registrationGeneration;
+        const isCurrent = () => !disposed && owner.mounted && registrationOwner === owner &&
+            generation === registrationGeneration && shortcutsEnabled();
+        if (!isCurrent()) return;
+        const platform = await currentPlatform();
+        if (!isCurrent()) return;
+        if (platform === "wayland") return registerPortalShortcuts(isCurrent);
+        return reconcileNative(async () => {
+            if (!isCurrent()) return;
+            try {
+                await unregisterAll();
+                if (!isCurrent()) return;
 
-            const hotkeyEntries = Object.entries(currentHotkeys.data);
-            const failedHotkeys = [];
+                const hotkeyEntries = Object.entries(currentHotkeys.data);
+                const failedHotkeys = [];
 
-            for (const [actionKey, hotkeyRaw] of hotkeyEntries) {
-                if (!hotkeyRaw) continue;
+                for (const [actionKey, hotkeyRaw] of hotkeyEntries) {
+                    if (!hotkeyRaw) continue;
 
-                const shortcut = parseHotkey(hotkeyRaw);
-                try {
-                    await register(shortcut, async (event) => {
-                        // Moving focus during an X11 key grab can lose its release
-                        // event and leave the shortcut stuck in the pressed state.
-                        const trigger = actionKey === "open_quick_chat" ? "Released" : "Pressed";
-                        if (event.state !== trigger) return;
-                        await runAction(actionKey);
-                    });
-                } catch (error) {
-                    console.warn(`Failed to register global shortcut ${shortcut} for ${actionKey}:`, error);
-                    failedHotkeys.push({
-                        actionKey,
-                        hotkey: hotkeyRaw.join(" + "),
+                    const shortcut = parseHotkey(hotkeyRaw);
+                    try {
+                        await register(shortcut, async (event) => {
+                            // Moving focus during an X11 key grab can lose its release
+                            // event and leave the shortcut stuck in the pressed state.
+                            const trigger = actionKey === "open_quick_chat" ? "Released" : "Pressed";
+                            if (event.state !== trigger || !isCurrent()) return;
+                            await runAction(actionKey);
+                        });
+                        if (!isCurrent()) return;
+                    } catch (error) {
+                        if (!isCurrent()) return;
+                        console.warn(`Failed to register global shortcut ${shortcut} for ${actionKey}:`, error);
+                        failedHotkeys.push({
+                            actionKey,
+                            hotkey: hotkeyRaw.join(" + "),
+                        });
+                    }
+                }
+
+                if (failedHotkeys.length > 0) {
+                    // 起動時 / 有効化時に他アプリで使用されていて登録できなかったホットキーを通知（設定は削除しない）
+                    failedHotkeys.forEach(({ actionKey, hotkey }) => {
+                        const actionLabel = getHotkeyActionLabel(actionKey, t);
+                        showNotification_Error(
+                            t("config_page.hotkeys.error_failed_to_register_at_launch", {
+                                action_name: actionLabel,
+                                hotkey,
+                            }),
+                            { hide_duration: 8000 }
+                        );
                     });
                 }
+            } catch (error) {
+                if (!isCurrent()) return;
+                console.error("Failed to register global shortcuts:", error);
             }
-
-            if (failedHotkeys.length > 0) {
-                // 起動時 / 有効化時に他アプリで使用されていて登録できなかったホットキーを通知（設定は削除しない）
-                failedHotkeys.forEach(({ actionKey, hotkey }) => {
-                    const actionLabel = getHotkeyActionLabel(actionKey, t);
-                    showNotification_Error(
-                        t("config_page.hotkeys.error_failed_to_register_at_launch", {
-                            action_name: actionLabel,
-                            hotkey,
-                        }),
-                        { hide_duration: 8000 }
-                    );
-                });
-            }
-        } catch (error) {
-            console.error("Failed to register global shortcuts:", error);
-        }
+        });
     };
 
     const setSuccessHotkeys = (hotkeys) => {
@@ -249,8 +350,8 @@ export const useHotkeys = () => {
         setSuccessHotkeys,
         registerShortcuts,
         unregisterAll: async () => {
-            portalPaused = true;
-            await unregisterAll();
+            pauseShortcuts();
+            await reconcileNative(() => unregisterAll());
         },
         openQuickChat,
     };
@@ -263,6 +364,8 @@ const parseHotkey = (hotkeyString) => {
         Alt: "Alt",
         Shift: "Shift",
         Meta: "Super",
+        // Older recordings stored Space as " ", which leaves an empty token.
+        " ": "Space",
     };
 
 
@@ -290,6 +393,14 @@ const getHotkeyActionLabel = (actionKey, t) => {
             return t("config_page.hotkeys.toggle_transcription_receive.label", {
                 transcription_receive: t("main_page.transcription_receive"),
             });
+        case "stop_voice":
+            return t("config_page.hotkeys.stop_voice.label");
+        case "toggle_voice_mute":
+            return t("config_page.hotkeys.toggle_voice_mute.label");
+        case "toggle_tts":
+            return t("config_page.hotkeys.toggle_voice_switch.label", { name: "TTS" });
+        case "toggle_rvc":
+            return t("config_page.hotkeys.toggle_voice_switch.label", { name: "RVC" });
         default:
             return actionKey;
     }

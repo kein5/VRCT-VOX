@@ -21,6 +21,7 @@ def main():
     import pytest
     from test_controller_integration import controller_module
     from models.osc.osc import OSCHandler
+    from models.message_delivery import ChatboxOrder, DeliveryEpochs
     from tools.live_tts_acceptance import PCMTap
 
     parser = argparse.ArgumentParser(description=__doc__)
@@ -46,6 +47,9 @@ def main():
     osc = OSCHandler('127.0.0.1', args.osc_port)
 
     class Services:
+        message_delivery = DeliveryEpochs()
+        chatbox_order = ChatboxOrder()
+
         def checkKeywords(self, message):
             return False
 
@@ -55,11 +59,11 @@ def main():
         def websocketSendMessage(self, payload):
             journal('websocket_contract', payload=payload)
 
-        def addTranslationHistory(self, source, text):
+        def addTranslationHistory(self, source, text, *, snapshot=None):
             journal('history_contract', source=source, text=text)
 
-        def oscSendMessage(self, message):
-            osc.sendMessage(message, notification=False)
+        def oscSendMessage(self, message, current=None):
+            return osc.sendMessage(message, notification=False, current=current)
 
         def oscStartSendTyping(self):
             osc.sendTyping(True)
@@ -69,7 +73,7 @@ def main():
 
         def getInputTranslate(self, message, **kwargs):
             wait_release('translation')
-            return ['Hello, translated fixture.', 'こんにちは。翻訳の接続テストです。'], [True, True]
+            return ['Hello, translated fixture.', 'こんにちは。翻訳の接続テストです。'], [True, True], ['translated', 'translated']
 
     patches = pytest.MonkeyPatch()
     controller = controller_module.__wrapped__(patches, args.output)

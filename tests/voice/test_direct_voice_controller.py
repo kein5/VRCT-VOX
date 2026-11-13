@@ -1,5 +1,6 @@
 """Real Controller/stdio keep explicit input intent independent of TTS and mute."""
 from queue import Queue
+from types import SimpleNamespace
 
 import pytest
 from models.voice_conversion.settings import DirectSettings
@@ -18,6 +19,8 @@ def app(controller_module, monkeypatch):  # noqa: F811
     monkeypatch.setattr(m, '_read_graph', backend.read)
     monkeypatch.setattr(m, '_launch', backend.launch)
     monkeypatch.setattr(m, '_unmute', backend.unmute)
+    monkeypatch.setattr(m, 'graph_source', lambda: SimpleNamespace(
+        subscribe=lambda *args: SimpleNamespace(close=lambda: None)))
     monkeypatch.setattr(m, 'MONITOR_INTERVAL', .005)
     monkeypatch.setattr(controller_module, 'PipeWireGate', lambda: gate)
     controller = controller_module.Controller()
@@ -124,12 +127,12 @@ def test_bad_input_request_does_not_open_audio(app, bad):
     assert not b.children and not c.direct_voice.health()['requested']
 
 
-def test_windows_and_enumeration_failure_are_explicit(app, monkeypatch):
+def test_unsupported_platform_and_enumeration_failure_are_explicit(app, monkeypatch):
     c, b, *_ = app
     b.query_error = True
-    assert c.getDirectVoiceSources()['result'] == {'sources': [], 'error': 'source_bridge_graph_unavailable'}
-    monkeypatch.setattr(module().sys, 'platform', 'win32')
-    assert c.getDirectVoiceSources()['result'] == {'sources': [], 'error': 'source_bridge_linux_only'}
+    assert c.getDirectVoiceSources()['result'] == {'sources': [], 'error': 'source_bridge_graph_unavailable', 'preferred': None}
+    monkeypatch.setattr(module().sys, 'platform', 'darwin')
+    assert c.getDirectVoiceSources()['result'] == {'sources': [], 'error': 'source_bridge_linux_only', 'preferred': None}
     assert c.startDirectVoice(request(c))['result']['error_code'] == 'source_bridge_linux_only'
     assert not b.children
 
@@ -168,6 +171,9 @@ class ConvertedBackend:
     def __init__(self):
         self.state = dict(requested=False, active=False, pending=False, stopping=False,
                           conversion_verified=False, error=None, state='off')
+        self.monitor_muted = True
+    def set_monitor_muted(self, muted):
+        self.monitor_muted = muted
     def start(self, *, source):
         self.state.update(requested=True, active=True, state='ready')
     def stop(self):

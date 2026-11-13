@@ -111,6 +111,23 @@ def test_verified_completion_does_not_apply_or_load_and_can_be_applied_explicitl
     assert m.state()["jobs"][entry.id]["phase"] == "applied"
 
 
+def test_download_finishes_under_a_japanese_windows_locale(setup, monkeypatch):
+    """Catalog text has "·", which cp932 cannot write: every download failed at the very end."""
+    m, entry, _, _ = setup
+    m.entries[entry.id] = replace(entry, name="PP-OCRv6 small · Japanese")
+    locale_default = Path.write_text
+
+    def write_text(self, data, encoding=None, errors=None, newline=None):
+        return locale_default(self, data, encoding=encoding or "cp932", errors=errors, newline=newline)
+
+    monkeypatch.setattr(Path, "write_text", write_text)
+    start(m)
+    job = finish(m)
+    assert job["phase"] == "ready", job
+    receipt = Path(job["paths"]["model"]).with_name("receipt.json")
+    assert "·" in receipt.read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize(
     "data,code",
     [
@@ -222,6 +239,24 @@ def test_complete_cache_is_reverified_and_corrupt_cache_is_preserved(setup):
     assert path.read_bytes() == b"bad cache" and len(opened) == 1
 
 
+def test_restart_right_after_ready_waits_for_the_finishing_worker(setup, monkeypatch):
+    from models.model_downloads import manager as module
+
+    m, _, _, opened = setup
+    release, close = Event(), module.RootLease.close
+
+    def slow_close(lease):
+        release.wait(3)
+        close(lease)
+
+    monkeypatch.setattr(module.RootLease, "close", slow_close)
+    start(m)
+    assert finish(m)["phase"] == "ready"
+    start(m)
+    release.set()
+    assert finish(m)["phase"] == "ready" and len(opened) == 1
+
+
 def test_symlink_destination_cannot_overwrite_outside_file(setup, tmp_path):
     m, entry, _, opened = setup
     outside = tmp_path / "outside"
@@ -322,11 +357,12 @@ def test_catalog_contains_pinned_artifacts_and_no_private_model():
     from models.model_downloads.catalog import CATALOG, validate_catalog
 
     validate_catalog(CATALOG)
-    assert {m.target for m in CATALOG} == {"japanese", "multilingual", "asr", "rvc"}
+    assert {m.target for m in CATALOG} == {"japanese", "multilingual", "asr", "vad", "diarization", "rvc", "ocr"}
     assert "Mia" not in repr(CATALOG)
     for m in CATALOG:
+        pins = {m.revision, *(a.remote[1] for a in m.artifacts if a.remote)}
         assert m.licenses and all(
-            "/" + m.revision + "/" in url
+            any("/" + pin + "/" in url for pin in pins)
             or url.startswith(
                 ("https://creativecommons.org/", "https://www.apache.org/licenses/")
             )
@@ -339,12 +375,56 @@ def test_catalog_contains_pinned_artifacts_and_no_private_model():
 def test_haas_recognizer_is_pinned_for_the_asr_profile():
     from models.model_downloads.catalog import CATALOG
 
-    haas = [m for m in CATALOG if m.target == "asr"]
+    haas = [m for m in CATALOG if m.target == "asr" and m.id.startswith("haas")]
     assert [m.id for m in haas] == ["haas-ja-q8"]
     assert haas[0].license == "Apache-2.0" and haas[0].notice == "haas"
     assert [(a.filename, a.size, a.role) for a in haas[0].artifacts] == [
         ("Haas-616M-ja-v1.0-Q8_0.gguf", 656381472, "model")
     ]
+
+
+def test_multilingual_recognizer_and_vad_are_pinned_to_speechcpp_catalog():
+    # Revisions, sizes and SHA-256 match speech.cpp 0.10.0's `speech models --json`
+    # and the Hugging Face LFS metadata of these exact revisions.
+    from models.model_downloads.catalog import CATALOG, CATALOG_VERSION, SPEECH_FIELDS
+
+    rows = {m.id: m for m in CATALOG}
+    qwen, vad = rows["qwen3-asr-06b-q8"], rows["silero-vad-v62"]
+    assert [m.id for m in CATALOG if m.target == "asr"] == ["haas-ja-q8", "qwen3-asr-06b-q8"]
+    assert (qwen.repo, qwen.revision, qwen.license, qwen.notice) == (
+        "sakasegawa/Qwen3-ASR-0.6B-GGUF", "ee78f8709547f39bea3b924a16c72403826cac92", "Apache-2.0", "qwen_asr")
+    assert [(a.filename, a.size, a.sha256, a.role) for a in qwen.artifacts] == [(
+        "Qwen3-ASR-0.6B-Q8_0.gguf", 841502336,
+        "416e10c15b4a3d9002bd337d18fc450233fdf68502b6e10d1379d2789838afd0", "model")]
+    assert (vad.target, vad.repo, vad.revision, vad.license, vad.notice) == (
+        "vad", "sakasegawa/silero-vad-GGUF", "7fcb7aa2a70c312f8579fc987b3e1cdecf9321ca", "MIT", "silero")
+    assert [(a.filename, a.size, a.sha256, a.role) for a in vad.artifacts] == [(
+        "silero-vad-309K-v6.2-F32.gguf", 1238624,
+        "2fc312514e5fc4fa4ffd02b25c76a4853fa4130e8fb9777d01502183b01238cb", "model")]
+    assert any(url.endswith("/LICENSE") for url in vad.licenses)
+    assert SPEECH_FIELDS["vad"] == ("asr", "vad_model") and SPEECH_FIELDS["asr"] == ("asr", "model")
+    assert CATALOG_VERSION != "2026-10-31.1"  # Reviewed entries changed: stale consent must fail.
+
+
+def test_diarization_model_is_pinned_and_goes_to_its_own_field_of_the_asr_profile():
+    # Revision, size and SHA-256 are the Hugging Face LFS metadata of this exact revision, read on
+    # 2026-11-13; the file is the one speech.cpp 0.10.0 fetches for nemotron-3-diarization.
+    from models.model_downloads.catalog import CATALOG, CATALOG_VERSION, SPEECH_FIELDS
+
+    rows = [m for m in CATALOG if m.target == "diarization"]
+    assert [m.id for m in rows] == ["nemotron-3-diarization-q8"]
+    model = rows[0]
+    assert (model.repo, model.revision, model.license, model.notice) == (
+        "sakasegawa/Nemotron-3-Diarization-GGUF", "9096d41cb78bba7ac882b96d453e25239eac692b",
+        "OpenMDW-1.1", "nemotron_diarization")
+    assert [(a.filename, a.size, a.sha256, a.role) for a in model.artifacts] == [(
+        "Nemotron-3-Diarization-99M-Q8_0.gguf", 106179488,
+        "336df6350dce2ea5ff06aa6e2b249d331a859ced13305fbb45c44bdb3c0abe20", "model")]
+    # OpenMDW asks that the agreement goes with the model: the review links to the copy in the repository.
+    assert any(url.endswith("/LICENSE.OpenMDW-1.1") for url in model.licenses)
+    # It never replaces the recognizer or the detector.
+    assert SPEECH_FIELDS["diarization"] == ("asr", "diarization_model")
+    assert CATALOG_VERSION not in ("2026-10-31.1", "2026-11-01.7")
 
 @pytest.mark.parametrize(
     "url",

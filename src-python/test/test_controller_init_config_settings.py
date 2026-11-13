@@ -33,10 +33,46 @@ class TestInitMappingExcludesNetworkEndpoints(unittest.TestCase):
         self.assertIn("/get/data/available_releases", mapping)
         self.assertNotIn("/get/data/available_releases", init_mapping)
 
+    def test_ocr_readiness_is_not_collected_at_startup(self) -> None:
+        """X11 の接続や VRChat のウィンドウを調べるので、起動時には集めない。
+
+        UI 側は 設定 → チャット読み取り を開いたときに自分で要求する。
+        """
+        self.assertIn("/get/data/ocr_readiness", mapping)
+        self.assertNotIn("/get/data/ocr_readiness", init_mapping)
+
+    def test_vrchat_presence_is_not_collected_at_startup(self) -> None:
+        """起動した直後は、まだ何も検出できていない。表示する側が、表示するときに要求する。"""
+        self.assertIn("/get/data/vrchat_osc_presence", mapping)
+        self.assertNotIn("/get/data/vrchat_osc_presence", init_mapping)
+
+    def test_realtime_models_are_not_collected_at_startup(self) -> None:
+        """音声サーバーへ HTTP で問い合わせるので、起動時には集めない。
+
+        既定の接続先が動いていないと、Windows は閉じたポートの拒否に 2 秒かかる。
+        UI 側は /run/initialization_complete の後に自分で要求する。
+        """
+        self.assertIn("/get/data/realtime_asr_models", mapping)
+        self.assertNotIn("/get/data/realtime_asr_models", init_mapping)
+
+    def test_telemetry_preview_is_not_collected_at_startup(self) -> None:
+        """同梱の speech.cpp を子プロセスで起動して PC の構成を読むので、起動時には集めない。
+
+        UI 側は、利用者が「送信される内容を見る」を開いたときに自分で要求する。
+        """
+        self.assertIn("/get/data/telemetry_preview", mapping)
+        self.assertNotIn("/get/data/telemetry_preview", init_mapping)
+
     def test_other_get_data_endpoints_are_still_collected(self) -> None:
-        """除外は available_releases だけで、他は従来どおり集められること。"""
+        """除外は次のものだけで、他は従来どおり集められること。
+
+        ocr_capture_status は実行中の状態で、チャット読み取りの設定を開いている間だけ UI が読む。
+        """
         get_data_keys = {k for k in mapping if k.startswith("/get/data/")}
-        self.assertEqual(get_data_keys - set(init_mapping), {"/get/data/available_releases"})
+        self.assertEqual(get_data_keys - set(init_mapping),
+                         {"/get/data/available_releases", "/get/data/ocr_readiness", "/get/data/ocr_capture_status",
+                          "/get/data/realtime_asr_models", "/get/data/vrchat_osc_presence",
+                          "/get/data/telemetry_preview"})
 
 
 class TestUpdateConfigSettingsIsolatesFailures(unittest.TestCase):

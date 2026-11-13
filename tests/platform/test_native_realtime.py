@@ -144,7 +144,7 @@ def instrument_rows(ui):
         window.__captionRows = []; window.__captionSnapshots = [];
         const ids = new WeakMap(); let serial = 0;
         function sample() {
-            const rows = [...document.querySelectorAll('#log_container > div')]
+            const rows = [...document.querySelectorAll('#log_container [data-log-row]')]
                 .filter(e => e.querySelector('[class*=category]'));
             window.__captionRows = rows.map(e => {
                 if (!ids.has(e)) ids.set(e, ++serial);
@@ -215,8 +215,10 @@ def test_real_asr_native_caption_translation_and_stop(tmp_path):
             open_captions(ui)
             ui.wait("return [...document.querySelectorAll('button')].some(e => e.textContent === 'Start microphone captions' && !e.disabled)")
             ui.click_text("button", "Start microphone captions")
+            # The other start button is disabled while a start is being sent.
+            ui.wait("return [...document.querySelectorAll('button')].some(e => e.textContent === 'Start game audio captions' && !e.disabled)")
             ui.click_text("button", "Start game audio captions")
-            ui.wait("return [...document.querySelectorAll('[role=status]')].filter(e => e.textContent === 'Captions running').length === 2")
+            ui.wait("return [...document.querySelectorAll('[role=status]')].filter(e => e.textContent === 'Captions running' || [...e.querySelectorAll('p')].some(p => p.textContent === 'Captions running')).length === 2")
             ui.close_settings()
             ui.wait("return !!document.querySelector('#log_container')")
             instrument_rows(ui)
@@ -229,7 +231,7 @@ def test_real_asr_native_caption_translation_and_stop(tmp_path):
             assert len(translation.requests) == 4
             assert any(not row["translated"] for snapshot in snapshots for row in snapshot["rows"])
             assert len({row["node"] for snapshot in snapshots for row in snapshot["rows"]}) == 4
-            expected_osc = ui.evaluate("return [...document.querySelectorAll('#log_container > div')].filter(e => e.querySelector('[class*=category]')?.textContent === 'Sent').map(e => e.querySelector('[class*=message_main]').textContent)")
+            expected_osc = ui.evaluate("return [...document.querySelectorAll('#log_container [data-log-row]')].filter(e => e.querySelector('[class*=category]')?.textContent === 'Sent').map(e => e.querySelector('[class*=message_main]').textContent)")
             from pythonosc.osc_packet import OscPacket
             messages = []
             while True:
@@ -260,7 +262,7 @@ def test_real_asr_native_caption_translation_and_stop(tmp_path):
         with NativeWebDriver(tmp_path / "restart", {"VRCT_CONFIG_DIR": str(state_dir)}) as ui:
             ui.wait("return document.querySelector('textarea') !== null")
             open_captions(ui)
-            ui.wait("return [...document.querySelectorAll('[role=status]')].filter(e => e.textContent === 'Captions stopped').length === 2")
+            ui.wait("return [...document.querySelectorAll('[role=status]')].filter(e => e.textContent === 'Captions stopped' || [...e.querySelectorAll('p')].some(p => p.textContent === 'Captions stopped')).length === 2")
             assert not any(name.startswith("vrct.asr.capture.") for name in nodes())
             ui.close_app()
         (tmp_path / "report.json").write_text(json.dumps({

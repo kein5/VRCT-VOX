@@ -7,7 +7,7 @@ web
 A desktop communication application built with Tauri, React 18 and Python. It combines chat translation, transcription, text-to-speech and optional voice conversion for VRChat. The interface is a desktop WebView, not a marketing website.
 
 ## Users and operating context
-The user tests on Linux and Steam Frame, communicates in Japanese, and uses the application alongside VRChat. Fast access to text input, TTS/RVC enable state, audio routes and a reliable stop/mute action matters during a conversation. Windows distribution remains a separate validation target.
+The user tests on Linux and Steam Frame, communicates in Japanese, and uses the application alongside VRChat. Fast access to text input, TTS/RVC enable state, audio routes and a reliable stop/mute action matters during a conversation. Windows builds carry the same voice features through a user-installed virtual cable, and can fetch the RVC and Seed-VC runtimes after consent; physical use with VRChat on Windows remains a separate validation target.
 
 ## Capabilities and constraints
 Preserve existing backend contracts, settings, translations, OSC routes, hotkeys, Quick Chat, VR panels, model-download consent, and independent TTS/RVC controls. A visual redesign must not enable a microphone, download models, send messages, or change audio routes on its own. Model guidance is advisory; performance results are hardware- and workload-specific.

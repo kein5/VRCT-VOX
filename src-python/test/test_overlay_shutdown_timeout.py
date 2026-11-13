@@ -15,11 +15,9 @@ joinのタイムアウトに関するテスト(バックエンドレビュー �
   修正: 両方に上限(既定5秒)を設ける。Pythonのスレッドは外部から強制
   終了できないため、これらは「詰まったスレッドを殺す」ものではなく
   「待つのを諦める」もの。shutdownOverlay()がタイムアウトした場合は
-  self.overlay/self.systemを破棄せず(詰まったスレッドが後で復帰した際に
-  Noneへ触れて例外になることを避けるため)、代わりにself.initializedを
-  Falseに戻して次のstartOverlay()で復旧できるようにする(OpenVRハンドル
-  とセッション参照は1つ分リークするが、機能が再起動必須になることは
-  避ける)。
+  self.overlay/self.system と worker の参照を保持し、worker が終了するまで
+  次の startOverlay() を拒否する。古い teardown が新しいハンドルを
+  破棄するのを防ぐ。
 """
 
 import threading
@@ -60,32 +58,33 @@ class UpdateImageReinitTimeoutTests(unittest.TestCase):
         self.overlay.handle = {"small": 1}
 
     def test_gives_up_after_reinit_timeout_without_hanging_the_caller(self) -> None:
-        def fake_restart() -> None:
-            # 実際の reStartOverlay() が新しいバックグラウンドスレッドを
-            # 立てて再初期化を試みるが、SteamVR が落ちたままで
+        def fake_restart(*, current) -> bool:
+            # reStartOverlay() が所有スレッドに再初期化を頼んでも、SteamVR が落ちたままで
             # self.initialized が二度と True にならない状況を模す。
             self.overlay.initialized = False
+            return True
 
         self.overlay.reStartOverlay = MagicMock(side_effect=fake_restart)
 
-        with patch("models.overlay.overlay._REINIT_WAIT_TIMEOUT_SEC", 0.2), \
-             patch("models.overlay.overlay._REINIT_WAIT_POLL_INTERVAL_SEC", 0.02), \
-             patch("models.overlay.overlay.printLog") as mock_print_log:
+        with patch("models.overlay.overlay._REINIT_WAIT_TIMEOUT_SEC", 0.002), \
+             patch("models.overlay.overlay._REINIT_WAIT_POLL_INTERVAL_SEC", 0.001), \
+             self.assertRaisesRegex(TimeoutError, "reinitialization timed out"):
             start = time.monotonic()
             self.overlay.updateImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0)), "small")
-            elapsed = time.monotonic() - start
+        elapsed = time.monotonic() - start
 
         self.assertLess(elapsed, 2.0, "タイムアウトを超えて長時間ブロックしてはいけない")
-        mock_print_log.assert_called_once()
         # 再初期化が終わらなかったので、リトライの setOverlayRaw は
         # 呼ばれていないこと (=最初の1回だけ)。
         self.overlay.overlay.setOverlayRaw.assert_called_once()
 
     def test_retries_and_succeeds_once_reinit_completes_within_timeout(self) -> None:
-        def fake_restart() -> None:
+        def fake_restart(*, current) -> bool:
             self.overlay.initialized = True  # 再初期化が(すぐに)成功した場合
+            return True
 
         self.overlay.reStartOverlay = MagicMock(side_effect=fake_restart)
+        self.overlay.overlay.setOverlayRaw.side_effect = [RuntimeError("boom"), None]
 
         with patch("models.overlay.overlay._REINIT_WAIT_TIMEOUT_SEC", 5.0):
             self.overlay.updateImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0)), "small")
@@ -103,7 +102,7 @@ class ShutdownOverlayJoinTimeoutTests(unittest.TestCase):
         self.overlay.system = MagicMock(spec=_RealIVRSystem)
         self.overlay.handle = {"small": 1}
 
-    def test_gives_up_after_join_timeout_and_resets_initialized_without_destroying_handles(
+    def test_gives_up_after_join_timeout_and_keeps_owner_without_destroying_handles(
         self,
     ) -> None:
         # mainloop() が (OpenVR呼び出し等で) 詰まって二度と戻ってこないスレッド
@@ -111,11 +110,11 @@ class ShutdownOverlayJoinTimeoutTests(unittest.TestCase):
         never_set = threading.Event()
         stuck_thread = Thread(target=never_set.wait, daemon=True)
         stuck_thread.start()
-        self.addCleanup(never_set.set)
         self.addCleanup(lambda: stuck_thread.join(timeout=2))
+        self.addCleanup(never_set.set)
         self.overlay.thread_overlay = stuck_thread
 
-        with patch("models.overlay.overlay._SHUTDOWN_JOIN_TIMEOUT_SEC", 0.2), \
+        with patch("models.overlay.overlay._SHUTDOWN_JOIN_TIMEOUT_SEC", 0.002), \
              patch("models.overlay.overlay.printLog") as mock_print_log, \
              patch("models.openvr_session.release") as release_mock:
             start = time.monotonic()
@@ -125,13 +124,10 @@ class ShutdownOverlayJoinTimeoutTests(unittest.TestCase):
         self.assertLess(elapsed, 2.0, "タイムアウトを超えて長時間ブロックしてはいけない")
         mock_print_log.assert_called_once()
 
-        # 古いスレッドの追跡は諦めるが、再有効化で復旧できるよう
-        # initialized は False に戻す。
-        self.assertIsNone(self.overlay.thread_overlay)
-        self.assertFalse(self.overlay.initialized)
+        # Stop is still in progress; only the old worker may clean up handles.
+        self.assertIs(self.overlay.thread_overlay, stuck_thread)
+        self.assertFalse(self.overlay.initialized)  # OFF revokes readiness before the bounded join.
 
-        # 詰まっているかもしれない古いスレッドが後で復帰した際に例外に
-        # ならないよう、overlay/systemは破棄しない(=リークを許容)。
         self.overlay.overlay.destroyOverlay.assert_not_called()
         release_mock.assert_not_called()
         self.assertIsNotNone(self.overlay.overlay)
@@ -142,9 +138,13 @@ class ShutdownOverlayJoinTimeoutTests(unittest.TestCase):
         # 付けても、素直に終わるスレッドに対する挙動は変わらないこと。
         self.overlay.loop = True
 
+        self.overlay.owned_handles = [1]
+
         def quick_loop() -> None:
-            while self.overlay.loop is not False:
-                time.sleep(0.01)
+            try:
+                self.overlay.run_stop.wait(2)
+            finally:
+                self.overlay.teardown()  # Only the owner releases resources.
 
         quick_thread = Thread(target=quick_loop, daemon=True)
         quick_thread.start()
@@ -182,14 +182,15 @@ class StartCancelTest(unittest.TestCase):
                 patch.object(overlay, "checkSteamvrRunning", return_value=False):
             overlay.startOverlay()
             self.assertTrue(overlay.init_process)
+            worker = overlay.thread_overlay
             overlay.shutdownOverlay()
-            overlay.thread_overlay.join(timeout=2.0)
-        self.assertFalse(overlay.thread_overlay.is_alive())
+            worker.join(timeout=2.0)
+        self.assertFalse(worker.is_alive())
         overlay.init.assert_not_called()  # SteamVR が起動しても作らない
         self.assertFalse(overlay.init_process)
-        self.assertFalse(overlay.start_cancelled)
+        self.assertTrue(overlay.start_cancelled)  # Reconnect must still observe OFF.
 
-    def test_off_then_on_while_waiting_keeps_waiting(self):
+    def test_off_then_on_while_waiting_starts_a_new_wait_after_old_owner_exits(self):
         overlay = self._overlay()
         steamvr = {"running": False}
         with patch("models.overlay.overlay._START_CANCEL_POLL_SEC", 0.01), \
@@ -260,9 +261,10 @@ class StallReportTest(unittest.TestCase):
         overlay.loop_step = ("panel:set_texture", 0.0)  # ずっと前から進んでいない
         frames = {threading.get_ident(): sys._getframe()}
         with patch("models.overlay.overlay._STALL_REPORT_SEC", 0.1), \
-                patch("models.overlay.overlay.time.sleep", side_effect=lambda _: setattr(overlay, "loop", overlay.loop and log.call_count == 0)), \
                 patch("models.overlay.overlay.printLog") as log:
-            overlay.watchStall(lambda: frames, threading.get_ident())
+            stop = MagicMock()
+            stop.wait.side_effect = [False, True]
+            overlay.watchStall(lambda: frames, threading.get_ident(), stop)
         log.assert_called_once()
         self.assertEqual(log.call_args.args[1]["step"], "panel:set_texture")
         self.assertIn("test_stalled_step_is_reported_with_its_stack", log.call_args.args[1]["stack"])

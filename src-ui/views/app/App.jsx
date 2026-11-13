@@ -1,4 +1,8 @@
+import { TranscriptionConsentController } from "./_app_controllers/TranscriptionConsentController";
+import { TranslationSetupController } from "./_app_controllers/TranslationSetupController";
+import { TelemetryNoticeController } from "./_app_controllers/TelemetryNoticeController";
 import { useI18n } from "@useI18n";
+import { useRef } from "react";
 
 import {
     KeyEventController,
@@ -11,12 +15,14 @@ import {
     TransparencyController,
     CornerRadiusController,
     VrPanelSyncController,
+    OcrSharedWindowController,
 } from "./_app_controllers";
 
 import styles from "./App.module.scss";
 
 import { MainPage } from "./main_page/MainPage";
 import { QuickChatController } from "./_app_controllers/QuickChatController";
+import { CaptionOverlayController } from "./_app_controllers/CaptionOverlayController";
 import { ConfigPage } from "./config_page/ConfigPage";
 
 import {
@@ -28,10 +34,13 @@ import {
     AppErrorBoundary,
 } from "./others";
 
-import { useIsBackendReady, useIsSoftwareUpdating, useWindow } from "@logics_common";
+import { useIsBackendReady, useIsSoftwareUpdating, WindowGeometryController, WindowCloseController } from "@logics_common";
+import { useBackendStartup } from "../../logics/common/useBackendStartup";
+import { StartupFailedComponent } from "./others/splash_component/StartupFailedComponent";
 
 export const App = () => {
     const { currentIsBackendReady } = useIsBackendReady();
+    const { startupState } = useBackendStartup();
     const { i18n } = useI18n();
 
     return (
@@ -39,8 +48,10 @@ export const App = () => {
             <AppErrorBoundary >
                 <KeyEventController />
                 <StartPythonController />
+                <WindowCloseController />
                 <GlobalHotKeyController />
                 <QuickChatController />
+                <CaptionOverlayController />
                 <UiLanguageController />
                 <ConfigPageCloseTriggerController />
                 <UiSizeController />
@@ -48,8 +59,11 @@ export const App = () => {
                 <TransparencyController />
                 <CornerRadiusController />
                 <VrPanelSyncController />
+                <OcrSharedWindowController />
 
-                {currentIsBackendReady.data === false
+                {startupState === "failed"
+                    ? <StartupFailedComponent />
+                    : startupState !== "stopped" && currentIsBackendReady.data === false
                     ? <SplashComponent />
                     : <Contents key={i18n.language} />
                 }
@@ -61,8 +75,8 @@ export const App = () => {
 };
 
 const Contents = () => {
-    const { WindowGeometryController } = useWindow();
     const { currentIsSoftwareUpdating } = useIsSoftwareUpdating();
+    const mainPage = useRef(null);
     return (
         <>
             <WindowGeometryController />
@@ -72,8 +86,11 @@ const Contents = () => {
             ?
             <div className={styles.pages_wrapper}>
                 <ConfigPage />
-                <MainPage />
-                <ModalController />
+                <MainPage focusFallback={mainPage} />
+                <ModalController fallback={mainPage} />
+                <TranscriptionConsentController />
+                <TranslationSetupController />
+                <TelemetryNoticeController />
             </div>
             :
             <UpdatingComponent />

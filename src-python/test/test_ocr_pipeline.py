@@ -8,7 +8,10 @@ capture/EasyOCR/cv2 本体のスレッドループ(_run/_tick)は実機依存が
 import unittest
 from unittest.mock import Mock, patch
 
+import numpy as np
+
 from models.ocr.ocr_pipeline import NEWLINE, OcrPipeline, _DedupCache, _similar, _textHash
+from errors import ErrorCode, OcrStartError
 
 _mergeWords = OcrPipeline._mergeWords
 
@@ -44,6 +47,15 @@ class TestSimilar(unittest.TestCase):
     def test_custom_max_distance_is_respected(self) -> None:
         self.assertFalse(_similar("hello", "hxllo world"[:5], max_distance=0))
         self.assertTrue(_similar("hello", "hello", max_distance=0))
+
+    def test_short_texts_require_exact_matching(self) -> None:
+        for first, second in (("はい", "いや"), ("yes", "yet"), ("okay", "away")):
+            self.assertFalse(_similar(first, second))
+
+    def test_edit_budget_scales_with_the_shorter_text(self) -> None:
+        self.assertTrue(_similar("hello", "hallo"))
+        self.assertFalse(_similar("hello", "halLo"))
+        self.assertFalse(_similar("hello", "hello!!"))
 
 
 class TestMergeWords(unittest.TestCase):
@@ -194,9 +206,9 @@ class TestDedupWithSlowTicks(unittest.TestCase):
         pipeline._capture.get.return_value = "frame"
         pipeline._reader = object()
         pipeline._detector = Mock()
-        pipeline._detector.detect.return_value = [((0, 0, 10, 10), "crop")]
+        pipeline._detector.detect.return_value = [((0, 0, 10, 10), np.zeros((10, 10, 3), dtype=np.uint8))]
 
-        with patch("models.ocr.ocr_pipeline.ocr_engine.readtext_bgr",
+        with patch("models.ocr.ocr_pipeline.ocr_engine.readtext_bgr_or_raise",
                    return_value=[{"text": "こんにちは", "confidence": 0.9}]),                 patch("models.ocr.ocr_pipeline.time.monotonic", side_effect=[100.0, 100.0, 100.0,
                                                                             103.0, 103.0, 103.0]):
             pipeline._tick()   # 1回目: 間隔が測れないので設定値のまま
@@ -212,6 +224,13 @@ class TestApplyConfig(unittest.TestCase):
     という不具合が出たための回帰テスト。_applyPending はワーカースレッドが
     呼ぶ想定なので、ここではスレッドを起こさず直接呼んで確認する。
     """
+
+    def setUp(self) -> None:
+        # ダウンロード済みモデルの場所は ocr_models が解決する。ここでは推論器の
+        # 切り替えだけを見るので、ファイルは常にあることにする。
+        resolver = patch("models.ocr.ocr_pipeline.resolveModelFiles", return_value="files")
+        resolver.start()
+        self.addCleanup(resolver.stop)
 
     def _pipeline(self, **kwargs) -> OcrPipeline:
         return OcrPipeline(callback=lambda payload: None, **{"source_language": "auto", **kwargs})
@@ -260,9 +279,11 @@ class TestApplyConfig(unittest.TestCase):
         pipeline = self._pipeline()
         pipeline._reader = "reader-for-auto"
         with patch("models.ocr.ocr_pipeline.ocr_engine.getReader") as get_reader:
-            pipeline.applyConfig({"source_language": "Klingon"})
+            with self.assertRaises(OcrStartError) as caught:
+                pipeline.applyConfig({"source_language": "Klingon"})
             pipeline._applyPending()
 
+        self.assertEqual(caught.exception.error_code, ErrorCode.OCR_DISABLED_UNSUPPORTED_LANGUAGE)
         get_reader.assert_not_called()
         self.assertEqual(pipeline._reader, "reader-for-auto")
         self.assertEqual(pipeline._source_language, "auto")
@@ -271,9 +292,11 @@ class TestApplyConfig(unittest.TestCase):
         pipeline = self._pipeline()
         pipeline._reader = "reader-for-auto"
         with patch("models.ocr.ocr_pipeline.ocr_engine.getReader", return_value=None):
-            pipeline.applyConfig({"source_language": "Korean"})
+            with self.assertRaises(OcrStartError) as caught:
+                pipeline.applyConfig({"source_language": "Korean"})
             pipeline._applyPending()
 
+        self.assertEqual(caught.exception.error_code, ErrorCode.OCR_DISABLED_MODEL_LOAD_FAILED)
         self.assertEqual(pipeline._reader, "reader-for-auto")
         self.assertEqual(pipeline._source_language, "auto")
 
@@ -348,6 +371,7 @@ class TestStartReportsReason(unittest.TestCase):
         pipeline = self._make()
         pipeline._detector.loadModel.side_effect = RuntimeError("bad onnx")
         with patch("models.ocr.ocr_pipeline.ocr_engine.isAvailable", return_value=True), \
+                patch("models.ocr.ocr_pipeline.resolveModelFiles", return_value="files"), \
                 patch("models.ocr.ocr_pipeline.ocr_engine.getReader", return_value=object()), \
                 patch("models.ocr.ocr_pipeline.errorLogging"),                 self.assertRaises(OcrStartError) as ctx:
             pipeline.start()

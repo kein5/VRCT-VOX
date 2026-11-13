@@ -23,8 +23,8 @@
     "dev-cuda-fast": "set \"VRCT_DEV_VENV=.venv_cuda\" && npm run task-kill && npm run sidecar-dev && npm run dev-ui",
     "dev-ui": "npm run task-kill && npm-run-all --parallel vite tauri-dev",
     "analyze-error": "node utils/analyze_ui_error.js",
-    "build": "npm run task-kill && npm run clean && npm run update-version && npm run build-python && npm run vite-build && npm run tauri build",
-    "build-cuda": "npm run task-kill && npm run clean && npm run update-version && npm run build-python-cuda && npm run vite-build && npm run tauri build",
+    "build": "npm run task-kill && npm run clean-soft && npm run update-version && npm run build-python && npm run vite-build && npm run tauri build",
+    "build-cuda": "npm run task-kill && npm run clean-soft && npm run update-version && npm run build-python-cuda && npm run vite-build && npm run tauri build",
     "release": "npm run update-version && npm run build && python utils\\zip.py --zip_name VRCT-VOX.zip",
     "release-cuda": "npm run update-version && npm run build-cuda && python utils\\zip.py --zip_name VRCT-VOX_cuda.zip",
     "release-all": "npm run update-version && npm run release && npm run release-cuda",
@@ -40,12 +40,12 @@
   },
   "dependencies": {
     "@babel/standalone": "7.27.0",
-    "@tauri-apps/api": "2.5.0",
-    "@tauri-apps/plugin-fs": "2.2.1",
-    "@tauri-apps/plugin-global-shortcut": "2.2.0",
-    "@tauri-apps/plugin-http": "2.4.3",
-    "@tauri-apps/plugin-opener": "2.2.6",
-    "@tauri-apps/plugin-shell": "2.2.1",
+    "@tauri-apps/api": "2.12.4",
+    "@tauri-apps/plugin-fs": "2.7.1",
+    "@tauri-apps/plugin-global-shortcut": "2.4.1",
+    "@tauri-apps/plugin-http": "2.8.3",
+    "@tauri-apps/plugin-opener": "2.7.2",
+    "@tauri-apps/plugin-shell": "2.6.0",
     "clsx": "2.1.1",
     "i18next": "25.0.1",
     "jotai": "2.12.3",
@@ -59,17 +59,18 @@
     "react-resizable-layout": "0.7.2",
     "react-toastify": "11.0.5",
     "sass": "1.79.4",
-    "semver": "7.7.1"
+    "semver": "7.7.1",
+    "virtua": "0.53.5"
   },
   "devDependencies": {
     "@rollup/plugin-yaml": "4.1.2",
-    "@tauri-apps/cli": "2.5.0",
+    "@tauri-apps/cli": "2.12.4",
     "@vitejs/plugin-react": "4.4.1",
-    "eslint": "9.25.1",
+    "eslint": "9.39.5",
     "eslint-plugin-react": "7.37.5",
-    "npm-run-all": "4.1.5",
+    "npm-run-all2": "9.0.4",
     "source-map": "0.7.4",
-    "vite": "6.3.4",
+    "vite": "6.4.5",
     "vite-plugin-svgr": "4.3.0"
   }
 }

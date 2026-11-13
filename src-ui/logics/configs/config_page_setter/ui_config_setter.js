@@ -1,4 +1,6 @@
-import { createAtomWithHook } from "@store";
+import { useAtomValue } from "jotai";
+import { createAtomWithHook, dynamicStoreRegistry } from "@store";
+import { settingPendingControl } from "../../common/pendingRequestRecovery.js";
 import vr_layout from "../../../views/vr/vr_layout.json";
 
 import {
@@ -14,6 +16,44 @@ import {
 
 
 export const SETTINGS_ARRAY = [
+    {
+        Category: "Device",
+        Base_Name: "SpeakerDeviceOptions",
+        default_value: [],
+        ui_template_id: "list",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selectable_speaker_device_options",
+        response_transform: "deviceOptionsToObject",
+    },
+    {
+        Category: "Device",
+        Base_Name: "SelectedSpeakerDeviceId",
+        default_value: "",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selected_speaker_device_id",
+    },
+    {
+        Category: "Device",
+        Base_Name: "MicDeviceOptions",
+        default_value: [],
+        ui_template_id: "list",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selectable_mic_device_options",
+        response_transform: "deviceOptionsToObject",
+    },
+    {
+        Category: "Device",
+        Base_Name: "SelectedMicDeviceId",
+        default_value: "",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selected_mic_device_id",
+    },
     // Device
     {
         Category: "Device",
@@ -553,6 +593,133 @@ export const SETTINGS_ARRAY = [
         logics_template_id: "get_set",
         base_endpoint_name: "selected_transcription_engine",
     },
+    // Engines the backend can use now: the local ones, plus each cloud engine
+    // whose key it has accepted.
+    {
+        Category: "Transcription",
+        Base_Name: "SelectableTranscriptionEngines",
+        default_value: [],
+        ui_template_id: "list",
+        logics_template_id: "get_only",
+        base_endpoint_name: "selectable_transcription_engines",
+    },
+    // Cloud transcription (Groq / OpenAI / custom Whisper server, Deepgram)
+    {
+        Category: "Transcription",
+        Base_Name: "GroqWhisperAuthKey",
+        default_value: "",
+        ui_template_id: "input",
+        logics_template_id: "get_set_delete",
+        base_endpoint_name: "groq_whisper_auth_key",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "SelectableGroqWhisperModelList",
+        default_value: [],
+        ui_template_id: "list",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selectable_groq_whisper_model_list",
+        response_transform: "arrayToObject",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "SelectedGroqWhisperModel",
+        default_value: "",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selected_groq_whisper_model",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "OpenAIWhisperAuthKey",
+        default_value: "",
+        ui_template_id: "input",
+        logics_template_id: "get_set_delete",
+        base_endpoint_name: "openai_whisper_auth_key",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "SelectableOpenAIWhisperModelList",
+        default_value: [],
+        ui_template_id: "list",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selectable_openai_whisper_model_list",
+        response_transform: "arrayToObject",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "SelectedOpenAIWhisperModel",
+        default_value: "",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selected_openai_whisper_model",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "CustomWhisperURL",
+        default_value: "",
+        ui_template_id: "input",
+        logics_template_id: "get_set",
+        base_endpoint_name: "custom_whisper_url",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "CustomWhisperAuthKey",
+        default_value: "",
+        ui_template_id: "input",
+        logics_template_id: "get_set_delete",
+        base_endpoint_name: "custom_whisper_auth_key",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "SelectableCustomWhisperModelList",
+        default_value: [],
+        ui_template_id: "list",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selectable_custom_whisper_model_list",
+        response_transform: "arrayToObject",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "SelectedCustomWhisperModel",
+        default_value: "",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selected_custom_whisper_model",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "DeepgramAuthKey",
+        default_value: "",
+        ui_template_id: "input",
+        logics_template_id: "get_set_delete",
+        base_endpoint_name: "deepgram_auth_key",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "SelectableDeepgramModelList",
+        default_value: [],
+        ui_template_id: "list",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selectable_deepgram_model_list",
+        response_transform: "arrayToObject",
+    },
+    {
+        Category: "Transcription",
+        Base_Name: "SelectedDeepgramModel",
+        default_value: "",
+        ui_template_id: "select",
+        logics_template_id: "get_set",
+        add_endpoint_run_array: ["from_backend"],
+        base_endpoint_name: "selected_deepgram_model",
+    },
     {
         Category: "Transcription",
         Base_Name: "WhisperWeightTypeStatus",
@@ -679,6 +846,67 @@ export const SETTINGS_ARRAY = [
         logics_template_id: "get_set",
         base_endpoint_name: "ocr_bubble_min_text_length",
     },
+    {
+        Category: "Ocr",
+        Base_Name: "OcrCaptureRegion",
+        default_value: { x: 0, y: 0, width: 1, height: 1 },
+        ui_template_id: "custom",
+        logics_template_id: "get_set",
+        base_endpoint_name: "ocr_capture_region",
+    },
+    {
+        Category: "Ocr",
+        Base_Name: "OcrVrCaptureRegion",
+        default_value: { x: 0, y: 0, width: 1, height: 1 },
+        ui_template_id: "custom",
+        logics_template_id: "get_set",
+        base_endpoint_name: "ocr_vr_capture_region",
+    },
+    {
+        // Worker state only: polling this never opens a capture device.
+        Category: "Ocr",
+        Base_Name: "OcrCaptureStatus",
+        default_value: null,
+        ui_template_id: "custom",
+        logics_template_id: "get_only",
+        base_endpoint_name: "ocr_capture_status",
+    },
+    {
+        Category: "Ocr",
+        Base_Name: "OcrChatboxFilter",
+        default_value: true,
+        ui_template_id: "toggle",
+        logics_template_id: "toggle_enable_disable",
+        base_endpoint_name: "ocr_chatbox_filter",
+    },
+    {
+        // Only takes effect once the detector download is present (see readiness).
+        Category: "Ocr",
+        Base_Name: "OcrUseChatboxDetector",
+        default_value: true,
+        ui_template_id: "toggle",
+        logics_template_id: "toggle_enable_disable",
+        base_endpoint_name: "ocr_use_chatbox_detector",
+    },
+    {
+        // Linux: restores the shared window without the desktop's dialog. Not shown;
+        // saved by useOcrSharedWindow after each sharing, so it has no "saved" notice.
+        Category: "Ocr",
+        Base_Name: "OcrPortalRestoreToken",
+        default_value: "",
+        ui_template_id: "custom",
+        logics_template_id: "get_only",
+        base_endpoint_name: "ocr_portal_restore_token",
+    },
+    {
+        // Probes the window; requested by the OCR page, not at start-up.
+        Category: "Ocr",
+        Base_Name: "OcrReadiness",
+        default_value: null,
+        ui_template_id: "custom",
+        logics_template_id: "get_only",
+        base_endpoint_name: "ocr_readiness",
+    },
 
     // Vr
     {
@@ -714,6 +942,24 @@ export const SETTINGS_ARRAY = [
         logics_template_id: "get_set",
         add_endpoint_run_array: ["from_backend"],
         base_endpoint_name: "overlay_large_log_settings",
+    },
+    {
+        // Captions over the desktop. The UI draws them in its own window
+        // (CaptionOverlayController); the backend only keeps the setting.
+        Category: "Vr",
+        Base_Name: "IsEnabledOverlayDesktop",
+        default_value: false,
+        ui_template_id: "toggle",
+        logics_template_id: "toggle_enable_disable",
+        base_endpoint_name: "overlay_desktop",
+    },
+    {
+        Category: "Vr",
+        Base_Name: "OverlayDesktopSettings",
+        default_value: ui_configs.overlay_desktop_default_settings,
+        ui_template_id: "object",
+        logics_template_id: "get_set",
+        base_endpoint_name: "overlay_desktop_settings",
     },
     {
         Category: "Vr",
@@ -843,6 +1089,15 @@ export const SETTINGS_ARRAY = [
         base_endpoint_name: "logger_feature",
     },
     {
+        // What OSC discovery sees now; requested by the readout that shows it, not at start-up.
+        Category: "Others",
+        Base_Name: "VrchatOscPresence",
+        default_value: null,
+        ui_template_id: "custom",
+        logics_template_id: "get_only",
+        base_endpoint_name: "vrchat_osc_presence",
+    },
+    {
         Category: "Others",
         Base_Name: "EnableVrcMicMuteSync",
         default_value: false,
@@ -877,7 +1132,7 @@ export const SETTINGS_ARRAY = [
     {
         Category: "Others",
         Base_Name: "SendMessageFormatParts",
-        default_value: [],
+        default_value: ui_configs.send_message_format_parts,
         ui_template_id: "list",
         logics_template_id: "get_set",
         base_endpoint_name: "send_message_format_parts",
@@ -885,7 +1140,7 @@ export const SETTINGS_ARRAY = [
     {
         Category: "Others",
         Base_Name: "ReceivedMessageFormatParts",
-        default_value: [],
+        default_value: ui_configs.received_message_format_parts,
         ui_template_id: "list",
         logics_template_id: "get_set",
         base_endpoint_name: "received_message_format_parts",
@@ -915,12 +1170,32 @@ export const SETTINGS_ARRAY = [
         base_endpoint_name: "auto_download_models",
     },
     {
+        // Usage events (the app started; an error by its code) go to VRCT-VOX's receiver unless this is off.
         Category: "Others",
         Base_Name: "Telemetry",
-        default_value: false,
+        default_value: true,
         ui_template_id: "toggle",
         logics_template_id: "toggle_enable_disable",
         base_endpoint_name: "telemetry",
+    },
+    {
+        // The one-time notice about usage events: {pending, enabled}. Nothing is sent while it is pending.
+        Category: "Others",
+        Base_Name: "TelemetryNotice",
+        default_value: { pending: false, enabled: true },
+        ui_template_id: "object",
+        logics_template_id: "get_set",
+        base_endpoint_name: "telemetry_notice",
+    },
+    {
+        // What a usage event from this PC holds, and what was sent: {endpoint, app_started, sent}.
+        // Asked for only when the user opens it (the backend runs a child process to answer).
+        Category: "Others",
+        Base_Name: "TelemetryPreview",
+        default_value: null,
+        ui_template_id: "object",
+        logics_template_id: "get_only",
+        base_endpoint_name: "telemetry_preview",
     },
     {
         Category: "Updater",
@@ -1058,8 +1333,12 @@ export const SETTINGS_ARRAY = [
 
 
 for (const setting_data of SETTINGS_ARRAY) {
-    createAtomWithHook(setting_data.default_value, setting_data.Base_Name);
+    createAtomWithHook(setting_data.default_value, setting_data.Base_Name, { pending_control: settingPendingControl(setting_data) });
 }
+
+// Read-only views subscribe to the setting they display, rather than every
+// setting and setter in a category (which also includes window geometry).
+export const useSettingValue = baseName => useAtomValue(dynamicStoreRegistry[`Atom_${baseName}`]);
 
 const buildCategoryApiFromSettings = (settings, settingsArray, Category, extraFunctions = {}) => {
     const api = {};

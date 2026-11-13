@@ -5,12 +5,18 @@ from copy import deepcopy
 from threading import RLock
 from typing import Tuple, List, Optional
 from PIL import Image, ImageDraw, ImageFont
-try:
-    from utils import errorLogging
-except ImportError:
-    def errorLogging():
-        import traceback
-        print(traceback.format_exc())
+from itertools import zip_longest
+from math import isfinite
+from .overlay_fonts import FontSet, bounded_text, graphemes, word_tokens, MAX_LINE_CODEPOINTS, MAX_TEXT_CODEPOINTS
+
+# Limits include all message/translation/history rows, ruby and outer padding.
+# See docs/spec/overlay-subtitle-rendering.md. RGBA is at most 16 MiB per raster.
+MAX_SUBTITLE_LINES = 24
+MAX_SUBTITLE_WIDTH = 4096
+MAX_SUBTITLE_HEIGHT = 2048
+MAX_SUBTITLE_PIXELS = 4_194_304
+SUBTITLE_PADDING_RESERVE = 100
+
 
 class OverlayImage:
     LANGUAGES = {
@@ -47,21 +53,180 @@ class OverlayImage:
             raise FileNotFoundError("Font directory not found.")
         # Simple in-memory font cache to avoid repeated truetype loading cost.
         self._font_cache = {}
+        self._font_sets = {}
 
     @staticmethod
-    def concatenateImagesVertically(img1: Image, img2: Image, margin: int = 0) -> Image:
+    def validateTextureSize(width, height):
+        if (not 0 < width <= MAX_SUBTITLE_WIDTH or not 0 < height <= MAX_SUBTITLE_HEIGHT
+                or width * height > MAX_SUBTITLE_PIXELS):
+            raise ValueError("subtitle texture exceeds raster budget")
+
+    @staticmethod
+    def _content_height(width):
+        # Reserve the largest existing outer margin before allocating any text.
+        return min(MAX_SUBTITLE_HEIGHT, MAX_SUBTITLE_PIXELS // (width + SUBTITLE_PADDING_RESERVE)) - SUBTITLE_PADDING_RESERVE
+
+    def _new_image(self, width, height, color=(0, 0, 0, 0)):
+        self.validateTextureSize(width, height)
+        return Image.new("RGBA", (width, height), color)
+
+    def _fonts(self, language, size):
+        family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
+        # UI sizes are fixed; bound optional ruby scale before opening a font.
+        size = max(1, min(128, int(size)))
+        key = (family, size)
+        if key not in self._font_sets:
+            if len(self._font_sets) >= 32:
+                self._font_sets.pop(next(iter(self._font_sets)))
+            self._font_sets[key] = FontSet(self.root_path, self.LANGUAGES.values(), family, size)
+        return self._font_sets[key]
+
+    def _wrap(self, text, fonts, width):
+        text, clipped = bounded_text(text)
+        lines = []
+        existing_lines = text.split("\n")
+        for line_index, existing in enumerate(existing_lines):
+            current = ""
+            for token in word_tokens(existing):
+                candidate = current + token
+                if len(candidate) <= MAX_LINE_CODEPOINTS and fonts.layout(candidate).width <= width:
+                    current = candidate
+                    continue
+                if current:
+                    lines.append(current)
+                    current = ""
+                if len(lines) >= MAX_SUBTITLE_LINES:
+                    return lines, True
+                # A long Latin word, ruby reading or indivisible grapheme must
+                # never bypass the measured-width check.
+                for cluster in graphemes(token):
+                    candidate = current + cluster
+                    if len(candidate) > MAX_LINE_CODEPOINTS or fonts.layout(candidate).width > width:
+                        if current:
+                            lines.append(current)
+                        if len(lines) >= MAX_SUBTITLE_LINES:
+                            return lines, True
+                        current = cluster
+                        if fonts.layout(cluster).width > width:
+                            return lines, True  # Cannot split a grapheme safely.
+                    else:
+                        current = candidate
+            lines.append(current)
+            if len(lines) >= MAX_SUBTITLE_LINES:
+                return lines, clipped or line_index < len(existing_lines) - 1
+        return lines, clipped
+
+    @staticmethod
+    def _row(cells, color, align, padding=10, ruby_spacing=4, original_spacing=0, extra=0):
+        romaji_height = max((cell[2].height for cell in cells if cell[2]), default=0)
+        hira_height = max((cell[1].height for cell in cells if cell[1]), default=0)
+        orig_height = max((cell[0].height for cell in cells), default=1)
+        ruby_height = romaji_height + hira_height + (ruby_spacing if romaji_height and hira_height else 0)
+        return dict(cells=cells, color=color, align=align, padding=padding,
+                    romaji_height=romaji_height, hira_height=hira_height,
+                    ruby_spacing=ruby_spacing, original_spacing=original_spacing,
+                    height=padding * 2 + ruby_height + original_spacing + orig_height + extra,
+                    width=sum(cell[3] for cell in cells))
+
+    def _plain_rows(self, text, language, font_size, color, width, align, padding=5, extra=0):
+        fonts = self._fonts(language, font_size)
+        lines, clipped = self._wrap(text, fonts, width)
+        rows = []
+        for line in lines:
+            layout = fonts.layout(line)
+            rows.append(self._row([(layout, None, None, layout.width)], color, align, padding, extra=extra))
+        return rows, clipped
+
+    def _ellipsis_row(self, width):
+        size = 92 if width > 1000 else 30
+        return self._plain_rows("…", "Default", size, (223, 223, 223), width, "center")[0][0]
+
+    def _render_rows(self, rows, width, clipped=False):
+        limit = self._content_height(width)
+        selected = []
+        height = 0
+        for row in rows:
+            if len(selected) >= MAX_SUBTITLE_LINES or height + row["height"] > limit:
+                clipped = True
+                break
+            selected.append(row)
+            height += row["height"]
+        if clipped:
+            marker = self._ellipsis_row(width)
+            while selected and (len(selected) >= MAX_SUBTITLE_LINES or height + marker["height"] > limit):
+                height -= selected.pop()["height"]
+            selected.append(marker)
+            height += marker["height"]
+        image = self._new_image(width, max(1, height))
+        bounds = []
+        y = 0
+        for row in selected:
+            self._draw_row(image, row, y)
+            bounds.append((y, y + row["height"]))
+            y += row["height"]
+        image.info["subtitle_rows"] = bounds
+        image.info["subtitle_clipped"] = clipped
+        return image
+
+    @staticmethod
+    def _draw_row(image, row, y):
+        width = row["width"]
+        x = 0 if row["align"] == "left" else image.width - width
+        if row["align"] == "center":
+            x //= 2
+        for orig, hira, romaji, cell_width in row["cells"]:
+            top = y + row["padding"]
+            if row["romaji_height"]:
+                if romaji:
+                    romaji.draw(image, x + (cell_width - romaji.width) / 2, top, row["color"])
+                top += row["romaji_height"] + (row["ruby_spacing"] if row["hira_height"] else 0)
+            if row["hira_height"]:
+                if hira:
+                    hira.draw(image, x + (cell_width - hira.width) / 2, top, row["color"])
+                top += row["hira_height"]
+            orig.draw(image, x + (cell_width - orig.width) / 2, top + row["original_spacing"], row["color"])
+            x += cell_width
+
+    def concatenateImagesVertically(self, img1: Image, img2: Image, margin: int = 0) -> Image:
+        if img1.info.get("subtitle_clipped"):
+            return img1
         total_height = img1.height + img2.height + margin
-        dst = Image.new("RGBA", (img1.width, total_height))
+        rows1 = img1.info.get("subtitle_rows", [(0, img1.height)])
+        rows2 = [(a + img1.height + margin, b + img1.height + margin)
+                 for a, b in img2.info.get("subtitle_rows", [(0, img2.height)])]
+        rows = rows1 + rows2
+        clipped = len(rows) > MAX_SUBTITLE_LINES or total_height > self._content_height(img1.width)
+        marker = None
+        if clipped:
+            marker = self._ellipsis_row(img1.width)
+            rows = rows[:MAX_SUBTITLE_LINES - 1]
+            while rows and rows[-1][1] + marker["height"] > self._content_height(img1.width):
+                rows.pop()
+            total_height = (rows[-1][1] if rows else 0) + marker["height"]
+        dst = self._new_image(img1.width, total_height)
         dst.paste(img1, (0, 0))
         dst.paste(img2, (0, img1.height + margin))
+        if marker:
+            y = total_height - marker["height"]
+            ImageDraw.Draw(dst).rectangle((0, y, dst.width, dst.height), fill=(0, 0, 0, 0))
+            self._draw_row(dst, marker, y)
+            rows.append((y, total_height))
+        dst.info["subtitle_rows"] = rows
+        dst.info["subtitle_clipped"] = clipped or img2.info.get("subtitle_clipped", False)
         return dst
 
-    @staticmethod
-    def addImageMargin(image: Image, top: int, right: int, bottom: int, left: int, color: Tuple[int, int, int, int]) -> Image:
-        new_width = image.width + right + left
-        new_height = image.height + top + bottom
-        result = Image.new(image.mode, (new_width, new_height), color)
+    def _combine_images(self, images, margin=0):
+        result = None
+        for image in images:
+            result = image if result is None else self.concatenateImagesVertically(result, image, margin)
+            if result.info.get("subtitle_clipped"):
+                break
+        return result if result is not None else self._new_image(1, 1)
+
+    def addImageMargin(self, image: Image, top: int, right: int, bottom: int, left: int, color: Tuple[int, int, int, int]) -> Image:
+        result = self._new_image(image.width + right + left, image.height + top + bottom, color)
         result.paste(image, (left, top))
+        result.info.update(image.info)
         return result
 
     @staticmethod
@@ -89,165 +254,103 @@ class OverlayImage:
         return self._font_cache[key]
 
     def createTextboxSmallLog(self, text: str, language: str, text_color: Tuple[int, int, int], base_width: int, base_height: int, font_size: int) -> Image:
-        if text is None:
-            text = ""
-        font_family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
-        font = self._get_font(font_family, font_size)
-
-        # Initial image for width measurement
-        img_tmp = Image.new("RGBA", (base_width, base_height), (0, 0, 0, 0))
-        draw_tmp = ImageDraw.Draw(img_tmp)
-        try:
-            text_width = draw_tmp.textlength(text, font) if len(text) > 0 else 1
-            character_width = max(1, text_width // max(1, len(text)))
-            character_line_num = int((base_width // character_width) - 12)
-            if len(text) > character_line_num and character_line_num > 0:
-                text = "\n".join([text[i:i + character_line_num] for i in range(0, len(text), character_line_num)])
-        except Exception:
-            errorLogging()
-        lines = text.split("\n") if text else [""]
-        text_height = font_size * (len(lines) + 1) + 20
-        img = Image.new("RGBA", (base_width, text_height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        text_x = base_width // 2
-        text_y = text_height // 2
-        draw.text((text_x, text_y), text, text_color, anchor="mm", stroke_width=0, font=font, align="center")
-        return img
+        rows, clipped = self._plain_rows(text, language, font_size, text_color, int(base_width * 0.9), "center", padding=10)
+        # Retain the small subtitle's generous single-block vertical padding.
+        if rows:
+            rows[0]["padding"] += font_size // 2
+            rows[0]["height"] += font_size // 2
+            rows[-1]["height"] += font_size - font_size // 2
+        return self._render_rows(rows, base_width, clipped)
 
     def renderRubyBlock(self, transliteration: List[dict], language: str, base_width: int, base_font_size: int, ruby_font_scale: float, ruby_line_spacing: int, text_color: Tuple[int, int, int]) -> Optional[Image.Image]:
-        # Build romaji and hiragana lines.
-        romaji_line = " ".join([t.get("hepburn", "") for t in transliteration if t.get("hepburn")])
-        hira_line = " ".join([t.get("hira", "") for t in transliteration if t.get("hira")])
-        if not romaji_line and not hira_line:
-            return None
-        font_family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
-        ruby_size = max(1, int(base_font_size * ruby_font_scale))
-        font_ruby = self._get_font(font_family, ruby_size)
-        # Symmetric outer padding so ruby block has breathing room top/bottom
-        outer_padding = 10
-        # Measure widths to center lines independently.
-        img_tmp = Image.new("RGBA", (base_width, ruby_size * 2 + ruby_line_spacing + outer_padding * 2), (0, 0, 0, 0))
-        draw_tmp = ImageDraw.Draw(img_tmp)
-        romaji_width = draw_tmp.textlength(romaji_line, font_ruby) if romaji_line else 0
-        hira_width = draw_tmp.textlength(hira_line, font_ruby) if hira_line else 0
-        romaji_x = (base_width - romaji_width) // 2
-        hira_x = (base_width - hira_width) // 2
-        # Construct final ruby image with symmetric padding
-        ruby_height = outer_padding + ruby_size * (2 if hira_line and romaji_line else 1) + (ruby_line_spacing if hira_line and romaji_line else 0) + outer_padding
-        ruby_img = Image.new("RGBA", (base_width, ruby_height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(ruby_img)
-        current_y = outer_padding + ruby_size // 2
-        if romaji_line:
-            draw.text((romaji_x + romaji_width // 2, current_y), romaji_line, text_color, anchor="mm", font=font_ruby)
-            current_y += ruby_size + (ruby_line_spacing if hira_line else 0)
-        if hira_line:
-            draw.text((hira_x + hira_width // 2, current_y), hira_line, text_color, anchor="mm", font=font_ruby)
-        return ruby_img
+        size = self._ruby_size(base_font_size, ruby_font_scale)
+        rows = []
+        clipped = False
+        for key in ("hepburn", "hira"):
+            # Bound the fallback path as well as the per-token renderer.
+            parts = []
+            for token in transliteration[:MAX_SUBTITLE_LINES]:
+                part, cut = bounded_text(token.get(key, ""))
+                parts.append(part)
+                clipped |= cut
+            text = " ".join(parts)
+            if text:
+                part, cut = self._plain_rows(text, language, size, text_color, int(base_width * 0.9), "center")
+                rows.extend(part)
+                clipped |= cut
+        clipped |= len(transliteration) > MAX_SUBTITLE_LINES
+        return self._render_rows(rows, base_width, clipped) if rows else None
+
+    @staticmethod
+    def _ruby_size(font_size, scale):
+        return max(1, min(128, int(font_size * scale))) if isfinite(scale) else max(1, font_size // 2)
+
+    def _ruby_rows(self, message, transliteration, language, font_size, scale, spacing, original_spacing, color, width, align):
+        message, clipped = bounded_text(message)
+        orig_font = self._fonts(language, font_size)
+        ruby_font = self._fonts(language, self._ruby_size(font_size, scale))
+        spacing = max(0, min(128, int(spacing)))
+        limit = int(width * 0.9)
+        rows = []
+        cells = []
+        cursor = 0
+        boundaries = {0}
+        end = 0
+        for cluster in graphemes(message):
+            end += len(cluster)
+            boundaries.add(end)
+
+        def flush():
+            nonlocal cells
+            rows.append(self._row(cells or [(orig_font.layout(""), None, None, 0)], color, align,
+                                  ruby_spacing=spacing, original_spacing=original_spacing))
+            cells = []
+
+        def pieces():
+            nonlocal cursor
+            for token in transliteration[:MAX_TEXT_CODEPOINTS]:
+                original = token.get("orig", "")
+                if not original:
+                    continue
+                index = message.find(original, cursor)
+                if index < 0 or index not in boundaries or index + len(original) not in boundaries:
+                    continue
+                if index > cursor:
+                    yield message[cursor:index], "", ""
+                yield original, token.get("hira", ""), token.get("hepburn", "")
+                cursor = index + len(original)
+            if cursor < len(message):
+                yield message[cursor:], "", ""
+
+        for original, hira, romaji in pieces():
+            # Each component wraps independently when one ruby token is wider
+            # than a line. Do not invent character-to-reading correspondence.
+            orig_parts, cut = self._wrap(original, orig_font, limit)
+            hira_parts, cut_h = self._wrap(hira, ruby_font, limit)
+            romaji_parts, cut_r = self._wrap(romaji, ruby_font, limit)
+            clipped |= cut or cut_h or cut_r
+            for i, (o, h, r) in enumerate(zip_longest(orig_parts, hira_parts, romaji_parts, fillvalue="")):
+                if i:
+                    flush()
+                layouts = (orig_font.layout(o), ruby_font.layout(h) if h else None, ruby_font.layout(r) if r else None)
+                cell_width = max(layout.width for layout in layouts if layout)
+                if cells and sum(cell[3] for cell in cells) + cell_width > limit:
+                    flush()
+                cells.append((*layouts, cell_width))
+                if len(rows) >= MAX_SUBTITLE_LINES:
+                    return rows, True
+            if cut or cut_h or cut_r:
+                break
+        if cells:
+            flush()
+        return rows, clipped
 
     def createTextboxSmallLogWithRubyTokens(self, message: str, transliteration: List[dict], language: str, text_color: Tuple[int, int, int], base_width: int, font_size: int, ruby_font_scale: float, ruby_line_spacing: int, ruby_original_spacing: int) -> Image:
-        """Render a single textbox (original message) with per-token centered ruby (romaji above hiragana) over each original token.
-
-        When wrapping occurs, splits tokens into lines and renders ruby above each line separately.
-        """
         if not message or not transliteration:
             return self.createTextboxSmallLog(message, language, text_color, base_width, self.getUiSizeSmallLog()["height"], font_size)
-
-        # Obtain font instances
-        font_family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
-        font_orig = self._get_font(font_family, font_size)
-        ruby_size = max(1, int(font_size * ruby_font_scale))
-        font_ruby = self._get_font(font_family, ruby_size)
-
-        # Prepare temporary draw for measuring widths
-        draw_tmp_img = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
-        draw_tmp = ImageDraw.Draw(draw_tmp_img)
-
-        # Build token_infos with measured widths
-        token_infos = []
-        for tok in transliteration:
-            orig = tok.get("orig", "")
-            if not orig:
-                continue
-            hira = tok.get("hira", "")
-            romaji = tok.get("hepburn", "")
-            try:
-                orig_w = max(1, int(draw_tmp.textlength(orig, font_orig)))
-                hira_w = max(0, int(draw_tmp.textlength(hira, font_ruby))) if hira else 0
-                romaji_w = max(0, int(draw_tmp.textlength(romaji, font_ruby))) if romaji else 0
-            except Exception:
-                errorLogging()
-                orig_w = len(orig) * font_size // 2
-                hira_w = len(hira) * ruby_size // 2 if hira else 0
-                romaji_w = len(romaji) * ruby_size // 2 if romaji else 0
-            layout_w = max(orig_w, hira_w, romaji_w)
-            token_infos.append((orig, hira, romaji, layout_w))
-
-        if not token_infos:
-            return self.createTextboxSmallLog(message, language, text_color, base_width, self.getUiSizeSmallLog()["height"], font_size)
-
-        # Split tokens into lines based on base_width * 0.9
-        max_line_width = base_width * 0.9
-        lines = []
-        current_line = []
-        current_line_width = 0
-        for tok_info in token_infos:
-            tok_width = tok_info[3]
-            if current_line_width + tok_width > max_line_width and current_line:
-                lines.append(current_line)
-                current_line = [tok_info]
-                current_line_width = tok_width
-            else:
-                current_line.append(tok_info)
-                current_line_width += tok_width
-        if current_line:
-            lines.append(current_line)
-
-        # Render each line with per-token ruby
-        outer_padding = 10
-        line_images = []
-        for line_tokens in lines:
-            line_width = sum(t[3] for t in line_tokens)
-            start_x = (base_width - line_width) // 2
-
-            has_romaji_any = any(r for (_, _, r, _) in line_tokens)
-            has_hira_any = any(h for (_, h, _, _) in line_tokens)
-            ruby_lines_count = (1 if has_romaji_any else 0) + (1 if has_hira_any else 0)
-            ruby_block_height = ruby_lines_count * ruby_size + (ruby_line_spacing if ruby_lines_count == 2 else 0)
-            line_height = outer_padding + ruby_block_height + ruby_original_spacing + font_size + outer_padding
-
-            line_img = Image.new("RGBA", (base_width, line_height), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(line_img)
-
-            current_y = outer_padding + ruby_size // 2
-            romaji_y = current_y if has_romaji_any else None
-            hira_y = None
-            if has_romaji_any and has_hira_any:
-                hira_y = romaji_y + ruby_size + ruby_line_spacing
-            elif has_hira_any:
-                hira_y = current_y
-
-            orig_y = outer_padding + ruby_block_height + ruby_original_spacing + font_size // 2
-
-            cursor_x = start_x
-            for orig, hira, romaji, w in line_tokens:
-                token_center_x = cursor_x + w // 2
-                if romaji_y is not None and romaji:
-                    draw.text((token_center_x, romaji_y), romaji, text_color, anchor="mm", font=font_ruby)
-                if hira_y is not None and hira:
-                    draw.text((token_center_x, hira_y), hira, text_color, anchor="mm", font=font_ruby)
-                draw.text((token_center_x, orig_y), orig, text_color, anchor="mm", font=font_orig)
-                cursor_x += w
-
-            line_images.append(line_img)
-
-        # Concatenate all lines vertically
-        if not line_images:
-            return self.createTextboxSmallLog(message, language, text_color, base_width, self.getUiSizeSmallLog()["height"], font_size)
-        
-        result_img = line_images[0]
-        for line_img in line_images[1:]:
-            result_img = self.concatenateImagesVertically(result_img, line_img, margin=0)
-        return result_img
+        rows, clipped = self._ruby_rows(message, transliteration, language, font_size, ruby_font_scale,
+                                        ruby_line_spacing, ruby_original_spacing, text_color, base_width, "center")
+        return self._render_rows(rows, base_width, clipped)
 
     def createOverlayImageSmallLog(self, message: str, your_language: str, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4) -> Image:
         # UI設定を取得
@@ -259,77 +362,35 @@ class OverlayImage:
         background_color = ui_colors["background_color"]
         background_outline_color = ui_colors["background_outline_color"]
 
-        # テキストボックス画像のリストを作成
-        textbox_images = []
-
-        # 翻訳がある場合
-        # Use improved per-token placement if possible; else fallback to previous block approach.
-        ruby_original_spacing = 2  # Narrow vertical gap between hiragana block and original text.
-        if translation and target_language:
-            if message:
-                base_msg_img = self.createTextboxSmallLog(message, your_language, text_color, width, height, font_size)
-                textbox_images.append(base_msg_img)
-            for trans, lang, translite in zip(translation, target_language, transliteration_translation):
-                try:
-                    trans_img = self.createTextboxSmallLogWithRubyTokens(
-                        trans,
-                        translite,
-                        lang,
-                        text_color,
-                        width,
-                        font_size,
-                        ruby_font_scale,
-                        ruby_line_spacing,
-                        ruby_original_spacing,
-                    )
-                except Exception:
-                    errorLogging()
-                    trans_img = self.createTextboxSmallLog(trans, lang, text_color, width, height, font_size)
-                textbox_images.append(trans_img)
-        else:
-            # 翻訳無しモード
-            if message and transliteration_message:
-                try:
-                    base_msg_img = self.createTextboxSmallLogWithRubyTokens(
-                        message,
-                        transliteration_message,
-                        your_language,
-                        text_color,
-                        width,
-                        font_size,
-                        ruby_font_scale,
-                        ruby_line_spacing,
-                        ruby_original_spacing,
-                    )
-                except Exception:
-                    errorLogging()
-                    base_msg_img = self.createTextboxSmallLog(message, your_language, text_color, width, height, font_size)
-                    try:
-                        ruby_img = self.renderRubyBlock(transliteration_message, your_language, width, font_size, ruby_font_scale, ruby_line_spacing, text_color)
-                        if ruby_img is not None:
-                            base_msg_img = self.concatenateImagesVertically(ruby_img, base_msg_img)
-                    except Exception:
-                        errorLogging()
+        def textboxes():
+            if translation and target_language:
+                if message:
+                    yield self.createTextboxSmallLog(message, your_language, text_color, width, height, font_size)
+                for i, (trans, lang) in enumerate(zip(translation, target_language)):
+                    tokens = transliteration_translation[i] if i < len(transliteration_translation) else []
+                    yield self.createTextboxSmallLogWithRubyTokens(
+                        trans, tokens, lang, text_color, width, font_size, ruby_font_scale, ruby_line_spacing, 2)
             else:
-                base_msg_img = self.createTextboxSmallLog(message, your_language, text_color, width, height, font_size)
-            textbox_images.append(base_msg_img)
+                yield self.createTextboxSmallLogWithRubyTokens(
+                    message, transliteration_message, your_language, text_color, width, font_size,
+                    ruby_font_scale, ruby_line_spacing, 2)
 
-        # すべてのテキストボックスを縦に結合
-        img = textbox_images[0]
-        for textbox_img in textbox_images[1:]:
-            img = self.concatenateImagesVertically(img, textbox_img)
+        img = self._combine_images(textboxes())
 
         # 画像周囲にUIパディングを追加して、文字が端に張り付かないようにする
         ui_outer_padding = 50
         img = self.addImageMargin(img, ui_outer_padding, ui_outer_padding, ui_outer_padding, ui_outer_padding, (0, 0, 0, 0))
 
         # 角丸背景を作成
-        background = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        background = self._new_image(*img.size)
         draw = ImageDraw.Draw(background)
         draw.rounded_rectangle([(0, 0), img.size], radius=50, fill=background_color, outline=background_outline_color, width=5)
 
         # 背景とテキストを合成
+        info = img.info.copy()
         img = Image.alpha_composite(background, img)
+        img.info.update(info)
+        self.validateTextureSize(*img.size)
         return img
 
     @staticmethod
@@ -360,137 +421,20 @@ class OverlayImage:
         ui_size = self.getUiSizeLargeLog()
         font_size = ui_size["font_size_large"] if size == "large" else ui_size["font_size_small"]
         text_color = self.getUiColorLargeLog()[f"text_color_{size}"]
-        anchor = "lm" if message_type == "receive" else "rm"
-        text_x = 0 if message_type == "receive" else ui_size["width"]
         align = "left" if message_type == "receive" else "right"
-        font_family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
-
-        img = Image.new("RGBA", (0, 0), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-
-        font_path = os_path.join(self.root_path, font_family)
-        font = ImageFont.truetype(font_path, font_size)
-
-        # 改行を含んだtextの最大の文字数を計算する
-        text_width = max(draw.textlength(line, font) for line in text.split("\n"))
-        character_width = text_width // len(text)
-        character_line_num = int((ui_size["width"] // character_width) - 1)
-        if len(text) > character_line_num:
-            text = "\n".join([text[i:i + character_line_num] for i in range(0, len(text), character_line_num)])
-        text_height = font_size * len(text.split("\n")) + ui_size["padding"]
-        img = Image.new("RGBA", (ui_size["width"], text_height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-        text_y = text_height // 2
-        draw.multiline_text((text_x, text_y), text, text_color, anchor=anchor, stroke_width=0, font=font, align=align)
-        return img
+        rows, clipped = self._plain_rows(text, language, font_size, text_color, ui_size["width"], align)
+        return self._render_rows(rows, ui_size["width"], clipped)
 
     def createTextboxLargeLogWithRubyTokens(self, message_type: str, size: str, message: str, transliteration: List[dict], language: str, ruby_font_scale: float, ruby_line_spacing: int) -> Image:
-        """Render a large-log textbox with per-token centered ruby above each original token.
-
-        When wrapping occurs, splits tokens into lines and renders ruby above each line separately.
-        """
-        ui_size = self.getUiSizeLargeLog()
-        font_size = ui_size["font_size_large"] if size == "large" else ui_size["font_size_small"]
-        text_color = self.getUiColorLargeLog()[f"text_color_{size}"]
-        font_family = self.LANGUAGES.get(language, self.LANGUAGES["Default"])
-        font_orig = self._get_font(font_family, font_size)
-        ruby_size = max(1, int(font_size * ruby_font_scale))
-        font_ruby = self._get_font(font_family, ruby_size)
-
-        # Simple guard
         if not message or not transliteration:
             return self.createTextImageLargeLog(message_type, size, message, language)
-
-        # Measure token widths
-        draw_tmp_img = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
-        draw_tmp = ImageDraw.Draw(draw_tmp_img)
-        token_infos = []
-        for tok in transliteration:
-            orig = tok.get("orig", "")
-            if not orig:
-                continue
-            hira = tok.get("hira", "")
-            romaji = tok.get("hepburn", "")
-            try:
-                orig_w = max(1, int(draw_tmp.textlength(orig, font_orig)))
-                hira_w = max(0, int(draw_tmp.textlength(hira, font_ruby))) if hira else 0
-                romaji_w = max(0, int(draw_tmp.textlength(romaji, font_ruby))) if romaji else 0
-            except Exception:
-                errorLogging()
-                orig_w = len(orig) * font_size // 2
-                hira_w = len(hira) * ruby_size // 2 if hira else 0
-                romaji_w = len(romaji) * ruby_size // 2 if romaji else 0
-            layout_w = max(orig_w, hira_w, romaji_w)
-            token_infos.append((orig, hira, romaji, layout_w))
-
-        if not token_infos:
-            return self.createTextImageLargeLog(message_type, size, message, language)
-
-        # Split tokens into lines based on base_width * 0.9
-        base_width = ui_size["width"]
-        max_line_width = base_width * 0.9
-        lines = []
-        current_line = []
-        current_line_width = 0
-        for tok_info in token_infos:
-            tok_width = tok_info[3]
-            if current_line_width + tok_width > max_line_width and current_line:
-                lines.append(current_line)
-                current_line = [tok_info]
-                current_line_width = tok_width
-            else:
-                current_line.append(tok_info)
-                current_line_width += tok_width
-        if current_line:
-            lines.append(current_line)
-
-        # Render each line with per-token ruby
-        outer_padding = 10
-        line_images = []
-        for line_tokens in lines:
-            line_width = sum(t[3] for t in line_tokens)
-            # Determine start_x according to message type (left for receive, right-align for send)
-            start_x = 0 if message_type == "receive" else (base_width - line_width)
-
-            has_romaji_any = any(r for (_, _, r, _) in line_tokens)
-            has_hira_any = any(h for (_, h, _, _) in line_tokens)
-            ruby_lines_count = (1 if has_romaji_any else 0) + (1 if has_hira_any else 0)
-            ruby_block_height = ruby_lines_count * ruby_size + (ruby_line_spacing if ruby_lines_count == 2 else 0)
-            line_height = outer_padding + ruby_block_height + font_size + outer_padding
-
-            line_img = Image.new("RGBA", (base_width, line_height), (0, 0, 0, 0))
-            draw = ImageDraw.Draw(line_img)
-
-            current_y = outer_padding + ruby_size // 2
-            romaji_y = current_y if has_romaji_any else None
-            hira_y = None
-            if has_romaji_any and has_hira_any:
-                hira_y = romaji_y + ruby_size + ruby_line_spacing
-            elif has_hira_any:
-                hira_y = current_y
-
-            orig_y = outer_padding + ruby_block_height + font_size // 2
-
-            cursor_x = start_x
-            for orig, hira, romaji, w in line_tokens:
-                token_center_x = cursor_x + w // 2
-                if romaji_y is not None and romaji:
-                    draw.text((token_center_x, romaji_y), romaji, text_color, anchor="mm", font=font_ruby)
-                if hira_y is not None and hira:
-                    draw.text((token_center_x, hira_y), hira, text_color, anchor="mm", font=font_ruby)
-                draw.text((token_center_x, orig_y), orig, text_color, anchor="mm", font=font_orig)
-                cursor_x += w
-
-            line_images.append(line_img)
-
-        # Concatenate all lines vertically
-        if not line_images:
-            return self.createTextImageLargeLog(message_type, size, message, language)
-        
-        result_img = line_images[0]
-        for line_img in line_images[1:]:
-            result_img = self.concatenateImagesVertically(result_img, line_img, margin=0)
-        return result_img
+        ui_size = self.getUiSizeLargeLog()
+        font_size = ui_size["font_size_large"] if size == "large" else ui_size["font_size_small"]
+        color = self.getUiColorLargeLog()[f"text_color_{size}"]
+        align = "left" if message_type == "receive" else "right"
+        rows, clipped = self._ruby_rows(message, transliteration, language, font_size, ruby_font_scale,
+                                        ruby_line_spacing, 0, color, ui_size["width"], align)
+        return self._render_rows(rows, ui_size["width"], clipped)
 
     def createTextImageMessageType(self, message_type: str, date_time: str) -> Image:
         ui_size = self.getUiSizeLargeLog()
@@ -504,16 +448,16 @@ class OverlayImage:
         anchor = "lm" if message_type == "receive" else "rm"
         text = "Receive" if message_type == "receive" else "Send"
 
-        img = Image.new("RGBA", (0, 0), (0, 0, 0, 0))
+        date_time = date_time or ""
+        img = self._new_image(1, 1)
         draw = ImageDraw.Draw(img)
 
-        font_path = os_path.join(self.root_path, self.LANGUAGES["Default"])
-        font = ImageFont.truetype(font_path, font_size)
+        font = self._get_font(self.LANGUAGES["Default"], font_size)
 
         text_height = font_size + ui_padding
         text_width = draw.textlength(date_time, font)
-        character_width = text_width // len(date_time)
-        img = Image.new("RGBA", (ui_size["width"], text_height), (0, 0, 0, 0))
+        character_width = text_width // max(1, len(date_time))
+        img = self._new_image(ui_size["width"], text_height)
         draw = ImageDraw.Draw(img)
         text_y = text_height // 2
         text_time_x = 0 if message_type == "receive" else ui_size["width"] - (text_width + character_width)
@@ -523,39 +467,21 @@ class OverlayImage:
         return img
 
     def createTextboxLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], date_time: Optional[str] = None, transliteration_message: Optional[List[dict]] = None, transliteration_translation: Optional[List[List[dict]]] = None, ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4) -> Image:
-        # テキスト画像のリストを作成
-        images = [self.createTextImageMessageType(message_type, date_time)]
+        def textboxes():
+            yield self.createTextImageMessageType(message_type, date_time)
+            if translation and target_language:
+                if message is not None:
+                    yield self.createTextImageLargeLog(message_type, "small", message, your_language)
+                readings = transliteration_translation or []
+                for i, (trans, lang) in enumerate(zip(translation, target_language)):
+                    tokens = readings[i] if i < len(readings) else []
+                    yield self.createTextboxLargeLogWithRubyTokens(
+                        message_type, "large", trans, tokens, lang, ruby_font_scale, ruby_line_spacing)
+            else:
+                yield self.createTextboxLargeLogWithRubyTokens(
+                    message_type, "large", message, transliteration_message, your_language, ruby_font_scale, ruby_line_spacing)
 
-        # 翻訳がある場合
-        if translation and target_language:
-            # 元のメッセージがある場合は小さいサイズで追加
-            if message is not None:
-                small_img = self.createTextImageLargeLog(message_type, "small", message, your_language)
-                images.append(small_img)
-
-            # 翻訳をすべて大きいサイズで追加
-            for trans, lang, translite in zip(translation, target_language, transliteration_translation):
-                try:
-                    large_img = self.createTextboxLargeLogWithRubyTokens(message_type, "large", trans, translite, lang, ruby_font_scale, ruby_line_spacing)
-                except Exception:
-                    errorLogging()
-                    large_img = self.createTextImageLargeLog(message_type, "large", trans, lang)
-                images.append(large_img)
-        else:
-            # 翻訳がない場合は元のメッセージのみ
-            try:
-                large_img = self.createTextboxLargeLogWithRubyTokens(message_type, "large", message, transliteration_message, your_language, ruby_font_scale, ruby_line_spacing)
-            except Exception:
-                errorLogging()
-                large_img = self.createTextImageLargeLog(message_type, "large", message, your_language)
-            images.append(large_img)
-
-        # すべてのテキスト画像を縦に結合
-        combined_img = images[0]
-        for img in images[1:]:
-            combined_img = self.concatenateImagesVertically(combined_img, img)
-
-        return combined_img
+        return self._combine_images(textboxes())
 
     def _rememberCaption(self, identity, revision, state):
         self._caption_latest[identity] = (revision, state)
@@ -586,14 +512,17 @@ class OverlayImage:
         """Caller holds log_lock across render and the publication decision."""
         return deepcopy((self.message_log, self.caption_pending, self._caption_latest))
 
-    def rejectCaptionUpdate(self, checkpoint, identity, revision):
+    def restoreCaptionState(self, checkpoint):
         self.message_log, self.caption_pending, self._caption_latest = checkpoint
+        self._large_revision += 1  # Invalidate the rejected image as well.
+
+    def rejectCaptionUpdate(self, checkpoint, identity, revision):
+        self.restoreCaptionState(checkpoint)
         # Preserve any earlier published final, but never leave an expired
         # partial available for an unrelated source's later render.
         self.caption_pending.pop(identity, None)
         previous = self._caption_latest.get(identity, (0, None))
         self._rememberCaption(identity, max(revision, previous[0]), "discarded")
-        self._large_revision += 1  # Invalidate the rejected image as well.
 
     def createOverlayImageLargeLog(self, message_type: str, message: Optional[str] = None, your_language: Optional[str] = None, translation: List[str] = [], target_language: List[str] = [], transliteration_message: List[dict] = [], transliteration_translation: List[List[dict]] = [], ruby_font_scale: float = 0.5, ruby_line_spacing: int = 4, *, caption_id=None, caption_state="final", caption_revision=0) -> Image:
         with self.log_lock:
@@ -649,7 +578,7 @@ class OverlayImage:
         ui_radius = ui_size["radius"]
         ui_clause_margin = ui_size["clause_margin"]
 
-        imgs = [
+        imgs = (
             self.createTextboxLargeLog(
                 log["message_type"],
                 log["message"],
@@ -662,20 +591,21 @@ class OverlayImage:
                 ruby_font_scale=ruby_font_scale,
                 ruby_line_spacing=ruby_line_spacing,
             ) for log in logs
-            ]
+        )
 
-        if not imgs:
-            return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
-        img = imgs[0]
-        for i in imgs[1:]:
-            img = self.concatenateImagesVertically(img, i, ui_clause_margin)
+        if not logs:
+            return self._new_image(1, 1)
+        img = self._combine_images(imgs, ui_clause_margin)
         img = self.addImageMargin(img, ui_margin, ui_margin, ui_margin, ui_margin, (0, 0, 0, 0))
 
         width, height = img.size
-        background = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        background = self._new_image(width, height)
         draw = ImageDraw.Draw(background)
         draw.rounded_rectangle([(0, 0), (width, height)], radius=ui_radius, fill=background_color, outline=background_outline_color, width=5)
+        info = img.info.copy()
         img = Image.alpha_composite(background, img)
+        img.info.update(info)
+        self.validateTextureSize(*img.size)
         return img
 
 if __name__ == "__main__":

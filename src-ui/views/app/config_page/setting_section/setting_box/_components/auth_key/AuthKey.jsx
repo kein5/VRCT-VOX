@@ -1,7 +1,6 @@
 import styles from "./AuthKey.module.scss";
 import { useI18n } from "@useI18n";
 import { _Entry } from "../_atoms/_entry/_Entry";
-import { _SaveButton } from "../_atoms/_save_button/_SaveButton";
 import { useState, useRef, useEffect } from "react";
 
 export const AuthKey = (props) => {
@@ -15,6 +14,7 @@ export const AuthKey = (props) => {
     };
 
     const onChangeEntryAuthKey = (e) => {
+        if (props.state === "pending") return;
         props.onChangeFunction(e.target.value);
     };
     const saveAuthKey = () => {
@@ -29,22 +29,20 @@ export const AuthKey = (props) => {
 
     const is_disabled = props.state === "pending";
 
-    const handleEnterPressed = (e) => {
+    const handleEnterPressed = () => {
         if (is_disabled) return;
         saveAuthKey();
-        entryRef.current?.blur();
     };
 
     return (
         <div className={styles.container}>
             <div className={styles.entry_section_wrapper}>
-                <_Entry ref={entryRef} width="24rem" onChange={onChangeEntryAuthKey} onEnterPressed={handleEnterPressed} ui_variable={props.variable} is_disabled={is_disabled}/>
-                <_SaveButton onClick={saveAuthKey} is_disabled={is_disabled} />
+                <_Entry ref={entryRef} label={props.label} width="24rem" spellCheck={false} autoComplete="off" onChange={onChangeEntryAuthKey} onEnterPressed={handleEnterPressed} ui_variable={props.variable} readOnly={is_disabled} aria-busy={is_disabled} aria-disabled={is_disabled} aria-describedby={props["aria-describedby"]}/>
                 {is_editable
                 ? null
                 :
                     <div className={styles.entry_edit_cover} onClick={revealEditAuthKey}>
-                        <button className={styles.edit_button}>{t("config_page.common.edit_button_label")}</button>
+                        <button type="button" className={styles.edit_button}>{t("config_page.common.edit_button_label")}</button>
                     </div>
                 }
             </div>

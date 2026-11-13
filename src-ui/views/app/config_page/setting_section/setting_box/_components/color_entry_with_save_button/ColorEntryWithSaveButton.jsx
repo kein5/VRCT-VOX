@@ -3,8 +3,8 @@ import { HexColorPicker } from "react-colorful";
 
 import styles from "./ColorEntryWithSaveButton.module.scss";
 import { _Entry } from "../_atoms/_entry/_Entry";
-import { _SaveButton } from "../_atoms/_save_button/_SaveButton";
 import { clsx } from "clsx";
+import { useI18n } from "@useI18n";
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const PICKER_GAP_REM = 0.4;
@@ -16,6 +16,7 @@ const remToPx = (rem) => {
 };
 
 export const ColorEntryWithSaveButton = (props) => {
+    const { t } = useI18n();
     const is_disabled = props.state === "pending";
     const [is_open, setIsOpen] = useState(false);
     const [placement, setPlacement] = useState({ open_above: true, align_end: true });
@@ -28,10 +29,12 @@ export const ColorEntryWithSaveButton = (props) => {
     const picker_color = is_valid_color ? current_color : "#FFFFFF";
 
     const onChangeFunction = (e) => {
+        if (props.state === "pending") return;
         props.onChangeFunction?.(e.target.value);
     };
 
     const onPickerChange = (color) => {
+        if (props.state === "pending") return;
         props.onChangeFunction?.(color);
     };
 
@@ -108,27 +111,29 @@ export const ColorEntryWithSaveButton = (props) => {
         placement.align_end ? styles.align_end : styles.align_start,
     );
 
-    const handleEnterPressed = (e) => {
+    const handleEnterPressed = () => {
         if (is_disabled) return;
         saveFunction();
-        e.target.blur();
     };
 
     return (
         <div className={styles.container}>
             <_Entry
+                label={props.label}
                 width={props.width}
                 onChange={onChangeFunction}
                 onEnterPressed={handleEnterPressed}
                 ui_variable={props.variable}
-                is_disabled={is_disabled}
+                readOnly={is_disabled} aria-busy={is_disabled} aria-disabled={is_disabled} aria-describedby={props["aria-describedby"]}
             />
             <div className={styles.swatch_wrapper}>
                 <button
                     ref={swatch_ref}
                     className={swatch_button_class_names}
                     type="button"
-                    aria-label="Open color picker"
+                    aria-label={t("config_page.common.open_color_picker", { label: props.label })}
+                    aria-expanded={is_open}
+                    aria-disabled={is_disabled}
                     onClick={openPicker}
                 >
                     <span className={styles.swatch} style={{ backgroundColor: swatch_color }} />
@@ -141,7 +146,6 @@ export const ColorEntryWithSaveButton = (props) => {
                     </div>
                 )}
             </div>
-            <_SaveButton onClick={saveFunction} is_disabled={is_disabled} />
         </div>
     );
 };

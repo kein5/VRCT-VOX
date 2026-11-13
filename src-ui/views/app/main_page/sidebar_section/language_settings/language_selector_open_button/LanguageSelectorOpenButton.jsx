@@ -1,4 +1,5 @@
 import { useI18n } from "@useI18n";
+import { createLanguageNames } from "../../../../../../logics/common/languageNames.js";
 import clsx from "clsx";
 import styles from "./LanguageSelectorOpenButton.module.scss";
 import ArrowLeftSvg from "@images/arrow_left.svg?react";
@@ -8,7 +9,7 @@ import {
 } from "@logics_main";
 
 export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on, selector_key, target_key }) => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
     const { updateIsOpenedLanguageSelector, currentIsOpenedLanguageSelector } = useStore_IsOpenedLanguageSelector();
 
     const {
@@ -17,8 +18,10 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
         currentSelectedTargetLanguages,
     } = useLanguageSettings();
 
+    const is_opened = currentIsOpenedLanguageSelector.data[selector_key] === true && currentIsOpenedLanguageSelector.data.target_key === target_key;
+
     const toggleSelector = () => {
-        if (currentIsOpenedLanguageSelector.data[selector_key] === true && currentIsOpenedLanguageSelector.data.target_key === target_key) { // Close Language Selector
+        if (is_opened) { // Close Language Selector
             updateIsOpenedLanguageSelector({ your_language: false, target_language: false, target_key: "1" });
         } else { // Open Language Selector
             updateIsOpenedLanguageSelector({
@@ -30,7 +33,7 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
     };
 
     const arrow_class_names = clsx(styles.arrow_left_svg, {
-        [styles.reverse]: (currentIsOpenedLanguageSelector.data[selector_key] === true && currentIsOpenedLanguageSelector.data.target_key === target_key),
+        [styles.reverse]: is_opened,
     });
 
     const category_class_names = clsx(styles.category_svg, {
@@ -54,8 +57,9 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
 
     if (getVariable(selector_key)[target_key].enable === false) return null;
 
-    const language_text = getVariable(selector_key)[target_key].language ?? "Loading...";
-    const country_text = getVariable(selector_key)[target_key].country ?? "Loading...";
+    const display = createLanguageNames(i18n.language).name(getVariable(selector_key)[target_key]);
+    const language_text = display.language || t("common.loading");
+    const country_text = display.country;
 
     return (
         <div className={styles.container}>
@@ -63,11 +67,13 @@ export const LanguageSelectorOpenButton = ({ TurnedOnSvgComponent, is_turned_on,
                 <TurnedOnSvgComponent className={category_class_names} />
                 <p className={styles.title}>{title}</p>
             </div>
-            <div className={styles.dropdown_menu_container} onClick={toggleSelector}>
-                <p className={styles.selected_language}>{language_text}</p>
-                <p className={styles.selected_language}>({country_text})</p>
-                <ArrowLeftSvg className={arrow_class_names} />
-            </div>
+            {/* A button so the selector also opens from the keyboard. */}
+            <button type="button" className={styles.dropdown_menu_container} onClick={toggleSelector}
+                aria-label={country_text ? `${title}: ${language_text} (${country_text})` : `${title}: ${language_text}`} aria-expanded={is_opened}>
+                <span className={styles.selected_language}>{language_text}</span>
+                {country_text && <span className={styles.selected_language}>({country_text})</span>}
+                <ArrowLeftSvg className={arrow_class_names} aria-hidden="true" />
+            </button>
         </div>
     );
 };

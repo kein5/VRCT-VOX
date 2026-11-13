@@ -2,22 +2,30 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    // A wide control (slider, radio group) must not squeeze the label down to
+    // one or two characters per line.
+    min-width: min(16rem, 100%);
     max-width: 38rem;
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
 }
 
+// Item label role: 1.4rem / 500. Long Japanese labels wrap instead of pushing the control out.
 .label {
-    font-size: 1.6rem;
-    font-weight: 400;
-    white-space: nowrap;
-    width: max-content;
+    font-size: 1.4rem;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--dark_200_color);
+    text-wrap: pretty;
 }
 
+// General description role: 1.2rem / 400 in the description color (6.4:1 on the canvas).
 .desc {
     font-size: 1.2rem;
     font-weight: 400;
-    color: var(--dark_500_color);
-    overflow-wrap: break-word;
+    line-height: 1.6;
+    color: var(--vox_description_text);
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
 }
 
 .warnings_section {
@@ -34,7 +42,7 @@
 .warning_label {
     font-size: 1.2rem;
     color: var(--warning_color);
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
 }
 
 .warning_svg {

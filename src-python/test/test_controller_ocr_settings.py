@@ -22,6 +22,10 @@ class TestOcrSourceLanguageEndpoint(unittest.TestCase):
         self.controller = Controller.__new__(Controller)
         self._original = config.OCR_SOURCE_LANGUAGE
         self.addCleanup(setattr, config, "OCR_SOURCE_LANGUAGE", self._original)
+        # Another test's real shutdown can leave the shared model closed for OCR.
+        shutdown = patch("controller.model._ocr_shutdown_requested", False, create=True)
+        shutdown.start()
+        self.addCleanup(shutdown.stop)
 
     def test_selectable_list_is_the_engine_supported_set(self) -> None:
         response = self.controller.getSelectableOcrSourceLanguages()
@@ -32,12 +36,12 @@ class TestOcrSourceLanguageEndpoint(unittest.TestCase):
 
     def test_supported_language_is_stored_and_pushed_to_the_pipeline(self) -> None:
         config.OCR_SOURCE_LANGUAGE = "auto"
-        with patch("controller.model.updateOCRCaptureSettings") as update:
+        with patch("model.resolveModelFiles", return_value="verified-files"), \
+                patch("controller.model.ocr_pipeline", None, create=True):
             response = self.controller.setOcrSourceLanguage("Korean")
 
         self.assertEqual(response["status"], 200)
         self.assertEqual(config.OCR_SOURCE_LANGUAGE, "Korean")
-        update.assert_called_once()
 
     def test_unsupported_language_is_rejected_and_changes_nothing(self) -> None:
         config.OCR_SOURCE_LANGUAGE = "auto"

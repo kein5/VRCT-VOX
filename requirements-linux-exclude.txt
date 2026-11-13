@@ -1,4 +1,0 @@
-# Optional Windows window-capture OCR is not part of Linux voice startup.
-# Exclude it with uv pip install --excludes requirements-linux-exclude.txt
-# to avoid installing its second cv2 distribution beside the pinned headless one.
-rapidocr

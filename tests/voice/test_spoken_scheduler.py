@@ -35,7 +35,9 @@ def test_mic_mode_is_independent_and_never_falls_back_to_original():
     {"mic_mode": "translated", "output_device": "cable"},
     {"mic_mode": "translated", "direct_policy": "mix"},
 ])
-def test_mic_settings_require_valid_mode_and_explicit_routing(value):
+def test_mic_settings_require_valid_mode_and_explicit_routing(value, monkeypatch):
+    # Windows has no managed route and takes the first combination on its output device.
+    monkeypatch.setattr("models.tts.settings.sys.platform", "linux")
     with pytest.raises((ValueError, TypeError)):
         VoiceSettings.from_dict(value)
 
@@ -174,9 +176,11 @@ def test_mic_cannot_evict_queued_chat_or_cancel_active_chat():
 def test_start_deadline_includes_inference_and_output_open(pcm_server, delay):
     entered, release = Event(), Event()
     sink = Sink()
+    # The stall outlasts the wait below, so expiry must happen while the
+    # server is still blocked; teardown releases it.
     def stall(*args):
         entered.set()
-        release.wait(2)
+        release.wait(10)
     def output(*args):
         if delay == "output":
             stall()
@@ -191,7 +195,10 @@ def test_start_deadline_includes_inference_and_output_open(pcm_server, delay):
             if delay == "output":
                 sleep(.2)
                 release.set()
-            until(lambda: bus.status()["errors"] == 1)
+            try:
+                until(lambda: bus.status()["errors"] == 1, timeout=3)
+            except AssertionError:
+                raise AssertionError(f"expiry not reported: {bus.status()}") from None
             assert bus.status()["last_error"] == "speech_expired"
             assert sink.data == []
         finally:
@@ -221,16 +228,67 @@ def test_silent_pcm_does_not_disable_start_deadline(pcm_server):
     release = Event()
     def after_silence(index):
         if index == 1:
-            release.wait(2)
+            release.wait(10)
     with pcm_server(chunks=(b"\x00\x00", b"\x01\x00"), before_chunk=after_silence) as (url, _):
         bus = VoiceEventBus(speech_settings(multilingual_url=url), max_age=.15,
                             router=AudioRouter(lambda *args: sink))
         try:
             assert bus.publish(mic_event())
-            until(lambda: bus.status()["errors"] == 1)
+            until(lambda: bus.status()["errors"] == 1, timeout=3)
             assert bus.status()["last_error"] == "speech_expired"
             assert b"".join(sink.data) == b"\x00\x00"
             assert bus.status()["last_first_write_ms"] is None
         finally:
             release.set()
             assert bus.close()
+
+
+def test_start_expiry_waits_again_when_the_timer_wakes_early(monkeypatch):
+    # Windows timed waits can return up to a timer tick before the deadline.
+    import models.tts.tts_scheduler as scheduler
+
+    clock = [0.0]
+    monkeypatch.setattr(scheduler, "monotonic", lambda: clock[0])
+
+    class EarlyWake:
+        def __init__(self):
+            self.waits = []
+            self.stopped = False
+
+        def is_set(self):
+            return self.stopped
+
+        def set(self):
+            self.stopped = True
+
+        def wait(self, timeout):
+            self.waits.append(timeout)
+            clock[0] += timeout - 0.0156 if len(self.waits) == 1 else timeout
+            return False
+
+    class Token:
+        expired = 0
+
+        def expire_start(self):
+            assert clock[0] >= 1.0, "expired before the deadline"
+            Token.expired += 1
+
+    expiry = scheduler.StartExpiry(Token(), 1.0)
+    expiry._stopped = EarlyWake()
+    expiry._run()
+    assert Token.expired == 1
+    assert len(expiry._stopped.waits) == 2  # the early wake was waited out
+
+
+def test_start_expiry_cancel_stops_without_expiring():
+    import models.tts.tts_scheduler as scheduler
+    from time import monotonic
+
+    class Token:
+        def expire_start(self):
+            raise AssertionError("cancelled expiry must not fire")
+
+    expiry = scheduler.StartExpiry(Token(), monotonic() + 30).start()
+    expiry.cancel()
+    expiry._thread.join(1)
+    assert not expiry._thread.is_alive()

@@ -1,20 +1,25 @@
 """Fixed live-VC pipe contract, independent of the optional inference runtime.
 
-Timed reads require unbuffered binary pipes. This is not a UI/JSON IPC endpoint.
+Timed reads access pipe descriptors directly; do not mix in buffered reads.
+This is not a UI/JSON IPC endpoint.
 An engine's checked conversion state is evidence about its execution, not an
 acoustic guarantee that no arbitrary input resembles an output.
 """
 import json
+import os
 import re
-import select
 import struct
 import time
+
+from models.owned_child import wait_readable
 
 RATE = 48000
 FRAMES = 3840
 PCM_BYTES = FRAMES * 2
 BLOCK_NS = 80_000_000
-MAX_AGE_NS = 160_000_000
+# Windows reads its clock in 16 ms ticks and schedules GPU work with more jitter. Its
+# route drops a late block before sending it, so this only catches a stalled worker.
+MAX_AGE_NS = 1_000_000_000 if os.name == 'nt' else 160_000_000
 PREFIX = struct.Struct('<4sI')
 
 
@@ -111,10 +116,12 @@ def read_packet(stream, *, timeout=1, check=lambda: None):
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise ProtocolError('vc_worker_stalled')
-                if not select.select([stream], [], [], min(.02, remaining))[0]:
+                if not wait_readable(stream, min(.02, remaining)):
                     continue
             check()
-            chunk = stream.read(size - len(result))
+            # Buffered stdin can block for more bytes or read ahead past select().
+            chunk = (os.read(stream.fileno(), size - len(result)) if deadline is not None
+                     else stream.read(size - len(result)))
             if not chunk:
                 raise ProtocolError('vc_worker_eof')
             result.extend(chunk)

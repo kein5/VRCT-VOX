@@ -30,6 +30,20 @@ class RecognitionModel:
     id: str
     languages: tuple[str, ...]
     accepts_language: bool
+    # The language option defaults to "auto" and chooses among several
+    # languages (Qwen3-ASR). Haas-ja also defaults to "auto" but has one.
+    detects_language: bool = False
+    # The request option names it takes, such as keywords (Haas) or prompt (Qwen3-ASR).
+    options: tuple[str, ...] = ()
+
+
+def _detects(options):
+    for option in options:
+        if option.get('name') == 'language':
+            choices = option.get('choices')
+            return (option.get('default') == 'auto' and isinstance(choices, list)
+                    and len({v for v in choices if isinstance(v, str)}) > 1)
+    return False
 
 
 @dataclass(frozen=True)
@@ -140,16 +154,26 @@ class SpeechCppASR:
                 response.close()
             conn.close()
 
-    def _recognizers(self, token, deadline):
+    def _survey(self, token, deadline):
+        """The recognition models, and whether the server can also tell who speaks.
+
+        A diarization model on the CPU does not count. It cannot keep up with speech as
+        it arrives, and every caption waits for it: on a Core i7-1255U the delay grew
+        past a minute within 96 s of speech, where captions alone took 2.7 s.
+        """
         payload, _ = self._request('GET', '/v1/models', token, deadline)
         if not isinstance(payload, dict) or not isinstance(payload.get('data'), list):
             raise ASRError('invalid_models')
-        models, ids = [], set()
+        models, ids, diarizes = [], set(), False
         for row in payload['data']:
             if not isinstance(row, dict) or not isinstance(row.get('speech'), dict):
                 raise ASRError('invalid_models')
             speech = row['speech']
             if speech.get('task') != 'recognition':
+                # The server names the device it loaded the model on, such as "Vulkan0" or "CPU".
+                device = speech.get('device')
+                diarizes = diarizes or (speech.get('task') == 'diarization'
+                                        and isinstance(device, str) and device.strip().lower() not in ('', 'cpu'))
                 continue
             name, languages = row.get('id'), speech.get('languages')
             options = speech.get('options')
@@ -159,11 +183,20 @@ class SpeechCppASR:
                     or not isinstance(options, list) or not all(isinstance(v, dict) for v in options)):
                 raise ASRError('invalid_models')
             ids.add(name)
-            models.append(RecognitionModel(name, tuple(languages), any(v.get('name') == 'language' for v in options)))
-        return tuple(models)
+            models.append(RecognitionModel(name, tuple(languages), any(v.get('name') == 'language' for v in options),
+                                           _detects(options),
+                                           tuple(v['name'] for v in options if isinstance(v.get('name'), str))))
+        return tuple(models), diarizes
+
+    def _recognizers(self, token, deadline):
+        return self._survey(token, deadline)[0]
 
     def recognizers(self, cancel_token=None):
         return self._recognizers(cancel_token or CancelToken(), monotonic() + self.timeout)
+
+    def survey(self, cancel_token=None):
+        """(recognizers, diarizes): one request for what a Realtime session can ask of the server."""
+        return self._survey(cancel_token or CancelToken(), monotonic() + self.timeout)
 
     def transcribe(self, audio: AudioFrame, model: str, language='auto', cancel_token=None):
         deadline = monotonic() + self.timeout

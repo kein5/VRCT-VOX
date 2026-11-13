@@ -93,6 +93,27 @@ def test_audio_cannot_be_configured_for_remote_or_credentialed_url(url):
         module().SpeechCppASR(url)
 
 
+def test_survey_tells_whether_the_server_also_holds_a_diarization_model():
+    with server() as (url, state):
+        client = module().SpeechCppASR(url)
+        models, diarizes = client.survey()
+        assert [m.id for m in models] == ['asr'] and diarizes is False
+        # As `speech serve ASR VAD DIARIZATION` lists them; one request answers both.
+        diarization = {'id': 'Nemotron-3-Diarization', 'speech': {'task': 'diarization', 'device': 'Vulkan0'}}
+        state.models['data'] += [{'id': 'silero-vad', 'speech': {'task': 'detection', 'device': 'CPU'}}, diarization]
+        before = state.get_count
+        models, diarizes = client.survey()
+        assert [m.id for m in models] == ['asr'] and diarizes is True and state.get_count == before + 1
+        assert [m.id for m in client.recognizers()] == ['asr']
+        # On the CPU the model cannot keep up with live speech, so it does not count;
+        # neither does one whose device the server does not name.
+        for device in ('CPU', 'cpu', '', None, 7):
+            diarization['speech'] = {'task': 'diarization', **({} if device is None else {'device': device})}
+            assert client.survey()[1] is False, device
+        diarization['speech'] = {'task': 'diarization', 'device': 'Vulkan1'}
+        assert client.survey()[1] is True
+
+
 def test_discovery_and_multipart_preserve_stereo_samples_and_rate(monkeypatch):
     monkeypatch.setenv('HTTP_PROXY', 'http://127.0.0.1:1')
     with server() as (url, state):

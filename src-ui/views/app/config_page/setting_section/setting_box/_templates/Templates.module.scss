@@ -5,6 +5,9 @@
     align-items: center;
     padding: 2rem;
     gap: 2rem;
+    min-width: 0;
+    flex-wrap: wrap;
+    > * { min-width: 0; max-width: 100%; }
     &.flex_column {
         flex-direction: column;
     }
@@ -17,4 +20,13 @@
         gap: 2rem;
         align-items: start;
     }
+}
+
+// 16rem label + 24rem URL/key + 2rem gap + 2 * 2rem row padding.
+// Includes rows whose JSX opts out of the old viewport breakpoint.
+@container (max-width: 46rem) {
+    .container { flex-direction: column; align-items: stretch; }
+}
+@media (max-width: 700px) {
+    .container { flex-direction: column; align-items: stretch; }
 }

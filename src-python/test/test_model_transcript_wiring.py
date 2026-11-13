@@ -10,6 +10,9 @@ class _FakeAudioTranscriber:
     """Stand-in for AudioTranscriber that satisfies the isinstance() checks
     in model.py while letting the test control transcribeAudioQueue/getTranscript."""
 
+    def setAudioSource(self, source):
+        pass
+
     last_recognition_error = True
 
     def __init__(self, *args, **kwargs) -> None:
@@ -22,6 +25,15 @@ class _FakeAudioTranscriber:
     def transcribeAudioQueue(self, *args, **kwargs) -> bool:
         self._pending += 1
         return True
+
+    def getAudioWaitTimeout(self):
+        # These wiring tests invoke one due round without a capture thread.
+        return 0.0
+
+    released = False
+
+    def releaseModel(self) -> None:
+        self.released = True
 
     def hasTranscript(self) -> bool:
         return self._pending > 0
@@ -201,6 +213,22 @@ class TestTranscriptResultCarriesRecognitionError(unittest.TestCase):
 
         self.assertIsNotNone(old_transcriber)
         self.assertIs(session._transcriber, new_transcriber)
+        # The worker's own model goes with it, but never the replacement's.
+        self.assertTrue(old_transcriber.released)
+
+    @patch.object(model_module, "threadFnc", _CapturingThreadFnc)
+    @patch("model.AudioTranscriber", _FakeAudioTranscriber)
+    @patch("model.SelectedMicEnergyAndAudioRecorder", _FakeAudioRecorder)
+    def test_stopping_the_worker_releases_its_model(self) -> None:
+        session = MicSession()
+        session.transcript_fnc = lambda result: None
+        session.reconfigure(transcript=True, device={"name": "MicA", "index": 3})
+        worker = _CapturingThreadFnc.instances[-1]
+        transcriber = session._transcriber
+        self.assertFalse(transcriber.released)
+        worker.end_fnc()
+        self.assertTrue(transcriber.released)
+        self.assertIsNone(session._transcriber)
 
 
 if __name__ == "__main__":

@@ -101,7 +101,7 @@ def fixture(
             bufsize=0,
             env={
                 **__import__("os").environ,
-                "PYTHONPATH": str(Path("src-python").resolve()),
+                "PYTHONPATH": str(Path(__file__).resolve().parents[2] / "src-python"),
             },
         )
         children.append(child)
@@ -109,7 +109,7 @@ def fixture(
 
     monkeypatch.setattr(m, "_launch", launch)
     monkeypatch.setattr(transport, "PipeWireCapture", Capture)
-    monkeypatch.setattr(transport, "_binding", lambda source: binding[0])
+    monkeypatch.setattr(transport, "_binding", lambda source, **kw: binding[0])
     monkeypatch.setattr(transport, "_output", lambda endpoint: Output())
     if engine == "seed-vc":
         process = m.SeedProcess({"runtime": str(runtime), "reference": str(reference)})

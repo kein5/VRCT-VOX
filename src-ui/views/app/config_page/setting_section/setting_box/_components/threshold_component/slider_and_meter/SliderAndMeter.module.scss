@@ -52,4 +52,10 @@
     &:focus {
         outline: none;
     }
+    // Keyboard focus marks the thumb itself: an outline round the whole input
+    // would read as part of the meter.
+    &:focus-visible::-webkit-slider-thumb {
+        background: var(--primary_200_color);
+        box-shadow: 0 0 0 .2rem var(--dark_1000_color), 0 0 0 .4rem var(--primary_200_color);
+    }
 }

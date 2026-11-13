@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="title desc" >
+<title id="title">RVC — voice conversion</title>
+<desc id="desc">Original 24-unit glyph, 1.8-unit round stroke. Recolor with CSS currentColor when inlined.</desc>
+<g transform="translate(0 0) scale(1.0)"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l2-4 3 8 3-8 2 4h5M5 3.5h14l-3-2M19 20.5H5l3 2"/></g></g>
+</svg>

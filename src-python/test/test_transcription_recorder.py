@@ -14,9 +14,12 @@ listen_energy_and_audio_in_background 側のロジックに寄りかかるが、
   待たずリアルタイムに呼ばれる想定)
 """
 
+import struct
 import threading
+import time
 import unittest
 from queue import Queue
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 from speech_recognition import AudioSource
@@ -36,6 +39,8 @@ from device_manager import pyaudio_op_lock
 
 class FakeAudioSource:
     def __init__(self, opens: bool) -> None:
+        self.audio = MagicMock()
+        self.audio.get_device_info_by_index.return_value = {}
         self.opens = opens
         self.stream = None
         self.exit_called = False
@@ -50,6 +55,37 @@ class FakeAudioSource:
         if self.stream is None:
             raise AttributeError("'NoneType' object has no attribute 'close'")
         self.stream = None
+
+
+class SlowSpeechSource(AudioSource):
+    """途切れない発話を、実時間より遅く読み取る音声源 (CPU が忙しいときの読み取り)。"""
+
+    SAMPLE_RATE = 16000
+    SAMPLE_WIDTH = 2
+    CHUNK = 1024
+
+    def __init__(self) -> None:
+        self.stopped = threading.Event()
+        self.stream = SimpleNamespace(
+            read=self._read,
+            pyaudio_stream=SimpleNamespace(
+                get_read_available=lambda: self.CHUNK,
+                is_stopped=self.stopped.is_set,
+                stop_stream=self.stopped.set,
+            ),
+        )
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        return None
+
+    def _read(self, frames: int) -> bytes:
+        if self.stopped.is_set():
+            raise OSError("stream stopped")
+        time.sleep(1.25 * frames / self.SAMPLE_RATE)
+        return struct.pack("<h", 8000) * frames
 
 
 class RecorderAudioSource:
@@ -67,13 +103,15 @@ class TestCreateMicrophone(unittest.TestCase):
             "models.transcription.transcription_recorder.Microphone",
             side_effect=[selected_source, default_source],
         ):
-            source = _create_microphone({}, device_index=10)
+            source = _create_microphone({"device_index": 11}, device_index=10)
 
         # _create_microphone は生の source を _LockedAudioSource でラップして
         # 返す (open/close を pyaudio_op_lock で直列化するため、詳細は
         # TestLockedAudioSource 参照)。中身の同一性で検証する。
         self.assertIs(source._source, default_source)
         self.assertFalse(selected_source.exit_called)
+        self.assertFalse(default_source.exit_called)
+        source.close()
         self.assertTrue(default_source.exit_called)
 
     def test_raises_clear_error_when_no_device_opens(self) -> None:
@@ -84,7 +122,7 @@ class TestCreateMicrophone(unittest.TestCase):
             "models.transcription.transcription_recorder.Microphone",
             side_effect=[selected_source, default_source],
         ):
-            with self.assertRaisesRegex(OSError, "audio devices could not be opened"):
+            with self.assertRaisesRegex(OSError, "Audio device could not be opened"):
                 _create_microphone({}, device_index=10)
 
         self.assertFalse(selected_source.exit_called)
@@ -341,7 +379,6 @@ class TestRecorderPipeline(unittest.TestCase):
             energy_threshold=300,
             dynamic_energy_threshold=False,
             phrase_time_limit=3,
-            record_timeout=5,
         )
 
         self.assertEqual(recorder.SAMPLE_RATE, 48000)
@@ -356,7 +393,6 @@ class TestRecorderPipeline(unittest.TestCase):
             energy_threshold=300,
             dynamic_energy_threshold=False,
             phrase_time_limit=3,
-            record_timeout=5,
         )
         stop = MagicMock(name="stop")
         pause = MagicMock(name="pause")
@@ -378,24 +414,21 @@ class TestRecorderPipeline(unittest.TestCase):
         recorder.recorder.listen_energy_and_audio_in_background.assert_called_once()
         _, kwargs = recorder.recorder.listen_energy_and_audio_in_background.call_args
         self.assertEqual(kwargs.get("phrase_time_limit"), 3)
-        self.assertEqual(kwargs.get("record_timeout"), 5)
         self.assertIsNone(kwargs.get("callback_energy"))
 
         recorder.stop()
         stop.assert_called_once_with(wait_for_stop=True)
 
-    def test_record_timeout_zero_is_treated_as_unlimited(self) -> None:
-        # issue #113: record_timeout=0 を渡すと custom_speech_recognition の
-        # 録音ループ冒頭ガードで即 WaitTimeoutError になり音声が一切拾えない。
-        # 非正値は inf に正規化して「無制限録音」として扱う。
+    def test_zero_phrase_limit_keeps_listening_without_a_wall_clock_limit(self) -> None:
+        # issue #113: custom_speech_recognition の record_timeout に 0 を渡すと、
+        # 録音ループ冒頭のガードで即 WaitTimeoutError になり音声が一切拾えない。
+        # 設定の 0 は「無制限録音」の意図で、区切りは無音検出に任せる。
         recorder = BaseEnergyAndAudioRecorder(
             RecorderAudioSource(),
             energy_threshold=300,
             dynamic_energy_threshold=False,
-            phrase_time_limit=3,
-            record_timeout=0,
+            phrase_time_limit=0,
         )
-        self.assertEqual(recorder.record_timeout, float("inf"))
 
         stop = MagicMock(name="stop")
         recorder.recorder = MagicMock()
@@ -404,7 +437,29 @@ class TestRecorderPipeline(unittest.TestCase):
         )
         recorder.recordIntoQueue(Queue())
         _, kwargs = recorder.recorder.listen_energy_and_audio_in_background.call_args
+        self.assertEqual(kwargs.get("phrase_time_limit"), 0)
         self.assertEqual(kwargs.get("record_timeout"), float("inf"))
+
+    def test_phrase_read_slower_than_real_time_still_reaches_the_queue(self) -> None:
+        # 本物の Recognizer を通す。音声の長さの上限に届くより先に実時間が過ぎると、
+        # custom_speech_recognition の record_timeout は録音中のフレーズを丸ごと捨てる。
+        # 発話は「長さの上限に達したら区切り」文字にする (docs/spec/use-cases.md)。
+        source = SlowSpeechSource()
+        recorder = BaseEnergyAndAudioRecorder(
+            source,
+            energy_threshold=300,
+            dynamic_energy_threshold=False,
+            phrase_time_limit=0.6,
+        )
+        audio_queue: Queue = Queue()
+        recorder.recordIntoQueue(audio_queue)
+        try:
+            raw, _recorded_at = audio_queue.get(timeout=5)
+        finally:
+            recorder.stop()
+
+        # 長さの上限ちょうどまでの音声が、捨てられずに届く。
+        self.assertGreaterEqual(len(raw), int(0.6 * source.SAMPLE_RATE) * source.SAMPLE_WIDTH)
 
     def test_stop_force_stops_stream_before_delegating(self) -> None:
         """listener が stream.read() でブロックしていると、speech_recognition
@@ -418,7 +473,6 @@ class TestRecorderPipeline(unittest.TestCase):
             energy_threshold=300,
             dynamic_energy_threshold=False,
             phrase_time_limit=3,
-            record_timeout=5,
         )
         stop = MagicMock(name="stop")
         recorder.recorder = MagicMock()
@@ -444,7 +498,6 @@ class TestRecorderPipeline(unittest.TestCase):
             energy_threshold=300,
             dynamic_energy_threshold=False,
             phrase_time_limit=3,
-            record_timeout=5,
         )
         stop = MagicMock(name="stop")
         recorder.recorder = MagicMock()
@@ -464,7 +517,6 @@ class TestRecorderPipeline(unittest.TestCase):
             energy_threshold=300,
             dynamic_energy_threshold=False,
             phrase_time_limit=3,
-            record_timeout=5,
         )
         captured: dict = {}
 
@@ -508,7 +560,6 @@ class TestRecorderPipeline(unittest.TestCase):
             energy_threshold=300,
             dynamic_energy_threshold=False,
             phrase_time_limit=3,
-            record_timeout=5,
         )
         captured: dict = {}
 
@@ -554,7 +605,6 @@ class TestRecorderPipeline(unittest.TestCase):
             energy_threshold=300,
             dynamic_energy_threshold=False,
             phrase_time_limit=3,
-            record_timeout=5,
         )
         captured: dict = {}
 
@@ -581,7 +631,10 @@ class TestRecorderPipeline(unittest.TestCase):
             return fake_audio
 
         callback = captured["audio_callback"]
-        with patch("models.transcription.transcription_recorder.printLog") as mock_print_log:
+        from models.transcription.utterance_diagnostics import UtteranceDiagnostics
+        mock_print_log = MagicMock()
+        diagnostics = UtteranceDiagnostics(log=mock_print_log)
+        with patch("models.transcription.transcription_recorder.utterance_diagnostics", diagnostics):
             callback(None, make_audio(b"\x01"))
             mock_print_log.assert_not_called()
             callback(None, make_audio(b"\x02"))  # ここで満杯になり \x01 を捨てる
@@ -595,7 +648,6 @@ class TestRecorderPipeline(unittest.TestCase):
             energy_threshold=300,
             dynamic_energy_threshold=False,
             phrase_time_limit=3,
-            record_timeout=5,
         )
         captured: dict = {}
 
@@ -632,7 +684,6 @@ class TestRecorderPipeline(unittest.TestCase):
             energy_threshold=300,
             dynamic_energy_threshold=False,
             phrase_time_limit=3,
-            record_timeout=5,
         )
         captured: dict = {}
 
@@ -667,7 +718,6 @@ class TestRecorderPipeline(unittest.TestCase):
             energy_threshold=300,
             dynamic_energy_threshold=False,
             phrase_time_limit=3,
-            record_timeout=5,
         )
         recorder.recorder = MagicMock()
         recorder.recorder.listen_energy_and_audio_in_background = MagicMock(
@@ -752,8 +802,8 @@ class TestVadRecorderPipeline(unittest.TestCase):
 
     def test_wires_diagnostic_logging_with_a_kind_specific_label(self) -> None:
         """体感の遅さ (モデル初回ロード・hangover 待ち等) を実機ログから
-        切り分けられるよう、speech_start/speech_end が process.log に
-        記録されるようになっていること。mic/speaker を区別できるラベルも
+        切り分けられるよう、speech_start/speech_end を集約すること。
+        mic/speaker を区別できるラベルも
         併せて確認する。"""
         mic_recorder = BaseVadAndAudioRecorder(RecorderAudioSource(), record_timeout=5, label="mic")
         speaker_recorder = BaseVadAndAudioRecorder(RecorderAudioSource(), record_timeout=5, label="speaker")
@@ -761,9 +811,11 @@ class TestVadRecorderPipeline(unittest.TestCase):
         mic_segmenter = mic_recorder.vad_adapter.segmenter
         speaker_segmenter = speaker_recorder.vad_adapter.segmenter
 
-        self.assertIsNotNone(mic_segmenter.diagnostic_callback)
+        self.assertIsNotNone(mic_segmenter.diagnostic_observer)
+        self.assertIsNone(mic_segmenter.diagnostic_callback)
         self.assertEqual(mic_segmenter.diagnostic_label, "mic")
-        self.assertIsNotNone(speaker_segmenter.diagnostic_callback)
+        self.assertIsNotNone(speaker_segmenter.diagnostic_observer)
+        self.assertIsNone(speaker_segmenter.diagnostic_callback)
         self.assertEqual(speaker_segmenter.diagnostic_label, "speaker")
 
     def test_recordIntoQueue_wires_listen_with_segmenter_in_background_control_handles(

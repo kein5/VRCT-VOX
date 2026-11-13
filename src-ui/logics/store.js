@@ -1,5 +1,6 @@
 import {
     atom,
+    getDefaultStore,
     useAtomValue,
     useSetAtom
 } from "jotai";
@@ -14,13 +15,20 @@ import {
 import { keepNewestVrLayout } from "./common/vrPanelTooltip";
 import { requestSettingsNavigation } from "./voice/settingsNavigation";
 
+import { pendingRequestRecovery, restorePendingValue, restoreDownloadPending, staticPendingControls } from "./common/pendingRequestRecovery.js";
+import { updateMeterValue } from "./common/meterValue.js";
+import { initialLanguages } from "./common/initializationFields.js";
+
 export const store = {
     backend_subprocess: null,
+    backend_session: null,
+    backend_session_owner: null,
     setting_box_scroll_container: null,
-    log_box_ref: null,
+    scroll_log_to_bottom: null,
     text_area_ref: null,
     is_fetched_available_releases_already: false,
     last_executed_time_startTyping: 0,
+    expired_speech: null,
 };
 
 const generatePropertyNames = (base_name) => ({
@@ -39,6 +47,18 @@ export const createAtomWithHook = (initialValue, base_name, options) => {
         state: (options?.is_state_ok) ? "ok" : "pending",
         data: initialValue,
     });
+
+    const restore = (request, all = false, publish = false) => {
+        const atoms = getDefaultStore();
+        const previous = atoms.get(atomInstance);
+        const next = options?.pending_control?.download ? restoreDownloadPending(previous, request, all) : restorePendingValue(previous);
+        if (next === previous && !publish) return false;
+        // VR can be pending while the main atom is already confirmed. Publish
+        // that value again so the existing mirror releases the VR control too.
+        atoms.set(atomInstance, next === previous ? { ...next } : next);
+        return true;
+    };
+    pendingRequestRecovery.register({ ...staticPendingControls[base_name], ...options?.pending_control, restore, stop: () => restore(undefined, true, true) });
 
     const useHook = () => {
         const currentAtom = useAtomValue(atomInstance);
@@ -79,6 +99,10 @@ export const createAtomWithHook = (initialValue, base_name, options) => {
 
                 if (base_name === "VrPanelLayout" &&
                     keepNewestVrLayout(currentValue.data, updated_data) === currentValue.data) return currentValue;
+
+                if (base_name === "MicVolume" || base_name === "SpeakerVolume") {
+                    return updateMeterValue(currentValue, updated_data, new_state);
+                }
 
                 return {
                     state: new_state,
@@ -149,8 +173,11 @@ export const registerMany = (settingsArray = []) => {
 
 // Common
 export const { atomInstance: Atom_IsBackendReady, useHook: useStore_IsBackendReady } = createAtomWithHook(false, "IsBackendReady");
+export const { atomInstance: Atom_BackendStartupState, useHook: useStore_BackendStartupState } = createAtomWithHook("starting", "BackendStartupState");
 export const { atomInstance: Atom_IsVrctAvailable, useHook: useStore_IsVrctAvailable } = createAtomWithHook(true, "IsVrctAvailable");
-export const { atomInstance: Atom_IsOscAvailable, useHook: useStore_IsOscAvailable } = createAtomWithHook(true, "IsOscAvailable");
+export const { atomInstance: Atom_IsOscAvailable, useHook: useStore_IsOscAvailable } = createAtomWithHook(false, "IsOscAvailable");
+// Why it is unavailable: "remote_destination" (VRChat is on another machine) or "setup_failed". null while available or unknown.
+export const { atomInstance: Atom_OscUnavailableReason, useHook: useStore_OscUnavailableReason } = createAtomWithHook(null, "OscUnavailableReason");
 export const { atomInstance: Atom_ComputeMode, useHook: useStore_ComputeMode } = createAtomWithHook("cpu", "ComputeMode");
 export const { atomInstance: Atom_IsOpenedConfigPage, useHook: useStore_IsOpenedConfigPage } = createAtomWithHook(false, "IsOpenedConfigPage");
 export const { atomInstance: Atom_MainFunctionsStateMemory, useHook: useStore_MainFunctionsStateMemory } = createAtomWithHook({
@@ -185,13 +212,16 @@ export const { atomInstance: Atom_TranscriptionSendStatus, useHook: useStore_Tra
 export const { atomInstance: Atom_TranscriptionReceiveStatus, useHook: useStore_TranscriptionReceiveStatus } = createAtomWithHook(false, "TranscriptionReceiveStatus", {is_state_ok: true});
 export const { atomInstance: Atom_OcrCaptureStatus, useHook: useStore_OcrCaptureStatus } = createAtomWithHook(false, "OcrCaptureStatus", {is_state_ok: true});
 export const { atomInstance: Atom_ForegroundStatus, useHook: useStore_ForegroundStatus } = createAtomWithHook(false, "ForegroundStatus", {is_state_ok: true});
+// Linux (Wayland): the window the user shares with chat reading. See logics/configs/ocrSharedWindow.js.
+export const { atomInstance: Atom_OcrSharedWindow, useHook: useStore_OcrSharedWindow } = createAtomWithHook(
+    { supported: null, active: false, busy: false, error: null, restoring: false }, "OcrSharedWindow", {is_state_ok: true});
 
 export const { atomInstance: Atom_SelectedPresetTabNumber, useHook: useStore_SelectedPresetTabNumber } = createAtomWithHook("1", "SelectedPresetTabNumber");
 export const { atomInstance: Atom_LanguageMutation, useHook: useStore_LanguageMutation } = createAtomWithHook(
     { inFlight: null, lastVrResult: null, isResyncing: false }, "LanguageMutation", { is_state_ok: true }
 );
-export const { atomInstance: Atom_SelectedYourLanguages, useHook: useStore_SelectedYourLanguages } = createAtomWithHook({}, "SelectedYourLanguages");
-export const { atomInstance: Atom_SelectedTargetLanguages, useHook: useStore_SelectedTargetLanguages } = createAtomWithHook({}, "SelectedTargetLanguages");
+export const { atomInstance: Atom_SelectedYourLanguages, useHook: useStore_SelectedYourLanguages } = createAtomWithHook(initialLanguages(), "SelectedYourLanguages");
+export const { atomInstance: Atom_SelectedTargetLanguages, useHook: useStore_SelectedTargetLanguages } = createAtomWithHook(initialLanguages(true), "SelectedTargetLanguages");
 
 export const { atomInstance: Atom_TranslationEngines, useHook: useStore_TranslationEngines } = createAtomWithHook(translator_status, "TranslationEngines");
 export const { atomInstance: Atom_SelectedTranslationEngines, useHook: useStore_SelectedTranslationEngines } = createAtomWithHook({1:"", 2:"", 3:""}, "SelectedTranslationEngines");
@@ -248,8 +278,10 @@ export const { atomInstance: Atom_Hotkeys, useHook: useStore_Hotkeys } = createA
     toggle_translation: null,
     toggle_transcription_send: null,
     toggle_transcription_receive: null,
+    stop_voice: null,
+    toggle_voice_mute: null,
+    toggle_tts: null,
+    toggle_rvc: null,
 }, "Hotkeys");
 
-// Supporters
-export const { atomInstance: Atom_SupportersData, useHook: useStore_SupportersData } = createAtomWithHook(null, "SupportersData", {is_state_ok: true});
 

@@ -1,0 +1,245 @@
+// Settings that more than one page shows. A page renders the same container,
+// so the value and its saving stay in one place; only one page is on screen.
+import { useI18n } from "@useI18n";
+import styles from "./SharedItems.module.scss";
+
+import {
+    useOpenFolder,
+    useIsOscAvailable,
+} from "@logics_common";
+
+import {
+    useOthers,
+} from "@logics_configs";
+
+import {
+    CheckboxContainer,
+    MessageFormatContainer,
+} from "../_templates/Templates";
+
+import {
+    LabelComponent,
+    ActionButton,
+} from "../_components";
+import { Checkbox } from "@common_components";
+
+import OpenFolderSvg from "@images/open_folder.svg?react";
+import CheckMarkSvg from "@images/check_mark.svg?react";
+
+export const AutoClearMessageInputBoxContainer = () => {
+    const { t } = useI18n();
+    const { currentEnableAutoClearMessageInputBox, toggleEnableAutoClearMessageInputBox } = useOthers();
+
+    return (
+        <CheckboxContainer
+            setting_id="auto_clear_the_message_box"
+            label={t("config_page.others.auto_clear_the_message_box.label")}
+            variable={currentEnableAutoClearMessageInputBox}
+            toggleFunction={toggleEnableAutoClearMessageInputBox}
+        />
+    );
+};
+export const SendOnlyTranslatedMessagesContainer = () => {
+    const { t } = useI18n();
+    const { currentEnableSendOnlyTranslatedMessages, toggleEnableSendOnlyTranslatedMessages } = useOthers();
+
+    return (
+        <CheckboxContainer
+            setting_id="send_only_translated_messages"
+            label={t("config_page.others.send_only_translated_messages.label")}
+            variable={currentEnableSendOnlyTranslatedMessages}
+            toggleFunction={toggleEnableSendOnlyTranslatedMessages}
+        />
+    );
+};
+export const AutoExportMessageLogsContainer = () => {
+    const { t } = useI18n();
+    const { currentEnableAutoExportMessageLogs, toggleEnableAutoExportMessageLogs } = useOthers();
+    const { openFolder_MessageLogs } = useOpenFolder();
+
+    return (
+        <div className={styles.auto_export_message_logs_container} data-setting-id="auto_export_message_logs">
+            <LabelComponent
+                label={t("config_page.others.auto_export_message_logs.label")}
+                desc={t("config_page.others.auto_export_message_logs.desc")}
+                />
+            <div className={styles.auto_export_message_logs_switch_section_container}>
+                <ActionButton
+                    label={t("config_page.others.auto_export_message_logs.open_folder")}
+                    IconComponent={OpenFolderSvg}
+                    ClickedIconComponent={CheckMarkSvg}
+                    clicked_duration={1000}
+                    onclickFunction={openFolder_MessageLogs}
+                />
+                <Checkbox
+                    label={t("config_page.others.auto_export_message_logs.label")}
+                    variable={currentEnableAutoExportMessageLogs}
+                    toggleFunction={toggleEnableAutoExportMessageLogs}
+                />
+            </div>
+        </div>
+    );
+};
+export const VrcMicMuteSyncContainer = () => {
+    const { t } = useI18n();
+    const { currentEnableVrcMicMuteSync, toggleEnableVrcMicMuteSync } = useOthers();
+    const { currentIsOscAvailable, oscUnavailableLabelKey } = useIsOscAvailable();
+
+    const add_warnings = [];
+    if (currentIsOscAvailable.data === false) {
+        add_warnings.push({
+            label: t(oscUnavailableLabelKey),
+        });
+    }
+
+    return (
+        <CheckboxContainer
+            setting_id="vrc_mic_mute_sync"
+            label={t("config_page.others.vrc_mic_mute_sync.label")}
+            desc={t("config_page.others.vrc_mic_mute_sync.desc")}
+            variable={currentEnableVrcMicMuteSync}
+            is_available={currentIsOscAvailable.data}
+            add_warnings={add_warnings}
+            toggleFunction={toggleEnableVrcMicMuteSync}
+        />
+    );
+};
+export const SendMessageToVrcContainer = () => {
+    const { t } = useI18n();
+    const { currentEnableSendMessageToVrc, toggleEnableSendMessageToVrc } = useOthers();
+
+    return (
+        <CheckboxContainer
+            setting_id="send_message_to_vrc"
+            label={t("config_page.others.send_message_to_vrc.label")}
+            desc={t("config_page.others.send_message_to_vrc.desc")}
+            variable={currentEnableSendMessageToVrc}
+            toggleFunction={toggleEnableSendMessageToVrc}
+        />
+    );
+};
+
+
+export const EnableNotificationVrcSfxContainer = () => {
+    const { t } = useI18n();
+    const { currentEnableNotificationVrcSfx, toggleEnableNotificationVrcSfx } = useOthers();
+
+    return (
+        <CheckboxContainer
+            setting_id="notification_vrc_sfx"
+            label={t("config_page.others.notification_vrc_sfx.label")}
+            desc={t("config_page.others.notification_vrc_sfx.desc")}
+            variable={currentEnableNotificationVrcSfx}
+            toggleFunction={toggleEnableNotificationVrcSfx}
+        />
+    );
+};
+
+export const SendReceivedMessageToVrcContainer = () => {
+    const { t } = useI18n();
+    const { currentEnableSendReceivedMessageToVrc, toggleEnableSendReceivedMessageToVrc } = useOthers();
+
+    return (
+        <CheckboxContainer
+            setting_id="send_received_message_to_vrc"
+            label={t("config_page.others.send_received_message_to_vrc.label")}
+            desc={t("config_page.others.send_received_message_to_vrc.desc")}
+            variable={currentEnableSendReceivedMessageToVrc}
+            toggleFunction={toggleEnableSendReceivedMessageToVrc}
+        />
+    );
+};
+
+export const SendMessageFormatPartsContainer = () => {
+    const { t } = useI18n();
+    const {
+        currentSendMessageFormatParts,
+        setSendMessageFormatParts,
+    } = useOthers();
+
+    return (
+        <MessageFormatContainer
+            setting_id="send_message_format"
+            label={t("config_page.others.send_message_format.label")}
+            desc={t("config_page.others.send_message_format.desc")}
+            variable={currentSendMessageFormatParts}
+            setFunction={setSendMessageFormatParts}
+            format_id="send"
+        />
+    );
+};
+
+export const ReceivedMessageFormatPartsContainer = () => {
+    const { t } = useI18n();
+    const {
+        currentReceivedMessageFormatParts,
+        setReceivedMessageFormatParts,
+    } = useOthers();
+
+    return (
+        <MessageFormatContainer
+            setting_id="received_message_format"
+            label={t("config_page.others.received_message_format.label")}
+            desc={t("config_page.others.received_message_format.desc")}
+            variable={currentReceivedMessageFormatParts}
+            setFunction={setReceivedMessageFormatParts}
+            format_id="received"
+        />
+    );
+};
+
+export const ConvertMessageToRomajiContainer = () => {
+    const { t } = useI18n();
+    const { currentConvertMessageToRomaji, toggleConvertMessageToRomaji } = useOthers();
+
+    const desc_1 = t("config_page.others.common_convert_message_hiragana_romaji.desc_1");
+    const desc_2 = t("config_page.others.common_convert_message_hiragana_romaji.desc_2");
+    const desc_romaji = t(
+        "config_page.others.convert_message_to_romaji.desc",
+        { convert_message_to_hiragana: t("config_page.others.convert_message_to_hiragana.label") }
+    );
+    const desc = [desc_1, desc_2, desc_romaji].join("\n");
+
+    return (
+        <CheckboxContainer
+            setting_id="convert_message_to_romaji"
+            label={t("config_page.others.convert_message_to_romaji.label")}
+            desc={desc}
+            variable={currentConvertMessageToRomaji}
+            toggleFunction={toggleConvertMessageToRomaji}
+        />
+    );
+};
+
+export const ConvertMessageToHiraganaContainer = () => {
+    const { t } = useI18n();
+    const { currentConvertMessageToHiragana, toggleConvertMessageToHiragana } = useOthers();
+
+    const desc_1 = t("config_page.others.common_convert_message_hiragana_romaji.desc_1");
+    const desc_2 = t("config_page.others.common_convert_message_hiragana_romaji.desc_2");
+    const desc = [desc_1, desc_2].join("\n");
+
+    return (
+        <CheckboxContainer
+            setting_id="convert_message_to_hiragana"
+            label={t("config_page.others.convert_message_to_hiragana.label")}
+            desc={desc}
+            variable={currentConvertMessageToHiragana}
+            toggleFunction={toggleConvertMessageToHiragana}
+        />
+    );
+};
+
+export const AutoDownloadModelsContainer = () => {
+    const { t } = useI18n();
+    const { currentAutoDownloadModels, toggleAutoDownloadModels } = useOthers();
+    return (
+        <CheckboxContainer
+            setting_id="auto_download_models"
+            label={t("config_page.others.auto_download_models.label")}
+            desc={t("config_page.others.auto_download_models.desc")}
+            variable={currentAutoDownloadModels}
+            toggleFunction={toggleAutoDownloadModels}
+        />
+    );
+};

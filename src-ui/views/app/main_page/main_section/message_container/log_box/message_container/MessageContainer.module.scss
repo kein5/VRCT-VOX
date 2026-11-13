@@ -37,6 +37,7 @@
 .info_box {
     position: relative;
     display: flex;
+    max-width: 100%;
     gap: 0.8em;
     justify-content: center;
     &.sent_message {
@@ -53,6 +54,7 @@
 }
 
 .time {
+    flex-shrink: 0;
     font-size: 1em;
     color: var(--dark_600_color);
 }
@@ -69,15 +71,27 @@
     &.ocr_category {
         color: var(--received_300_color);
     }
+    &.failed {
+        color: var(--vox_state_failed);
+    }
+    &.not_sent {
+        color: var(--vox_state_warning);
+    }
+    // The user's own setting, not a fault: quieter than a sent row, no warning colour.
+    &.vrchat_off {
+        color: var(--vox_description_text);
+    }
 }
 
 .message_box {
     display: flex;
     flex-direction: column;
+    // Sent lines sit on the right; a wrapped message still reads from a
+    // straight left edge.
     &.sent_message {
         width: 100%;
         align-items: end;
-        text-align: end;
+        text-align: start;
     }
     &.received_message {
         width: 100%;

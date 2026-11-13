@@ -24,8 +24,9 @@ def test_native_converted_controls_stop_replacement_and_restart(tmp_path):
     from test_native_realtime import SyntheticProducer
 
     runtime = Path(os.environ['VRCT_SEED_POC']).resolve()
-    reference = runtime / 'private-inputs/reference.wav'
-    with wave.open(str(runtime/'private-inputs/input.wav')) as wav:
+    # A runtime the app set up has no recordings in it; name them separately then.
+    reference = Path(os.environ.get('VRCT_SEED_REFERENCE', runtime / 'private-inputs/reference.wav')).resolve(strict=True)
+    with wave.open(os.environ.get('VRCT_SEED_INPUT', str(runtime/'private-inputs/input.wav'))) as wav:
         assert (wav.getframerate(), wav.getnchannels(), wav.getsampwidth()) == (48000, 1, 2)
         pcm = wav.readframes(wav.getnframes())
     report = dict(status='failed', native_tauri=True, real_seed=True, physical_capture=False,
@@ -45,32 +46,34 @@ def test_native_converted_controls_stop_replacement_and_restart(tmp_path):
                 return json.dumps([str(source.cookie), str(source.serial), source.name, source.media_class], separators=(',', ':'))
             with NativeWebDriver(tmp_path/'first', {'VRCT_CONFIG_DIR': str(state)}) as ui:
                 ui.wait("return document.querySelector('textarea') !== null")
-                ui.open_voice_settings()
+                # The route is on the Device page, the direct voice on the Advanced page.
+                ui.open_route_settings()
                 ui.select('Audio route', 'managed')
-                ui.click_text('button', 'Save voice settings')
+                ui.click_text('button', 'Save changes')
                 wait_for(lambda: json.loads((state/'config.json').read_text())['VOICE_SETTINGS']['routing'] == 'managed')
+                ui.open_original_voice_settings()
                 ui.select('Direct voice mode', 'converted')
                 ui.fill('Seed runtime folder', str(runtime))
                 ui.fill('Permitted reference WAV', str(reference))
-                ui.click_text('button', 'Save input settings')
+                ui.click_text('button', 'Save changes')
                 wait_for(lambda: json.loads((state/'config.json').read_text()).get('DIRECT_VOICE_SETTINGS', {}).get('mode') == 'converted')
                 assert not any(name.startswith('vrct.asr.capture.') for name in nodes())
                 assert gate.inspect()['muted']
                 ui.select('Input to forward', selected())
                 ui.click_text('button', 'Start input forwarding')
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => ['VC active; no speech detected','VC ready; conversion not yet confirmed'].includes(e.textContent))", timeout=65)
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => ['VC active; no speech detected','VC ready; conversion not yet confirmed'].includes(e.textContent))", timeout=65)
                 settled(capture, time.monotonic_ns(), 'preparing_not_silent', silent=True)
                 ui.click_text('button', 'Resume voice')
                 finished = producer.play()
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Converting voice')", timeout=15)
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Converting voice')", timeout=15)
                 wait_for(lambda: capture.snapshot()['nonzero_frames'] > 5)
                 assert finished.wait(12)
                 settled(capture, time.monotonic_ns(), 'end_of_utterance_not_silent', silent=True)
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'VC active; no speech detected')")
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'VC active; no speech detected')")
                 report['cases'].append('full_synthetic_utterance_then_idle')
                 # Stop during a second utterance; observe the private source.
                 producer.play()
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Converting voice')", timeout=15)
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Converting voice')", timeout=15)
                 before = time.monotonic_ns()
                 ui.click_text('button', 'Stop input forwarding')
                 silence = settled(capture, before, 'explicit_stop_not_silent', silent=True)
@@ -83,9 +86,9 @@ def test_native_converted_controls_stop_replacement_and_restart(tmp_path):
                 settled(capture, time.monotonic_ns(), 'tts_branch_not_audible', present=(880,))
                 ui.wait("return [...document.querySelectorAll('button')].some(e => e.textContent === 'Start input forwarding' && !e.disabled)")
                 ui.click_text('button', 'Start input forwarding')
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => ['VC active; no speech detected','VC ready; conversion not yet confirmed','Converting voice'].includes(e.textContent))", timeout=65)
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => ['VC active; no speech detected','VC ready; conversion not yet confirmed','Converting voice'].includes(e.textContent))", timeout=65)
                 stop_process(input_node)
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Input forwarding failed and stopped')")
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Input forwarding failed and stopped')")
                 producer.token.cancel()
                 producer.thread.join(3)
                 assert not producer.thread.is_alive()
@@ -95,7 +98,13 @@ def test_native_converted_controls_stop_replacement_and_restart(tmp_path):
                 Producer(stack, 'vrct.native.caption.sink', 440)
                 settled(capture, time.monotonic_ns(), 'replacement_forwarded_raw', present=(880,), absent=(440,))
                 ui.click_text('button', 'Refresh inputs')
-                ui.wait("return [...document.querySelectorAll('select option:checked')].some(e => e.textContent === 'Disconnected')")
+                # The lost input was the only microphone, so it was also the Device page's
+                # default; the list follows that default to the replacement (or shows
+                # "Disconnected" when the selection was the user's own). Either way the list
+                # is usable again and nothing is forwarded until Start is pressed.
+                replacement = selected()
+                ui.wait("return [...document.querySelectorAll('select')].some(e => [...e.options].some(o => o.value === arguments[0]))"
+                        .replace('arguments[0]', json.dumps(replacement)))
                 assert ui.evaluate('return arguments[0].disabled', ui.control('Input to forward')) is False
                 assert not any(name.startswith('vrct.asr.capture.') for name in nodes())
                 report['cases'].append('source_replacement_no_reconnect_tts_continues')
@@ -105,10 +114,11 @@ def test_native_converted_controls_stop_replacement_and_restart(tmp_path):
                 ui.close_app()
             with NativeWebDriver(tmp_path/'restart', {'VRCT_CONFIG_DIR': str(state)}) as ui:
                 ui.wait("return document.querySelector('textarea') !== null")
-                ui.open_voice_settings()
+                ui.open_original_voice_settings()
                 assert ui.evaluate('return arguments[0].value', ui.control('Direct voice mode')) == 'converted'
                 assert ui.evaluate('return arguments[0].value', ui.control('Seed runtime folder')) == str(runtime)
-                assert ui.evaluate('return arguments[0].value', ui.control('Input to forward')) == ''
+                # The list may offer the Device page's microphone as the default; what
+                # matters is that nothing is forwarded until the user starts it.
                 assert gate.inspect()['muted'] and not any(name.startswith('vrct.asr.capture.') for name in nodes())
                 ui.close_app()
             report.update(status='passed', capture=capture.snapshot(), restart_muted_without_capture=True,

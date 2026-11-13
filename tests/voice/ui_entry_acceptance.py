@@ -1,6 +1,6 @@
 """Opt-in browser -> real stdio Main/Controller -> real PipeWire acceptance.
 
-Requires npm dependencies, optional requirements-voice-ui-test.txt, an existing
+Requires npm dependencies, the voice-ui-test dependency group (tools/dev.py setup --scope browser), an existing
 Chromium executable and native gate. Without --model a local PCM fixture is used.
 This is not native Tauri/full Model runtime or VRChat acceptance.
 """
@@ -167,7 +167,7 @@ def execute(args, report):
             reserve.bind(('127.0.0.1', 0))
             port = reserve.getsockname()[1]
         vite_log = stack.enter_context((args.output / 'vite.log').open('w'))
-        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '--host', '127.0.0.1',
+        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '.', '--host', '127.0.0.1',
                                  '--port', str(port), '--strictPort'], cwd=ROOT, stdout=vite_log, stderr=vite_log)
 
         def close_vite():
@@ -240,7 +240,7 @@ def execute(args, report):
             page.get_by_label('Audio route').select_option('managed')
             page.get_by_label('Japanese server (Irodori)', exact=True).fill(server.url)
             page.get_by_label('Translation slot').select_option('2')
-            page.get_by_role('button', name='Save voice settings', exact=True).click()
+            page.get_by_role('button', name='Save changes', exact=True).click()
             until(f'window.entry.state.settings?.mode === {json.dumps(mode)} && window.entry.state.settings.routing === "managed"')
             until('window.entry.state.route?.managed === true && window.entry.state.route.ready && !window.entry.state.route.pending')
             assert state()['error'] is None, state()
@@ -393,7 +393,7 @@ def execute(args, report):
             # return an error through the production UI response route.
             previous = state()['settings']
             page.get_by_label('Japanese server (Irodori)', exact=True).fill('https://invalid.example')
-            page.get_by_role('button', name='Save voice settings', exact=True).click()
+            page.get_by_role('button', name='Save changes', exact=True).click()
             until('window.entry.state.error === "VOICE_SETTINGS_INVALID"')
             assert state()['settings'] == previous
             done_case({'name': 'invalid-settings-preserve-working-config'})
@@ -533,7 +533,7 @@ def main():
     }
     if not all(report['cleanup'].values()):
         report.update(status='failed', cleanup_failure=True)
-    (args.output / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2))
+    (args.output / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     print(json.dumps({'status': report['status'], 'failure': report.get('failure')}), flush=True)
     return 0 if report['status'] == 'passed' else 1
 

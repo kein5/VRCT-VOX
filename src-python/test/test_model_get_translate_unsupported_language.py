@@ -46,6 +46,47 @@ class TestGetTranslateSuccessFlagSemantics(unittest.TestCase):
         self.assertEqual(translation, "こんにちは")
         self.assertTrue(success_flag, "unsupported language must not be reported as an engine failure")
 
+    def test_empty_translation_of_a_message_falls_back_like_a_failure(self) -> None:
+        # LLM が空の応答を返した。成功として扱うと、訳だけを送る設定で何も送られない
+        engines = []
+
+        def fake_translate(**kwargs):
+            engines.append(kwargs["translator_name"])
+            return "  " if kwargs["translator_name"] == "OpenAI_API" else "こんにちは"
+
+        self.model.translator = type("T", (), {"translate": staticmethod(fake_translate)})()
+
+        translation, success_flag = self.model.getTranslate(
+            translator_name="OpenAI_API",
+            source_language="English",
+            target_language="Japanese",
+            target_country="Japan",
+            message="hello",
+        )
+
+        self.assertEqual(engines, ["OpenAI_API", "CTranslate2"])
+        self.assertEqual(translation, "こんにちは")
+        self.assertTrue(success_flag)
+
+    def test_empty_fallback_translation_is_a_failure(self) -> None:
+        # 切り替え先の CTranslate2 も空を返した。成功にすると、訳だけを送る設定で何も送られない
+        self.model.translator = type("T", (), {
+            "translate": staticmethod(lambda **kwargs: ""),
+            "isLoadedCTranslate2Model": staticmethod(lambda: True),
+        })()
+
+        with patch("model.errorLogging"), patch("model.sleep"):
+            translation, success_flag = self.model.getTranslate(
+                translator_name="OpenAI_API",
+                source_language="English",
+                target_language="Japanese",
+                target_country="Japan",
+                message="hello",
+            )
+
+        self.assertEqual(translation, "hello")
+        self.assertFalse(success_flag)
+
     def test_real_backend_failure_is_still_reported_as_failure(self) -> None:
         calls = {"n": 0}
 
@@ -121,6 +162,29 @@ class TestGetTranslateSuccessFlagSemantics(unittest.TestCase):
         self.assertEqual(translation, "hello")
         self.assertFalse(success_flag, "a genuine CTranslate2 fallback failure must not be masked as success")
         mock_error_logging.assert_called_once()
+
+    def test_primary_failure_with_unsupported_fallback_is_reported_as_failure(self) -> None:
+        # The requested engine really fails (False) and the CTranslate2
+        # fallback can't translate the pair with the selected weight (None,
+        # e.g. Basque on M2M100). This used to pass the original text through
+        # as a success, so the user never learned translation had stopped.
+        self.model.translator = type(
+            "T", (), {"translate": staticmethod(lambda **kwargs: (
+                False if kwargs["translator_name"] == "Google" else None
+            ))}
+        )()
+
+        with patch("model.printLog"):
+            translation, success_flag = self.model.getTranslate(
+                translator_name="Google",
+                source_language="Basque",
+                target_language="Japanese",
+                target_country="Japan",
+                message="kaixo",
+            )
+
+        self.assertEqual(translation, "kaixo")
+        self.assertFalse(success_flag, "the primary engine failed and nothing could translate instead")
 
 
 if __name__ == "__main__":

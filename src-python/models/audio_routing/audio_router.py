@@ -6,10 +6,11 @@ from models.tts.speechcpp_tts import SpeechError
 from .gc_guard import defer_cyclic_gc
 
 
-def enumerate_outputs():
+def enumerate_outputs(keep=()):
+    """keep: saved Windows choices from a host the list no longer shows."""
     if sys.platform == "win32":
         from .devices_windows import enumerate_outputs as enumerate_windows
-        return enumerate_windows()
+        return enumerate_windows(keep)
     if sys.platform.startswith("linux"):
         from .devices_pipewire import enumerate_outputs as enumerate_pipewire
         return enumerate_pipewire()
@@ -32,13 +33,13 @@ class AudioRouter:
     def __init__(self, output_factory=open_output):
         self.output_factory = output_factory
 
-    def play(self, frames, device, token, on_first_audio):
+    def play(self, frames, device, token, on_first_audio, monitor=None):
         # A full cyclic collection can hold the GIL longer than the bounded
         # native output queue, starving playback even while PCM is available.
         with defer_cyclic_gc():
-            self._play(frames, device, token, on_first_audio)
+            self._play(frames, device, token, on_first_audio, monitor)
 
-    def _play(self, frames, device, token, on_first_audio):
+    def _play(self, frames, device, token, on_first_audio, monitor):
         sink = None
         stream_format = None
         first = True
@@ -58,6 +59,10 @@ class AudioRouter:
                     token.check()
                     pcm = frame.pcm[offset:offset + block]
                     sink.write(pcm, token)
+                    if monitor is not None:
+                        # After the main write: the monitor only queues and
+                        # hears exactly what the virtual microphone received.
+                        monitor.offer(pcm, *current_format)
                     if first and any(pcm):
                         # Native nonblocking adapters commit at their write
                         # boundary; other outputs confirm when write returns.
@@ -67,5 +72,7 @@ class AudioRouter:
             token.check()
             success = True
         finally:
+            if monitor is not None:
+                monitor.close(drain=success)
             if sink is not None:
                 sink.close(drain=success, token=token)

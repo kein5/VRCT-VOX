@@ -1,0 +1,20 @@
+// The selected language pair in the 72px icon rail: two short names, one above the other.
+.container {
+    width: calc(100% - 2rem);
+    margin: .4rem 1rem .8rem;
+    padding: .8rem .2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .3rem;
+    border-radius: var(--vox_radius);
+    color: var(--vox_secondary_text);
+    cursor: pointer;
+    &:hover { background-color: var(--dark_800_color); }
+    &:active { background-color: var(--dark_875_color); }
+    &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: -.2rem; }
+}
+// A long name ends in an ellipsis; the tooltip and the accessible name have it whole.
+.name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.2rem; line-height: 1.4; }
+.arrow { width: 1rem; height: 1rem; flex-shrink: 0; fill: currentColor; color: var(--dark_500_color); }
+.more { font-size: 1.2rem; font-variant-numeric: tabular-nums; color: var(--vox_description_text); }

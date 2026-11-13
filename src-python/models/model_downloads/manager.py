@@ -10,13 +10,13 @@ import shutil
 import stat
 from threading import Event, RLock, Thread
 import time
-from urllib.parse import quote
 from uuid import uuid4
 
-from .catalog import CATALOG, CATALOG_VERSION, validate_catalog
+from .catalog import CATALOG, CATALOG_VERSION, artifact_url, validate_catalog
 from .guidance import model_guidance
 from .transport import open_public
 from .staging import RootLease, mark_owned, recover_owned
+from .verification import verify_file
 
 CHUNK = 1024 * 1024
 ACTIVE = ('queued', 'downloading', 'verifying', 'cancelling')
@@ -48,6 +48,8 @@ class Downloads:
         self.entries = {m.id: m for m in catalog}
         self.transport, self.reserve_bytes = transport, reserve_bytes
         self.lock, self.closed = RLock(), False
+        self.closing = Event()
+        self.apply_done = None
         self.jobs, self.thread, self.cancel_event = {}, None, None
         self.response = None
 
@@ -57,7 +59,9 @@ class Downloads:
     def catalog(self):
         return {'catalog_version': self.catalog_version, 'models': [dict(asdict(m),
                 total_bytes=sum(a.size for a in m.artifacts), destination=str(self.destination(m)),
-                source=f'https://huggingface.co/{m.repo}/tree/{m.revision}', guidance=model_guidance(m.id)) for m in self.entries.values()]}
+                source=f'https://huggingface.co/{m.repo}/tree/{m.revision}', guidance=model_guidance(m.id),
+                sources=sorted({f'https://huggingface.co/{r}/tree/{v}' for r, v, _ in
+                                (a.remote or (m.repo, m.revision, a.filename) for a in m.artifacts)})) for m in self.entries.values()]}
 
     def state(self):
         with self.lock:
@@ -78,16 +82,17 @@ class Downloads:
                 or request['id'] not in self.entries):
             raise ValueError('catalog_changed')
         with self.lock:
-            if self.closed:
+            if self.closed or self.closing.is_set():
                 raise ValueError('downloads_closed')
-            if self.thread is not None and self.thread.is_alive():
+            if any(job['phase'] in ACTIVE for job in self.jobs.values()):
                 raise ValueError('download_busy')
             entry = self.entries[request['id']]
             event = Event()
             self.jobs[entry.id] = dict(job_id=uuid4().hex, phase='queued', received_bytes=0,
                                       total_bytes=sum(a.size for a in entry.artifacts), paths={}, error_code=None)
             self.cancel_event = event
-            self.thread = Thread(target=self._download, args=(entry, event), daemon=True, name='model-download')
+            self.thread = Thread(target=self._download, args=(entry, event, self.thread),
+                                 daemon=True, name='model-download')
             self.thread.start()
             return self.state()
 
@@ -105,27 +110,20 @@ class Downloads:
             self.response.abort()
 
     def _checkpoint(self, event):
-        if event.is_set():
+        if event.is_set() or self.closing.is_set():
             raise Cancelled()
 
     def _verify(self, path, artifact, event):
-        if not stat.S_ISREG(path.lstat().st_mode):
-            raise ValueError('unsafe_destination')
-        fd = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
-        with os.fdopen(fd, 'rb') as stream:
-            if os.fstat(stream.fileno()).st_size != artifact.size:
-                raise ValueError('size_mismatch')
-            digest = hashlib.sha256()
-            while block := stream.read(CHUNK):
-                self._checkpoint(event)
-                digest.update(block)
-            if digest.hexdigest() != artifact.sha256:
-                raise ValueError('hash_mismatch')
+        verify_file(path, artifact, lambda: self._checkpoint(event), chunk_size=CHUNK)
 
-    def _download(self, entry, event):
+    def _download(self, entry, event, previous=None):
+        # A finished job is reported before its worker releases the root lease.
+        if previous is not None:
+            previous.join()
         staging = None
         lease = RootLease(self.root)
         job = self.jobs[entry.id]
+        terminal = None
         try:
             directory(self.root / entry.id)
             lease.acquire()
@@ -145,7 +143,7 @@ class Downloads:
                 for artifact in entry.artifacts:
                     self._checkpoint(event)
                     with self.lock: job['phase'] = 'downloading'
-                    url = f'https://huggingface.co/{entry.repo}/resolve/{entry.revision}/{quote(artifact.filename)}'
+                    url = artifact_url(entry, artifact)
                     digest, received = hashlib.sha256(), 0
                     with self.transport(url) as response, (staging / artifact.filename).open('xb') as output:
                         with self.lock:
@@ -165,7 +163,9 @@ class Downloads:
                         raise ValueError('size_mismatch')
                     if digest.hexdigest() != artifact.sha256:
                         raise ValueError('hash_mismatch')
-                (staging / 'receipt.json').write_text(json.dumps(asdict(entry), ensure_ascii=False, indent=2))
+                # The locale encoding is cp932 on Japanese Windows, which cannot write the "·" in entries.
+                (staging / 'receipt.json').write_text(json.dumps(asdict(entry), ensure_ascii=False, indent=2),
+                                                      encoding='utf-8')
             # Cancellation and publication have one linearization point.
             with self.lock:
                 self._checkpoint(event)
@@ -178,47 +178,96 @@ class Downloads:
                 job.update(phase='ready', received_bytes=job['total_bytes'],
                            paths={a.role: str(final / a.filename) for a in entry.artifacts})
         except Cancelled:
-            with self.lock: job.update(phase='cancelled', paths={})
+            terminal = dict(phase='cancelled', paths={})
         except Exception as error:
             known = {'insufficient_space', 'size_mismatch', 'hash_mismatch', 'unsafe_destination',
                      'destination_exists', 'download_url_rejected', 'download_http_error', 'download_busy'}
             code = str(error) if str(error) in known else 'download_failed'
             if isinstance(error, OSError) and error.errno == errno.ENOSPC:
                 code = 'insufficient_space'
-            with self.lock:
-                job.update(phase='cancelled' if event.is_set() else 'failed',
-                           error_code=None if event.is_set() else code, paths={})
+            terminal = dict(phase='cancelled' if event.is_set() else 'failed',
+                            error_code=None if event.is_set() else code, paths={})
         finally:
             if staging is not None:
                 try:
                     shutil.rmtree(staging)
                 except OSError:
-                    with self.lock: job.update(phase='failed', error_code='partial_cleanup_failed', paths={})
+                    terminal = dict(phase='failed', error_code='partial_cleanup_failed', paths={})
             lease.close()
-            with self.lock: self.response = None
+            with self.lock:
+                self.response = None
+                # Report a failure or cancellation only once its partial files
+                # are gone, so a finished job never leaves staging behind.
+                if terminal is not None:
+                    job.update(terminal)
 
     def apply(self, id, job_id, callback):
         with self.lock:
-            if self.closed:
+            if self.closed or self.closing.is_set():
                 raise ValueError('downloads_closed')
             job = self._job(id, job_id)
             if job['phase'] != 'ready':
                 raise ValueError('download_not_ready')
+            if any(j['phase'] in ACTIVE for j in self.jobs.values()):
+                raise ValueError('download_busy')
             entry = self.entries[id]
+            event, done = Event(), Event()
+            self.cancel_event, self.apply_done = event, done
+            job['phase'] = 'verifying'
+        try:
             directory(self.destination(entry))
             for artifact in entry.artifacts:
-                self._verify(self.destination(entry) / artifact.filename, artifact, Event())
-            callback(entry, deepcopy(job['paths']))
-            job.update(phase='applied', error_code=None)
-            return self.state()
+                self._verify(self.destination(entry) / artifact.filename, artifact, event)
+            with self.lock:
+                self._checkpoint(event)
+                if self._job(id, job_id) is not job:
+                    raise ValueError('stale_job')
+                if job['phase'] != 'verifying':
+                    raise ValueError('download_not_ready')
+                # Commit point: the callback rechecks current settings/target
+                # state under their own locks before saving only the paths.
+                callback(entry, deepcopy(job['paths']))
+                job.update(phase='applied', error_code=None)
+                return self.state()
+        except Exception as error:
+            with self.lock:
+                cancelled = event.is_set() or self.closing.is_set()
+                if self.jobs.get(id) is job and job['phase'] in ('verifying', 'cancelling'):
+                    if cancelled:
+                        job.update(phase='cancelled', paths={}, error_code=None)
+                    else:
+                        job['phase'] = 'ready'
+            if cancelled:
+                code = 'downloads_closed' if self.closing.is_set() else 'download_not_ready'
+                raise ValueError(code) from error
+            raise
+        finally:
+            done.set()
+
+    def request_close(self):
+        """Signal cancellation without waiting for the state lock or workers."""
+        # Signal before waiting for the state lock, including a committing
+        # callback. No new work may enter even if this close times out.
+        self.closing.set()
+        event = self.cancel_event
+        if event is not None:
+            event.set()
 
     def close(self, timeout=2):
-        with self.lock:
+        deadline = time.monotonic() + max(0, timeout)
+        self.request_close()
+        if not self.lock.acquire(timeout=max(0, deadline - time.monotonic())):
+            return False
+        try:
             self.closed = True
             if self.cancel_event is not None:
                 self.cancel_event.set()
                 self._abort_body()
-            thread = self.thread
+            thread, done = self.thread, self.apply_done
+        finally:
+            self.lock.release()
         if thread is not None:
-            thread.join(timeout)
-        return thread is None or not thread.is_alive()
+            thread.join(max(0, deadline - time.monotonic()))
+        if done is not None:
+            done.wait(max(0, deadline - time.monotonic()))
+        return (thread is None or not thread.is_alive()) and (done is None or done.is_set())

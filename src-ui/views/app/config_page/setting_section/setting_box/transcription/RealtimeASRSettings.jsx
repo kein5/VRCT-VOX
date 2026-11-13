@@ -1,17 +1,35 @@
+import { createLanguageNames } from "../../../../../../logics/common/languageNames.js";
 import { useEffect, useState } from "react";
 import { useI18n } from "@useI18n";
 import { useRealtimeASR } from "../../../../../../logics/transcription/useRealtimeASR";
 import { useSpeechServers } from "../../../../../../logics/voice/useSpeechServers";
+import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
 import styles from "../advanced_settings/VoiceSettings.module.scss";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { Description } from "../_components/description/Description";
 
 const key = endpoint => endpoint ? JSON.stringify([endpoint.cookie, endpoint.serial, endpoint.name, endpoint.media_class]) : "";
+// Select value for "follow the system default"; never a JSON endpoint key.
+const FOLLOW = "follow-default";
+
+// The message says what to do (shared with the main switches); the code stays for reports.
+const Failure = ({ code, t }) => <p role="alert">{t(`realtime_toggle.${code}`, { defaultValue: "" })} <code className={styles.error_code}>{code}</code></p>;
 
 export const RealtimeASRSettings = () => {
-    const { t } = useI18n();
-    const { settings, state, endpoints, models, error, send } = useRealtimeASR();
+    const { t, i18n } = useI18n();
+    const names = createLanguageNames(i18n.language);
+    const languageLabel = code => code === "auto" ? t("realtime.auto_language") : names.fromCode(code);
+    const { settings, state, endpoints, models, error, send, updateError } = useRealtimeASR();
     const { state: servers, send: sendSpeech } = useSpeechServers();
-    const [draft, setDraft] = useState(null);
-    useEffect(() => { setDraft(settings); }, [settings]);
+    const label = ([group, field]) => {
+        if (["mic", "speaker"].includes(group)) return t(`realtime.${group}_${field === "language" ? "language" : "input"}`);
+        if (group === "vocabulary") return t(field === "builtin" ? "realtime.vocabulary_builtin" : "realtime.vocabulary_user");
+        return t({ server: "speech_servers.asr_selection", base_url: "realtime.url", model: "realtime.model" }[group] ?? "realtime.title");
+    };
+    const write = value => send("/set/data/realtime_asr_settings", value);
+    const form = useSettingsDraft(settings, error, updateError, { label, write });
+    const { draft, setDraft, dirty, saving } = form;
+    const [newTerm, setNewTerm] = useState("");
     const refreshDevices = () => {
         for (const source of ["mic", "speaker"]) send("/get/data/realtime_asr_endpoints", { source });
     };
@@ -29,59 +47,91 @@ export const RealtimeASRSettings = () => {
             models.server_generation === servers.asr.generation : models.base_url === settings?.base_url);
     const knownModels = modelsCurrent ? models.models ?? [] : [];
     const selectedModel = knownModels.find(row => row.id === draft?.model);
-    const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
     const updateSource = (source, values) => setDraft(previous => ({ ...previous, [source]: { ...previous[source], ...values } }));
-    return <section className={styles.container} aria-label={t("realtime.title")}>
+    const vocabulary = draft?.vocabulary ?? { builtin: true, terms: [] };
+    const updateVocabulary = values => setDraft(previous => ({ ...previous, vocabulary: { ...vocabulary, ...values } }));
+    // One keyword per entry, "written=reading,reading"; the backend validates it on save.
+    const term = newTerm.trim();
+    const written = term.split("=")[0].trim().toLowerCase();
+    const canAdd = term && written && vocabulary.terms.length < 100 && !/[\u0000-\u001f]/.test(term)
+        && !vocabulary.terms.some(row => row.split("=")[0].trim().toLowerCase() === written);
+    return <section data-setting-id="realtime_asr" data-unsaved={dirty || undefined} className={styles.container} aria-label={t("realtime.title")}>
         <h3>{t("realtime.title")}</h3>
-        <p>{t("realtime.scope")}</p>
-        <p>{t("realtime.server_help")}</p>
-        {draft && <form onSubmit={event => { event.preventDefault(); send("/set/data/realtime_asr_settings", draft); }}>
-            <label>{t("speech_servers.asr_selection")}<select aria-label={t("speech_servers.asr_selection")} value={draft.server || "external"}
+        <Description text={t("realtime.scope")} />
+        <Description text={t("realtime.server_help")} />
+        {draft && <form aria-busy={saving} onSubmit={event => { event.preventDefault(); if (dirty && !saving) form.submit(write); }}>
+            <label>{t("speech_servers.asr_selection")}<select disabled={saving} aria-label={t("speech_servers.asr_selection")} value={draft.server || "external"}
                 onChange={event => setDraft({ ...draft, server: event.target.value })}>
                 {["external", "bundled"].map(value => <option key={value} value={value}>{t(`speech_servers.${value}`)}</option>)}
             </select></label>
-            {draft.server !== "bundled" && <label>{t("realtime.url")}<input aria-label={t("realtime.url")} value={draft.base_url}
+            {draft.server !== "bundled" && <label>{t("realtime.url")}<input readOnly={saving} aria-label={t("realtime.url")} value={draft.base_url}
                 onChange={event => setDraft({ ...draft, base_url: event.target.value })} /></label>}
-            <label>{t("realtime.model")}<select aria-label={t("realtime.model")} value={draft.model}
+            <label>{t("realtime.model")}<select disabled={saving} aria-label={t("realtime.model")} value={draft.model}
                 onChange={event => setDraft({ ...draft, model: event.target.value })}>
                 <option value="">{t("realtime.select_model")}</option>
                 {draft.model && !selectedModel && <option value={draft.model}>{draft.model} ({t("realtime.unavailable")})</option>}
                 {knownModels.map(row => <option key={row.id} value={row.id}>{row.id}</option>)}
             </select></label>
             <button type="button" onClick={() => send("/get/data/realtime_asr_models")}>{t("realtime.refresh_models")}</button>
-            {models.error_code && <p role="alert">{models.error_code}</p>}
+            <Description text={t("realtime.auto_help")} />
+            {models.error_code && <Failure code={models.error_code} t={t} />}
             <button type="button" onClick={refreshDevices}>{t("realtime.refresh_devices")}</button>
             {["mic", "speaker"].map(source => {
                 const choices = endpoints[source]?.endpoints ?? [];
-                const selected = choices.find(row => key(row.endpoint) === key(draft[source].endpoint));
-                const languages = selectedModel?.languages ?? [];
+                const follow = !draft[source].endpoint && draft[source].follow_default !== false;
+                const selected = follow || choices.find(row => key(row.endpoint) === key(draft[source].endpoint));
+                // "auto" only for a model that detects the language (Qwen3-ASR).
+                const languages = [...(selectedModel?.detects_language ? ["auto"] : []), ...(selectedModel?.languages ?? [])];
                 const owner = state[source];
                 const failure = endpoints[source]?.error_code || owner?.error_code;
                 return <fieldset key={source}>
                     <legend>{t(`realtime.${source}`)}</legend>
-                    {source === "speaker" && <p>{t("realtime.speaker_help")}</p>}
-                    <label>{t(`realtime.${source}_input`)}<select aria-label={t(`realtime.${source}_input`)} value={key(draft[source].endpoint)}
-                        onChange={event => updateSource(source, { endpoint: choices.find(row => key(row.endpoint) === event.target.value)?.endpoint ?? null })}>
+                    {source === "speaker" && <Description text={t("realtime.speaker_help")} />}
+                    <label>{t(`realtime.${source}_input`)}<select disabled={saving} aria-label={t(`realtime.${source}_input`)} value={follow ? FOLLOW : key(draft[source].endpoint)}
+                        onChange={event => updateSource(source, event.target.value === FOLLOW ? { endpoint: null, follow_default: true }
+                            : { endpoint: choices.find(row => key(row.endpoint) === event.target.value)?.endpoint ?? null, follow_default: false })}>
                         <option value="">{t("realtime.select_device")}</option>
+                        <option value={FOLLOW}>{t(`realtime.follow_default_${source}`)}</option>
                         {draft[source].endpoint && !selected && <option value={key(draft[source].endpoint)}>{t("realtime.disconnected")}</option>}
                         {choices.map(row => <option key={key(row.endpoint)} value={key(row.endpoint)}>{row.label}</option>)}
                     </select></label>
-                    <label>{t(`realtime.${source}_language`)}<select aria-label={t(`realtime.${source}_language`)} value={draft[source].language}
+                    <label>{t(`realtime.${source}_language`)}<select disabled={saving} aria-label={t(`realtime.${source}_language`)} value={draft[source].language}
                         onChange={event => updateSource(source, { language: event.target.value })}>
-                        {!languages.includes(draft[source].language) && <option value={draft[source].language}>{draft[source].language}</option>}
-                        {languages.map(language => <option key={language} value={language}>{language}</option>)}
+                        {!languages.includes(draft[source].language) && <option value={draft[source].language}>{languageLabel(draft[source].language)}</option>}
+                        {languages.map(language => <option key={language} value={language}>{languageLabel(language)}</option>)}
                     </select></label>
-                    <button type="button" disabled={dirty || !selected || !selectedModel || !languages.includes(draft[source].language) ||
+                    {follow && <Description text={t("realtime.follow_default_help")} />}
+                    <button type="button" disabled={saving || dirty || !selected || !selectedModel || !languages.includes(draft[source].language) ||
                         !owner || owner.requested || !!endpoints[source]?.error_code}
                         onClick={() => send("/run/start_realtime_asr", { source })}>{t(`realtime.start_${source}`)}</button>
                     <button type="button" onClick={() => send("/run/stop_realtime_asr", { source })}>{t(`realtime.stop_${source}`)}</button>
-                    <p role="status">{t(`realtime.state_${owner?.state ?? "unknown"}`)}</p>
-                    {failure && <p role="alert">{failure}</p>}
+                    <EnvReadout tone={owner?.state === "ready" ? "active" : owner?.state === "failed" ? "failed" :
+                        ["starting", "stopping"].includes(owner?.state) ? "warning" : "neutral"}>
+                        <p>{t(`realtime.state_${owner?.state ?? "unknown"}`)}</p>
+                    </EnvReadout>
+                    {failure && <Failure code={failure} t={t} />}
                 </fieldset>;
             })}
-            <p>{t("realtime.save_help")}</p>
-            <button type="submit" disabled={!dirty}>{t("realtime.save")}</button>
+            <fieldset>
+                <legend>{t("realtime.vocabulary")}</legend>
+                <Description text={t("realtime.vocabulary_help")} />
+                <label className={styles.checkLabel}><input type="checkbox" disabled={saving} checked={vocabulary.builtin !== false}
+                    onChange={event => updateVocabulary({ builtin: event.target.checked })} />{t("realtime.vocabulary_builtin")}</label>
+                <ul aria-label={t("realtime.vocabulary_user")}>
+                    {vocabulary.terms.map(row => <li key={row}>{row} <button type="button" disabled={saving}
+                        aria-label={t("realtime.vocabulary_remove", { term: row })}
+                        onClick={() => updateVocabulary({ terms: vocabulary.terms.filter(other => other !== row) })}>{t("realtime.vocabulary_remove_short")}</button></li>)}
+                </ul>
+                <label>{t("realtime.vocabulary_term")}<input readOnly={saving} value={newTerm} maxLength={320} spellCheck={false}
+                    placeholder="VRChat=ブイアールチャット" onChange={event => setNewTerm(event.target.value)} /></label>
+                <button type="button" disabled={saving || !canAdd} onClick={() => {
+                    updateVocabulary({ terms: [...vocabulary.terms, term] }); setNewTerm("");
+                }}>{t("realtime.vocabulary_add")}</button>
+            </fieldset>
+            <Description text={t("realtime.save_help")} />
+            <button type="submit" disabled={saving || !dirty}>{t("realtime.save")}</button>
         </form>}
-        {error && <p role="alert">{error}</p>}
+        {form.navigationDialog}
+        {error && <Failure code={error} t={t} />}
     </section>;
 };

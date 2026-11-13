@@ -10,9 +10,15 @@ import sys
 import traceback
 import logging
 import threading
+import time
+from collections import OrderedDict
 from logging.handlers import RotatingFileHandler
 
 import requests
+import startup_timing
+from runtime_paths import limit_openmp_spinning
+from models.network_policy import redact_urls
+from models.diagnostics import exception_provider, redact_diagnostic_text
 import ipaddress
 import socket
 
@@ -71,6 +77,9 @@ _registerBundledCudaLibraries()
 # 警告は import 時に出てしまうため。
 os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
 
+# Also before the first ctranslate2 import, for the same reason.
+limit_openmp_spinning()
+
 # Optional runtime dependencies. `None` fallback lets non-GPU / no-ctranslate2
 # environments keep the app running with reduced feature set.
 try:
@@ -85,7 +94,6 @@ except Exception:
     def _ct2_get_cuda_device_count() -> int:  # type: ignore
         return 0
 
-_WEIGHT_VERIFIED_MARKER_NAME = ".weight_verified.json"
 
 # stdout は Tauri 側が読み取る IPC チャンネルとして使われており、
 # printLog/printResponse は複数スレッド (mainloop の worker 群、
@@ -98,21 +106,55 @@ _WEIGHT_VERIFIED_MARKER_NAME = ".weight_verified.json"
 _stdout_write_lock = threading.Lock()
 
 
-def _writeStdoutLine(line: str) -> bool:
-    """flush 付きで 1 行 stdout に書き込む。呼び出し元 (専用の書き込み
-    スレッド、下記参照) には例外を伝播させず、ログにだけ記録する。
-
-    戻り値は成功したかどうか (フェーズ3項目18: 呼び出し元が連続失敗を
-    数えてフロントエンド消失を検知するために使う)。
-    """
+def _logStdoutTransport(message: str) -> None:
+    """輸送自体の診断は error.log だけへ。失敗しても stdout に戻さない。"""
+    global error_logger
     try:
-        with _stdout_write_lock:
-            sys.stdout.write(line + "\n")
-            sys.stdout.flush()
-        return True
+        if error_logger is None:
+            error_logger = setupLogger("error", "error.log", logging.ERROR)
+        error_logger.error(message)
     except Exception:
-        errorLogging()
-        return False
+        pass
+
+
+_STDOUT_WRITE_ATTEMPTS = 3
+_stdout_needs_separator = False
+
+
+def _writeStdoutLine(line: str) -> bool:
+    """一時的な OSError は同じ行を最大3回試す。要求の処理は再実行しない。
+
+    write/flush の例外では途中まで出た可能性がある。次の試行・次の行の
+    前に改行を flush し、断片と次の JSON を連結しない。改行の失敗も
+    試行回数に含める。改行済みの行で flush が失敗した場合の重複は、
+    受信確認のない現行プロトコルでは判別できない。
+    """
+    global _stdout_needs_separator
+
+    def write(text):
+        count = sys.stdout.write(text)
+        if count is not None and count != len(text):
+            raise OSError("short stdout write")
+        sys.stdout.flush()
+
+    with _stdout_write_lock:
+        for attempt in range(_STDOUT_WRITE_ATTEMPTS):
+            try:
+                if _stdout_needs_separator:
+                    write("\n")
+                    _stdout_needs_separator = False
+                write(line + "\n")
+                return True
+            except Exception as exc:
+                _stdout_needs_separator = True
+                # 例外の本文には出力内容が含まれ得るため、型と errno だけ残す。
+                _logStdoutTransport(
+                    f"stdout write failed: attempt={attempt + 1} "
+                    f"type={type(exc).__name__} errno={getattr(exc, 'errno', None)}"
+                )
+                if not isinstance(exc, OSError) or isinstance(exc, BrokenPipeError):
+                    break
+    return False
 
 
 # --- stdout 専用書き込みスレッド (フェーズ3項目18) ---
@@ -127,33 +169,162 @@ def _writeStdoutLine(line: str) -> bool:
 # (freeze_trace.log 2026-08-27、35秒フリーズで実際に確認済み)。
 #
 # 書き込み自体を専用スレッド1本に閉じ込め、呼び出し元は「キューに積む」
-# だけにすることでこの連鎖を断つ。printResponse (実際のエンドポイント
-# 応答) は無制限キューに積み絶対に取りこぼさない。printLog (診断ログ)
-# は有界キューにし、あふれたら古いものから捨てる (診断用途なので
-# 欠落しても機能に影響しない)。
-#
-# NOTE: 「例外を出さずに書き込みが永久にブロックし続ける」ケース
-# (パイプが読まれずに埋まる場合) はこの実装では検知できない
-# (連続失敗カウンタは書き込みが実際に失敗して初めて進む)。実際に
-# freeze_trace.log で観測された障害は全スレッドのロック待ち連鎖であり、
-# それはこの分離だけで解消する。無応答のままブロックし続けるケースへの
-# 対応は、書き込みスレッドの進捗を外部から監視する別の仕組みが必要な
-# ため、別項目として切り出す方針とした。
+# だけにすることでこの連鎖を断つ。応答と確定通知は上限なしで保持し、
+# 許可した状態通知だけを集約する。独立した監視スレッドが詰まりを記録する。
+# 診断ログは古いものから捨てる200件のキューを維持する。
 _STDOUT_LOG_QUEUE_MAXSIZE = 200
+_STDOUT_REPLACEABLE_MAX_KEYS = 64
+_STDOUT_CAPTION_TERMINAL_MAX_KEYS = 256
+_STDOUT_STALL_SECONDS = 20.0
 _MAX_CONSECUTIVE_STDOUT_FAILURES = 50
-# ログが無い間、応答キューと停止フラグを再確認する間隔。
-# queue.Queue.get(timeout=...) は条件変数によるブロッキング待ちであり
-# ビジーループではないため、短くしてもCPU負荷はほぼ増えない。短いほど
-# 「ログだけが流れていて応答が来ていない」状況での応答の検知遅延と、
-# stopStdoutWriter() の反映遅延の両方が縮む。
-_LOG_QUEUE_POLL_TIMEOUT_SECONDS = 0.02
 
-_stdout_response_queue: "queue.Queue" = queue.Queue()
+
+class _StdoutResponseQueue:
+    """呼び出し元が _stdout_writer_condition で保護する順序付きバッファ。
+
+    集約した値は新しい投入位置へ移す。これにより開始応答を追い越さず、
+    残った行同士の順序も変えない。異なる字幕行などは互いの代替にならない。
+    64キーを超える新規キーは通常の行として保持し、勝手に捨てない。
+    """
+    def __init__(self):
+        self._lines = OrderedDict()
+        self._replaceable = {}
+        self._terminal = OrderedDict()
+        self._pending_terminals = {}
+        self._sequence = 0
+
+    def put(self, line, replaceable_key=None, terminal_key=None):
+        if terminal_key is not None:
+            previous = self._replaceable.pop(terminal_key, None)
+            if previous is not None:
+                del self._lines[previous]
+            self._pending_terminals[terminal_key] = self._pending_terminals.get(terminal_key, 0) + 1
+        if replaceable_key is not None:
+            if replaceable_key in self._terminal or replaceable_key in self._pending_terminals:
+                return  # 確定済み字幕の遅い partial は表示を巻き戻さない。
+            previous = self._replaceable.pop(replaceable_key, None)
+            if previous is not None:
+                del self._lines[previous]
+            elif len(self._replaceable) >= _STDOUT_REPLACEABLE_MAX_KEYS:
+                replaceable_key = None  # 別の行を捨てるより、集約を諦める。
+        self._sequence += 1
+        self._lines[self._sequence] = (line, replaceable_key, terminal_key)
+        if replaceable_key is not None:
+            self._replaceable[replaceable_key] = self._sequence
+
+    def get_nowait(self):
+        if not self._lines:
+            raise queue.Empty
+        _, (line, key, terminal_key) = self._lines.popitem(last=False)
+        if key is not None:
+            del self._replaceable[key]
+        if terminal_key is not None:
+            self._pending_terminals[terminal_key] -= 1
+            if not self._pending_terminals[terminal_key]:
+                del self._pending_terminals[terminal_key]
+            # 待機中の確定行はすべて保護。取り出した履歴だけを字幕生成側と同じ256件にする。
+            self._terminal[terminal_key] = None
+            self._terminal.move_to_end(terminal_key)
+            if len(self._terminal) > _STDOUT_CAPTION_TERMINAL_MAX_KEYS:
+                self._terminal.popitem(last=False)
+        return line
+
+    def qsize(self):
+        return len(self._lines)
+
+    def empty(self):
+        return not self._lines
+
+
+def _stdoutDeliveryKeys(status, endpoint, result):
+    """通知だけの許可リスト。要求の応答には呼ばない。不明な形は保持する。"""
+    if status != 200:
+        return None, None
+    if endpoint in ("/run/check_mic_volume", "/run/check_speaker_volume"):
+        if type(result) in (int, float):
+            return (endpoint,), None  # useVolume は現在値を置き換えるだけ。
+    elif endpoint == "/run/vr_panel_pointer":
+        if result is None or (isinstance(result, dict)
+                and all(type(result.get(axis)) in (int, float) for axis in ("x", "y"))):
+            return (endpoint,), None  # hover 表示の座標。クリックは別経路。
+    elif endpoint in ("/run/download_progress_ctranslate2_weight", "/run/download_progress_whisper_weight"):
+        if (isinstance(result, dict) and isinstance(result.get("weight_type"), str)
+                and 0 < len(result["weight_type"]) <= 256
+                and type(result.get("progress")) in (int, float) and 0 <= result["progress"] <= 1):
+            return (endpoint, result["weight_type"]), None  # 完了処理は downloaded 通知。
+    elif endpoint == "/run/realtime_caption" and isinstance(result, dict):
+        if (result.get("source") in ("mic", "speaker")
+                and type(result.get("generation")) is int and result["generation"] >= 0
+                and isinstance(result.get("namespace"), str) and 0 < len(result["namespace"]) <= 128
+                and isinstance(result.get("item_id"), str) and 0 < len(result["item_id"]) <= 256
+                and type(result.get("revision")) is int and result["revision"] >= 1
+                and (isinstance(result.get("text"), str) or result.get("state") == "outcome")):
+            key = (endpoint, result["source"], result["generation"], result["namespace"], result["item_id"])
+            if result.get("state") == "partial" and result["text"].strip():
+                return key, None  # 同じ字幕行の全文。空文字は UI の retire 操作なので保持。
+            if result.get("state") in ("final", "translated", "discarded", "outcome"):
+                return None, key
+    return None, None
+
+
+_stdout_response_queue = _StdoutResponseQueue()
 _stdout_log_queue: "queue.Queue" = queue.Queue(maxsize=_STDOUT_LOG_QUEUE_MAXSIZE)
 _stdout_writer_thread: Optional[threading.Thread] = None
+_stdout_monitor_thread: Optional[threading.Thread] = None
 _stdout_writer_start_lock = threading.Lock()
 _stdout_writer_stop_event = threading.Event()
+# 状態の更新は同じロックで保護し、起こす相手だけ条件変数で分ける。
+_stdout_state_lock = threading.RLock()
+_stdout_writer_condition = threading.Condition(_stdout_state_lock)
+_stdout_monitor_condition = threading.Condition(_stdout_state_lock)
+_stdout_monitor_deadline: Optional[float] = None
+_stdout_stalled_at: Optional[int] = None
+_stdout_pending_since: Optional[float] = None
+_stdout_in_flight = False
+_stdout_completed_lines = 0
+_stdout_lost_lines = 0
 _on_frontend_lost: Optional[Callable[[], None]] = None
+
+
+def _stdoutBacklogCounts():
+    replaceable = len(_stdout_response_queue._replaceable)
+    return (f"reliable={_stdout_response_queue.qsize() - replaceable} "
+            f"replaceable={replaceable} logs={_stdout_log_queue.qsize()} "
+            f"in_flight={int(_stdout_in_flight)} lost_lines={_stdout_lost_lines}")
+
+
+def _stdoutMonitorLoop() -> None:
+    """専用の条件変数で期限まで眠り、20秒進捗がなければ1回記録する。"""
+    global _stdout_monitor_deadline, _stdout_stalled_at
+    while not _stdout_writer_stop_event.is_set():
+        with _stdout_monitor_condition:
+            if _stdout_writer_stop_event.is_set():
+                return
+            if _stdout_stalled_at is not None and _stdout_completed_lines != _stdout_stalled_at:
+                message = "stdout recovered: " + _stdoutBacklogCounts()
+                _stdout_stalled_at = None
+                _stdout_monitor_deadline = (None if _stdout_pending_since is None
+                                            else _stdout_pending_since + _STDOUT_STALL_SECONDS)
+            elif _stdout_stalled_at is not None or _stdout_monitor_deadline is None:
+                _stdout_monitor_condition.wait()
+                continue
+            else:
+                remaining = _stdout_monitor_deadline - time.monotonic()
+                if remaining > 0:
+                    _stdout_monitor_condition.wait(remaining)
+                    continue
+                if _stdout_pending_since is None:
+                    _stdout_monitor_deadline = None
+                    continue
+                # 正常な完了は時刻だけ更新する。期限が来てから最新の進捗を読む。
+                _stdout_monitor_deadline = _stdout_pending_since + _STDOUT_STALL_SECONDS
+                if _stdout_monitor_deadline > time.monotonic():
+                    continue
+                _stdout_stalled_at = _stdout_completed_lines
+                _stdout_monitor_deadline = None
+                message = f"stdout stalled: threshold_seconds={_STDOUT_STALL_SECONDS} " + _stdoutBacklogCounts()
+        # ディスク書き込み中は投入側のロックを持たない。停止・再送はしない。
+        _logStdoutTransport(message)
 
 
 def setFrontendLostCallback(callback: Optional[Callable[[], None]]) -> None:
@@ -167,35 +338,52 @@ def setFrontendLostCallback(callback: Optional[Callable[[], None]]) -> None:
 
 
 def _stdoutWriterLoop() -> None:
+    global _stdout_pending_since, _stdout_in_flight, _stdout_completed_lines, _stdout_lost_lines
     consecutive_failures = 0
     while not _stdout_writer_stop_event.is_set():
-        # 応答キューを先に (ブロックせず) 確認し、優先して処理する。
-        # 無ければログキューを短いタイムアウト付きで待つ。もし逆に
-        # 応答キューを毎回 get(timeout=...) で待ってしまうと、ログだけが
-        # 溜まっている状況でも1件処理するごとにこのタイムアウト分の
-        # 遅延が入り、ログのスループットが不必要に制限されてしまう
-        # (energy メーターだけで秒15回程度 printLog が呼ばれるため、
-        # 実際にテストでタイムアウトとして検出された)。
-        try:
-            line = _stdout_response_queue.get_nowait()
-        except queue.Empty:
+        # 両キューへの投入と停止を同じ条件変数で通知する。
+        # 空の確認から待機までをロックで保護し、通知の取りこぼしを防ぐ。
+        # 起床後も応答を先に取り出す。実際の書き込み中はロックを離す。
+        with _stdout_writer_condition:
+            _stdout_writer_condition.wait_for(
+                lambda: _stdout_writer_stop_event.is_set()
+                or not _stdout_response_queue.empty()
+                or not _stdout_log_queue.empty()
+            )
+            if _stdout_writer_stop_event.is_set():
+                return
             try:
-                line = _stdout_log_queue.get(timeout=_LOG_QUEUE_POLL_TIMEOUT_SECONDS)
+                line = _stdout_response_queue.get_nowait()
             except queue.Empty:
-                continue
+                line = _stdout_log_queue.get_nowait()
+            _stdout_in_flight = True
 
-        if _writeStdoutLine(line):
+        success = _writeStdoutLine(line)
+        with _stdout_writer_condition:
+            _stdout_in_flight = False
+            if success:
+                _stdout_completed_lines += 1
+                _stdout_pending_since = time.monotonic()
+                if _stdout_stalled_at is not None and _stdout_completed_lines == _stdout_stalled_at + 1:
+                    _stdout_monitor_condition.notify()  # 詰まりの報告後、最初の成功だけ復旧を通知。
+            else:
+                _stdout_lost_lines += 1
+            if _stdout_response_queue.empty() and _stdout_log_queue.empty():
+                _stdout_pending_since = None
+        if success:
             consecutive_failures = 0
             continue
 
         consecutive_failures += 1
+        # 次の行の成功で連続失敗は戻すが、欠落の累計と記録は消さない。
+        _logStdoutTransport(f"stdout line lost: lost_lines={_stdout_lost_lines} consecutive_failures={consecutive_failures}")
         if consecutive_failures >= _MAX_CONSECUTIVE_STDOUT_FAILURES:
             callback = _on_frontend_lost
             if callback is not None:
                 try:
                     callback()
                 except Exception:
-                    errorLogging()
+                    _logStdoutTransport("stdout frontend-lost callback failed")
             else:
                 os._exit(1)
             return  # コールバック指定時は書き込みスレッドを終了する
@@ -207,7 +395,7 @@ def _ensureStdoutWriterStarted() -> None:
     # 書き込みスレッドが2本立ち上がりうる (直そうとしている「複数スレッドが
     # 同時に stdout へ書き込む」問題の再発になる)。起動処理自体をロックで
     # 直列化する。
-    global _stdout_writer_thread
+    global _stdout_writer_thread, _stdout_monitor_thread
     with _stdout_writer_start_lock:
         if _stdout_writer_thread is not None and _stdout_writer_thread.is_alive():
             return
@@ -216,18 +404,42 @@ def _ensureStdoutWriterStarted() -> None:
             target=_stdoutWriterLoop, name="StdoutWriter", daemon=True
         )
         _stdout_writer_thread.start()
+        if _stdout_monitor_thread is None or not _stdout_monitor_thread.is_alive():
+            _stdout_monitor_thread = threading.Thread(
+                target=_stdoutMonitorLoop, name="StdoutMonitor", daemon=True
+            )
+            _stdout_monitor_thread.start()
 
 
 def stopStdoutWriter() -> None:
     """通常のシャットダウン時に書き込みスレッドを止める。デーモンスレッド
     なのでプロセス終了自体はこれを呼ばなくてもブロックしないが、
     行儀よく止めておく。"""
-    _stdout_writer_stop_event.set()
+    with _stdout_writer_condition:
+        _stdout_writer_stop_event.set()
+        _stdout_writer_condition.notify()
+        _stdout_monitor_condition.notify()
 
 
-def _enqueueResponseLine(line: str) -> None:
+def _markStdoutPending() -> None:
+    """共有ロック内で呼ぶ。監視の期限が未設定なら、最初の投入だけ通知する。"""
+    global _stdout_pending_since, _stdout_monitor_deadline
+    if _stdout_pending_since is None:
+        _stdout_pending_since = time.monotonic()
+        if _stdout_monitor_deadline is None and _stdout_stalled_at is None:
+            # 一度セットした期限は、途中でキューが空になっても監視側まで維持する。
+            # すぐ書けるメーターでも、空→投入のたびに監視を起こさないため。
+            _stdout_monitor_deadline = _stdout_pending_since + _STDOUT_STALL_SECONDS
+            _stdout_monitor_condition.notify()
+
+
+def _enqueueResponseLine(line: str, replaceable_key=None, terminal_key=None) -> None:
     _ensureStdoutWriterStarted()
-    _stdout_response_queue.put(line)
+    with _stdout_writer_condition:
+        _stdout_response_queue.put(line, replaceable_key, terminal_key)
+        if not _stdout_response_queue.empty():
+            _markStdoutPending()
+        _stdout_writer_condition.notify()
 
 
 def putDroppingOldestOnFull(q: "queue.Queue", item: Any) -> bool:
@@ -260,62 +472,11 @@ def putDroppingOldestOnFull(q: "queue.Queue", item: Any) -> bool:
 
 def _enqueueLogLine(line: str) -> None:
     _ensureStdoutWriterStarted()
-    putDroppingOldestOnFull(_stdout_log_queue, line)
+    with _stdout_writer_condition:
+        putDroppingOldestOnFull(_stdout_log_queue, line)
+        _markStdoutPending()
+        _stdout_writer_condition.notify()
 
-
-def _collectWeightFileStats(root: str) -> Dict[str, Dict[str, float]]:
-    """Recursively collect {relative_path: {size, mtime}} for files under root.
-
-    mtime is rounded to avoid float round-trip mismatches after JSON (de)serialization.
-    """
-    stats: Dict[str, Dict[str, float]] = {}
-    for dirpath, _dirnames, filenames in os.walk(root):
-        for name in filenames:
-            if name == _WEIGHT_VERIFIED_MARKER_NAME:
-                continue
-            full_path = os.path.join(dirpath, name)
-            rel_path = os.path.relpath(full_path, root).replace("\\", "/")
-            try:
-                st = os.stat(full_path)
-                stats[rel_path] = {"size": st.st_size, "mtime": round(st.st_mtime, 3)}
-            except OSError:
-                continue
-    return stats
-
-
-def isWeightVerifiedCache(root: str) -> bool:
-    """Return True if a weight directory's files exactly match a previously
-    recorded "verified" snapshot (same file set, sizes, and mtimes).
-
-    This lets callers skip an expensive full model load to re-verify weights
-    that haven't changed since the last successful load-based verification.
-    Any change (missing marker, added/removed/modified file) invalidates the
-    cache and forces a real verification.
-    """
-    marker_path = os.path.join(root, _WEIGHT_VERIFIED_MARKER_NAME)
-    if not os.path.isfile(marker_path):
-        return False
-    try:
-        with open(marker_path, "r", encoding="utf-8") as f:
-            recorded = json.load(f).get("verified_files", {})
-    except Exception:
-        return False
-    if not recorded:
-        return False
-    return _collectWeightFileStats(root) == recorded
-
-
-def writeWeightVerifiedCache(root: str) -> None:
-    """Record the current file stats under root as a verified snapshot."""
-    try:
-        stats = _collectWeightFileStats(root)
-        if not stats:
-            return
-        marker_path = os.path.join(root, _WEIGHT_VERIFIED_MARKER_NAME)
-        with open(marker_path, "w", encoding="utf-8") as f:
-            json.dump({"verified_files": stats}, f)
-    except Exception:
-        pass
 
 def validateDictStructure(data: dict, structure: dict) -> bool:
     """
@@ -352,16 +513,26 @@ def validateDictStructure(data: dict, structure: dict) -> bool:
                 return False
     return True
 
-def isConnectedNetwork(url="https://www.google.com", timeout=3) -> bool:
-    """Quick network connectivity check by requesting `url`.
+def isConnectedNetwork(timeout=3) -> bool:
+    """Probe only the pinned download origin, when a consented download is due."""
+    from models.model_downloads.transport import probe_download_host
+    return probe_download_host(timeout=timeout)
 
-    Returns True when a 200 response is returned within `timeout` seconds.
-    """
-    try:
-        response = requests.get(url, timeout=timeout)
-        return response.status_code == 200
-    except requests.RequestException:
+def isValidPort(port) -> bool:
+    """Network settings require an exact integer, never bool or coercion."""
+    return type(port) is int and 1 <= port <= 65535
+
+
+def isValidWebSocketHost(host) -> bool:
+    """WebSocket and OBS share an IPv4-only bind and URL contract."""
+    if not isinstance(host, str):
         return False
+    try:
+        address = ipaddress.IPv4Address(host)
+        return not address.is_unspecified
+    except ValueError:
+        return False
+
 
 def isAvailableWebSocketServer(host: str, port: int) -> bool:
     """Return True if the given host/port appear available for binding.
@@ -369,6 +540,8 @@ def isAvailableWebSocketServer(host: str, port: int) -> bool:
     Note: This attempts to bind a TCP socket to the address. If bind
     succeeds the function returns True (meaning the address was available).
     """
+    if not isValidWebSocketHost(host) or not isValidPort(port):
+        return False
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as chk:
             chk.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -565,6 +738,30 @@ def diagnosticLogPath(filename: str) -> str:
     return os.path.join(logs, filename)
 
 
+# faulthandler writes stack dumps straight to an open file, so the 10 MB cap of
+# the logging handlers does not cover crash_trace.log and freeze_trace.log, and
+# each freeze, crash or resume from sleep appended to them for good. Once over
+# the cap, a trace file keeps only its newest part when the sidecar starts.
+_TRACE_LOG_LIMIT = 10 * 1024 * 1024
+_TRACE_LOG_KEEP = 1024 * 1024
+
+
+def openTraceLog(filename: str, limit: int = _TRACE_LOG_LIMIT, keep: int = _TRACE_LOG_KEEP):
+    """Return the path and an append handle of a faulthandler trace file."""
+    path = diagnosticLogPath(filename)
+    try:
+        if os.path.getsize(path) > limit:
+            with open(path, "rb") as source:
+                source.seek(-keep, os.SEEK_END)
+                tail = source.read()
+            newline = tail.find(b"\n")  # start at a whole line
+            with open(path, "wb") as target:
+                target.write(tail[newline + 1:] if newline >= 0 else tail)
+    except OSError:
+        pass  # missing, or unreadable: appending below still works or fails as before
+    return path, open(path, "a", encoding="utf-8")
+
+
 def removeLog() -> None:
     """Truncate the process log file (process.log) if present."""
     try:
@@ -587,6 +784,37 @@ class TruncatingFileHandler(RotatingFileHandler):
             pass
         if not self.delay:
             self.stream = self._open()
+
+class ConversationLogger:
+    """会話ログの開始・停止・書き込みを同じロックで直列化する窓口。"""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._logger = logging.getLogger("log")
+        self._logger.disabled = True
+
+    def _stop(self):
+        self._logger.disabled = True
+        for handler in self._logger.handlers[:]:
+            self._logger.removeHandler(handler)
+            handler.close()
+
+    def start(self, log_file: str):
+        with self._lock:
+            # 同じ秒で再開した場合も含め、古いハンドラーを残さない。
+            self._stop()
+            setupLogger("log", log_file)
+            self._logger.disabled = False
+
+    def stop(self):
+        with self._lock:
+            self._stop()
+
+    def info(self, message, *args, **kwargs):
+        with self._lock:
+            # 停止後も窓口を残す。機能フラグの確認直後に停止されても安全。
+            self._logger.info(message, *args, **kwargs)
+
 
 def setupLogger(name: str, log_file: str, level: int = logging.INFO) -> logging.Logger:
     """
@@ -661,6 +889,27 @@ def _maskSensitiveData(data: Any) -> Any:
     return data
 
 
+# Conversation text (chat, transcripts, translations) reaches only the
+# explicitly enabled conversation logger, never the always-on diagnostic log.
+_CONVERSATION_ENDPOINTS = frozenset({
+    "/run/send_message_box", "/run/transcription_send_mic_message",
+    "/run/transcription_receive_speaker_message", "/run/transcription_ocr_message",
+})
+_CONVERSATION_KEYS = frozenset({"message", "original", "translation", "translations", "transliteration", "text"})
+
+
+def _redactConversation(data: Any) -> Any:
+    if isinstance(data, dict):
+        return {
+            key: ("***CONVERSATION***" if key in _CONVERSATION_KEYS and value not in (None, "", [], {})
+                  else _redactConversation(value))
+            for key, value in data.items()
+        }
+    if isinstance(data, list):
+        return [_redactConversation(item) for item in data]
+    return data
+
+
 def printLog(log: str, data: Any = None) -> None:
     """Log and print a structured process log message."""
     global process_logger
@@ -668,22 +917,63 @@ def printLog(log: str, data: Any = None) -> None:
         process_logger = setupLogger("process", "process.log", logging.INFO)
 
     logged_data = _maskSensitiveValue(data) if _isSensitiveEndpoint(log) else data
+    if log in _CONVERSATION_ENDPOINTS:
+        logged_data = _redactConversation(logged_data)
     response = {
         "status": 348,
-        "log": log,
-        "data": str(logged_data),
+        "log": redact_urls(log),
+        "data": str(redact_urls(logged_data)),
     }
     process_logger.info(response)
     serialized = json.dumps(response)
     _enqueueLogLine(serialized)
+    startup_timing.note(log)
 
 # High-rate pointer data and private captions are IPC only. Final transcript
 # persistence is handled by the explicitly enabled message logger, not this
 # always-on process diagnostic log.
 _UNLOGGED_ENDPOINTS = {"/run/vr_panel_pointer", "/run/realtime_caption", "/run/word_filter"}
 
+# State the UI polls every 0.5-1 s (src-ui/logics/useReceiveRoutes.js). Logging
+# each request, result and response added about 12 MB an hour to process.log
+# even while idle; the file is truncated at 10 MB, so the polls pushed out the
+# startup and error records. Successful polls are not logged; failures are.
+POLLED_ENDPOINTS = frozenset({
+    "/get/data/ocr_capture_status",
+    "/get/data/voice_status",
+    "/get/data/voice_route",
+    "/get/data/direct_voice_state",
+    "/get/data/speech_server_state",
+    "/get/data/realtime_asr_state",
+    "/get/data/model_download_state",
+    "/get/data/model_download_hardware",
+    "/get/data/vc_runtime_state",
+})
 
-def printResponse(status: int, endpoint: str, result: Any = None) -> None:
+
+def isQuietPoll(endpoint: Any, status: int = 200) -> bool:
+    """A successful answer to a polled state request, or a volume meter sample, which is not logged."""
+    return status == 200 and (endpoint in POLLED_ENDPOINTS or endpoint in _METER_ENDPOINTS)
+
+
+# The volume meters push one value per audio read (sample rate / 1024 a second
+# per meter) while the settings page checks a device: logging each one filled
+# the 10 MB process.log in about 17 minutes with a 48 kHz microphone.
+_METER_ENDPOINTS = frozenset({"/run/check_mic_volume", "/run/check_speaker_volume"})
+
+
+def _shapeOf(value: Any, depth: int = 0) -> Any:
+    """The types in a value, without the values themselves (for diagnostics)."""
+    if depth >= 4:
+        return "..."
+    if isinstance(value, dict):
+        return {str(key): _shapeOf(item, depth + 1) for key, item in list(value.items())[:20]}
+    if isinstance(value, (list, tuple)):
+        return [_shapeOf(item, depth + 1) for item in list(value)[:5]] + ([f"... {len(value)} items"] if len(value) > 5 else [])
+    return type(value).__name__
+
+
+def printResponse(status: int, endpoint: str, result: Any = None, *, notification: bool = False) -> None:
     """Log and print a structured response object.
 
     If JSON serialization fails, record the error and emit a generic error payload.
@@ -706,16 +996,20 @@ def printResponse(status: int, endpoint: str, result: Any = None) -> None:
         logged_result = _maskSensitiveValue(result)
     else:
         logged_result = _maskSensitiveData(result)
-    logged_response = {**response, "result": logged_result}
-    if endpoint not in _UNLOGGED_ENDPOINTS:
+    if endpoint in _CONVERSATION_ENDPOINTS:
+        logged_result = _redactConversation(logged_result)
+    logged_response = {**response, "result": redact_urls(logged_result)}
+    if endpoint not in _UNLOGGED_ENDPOINTS and not isQuietPoll(endpoint, status):
         process_logger.info(logged_response)  # Log the (possibly masked) response, never the raw secret
 
     try:
-        serialized_response = json.dumps(response)
+        serialized_response = json.dumps(response, allow_nan=False)
     except Exception as e:
         errorLogging()  # Log the full traceback of the exception
         try:
-            process_logger.error(f"Problematic response object before json.dumps: {response}")
+            # Only the shape: the raw object can hold captions or keys that the
+            # normal path above masks or never writes.
+            process_logger.error(f"Response for {endpoint} could not be serialized; shape: {_shapeOf(result)}")
             process_logger.error(f"Exception during json.dumps: {e}")
         except Exception:
             pass
@@ -724,25 +1018,42 @@ def printResponse(status: int, endpoint: str, result: Any = None) -> None:
             "status": 500,
             "endpoint": endpoint,
             "result": {"error": "Failed to serialize response", "details": str(e)},
-        })
+        }, allow_nan=False)
         _enqueueResponseLine(error_json)
     else:
-        _enqueueResponseLine(serialized_response)
+        if notification:
+            _enqueueResponseLine(serialized_response, *_stdoutDeliveryKeys(status, endpoint, result))
+        else:
+            _enqueueResponseLine(serialized_response)
 
 error_logger: Optional[logging.Logger] = None
 
 
-def errorLogging() -> None:
-    """Log the current exception traceback to the error logger."""
+def errorLogging(*, provider=None, status=None) -> None:
+    """Keep redacted general tracebacks; omit bodies/chains for provider errors."""
     global error_logger
-    if error_logger is None:
-        error_logger = setupLogger("error", "error.log", logging.ERROR)
-
+    exc = sys.exc_info()[1]
+    provider = provider if provider is not None else exception_provider(exc)
+    if provider is None:
+        record = redact_diagnostic_text(traceback.format_exc())
+    else:
+        if exc is not None:
+            exc._vrct_provider = provider
+        code = status if status is not None else getattr(exc, "status_code", None)
+        if code is None:
+            code = getattr(getattr(exc, "response", None), "status_code", None)
+        record = {"error": type(exc).__name__ if exc else "ProviderError", "provider": provider}
+        if type(code) is int:
+            record["status"] = code
+        if exc is not None:
+            record["frames"] = [f"{os.path.basename(frame.filename)}:{frame.lineno}:{frame.name}"
+                                for frame in traceback.extract_tb(exc.__traceback__)]
     try:
-        error_logger.error(traceback.format_exc())
+        if error_logger is None:
+            error_logger = setupLogger("error", "error.log", logging.ERROR)
+        error_logger.error(record)
     except Exception:
-        # As a last resort, print the traceback to stdout
-        print(traceback.format_exc(), flush=True)
+        print(record if isinstance(record, str) else json.dumps(record), flush=True)
 
 if __name__ == "__main__":
     print(getComputeDeviceList())

@@ -41,11 +41,11 @@ class RootLease:
 def mark_owned(path, entry):
     data = dict(product='VRCT-VOX-model-download-v1', id=entry.id, revision=entry.revision,
                 files=[a.filename for a in entry.artifacts], directory=path.name)
-    with (path / 'owner.json').open('x') as out:
+    with (path / 'owner.json').open('x', encoding='utf-8') as out:
         json.dump(data, out); out.flush(); os.fsync(out.fileno())
 
 
-def recover_owned(root, entries):
+def recover_owned(root, entries, *, extra_files=()):
     """Caller holds RootLease. Never follow links or remove unrecognized content."""
     for path in root.glob('.partial-*'):
         if not re.fullmatch(r'\.partial-[0-9a-f]{32}', path.name) or not stat.S_ISDIR(path.lstat().st_mode):
@@ -54,13 +54,13 @@ def recover_owned(root, entries):
         try:
             if not stat.S_ISREG(marker.lstat().st_mode) or marker.stat().st_size > 4096:
                 continue
-            data = json.loads(marker.read_text())
+            data = json.loads(marker.read_text(encoding='utf-8'))
             entry = entries.get(data.get('id'))
             if (entry is None or data != dict(product='VRCT-VOX-model-download-v1', id=entry.id,
                     revision=entry.revision, files=[a.filename for a in entry.artifacts], directory=path.name)):
                 continue
             children = list(path.iterdir())
-            allowed = {'owner.json', 'receipt.json', *(a.filename for a in entry.artifacts)}
+            allowed = {'owner.json', 'receipt.json', *extra_files, *(a.filename for a in entry.artifacts)}
             if any(p.name not in allowed or not stat.S_ISREG(p.lstat().st_mode) for p in children):
                 continue
             for child in children: child.unlink()

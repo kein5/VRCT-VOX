@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""Linux onedir; resources are explicitly selected, never copy the OCR directory."""
+"""Linux onedir; resources are explicitly selected, never copy the OCR directory or OCR weights."""
 import os
 from pathlib import Path
 import sys
@@ -25,19 +25,28 @@ for source, destination in (
 # These packages load data/native libraries dynamically, outside static imports.
 for package in ('faster_whisper', 'openvr', 'glfw', 'sudachipy', 'sudachidict_core', 'sudachidict_full'):
     datas += collect_data_files(package)
+# RapidOCR reads its YAML config at start-up. Only that is collected: its bundled
+# weights are never shipped (filter_toc) and never loaded (explicit model paths).
+datas += collect_data_files('rapidocr', includes=['*.yaml'])
 binaries = collect_dynamic_libs('openvr') + collect_dynamic_libs('glfw')
 for package in ('ctranslate2', 'transformers', 'faster-whisper', 'huggingface-hub',
                 'tokenizers', 'safetensors', 'regex', 'requests', 'numpy',
                 'packaging', 'filelock', 'tqdm', 'pyyaml'):
     datas += copy_metadata(package)
 
-a = Analysis([str(root / 'src-python/mainloop.py')], pathex=[str(root / 'src-python')],
+# The PyAV stand-in comes first so its GPL x264/x265 libraries stay out (see the stub).
+a = Analysis([str(root / 'src-python/mainloop.py')], pathex=[str(root / 'packaging/pyinstaller-stubs'), str(root / 'src-python')],
     binaries=binaries, datas=datas,
     hiddenimports=['models.voice_conversion.router_worker',
-                   'faster_whisper.vad', 'cv2', 'models.ocr'],
+                   'faster_whisper.vad', 'cv2', 'models.ocr',
+                   'rapidocr', 'rapidocr.inference_engine.onnxruntime'],
     hookspath=[], hooksconfig={}, runtime_hooks=[],
-    excludes=['pandas', 'matplotlib', 'PyQt5', 'torch', 'tensorflow', 'rapidocr',
-              'windows_capture', 'pytest', 'ruff'], noarchive=False, optimize=0)
+    excludes=['pandas', 'matplotlib', 'PyQt5', 'torch', 'tensorflow',
+              'windows_capture', 'pytest', 'ruff'], noarchive=False, optimize=0,
+    # LGPL Python code stays as replaceable source files outside the PYZ archive.
+    # Transformers lists the folder next to each package's __file__ to build its lazy imports;
+    # inside the PYZ archive that listing fails and no tokenizer can be built (see backend.spec).
+    module_collection_mode={'zeroconf': 'py', 'bidi': 'py', 'transformers': 'py'})
 a.datas = filter_toc(a.datas)
 a.binaries = filter_toc(a.binaries)
 pyz = PYZ(a.pure)

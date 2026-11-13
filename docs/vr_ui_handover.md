@@ -24,7 +24,7 @@
 
 ```
 Tauri (src-tauri/src/lib.rs)
-  └─ "VRCT VR Panel" ウィンドウ (画面外 -10000,-10000 / vr.html / src-ui/views/vr/)
+  └─ "VRCT-VOX VR Panel" ウィンドウ (画面外 -10000,-10000 / vr.html / src-ui/views/vr/)
         ↑ 状態は VrPanelSyncController.jsx が全 atom を一方向に同期
 Python (src-python/models/overlay/)
   ├─ overlay.py        Overlay クラス (1 本の mainloop)
@@ -33,7 +33,7 @@ Python (src-python/models/overlay/)
   └─ overlay_tooltip.py 吹き出しの入力検証・世代marker・透明マスク (§19で追加)
 ```
 
-- VR 画面は **1 枚の画面外 WebView に全領域を並べて描き、1 回撮影して** `setOverlayTexture` を各オーバーレイ (log / launcher / popup / toolbar / tooltip) に渡し、`setOverlayTextureBounds` で切り出す。並びは `src-ui/views/vr/vr_layout.json` と `computeVrLayout` (overlay.py)。tooltipは非入力の別handle。既定atlasは1690×880。
+- VR 画面は **1 枚の画面外 WebView に全領域を並べて描き、1 回撮影して** `setOverlayTexture` を各オーバーレイ (log / launcher / popup / toolbar / tooltip) に渡し、`setOverlayTextureBounds` で切り出す。並びは `src-ui/views/vr/vr_layout.json` と `computeVrLayout` (overlay.py)。tooltipは非入力の別handle。既定atlasは1628×880。
 - VR ウィンドウは VR UI が **ON の間だけ** 作る（Tauri コマンド `set_vr_panel_window`、`VrPanelSyncController` から呼ぶ）。
 - 入力は WebView 内部の `Chrome_RenderWidgetHostHWND` へ PostMessage（OS のカーソルは動かさない）。
 
@@ -506,7 +506,7 @@ HTMLビルド **PASS、60 modules**。5言語×通常／反映中／設定中×�
 
 ### 描画・入力の契約
 
-- 共有atlasにtooltip領域 `[right_x, 760, 360, 120]` を予約し、最小atlasを1628×880へ変更。Python・既定JSON・Rustの初期寸法を一致させた（その後ランチャーが 952px 幅になり、atlas は 1690×880。Rust は `src-tauri/src/lib.rs` の `inner_size`）。新規の撮影スレッドや依存は追加していない。
+- 共有atlasにtooltip領域 `[right_x, 760, 360, 120]` を予約し、最小atlasを1628×880へ変更。Python・既定JSON・Rustの初期寸法を一致させた（その後ランチャーが左端のマークで 952px 幅になり atlas は 1690×880 になったが、マークを外して 880px・1628×880 に戻した。Rust は `src-tauri/src/lib.rs` の `inner_size`）。新規の撮影スレッドや依存は追加していない。
 - SteamVRの専用handle `VRCT_tooltip` を1つ追加。同じGL textureを共有し、対象ボタンの上12px相当／親の前4mmへ配置する。launcherとtoolbarの固定先・実寸へ追従。sort orderは70、pointerは100。入力／掴み／リサイズの候補に含めない。
 - `/run/vr_panel_tooltip` は `{epoch, revision, visible, region, button:[x,y,w,h], size:[360,body_h], arrow_x, mode}` を受ける。非表示は `{epoch,revision,visible:false}` のみ。modeはhover（既定）／focus。Controllerで検証し、Modelは重い初期化をせず転送、OverlayはQueueで所有スレッドへ渡す。既存endpointは維持。
 - epoch48bitとrevision32bitを80個の白黒4×8pxセルで描く。epochはOverlay内で単調増加、layoutの追加metadata `tooltip_epoch` で通知。bodyはy=8、高さ104px以内、下向き矢印6px。撮影画像のmarker一致を確認してから透明マスク／upload／bounds／位置を更新し表示する。markerは常時透明。古いWGC frameや同一rawの再利用に対応する。
@@ -670,3 +670,14 @@ epochは現在のOverlay生成時にrandom47bitで始まり、その同じinstan
 - 戻す限度 (15cm / 0.12〜1.0m) は、掴んで拡大縮小できる範囲 (0.05〜3.0m) より狭い。広げて放すと戻るのは意図どおりだが、掴み中に警告は出ない。違和感が出たら限度を調整する。
 - 掴んでいる・大きさを変えている・起動演出で飛ばしている間の依頼は、終わるまで待つ。吸い寄せ中の再依頼は続ける。手首 (コントローラ) が繋がっていないと位置を戻せないので、繋がるまで隠す。
 - 実機で確認する: 吸い寄せの動きの見え方、掴んで遠くへ置いて放したとき・ボタンで戻したときの両方、右手に付けていたときの戻り先（左手）。
+
+## 24. Linux での VR UI（2026-11-11・Claude Code）
+
+- **仕組み**: Wayland では、ウィンドウを画面外に置くことも、ほかのウィンドウを撮ることもできない。Tauri が VR画面の WebView を `GtkOffscreenWindow` へ移し（`src-tauri/src/vr_panel_surface.rs`）、描き直し（`damage-event`）のたびに画素を `$XDG_RUNTIME_DIR/vrct-vox/vr-panel-<pid>/frame` へ書く（33ms に1回まで）。バックエンドは `models/overlay/window_capture_linux.py` でそれを読み、ポインタの操作を同じ場所の `input.sock` へ送る。Tauri はそれを GDK のイベントにして WebKit へ渡すので、ホバーや押下の見た目も Windows と同じに出る。場所は起動時に決め、環境変数 `VRCT_VR_PANEL_DIR` でバックエンドへ渡す。関数の名前と戻り値は Windows の `window_capture.py` と同じで、overlay.py は OS で読み込む実装を切り替えるだけ。
+- **確定した罠**:
+  - `GtkOffscreenWindow` には OpenGL の描画先がない。WebKitGTK（2.54）は GPU で合成するページをここへ入れると、`GDK is not able to create a GL context` で**アプリごと**終了する。ハードウェアアクセラレーションの設定（`hardware-acceleration-policy`）を NEVER にしても、すでに動いている Web プロセスには効かない。Tauri はウィンドウを作ると同時に読み込みを始めるので、設定を変えたあとで Web プロセスを終了し、移してから読み込み直す（VR UI を ON にするたびに VR画面を2回読み込む）。
+  - Web プロセスの終了は、WebKit の WebDriver には「ページのクラッシュ」に見え、セッションが切れる。VR UI を ON にする試験は WebDriver を使えない。
+  - Unix ソケットのパスは107バイトまで。`$XDG_RUNTIME_DIR` の下に置く。
+  - 画像は表示倍率にかかわらず論理ピクセルで書く（並びの計算が論理ピクセルのため）。倍率が1でないディスプレイでは縮小されるので、文字がぼやける可能性がある（未確認）。
+- **試験**: ヘッドセットなしで `tests/platform/test_native_vr_ui.py` を実行する（`VRCT_TEST_NATIVE_GUI=1`、`VRCT_TEST_APP` に UI を埋め込んだビルド）。偽の SteamVR（`tools/fake_vr_site`）へ渡ったオーバーレイの画像を見て、偽のコントローラ（`control.json`。スティックの傾きは `stick`）で操作する。
+- **実機で確認が残る項目**: 実際の SteamVR（Linux）が OpenGL のテクスチャを受け取るか、ヘッドセットでの見え方と遅れ、表示倍率が1でないディスプレイ、GNOME・X11 のセッション、AppImage。

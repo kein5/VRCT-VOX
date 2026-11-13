@@ -1,9 +1,15 @@
 """
-テレメトリ（Aptabase）管理モジュール
+テレメトリ管理モジュール（VRCT-VOX 自身の受け側へ送る。本家の Aptabase は使わない）
 
 送信するイベントは 2 種類のみ:
     - app_started: 起動時、日次で 1 回のみ
     - error:       エラー発生時、error_code ごとに日次で 1 回のみ
+
+各イベントに付くのは、時刻（ISO 8601、UTC）、アプリの版、OS の種類と版、表示言語、PC の構成
+（CPU、メモリ、GPU とそのドライバの版。hardware.py）だけ（client.py）。
+送る内容は preview() で利用者に見せられる。送った内容は state に直近の分を残す。
+利用者がオフにしていれば何も送らない。最初の送信は、利用者にお知らせを見せたあとに限る
+（呼び出し側の controller が init を呼ぶ時点で保証する）。
 
 パブリック API を提供し、内部実装を隠蔽する。
 """
@@ -39,10 +45,14 @@ except ImportError:
     from models.telemetry.state import TelemetryState
     from models.telemetry.core import TelemetryCore
 
+from utils import printLog
+
 
 # _start_event_loop() がイベントループスレッドの起動を待つ上限
 # (バックエンドレビュー フェーズ4項目32)。
 _EVENT_LOOP_READY_TIMEOUT_SEC = 5.0
+# error の送信が、起動時の準備（ハードウェアの問い合わせと app_started の送信）を待つ上限。
+_START_WAIT_SEC = 30.0
 
 
 class Telemetry:
@@ -61,58 +71,91 @@ class Telemetry:
         self.core = TelemetryCore(self.state)
         self._loop = None
         self._loop_thread = None
+        self._lifecycle_lock = threading.RLock()
+        self._loop_stop = threading.Event()
+        self._loop_stop_logged = False
         self._init_called = False
+        self._ready = None
+        # このPCの構成を返す関数。None なら hardware.cached（同梱の speech.cpp に問い合わせる）。
+        self.hardware_source = None
         self._initialized = True
 
     # ---- event loop management ----
 
-    def _start_event_loop(self):
-        if self._loop_thread is not None and self._loop_thread.is_alive():
-            return
+    def _start_event_loop(self) -> bool:
+        with self._lifecycle_lock:
+            if self._loop_thread is not None and self._loop_thread.is_alive():
+                return not self._loop_stop.is_set() and self._loop is not None
 
-        # `while self._loop is None: pass` (busy-spin) だった箇所を
-        # threading.Event に置き換える(バックエンドレビュー フェーズ4
-        # 項目32)。busy-spinはCPU1コアを100%消費し続け、万一
-        # asyncio.new_event_loop()が失敗してself._loopが一生Noneのまま
-        # だと無限に回り続けていた。Event.wait(timeout=...)ならスリープ
-        # して待つため無駄なCPU消費が無く、タイムアウトで確実に戻る。
-        loop_ready = threading.Event()
+            self._loop = None
+            self._loop_stop.clear()
+            self._loop_stop_logged = False
+            loop_ready = threading.Event()
+            stop = self._loop_stop
 
-        def run_loop():
-            try:
-                self._loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(self._loop)
-            except Exception:
-                # self._loop は None のまま。以降 _run_async/_schedule_async
-                # 等の `if self._loop is None: return` ガードにより
-                # テレメトリは黙って無効化される (このモジュール全体の
-                # 「失敗しても本体機能に影響させない」方針に合わせる)。
-                # ここで return しないと、下の run_forever() が
-                # None.run_forever() で AttributeError になり、この
-                # バックグラウンドスレッドが未処理例外で落ちてしまう。
-                return
-            finally:
-                # 失敗時もwait()側を解放する(でなければタイムアウトまで
-                # 待たされた末に self._loop が None のまま、という分かり
-                # にくい状態になる)。
-                loop_ready.set()
-            self._loop.run_forever()
+            def run_loop():
+                loop = None
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    if stop.is_set():
+                        return
+                    self._loop = loop
+                    loop_ready.set()
+                    # stop may have arrived before the loop was published.
+                    # If it arrived after publication it also queued loop.stop.
+                    if not stop.is_set():
+                        loop.run_forever()
+                except Exception:
+                    pass  # Telemetry failure must not affect the application.
+                finally:
+                    loop_ready.set()
+                    if loop is not None:
+                        # 起動の準備と送信は呼び出し側を待たせずに進むので、止めた時点で
+                        # 終わっていないことがある。残したまま閉じると警告が stderr に出る。
+                        try:
+                            pending = asyncio.all_tasks(loop)
+                            for task in pending:
+                                task.cancel()
+                            if pending:
+                                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                        except Exception:
+                            pass
+                        loop.close()
 
-        self._loop_thread = threading.Thread(target=run_loop, daemon=True, name="telemetry_loop")
-        self._loop_thread.start()
-        loop_ready.wait(timeout=_EVENT_LOOP_READY_TIMEOUT_SEC)
+            self._loop_thread = threading.Thread(target=run_loop, daemon=True, name="telemetry_loop")
+            self._loop_thread.start()
+            if not loop_ready.wait(timeout=_EVENT_LOOP_READY_TIMEOUT_SEC):
+                # Don't let a late new_event_loop() publish an orphaned loop.
+                self._stop_event_loop(timeout=0)
+                return False
+            return self._loop is not None and not self._loop.is_closed() and not stop.is_set()
 
-    def _stop_event_loop(self, timeout: float = 5.0):
-        if self._loop is None:
-            return
-        self._loop.call_soon_threadsafe(self._loop.stop)
-        if self._loop_thread is not None:
-            self._loop_thread.join(timeout=timeout)
-        self._loop = None
-        self._loop_thread = None
+    def _stop_event_loop(self, timeout: float = 5.0) -> bool:
+        with self._lifecycle_lock:
+            self._loop_stop.set()
+            loop = self._loop
+            if loop is not None and not loop.is_closed():
+                try:
+                    loop.call_soon_threadsafe(loop.stop)
+                except RuntimeError:
+                    pass  # The worker closed its own loop concurrently.
+            thread = self._loop_thread
+            if thread is not None:
+                if thread is not threading.current_thread():
+                    thread.join(timeout=timeout)
+                if thread.is_alive():
+                    if not self._loop_stop_logged:
+                        self._loop_stop_logged = True
+                        printLog("Telemetry: loop stop timed out; restart deferred until the worker exits")
+                    return False
+            self._loop = None
+            self._loop_thread = None
+            return True
 
     def _run_async(self, coro):
-        if self._loop is None:
+        if self._loop is None or self._loop_stop.is_set():
+            coro.close()
             return
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         try:
@@ -121,7 +164,8 @@ class Telemetry:
             pass
 
     def _schedule_async(self, coro):
-        if self._loop is None:
+        if self._loop is None or self._loop_stop.is_set():
+            coro.close()
             return
         try:
             asyncio.run_coroutine_threadsafe(coro, self._loop)
@@ -130,45 +174,98 @@ class Telemetry:
 
     # ---- public API ----
 
-    def init(self, enabled: bool, app_version: str = "1.0.0", storage_path: Optional[str] = None):
+    def init(self, enabled: bool, app_version: str = "1.0.0", storage_path: Optional[str] = None, locale: str = ""):
         """テレメトリ初期化（冪等）。
 
         - 有効時のみイベントループを起動し、app_started を（その日未送信なら）送信する。
         - storage_path が指定されていれば、日次デデュープ用の永続 state ファイルとして使う。
+        - locale は表示言語（"ja" など）。イベントにはタグ（"ja-JP"）として付く。
         """
-        if storage_path:
-            self.state.set_storage_path(storage_path)
+        with self._lifecycle_lock:
+            if storage_path:
+                self.state.set_storage_path(storage_path)
 
-        if self._init_called:
+            if self._init_called:
+                self.state.set_enabled(enabled)
+                return
+
+            if enabled:
+                # TLS の準備は呼び出し側のスレッドで済ませる（テレメトリスレッドでは行わない）。
+                self.core.prepare()
+            if enabled and not self._start_event_loop():
+                self.state.set_enabled(False)
+                return
+            self._init_called = True
+            if enabled:
+                # 呼び出し側（起動処理）は待たせない。ハードウェアの問い合わせと最初の送信は
+                # ネットワークと子プロセスを使うので、テレメトリスレッドの側で進める。
+                # 有効にする前に積む: このあとに来る error の送信は、必ずこの準備のあとに並ぶ。
+                self._schedule_async(self._init_async(app_version, locale))
             self.state.set_enabled(enabled)
-            return
 
-        self._init_called = True
-        self.state.set_enabled(enabled)
-        if enabled:
-            self._start_event_loop()
-            self._run_async(self._init_async(app_version))
+    async def _init_async(self, app_version: str, locale: str = ""):
+        # 最初の await より前に置く。あとから積まれた error の送信はこれを待つ。
+        ready = self._ready = asyncio.Event()
+        try:
+            hardware = await asyncio.to_thread(self._hardware)
+            await self.core.start(app_version=app_version, locale=locale, hardware=hardware)
+            # Both operations take the state lock, also held during file I/O by
+            # synchronous callers. Even the read must stay off the event loop.
+            if await asyncio.to_thread(self.state.should_send_app_started_today):
+                await self.core.send_event("app_started")
+                await asyncio.to_thread(self.state.mark_app_started_sent_today)
+        except Exception:
+            pass  # Telemetry failure must not affect the application.
+        finally:
+            ready.set()
 
-    async def _init_async(self, app_version: str):
-        await self.core.start(app_version=app_version)
-        if self.state.should_send_app_started_today():
-            await self.core.send_event("app_started")
-            self.state.mark_app_started_sent_today()
+    def _hardware(self):
+        """このPCの構成（hardware.py）。読めなければ None。"""
+        try:
+            source = self.hardware_source
+            if source is None:
+                from . import hardware
+                source = hardware.cached
+            return source()
+        except Exception:
+            return None
+
+    async def _send_error(self, error_code: str):
+        ready = self._ready
+        try:
+            if ready is not None:
+                await asyncio.wait_for(ready.wait(), timeout=_START_WAIT_SEC)
+            await self.core.send_event("error", {"error_code": error_code})
+        except Exception:
+            pass  # Telemetry failure must not affect the application.
+
+    def preview(self, app_version: str, locale: str = "") -> dict:
+        """いま送るとしたら何が送られるかと、これまでに送った内容。
+
+        送信と同じ関数（client.build_event）で組み立てる。初期化の前でも、送信がオフでも答える。
+        """
+        result = self.core.preview(app_version, locale, self._hardware())
+        result["sent"] = self.state.sent()
+        return result
 
     def shutdown(self):
-        """テレメトリ終了。Aptabase クライアントを停止し、イベントループを閉じる。"""
-        try:
-            if self.state.is_enabled():
-                try:
-                    self._run_async(self._shutdown_async())
-                except Exception:
-                    pass
-            self._stop_event_loop(timeout=5.0)
-        except Exception:
-            pass
-        finally:
-            self.state.reset()
-            self._init_called = False
+        """テレメトリ終了。クライアントを停止し、イベントループを閉じる。"""
+        with self._lifecycle_lock:
+            try:
+                if self.state.is_enabled():
+                    try:
+                        self._run_async(self._shutdown_async())
+                    except Exception:
+                        pass
+                self._stop_event_loop(timeout=5.0)
+            except Exception:
+                pass
+            finally:
+                # 止めたあとの error は、送らないうえに「今日は送った」とも記録しない。
+                self.state.set_enabled(False)
+                self.state.reset()
+                self._init_called = False
+                self._ready = None
 
     async def _shutdown_async(self):
         await self.core.stop()
@@ -188,7 +285,7 @@ class Telemetry:
             return
         # 先にデデュープ状態を確定してから送信する（レース防止）
         self.state.mark_error_sent_today(error_code)
-        self._schedule_async(self.core.send_event("error", {"error_code": error_code}))
+        self._schedule_async(self._send_error(error_code))
 
     def is_enabled(self) -> bool:
         return self.state.is_enabled()

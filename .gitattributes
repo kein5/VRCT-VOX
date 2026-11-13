@@ -11,4 +11,3 @@ src-python/models/ocr/onnx/*.safetensors export-ignore
 src-python/models/ocr/onnx/*.bin export-ignore
 
 # A unified diff's blank context lines consist of one significant space.
-docs/voice-stack/upstream-candidates/*.patch whitespace=-blank-at-eol

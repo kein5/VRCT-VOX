@@ -6,6 +6,13 @@ VRChatの画面上に浮かぶチャット吹き出し（他プレイヤーの�
 
 出力先はメインメッセージログと SteamVR オーバーレイの2系統。VRChatの OSC チャットボックス（`/chatbox/input`）へは**送信しません**（他人の発言を自分のチャットボックスに垂れ流すのはユーザー体験・コミュニティ規範の両面で不適切なため、初版で明示的に封印）。
 
+> **VRCT-VOX:** 上流の吹き出し検出モデル (`onnx/chatbox_yolox_tiny.onnx`) は使わない。
+> 代わりに VRCT-VOX 独自の検出器 (`vrct_vox_chatbox_yolox_tiny.onnx`、MIT、任意のダウンロード) を
+> ocr_bubble_detector.py の `BubbleDetector` で動かす。構築は ocr_chatbox_detector.py だけが行い、
+> ハッシュ検証済みのダウンロードのパスしか渡さない。検出器なしで読む方法 (読み取り範囲 + PP-OCR の
+> 行検出 + チャットボックスの見た目判定)、Linux の X11/XWayland キャプチャ、同意を得たモデルの
+> ダウンロード、未実装の Wayland portal 経路の計画は [ocr-linux-capture.md](ocr-linux-capture.md) を参照。
+
 ## 主要コンポーネント
 
 `src-python/models/ocr/` 配下に配置されており、既存の `models/transcription/` の構造（recorder → transcriber → pipeline）を踏襲しています。
@@ -40,7 +47,18 @@ VRChatの画面上に浮かぶチャット吹き出し（他プレイヤーの�
 - ログ `OCR capture backend -> ...` は、実際にフレームが取れた経路が変わったときだけ出す
 - 切り替えの理由: VR プレイヤーは負荷軽減のため VRChat のデスクトップミラーウィンドウを最小化することが多く、その場合 HWND では黒フレームしか取れないため
 
+### 取り込み元ごとの読み取り範囲
+
+WindowsのデスクトップウィンドウとSteamVRのヘッドセット映像では、同じ割合の矩形でも指す場所が異なる。そのため`OCR_CAPTURE_REGION`をウィンドウ用として維持し、`OCR_VR_CAPTURE_REGION`をVRの左目側の映像用に追加した。旧設定はウィンドウ側に残し、VR側が未保存なら全体を補う。LinuxはX11/XWaylandのウィンドウだけを読む。保存形式と検証は[データ形式と保存](../../../docs/spec/data-and-persistence.md#チャット読み取りの範囲)を参照。
+
+`OcrCapture.source`は`get()`が返した画像の元を`window`か`vr`で示す。画像がない場合は`None`。VRで取得できず同じ呼び出しの中でウィンドウへ戻った場合も、返した画像に合わせて更新する。`RegionCandidates.region`はこの値から範囲を選ぶ。範囲の切り取りと検出器の中心点による絞り込みは同じプロパティを使い、設定時点の取り込み元に固定しない。画像の再利用にも選択後の範囲が含まれる。取り込み元が不明な場合は、別の画面で指定した部分範囲を適用しない。
+
+`Model.startOCRCapture()`は両方の範囲を`regions: {window, vr}`として開始前に予約し、ワーカーが最初のtickより前に適用する。設定変更は`Model.updateOCRCaptureSettings()`で開始・停止と共通のロックを取り、保存値の読み出しから検出器の選択、`applyConfig()`への予約までを直列化する。エンドポイントごとのロックだけでは、先に作った広い範囲のスナップショットが後から予約されるためである。ワーカーは`_applyPending()`で範囲をまとめて更新する。旧形式の`region`だけの内部更新も、ウィンドウ用として扱う。
+
+設定ページは`/get/data/ocr_capture_status`だけを1秒ごとに取得し、現在の取り込み元と実行状態を1つの欄に表示する。範囲の編集欄もこの応答の`available_sources`を使い、別にポーリングしない。取得は状態の読み出しだけで、キャプチャを開始しない。Windowsでは両方の範囲をスライダーと模式図で編集でき、Linuxではウィンドウ側だけを表示する。編集によって取り込み元を切り替えたり、OCRをオンにしたりはしない。
+
 ### ocr_bubble_detector.py — 吹き出し検出（YOLOX-Tiny / ONNX）
+- 推論に失敗したら `OcrDetectorError` を投げる。候補がない場合の空リストとは区別し、パイプライン側でログの重複抑止、再試行、UIの失敗表示を行う。
 - 収集したVRChatのスクリーンショットで学習した検出モデルで、吹き出しの矩形を直接得る
 - 推論は onnxruntime のみ（faster-whisper が Silero VAD 用に既に依存しているので追加依存なし）。
   YOLOX も torch も推論には不要。grid/stride のデコードはエクスポート時にグラフへ
@@ -67,7 +85,7 @@ VRChatの画面上に浮かぶチャット吹き出し（他プレイヤーの�
   (正解70個)は 0.5で68/70・余分な候補4、0.7で67/70・余分3（余分はラベルずれ、本当の誤検出は0）。
   学習に入れていない VRCT 自身のオーバーレイ49枚では、0.5で誤検出1、0.7で0。実機で低い閾値だと
   VRChat の config 画面を誤検出したため引き上げた。モデルを学習し直したら決め直す
-  （表は docs/ocr_yolo_training.md）
+  （表は上流 VRCT の https://github.com/misyaguziya/VRCT/blob/develop/docs/ocr_yolo_training.md）
 - VRCT 自身のオーバーレイ（翻訳ログの窓）は暗い角丸パネルに文字が並ぶので吹き出しと紛らわしく、
   拾うと OCR が自分の翻訳を読み返して翻訳し直すループになる。文字列で照合して捨てる案は、
   切り取り方で OCR 結果が大きく変わるので採らず、検出器にネガティブとして教えている
@@ -77,7 +95,7 @@ VRChatの画面上に浮かぶチャット吹き出し（他プレイヤーの�
   そのまま tick の長さに乗る
 - `crop_padding`（既定4px）はOCRに渡す切り出しを各辺4px広げる。小さい吹き出しでは
   この分だけ枠がGTからずれるので、IoUで評価するときは0にして測る
-- 学習・再学習とモデルの差し替え手順は [docs/ocr_yolo_training.md](../../../docs/ocr_yolo_training.md)
+- 学習・再学習とモデルの差し替え手順は [上流 VRCT の docs/ocr_yolo_training.md](https://github.com/misyaguziya/VRCT/blob/develop/docs/ocr_yolo_training.md)
 
 #### 経緯: 色/輪郭ヒューリスティックからの置き換え（2026-09-17）
 初版は OpenCV の adaptiveThreshold → 輪郭抽出 → 幾何フィルタ（面積比・アスペクト比・
@@ -91,6 +109,8 @@ VRChatの画面上に浮かぶチャット吹き出し（他プレイヤーの�
 ### ocr_engine_rapidocr.py — OCRエンジン (RapidOCR / ONNX PP-OCR)
 - モデル指定ごとに推論器を遅延生成してキャッシュする。`readtext_bgr(crop)` は
   `[{"text", "confidence"}, ...]` を返し、例外は投げない (失敗時は空リスト)
+- パイプラインは `readtext_bgr_or_raise` を使い、推論・結果の変換の例外を
+  「読める文字がない」と区別する。文字だけを使う既存の呼び出し元には空リストを返す契約を保つ。
 - **onnxruntimeのみで動く**。faster-whisper が Silero VAD 用に既に依存しているので、
   実行時依存は増えない。PaddlePaddle も torch も要らない
 - `Det.limit_side_len=320`。RapidOCRの既定は短辺を736pxまで**拡大**する設定
@@ -129,11 +149,14 @@ scipy(119MB)・scikit-image(30MB)を配布物へ連れてきていた。
 | Arabic | PP-OCRv5 mobile / arabic (精度は低め) |
 | Hindi | PP-OCRv5 mobile / devanagari |
 
-モデルは配布物へ同梱する (計78MB)。実行時にネットワークへ出ないよう、ビルド前に
-`tools/fetch_ocr_models.py` で rapidocr パッケージ内へ取得し、spec の datas でまとめて含める。
+VRCT-VOX ではモデルを配布物へ同梱しない。ユーザーが 設定 → チャット読み取り で条件を確認して
+同意したときだけ、固定リビジョンの PaddleOCR 公式 ONNX (Hugging Face、Apache-2.0) を
+`downloaded_models/` へダウンロードし、`ocr_models.py` がそのパスを RapidOCR へ明示的に渡す
+(RapidOCR 自身のダウンロードは無効化)。開発時は `tools/fetch_ocr_models.py --root ...` でも同じ
+経路で取得できる。詳細は [ocr-linux-capture.md](ocr-linux-capture.md)。
 
 ### ocr_pipeline.py — オーケストレーター
-- 独立スレッドで poll ループを回し、capture → detect → OCR → dedup → callback
+- 独立スレッドで poll ループを回し、capture → detect → OCR（同じ候補画像なら認識結果を再利用）→ dedup → callback
 - コールバックのペイロードはマイク／スピーカーの transcript 結果と同じ形状で、`Controller.ocrMessage` から既存の翻訳・オーバーレイ経路に載せられる
 
 ## クラス構造
@@ -184,13 +207,13 @@ class OcrCapture:
                                       │ [(bbox, crop), ...]
                                       ▼
                              ┌──────────────────┐
-                             │ RapidOCR (ONNX)  │
+                             │ OCR / 結果の再利用 │
                              │ (crop→words+conf)│
                              └────────┬─────────┘
                                       │ merged text
                                       ▼
                              ┌──────────────────┐
-                             │ _DedupCache      │  ← text_hash + cooldown
+                             │ _DedupCache      │  ← text_hash + 最後に見た時刻
                              │ (LRU)            │
                              └────────┬─────────┘
                                       │ unique text
@@ -205,6 +228,36 @@ class OcrCapture:
                           既存 Translator → UI ログ + Overlay
                                      （OSC には送らない）
 ```
+
+## 認識結果の再利用
+
+候補画像の全画素を BLAKE2b（128 bit）でハッシュし、形状とデータ型もキーに含めて、
+成功した認識結果（文字なしの空リストも含む）を最大32件のLRUに保存する。
+切り出しでできる非連続な配列もC順序で全画素を読む。画像本体は保持しない。
+候補の位置はキーに含めず、再利用時も現在の位置で吹き出しの分割・見た目判定・行の結合を行う。
+失敗後の待機中を除き、取り込みと検出は毎tick行い、認識だけを省く。
+
+キャッシュは言語・モデル指定・モデルの保存先・推論器の同一性、信頼度、範囲、検出器とその設定、
+取り込み元と取得後のバックエンドなどの処理条件ごとに破棄する。`applyConfig` の反映時、
+フレームを取得できないとき、停止・開始時、ワーカー終了時にも捨てる。
+認識結果の再利用用キャッシュと、配送済みの文を覚える `_DedupCache` は別物である。
+再利用しても通常の重複判定へ渡し、「最後に見た時刻」を毎回更新する。
+消えた候補の保存結果だけを配送したり、見えたことにしたりはしない。
+時間予算で読み直しを待つ上位6候補も、現在の全画素が保存結果のキーと一致すれば、
+配送済みの文の「最後に見た時刻」だけを更新する。一巡に30秒以上かかっても同じ文を再配送しない。
+この確認は20秒の認識期限を延ばさず、未配送の文を配送することもない。
+
+`RECOGNITION_REFRESH_SEC` は20秒。推論結果が毎回同じとは限らないため、最後の実認識から
+20秒経ったら再利用せず、次にその候補を処理できるtickで読み直す。ヒットしても期限は延ばさない。
+既定の750ms間隔で約27回に1回の認識を残し、固定画像での負荷削減と結果の見直しを両立する。
+tickの予算・上位6候補の制限・失敗時の待機は維持するので、それらによる遅延は別に生じる。
+
+認識が例外になったら全ての認識キャッシュを捨て、古い成功結果で代用しない。
+再利用では推論器の失敗履歴や待機を解除せず、実認識の成功だけを復旧とする。
+これにより既知の故障は従来の連続失敗とbackoffに入り、未判明の故障も定期的な再読取で確認する。
+30秒ごとのログは `ocr` を実呼び出し数のまま保ち、`reused` に再利用した候補数を記録する。
+`text` は文字を得た候補数、`bubble` は後処理で得た吹き出し数、`emit` は配送数で、
+再利用した結果も従来と同じ段階で集計する。
 
 ## 行の繋ぎ方
 
@@ -231,7 +284,7 @@ OCRは吹き出し内の各行を別々に返す。そこには「送信者が�
 
 **覚えている間は同じ文を配送しない。** 時間で解禁する方式ではない。
 
-- 配送した文を `_DedupCache` (最大128件) に持ち、見るたびに「最後に見た時刻」を更新する
+- Controllerが受け付けた文だけを `_DedupCache` (最大128件) に持ち、見るたびに「最後に見た時刻」を更新する。拒否された文は次のtickで再度試す。コールバックの例外も配送済みにせず、tickの失敗として記録・表示し、待ち時間を置いて再試行する
 - 保持時間は画面から**消えてから**測る。`DEDUP_RETENTION_SEC` (30秒、定数) のあいだ現れなければ
   忘れ、以降に同じ文が出たら新しい発言として配送する。設定にはしていない。記憶だけで時間の上限を
   持たないと「はい」「Wow!」のような短文がLRUから押し出されるまで二度と表示されず、静かな
@@ -239,15 +292,55 @@ OCRは吹き出し内の各行を別々に返す。そこには「送信者が�
 - 保持時間の下限は **tick間隔の2倍**。1tickはOCR1件あたり約0.8秒かかるので、設定値の方が
   短いと出続けている吹き出しでも見るたびに忘れられ、同じ文が繰り返し配送される
   (実機で 1秒設定 / tick 1〜2.6秒のときに再現、2026-09-18)
-- 編集距離2以内の文は同じものとして扱う。OCRのゆらぎで1〜2文字違うだけの同じ吹き出しを
-  別物として配送しないため
+- tick間隔は候補のないときやフレームのないときも測り、同じ場所で古い記録を捨てる。候補が消えていた時間全体を「遅い1tick」として扱わない。通常のポーリングで30秒を超えて見えなければ、同じ文でも再配送する
+- 5文字未満の文は完全一致だけで判定し、「はい」と「いや」などの別の返事を落とさない。
+  長い文は短い方の文字数の2割（切り捨て）、最大2文字までの編集をOCRのゆらぎとして扱う
 
 ## 1 tick あたりの処理量制限
 
 混雑したワールドや文字の多い UI では候補矩形が数十件になることがあり、全件 OCR するとループが数秒止まって Whisper と GPU を奪い合います。そのため:
 
-- `MAX_CANDIDATES_PER_TICK`（既定 6）で件数を制限（detector が面積降順に並べているので大きい吹き出しが優先されます）
+- `MAX_CANDIDATES_PER_TICK`（既定6）で検出器の信頼度上位の候補に絞る。前回の矩形との重なり（IoUが0.5以上）で候補を対応付け、まだ試していない候補、最後に試した順が古い候補を先に読む。信頼度順が変わったり少し移動したりしても順番を引き継ぐ。保持するのは矩形と試した順だけで、読む画像は現在のフレームから選ぶ
 - `TICK_OCR_BUDGET_RATIO`（既定 0.8）× poll interval を時間予算とし、超過した時点でその tick を打ち切り
+- 推論例外が出たtickは残りの候補を読まず、連続失敗時は取得・検出・推論を待機する。
+  ログの集約、待機時間、復旧の条件は [UC-05](../../../docs/spec/use-cases.md#uc-05-vrchatのチャットボックスを読み取って訳す) を参照。
+
+## 実行中の失敗と状態表示
+
+検出・取り込み・tick全体の例外には、それぞれ独立した再試行の時刻を持つ。
+初回の失敗から1秒、2秒、4秒と待ちを延ばし、上限は30秒とする。
+認識の例外は従来どおり3回連続して失敗してから待ちを延ばす。
+配送コールバックの例外はtick全体の例外として扱い、同じログ集約と待ち時間を使う。
+WindowsのOpenVR・HWNDも取得失敗を記録し、どの取り込み元からも画像が取れないときは
+取り込み段階の再試行に進む。VRが失敗してもデスクトップから画像が取れれば読み取りを続ける。
+どの段階でも、待機中は取得・検出・認識を止め、設定変更と停止は受け付ける。
+検出器が動作中に失敗しても範囲読みに自動で変えず、読み取りを一時停止して同じ検出器を再試行する。
+範囲読みに変えると読み取る対象が広がるためである。
+
+X11のデコーダーが扱えない画素形式やXGetImageの失敗は `X11CaptureError` として
+ファサードへ渡す。ファサードの障害記録をパイプラインが確認して再試行を制御する。
+画像形式を確認しない開始前の準備確認だけで「読み取り中」とは表示しない。
+最初のフレーム待ちと、失敗による一時停止を区別する。フレームが取れない間は取り込みの復旧としない。
+
+`runtimeStatus` は `state`（`stopped` / `waiting` / `reading` / `retrying`）、
+`stage`、既存の `OCR_DISABLED_*` による `error_code`、実際の候補取得元 `detector` を返す。
+`/get/data/ocr_capture_status` はこの4項目に加え、`active`（有効化済みで停止していないワーカーがあるか）、
+`source`（直近の画像の取り込み元。`window` / `vr` / `null`）、`available_sources` を返す。
+`available_sources` はWindowsで `["window", "vr"]`、Linuxで `["window"]`。
+無効化後やワーカーの停止通知後は、スレッドが終了処理中でも `active: false`、`state: stopped` とし、
+`source`、`stage`、`error_code`、`detector` は `null` にする。
+この取得は画像の取り込み、デバイスの検査、モデル読み込みを行わない。
+OCR設定画面を開いている間だけ1秒間隔で1回問い合わせ、閉じると止める。
+取り込み元と停止中・待機中・読み取り中・再試行中（失敗した段階）を1つの状態欄にまとめる。
+停止中は開始に必要な準備も同じ欄に表示し、検出器の取得・選択・実際の使用状態は別の検出器欄に残す。
+正常な状態応答は `POLLED_ENDPOINTS` により診断ログへ書かない。再試行の理由を含む場合も200で返す。
+実行時のエラーコードは一時停止の理由を示す。開始失敗の通知とは異なり、オンのまま再試行する。
+
+検出器のダウンロード済み状態と使用設定は `/get/data/ocr_readiness` で、
+ワーカーが実際に選んだ検出器は `runtimeStatus.detector` で確認する。
+範囲読みのまま稼働中に検出器を取得した場合は、オフ・オンが必要なことを表示する。
+既存の設定変更で切り替えを予約した場合は、`_applyPending` が反映してから表示を変える。
+読み込み失敗による範囲読みへの復帰も、その実態を表示する。
 
 ## OpenVR セッションの共有について
 
@@ -264,19 +357,44 @@ OpenVR の初期化は**プロセス単位**で、Overlay・Clipboard と共有�
 
 ## 設定の反映タイミング
 
-OCR系の設定は**実行中でも次のtickから反映される**。`Controller` の各setterが
+OCR系の設定は**実行中でも次のtickから反映される**。言語以外は `Controller` の各setterが
 `model.updateOCRCaptureSettings()` を呼び、`OcrPipeline.applyConfig()` が値を預かって、
 ワーカースレッドが次のtickの頭で `_applyPending()` で取り込む。
+このとき認識結果の再利用用キャッシュも破棄する。
 
 | 設定 | 反映のされ方 |
 |---|---|
-| `OCR_SOURCE_LANGUAGE` | 使うモデルが変わる場合だけ推論器を作り直す (キャッシュ済みなら即座)。重複抑制のキャッシュも捨てる |
+| `OCR_SOURCE_LANGUAGE` | 停止中はそのまま保存する。稼働中は保存前に取得済みファイルを検証して推論器を準備し（キャッシュ済みなら再利用）、次のtickで切り替える。重複抑制のキャッシュも捨てる |
 | `OCR_WINDOW_TITLE` | キャプチャを開き直す |
-| `OCR_POLL_INTERVAL_MS` / `OCR_MIN_CONFIDENCE` / `OCR_BUBBLE_MIN_TEXT_LENGTH` | 値を差し替えるだけ |
+| `OCR_POLL_INTERVAL_MS` / `OCR_MIN_CONFIDENCE` / `OCR_BUBBLE_MIN_TEXT_LENGTH` | 値を差し替える |
 
-ReaderとキャプチャはOSリソース・スレッドに紐づくので、値を書き換えたスレッドではなく
-**使っているワーカースレッドの側で**作り直す。これが `applyConfig` が値を預かるだけで、
-実際の切り替えを `_applyPending()` に任せている理由。
+言語のsetterは `model.setOCRSourceLanguage()` で開始・停止と直列化する。
+停止中は検証せずに保存する（取得の案内が選んだ言語のモデルを示せるように。足りないファイルは開始時に知らせる）。
+稼働中は `resolveModelFiles()` でサイズ・SHA-256を検証し、開始時と同じ `getReader()` で推論器を準備してから保存する。読み込みは要求を処理する側で済ませ、
+`applyLanguage()` が言語と準備済み推論器を一緒に預かる。ワーカー上では読み込みを行わず、
+次のtickで参照だけを切り替えるので、保存後に読み込み失敗を黙殺する経路はない。
+言語以外の設定変更で、この待機中の切り替えを上書きしない。
+
+未取得なら `OCR_DISABLED_MODEL_MISSING`、破損や読み込み失敗なら
+`OCR_DISABLED_MODEL_LOAD_FAILED` を、変更前の言語を `data` に入れて返す。
+UIは言語の待機を解除してその値へ戻し、稼働スイッチと既存の推論器を維持する。
+ファイル検証は同意済みの取得先だけを使い、ダウンロードは起こさない。
+
+キャプチャのOSリソースはスレッドに紐づくので、開き直す処理は引き続き
+**使っているワーカースレッドの側で**行う。
+
+## アプリ終了時の停止
+
+`Controller.shutdown()` は最初にOCRの開始受付と結果の配送を閉じ、稼働スイッチをオフにして
+`model.requestOCRShutdown()` でワーカーの停止イベントを立てる。モデル読み込みが
+開始・停止のロックを保持していても、この通知は待たない。読み込み中だった開始要求も、
+終了通知を確認したらキャプチャを起動せずに戻る。
+
+その後、既存のサービス停止ヘルパーで `stopOCRCapture()` を最大5秒待ってから、
+翻訳・オーバーレイなどの出力先を終了する。期限を越えたワーカーは所有したままにし、
+戻った時点で自分が作ったキャプチャを閉じる。推論自体を強制中断することはできないが、
+終了後の新しいtickと結果のコールバックは抑止する。既に翻訳中だったOCRメッセージも
+`publication_guard` で遅れた出力を捨てる。watchdogの強制終了期限や他サービスの上限は変えない。
 
 ## 設定キー
 
@@ -290,6 +408,8 @@ ReaderとキャプチャはOSリソース・スレッドに紐づくので、値
 | `OCR_POLL_INTERVAL_MS` | int | 750 | キャプチャ間隔（100〜5000） |
 | `OCR_MIN_CONFIDENCE` | float | 0.85 | OCR 信頼度の下限（0.1〜0.99）。PP-OCRは誤読時もスコアが高く、実測では 0.55 で誤りを1件も落とせず、0.85 なら正解を失わずに誤りの34%を落とせた |
 | `OCR_BUBBLE_MIN_TEXT_LENGTH` | int | 2 | 最小テキスト長（1〜50） |
+| `OCR_CAPTURE_REGION` | dict | `{x: 0, y: 0, width: 1, height: 1}` | デスクトップウィンドウ内の範囲。旧版の単一範囲を引き継ぐ |
+| `OCR_VR_CAPTURE_REGION` | dict | `{x: 0, y: 0, width: 1, height: 1}` | SteamVRの左目側の映像内の範囲。未保存なら映像全体 |
 
 値域・選択肢は config のディスクリプタ（`allowed=`）で検証する。setter は他の設定と同じく
 `@_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)` を付け、不正値は
@@ -306,6 +426,7 @@ ReaderとキャプチャはOSリソース・スレッドに紐づくので、値
 - `/get/data/ocr_*`, `/set/data/ocr_*` — 各設定キー（setterは実行中のパイプラインへ即時反映する）
   - エンジンを選ぶ設定は持たない。実装が1つしか無いのに保存値と判定値がずれてOCRが起動しなくなる事故を起こしたため (2026-09-18)
 - `/get/data/selectable_ocr_source_languages` — OCRで選べる言語の一覧（UIのドロップダウンの中身）
+- `/get/data/ocr_capture_status` — 取り込み元、実行状態、実際に使う検出器をまとめて返す読み出し専用の状態取得。停止中でも問い合わせられる
 - `/run/transcription_ocr_message` — OCR 結果を UI ログに配送（`useReceiveRoutes.js`）
 
 ## Controller 連携
@@ -314,13 +435,16 @@ ReaderとキャプチャはOSリソース・スレッドに紐づくので、値
   の形で呼ぶ。文字認識モデルと吹き出し検出モデルを読み込み終えてから戻る（翻訳のONと同じく応答を待たせる）。
   失敗したら `model.startOCRCapture` が投げた `OcrStartError` の `OCR_DISABLED_*`（それ以外の例外は
   `OCR_DISABLED_UNKNOWN`）を、翻訳の `TRANSLATION_DISABLED_VRAM` と同じく `/run/enable_ocr_capture` へ送って False を返す
+  - ワーカーは `activation_ready` で `ENABLE_OCR_CAPTURE` の確定を待ってから最初のtickを実行する。待機中の停止・終了通知も有効
 - `Controller.stopOcrCapture()` — 停止
-- `model.updateOCRCaptureSettings()` — 設定変更を実行中のパイプラインへ渡す（各setterから呼ばれる）
+- `model.setOCRSourceLanguage()` — 停止中は言語を保存する。稼働中はモデルを検証・準備してから保存し、推論器の切り替えを予約する
+- `model.updateOCRCaptureSettings()` — 言語以外の設定変更を実行中のパイプラインへ渡す
 - `Controller.ocrMessage(result)` — `OCR_MESSAGE_SPEC` を渡して `_processMessage` に委ねる
   (mic/speaker/chat と同じ共通パイプライン。差分は spec 側に持たせている)
   - OCR固有の差分: OSCへ送らない (`osc_send_gate_attr=None`)、小さいオーバーレイを使わない、
     payload に `source: "ocr"` を載せる (UIがバッジ表示に使う)
   - **OSC 送信は行わない**（コード内コメントで明示）
+  - 有効化前、停止後、終了中や配送epochが失効した結果はFalseを返し、パイプラインの配送済み記録に残さない
 
 ## UI
 

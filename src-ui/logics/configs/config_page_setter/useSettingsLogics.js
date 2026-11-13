@@ -1,13 +1,16 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, useId } from "react";
 import * as stores from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useNotificationStatus } from "@logics_common";
-import { arrayToObject, arrayToIdLabel, transformToIndexedArray } from "@utils";
+import { deviceOptionsToObject, arrayToObject, arrayToIdLabel, transformToIndexedArray } from "@utils";
+import { setSaveBarEntry } from "../../voice/saveBar";
 
 const transformResponse = (transformName, payload) => {
     if (!transformName) return payload;
 
     switch (transformName) {
+        case "deviceOptionsToObject":
+            return deviceOptionsToObject(payload);
         case "arrayToObject":
             return arrayToObject(payload);
         case "arrayToIdLabel":
@@ -71,21 +74,21 @@ export const useSettingsLogics = (settingsArray, Category) => {
         const buildGet = () => {
             return () => {
                 if (pending) pending();
-                asyncStdoutToPython(`/get/data/${s.base_endpoint_name}`);
+                return asyncStdoutToPython(`/get/data/${s.base_endpoint_name}`);
             };
         };
 
         const buildSet = () => {
             return (value) => {
                 if (pending) pending();
-                asyncStdoutToPython(`/set/data/${s.base_endpoint_name}`, value);
+                return asyncStdoutToPython(`/set/data/${s.base_endpoint_name}`, value);
             };
         };
 
         const buildDelete = () => {
             return (value) => {
                 if (pending) pending();
-                asyncStdoutToPython(`/delete/data/${s.base_endpoint_name}`, value);
+                return asyncStdoutToPython(`/delete/data/${s.base_endpoint_name}`, value);
             };
         };
 
@@ -170,8 +173,8 @@ export const useSettingsLogics = (settingsArray, Category) => {
             result[`updateDownloadProgress${base}`] = (payload) => {
                 update((old_status) => {
                     return old_status.data.map((item) =>
-                        payload.weight_type === item.id
-                            ? { ...item, progress: payload.progress * 100 }
+                        payload.weight_type === item.id && item.is_pending
+                            ? { ...item, job_id: payload.job_id, progress: payload.progress * 100 }
                             : item
                     );
                 });
@@ -188,15 +191,16 @@ export const useSettingsLogics = (settingsArray, Category) => {
                 update((old_status) => {
                     return old_status.data.map((item) =>
                         id === item.id
-                            ? { ...item, is_pending: true }
+                            ? { ...item, is_pending: true, job_id: null }
                             : item
                     );
                 });
             };
-            result[`downloaded${base}`] = (id) => {
+            result[`downloaded${base}`] = (payload) => {
+                const id = typeof payload === "string" ? payload : payload?.weight_type;
                 update((old_status) => {
                     return old_status.data.map((item) =>
-                        id === item.id
+                        id === item.id && (typeof payload === "string" || payload?.downloaded === true)
                             ? { ...item, is_downloaded: true, is_pending: false, progress: null }
                             : item
                     );
@@ -233,6 +237,7 @@ export const useConfigFunctions = (Category) => {
 
 export const useSliderLogic = ({
     variable,
+    state,
     setterFunction,
     postUpdateAction,
     min,
@@ -241,6 +246,7 @@ export const useSliderLogic = ({
     show_label_values = null,
     marks_step,
     setter_timing = "on_change_committed",
+    debounce_ms = 200,
 }) => {
     const [ui_value, setUiValue] = useState(variable);
     const debounceTimerRef = useRef(null);
@@ -249,11 +255,12 @@ export const useSliderLogic = ({
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
         }
+        if (debounce_ms === 0) return setterFunction(value);
         debounceTimerRef.current = setTimeout(() => {
-            setterFunction(value);
+            Promise.resolve(setterFunction(value)).then(sent => { if (sent === false) setUiValue(variable); });
             debounceTimerRef.current = null;
-        }, 200);
-    }, [setterFunction]);
+        }, debounce_ms);
+    }, [setterFunction, variable, debounce_ms]);
 
     useEffect(() => {
         return () => {
@@ -316,8 +323,8 @@ export const useSliderLogic = ({
     }, []);
 
     const onChangeCommittedForCommitted = useCallback((value) => {
-        setterFunction(value);
-    }, [setterFunction]);
+        Promise.resolve(setterFunction(value)).then(sent => { if (sent === false) setUiValue(variable); });
+    }, [setterFunction, variable]);
 
     let onChangeFunction;
     let onChangeCommittedFunction;
@@ -333,13 +340,14 @@ export const useSliderLogic = ({
     }
 
     useEffect(() => {
+        if (state === "pending") return;
         if (variable !== ui_value) {
             setUiValue(variable);
         }
         if (postUpdateAction) {
             postUpdateAction();
         }
-    }, [variable]);
+    }, [variable, state]);
 
     return {
         ui_value,
@@ -350,39 +358,89 @@ export const useSliderLogic = ({
 };
 
 
+// A text field saved from the config page top bar, like every other settings
+// form; `label` names it in the bar's list of changes. Enter still saves the
+// one field.
 export const useSaveButtonLogic = ({
     variable,
     state,
     setFunction,
-    deleteFunction
+    deleteFunction,
+    label,
 }) => {
     const [input_value, setInputValue] = useState(variable);
+    const [saveState, setSaveState] = useState("saved");
+    const submitted = useRef(null);
+    const previous = useRef(variable);
+    const same = (a, b) => String(a ?? "") === String(b ?? "");
 
-    const onChangeFunction = (value) => {
+    const onChangeFunction = value => {
         setInputValue(value);
+        if (!submitted.current) setSaveState("unsaved");
     };
-
-    const saveFunction = () => {
-        if (input_value === "" || input_value === null) {
-            if (typeof deleteFunction === "function") {
-                return deleteFunction();
+    const saveFunction = async () => {
+        if (saveState === "saving" || state === "pending") return;
+        const request = { value: input_value };
+        submitted.current = request;
+        setSaveState("saving");
+        const empty = input_value === "" || input_value === null;
+        try {
+            const response = await (empty && typeof deleteFunction === "function"
+                ? deleteFunction() : setFunction(empty ? "" : input_value));
+            if (submitted.current !== request) return response;
+            if (response?.status === 200) {
+                setInputValue(value => same(value, request.value) ? response.result : value);
+                previous.current = response.result;
+                setSaveState("saved");
+                submitted.current = null;
+            } else if (response === false || response?.status) {
+                setSaveState("save_failed");
+                submitted.current = null;
             }
-            return setFunction(input_value ?? "");
+            return response;
+        } catch {
+            if (submitted.current === request) {
+                setSaveState("save_failed");
+                submitted.current = null;
+            }
+            return false;
         }
-        setFunction(input_value);
     };
 
     useEffect(() => {
-        if (state === "pending") return;
+        // Pending recovery and rejected responses carry the old confirmed value.
+        // Only untouched fields follow a refresh; submitted drafts await their response.
+        const old = previous.current;
+        if (!submitted.current) setInputValue(value => same(value, old) ? variable : value);
+        previous.current = variable;
+    }, [variable]);
+    useEffect(() => {
+        if (saveState !== "saving") return;
+        const timer = setTimeout(() => setSaveState("save_failed"), 5000);
+        return () => clearTimeout(timer);
+    }, [saveState]);
+    useEffect(() => () => { submitted.current = null; }, []);
+
+    const saving = saveState === "saving";
+    const dirty = !!submitted.current || saveState === "save_failed" || !same(input_value, variable);
+    const status = saving || saveState === "save_failed" ? saveState : dirty ? "unsaved" : "saved";
+    const id = useId();
+    const latest = useRef();
+    latest.current = { saveFunction, discard: () => {
+        submitted.current = null;
         setInputValue(variable);
+        setSaveState("saved");
+    } };
+    useEffect(() => {
+        setSaveBarEntry(id, {
+            dirty, edited: dirty, saving, saveState: status,
+            changes: dirty && label ? [label] : [], canSave: state !== "pending",
+            save: () => latest.current.saveFunction(), discard: () => latest.current.discard(),
+        });
+    }, [id, dirty, saving, status, label, state]);
+    useEffect(() => () => setSaveBarEntry(id, null), [id]);
 
-    }, [variable, state]);
-
-    return {
-        variable: input_value,
-        onChangeFunction: onChangeFunction,
-        saveFunction: saveFunction,
-    };
+    return { variable: input_value, onChangeFunction, saveFunction };
 };
 
 const createMarks = (min, max, marks_step = 1, labelFormatter = (value) => value) => {

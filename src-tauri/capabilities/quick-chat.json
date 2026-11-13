@@ -1,6 +1,6 @@
 {
     "identifier": "quick-chat",
-    "description": "The input window receives its acknowledgements; native commands validate its label.",
+    "description": "The input window receives its acknowledgements and grows to fit the length warning; native commands validate its label.",
     "windows": ["quick_chat"],
-    "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+    "permissions": ["core:event:allow-listen", "core:event:allow-unlisten", "core:window:allow-set-size"]
 }

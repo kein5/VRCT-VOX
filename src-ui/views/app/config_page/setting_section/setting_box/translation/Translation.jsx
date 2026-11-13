@@ -1,4 +1,11 @@
+import { CredentialPair } from "../_components/credential_pair/CredentialPair";
+import { endpointDescription } from "../../../../../../logics/common/endpointPrivacy";
+import { useRef, useState } from "react";
 import { useI18n } from "@useI18n";
+import { isTauri } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { isNonCommercialWeight, needsLicenseConfirmation, weightRequest } from "../../../../../../logics/configs/ctranslate2License";
+import { useConsentDialog } from "../../../../../../logics/common/useConsentDialog";
 
 import {
     useTranslation,
@@ -21,6 +28,10 @@ import {
 } from "../_components";
 
 import { ComputeDevice } from "../_components/compute_device/ComputeDevice";
+import { Description } from "../_components/description/Description";
+import { SetupSection } from "../_components/setup_section/SetupSection";
+import { LegacyModelDownloadDialog } from "../_components/download_models/LegacyModelDownloadDialog";
+import { AutoDownloadModelsContainer } from "../shared_items/SharedItems";
 
 import {
     deepl_auth_key_url,
@@ -32,6 +43,7 @@ import {
 } from "@ui_configs";
 
 import { useLLMConnection } from "@logics_common";
+import { useStore_TranslationEngines, useStore_SelectedTranslationEngines } from "@store";
 
 export const Translation = () => {
     return (
@@ -43,15 +55,44 @@ export const Translation = () => {
     );
 };
 
+// The local model and its device are set once; the summary says which model,
+// whether it is downloaded, and where it runs.
 const AITranslation_Container = () => {
     const { t } = useI18n();
+    const { currentCTranslate2WeightTypeStatus, currentSelectedCTranslate2WeightType, currentSelectedTranslationComputeDevice } = useTranslation();
+    const selected = currentSelectedCTranslate2WeightType.data;
+    const weight = (currentCTranslate2WeightTypeStatus.data || []).find(item => item.id === selected);
+    const device = currentSelectedTranslationComputeDevice.data?.device_name;
+    const status = [
+        selected ? `${selected} · ${t(weight?.is_downloaded ? "config_page.translation.setup_downloaded" : "config_page.translation.setup_not_downloaded")}` : null,
+        device || null,
+    ].filter(Boolean).join(" · ");
     return (
         <div>
             <SectionLabelComponent label={t("config_page.translation.section_label_ai_translation")} />
-            <CTranslate2WeightType_Box />
-            <TranslationComputeDevice_Box />
+            {/* Open while the selected model is missing: the download is the first thing to do here. */}
+            <SetupSection title={t("config_page.translation.setup_title")} status={status} attention={!!weight && !weight.is_downloaded}>
+                <CTranslate2WeightType_Box />
+                <TranslationComputeDevice_Box />
+            </SetupSection>
+            {/* Also on the speech recognition page: one switch fetches both models. */}
+            <AutoDownloadModelsContainer />
         </div>
     );
+};
+
+// One provider is one line until it is opened: most people use one of them or
+// none, and nine open forms made this page nine screens long. The line says
+// whether the provider can be used. A provider that a language preset uses
+// stays open, so its key and model are in sight.
+const Provider = ({ id, children }) => {
+    const { t } = useI18n();
+    const { currentTranslationEngines } = useStore_TranslationEngines();
+    const { currentSelectedTranslationEngines } = useStore_SelectedTranslationEngines();
+    const engine = (currentTranslationEngines.data ?? []).find(item => item.id === id);
+    const in_use = Object.values(currentSelectedTranslationEngines.data ?? {}).includes(id);
+    const status = t(`config_page.translation.provider_${in_use ? "in_use" : engine?.is_available === true ? "ready" : "not_set"}`);
+    return <SetupSection title={engine?.label ?? id} status={status} attention={in_use}>{children}</SetupSection>;
 };
 
 const ExternalTranslationAPI_Container = () => {
@@ -59,23 +100,31 @@ const ExternalTranslationAPI_Container = () => {
     return (
         <div>
             <SectionLabelComponent label={t("config_page.translation.section_label_external_api")} />
+            <Description text={t("config_page.translation.llm_privacy_desc")} className={styles.privacy_description} />
 
-            <DeepLAuthKey_Box />
-
-            <PlamoAuthKey_Box />
-            <PlamoModelContainer />
-
-            <GeminiAuthKey_Box />
-            <GeminiModelContainer />
-
-            <OpenAIAuthKey_Box />
-            <OpenAIModelContainer />
-
-            <GroqAuthKey_Box />
-            <GroqModelContainer />
-
-            <OpenRouterAuthKey_Box />
-            <OpenRouterModelContainer />
+            <Provider id="DeepL_API">
+                <DeepLAuthKey_Box />
+            </Provider>
+            <Provider id="Plamo_API">
+                <PlamoAuthKey_Box />
+                <PlamoModelContainer />
+            </Provider>
+            <Provider id="Gemini_API">
+                <GeminiAuthKey_Box />
+                <GeminiModelContainer />
+            </Provider>
+            <Provider id="OpenAI_API">
+                <OpenAIAuthKey_Box />
+                <OpenAIModelContainer />
+            </Provider>
+            <Provider id="Groq_API">
+                <GroqAuthKey_Box />
+                <GroqModelContainer />
+            </Provider>
+            <Provider id="OpenRouter_API">
+                <OpenRouterAuthKey_Box />
+                <OpenRouterModelContainer />
+            </Provider>
         </div>
     );
 };
@@ -85,20 +134,27 @@ const LocalLLM_Container = () => {
     return (
         <div>
             <SectionLabelComponent label={t("config_page.translation.section_label_local_llm")} />
+            <Description text={t("config_page.translation.llm_privacy_desc")} className={styles.privacy_description} />
 
-            <LMStudioConnectionCheck_Box />
-            <LMStudioURL_Box />
-            <LMStudioModelContainer />
-
-            <OllamaConnectionCheck_Box />
-            <OllamaModelContainer />
-
-            <OpenAICompatibleURL_Box />
-            <OpenAICompatibleAuthKey_Box />
-            <OpenAICompatibleModelContainer />
+            <Provider id="LMStudio">
+                <LMStudioConnectionCheck_Box />
+                <LMStudioURL_Box />
+                <LMStudioModelContainer />
+            </Provider>
+            <Provider id="Ollama">
+                <OllamaConnectionCheck_Box />
+                <OllamaModelContainer />
+            </Provider>
+            <Provider id="OpenAI_Compatible">
+                <OpenAICompatibleCredentials />
+                <OpenAICompatibleModelContainer />
+            </Provider>
         </div>
     );
 };
+
+// Selection consent lasts for this session. Download consent is always reviewed.
+const license_confirmed_weights = new Set();
 
 const CTranslate2WeightType_Box = () => {
     const { t } = useI18n();
@@ -110,27 +166,66 @@ const CTranslate2WeightType_Box = () => {
         currentSelectedCTranslate2WeightType,
         setSelectedCTranslate2WeightType,
     } = useTranslation();
+    const [confirming, setConfirming] = useState(null);
+    const [downloadReview, setDownloadReview] = useState(null);
+    const selection = useRef(null);
 
-    const selectFunction = (id) => {
-        setSelectedCTranslate2WeightType(id);
+    const findWeight = (id) => currentCTranslate2WeightTypeStatus.data.find(item => item.id === id);
+    const isConfirmed = (weight) => license_confirmed_weights.has(weight?.id);
+    const askFirst = (weight) => needsLicenseConfirmation(weight, currentSelectedCTranslate2WeightType.data) && !isConfirmed(weight);
+
+    const select = (id) => setSelectedCTranslate2WeightType(weightRequest(id, isConfirmed(findWeight(id))));
+    const download = (request) => {
+        if (isNonCommercialWeight(findWeight(request.weight_type))) license_confirmed_weights.add(request.weight_type);
+        pendingCTranslate2WeightTypeStatus(request.weight_type);
+        downloadCTranslate2WeightTypeStatus(request);
     };
 
-    const downloadStartFunction = (id) => {
-        pendingCTranslate2WeightTypeStatus(id);
-        downloadCTranslate2WeightTypeStatus(id);
+    const selectFunction = (id) => {
+        const weight = findWeight(id);
+        if (askFirst(weight)) return setConfirming({ weight, action: "select" });
+        select(id);
+    };
+
+    const downloadStartFunction = (id) => setDownloadReview(id);
+
+    const confirmLicense = () => {
+        const { weight } = confirming;
+        license_confirmed_weights.add(weight.id);
+        setConfirming(null);
+        select(weight.id);
     };
 
 
     const c_translate2_weight_types_object = currentCTranslate2WeightTypeStatus.data.map(item => {
+        const non_commercial = isNonCommercialWeight(item);
         return {
             ...item,
             label: item.id,
+            desc: t(
+                non_commercial
+                    ? "config_page.translation.ctranslate2_weight_type.license_non_commercial"
+                    : "config_page.translation.ctranslate2_weight_type.license_commercial",
+                { license: item.license }
+            ),
+            desc_tone: non_commercial ? "warning" : undefined,
         };
     });
 
 
     return (
-        <>
+        <div ref={selection} tabIndex={-1} role="group" aria-label={t("config_page.translation.ctranslate2_weight_type.label", { ctranslate2: "CTranslate2" })}>
+            {downloadReview && <LegacyModelDownloadDialog kind="ctranslate2" weightType={downloadReview}
+                onCancel={() => setDownloadReview(null)} onDownload={download} />}
+            {confirming && (
+                <CTranslate2LicenseDialog
+                    fallback={selection}
+                    weight={confirming.weight}
+                    action={confirming.action}
+                    onCancel={() => setConfirming(null)}
+                    onConfirm={confirmLicense}
+                />
+            )}
             <DownloadModelsContainer
                 label={t(
                     "config_page.translation.ctranslate2_weight_type.label",
@@ -146,7 +241,45 @@ const CTranslate2WeightType_Box = () => {
                 selectFunction={selectFunction}
                 downloadStartFunction={downloadStartFunction}
             />
-        </>
+        </div>
+    );
+};
+
+export const CTranslate2LicenseDialog = ({ weight, action, onCancel, onConfirm, fallback }) => {
+    const { t } = useI18n();
+    const { dialog, close } = useConsentDialog(true, fallback);
+    const [checked, setChecked] = useState(false);
+    const cancel = () => { close(); onCancel(); };
+    const confirm = () => { if (!checked) return; close(); onConfirm(); };
+
+    const openLink = async (event, url) => {
+        if (!isTauri()) return;
+        event.preventDefault();
+        try { await openUrl(url); }
+        catch (error) { console.error("Failed to open", url, error); }
+    };
+    const key = (name) => `config_page.translation.ctranslate2_weight_type.${name}`;
+
+    return (
+        <dialog ref={dialog} className={styles.license_dialog} aria-label={t(key("confirm_title"))} onCancel={event => { event.preventDefault(); cancel(); }}>
+            <h3>{t(key("confirm_title"))}</h3>
+            <p>{t(key("confirm_body"), { weight_type: weight.id, license: weight.license })}</p>
+            <p>
+                <a href={weight.license_url} target="_blank" rel="noreferrer" onClick={event => openLink(event, weight.license_url)}>{t(key("license_link"))} ({weight.license})</a>
+                {" · "}
+                <a href={weight.model_card_url} target="_blank" rel="noreferrer" onClick={event => openLink(event, weight.model_card_url)}>{t(key("model_card_link"))}</a>
+            </p>
+            <label className={styles.license_check}>
+                <input type="checkbox" checked={checked} onChange={event => setChecked(event.target.checked)} />
+                {t(key("confirm_check"))}
+            </label>
+            <div className={styles.license_actions}>
+                <button type="button" autoFocus onClick={cancel}>{t(key("confirm_cancel"))}</button>
+                <button type="button" className={styles.confirm_button} disabled={!checked} onClick={confirm}>
+                    {t(key(action === "download" ? "confirm_download" : "confirm_select"))}
+                </button>
+            </div>
+        </dialog>
     );
 };
 
@@ -182,6 +315,7 @@ const DeepLAuthKey_Box = () => {
         state: currentDeepLAuthKey.state,
         setFunction: setDeepLAuthKey,
         deleteFunction: deleteDeepLAuthKey,
+        label: t("config_page.translation.deepl_auth_key.label"),
     });
 
     return (
@@ -211,6 +345,7 @@ const PlamoAuthKey_Box = () => {
         state: currentPlamoAuthKey.state,
         setFunction: setPlamoAuthKey,
         deleteFunction: deletePlamoAuthKey,
+        label: t("config_page.translation.plamo_auth_key.label"),
     });
 
     return (
@@ -272,6 +407,7 @@ const GeminiAuthKey_Box = () => {
         state: currentGeminiAuthKey.state,
         setFunction: setGeminiAuthKey,
         deleteFunction: deleteGeminiAuthKey,
+        label: t("config_page.translation.gemini_auth_key.label"),
     });
 
     return (
@@ -332,6 +468,7 @@ const OpenAIAuthKey_Box = () => {
         state: currentOpenAIAuthKey.state,
         setFunction: setOpenAIAuthKey,
         deleteFunction: deleteOpenAIAuthKey,
+        label: t("config_page.translation.openai_auth_key.label"),
     });
 
     return (
@@ -392,6 +529,7 @@ const GroqAuthKey_Box = () => {
         state: currentGroqAuthKey.state,
         setFunction: setGroqAuthKey,
         deleteFunction: deleteGroqAuthKey,
+        label: t("config_page.translation.groq_auth_key.label"),
     });
 
     return (
@@ -452,6 +590,7 @@ const OpenRouterAuthKey_Box = () => {
         state: currentOpenRouterAuthKey.state,
         setFunction: setOpenRouterAuthKey,
         deleteFunction: deleteOpenRouterAuthKey,
+        label: t("config_page.translation.openrouter_auth_key.label"),
     });
 
     return (
@@ -528,6 +667,7 @@ const LMStudioURL_Box = () => {
         state: currentLMStudioURL.state,
         setFunction: setLMStudioURL,
         deleteFunction: deleteLMStudioURL,
+        label: "LM Studio URL",
     });
 
     return (
@@ -535,13 +675,13 @@ const LMStudioURL_Box = () => {
             <EntryWithSaveButtonContainer
                 label="LM Studio URL"
                 // label={t("config_page.translation.lmstudio_url.label")}
-                // desc={t("config_page.translation.lmstudio_url.desc")}
+                desc={endpointDescription(variable, "", t)}
                 variable={variable}
                 saveFunction={saveFunction}
                 onChangeFunction={onChangeFunction}
                 state={currentLMStudioURL.state}
                 remove_border_bottom={true}
-                // width="10rem"
+                width="24rem"
             />
         </>
     );
@@ -627,57 +767,9 @@ const OllamaModelContainer = () => {
     );
 };
 
-const OpenAICompatibleURL_Box = () => {
-    const { t } = useI18n();
-    const { currentOpenAICompatibleURL, setOpenAICompatibleURL } = useTranslation();
-
-    const { variable, onChangeFunction, saveFunction } = useSaveButtonLogic({
-        variable: currentOpenAICompatibleURL.data,
-        state: currentOpenAICompatibleURL.state,
-        setFunction: setOpenAICompatibleURL,
-    });
-
-    return (
-        <>
-            <EntryWithSaveButtonContainer
-                label={t("config_page.translation.openai_compatible_url.label")}
-                desc={t("config_page.translation.openai_compatible_url.desc")}
-                variable={variable}
-                saveFunction={saveFunction}
-                onChangeFunction={onChangeFunction}
-                state={currentOpenAICompatibleURL.state}
-                remove_border_bottom={true}
-            />
-        </>
-    );
-};
-const OpenAICompatibleAuthKey_Box = () => {
-    const { t } = useI18n();
-    const {
-        currentOpenAICompatibleAuthKey,
-        setOpenAICompatibleAuthKey,
-        deleteOpenAICompatibleAuthKey,
-    } = useTranslation();
-
-    const { variable, onChangeFunction, saveFunction } = useSaveButtonLogic({
-        variable: currentOpenAICompatibleAuthKey.data,
-        state: currentOpenAICompatibleAuthKey.state,
-        setFunction: setOpenAICompatibleAuthKey,
-        deleteFunction: deleteOpenAICompatibleAuthKey,
-    });
-
-    return (
-        <>
-            <AuthKeyContainer
-                label={t("config_page.translation.openai_compatible_auth_key.label")}
-                variable={variable}
-                state={currentOpenAICompatibleAuthKey.state}
-                onChangeFunction={onChangeFunction}
-                saveFunction={saveFunction}
-                remove_border_bottom={true}
-            />
-        </>
-    );
+const OpenAICompatibleCredentials = () => {
+    const settings = useTranslation();
+    return <CredentialPair settings={settings} base="OpenAICompatible" provider="openai_compatible" section="translation" />;
 };
 const OpenAICompatibleModelContainer = () => {
     const { t } = useI18n();

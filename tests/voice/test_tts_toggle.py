@@ -187,8 +187,10 @@ def test_enable_names_each_blocking_condition(app, monkeypatch):
     assert code() == "voice_route_muted"
     c.voice_events.set_muted(False)
     c.setVoiceSettings({"mode": "original", "output_device": "cable", "japanese_server": "bundled"})
-    assert code() == "speech_server_not_ready"  # Bundled server not started.
-    c.setVoiceSettings({"mode": "original", "output_device": "cable"})
+    # ON starts a stopped bundled server, so a missing model is named instead.
+    assert code() == "speech_server_model_invalid"
+    assert c.getSpeechServerState()["result"]["japanese"]["state"] == "stopped"
+    c.setVoiceSettings({"mode": "original", "output_device": "cable", "japanese_server": "external"})
 
     def unhealthy(self):
         raise SpeechError("speech_server_not_ready")

@@ -1,4 +1,7 @@
-from openai import OpenAI
+from models.diagnostics import provider_errors
+from utils import errorLogging
+from models.network_policy import validate_api_url, without_tracing
+from models.sdk_clients import OpenAI
 
 try:
     from .translation_languages import translation_lang
@@ -50,6 +53,7 @@ def _text_models(res) -> list[str]:
     return allowed_models
 
 
+@provider_errors("OpenAI_Compatible")
 def _get_available_text_models(api_key: str, base_url: str) -> list[str]:
     return _text_models(_fetch_models(api_key, base_url))
 
@@ -61,13 +65,16 @@ class OpenAICompatibleClient(OpenAIClient):
       - base_url を必須化し既定値を持たせる
       - モデルフィルタを緩め、プロバイダ独自命名を許容する
     """
+    provider_name = "OpenAI_Compatible"
+
     DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
+    @without_tracing
     def __init__(self, base_url: str | None = None, root_path: str = None):
         # OpenAIClient.__init__ を再実装：プロンプトファイルと supported_languages を差し替えるため
         self.api_key = None
         self.model = None
-        self.base_url = base_url if base_url else self.DEFAULT_BASE_URL
+        self.base_url = validate_api_url(base_url if base_url is not None else self.DEFAULT_BASE_URL)
 
         prompt_config = loadTranslatePromptConfig(root_path, "translation_openai_compatible.yml")
         self.supported_languages = list(translation_lang["OpenAI_Compatible"]["source"].keys())
@@ -87,21 +94,25 @@ class OpenAICompatibleClient(OpenAIClient):
         return self.base_url
 
     def setBaseURL(self, base_url: str) -> None:
-        self.base_url = base_url if base_url else self.DEFAULT_BASE_URL
+        self.base_url = validate_api_url(base_url if base_url is not None else self.DEFAULT_BASE_URL)
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def getModelList(self) -> list[str]:
         if not self.api_key or not self.base_url:
             return []
         try:
             return self._remember(self._takeAuthModels() or _get_available_text_models(self.api_key, self.base_url))
         except Exception:
+            errorLogging(provider=self.provider_name)
             return []
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def setAuthKey(self, api_key: str) -> bool:
         # 認証は現在の base_url に対して行う
         try:
             res = _fetch_models(api_key, self.base_url)
         except Exception:
+            errorLogging(provider=self.provider_name)
             return False
         self.api_key = api_key
         self._rememberFromAuth(lambda: _text_models(res))

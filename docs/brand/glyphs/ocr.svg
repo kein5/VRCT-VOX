@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="title desc" >
+<title id="title">OCR — read screen chat</title>
+<desc id="desc">Original 24-unit glyph, 1.8-unit round stroke. Recolor with CSS currentColor when inlined.</desc>
+<g transform="translate(0 0) scale(1.0)"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7V3a1 1 0 0 1 1-1h4M17 2h4a1 1 0 0 1 1 1v4M22 17v4a1 1 0 0 1-1 1h-4M7 22H3a1 1 0 0 1-1-1v-4"/><path d="M8 6h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-4l-4 3v-3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2ZM9 10h6M9 13h4"/></g></g>
+</svg>

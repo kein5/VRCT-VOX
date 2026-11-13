@@ -1,79 +1,90 @@
-name: Bug Report
-description: File a bug report
-title: "[Bug]: (Please note that the title must be in English.)"
+name: Bug report / 不具合の報告
+description: Something in VRCT-VOX does not work as expected. / VRCT-VOX が期待どおりに動かない。
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report!
-  - type: checkboxes
-    id: debug-tips
-    attributes:
-      label: Debug Tips
-      description: To improve debug efficiency, please read [Issues of README](https://github.com/kein5/VRCT-VOX/issues) first.
-      options:
-        - label: I'm sure I've read this project's Issues of README.
-          required: true
-  - type: textarea
-    id: what-happened
-    attributes:
-      label: What happened?
-      description: Also tell us, what did you expect to happen?
-      placeholder: Tell us what you see!
-      value: "A bug happened!"
-    validations:
-      required: true
+        Write in English or Japanese. 英語でも日本語でも構いません。
+        Security vulnerabilities must not be reported here: use [private vulnerability reporting](https://github.com/kein5/VRCT-VOX/security/advisories/new) (see SECURITY.md).
+        脆弱性はここではなく、非公開の脆弱性報告から送ってください。
   - type: input
-    id: app-version
+    id: version
     attributes:
-      label: APP Version
-      description: What version of App are you running?
-      placeholder: Tell us what you see!
+      label: VRCT-VOX version / 版
+      description: Shown at the bottom of the settings screen (e.g. 0.1.0). / 設定画面の左下に表示されています。
+      placeholder: "0.1.0"
     validations:
       required: true
   - type: dropdown
-    id: runtime-environment
+    id: os
     attributes:
-      label: Runtime Environment
-      description: What runtime environment(OS) are you running?
+      label: Operating system / OS
       options:
-        - "Windows 10"
-        - "Windows 11"
-        - "Other"
+        - Windows 11
+        - Windows 10
+        - Linux (tar.gz)
+        - Linux (AppImage)
+        - Other / その他
     validations:
       required: true
-  - type: input
-    id: region
+  - type: dropdown
+    id: area
     attributes:
-      label: Country/Region
-      description: What Country(Region) are you running?
-      placeholder: Tell us what you see!
-      value: "Qatar (example)"
+      label: Affected feature / 対象の機能
+      multiple: true
+      options:
+        - TTS (speech.cpp)
+        - Speech recognition / 音声認識
+        - Translation / 翻訳
+        - Voice conversion (RVC / Seed-VC)
+        - VRChat (OSC, chatbox, virtual microphone)
+        - Model downloads / モデルの取得
+        - Shortcuts, quick chat / ショートカット・入力の小窓
+        - VR overlay
+        - Install, update, startup / 導入・更新・起動
+        - Other / その他
     validations:
       required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened and what did you expect? / 起きたことと期待した動作
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / 再現手順
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment details / 環境の詳細
+      description: GPU and driver, audio devices, VR runtime, speech.cpp model, translation engine. / GPU とドライバー、音声デバイス、VR ランタイム、使ったモデルや翻訳エンジンなど。
+    validations:
+      required: false
   - type: textarea
     id: logs
     attributes:
-      label: Relevant log output
-      description: Please copy and paste the relevant log output. Error logs are generated in the folder where vrct-vox.exe is stored.
-      render: sh
-    validations:
-      required: false
-  - type: textarea
-    id: screenshot
-    attributes:
-      label: "Screenshots"
-      description: If applicable, add screenshots to help explain your problem.
-      value: |
-        ![DESCRIPTION](LINK.png)
-      render: Markdown
+      label: Relevant log output / ログ
+      description: |
+        Windows: the `logs` folder next to vrct-vox.exe. Linux: `~/.config/vrct-vox/logs/`.
+        Remove API keys, chat text and other personal data before pasting. / API キーや会話の内容などの個人情報は取り除いてください。
+      render: text
     validations:
       required: false
   - type: checkboxes
-    id: terms
+    id: checks
     attributes:
-      label: Fork support guidelines
-      description: By submitting this issue, you agree to follow the [fork support guidance](https://github.com/kein5/VRCT-VOX#status-and-downloads)
+      label: Checks / 確認
       options:
-        - label: I have read the fork support guidelines and will remove secrets from attached logs
+        - label: I searched existing issues. / 既存の Issue を検索しました。
+          required: true
+        - label: This happens in VRCT-VOX, not only in upstream VRCT. / 上流の VRCT ではなく VRCT-VOX で起きる問題です。
           required: true

@@ -42,6 +42,18 @@ def test_appimage_gui_renders_and_exits(appimage, tmp_path):
     test_model_free_native_app_renders_text_input_without_fatal_warning(tmp_path)
 
 
+@pytest.mark.parametrize('scaling', [100, 150])
+def test_appimage_settings_open_save_and_fit_a_small_window(appimage, tmp_path, scaling):
+    """Opens settings, changes tabs, unfolds a setup section, saves and returns.
+
+    Needs no audio and no models, so it also runs in CI, on every pull request
+    that touches the UI. The other native tests are run by hand before a
+    release, and their helpers once fell behind the UI unnoticed.
+    """
+    from test_native_tts_settings import test_split_settings_small_window_keyboard_and_long_paths
+    test_split_settings_small_window_keyboard_and_long_paths(tmp_path, scaling)
+
+
 @pytest.mark.skipif(os.environ.get('VRCT_TEST_NATIVE_ROUTE') != '1', reason='private WirePlumber0.5 graph')
 def test_appimage_settings_restart_muted(appimage, tmp_path):
     from test_native_ui import test_native_voice_settings_survive_restart_with_managed_route_muted
@@ -61,7 +73,8 @@ def test_normal_launch_keeps_window_painted_after_idle_and_hover(appimage, tmp_p
     state = initial_state(tmp_path)
     env = dict(os.environ, VRCT_CONFIG_DIR=str(state), VRCT_DATA_DIR=str(tmp_path/'data'),
                VRCT_CACHE_DIR=str(tmp_path/'cache'), XDG_DATA_HOME=str(tmp_path/'xdg-data'),
-               XDG_CACHE_HOME=str(tmp_path/'xdg-cache'), HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1')
+               XDG_CACHE_HOME=str(tmp_path/'xdg-cache'), HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1',
+               VRCT_TELEMETRY='off')
     check_displays_on()
     pointer = dict(re.findall(r'^(X|Y)=(\d+)$', subprocess.check_output(
         ['xdotool', 'getmouselocation', '--shell'], text=True, timeout=3), re.M))
@@ -87,7 +100,9 @@ def test_normal_launch_keeps_window_painted_after_idle_and_hover(appimage, tmp_p
                             values = dict(re.findall(r'^(WIDTH|HEIGHT)=(\d+)$', geometry, re.M))
                             if int(values.get('WIDTH', 0)) >= 500 and int(values.get('HEIGHT', 0)) >= 300:
                                 window = ids[0]
-                    except psutil.NoSuchProcess:
+                    # A helper running with other credentials (such as WebKit's
+                    # bubblewrap sandbox) hides its environment; it is not the app.
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue
                 if window:
                     break
@@ -129,14 +144,14 @@ def test_normal_launch_keeps_window_painted_after_idle_and_hover(appimage, tmp_p
             for child in owned:
                 try:
                     child.terminate()
-                except psutil.NoSuchProcess:
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
             _, alive = psutil.wait_procs(owned, timeout=3)
             for child in alive:
                 try:
                     if child.status() != psutil.STATUS_ZOMBIE:
                         child.kill()
-                except psutil.NoSuchProcess:
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
             process.wait(timeout=3)
             _, alive = psutil.wait_procs(alive, timeout=3)

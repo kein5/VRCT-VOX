@@ -24,6 +24,7 @@
      フォールバックする (Model が Controller を知らないままでも壊れない)。
 """
 
+from concurrent.futures import ThreadPoolExecutor
 import threading
 import unittest
 from unittest.mock import MagicMock, patch
@@ -31,6 +32,8 @@ from unittest.mock import MagicMock, patch
 import config as config_module
 from controller import Controller
 from model import Model
+from models.osc.osc import OSCHandler
+from osc_fakes import prepare_query
 
 
 class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
@@ -38,7 +41,7 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         # Model はプロセス全体で共有されるシングルトン。他のテストが既に
         # init() 済みかもしれないので、実属性を保存してから上書きし、
         # tearDown で必ず元に戻す。
-        self.model = Model.__new__(Model)
+        self.model = object.__new__(Model)
         self._had_inited = hasattr(self.model, "_inited")
         self._original_inited = getattr(self.model, "_inited", None)
         self._had_mute_status = hasattr(self.model, "mic_mute_status")
@@ -51,6 +54,13 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         self._original_osc_handler = getattr(self.model, "osc_handler", None)
         self._had_mute_callback = hasattr(self.model, "mic_mute_status_change_callback")
         self._original_mute_callback = getattr(self.model, "mic_mute_status_change_callback", None)
+        self._mute_state_patch = patch.multiple(
+            self.model, _mute_status_generation=0, _mute_verification_pending=None,
+            _osc_shutdown=False, _osc_query_admission=True,
+            _mute_query_pending=None, _mute_query_future=None,
+            _avatar_query_executor=ThreadPoolExecutor(max_workers=1)
+        )
+        self._mute_state_patch.start()
 
         self.model._inited = True  # ensure_initialized() の実init発火を防ぐ
         self.model.mic_mute_status = False
@@ -60,6 +70,7 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         self.model.mic_lifecycle_worker.enqueue.side_effect = lambda fn: self.enqueued.append(fn)
         self.model.osc_handler = MagicMock()
         self.model.osc_handler.osc_parameter_muteself = "/avatar/parameters/MuteSelf"
+        self.model.osc_handler.getOSCParameterMuteSelf.return_value = False
         # デフォルトは未登録 (フォールバック経路) を検証する。登録済みの
         # 場合の挙動は別のテストクラスで検証する。
         self.model.mic_mute_status_change_callback = None
@@ -68,6 +79,9 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         config_module.config.VRC_MIC_MUTE_SYNC = True
 
     def tearDown(self) -> None:
+        self._wait_for_queries()
+        self.model._avatar_query_executor.shutdown(wait=True, cancel_futures=True)
+        self._mute_state_patch.stop()
         config_module.config.VRC_MIC_MUTE_SYNC = self._original_mute_sync
         for attr, had, original in (
             ("_inited", self._had_inited, self._original_inited),
@@ -90,10 +104,19 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         (dict_filter_and_target,), _ = self.model.osc_handler.setDictFilterAndTarget.call_args
         return dict_filter_and_target[self.model.osc_handler.osc_parameter_muteself]
 
+    def _wait_for_queries(self):
+        if self.model._osc_shutdown:
+            self.model._avatar_query_executor.shutdown(wait=True)
+        else:
+            self.model._avatar_query_executor.submit(lambda: None).result(timeout=5)
+            self.model._avatar_query_executor.submit(lambda: None).result(timeout=5)
+
     def test_mute_true_enqueues_instead_of_calling_pause_inline(self) -> None:
         callback = self._get_registered_mute_callback()
         callback(address="/x", osc_arguments=True)
 
+        self.assertIs(self.model.mic_mute_status, True)
+        self.model.osc_handler.getOSCParameterMuteSelf.assert_not_called()
         self.assertEqual(len(self.enqueued), 1)
         self.assertEqual(self.enqueued[0], self.model.changeMicTranscriptStatus)
         # OSC スレッド上でインラインには呼ばれていないこと。
@@ -103,6 +126,7 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         self.model.mic_mute_status = True
         callback = self._get_registered_mute_callback()
         callback(address="/x", osc_arguments=False)
+        self._wait_for_queries()
 
         self.assertEqual(len(self.enqueued), 1)
         self.model._mic_session.resume.assert_not_called()
@@ -119,9 +143,232 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         self.model.mic_mute_status = True
         callback = self._get_registered_mute_callback()
         callback(address="/x", osc_arguments=False)
+        self._wait_for_queries()
 
         self.enqueued[0]()
         self.model._mic_session.resume.assert_called_once()
+
+    def test_forged_false_while_oscquery_says_true_stays_muted(self) -> None:
+        self.model.mic_mute_status = True
+        self.model.osc_handler.getOSCParameterMuteSelf.return_value = True
+        callback = self._get_registered_mute_callback()
+        with patch("model.printLog") as log:
+            callback("/x", False)
+            self._wait_for_queries()
+        self.assertIs(self.model.mic_mute_status, True)
+        self.assertEqual(self.enqueued, [])
+        self.model._mic_session.resume.assert_not_called()
+        log.assert_called_once_with("OSC: unmute not confirmed by OSCQuery; keeping microphone muted")
+
+    def test_false_confirmed_by_oscquery_resumes_through_locked_callback(self) -> None:
+        self.model.mic_mute_status = True
+        locked_wrapper = MagicMock(side_effect=self.model.changeMicTranscriptStatus)
+        self.model.mic_mute_status_change_callback = locked_wrapper
+        callback = self._get_registered_mute_callback()
+        callback("/x", False)
+        self._wait_for_queries()
+        self.model.osc_handler.getOSCParameterMuteSelf.assert_called_once_with()
+        self.assertIs(self.model.mic_mute_status, False)
+        self.assertEqual(self.enqueued, [locked_wrapper])
+        self.model._mic_session.resume.assert_not_called()
+        self.enqueued[0]()
+        self.model._mic_session.resume.assert_called_once_with()
+
+    def test_oscquery_unavailable_or_non_boolean_stays_muted(self) -> None:
+        self.model.mic_mute_status = True
+        callback = self._get_registered_mute_callback()
+        for value in (None, 0, "false", [], False):
+            with self.subTest(value=value):
+                self.model.osc_handler.getOSCParameterMuteSelf.return_value = value
+                # Exceptions must also fail closed, without logging their text.
+                self.model.osc_handler.getOSCParameterMuteSelf.side_effect = (
+                    RuntimeError("private service details") if value is False else None
+                )
+                with patch("model.printLog") as log:
+                    callback("/x", False)
+                    self._wait_for_queries()
+                self.assertIs(self.model.mic_mute_status, True)
+                self.assertFalse(self.model._mute_verification_pending)
+                self.assertEqual(self.enqueued, [])
+                self.assertTrue(log.called)
+                self.assertNotIn("private service details", str(log.call_args_list))
+        self.model._mic_session.resume.assert_not_called()
+
+    def _block_query(self, value=False):
+        entered = threading.Event()
+        release = threading.Event()
+
+        def query():
+            entered.set()
+            if not release.wait(5):
+                raise AssertionError("test did not release the query")
+            return value
+
+        self.model.osc_handler.getOSCParameterMuteSelf.side_effect = query
+        return entered, release
+
+    def test_true_during_pending_verification_wins_and_receive_does_not_block(self) -> None:
+        self.model.mic_mute_status = True
+        entered, release = self._block_query()
+        callback = self._get_registered_mute_callback()
+        returned = threading.Event()
+        receiver = threading.Thread(target=lambda: (callback("/x", False), returned.set()))
+        try:
+            receiver.start()
+            self.assertTrue(entered.wait(1))
+            self.assertTrue(returned.wait(1))  # The receive thread returns before the lookup finishes.
+            self.assertIs(self.model.mic_mute_status, True)
+            callback("/x", True)  # Must invalidate even though the state is already True.
+            self.assertEqual(self.enqueued, [])
+        finally:
+            release.set()
+            receiver.join(timeout=5)
+            self._wait_for_queries()
+        self.assertIs(self.model.mic_mute_status, True)
+        self.assertEqual(self.enqueued, [])
+        self.model._mic_session.resume.assert_not_called()
+
+    def test_repeated_false_does_not_queue_more_pending_verifications(self) -> None:
+        self.model.mic_mute_status = True
+        entered, release = self._block_query()
+        callback = self._get_registered_mute_callback()
+        try:
+            callback("/x", False)
+            self.assertTrue(entered.wait(1))
+            for _ in range(30):
+                callback("/x", False)
+            self.model.osc_handler.getOSCParameterMuteSelf.assert_called_once()
+        finally:
+            release.set()
+            self._wait_for_queries()
+        self.model.osc_handler.getOSCParameterMuteSelf.assert_called_once()
+        self.assertEqual(len(self.enqueued), 1)
+
+    def test_true_then_false_during_verification_requires_a_fresh_query(self) -> None:
+        self.model.mic_mute_status = True
+        entered, release = self._block_query()
+        first_query = self.model.osc_handler.getOSCParameterMuteSelf.side_effect
+        confirmed = threading.Event()
+
+        def query():
+            if not entered.is_set():
+                return first_query()
+            self.assertIs(self.model.mic_mute_status, True)
+            confirmed.set()
+            return False
+
+        self.model.osc_handler.getOSCParameterMuteSelf.side_effect = query
+        callback = self._get_registered_mute_callback()
+        try:
+            callback("/x", False)
+            self.assertTrue(entered.wait(1))
+            callback("/x", True)
+            callback("/x", False)
+            self.assertIs(self.model.mic_mute_status, True)
+        finally:
+            release.set()
+        self.assertTrue(confirmed.wait(1))
+        self._wait_for_queries()
+        self.assertEqual(self.model.osc_handler.getOSCParameterMuteSelf.call_count, 2)
+        self.assertIs(self.model.mic_mute_status, False)
+        self.assertEqual(len(self.enqueued), 1)
+
+    def test_sync_disabled_during_verification_discards_the_result(self) -> None:
+        self.model.mic_mute_status = True
+        entered, release = self._block_query()
+        callback = self._get_registered_mute_callback()
+        try:
+            callback("/x", False)
+            self.assertTrue(entered.wait(1))
+            config_module.config.VRC_MIC_MUTE_SYNC = False
+        finally:
+            release.set()
+            self._wait_for_queries()
+        self.assertIs(self.model.mic_mute_status, True)
+        self.assertEqual(self.enqueued, [])
+
+    def test_stopping_receive_during_verification_discards_the_result(self) -> None:
+        self.model.mic_mute_status = True
+        entered, release = self._block_query()
+        callback = self._get_registered_mute_callback()
+        try:
+            callback("/x", False)
+            self.assertTrue(entered.wait(1))
+            self.model.stopReceiveOSC()
+        finally:
+            release.set()
+            self._wait_for_queries()
+        self.assertIs(self.model.mic_mute_status, True)
+        self.assertEqual(self.enqueued, [])
+
+    def test_timeout_and_late_false_stay_muted_then_a_fresh_query_can_resume(self) -> None:
+        # Exercise the real bounded helper with OSCQuery mocked below it. No sockets.
+        with patch("models.osc.osc.udp_client.SimpleUDPClient"):
+            handler = OSCHandler()
+        handler.browser = MagicMock()
+        entered = threading.Event()
+        release = threading.Event()
+
+        def query(address):
+            entered.set()
+            release.wait(5)
+            return MagicMock(value=[False])
+
+        self.model.mic_mute_status = True
+        self.model.osc_handler.getOSCParameterMuteSelf.side_effect = handler.getOSCParameterMuteSelf
+        callback = self._get_registered_mute_callback()
+        with (patch("models.osc.osc.OSCQueryClient") as client,
+              patch("models.osc.osc.OSC_QUERY_TIMEOUT_SECONDS", 0.05),
+              patch("models.osc.osc.printLog") as log):
+            prepare_query(handler, client)
+            client.return_value.query_node.side_effect = query
+            try:
+                callback("/x", False)
+                self.assertTrue(entered.wait(1))
+                self._wait_for_queries()  # Completes while the underlying query is still blocked.
+                self.assertIs(self.model.mic_mute_status, True)
+                self.assertEqual(self.enqueued, [])
+                log.assert_any_call("OSCQuery: query timed out", {"address": handler.osc_parameter_muteself})
+                callback("/x", False)
+                self._wait_for_queries()
+                client.return_value.query_node.assert_called_once_with(handler.osc_parameter_muteself)
+            finally:
+                release.set()
+                self.assertTrue(handler._parameter_query_lock.acquire(timeout=5))
+                handler._parameter_query_lock.release()
+            self.assertIs(self.model.mic_mute_status, True)
+            self.assertEqual(self.enqueued, [])
+            callback("/x", False)
+            self._wait_for_queries()
+        self.assertIs(self.model.mic_mute_status, False)
+        self.enqueued[0]()
+        self.model._mic_session.resume.assert_called_once_with()
+
+    def test_true_from_unknown_state_pauses_without_oscquery(self) -> None:
+        self.model.mic_mute_status = None
+        callback = self._get_registered_mute_callback()
+        callback("/x", True)
+        self.assertIs(self.model.mic_mute_status, True)
+        self.model.osc_handler.getOSCParameterMuteSelf.assert_not_called()
+        self.enqueued[0]()
+        self.model._mic_session.pause.assert_called_once_with()
+
+    def test_true_after_verification_but_before_lifecycle_callback_prevents_resume(self) -> None:
+        self.model.mic_mute_status = True
+        callback = self._get_registered_mute_callback()
+        callback("/x", False)
+        self._wait_for_queries()
+        callback("/x", True)
+        for fn in self.enqueued:
+            fn()
+        self.assertIs(self.model.mic_mute_status, True)
+        self.model._mic_session.resume.assert_not_called()
+
+    def test_startup_query_failure_preserves_a_known_mute(self) -> None:
+        self.model.mic_mute_status = True
+        self.model.osc_handler.getOSCParameterMuteSelf.return_value = None
+        self.model.setMuteSelfStatus()
+        self.assertIs(self.model.mic_mute_status, True)
 
     def test_duplicate_mute_state_does_not_enqueue(self) -> None:
         self.model.mic_mute_status = True
@@ -161,7 +408,7 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
 
         def call_and_wait(*args):
             callback(*args)
-            Model._avatar_query_executor.submit(lambda: None).result(timeout=5)  # 問い合わせのスレッドを待つ
+            self.model._avatar_query_executor.submit(lambda: None).result(timeout=5)  # 問い合わせのスレッドを待つ
         return call_and_wait
 
     def test_avatar_load_settles_an_unknown_state_and_syncs(self) -> None:
@@ -180,8 +427,8 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
     def test_avatar_load_without_a_readable_value_keeps_the_state(self) -> None:
         self.model.mic_mute_status = None
         self._avatar_callback(None)("/avatar/change", "avtr_x")
-        self.assertIsNone(self.model.mic_mute_status)
-        self.assertEqual(self.enqueued, [])
+        self.assertIs(self.model.mic_mute_status, True)
+        self.assertEqual(len(self.enqueued), 1)
 
     def test_avatar_load_is_ignored_while_sync_is_off(self) -> None:
         config_module.config.VRC_MIC_MUTE_SYNC = False
@@ -202,7 +449,7 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         threading.Thread(target=lambda: (callback("/avatar/change", "avtr_x"), started.set())).start()
         self.assertTrue(started.wait(1))  # returned while the query is still waiting
         release.set()
-        Model._avatar_query_executor.submit(lambda: None).result(timeout=5)
+        self.model._avatar_query_executor.submit(lambda: None).result(timeout=5)
         self.assertIs(self.model.mic_mute_status, True)
         self.assertEqual(len(self.enqueued), 1)
 
@@ -216,6 +463,28 @@ class OscMuteHandlerRoutesThroughWorkerTests(unittest.TestCase):
         for thread in threads:
             thread.join()
         self.assertEqual(len(self.enqueued), 1)
+
+    def test_avatar_query_false_cannot_overwrite_a_later_true_message(self) -> None:
+        self.model.mic_mute_status = True
+        entered, release = self._block_query()
+        mute_callback = self._get_registered_mute_callback()
+        (callbacks,), _ = self.model.osc_handler.setDictFilterAndTarget.call_args
+        try:
+            callbacks["/avatar/change"]("/avatar/change", "avtr_x")
+            self.assertTrue(entered.wait(1))
+            mute_callback("/x", True)
+        finally:
+            release.set()
+            self._wait_for_queries()
+        self.assertIs(self.model.mic_mute_status, True)
+        self.assertEqual(self.enqueued, [])
+
+    def test_avatar_load_can_still_resume_from_oscquery_false(self) -> None:
+        self.model.mic_mute_status = True
+        self._avatar_callback(False)("/avatar/change", "avtr_x")
+        self.assertIs(self.model.mic_mute_status, False)
+        self.enqueued[0]()
+        self.model._mic_session.resume.assert_called_once_with()
 
 
 class ControllerRegistersLockedMuteCallbackTests(unittest.TestCase):
@@ -248,16 +517,29 @@ class ControllerRegistersLockedMuteCallbackTests(unittest.TestCase):
 
     def test_locked_wrapper_acquires_the_lock_around_change_mic_transcript_status(self) -> None:
         controller = Controller.__new__(Controller)
-        controller.mic_lifecycle_lock = threading.Lock()
+        controller.mic_lifecycle_lock = threading.RLock()
         lock = controller.mic_lifecycle_lock
         observed_locked = []
 
+        def locked_from_another_thread():
+            acquired = []
+            def probe():
+                held = lock.acquire(blocking=False)
+                acquired.append(held)
+                if held:
+                    lock.release()
+            thread = threading.Thread(target=probe)
+            thread.start()
+            thread.join(timeout=1)
+            self.assertFalse(thread.is_alive())
+            return acquired == [False]
+
         with patch("controller.model") as mock_model:
-            mock_model.changeMicTranscriptStatus.side_effect = lambda: observed_locked.append(lock.locked())
+            mock_model.changeMicTranscriptStatus.side_effect = lambda: observed_locked.append(locked_from_another_thread())
             controller._changeMicTranscriptStatusLocked()
 
         self.assertEqual(observed_locked, [True])
-        self.assertFalse(lock.locked())
+        self.assertFalse(locked_from_another_thread())
 
 
 if __name__ == "__main__":

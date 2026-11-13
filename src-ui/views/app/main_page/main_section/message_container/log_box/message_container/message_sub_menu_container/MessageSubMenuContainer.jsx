@@ -1,4 +1,5 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useRef } from "react";
+import clsx from "clsx";
 import { useI18n } from "@useI18n";
 import { Tooltip } from "@common_components";
 import styles from "./MessageSubMenuContainer.module.scss";
@@ -6,34 +7,66 @@ import SendMessageSvg from "@images/send_message.svg?react";
 import RefreshSvg from "@images/refresh_2.svg?react";
 
 export const MessageSubMenuContainer = (props) => {
-    const [is_holding, setIsHolding] = useState(false);
+    const { t } = useI18n();
     const progressRef = useRef(null);
-    const holdTimeout = useRef(null);
+    const currentHold = useRef(null);
+    // Releasing a completed hold over the button still fires its click; that
+    // click must not also run edit, which replaces the draft being typed.
+    const resentByHold = useRef(false);
 
-    const startHold = () => {
-        setIsHolding(true);
+    const startHold = event => {
+        if (event.button !== 0 || !event.isPrimary || currentHold.current) return;
+        resentByHold.current = false;
+        const hold = { pointerId: event.pointerId, target: event.currentTarget, timer: null };
+        currentHold.current = hold;
+        hold.target.setPointerCapture(hold.pointerId);
         if (progressRef.current) {
-        progressRef.current.style.transition = "width 500ms linear";
-        progressRef.current.style.width = "100%";
+            progressRef.current.style.transition = "width 500ms linear";
+            progressRef.current.style.width = "100%";
         }
-        holdTimeout.current = setTimeout(() => {
+        hold.timer = setTimeout(() => {
+            if (currentHold.current !== hold) return;
+            cancelHold();
+            resentByHold.current = true;
             props.resendFunction();
             props.setIsHovered(false);
         }, 500);
     };
 
     const cancelHold = () => {
-        setIsHolding(false);
+        const hold = currentHold.current;
+        currentHold.current = null;
+        if (hold) {
+            clearTimeout(hold.timer);
+            if (hold.target.hasPointerCapture(hold.pointerId)) hold.target.releasePointerCapture(hold.pointerId);
+        }
         if (progressRef.current) {
             progressRef.current.style.transition = "none";
             progressRef.current.style.width = "0%";
         }
-        clearTimeout(holdTimeout.current);
     };
 
-    const onClickFunction = () => {
-        props.editFunction();
+    const moveHold = event => {
+        const hold = currentHold.current;
+        if (!hold || event.pointerId !== hold.pointerId) return;
+        const rect = hold.target.getBoundingClientRect();
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) cancelHold();
+    };
 
+    useEffect(() => {
+        window.addEventListener("blur", cancelHold);
+        return () => {
+            window.removeEventListener("blur", cancelHold);
+            cancelHold();
+        };
+    }, []);
+
+    const onClickFunction = event => {
+        const after_hold = resentByHold.current;
+        resentByHold.current = false;
+        // A keyboard activation (detail 0) is always a deliberate edit.
+        if (after_hold && event?.detail !== 0) return;
+        props.editFunction();
     };
 
     const offset = {
@@ -45,17 +78,23 @@ export const MessageSubMenuContainer = (props) => {
     };
 
     return (
-        <div className={styles.container}>
+        <div className={clsx(styles.container, { [styles.is_shown]: props.is_shown })}>
             <Tooltip
                 title={<Title_p />}
                 placement="top"
                 slotProps={offset}
             >
                 <button
+                type="button"
+                aria-label={t("main_page.message_log.resend_button_label")}
                 className={styles.resend_button}
-                onMouseDown={startHold}
-                onMouseUp={cancelHold}
-                onMouseLeave={cancelHold}
+                onPointerDown={startHold}
+                onPointerUp={cancelHold}
+                onPointerLeave={cancelHold}
+                onPointerMove={moveHold}
+                onPointerCancel={cancelHold}
+                onLostPointerCapture={cancelHold}
+                onBlur={cancelHold}
                 onClick={onClickFunction}
                 >
                     <SendMessageSvg className={styles.send_message_svg} />

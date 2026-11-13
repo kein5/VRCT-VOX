@@ -1,12 +1,17 @@
+import { CredentialPair } from "../_components/credential_pair/CredentialPair";
 import { SpeechServers } from "../advanced_settings/SpeechServers";
 import { useI18n } from "@useI18n";
 import styles from "./Transcription.module.scss";
 import { RealtimeASRSettings } from "./RealtimeASRSettings";
 import { genNumObjArray } from "@utils";
+import { useEffect, useState } from "react";
 
 import {
     useTranscription,
+    useSaveButtonLogic,
 } from "@logics_configs";
+
+import { CLOUD_TRANSCRIPTION_ENGINES } from "../../../../../../logics/configs/cloudTranscription";
 
 import {
     WordFilterContainer,
@@ -15,6 +20,7 @@ import {
     DropdownMenuContainer,
     SliderContainer,
     SwitchBoxContainer,
+    AuthKeyContainer,
 } from "../_templates/Templates";
 
 import {
@@ -22,13 +28,20 @@ import {
 } from "../_components";
 
 import { ComputeDevice } from "../_components/compute_device/ComputeDevice";
+import { Description } from "../_components/description/Description";
+import { SetupSection } from "../_components/setup_section/SetupSection";
+import { LegacyModelDownloadDialog } from "../_components/download_models/LegacyModelDownloadDialog";
+import { AutoDownloadModelsContainer } from "../shared_items/SharedItems";
 
 export const Transcription = () => {
     return (
         <div className={styles.container}>
+            {/* Which engine listens comes first: it decides what else on this page applies.
+                The timing numbers for the microphone and the speaker follow it, folded. */}
+            <TranscriptionEngine_Container />
+            <CloudTranscription_Container />
             <Mic_Container />
             <Speaker_Container />
-            <TranscriptionEngine_Container />
             <RealtimeASRSettings />
             <SpeechServers profiles={["asr"]} />
         </div>
@@ -36,15 +49,31 @@ export const Transcription = () => {
 };
 
 
+// The numbers that tune how speech is cut into messages are set once, if ever.
+// They sit in one fold whose line shows the values in use, so the page stays
+// short and nothing has to be opened to see what is set.
+const TimingFold = ({ silence, length, queue, children }) => {
+    const { t } = useI18n();
+    return (
+        <SetupSection title={t("config_page.transcription.timing_title")}
+            status={t("config_page.transcription.timing_status", { silence: silence ?? "-", length: length ?? "-", queue: queue ?? "-" })}>
+            {children}
+        </SetupSection>
+    );
+};
+
 const Mic_Container = () => {
     const { t } = useI18n();
+    const { currentMicRecordTimeout, currentMicPhraseTimeout, currentMicMaxWords } = useTranscription();
     return (
         <div>
             <SectionLabelComponent label={t("config_page.transcription.section_label_mic")} />
-            <MicRecordTimeout_Box />
-            <MicPhraseTimeout_Box />
-            <MicMaxWords_Box />
             <MicWordFilter_Box />
+            <TimingFold silence={currentMicRecordTimeout.data} length={currentMicPhraseTimeout.data} queue={currentMicMaxWords.data}>
+                <MicRecordTimeout_Box />
+                <MicPhraseTimeout_Box />
+                <MicMaxWords_Box />
+            </TimingFold>
         </div>
     );
 };
@@ -126,12 +155,15 @@ const MicWordFilter_Box = () => {
 
 const Speaker_Container = () => {
     const { t } = useI18n();
+    const { currentSpeakerRecordTimeout, currentSpeakerPhraseTimeout, currentSpeakerMaxWords } = useTranscription();
     return (
         <div>
             <SectionLabelComponent label={t("config_page.transcription.section_label_speaker")} />
-            <SpeakerRecordTimeout_Box />
-            <SpeakerPhraseTimeout_Box />
-            <SpeakerMaxWords_Box />
+            <TimingFold silence={currentSpeakerRecordTimeout.data} length={currentSpeakerPhraseTimeout.data} queue={currentSpeakerMaxWords.data}>
+                <SpeakerRecordTimeout_Box />
+                <SpeakerPhraseTimeout_Box />
+                <SpeakerMaxWords_Box />
+            </TimingFold>
         </div>
     );
 };
@@ -200,40 +232,158 @@ const SpeakerMaxWords_Box = () => {
 
 const TranscriptionEngine_Container = () => {
     const { t } = useI18n();
-    const { currentSelectedTranscriptionEngine } = useTranscription();
+    const { currentSelectedTranscriptionEngine, currentMicAvgLogprob, currentMicNoSpeechProb,
+        currentSpeakerAvgLogprob, currentSpeakerNoSpeechProb } = useTranscription();
+    const pair = (confidence, silence) => `${confidence.data ?? "-"} / ${silence.data ?? "-"}`;
 
     return (
         <div>
             <SectionLabelComponent label={t("config_page.transcription.section_label_transcription_engines")} />
             <TranscriptionEngine_Box />
+            {/* Also on the translation page: one switch fetches both models. */}
+            <AutoDownloadModelsContainer />
             {currentSelectedTranscriptionEngine.data === "Whisper" && (
                 <>
                     <WhisperWeightType_Box />
                     <TranscriptionComputeDevice_Box />
-                    <MicAvgLogprobContainer />
-                    <MicNoSpeechProbContainer />
-                    <SpeakerAvgLogprobContainer />
-                    <SpeakerNoSpeechProbContainer />
+                    {/* Whisper's own thresholds: the defaults suit most voices, so they are folded too. */}
+                    <SetupSection title={t("config_page.transcription.thresholds_title")}
+                        status={t("config_page.transcription.thresholds_status", {
+                            mic: pair(currentMicAvgLogprob, currentMicNoSpeechProb),
+                            speaker: pair(currentSpeakerAvgLogprob, currentSpeakerNoSpeechProb) })}>
+                        <MicAvgLogprobContainer />
+                        <MicNoSpeechProbContainer />
+                        <SpeakerAvgLogprobContainer />
+                        <SpeakerNoSpeechProbContainer />
+                    </SetupSection>
                 </>
             )}
         </div>
     );
 };
 
-const TranscriptionEngine_Box = () => {
+export const TranscriptionEngine_Box = () => {
     const { t } = useI18n();
-    const { currentSelectedTranscriptionEngine, setSelectedTranscriptionEngine } = useTranscription();
+    const { currentSelectedTranscriptionEngine, setSelectedTranscriptionEngine, currentSelectableTranscriptionEngines } = useTranscription();
+    const available = currentSelectableTranscriptionEngines.data || [];
+
+    // A cloud engine can be chosen once the backend has accepted its key.
+    const cloud_options = CLOUD_TRANSCRIPTION_ENGINES.map(engine => {
+        const usable = available.includes(engine.id) || currentSelectedTranscriptionEngine.data === engine.id;
+        return {
+            id: engine.id,
+            label: t(`config_page.transcription.select_transcription_engine.engines.${engine.key}`),
+            disabled: !usable,
+        };
+    });
 
     return (
         <RadioButtonContainer
             label={t("config_page.transcription.select_transcription_engine.label")}
+            desc={<span className={styles.engine_help}>
+                <span>{t("config_page.transcription.select_transcription_engine.desc")}</span>
+                <span role="status">{t("transcription_consent.selected", {
+                    engine: currentSelectedTranscriptionEngine.data || t("transcription_consent.unselected"),
+                })}</span>
+                {currentSelectedTranscriptionEngine.data === "Google" && <span>{t("transcription_consent.google_notice")}</span>}
+            </span>}
             selectFunction={setSelectedTranscriptionEngine}
             name="select_transcription_engine"
             options={[
                 { id: "Google", label: "Google" },
                 { id: "Whisper", label: "Whisper" },
+                ...cloud_options,
             ]}
             checked_variable={currentSelectedTranscriptionEngine}
+        />
+    );
+};
+
+const CloudTranscription_Container = () => {
+    const { t } = useI18n();
+    const transcription = useTranscription();
+    const { getSelectableTranscriptionEngines, getSelectedTranscriptionEngine } = transcription;
+    // A saved, rejected or removed key changes which engines the backend can
+    // use; the saved selection stays unchanged. Ask again each time.
+    const watched = CLOUD_TRANSCRIPTION_ENGINES.map(engine => transcription[`current${engine.base}AuthKey`].data);
+    watched.push(transcription.currentCustomWhisperURL.data);
+    useEffect(() => {
+        getSelectableTranscriptionEngines();
+        getSelectedTranscriptionEngine();
+    }, watched);
+
+    return (
+        <div data-setting-id="cloud_section">
+            <SectionLabelComponent label={t("config_page.transcription.cloud_section.label")} />
+            <Description text={t("config_page.transcription.cloud_section.desc")} />
+            {/* One line per provider, as on the translation page: the line says whether it can
+                be used, and the one that is selected above stays open. */}
+            {CLOUD_TRANSCRIPTION_ENGINES.map(engine => {
+                const in_use = transcription.currentSelectedTranscriptionEngine.data === engine.id;
+                const usable = (transcription.currentSelectableTranscriptionEngines.data || []).includes(engine.id);
+                return (
+                    <SetupSection key={engine.id} title={t(`config_page.transcription.select_transcription_engine.engines.${engine.key}`)} attention={in_use}
+                        status={t(`config_page.translation.provider_${in_use ? "in_use" : usable ? "ready" : "not_set"}`)}>
+                        {engine.has_url
+                            ? <CredentialPair settings={transcription} base={engine.base} provider={engine.key} section="transcription" />
+                            : <CloudAuthKey_Box engine={engine} />}
+                        <CloudModel_Box engine={engine} />
+                    </SetupSection>
+                );
+            })}
+        </div>
+    );
+};
+
+const CloudAuthKey_Box = ({ engine }) => {
+    const { t } = useI18n();
+    const transcription = useTranscription();
+    const current = transcription[`current${engine.base}AuthKey`];
+    const label = t(`config_page.transcription.${engine.key}_auth_key.label`);
+
+    const { variable, onChangeFunction, saveFunction } = useSaveButtonLogic({
+        variable: current.data,
+        state: current.state,
+        setFunction: transcription[`set${engine.base}AuthKey`],
+        deleteFunction: transcription[`delete${engine.base}AuthKey`],
+        label,
+    });
+
+    return (
+        <AuthKeyContainer
+            label={label}
+            desc={engine.has_url ? t(`config_page.transcription.${engine.key}_auth_key.desc`) : undefined}
+            webpage_url={engine.webpage_url}
+            variable={variable}
+            state={current.state}
+            onChangeFunction={onChangeFunction}
+            saveFunction={saveFunction}
+            remove_border_bottom={true}
+        />
+    );
+};
+
+const CloudModel_Box = ({ engine }) => {
+    const { t } = useI18n();
+    const transcription = useTranscription();
+    const auth_key = transcription[`current${engine.base}AuthKey`];
+    const selectable = transcription[`currentSelectable${engine.base}ModelList`];
+    const selected = transcription[`currentSelected${engine.base}Model`];
+    const setSelected = transcription[`setSelected${engine.base}Model`];
+
+    const selected_label = (!auth_key.data && !selected.data)
+        ? t("config_page.common.correct_auth_key_required")
+        : selected.data;
+
+    return (
+        <DropdownMenuContainer
+            dropdown_id={`select_${engine.key}_model`}
+            label={t(`config_page.transcription.select_${engine.key}_model.label`)}
+            selected_id={selected_label}
+            list={selectable.data}
+            selectFunction={selected_data => setSelected(selected_data.selected_id)}
+            state={selected.state}
+            is_disabled={!auth_key.data}
         />
     );
 };
@@ -251,9 +401,11 @@ const WhisperWeightType_Box = () => {
         setSelectedWhisperWeightType(id);
     };
 
-    const downloadStartFunction = (id) => {
-        pendingWhisperWeightTypeStatus(id);
-        downloadWhisperWeightTypeStatus(id);
+    const [downloadReview, setDownloadReview] = useState(null);
+    const downloadStartFunction = (id) => setDownloadReview(id);
+    const download = (request) => {
+        pendingWhisperWeightTypeStatus(request.weight_type);
+        downloadWhisperWeightTypeStatus(request);
     };
 
     const whisper_weight_types = currentWhisperWeightTypeStatus.data.map(item => {
@@ -265,6 +417,8 @@ const WhisperWeightType_Box = () => {
 
     return (
         <>
+            {downloadReview && <LegacyModelDownloadDialog kind="whisper" weightType={downloadReview}
+                onCancel={() => setDownloadReview(null)} onDownload={download} />}
             <DownloadModelsContainer
                 label={t("config_page.transcription.whisper_weight_type.label")}
                 desc={t(
@@ -314,8 +468,9 @@ const MicAvgLogprobContainer = () => {
     const { currentMicAvgLogprob, setMicAvgLogprob } = useTranscription();
     return (
         <SliderContainer
-            label="Mic Avg Logprob"
+            label={t("config_page.transcription.mic_avg_logprob.label")}
             desc={t("config_page.transcription.mic_avg_logprob.desc")}
+            state={currentMicAvgLogprob.state}
             variable={currentMicAvgLogprob.data}
             setterFunction={setMicAvgLogprob}
             min={-2}
@@ -333,8 +488,9 @@ const MicNoSpeechProbContainer = () => {
 
     return (
         <SliderContainer
-            label="Mic No Speech Prob"
+            label={t("config_page.transcription.mic_no_speech_prob.label")}
             desc={t("config_page.transcription.mic_no_speech_prob.desc")}
+            state={currentMicNoSpeechProb.state}
             variable={currentMicNoSpeechProb.data}
             setterFunction={setMicNoSpeechProb}
             min={0}
@@ -352,8 +508,9 @@ const SpeakerAvgLogprobContainer = () => {
 
     return (
         <SliderContainer
-            label="Speaker Avg Logprob"
+            label={t("config_page.transcription.speaker_avg_logprob.label")}
             desc={t("config_page.transcription.speaker_avg_logprob.desc")}
+            state={currentSpeakerAvgLogprob.state}
             variable={currentSpeakerAvgLogprob.data}
             setterFunction={setSpeakerAvgLogprob}
             min={-2}
@@ -371,8 +528,9 @@ const SpeakerNoSpeechProbContainer = () => {
 
     return (
         <SliderContainer
-            label="Speaker No Speech Prob"
+            label={t("config_page.transcription.speaker_no_speech_prob.label")}
             desc={t("config_page.transcription.speaker_no_speech_prob.desc")}
+            state={currentSpeakerNoSpeechProb.state}
             variable={currentSpeakerNoSpeechProb.data}
             setterFunction={setSpeakerNoSpeechProb}
             min={0}

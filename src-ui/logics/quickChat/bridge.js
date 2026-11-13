@@ -1,10 +1,14 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow, LogicalSize } from '@tauri-apps/api/window';
 
 export const quickChatBridge = {
     context: () => invoke('quick_chat_context'),
     hide: () => invoke('quick_chat_hide'),
     onOpen: callback => listen('quick-chat-opened', callback),
+    onContextChanged: callback => listen('quick-chat-context-changed', callback),
+    // Grow or shrink the window by delta logical px, keeping its width.
+    growBy: delta => getCurrentWindow().setSize(new LogicalSize(window.innerWidth, window.innerHeight + delta)),
     submit: async request => {
         let finish;
         const result = new Promise(resolve => { finish = resolve; });

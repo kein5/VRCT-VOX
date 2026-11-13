@@ -66,7 +66,7 @@ def test_enumeration_errors_are_distinct_from_no_inputs(monkeypatch):
     monkeypatch.setattr(m, '_read_graph', unavailable)
     with pytest.raises(RuntimeError, match='graph_unavailable'):
         m.enumerate_sources()
-    monkeypatch.setattr(m.sys, 'platform', 'win32')
+    monkeypatch.setattr(m.sys, 'platform', 'darwin')
     with pytest.raises(RuntimeError, match='linux_only'):
         m.enumerate_sources()
 

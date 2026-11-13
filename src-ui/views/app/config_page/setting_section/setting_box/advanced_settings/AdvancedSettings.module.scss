@@ -1,5 +1,18 @@
 .container {
     display: flex;
-    gap: 6.4rem;
     flex-direction: column;
+}
+
+.obs_url_description {
+    margin: .4rem 0 1.2rem;
+    color: var(--vox_description_text);
+    font-size: 1.2rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+}
+
+// What a usage event holds: aligned with the setting's own text, not the page edge.
+.telemetry_contents {
+    margin: 0 0 1.2rem;
+    padding: 0 2rem;
 }

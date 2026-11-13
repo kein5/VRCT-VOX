@@ -43,6 +43,25 @@ def test_worker_maps_one_48k_block_and_preserves_correlation(mode):
     assert len(pcm) == 7680 and (any(pcm) if mode == "converted" else not any(pcm))
 
 
+def test_the_fade_out_after_speech_is_converted_voice_not_invalid_silence():
+    """This block once ended the worker at the close of every utterance."""
+    from integrations.seed_vc.live_worker import convert_packet
+    from integrations.seed_vc.blocks import BlockSession
+
+    class Fading(Engine):
+        def _process_block(self, data):
+            self.last_block_status = "vad_silence"
+            output = np.zeros_like(data)
+            output[:400] = 0.2
+            return output
+
+    stamp = time.monotonic_ns() - 90_000_000
+    info = dict(p.input_info("a" * 32, 0, stamp), pcm_bytes=p.PCM_BYTES)
+    raw = b"\20\0" * 3840
+    output, pcm = convert_packet(BlockSession(Fading()), info, raw, "a" * 32, 0)
+    assert output["state"] == "converted" and any(pcm)
+
+
 @pytest.mark.parametrize("fault", ["bypass", "failed", "stale", "future", "replay"])
 def test_worker_rejects_bad_or_unconverted_packets(fault):
     from integrations.seed_vc.live_worker import convert_packet
@@ -51,7 +70,7 @@ def test_worker_rejects_bad_or_unconverted_packets(fault):
     engine = Engine(fault if fault in ("bypass", "failed") else "converted")
     stamp = time.monotonic_ns() - 90_000_000
     if fault == "stale":
-        stamp -= 500_000_000
+        stamp -= p.MAX_AGE_NS + 500_000_000
     if fault == "future":
         stamp += 500_000_000
     info = dict(p.input_info("a" * 32, 0, stamp), pcm_bytes=p.PCM_BYTES)

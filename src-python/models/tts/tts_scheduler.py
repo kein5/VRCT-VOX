@@ -1,23 +1,58 @@
 """One bounded worker; chat delivery never waits for HTTP or audio devices."""
 from collections import OrderedDict, deque
-from threading import Condition, Thread, Timer
+from threading import Condition, Event, Thread, Timer
 from time import monotonic, monotonic_ns
 
 from models.audio_routing.audio_router import AudioRouter
+from models.audio_routing.monitor_output import MonitorTee
+from models.failure_report import report_failure
 from .settings import VoiceSettings
 from .speechcpp_tts import CancelToken, SpeechCppTTS, SpeechError
 from .voice_trace import write_voice_trace, install_gc_diagnostics
 
 
+class StartExpiry:
+    """Expire a token's start deadline once it has really passed.
+
+    A one-shot threading.Timer is not enough: on Windows a timed wait can
+    return a little before monotonic() reaches the deadline (~15.6 ms timer
+    tick). expire_start() then sees an unexpired deadline and nothing ever
+    retries, so a stalled server held the job until the request timeout.
+    """
+
+    def __init__(self, token, deadline):
+        self._token, self._deadline = token, deadline
+        self._stopped = Event()
+        self._thread = Thread(target=self._run, name="vrct-vox-start-expiry", daemon=True)
+
+    def start(self):
+        self._thread.start()
+        return self
+
+    def _run(self):
+        while not self._stopped.is_set():
+            remaining = self._deadline - monotonic()
+            if remaining <= 0:
+                self._token.expire_start()
+                return
+            self._stopped.wait(remaining)
+
+    def cancel(self):
+        self._stopped.set()
+
+
 class VoiceEventBus:
     """Serialize final chat and opted-in microphone translations."""
     def __init__(self, settings=None, *, provider_factory=SpeechCppTTS, router=None,
-                 capacity=4, max_age=5.0, request_timeout=30.0, resolve_server=None, enabled=True):
+                 capacity=4, max_age=5.0, request_timeout=30.0, resolve_server=None, enabled=True,
+                 monitor_factory=MonitorTee, on_monitor_error=None):
         install_gc_diagnostics()
         self.settings = settings or VoiceSettings()
         self.provider_factory = provider_factory
         self.resolve_server = resolve_server
         self.router = router or AudioRouter()
+        self.monitor_factory = monitor_factory
+        self.on_monitor_error = on_monitor_error
         self.capacity = capacity
         self.max_age = max_age
         self.request_timeout = request_timeout
@@ -27,21 +62,25 @@ class VoiceEventBus:
         self._thread = None
         self._active = None
         self._active_source = None
+        self._monitors = {}
         self._closed = False
         self._muted = False
         self._tts_enabled = bool(enabled)
         self._observation_id = 0
         self._epoch = 0
         self._source_epochs = {}
-        self._stats = {"accepted": 0, "completed": 0, "dropped": 0, "duplicates": 0,
+        # expired counts speech that waited past max_age. It is also in dropped;
+        # the UI warns when it grows, because the user sees no other sign.
+        self._stats = {"accepted": 0, "completed": 0, "dropped": 0, "expired": 0, "duplicates": 0,
                        "cancelled": 0, "errors": 0, "last_error": None,
-                       "last_first_write_ms": None, "sample_rate": None}
+                       "last_first_write_ms": None, "sample_rate": None, "monitor_error": None}
 
     def configure(self, settings):
         with self._condition:
             self.settings = settings
             self._cancel_locked()
             self._stats["last_error"] = None
+            self._stats["monitor_error"] = None
 
     def _cancel_locked(self):
         self._epoch += 1
@@ -49,6 +88,8 @@ class VoiceEventBus:
         self._queue.clear()
         if self._active:
             self._active.cancel()
+        for monitor in self._monitors:
+            monitor.close(drain=False)
         self._condition.notify_all()
 
     def cancel(self):
@@ -78,6 +119,7 @@ class VoiceEventBus:
                 self._cancel_locked()
 
     def close(self, timeout=3.0):
+        """Cancel all output; the worker exits only after its monitors are reaped."""
         with self._condition:
             self._closed = True
             self._cancel_locked()
@@ -102,6 +144,9 @@ class VoiceEventBus:
             self._queue = retained
             if self._active_source == source and self._active:
                 self._active.cancel()
+            for monitor, monitor_source in self._monitors.items():
+                if monitor_source == source:
+                    monitor.close(drain=False)
             self._condition.notify_all()
 
     def publish(self, event, *, expected_generation=None, expected_source_generation=None):
@@ -157,33 +202,67 @@ class VoiceEventBus:
             return {**self._stats, "queued": len(self._queue), "active": self._active is not None,
                     "mode": self.settings.mode, "closed": self._closed, "muted": self._muted,
                     "tts_enabled": self._tts_enabled, "tts_generation": self._epoch,
-                    "tts_stopping": not self._tts_enabled and self._active is not None,
+                    "tts_stopping": not self._tts_enabled and (self._active is not None or bool(self._monitors)),
                     "observation_id": str(self._observation_id)}
+
+    def _open_monitor(self, settings, epoch):
+        """Optional and isolated: a monitor problem is a notice, never a speech error."""
+        choice = settings.monitor_choice
+        if choice is None or self.monitor_factory is None:
+            return None
+
+        def failed(code):
+            with self._condition:
+                if epoch == self._epoch:
+                    self._stats["monitor_error"] = code
+            if self.on_monitor_error is not None:
+                self.on_monitor_error(code)
+
+        def ready():
+            with self._condition:
+                if epoch == self._epoch:
+                    self._stats["monitor_error"] = None
+
+        device, volume = choice
+        try:
+            return self.monitor_factory(device, volume, exclude=(settings.playback_device,),
+                                        on_error=failed, on_ready=ready)
+        except Exception:
+            failed("monitor_output_error")
+            return None
 
     def _work(self):
         while True:
             with self._condition:
-                self._condition.wait_for(lambda: self._closed or self._queue)
-                if self._closed:
-                    return
+                while True:
+                    # Retain ownership through drain and device close. Poll only
+                    # while monitors remain; joining never paces the next job.
+                    for monitor in tuple(self._monitors):
+                        if monitor.join(0):
+                            del self._monitors[monitor]
+                    if self._closed and not self._monitors:
+                        return
+                    if not self._closed and self._queue:
+                        break
+                    self._condition.wait(0.05 if self._monitors else None)
                 next_chat = next((i for i, item in enumerate(self._queue) if item[0].source == "chat"), 0)
                 event, settings, epoch = self._queue[next_chat]
                 del self._queue[next_chat]
                 if monotonic_ns() - event.timestamp_ns > self.max_age * 1e9:
                     self._stats["dropped"] += 1
+                    self._stats["expired"] += 1
                     continue
                 deadline = event.timestamp_ns / 1e9 + self.max_age if event.source == "mic" else None
                 token = self._active = CancelToken(start_deadline=deadline)
                 self._active_source = event.source
             start_timer = None
             if deadline is not None:
-                start_timer = Timer(max(0, deadline - monotonic()), token.expire_start)
-                start_timer.daemon = True
-                start_timer.start()
-            timer = Timer(self.request_timeout, lambda: token.cancel("request_timeout"))
+                start_timer = StartExpiry(token, deadline).start()
+            timer = Timer(self.request_timeout, lambda token=token: token.cancel("request_timeout"))
             timer.daemon = True
             timer.start()
             frames = None
+            monitor = None
             first_write = None
             outcome = "error"
             try:
@@ -198,7 +277,16 @@ class VoiceEventBus:
                         self._stats["last_first_write_ms"] = round((timestamp - event.timestamp_ns) / 1e6, 3)
                         self._stats["sample_rate"] = rate
 
-                self.router.play(frames, settings.playback_device, token, first_audio)
+                monitor = self._open_monitor(settings, epoch)
+                if monitor is None:
+                    self.router.play(frames, settings.playback_device, token, first_audio)
+                else:
+                    with self._condition:
+                        self._monitors[monitor] = event.source
+                        # Stop may have raced the factory before registration.
+                        if token.is_set() or epoch != self._epoch:
+                            monitor.close(drain=False)
+                    self.router.play(frames, settings.playback_device, token, first_audio, monitor=monitor)
                 token.check()
                 outcome = "completed"
                 with self._condition:
@@ -206,20 +294,26 @@ class VoiceEventBus:
                     if epoch == self._epoch:
                         self._stats["last_error"] = None
             except Exception as exc:
+                failure = None
                 with self._condition:
                     if token.is_set() and token.reason == "cancelled":
                         outcome = "cancelled"
                         self._stats["cancelled"] += 1
                     else:
                         self._stats["errors"] += 1
+                        # ValueError and OS/driver exceptions can include input
+                        # content or device paths. Never put those into status.
+                        failure = (token.reason if token.is_set() else
+                                   str(exc) if isinstance(exc, SpeechError) else
+                                   "language_or_text_unavailable" if isinstance(exc, ValueError) else
+                                   "audio_output_error")
                         if epoch == self._epoch:
-                            # ValueError and OS/driver exceptions can include input
-                            # content or device paths. Never put those into status.
-                            self._stats["last_error"] = (token.reason if token.is_set() else
-                                                         str(exc) if isinstance(exc, SpeechError) else
-                                                         "language_or_text_unavailable" if isinstance(exc, ValueError) else
-                                                         "audio_output_error")
+                            self._stats["last_error"] = failure
+                if failure:
+                    report_failure("tts", failure)
             finally:
+                if monitor is not None:
+                    monitor.close(drain=outcome == "completed")  # Idempotent; never waits.
                 timer.cancel()
                 if start_timer is not None:
                     start_timer.cancel()

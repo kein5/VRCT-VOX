@@ -168,7 +168,8 @@ def test_close_reaps_only_owned_probe_and_cannot_restart(tmp_path, monkeypatch):
         time.sleep(0.005)
     child = probe.child
     assert child is not None
-    assert probe.close() and child.poll() is not None
+    # Process teardown on a busy Windows CI runner can take longer than close()'s default 2 s.
+    assert probe.close(timeout=10) and child.poll() is not None
     assert probe.state()["phase"] == "closed"
     with pytest.raises(ValueError):
         probe.refresh()

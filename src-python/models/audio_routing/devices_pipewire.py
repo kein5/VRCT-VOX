@@ -10,10 +10,14 @@ import time
 from models.tts.speechcpp_tts import SpeechError
 
 
+def _dump():
+    result = subprocess.run(["pw-dump"], env=external_process_env(), capture_output=True, timeout=3, check=True)
+    return json.loads(result.stdout)
+
+
 def enumerate_outputs():
     try:
-        result = subprocess.run(["pw-dump"], env=external_process_env(), capture_output=True, timeout=3, check=True)
-        nodes = json.loads(result.stdout)
+        nodes = _dump()
         return [{"id": n["info"]["props"]["node.name"],
                  "label": n["info"]["props"].get("node.description", n["info"]["props"]["node.name"])}
                 for n in nodes if n.get("info", {}).get("props", {}).get("media.class") == "Audio/Sink"]
@@ -21,8 +25,27 @@ def enumerate_outputs():
         raise SpeechError("pipewire_unavailable") from exc
 
 
+def default_output():
+    """The session's default sink name. Monitor only: TTS never uses a default."""
+    try:
+        nodes = _dump()
+        for node in nodes:
+            if (node.get("type") != "PipeWire:Interface:Metadata"
+                    or node.get("props", {}).get("metadata.name") != "default"):
+                continue
+            entries = {e.get("key"): e.get("value") for e in node.get("metadata") or [] if e.get("subject") == 0}
+            for key in ("default.audio.sink", "default.configured.audio.sink"):
+                value = entries.get(key)
+                value = json.loads(value) if isinstance(value, str) else value
+                if isinstance(value, dict) and isinstance(value.get("name"), str) and value["name"]:
+                    return value["name"]
+    except (OSError, ValueError, subprocess.SubprocessError, AttributeError) as exc:
+        raise SpeechError("pipewire_unavailable") from exc
+    raise SpeechError("output_missing")
+
+
 class PipeWireOutput:
-    def __init__(self, device, rate, channels, *, expected_identity=None):
+    def __init__(self, device, rate, channels, *, expected_identity=None, node_name="vrct.tts"):
         target = device
         if expected_identity is None:
             if device not in {d["id"] for d in enumerate_outputs()}:
@@ -36,7 +59,7 @@ class PipeWireOutput:
         self.process = subprocess.Popen(
             ["pw-cat", "--playback", "--raw", "--format", "s16", "--rate", str(rate),
              "--channels", str(channels), "--latency", "20ms", "--target", target,
-             "--properties", "{ node.name=vrct.tts node.dont-fallback=true node.dont-reconnect=true node.dont-move=true }", "-"], env=external_process_env(),
+             "--properties", "{ node.name=" + node_name + " node.dont-fallback=true node.dont-reconnect=true node.dont-move=true }", "-"], env=external_process_env(),
             stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, bufsize=0,
         )
         # Bound the kernel queue as well as the scheduler (about 85 ms at 24 kHz).

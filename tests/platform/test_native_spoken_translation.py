@@ -146,34 +146,44 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                 toggle = ui.evaluate("return [...document.querySelectorAll('[class*=switch_container]')].find(e => e.querySelector('p')?.textContent === 'Translation')")
                 ui.element_command(toggle, 'click')
                 ui.wait("return [...document.querySelectorAll('[class*=switch_container]')].some(e => e.querySelector('p')?.textContent === 'Translation' && e.className.includes('is_active'))")
+                # The route is on the Device page, the voice on the TTS page; each page saves on its own.
                 open_voice(ui)
+                ui.open_route_settings()
                 ui.select('Audio route', 'managed')
+                ui.click_text('button', 'Save changes')
+                wait_for(lambda: json.loads(config_path.read_text()).get('VOICE_SETTINGS', {}).get('routing') == 'managed')
+                ui.open_voice_settings()
                 ui.select('Realtime microphone speech', 'translated')
                 ui.select('Direct input while translating', direct_policy)
                 ui.fill('Other languages server (Qwen3-TTS)', tts.url)
-                ui.click_text('button', 'Save voice settings')
+                ui.click_text('button', 'Save changes')
                 wait_for(lambda: json.loads(config_path.read_text()).get('VOICE_SETTINGS', {}).get('mic_mode') == 'translated')
                 wait_for(lambda: gate.inspect_pair()['direct']['muted'] == (direct_policy == 'suppress'))
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Muted (confirmed)')")
+                ui.open_route_settings()
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Muted (confirmed)')")
                 if real_rvc:
+                    ui.open_rvc_settings()  # the converted input is started from the RVC page
                     source = select_source(graph_snapshot(), 'vrct.native.caption.source')
                     selected = json.dumps([str(source.cookie), str(source.serial), source.name, source.media_class], separators=(',', ':'))
                     ui.select('Input to forward', selected)
                     ui.click_text('button', 'Start input forwarding')
-                    ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => ['VC ready; conversion not yet confirmed','Converting voice'].includes(e.textContent))", timeout=65)
+                    ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => ['VC ready; conversion not yet confirmed','Converting voice'].includes(e.textContent))", timeout=65)
                     workers = [child for child in ui.app_process.children(recursive=True)
                                if 'integrations.rvc.live_worker' in child.cmdline()]
                     assert len(workers) == 1
                     worker = workers[0]
                     settled(capture, time.monotonic_ns(), 'rvc_bypassed_mute', silent=True)
+                    ui.open_route_settings()
                 ui.click_text('button', 'Resume voice')
                 wait_for(lambda: not gate.inspect()['muted'])
                 if not real_rvc:
                     settled(capture, time.monotonic_ns(), 'direct_input_policy_mismatch', **direct)
                 ui.close_settings()
+                # Translated speech is spoken only while the main TTS switch is on.
+                ui.set_switch('TTS')
                 open_captions(ui)
                 ui.click_text('button', 'Start microphone captions')
-                ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Captions running')")
+                ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Captions running')")
                 # Existing configuration navigation pauses translation. Return
                 # to the main view and observe its restoration before input.
                 ui.close_settings()
@@ -225,7 +235,7 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                     assert relative_error < .05, report['branch_alignment']
                 # Both original and translated text must be in each single OSC
                 # datagram; a partial, duplicate or untranslated send fails.
-                rows = ui.evaluate("return [...document.querySelectorAll('#log_container > div')].filter(e => e.querySelector('[class*=category]')?.textContent === 'Sent').map(e => [...e.querySelectorAll('[class*=message_main],[class*=message_second]')].map(p => p.textContent));")
+                rows = ui.evaluate("return [...document.querySelectorAll('#log_container [data-log-row]')].filter(e => e.querySelector('[class*=category]')?.textContent === 'Sent').map(e => [...e.querySelectorAll('[class*=message_main],[class*=message_second]')].map(p => p.textContent));")
                 assert len(rows) == 2 and all(len(row) == 2 and all(row) for row in rows), rows
                 from pythonosc.osc_packet import OscPacket
                 messages = []
@@ -402,11 +412,15 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                 else:
                     assert len(traces()) == completed
                 if direct_continues:
+                    # The conversion's state and its Stop are on the RVC page, the mute on the Device page.
                     open_voice(ui)
-                    ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Converting voice')")
+                    ui.open_rvc_settings()
+                    ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Converting voice')")
+                    ui.open_route_settings()
                     ui.click_text('button', 'Mute until resumed')
                     producer.play()
                     settled(capture, time.monotonic_ns(), 'rvc_global_mute_failed', silent=True)
+                    ui.open_rvc_settings()
                     ui.click_text('button', 'Stop input forwarding')
                     wait_for(lambda: not any(name.startswith('vrct.asr.capture.') for name in nodes()))
                     ui.click_text('button', 'Resume voice')

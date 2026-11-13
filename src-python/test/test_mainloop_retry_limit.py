@@ -91,12 +91,13 @@ class FreshRequestsAndHappyPathTests(unittest.TestCase):
         main = _make_main({"/x": {"status": True, "variable": lambda data: {"status": 200, "result": None}}})
         main._stop_event.clear()
 
-        fake_stdin_lines = iter(['{"endpoint": "/x", "data": null}\n', ""])
+        fake_stdin_lines = iter(['{"endpoint": "/x", "data": null}\n'])
 
         def fake_readline():
             try:
                 return next(fake_stdin_lines)
             except StopIteration:
+                # 入力が閉じたら終了処理へ進むため、先に止めておく (test_mainloop_input_closed.py)
                 main._stop_event.set()
                 return ""
 

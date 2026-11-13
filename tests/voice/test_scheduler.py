@@ -84,6 +84,7 @@ def test_bounded_queue_cancel_and_old_generation():
             bus.publish(event(str(i)))
         assert bus.status()["queued"] == 4
         assert bus.status()["dropped"] == 16
+        assert bus.status()["expired"] == 0
         bus.cancel()
         assert not bus.publish(event("stale"), expected_generation=old)
         until(lambda: not bus.status()["active"])
@@ -99,8 +100,32 @@ def test_expired_jobs_do_not_speak():
         bus.publish(event(timestamp_ns=monotonic_ns() - 6_000_000_000))
         until(lambda: bus.status()["dropped"] == 1)
         assert bus.status()["completed"] == 0
+        assert bus.status()["expired"] == 1
     finally:
         bus.close()
+
+
+def test_stopping_speech_is_not_reported_as_expired():
+    entered = Event()
+    class BlockingProvider:
+        def __init__(self, url):
+            pass
+        def synthesize_stream(self, text, voice, language, token):
+            entered.set()
+            token.wait(2)
+            token.check()
+            yield AudioFrame(b"\x01\x00", 48000)
+    bus = VoiceEventBus(VoiceSettings(mode="original", output_device="cable"), provider_factory=BlockingProvider)
+    try:
+        bus.publish(event())
+        assert entered.wait(1)
+        bus.publish(event("waiting"))
+        bus.cancel()
+        until(lambda: not bus.status()["active"])
+        assert bus.status()["dropped"] == 1
+        assert bus.status()["expired"] == 0
+    finally:
+        assert bus.close()
 
 
 def test_errors_are_private_and_worker_recovers():

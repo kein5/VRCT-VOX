@@ -4,20 +4,40 @@ from time import monotonic
 
 
 class ListenerTableProbe:
-    def __init__(self, query):
+    def __init__(self, query, *, freshness=.02):
         self._query = query
         self._condition = Condition()
         self._requested = self._completed = 0
         self._result = self._worker = None
         self._closed = False
+        self._freshness = freshness
+        self._result_at = self._started_at = None
+        self._inflight = None
 
-    def read(self, stopped, timeout=.05):
+    def read(self, stopped, timeout=.05, *, not_before=None):
+        """Reuse fresh rows, or require an observation begun at not_before."""
         deadline = monotonic() + timeout
         with self._condition:
             if self._closed or stopped.is_set():
                 return None
-            self._requested += 1
-            ticket = self._requested
+            now = monotonic()
+            fresh_after = now - self._freshness if not_before is None else not_before
+            # Windows' monotonic() ticks every ~15.6 ms before Python 3.13, so an
+            # older result can share this timestamp. Zero freshness never reuses,
+            # and an observation required to begin at not_before must begin after
+            # it: a query stamped with the same tick may have started earlier.
+            reusable = not_before is not None or self._freshness > 0
+
+            def fresh(at):
+                return at is not None and (at > fresh_after if not_before is not None else at >= fresh_after)
+
+            if reusable and self._result is not None and fresh(self._result_at):
+                return self._result
+            if self._inflight is not None and fresh(self._started_at):
+                ticket = self._inflight
+            else:
+                self._requested += 1
+                ticket = self._requested
             if self._worker is None:
                 self._worker = Thread(target=self._run, name='vrct-listener-table', daemon=True)
                 self._worker.start()
@@ -38,12 +58,17 @@ class ListenerTableProbe:
                 if self._closed:
                     return
                 ticket = self._requested
+                self._inflight, self._started_at = ticket, monotonic()
             try:
                 result = self._query()
             except Exception:
                 result = None
             with self._condition:
                 self._result, self._completed = result, ticket
+                # Age from query START: a slow native call must not renew stale
+                # evidence for later readers merely because it just returned.
+                self._result_at = self._started_at
+                self._inflight = None
                 self._condition.notify_all()
 
     def close(self, timeout=.05):
@@ -58,9 +83,17 @@ class ListenerTableProbe:
 
 def _query_windows_table():
     import psutil
+    return _listening_endpoints(psutil.net_connections(kind='tcp'), psutil)
+
+
+def _listening_endpoints(rows, psutil):
     # Keep only local listening endpoints, never remote peers or process data.
-    return frozenset(tuple(row.laddr) for row in psutil.net_connections(kind='tcp')
-                     if row.status == psutil.CONN_LISTEN and row.laddr)
+    # Some Windows systems report a listening socket's state as 0, which psutil
+    # calls NONE (seen on Windows 11 build 26220). Such a row without a remote
+    # peer may be listening. Counting it only makes absence harder to prove, and
+    # an unproven absence falls back to the ordinary request deadlines.
+    return frozenset(tuple(row.laddr) for row in rows if row.laddr and (
+        row.status == psutil.CONN_LISTEN or (row.status == psutil.CONN_NONE and not row.raddr)))
 
 
 # Process-wide lifetime, not one worker per speech request. A hung native call

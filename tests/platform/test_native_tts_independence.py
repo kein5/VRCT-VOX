@@ -103,7 +103,7 @@ def test_tts_off_keeps_asr_translation_and_osc(tmp_path):
             ui.click_text('button', 'Resume voice')
             ui.open_voice_page('Transcription', 'section[aria-label="Realtime captions"] select')
             ui.click_text('button', 'Start microphone captions')
-            ui.wait("return [...document.querySelectorAll('[role=status]')].some(e => e.textContent === 'Captions running')")
+            ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Captions running')")
             ui.close_settings()
             ui.click('[role=switch][aria-label=Translation]')
             ui.wait("return document.querySelector('[role=switch][aria-label=Translation]').getAttribute('aria-checked') === 'true'")

@@ -41,7 +41,7 @@
     height: var(--checkbox-size, 2.8rem);
     border-radius: 0.4rem;
     border: var(--dark_700_color) solid var(--checkbox-border-width, 0.2rem);
-    transition: all 0.15s ease;
+    transition: background-color 0.12s ease, border-color 0.12s ease;
     padding: calc(var(--checkbox-size, 2.8rem) / 7);
 }
 
@@ -58,9 +58,19 @@
     stroke-dashoffset: 1;
 }
 
+// Hidden visually but still in the tab order, so the setting works from the
+// keyboard; the drawn box shows its state and focus.
 .checkbox_wrapper input[type="checkbox"] {
-    display: none;
-    visibility: hidden;
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+}
+
+.checkbox_wrapper input[type="checkbox"]:focus-visible + .cbx {
+    outline: 0.2rem solid var(--primary_200_color);
+    outline-offset: 0.3rem;
 }
 
 .checkbox_wrapper input[type="checkbox"]:checked + .cbx {
@@ -70,7 +80,7 @@
 
 .checkbox_wrapper input[type="checkbox"]:checked + .cbx svg {
     stroke-dashoffset: 0;
-    transition: all 0.15s ease;
+    transition: stroke-dashoffset 0.12s ease;
 }
 
 .loader {

@@ -36,6 +36,10 @@ export const ui_configs = {
     get overlay_large_log_default_settings() {
         return { ...this._overlay_log_default_settings_base, tracker: "LeftHand" };
     },
+    // Captions over the desktop (OVERLAY_DESKTOP_SETTINGS in src-python/config.py).
+    get overlay_desktop_default_settings() {
+        return { position: "bottom", font_size: 28, display_duration: 6, opacity: 0.6 };
+    },
 
     // Shared message format parts base
     _default_message_format_parts: {
@@ -79,12 +83,18 @@ export const translator_status = [
     { id: "OpenAI_Compatible", label: `OpenAI Compatible`, is_available: false },
 ];
 
+// license/non_commercial mirror ctranslate2_weights in
+// src-python/models/translation/translation_utils.py (a pytest checks they
+// agree). non_commercial weights need the confirmation dialog in
+// Config -> Translation before they are downloaded or selected.
+const CC_BY_NC_4_0 = { license: "CC-BY-NC-4.0", non_commercial: true, license_url: "https://creativecommons.org/licenses/by-nc/4.0/" };
+const MIT = { license: "MIT", non_commercial: false };
 export const ctranslate2_weight_type_status = [
-    { id: "m2m100_418M-ct2-int8", capacity: "418MB"},
-    { id: "m2m100_1.2B-ct2-int8", capacity: "1.2GB"},
-    { id: "nllb-200-distilled-600M-ct2-int8", capacity: "600MB", is_default: true},
-    { id: "nllb-200-distilled-1.3B-ct2-int8", capacity: "1.3GB"},
-    { id: "nllb-200-3.3B-ct2-int8", capacity: "3.3GB"},
+    { id: "m2m100_418M-ct2-int8", capacity: "418MB", is_default: true, ...MIT, model_card_url: "https://huggingface.co/facebook/m2m100_418M" },
+    { id: "m2m100_1.2B-ct2-int8", capacity: "1.2GB", ...MIT, model_card_url: "https://huggingface.co/facebook/m2m100_1.2B" },
+    { id: "nllb-200-distilled-600M-ct2-int8", capacity: "600MB", ...CC_BY_NC_4_0, model_card_url: "https://huggingface.co/facebook/nllb-200-distilled-600M" },
+    { id: "nllb-200-distilled-1.3B-ct2-int8", capacity: "1.3GB", ...CC_BY_NC_4_0, model_card_url: "https://huggingface.co/facebook/nllb-200-distilled-1.3B" },
+    { id: "nllb-200-3.3B-ct2-int8", capacity: "3.3GB", ...CC_BY_NC_4_0, model_card_url: "https://huggingface.co/facebook/nllb-200-3.3B" },
 ].map(item => ({ is_default: false, ...item, is_downloaded: false, progress: null }));
 
 export const whisper_weight_type_status = [
@@ -105,13 +115,20 @@ export const plamo_auth_key_url = "https://plamo.preferredai.jp/api";
 export const gemini_auth_key_url = "https://aistudio.google.com/api-keys";
 export const openai_auth_key_url = "https://platform.openai.com/api-keys";
 export const groq_auth_key_url = "https://console.groq.com/keys";
+export const deepgram_auth_key_url = "https://console.deepgram.com/";
 export const openrouter_auth_key_url = "https://openrouter.ai/keys";
 
 
 
-export const vrct_document_home_url = "https://misyaguziya.github.io/VRCT-Docs";
-export const vrct_document_url_chunk_faq = "docs/faq";
-export const vrct_document_url_chunk_ui_guide = "docs/ui-guide";
+// VRCT-VOX's own user guide (site/, published by .github/workflows/pages.yml).
+// It has Japanese and English pages; other UI languages get the English ones.
+export const vrct_document_home_url = "https://kein5.github.io/VRCT-VOX";
+export const vrct_document_url_chunk_faq = "guide/troubleshooting";
+export const vrct_document_url_chunk_ui_guide = "guide/first-setup";
+
+// The upstream VRCT documentation, linked from the credits for the original VRCT on About.
+export const upstream_vrct_document_url = (lang_code = "en") =>
+    `https://misyaguziya.github.io/VRCT-Docs/${lang_code === "ja" ? "ja" : ""}`;
 
 export const generateLocalizedDocumentUrl = (lang_code = "en") => {
     const supported_languages = ["en", "ja"];
@@ -120,7 +137,7 @@ export const generateLocalizedDocumentUrl = (lang_code = "en") => {
         lang_code = "en";
     }
 
-    const lang_path = (lang_code === "en") ? "" : `${lang_code}`;
+    const lang_path = lang_code;
 
     return {
         vrct_document_home_url: `${vrct_document_home_url}/${lang_path}`,
@@ -128,7 +145,3 @@ export const generateLocalizedDocumentUrl = (lang_code = "en") => {
         vrct_document_ui_guide_url: `${vrct_document_home_url}/${lang_path}/${vrct_document_url_chunk_ui_guide}`,
     };
 };
-
-
-export const supporters_data_url = "https://shiinasakamoto.github.io/vrct_supporters/assets/supporters/data.json";
-export const supporters_images_url = "https://ShiinaSakamoto.github.io/vrct_supporters/assets/supporters";

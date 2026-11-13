@@ -1,8 +1,14 @@
 """Single-loop, bounded subtitle state; no audio, translation, OSC or TTS."""
 from collections import OrderedDict
+import re
 from dataclasses import dataclass, field
 
 PREFIX = 'conversation.item.input_audio_transcription.'
+# A voice counts in an utterance once the diarization gives it this much speech, so a
+# stray frame does not put a second speaker on a line. Without one that long, the longest.
+SPEAKER_MIN_MS = 400
+MAX_SPEAKERS = 4
+_LABEL = re.compile(r'[A-Z]{1,3}')
 
 
 @dataclass(frozen=True)
@@ -17,6 +23,15 @@ class TranscriptUpdate:
     # Transport receipt, not acoustic capture or utterance-end time. The pure
     # reducer leaves this unset; the transport stamps it before queueing.
     received_ns: int = field(default=0, compare=False)
+    # The code a final reports in "languages" (speech.cpp 0.10.0), else ''.
+    # Detected by the model, not a confidence: only a translation source hint.
+    language: str = field(default='', compare=False)
+    # Who spoke in a final, by the labels of the server's diarization ("A", "B", ...), in
+    # the order they first speak; () without diarization. A label is a voice within one
+    # session, not a person, and the diarization can be wrong about it.
+    speakers: tuple = field(default=(), compare=False)
+    # Local speech ownership, bound before the session mailbox can delay a final.
+    voice_snapshot: tuple | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass
@@ -46,12 +61,45 @@ class TranscriptEvents:
         while len(history) > limit:
             history.popitem(last=False)
 
-    def _emit(self, item_id, text, state):
+    def _emit(self, item_id, text, state, language='', speakers=()):
         pending = self._pending[item_id]
         pending.text = text
         pending.revision += 1
         return TranscriptUpdate(self.source, self.namespace, item_id,
-            pending.revision, text, state == 'final', state)
+            pending.revision, text, state == 'final', state, language=language, speakers=speakers)
+
+    @staticmethod
+    def _speakers(event):
+        """The voices of a completed utterance (speech.cpp's own "speakers"), or () if it has none.
+
+        The list is extra to the text: one that is not in the documented form is left
+        out, and the caption is shown without speakers.
+        """
+        rows = event.get('speakers')
+        if not isinstance(rows, list) or len(rows) > 256:
+            return ()
+        spoken, first = {}, {}
+        for row in rows:
+            if not isinstance(row, dict):
+                return ()
+            label, start, end = row.get('speaker'), row.get('start_ms'), row.get('end_ms')
+            if (not isinstance(label, str) or not _LABEL.fullmatch(label)
+                    or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in (start, end))
+                    or not 0 <= start <= end):
+                return ()
+            spoken[label] = spoken.get(label, 0) + (end - start)
+            first[label] = min(first.get(label, start), start)
+        if not spoken:
+            return ()
+        kept = [label for label, total in spoken.items() if total >= SPEAKER_MIN_MS] or [max(spoken, key=spoken.get)]
+        kept = sorted(kept, key=lambda label: -spoken[label])[:MAX_SPEAKERS]
+        return tuple(sorted(kept, key=lambda label: (first[label], label)))
+
+    @staticmethod
+    def _detected(event):
+        rows = event.get('languages')
+        code = rows[0].get('code') if isinstance(rows, list) and rows and isinstance(rows[0], dict) else None
+        return code if isinstance(code, str) and re.fullmatch(r'[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?', code) else ''
 
     def _retire(self, item_id):
         self._pending.pop(item_id, None)
@@ -129,7 +177,9 @@ class TranscriptEvents:
         if len(text) > 4000:
             self._fail('text_limit')
         state = 'partial' if kind == PREFIX + 'delta' else 'final'
-        update = self._emit(item_id, text, state)
+        final = state == 'final'
+        update = self._emit(item_id, text, state, self._detected(event) if final else '',
+                            self._speakers(event) if final else ())
         if state == 'final':
             self._retire(item_id)
         return (update,)

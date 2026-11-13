@@ -24,7 +24,8 @@ from speech_recognition import AudioSource, Recognizer, Microphone
 from datetime import datetime
 from errors import AudioPipelineFailure, ERROR_METADATA, ErrorCode
 from utils import errorLogging, printLog, putDroppingOldestOnFull
-from device_manager import pyaudio_op_lock
+from .utterance_diagnostics import utterance_diagnostics
+from device_manager import device_manager, pyaudio_op_lock
 from models.transcription.audio_vad import FRAME_DURATION_MS, VadRecognizerAdapter, VadSegmenter
 
 # 直前に同じ物理デバイスを force-stop した直後は、WASAPI 側の解放が
@@ -80,34 +81,34 @@ class _ErrorReportingSegmenter:
         return getattr(self._segmenter, name)
 
 
+def _close_audio_source(source):
+    if getattr(source, "stream", None) is not None:
+        source.__exit__(None, None, None)
+    else:
+        audio = getattr(source, "audio", None)
+        if audio is not None:
+            audio.terminate()
+
+
 def _validate_audio_source(source: Any) -> Any:
-    # 呼び出し元 (_create_microphone) が既に pyaudio_op_lock を保持している
-    # 前提の内部関数。ここではロックを取らない (再入不可の Lock で
-    # 二重取得するとデッドロックするため)。
-    source.__enter__()
-    if source.stream is None:
-        raise OSError("Audio device could not be opened")
-    source.__exit__(None, None, None)
-    return source
+    # Keep the opened stream for the listener. A second implicit open could
+    # fail after start had already been reported as successful.
+    try:
+        source.__enter__()
+        if source.stream is None:
+            raise OSError("Audio device could not be opened")
+        return source
+    except Exception:
+        _close_audio_source(source)
+        raise
 
 
 class _LockedAudioSource(AudioSource):
-    """speech_recognition の AudioSource をラップし、`__enter__`/`__exit__`
-    (実際の PyAudio ストリーム open/close) だけを pyaudio_op_lock で
-    直列化する。
+    """Own the validated stream until the listener closes it.
 
-    `_create_microphone` は疎通確認用の使い捨て open/close
-    (`_validate_audio_source`) を pyaudio_op_lock 配下で行うが、実際に
-    listen で使う本番ストリームは別物で、`recordIntoQueue` が呼ぶ
-    `listen_energy_and_audio_in_background` 内の `with source as s:`
-    (listener スレッド自身) や `adjustForNoise` の `with self.source:`
-    が個別に open/close する。ここは pyaudio_op_lock の外側だったため、
-    mic と speaker の listener スレッドが起動タイミング次第で完全に
-    無保護で並行 open し、WASAPI が壊れて `PyAudio.__init__` 内で
-    access violation を起こすことを faulthandler の crash_trace.log で
-    実際に確認した (2026-08-19)。読み取りループ自体は絞らず、open/close
-    の瞬間だけをロックすることで、性能への影響を open/close 頻度のみに
-    抑える。
+    Enter/exit remain serialized with enumeration. Cancellation is checked after
+    acquiring that lock, including a listener that has not entered its context
+    yet when OFF completes. A normal start reuses the already opened stream.
     """
 
     def __init__(self, source: Any) -> None:
@@ -116,6 +117,8 @@ class _LockedAudioSource(AudioSource):
         # AudioSource.__init__ は "抽象クラスです" として
         # NotImplementedError を送出するガードなので、意図的に呼ばない。
         self._source = source
+        self._cancelled = threading.Event()
+        self._closed = False
         self._read_error_handler: Optional[Callable[[Exception], None]] = None
 
     def set_read_error_handler(self, handler: Callable[[Exception], None]) -> None:
@@ -123,7 +126,15 @@ class _LockedAudioSource(AudioSource):
 
     def __enter__(self) -> Any:
         with pyaudio_op_lock:
-            self._source.__enter__()
+            if self._cancelled.is_set():
+                self._close_locked()
+                raise OSError("Audio open cancelled")
+            if getattr(self._source, "stream", None) is None:
+                self._source.__enter__()
+                self._closed = False
+            if self._cancelled.is_set():
+                self._close_locked()
+                raise OSError("Audio open cancelled")
             stream = getattr(self._source, "stream", None)
             if (
                 stream is not None
@@ -135,98 +146,151 @@ class _LockedAudioSource(AudioSource):
 
     def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> Any:
         with pyaudio_op_lock:
-            return self._source.__exit__(exc_type, exc_value, traceback)
+            return self._close_locked(exc_type, exc_value, traceback)
+
+    def _close_locked(self, exc_type=None, exc_value=None, traceback=None):
+        if not self._closed:
+            if getattr(self._source, "stream", None) is not None:
+                result = self._source.__exit__(exc_type, exc_value, traceback)
+            else:
+                result = _close_audio_source(self._source)
+            self._closed = True
+            return result
+
+    def cancel(self):
+        self._cancelled.set()
+
+    def close(self):
+        self.cancel()
+        with pyaudio_op_lock:
+            self._close_locked()
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._source, name)
 
 
-def _open_with_fallback(fallback_kwargs: dict[str, Any], **device_kwargs: Any) -> Any:
-    # speech_recognition の Microphone.__init__ 自体が、コンストラクタ内で
-    # 独自に PyAudio() を new し get_device_count()/get_device_info_by_index()
-    # 等のデバイス列挙を行ってから terminate() する。この呼び出しが
-    # pyaudio_op_lock の外側にあると、mic 側と speaker 側の Microphone(...)
-    # コンストラクタが並行実行され、WASAPI 内部でデッドロックし得る
-    # (実際に mic=CABLE Output, speaker=Steam Streaming Speakers を同時に
-    # 有効化した際にハングを確認済み)。
-    # そのため Microphone(...) の生成から _validate_audio_source による
-    # open/close 疎通確認まで、一貫して同じ pyaudio_op_lock 区間で行う。
-    with pyaudio_op_lock:
+class AudioOpenBusy(OSError):
+    """A native open still owns this source; no alternate may be started."""
+
+
+_openers_lock = threading.Lock()
+_openers = {}
+
+
+class _MicrophoneOpener:
+    def __init__(self, fallback_kwargs, device_kwargs):
+        self.cancelled = threading.Event()
+        self.done = threading.Event()
+        self.lock = threading.Lock()
+        self.source = None
+        self.error = None
+        self.cleanup_failed = False
+        self.fallback_kwargs = fallback_kwargs
+        self.device_kwargs = device_kwargs
+        self.thread = threading.Thread(target=self.run, daemon=True, name="mic-open")
+
+    def run(self):
+        source = None
         try:
-            return _validate_audio_source(Microphone(**device_kwargs))
-        except Exception:
-            try:
-                return _validate_audio_source(Microphone(**fallback_kwargs))
-            except Exception as fallback_error:
-                raise OSError(
-                    "Selected and default audio devices could not be opened"
-                ) from fallback_error
-
-
-def _create_microphone(fallback_kwargs: dict[str, Any], **device_kwargs: Any) -> Any:
-    result: dict[str, Any] = {}
-    done = threading.Event()
-    cancelled = threading.Event()
-    state_lock = threading.Lock()
-
-    def _close_late_source(source: Any) -> None:
-        """Timeout後に open が完了した source を回収する。"""
-        try:
-            with pyaudio_op_lock:
-                stream = getattr(source, "stream", None)
-                if stream is not None:
-                    source.__exit__(None, None, None)
-                else:
-                    audio = getattr(source, "audio", None)
-                    if audio is not None:
-                        audio.terminate()
-        except Exception:
-            errorLogging()
-
-    def _run() -> None:
-        try:
-            source = _open_with_fallback(fallback_kwargs, **device_kwargs)
-            with state_lock:
-                if cancelled.is_set():
-                    late_source = source
-                else:
-                    result["source"] = source
-                    late_source = None
-            if late_source is not None:
-                _close_late_source(late_source)
-        except Exception as error:  # noqa: BLE001 - re-raised on the caller's thread below
-            with state_lock:
-                if not cancelled.is_set():
-                    result["error"] = error
+            source = _open_with_fallback(
+                self.fallback_kwargs, cancelled=self.cancelled, **self.device_kwargs)
+            with self.lock:
+                if not self.cancelled.is_set():
+                    self.source = source
+                    source = None
+                    self.done.set()
+        except Exception as error:
+            with self.lock:
+                self.error = error
+                self.done.set()
         finally:
-            done.set()
+            if source is not None:
+                try:
+                    with pyaudio_op_lock:
+                        _close_audio_source(source)
+                except Exception:
+                    self.cleanup_failed = True
+                    errorLogging()
+            self.done.set()
 
-    # daemon=True: PyAudio.open() 自体を安全に中断できない場合でも、
-    # 呼び出し元はタイムアウトで復帰できるようにする。遅れて open が完了
-    # した source は _run() 側で cancelled を確認して回収する。
-    threading.Thread(target=_run, daemon=True, name="mic-open").start()
 
-    if not done.wait(timeout=_MIC_OPEN_TIMEOUT_SEC):
-        with state_lock:
-            cancelled.set()
-            late_source = result.pop("source", None)
-        if late_source is not None:
-            _close_late_source(late_source)
-        printLog(
-            f"Timed out after {_MIC_OPEN_TIMEOUT_SEC}s opening audio device "
-            f"(device_kwargs={device_kwargs})"
-        )
-        raise OSError("Timed out opening audio device")
+def audioOpenOutstanding(source_kind):
+    with _openers_lock:
+        opener = _openers.get(source_kind)
+        return opener is not None and (opener.thread.is_alive() or opener.cleanup_failed)
 
-    if "error" in result:
-        raise result["error"]
-    return _LockedAudioSource(result["source"])
+
+def _open_with_fallback(fallback_kwargs, *, cancelled=None, expected_device=None, **device_kwargs):
+    cancelled = cancelled or threading.Event()
+    # Fallbacks must name a concrete index. The session selects and publishes
+    # alternates; an unlabelled library default is never opened here.
+    candidates = [device_kwargs]
+    if "device_index" in fallback_kwargs:
+        candidates.append(fallback_kwargs)
+    with pyaudio_op_lock:
+        for candidate in candidates:
+            if cancelled.is_set():
+                raise AudioOpenBusy("Audio open cancelled")
+            try:
+                source = Microphone(**candidate)
+                if cancelled.is_set():
+                    _close_audio_source(source)
+                    raise AudioOpenBusy("Audio open cancelled")
+                source = _validate_audio_source(source)
+                if expected_device is not None:
+                    try:
+                        actual = source.audio.get_device_info_by_index(candidate["device_index"])
+                        native_keys = ("endpoint_id", "deviceUID", "uid")
+                        missing_identity = any(expected_device.get(key) and not actual.get(key)
+                                               for key in native_keys)
+                        if missing_identity:
+                            actual = device_manager.getOpenedDevice(source.audio, actual)
+                        expected_id = next((expected_device[key] for key in native_keys if expected_device.get(key)), None)
+                        actual_id = next((actual[key] for key in native_keys if actual.get(key)), None)
+                        if expected_id and actual_id and expected_id != actual_id:
+                            raise OSError("Audio endpoint changed while opening")
+                        # Slot reuse must not be published as the former endpoint.
+                        for key in ("name", "hostApi"):
+                            if key in expected_device and key in actual and expected_device[key] != actual[key]:
+                                raise OSError("Audio endpoint changed while opening")
+                        source.opened_device = actual if missing_identity else {**expected_device, **actual}
+                    except Exception:
+                        _close_audio_source(source)
+                        raise
+                return source
+            except AudioOpenBusy:
+                raise
+            except Exception:
+                if candidate is candidates[-1]:
+                    raise
+
+
+def _create_microphone(fallback_kwargs, *, source_kind="mic", **device_kwargs):
+    with _openers_lock:
+        previous = _openers.get(source_kind)
+        if previous is not None and (previous.thread.is_alive() or previous.cleanup_failed):
+            raise AudioOpenBusy("Previous audio open is still outstanding")
+        opener = _MicrophoneOpener(fallback_kwargs, device_kwargs)
+        _openers[source_kind] = opener
+        opener.thread.start()
+    if opener.done.wait(timeout=_MIC_OPEN_TIMEOUT_SEC):
+        opener.thread.join(timeout=0.1)
+    with opener.lock:
+        if not opener.done.is_set():
+            opener.cancelled.set()
+            raise AudioOpenBusy("Timed out opening audio device")
+        if opener.error is not None:
+            raise opener.error
+        source = opener.source
+        opener.source = None
+    return _LockedAudioSource(source)
 
 
 def _wrapStopperWithBlockingReadUnblock(
     source: Any,
     raw_stop: Callable[..., None],
     before_stop: Optional[Callable[[], None]] = None,
+    after_stop: Optional[Callable[[], None]] = None,
 ) -> Callable[..., None]:
     """`listen_energy_and_audio_in_background`/`listen_with_segmenter_in_background`
     が返す生の stopper を、ブロッキング中の `stream.read()` を強制的に
@@ -248,6 +312,8 @@ def _wrapStopperWithBlockingReadUnblock(
     def stopper(wait_for_stop: bool = True) -> None:
         if before_stop is not None:
             before_stop()
+        if isinstance(source, _LockedAudioSource):
+            source.cancel()
         try:
             with pyaudio_op_lock:
                 sr_stream = getattr(source, "stream", None)
@@ -261,7 +327,11 @@ def _wrapStopperWithBlockingReadUnblock(
         except Exception:
             # 既に停止済み等、想定内の失敗もあり得るが原因調査のため記録する
             errorLogging()
-        raw_stop(wait_for_stop=wait_for_stop)
+        try:
+            raw_stop(wait_for_stop=wait_for_stop)
+        finally:
+            if after_stop is not None:
+                after_stop()
 
     return stopper
 
@@ -289,25 +359,12 @@ class BaseEnergyAndAudioRecorder:
         energy_threshold: int,
         dynamic_energy_threshold: bool,
         phrase_time_limit: int,
-        record_timeout: int,
         label: str = "mic",
     ) -> None:
         self.recorder = Recognizer()
         self.recorder.energy_threshold = energy_threshold
         self.recorder.dynamic_energy_threshold = dynamic_energy_threshold
         self.phrase_time_limit = phrase_time_limit
-        # record_timeout=0 (以下) は「無制限録音」の意図として扱う (issue #113)。
-        # custom_speech_recognition 3.10.4.3 以降は録音ループ冒頭で
-        #   if time.time() - record_start_time > record_timeout: raise WaitTimeoutError
-        # というガードが入り、0 を渡すとループ突入直後に必ず真になって
-        # 1 バッファも読めないまま録音が中断され、音声が一切拾えなくなる。
-        # v3.1.0 時代の実質挙動 (record_timeout 無視) に合わせ、非正値は
-        # 事実上の無制限 (inf) に正規化する。フレーズ終端は energy ベースの
-        # 無音検出 (と phrase_time_limit) が引き続き担う。
-        if not record_timeout or record_timeout <= 0:
-            self.record_timeout = float("inf")
-        else:
-            self.record_timeout = record_timeout
         self.stop = None
         self.pause = None
         self.resume = None
@@ -379,8 +436,8 @@ class BaseEnergyAndAudioRecorder:
                 # チャンクを1つ捨てて追いつく方を優先する (フェーズ3項目20)。
                 # audio_queue に maxsize が無い場合 (_DiscardQueue 等) は
                 # 常にFalseが返る (Fullが発生しないため)。
-                if putDroppingOldestOnFull(audio_queue, item):
-                    printLog("audio_queue is full; dropped the oldest queued chunk to keep up")
+                dropped = putDroppingOldestOnFull(audio_queue, item)
+                utterance_diagnostics.queue_result(self.label, dropped)
             except Exception as error:  # noqa: BLE001 - report and preserve callback failure
                 self._set_device_error(error)
 
@@ -395,20 +452,26 @@ class BaseEnergyAndAudioRecorder:
                 errorLogging()
 
         try:
+            # custom_speech_recognition 3.10.4.3 以降の record_timeout は実時間で測り、
+            # 超えると録音中のフレーズを丸ごと捨てる。読み取った音声の長さで区切り、
+            # そこまでの音声を返す phrase_time_limit があるので、無制限にして使わない。
+            # 同じ値を渡すと 2 つが競争になる。44.1kHz で既定の 3 秒なら、読み取りが
+            # 5ms 遅れるだけで 3 秒分の発話が消える。0 は 1 バッファも読めない (issue #113)。
             stop, pause, resume = self.recorder.listen_energy_and_audio_in_background(
                 source=self.source,
                 callback=audio_callback,
                 phrase_time_limit=self.phrase_time_limit,
                 callback_energy=energy_callback if energy_queue is not None else None,
                 phrase_timeout=1,
-                record_timeout=self.record_timeout,
+                record_timeout=float("inf"),
             )
         except Exception as error:  # noqa: BLE001 - report and preserve setup failure
             self._set_device_error(error)
             raise
 
         self.stop = _wrapStopperWithBlockingReadUnblock(
-            self.source, stop, before_stop=self._stop_requested.set
+            self.source, stop, before_stop=self._stop_requested.set,
+            after_stop=lambda: utterance_diagnostics.flush(self.label),
         )
         self.pause = pause
         self.resume = resume
@@ -480,17 +543,15 @@ class BaseVadAndAudioRecorder:
         # 参照)、この値はエンジンを問わず常に固定 (7秒) のままでよい。
         _MAX_SPEECH_DURATION_MS = 7000
         max_speech_frames = max(1, round(_MAX_SPEECH_DURATION_MS / FRAME_DURATION_MS))
-        # diagnostic_callback を printLog に繋いでおく。process.log に
-        # speech_start/speech_end の実測タイミングが残るので、体感の遅さの
-        # 原因 (hangover 待ち・モデル初回ロード・処理そのもの等) を
-        # 実機ログから切り分けられるようにするため。
+        # 通常の speech_start/speech_end は source 別に集約する。
+        # hangover 待ちの外れ値は従来の詳細をその場で残す。
         self.vad_adapter = VadRecognizerAdapter(
             native_sample_rate=source.SAMPLE_RATE,
             native_sample_width=source.SAMPLE_WIDTH,
             native_channels=getattr(source, "channels", 1),
             segmenter=VadSegmenter(
                 max_speech_frames=max_speech_frames,
-                diagnostic_callback=printLog,
+                diagnostic_observer=utterance_diagnostics.record,
                 diagnostic_label=label,
             ),
         )
@@ -571,8 +632,8 @@ class BaseVadAndAudioRecorder:
                 # BaseEnergyAndAudioRecorder.audio_callback と同じ理由
                 # (フェーズ3項目20)。VAD 経由でも文字起こしが実時間に
                 # 追いつけない状況は起こり得るため同じ有界化を適用する。
-                if putDroppingOldestOnFull(audio_queue, item):
-                    printLog("audio_queue is full; dropped the oldest queued chunk to keep up")
+                dropped = putDroppingOldestOnFull(audio_queue, item)
+                utterance_diagnostics.queue_result(self.label, dropped)
             except Exception as error:  # noqa: BLE001 - report callback failure
                 self._on_stream_read_error(error)
 
@@ -595,7 +656,8 @@ class BaseVadAndAudioRecorder:
             raise
 
         self.stop = _wrapStopperWithBlockingReadUnblock(
-            self.source, stop, before_stop=self._stop_requested.set
+            self.source, stop, before_stop=self._stop_requested.set,
+            after_stop=lambda: utterance_diagnostics.flush(self.label),
         )
         self.pause = pause
         self.resume = resume
@@ -608,7 +670,6 @@ class SelectedMicEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
         energy_threshold: int,
         dynamic_energy_threshold: bool,
         phrase_time_limit: int,
-        record_timeout: int = 5,
     ) -> None:
         # PortAudio の WASAPI はステレオ入力を channels=1 で開くと変換せず
         # L,R,L,R... のまま半分だけ返し、文字起こしが壊れる (メーターは動く)。
@@ -618,19 +679,24 @@ class SelectedMicEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
         # channels を使って開く (False だと常に 1ch) ため、マイクでも True にする。
         source = _create_microphone(
             {},
+            source_kind="mic",
+            expected_device=device,
             speaker=True,
             device_index=int(device.get("index", -1)),
             sample_rate=int(device.get("defaultSampleRate", 16000)),
             channels=int(device.get("maxInputChannels", 1)),
         )
-        super().__init__(
-            source=source,
-            energy_threshold=energy_threshold,
-            dynamic_energy_threshold=dynamic_energy_threshold,
-            phrase_time_limit=phrase_time_limit,
-            record_timeout=record_timeout,
-            label="mic",
-        )
+        try:
+            super().__init__(
+                source=source,
+                energy_threshold=energy_threshold,
+                dynamic_energy_threshold=dynamic_energy_threshold,
+                phrase_time_limit=phrase_time_limit,
+                label="mic",
+            )
+        except Exception:
+            source.close()
+            raise
 
 
 class SelectedSpeakerEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
@@ -640,23 +706,27 @@ class SelectedSpeakerEnergyAndAudioRecorder(BaseEnergyAndAudioRecorder):
         energy_threshold: int,
         dynamic_energy_threshold: bool,
         phrase_time_limit: int,
-        record_timeout: int = 5,
     ) -> None:
         source = _create_microphone(
-            {"speaker": True},
+            {},
+            source_kind="speaker",
+            expected_device=device,
             speaker=True,
             device_index=int(device.get("index", -1)),
             sample_rate=int(device.get("defaultSampleRate", 16000)),
             channels=int(device.get("maxInputChannels", 1)),
         )
-        super().__init__(
-            source=source,
-            energy_threshold=energy_threshold,
-            dynamic_energy_threshold=dynamic_energy_threshold,
-            phrase_time_limit=phrase_time_limit,
-            record_timeout=record_timeout,
-            label="speaker",
-        )
+        try:
+            super().__init__(
+                source=source,
+                energy_threshold=energy_threshold,
+                dynamic_energy_threshold=dynamic_energy_threshold,
+                phrase_time_limit=phrase_time_limit,
+                label="speaker",
+            )
+        except Exception:
+            source.close()
+            raise
 
 
 class SelectedMicVadRecorder(BaseVadAndAudioRecorder):
@@ -664,21 +734,33 @@ class SelectedMicVadRecorder(BaseVadAndAudioRecorder):
         # speaker/channels は SelectedMicEnergyAndAudioRecorder と同じ理由で指定する
         source = _create_microphone(
             {},
+            source_kind="mic",
+            expected_device=device,
             speaker=True,
             device_index=int(device.get("index", -1)),
             sample_rate=int(device.get("defaultSampleRate", 16000)),
             channels=int(device.get("maxInputChannels", 1)),
         )
-        super().__init__(source=source, record_timeout=record_timeout, label="mic")
+        try:
+            super().__init__(source=source, record_timeout=record_timeout, label="mic")
+        except Exception:
+            source.close()
+            raise
 
 
 class SelectedSpeakerVadRecorder(BaseVadAndAudioRecorder):
     def __init__(self, device: dict, record_timeout: int = 5) -> None:
         source = _create_microphone(
-            {"speaker": True},
+            {},
+            source_kind="speaker",
+            expected_device=device,
             speaker=True,
             device_index=int(device.get("index", -1)),
             sample_rate=int(device.get("defaultSampleRate", 16000)),
             channels=int(device.get("maxInputChannels", 1)),
         )
-        super().__init__(source=source, record_timeout=record_timeout, label="speaker")
+        try:
+            super().__init__(source=source, record_timeout=record_timeout, label="speaker")
+        except Exception:
+            source.close()
+            raise

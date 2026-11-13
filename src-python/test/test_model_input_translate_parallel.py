@@ -180,9 +180,9 @@ class TestTranslatorsSessionIsThreadLocal(unittest.TestCase):
 
         remedy = (
             "Tse.session がスレッド間で共有されている。"
-            " インストール済みの translators が requirements.txt の pin より古い可能性が高い"
+            " インストール済みの translators が固定版より古い可能性が高い"
             " (スレッドローカル化は misyaguziya/translators f3697bd 以降)。"
-            " `pip install -r requirements.txt --force-reinstall --no-deps translators` で追従すること。"
+            " translators を f3697bd 以降へ更新すること。"
         )
         self.assertEqual(seen, {i: f"session-{i}" for i in range(5)}, remedy)
         self.assertIsNone(shared.session, remedy)

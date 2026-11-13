@@ -1,10 +1,10 @@
+import { createElement } from "react";
 import { useStore_NotificationStatus } from "@store";
-import { useI18n } from "@useI18n";
+import { toast } from "react-toastify";
+import { TranslatedNotice } from "./TranslatedNotice";
 
 export const useNotificationStatus = () => {
     const { currentNotificationStatus, updateNotificationStatus } = useStore_NotificationStatus();
-    const { t } = useI18n();
-
     const showNotification = (status, message, options = {}) => {
         updateNotificationStatus({
             status,
@@ -25,10 +25,16 @@ export const useNotificationStatus = () => {
             status: "success",
             is_open: true,
             category_id: "save_success",
-            message: t("config_page.notifications.save_success"),
+            // The backend can save during startup (it switches mute sync off, for one),
+            // before the saved UI language is applied.
+            message: createElement(TranslatedNotice, { k: "config_page.notifications.save_success" }),
             options: options,
         });
     };
+
+    // Close one notification by its category_id (the snackbar uses it as the toast id).
+    // A notification that never hides blocks a new one with the same id, so close it first.
+    const dismissNotification = (category_id) => toast.dismiss(category_id);
 
     const closeNotification = () => {
         updateNotificationStatus((prev) => ({
@@ -46,5 +52,6 @@ export const useNotificationStatus = () => {
         showNotification_Success,
         showNotification_SaveSuccess,
         closeNotification,
+        dismissNotification,
     };
 };

@@ -1,3 +1,4 @@
+import { createLanguageNames } from "../../../../../../logics/common/languageNames.js";
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { useI18n } from "@useI18n";
@@ -20,22 +21,46 @@ import {
     CheckboxContainer,
 } from "../_templates/Templates";
 
+import {
+    SectionLabelComponent,
+} from "../_components";
+
+import {
+    AutoClearMessageInputBoxContainer,
+    ConvertMessageToHiraganaContainer,
+    ConvertMessageToRomajiContainer,
+} from "../shared_items/SharedItems";
+
 export const Appearance = () => {
+    const { t } = useI18n();
+
     return (
-        <>
-            <UiLanguageContainer />
-            <UiScalingContainer />
-            <MessageLogUiScalingContainer />
-            <SendMessageButtonTypeContainer />
-            <ShowResendButtonContainer />
-            <FontFamilyContainer />
-            <TransparencyContainer />
-        </>
+        <div className={styles.container}>
+            <div>
+                <SectionLabelComponent label={t("config_page.appearance.section_label_display")} />
+                <UiLanguageContainer />
+                <UiScalingContainer />
+                <MessageLogUiScalingContainer />
+                <FontFamilyContainer />
+                <TransparencyContainer />
+            </div>
+            <div>
+                <SectionLabelComponent label={t("config_page.appearance.section_label_send_buttons")} />
+                <SendMessageButtonTypeContainer />
+                <ShowResendButtonContainer />
+                <AutoClearMessageInputBoxContainer />
+            </div>
+            <div>
+                <SectionLabelComponent label={t("config_page.others.section_label_reading_aids")} />
+                <ConvertMessageToHiraganaContainer />
+                <ConvertMessageToRomajiContainer />
+            </div>
+        </div>
     );
 };
 
 const UiLanguageContainer = () => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
     const { currentUiLanguage, setUiLanguage } = useAppearance();
 
     const is_not_en_lang = currentUiLanguage.data !== "en" && currentUiLanguage.data !== undefined;
@@ -46,7 +71,7 @@ const UiLanguageContainer = () => {
             desc={is_not_en_lang ? t("config_page.appearance.ui_language.label") : false}
             selectFunction={setUiLanguage}
             name="ui_language"
-            options={ui_configs.selectable_ui_languages}
+            options={createLanguageNames(i18n.language).uiOptions(ui_configs.selectable_ui_languages)}
             checked_variable={currentUiLanguage}
         />
     );
@@ -62,6 +87,7 @@ const UiScalingContainer = () => {
             setting_id="ui_size"
             label={t("config_page.appearance.ui_size.label")}
             valueLabelFormat="value %"
+            state={currentUiScaling.state}
             variable={currentUiScaling.data}
             setterFunction={setUiScaling}
             postUpdateAction={asyncUpdateBreakPoint}
@@ -83,6 +109,7 @@ export const MessageLogUiScalingContainer = () => {
             setting_id="textbox_ui_size"
             label={t("config_page.appearance.textbox_ui_size.label")}
             valueLabelFormat="value %"
+            state={currentMessageLogUiScaling.state}
             variable={currentMessageLogUiScaling.data}
             setterFunction={setMessageLogUiScaling}
             min={40}
@@ -137,6 +164,13 @@ const FontFamilyContainer = () => {
         setSelectedFontFamily(selected_data.selected_id);
     };
     const { currentSelectableFontFamilyList } = useStore_SelectableFontFamilyList();
+    // A saved font missing from this system (the default is a Windows font)
+    // is listed with a note, since the UI is drawn with a fallback instead.
+    const fonts = currentSelectableFontFamilyList.data;
+    const selected = currentSelectedFontFamily.data;
+    const list = selected && Object.keys(fonts).length && !(selected in fonts)
+        ? { [selected]: t("config_page.appearance.font_family.not_installed", { name: selected }), ...fonts }
+        : fonts;
 
     return (
         <DropdownMenuContainer
@@ -144,7 +178,7 @@ const FontFamilyContainer = () => {
             dropdown_id="font_family"
             label={t("config_page.appearance.font_family.label")}
             selected_id={currentSelectedFontFamily.data}
-            list={currentSelectableFontFamilyList.data}
+            list={list}
             selectFunction={selectFunction}
             state={currentSelectedFontFamily.state}
         />
@@ -160,6 +194,7 @@ const TransparencyContainer = () => {
             setting_id="transparency"
             label={t("config_page.appearance.transparency.label")}
             valueLabelFormat="value %"
+            state={currentTransparency.state}
             variable={currentTransparency.data}
             setterFunction={setTransparency}
             min={40}

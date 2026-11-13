@@ -243,10 +243,10 @@ setMuteSelfStatus() -> None
 ### WebSocket機能
 
 ```python
-startWebSocketServer(host: str, port: int) -> None
+startWebSocketServer(host: str, port: int) -> bool
 ```
 
-- WebSocketサーバーの起動
+- WebSocketサーバーの起動。実際に bind できたかを返す
 
 ```python
 websocketSendMessage(message_dict: dict) -> bool

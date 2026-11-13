@@ -8,7 +8,12 @@ common:
     go_back_button_label: "返回"
     default_label: "默认"
 
+backend_errors:
+    CREDENTIAL_REENTRY_REQUIRED: "URL 已更改。为避免将已保存的密钥发送到其他服务器，请输入新 URL 使用的密钥。如果服务器无需密钥，请先删除已保存的密钥，再更改 URL。"
+
 common_error:
+    ctranslate2_license_consent_required: "{{weight_type}} 采用非商用许可证（CC-BY-NC-4.0）。请先在 设置 > 翻译 中确认许可证。"
+    translation_language_unsupported: "{{model}} 无法翻译 {{languages}}，因此已重置语言。如需使用该语言，请选择其他翻译引擎或 {{ctranslate2}} 模型。"
     no_device_mic: "未检测到麦克风设备。"
     no_device_speaker: "未检测到扬声器设备。"
     copy_to_clipboard_failed: "复制到剪贴板失败。"
@@ -32,7 +37,10 @@ common_error:
     invalid_hex_color: "请输入有效的 HEX 颜色代码（例：{{brand_color_hex}}）格式。"
 
 common_warning:
-    unable_to_use_osc_query: "由于 OSC IP Address 的设置无法接收 OSC 数据，以下功能已自动禁用。"
+    osc_query_remote: "消息发送到其他设备时，无法使用“{{sync}}”。只有当 VRChat 在本机运行时，才能确认 VRChat 的静音状态。"
+    osc_query_remote_mic_stopped: "消息发送到其他设备，无法确认 VRChat 的静音状态。已关闭“{{sync}}”并停止“{{microphone}}”。需要时请重新开启“{{microphone}}”。"
+    osc_query_failed: "无法开始接收 OSC，因此无法使用“{{sync}}”。请在设置的“{{settings}}”中检查 OSC 设置并重新保存。"
+    osc_query_failed_mic_stopped: "无法开始接收 OSC，无法确认 VRChat 的静音状态。已关闭“{{sync}}”并停止“{{microphone}}”。请在设置的“{{settings}}”中检查 OSC 设置并重新保存，然后再开启“{{microphone}}”。"
 
 main_page:
     translation: "翻译"
@@ -51,6 +59,7 @@ main_page:
 
     translator_selector:
         is_selected_same_language: "「{{your_language}}」和「{{target_language}}」选择了相同的语言，因此只能使用「{{ctranslate2}}」。"
+        unavailable_hint: "无法选择的引擎不支持当前语言或设置。API 密钥等可在设置的“翻译”中查看。"
 
     message_log:
         all: "全部"
@@ -97,8 +106,22 @@ update_modal:
     warn_switch_channel: "将切换到{{channel}}渠道，今后的更新通知也将以{{channel}}为准。"
 
 config_page:
+    about_vrct:
+        summary: "将语音识别（ASR）、语音合成（TTS）、变声（RVC）、聊天读取（OCR）和翻译整合在一起的 VRChat 应用。"
+        fork_notice: "VRCT-VOX 是 kein5 开发的 VRCT 独立 fork，并非 VRCT 官方版本。问题和疑问请提交到 VRCT-VOX Issues，请勿联系原 VRCT 开发者。"
+        links:
+            repository: "GitHub"
+            releases: "发布版本"
+            issues: "报告问题（Issues）"
+            licenses: "许可与声明"
+        original_heading: "原版 VRCT"
+        original_desc: "VRCT-VOX 基于 VRCT 开发。感谢 VRCT 的开发者、贡献者以及所有支持者。"
     search:
         placeholder: "搜索设置..."
+        label: "搜索设置"
+        results: "匹配的设置"
+        clear: "清除搜索"
+        requires: "需要：{{name}}"
         no_results: "未找到匹配的设置"
     common:
         version: "版本 {{version}}"
@@ -108,6 +131,7 @@ config_page:
         correct_auth_key_required: "需要正确的 API 密钥"
         open_auth_key_webpage: "打开 API 密钥管理页面"
         auth_key_success: "API 密钥更新完成。"
+        credential_reentry_required: "URL 已更改。为避免将已保存的密钥发送到其他服务器，请输入新 URL 使用的密钥。如果服务器无需密钥，请先删除已保存的密钥，再更改 URL。"
         connection_check:
             button_label:
             checking:
@@ -122,8 +146,10 @@ config_page:
             type_template_high: "{{type_name}} （精度较高，处理较慢）"
         warning_labels:
             unable_to_use_osc_query: "由于 OSC IP Address 的设置无法接收 OSC 数据，目前无法使用此功能。"
+            unable_to_use_osc_query_remote: "消息发送到其他设备时无法使用。只有当 VRChat 在本机运行时，才能确认 VRChat 的静音状态。"
 
     side_menu_labels:
+        vrchat: "VRChat"
         device: "设备"
         appearance: "外观"
         translation: "翻译"
@@ -173,6 +199,8 @@ config_page:
             desc_for_vad: "使用AI(Silero VAD)检测他人语音，每次说完话就将音频发送至语音识别。可减少拾取BGM和游戏音效的情况。"
 
     appearance:
+        section_label_display: "显示"
+        section_label_send_buttons: "发送按钮"
         transparency:
             label: "透明度"
             desc: "更改主视窗透明度"
@@ -204,6 +232,17 @@ config_page:
             desc: "可以选择用于离线翻译的翻译模型"
             small: "普通模型 ({{capacity}})"
             large: "高精度模型 ({{capacity}})"
+            license_commercial: "许可证：{{license}}（允许商用）"
+            license_non_commercial: "非商用许可证（{{license}}）"
+            confirm_title: "非商用许可证"
+            confirm_body: "{{weight_type}} 采用 {{license}} 许可证，不得用于商业用途。M2M100 模型（MIT 许可证）没有此限制。"
+            confirm_check: "我已阅读许可证，并且只会将此模型用于非商业用途。"
+            confirm_download: "下载"
+            confirm_select: "使用此模型"
+            confirm_cancel: "取消"
+            license_link: "许可条款"
+            model_card_link: "模型卡"
+            non_commercial_notice: "当前的 {{ctranslate2}} 模型 {{weight_type}} 采用非商用许可证（{{license}}）。它是旧版本的默认模型，你的设置未被更改。如需商用，请在 设置 > 翻译 中选择 M2M100 模型（MIT）。"
         translation_compute_device:
             label: "AI 翻译的处理设备"
 
@@ -295,13 +334,13 @@ config_page:
             desc: "语音识别置信度（avg_logprob）的阈值。越接近0，则只接受置信度高的语音，从而抑制误识。（默认值：-0.8）"
         mic_no_speech_prob:
             label: "Mic No Speech Prob"
-            desc: "语音不存在的概率（no_speech_prob）的阈值。超过此概率的片段被认为无音而被忽略，从而抑制噪音引起的误识。越接近0则判定越严格，微弱的声音也会被转录。（默认值：0.6）"
+            desc: "语音不存在的概率（no_speech_prob）的阈值。超过此概率的片段被认为无音而被忽略，从而抑制噪音引起的误识。越接近0则判定越严格，微弱的语音也更容易被当作无音而忽略。（默认值：0.6）"
         speaker_avg_logprob:
             label: "Speaker Avg Logprob"
             desc: "语音识别置信度（avg_logprob）的阈值。越接近0，则只接受置信度高的语音，从而抑制误识。（默认值：-0.8）"
         speaker_no_speech_prob:
             label: "Speaker No Speech Prob"
-            desc: "语音不存在的概率（no_speech_prob）的阈值。超过此概率的片段被认为无音而被忽略，从而抑制噪音引起的误识。越接近0则判定越严格，微弱的声音也会被转录。（默认值：0.6）"
+            desc: "语音不存在的概率（no_speech_prob）的阈值。超过此概率的片段被认为无音而被忽略，从而抑制噪音引起的误识。越接近0则判定越严格，微弱的语音也更容易被当作无音而忽略。（默认值：0.6）"
 
     vr:
         single_line: "单行"
@@ -326,6 +365,7 @@ config_page:
         fadeout_duration: "渐隐持续时间"
         common_settings: "通用设置"
         vr_ui_beta: "VR UI（测试版）"
+        section_label_overlay: "字幕叠加层"
         tracker: "显示追踪器的位置"
         hmd: "HMD"
         left_hand: "左手"
@@ -343,8 +383,8 @@ config_page:
             desc:
 
     others:
-        section_label_sounds: "声音"
         section_label_message_formats: "消息格式"
+        section_label_reading_aids: "平假名・罗马字"
         auto_clear_the_message_box:
             label: "发言后自动清空chatbox"
         send_only_translated_messages:
@@ -381,8 +421,8 @@ config_page:
             label: "消息格式（发送）"
             desc: "可以更改在 VRChat 中对方实际看到的格式。"
         received_message_format:
-            label: "消息格式（Speaker2Chatbox）"
-            desc: "目前用于通过 Speaker2Chatbox 发送时的显示。"
+            label: "消息格式（接收）"
+            desc: "将听取的消息发送到 VRChat 时使用此格式。"
         common_convert_message_hiragana_romaji:
             desc_1: "仅在选择日语作为翻译语言时支持。"
             desc_2: "由于日语的特殊性，精度有限。"
@@ -391,10 +431,10 @@ config_page:
             desc: "与「{{convert_message_to_hiragana}}」同时启用时，将通过鼠标悬停显示。"
         convert_message_to_hiragana:
             label: "显示平假名"
-        telemetry:
-            label:
-            desc:
-            aptabase_privacy_policy_label:
+
+    vrchat:
+        section_label_chatbox: "发送到聊天框"
+        section_label_tts_output: "朗读输出"
 
     ocr:
         section_title: "VRChat 聊天读取"
@@ -440,6 +480,8 @@ config_page:
     hotkeys:
         input_placeholder: "请输入按键组合"
         disabled_notice: "※打开设置页面时，为防止误操作，快捷键功能会暂时禁用。"
+        section_label_quick_chat: "快捷聊天"
+        section_label_toggles: "窗口与功能切换"
         error_in_use: "“{{action_name}}”的快捷键（{{hotkey}}）已在其他位置使用，无法注册。"
         error_failed_to_register_at_launch: "“{{action_name}}”的快捷键（{{hotkey}}）正被其他应用程序使用，无法启用。"
         toggle_vrct_visibility:
@@ -452,6 +494,9 @@ config_page:
             label: "切换「{{transcription_receive}}」开/关"
 
     advanced_settings:
+        section_label_osc: "OSC"
+        section_label_logs: "日志"
+        section_label_config_file: "配置文件"
         osc_ip_address:
             label: "OSC IP 地址"
         osc_port:
@@ -657,6 +702,9 @@ voice_ui:
     route_hint: "TTS和直接语音共用此路径。更改前请停止直接输入。切换到外部音频线会断开托管输入连接。"
     save_route: "保存音频路径"
     discard: "放弃更改"
+    save_bar: "保存设置"
+    save_changes: "保存更改"
+    changed_items: "已更改的设置"
     unsaved: "有未保存的更改"
     saved: "已保存"
     save_failed: "保存失败 — 已保留编辑内容"
@@ -666,7 +714,6 @@ voice_ui:
     keep_editing: "继续编辑"
     discard_leave: "放弃并离开"
     input_conflict: "另一个直接语音引擎正在运行。请先在其设置页面停止。"
-    engine_settings: "引擎设置"
     memory_error: "内存不足。请停止其他GPU应用，或选择CPU并保存，然后重新启动服务器。"
     check_settings: "请检查{{page}}设置。"
     state_unknown: "尚未确认状态，请在后端连接后重试。"
@@ -693,6 +740,7 @@ quick_chat:
     send: "发送"
     sending: "正在发送…"
     hint: "Shift+Enter：换行 · Esc：关闭"
+    hint_enter_newline: "Enter：换行 · Esc：关闭"
     open: "打开输入窗口"
     shortcut_hint: "可设置打开输入窗口的快捷键，默认不分配按键。按 Esc 关闭后仍保留草稿。"
     clear_shortcut: "清除快捷键：{{action}}"

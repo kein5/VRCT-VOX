@@ -29,6 +29,7 @@ class _FakeTokenizer:
     """
 
     lang_code_to_token: dict = {}
+    eos_token = "</s>"
 
     def __init__(self, set_delay_sec: float = 0.05) -> None:
         self._src_lang = None
@@ -44,7 +45,7 @@ class _FakeTokenizer:
         time.sleep(self._set_delay_sec)
         self._src_lang = value
 
-    def encode(self, message):
+    def encode(self, message, **kwargs):
         self.calls.append((self._src_lang, message))
         return [1, 2, 3]
 
@@ -64,8 +65,11 @@ class _FakeResult:
 
 
 class _FakeCTranslate2Translator:
-    def translate_batch(self, sources, target_prefix):
-        return [_FakeResult([["<s>", "tok"]])]
+    def translate_batch(self, sources, target_prefix, **kwargs):
+        return [_FakeResult([["<s>", "tok", "</s>"]])]
+
+    def unload_model(self):
+        pass
 
 
 class TranslateCTranslate2LockTests(unittest.TestCase):
@@ -75,6 +79,7 @@ class TranslateCTranslate2LockTests(unittest.TestCase):
         self.translator.ctranslate2_tokenizer = self.tokenizer
         self.translator.ctranslate2_translator = _FakeCTranslate2Translator()
         self.translator.is_loaded_ctranslate2_model = True
+        self.translator._ctranslate2_model_parameters = {"model_type": "nllb-200-distilled-600M-ct2-int8"}
 
     def test_concurrent_calls_do_not_observe_each_others_src_lang(self) -> None:
         # mic が "Japanese"、speaker が "English" を同時に翻訳する状況を
@@ -114,7 +119,6 @@ class TranslateCTranslate2LockTests(unittest.TestCase):
         order = []
         release_change = threading.Event()
 
-        original_from_pretrained = None
         import models.translation.translation_translator as tt_module
 
         class _SlowTokenizer(_FakeTokenizer):
@@ -138,13 +142,12 @@ class TranslateCTranslate2LockTests(unittest.TestCase):
 
         original_ctranslate2 = tt_module.ctranslate2
         original_transformers = tt_module.transformers
-        original_weights = tt_module.ctranslate2_weights.get("nllb-200-distilled-600M-ct2-int8")
+        original_resolve = tt_module.resolveCTranslate2Weight
+        original_tokenizer = tt_module.downloadCTranslate2Tokenizer
         tt_module.ctranslate2 = _FakeCTranslate2Module()
         tt_module.transformers = _FakeTransformers()
-        tt_module.ctranslate2_weights["nllb-200-distilled-600M-ct2-int8"] = {
-            "directory_name": "nllb-200-distilled-600M-ct2-int8",
-            "tokenizer": "dummy",
-        }
+        tt_module.resolveCTranslate2Weight = lambda *_: "verified-fake-path"
+        tt_module.downloadCTranslate2Tokenizer = _FakeAutoTokenizer.from_pretrained
 
         def run_change():
             self.translator.changeCTranslate2Model(
@@ -175,8 +178,8 @@ class TranslateCTranslate2LockTests(unittest.TestCase):
         def _restore():
             tt_module.ctranslate2 = original_ctranslate2
             tt_module.transformers = original_transformers
-            if original_weights is not None:
-                tt_module.ctranslate2_weights["nllb-200-distilled-600M-ct2-int8"] = original_weights
+            tt_module.resolveCTranslate2Weight = original_resolve
+            tt_module.downloadCTranslate2Tokenizer = original_tokenizer
 
         # addCleanup は LIFO で実行されるため、実行させたい順序 (release →
         # 各 join → 復元) の逆順で登録する。

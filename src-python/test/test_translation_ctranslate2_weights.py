@@ -65,8 +65,10 @@ class TestCTranslate2WeightDefinitions(unittest.TestCase):
             reference_names.update(cfg["source"].keys())
             reference_names.update(cfg.get("target", {}).keys())
 
+        # Tibetan used to be listed here too, but only the M2M100 table had
+        # it, and M2M100 has no Tibetan (the entry was invalid and removed).
         for language in ["Arabic", "Persian", "Norwegian", "Uzbek", "Latvian", "Malay",
-                          "Tibetan", "Azerbaijani", "Pashto", "Yiddish", "Mongolian",
+                          "Azerbaijani", "Pashto", "Yiddish", "Mongolian",
                           "Malagasy", "Albanian", "Oromo", "Kurdish"]:
             self.assertIn(
                 language, reference_names,

@@ -1,5 +1,6 @@
-import React, { useEffect, useState, isValidElement } from "react";
+import React, { useEffect, useRef } from "react";
 import { ToastContainer, toast, cssTransition } from "react-toastify";
+import { useStore } from "jotai";
 import clsx from "clsx";
 
 import "./ReactToastifyOverrideClass.scss";
@@ -10,8 +11,10 @@ import MegaphoneSvg from "@images/megaphone.svg?react";
 import CheckMarkSvg from "@images/check_mark.svg?react";
 import ErrorSvg from "@images/error.svg?react";
 
-import { useNotificationStatus } from "@logics_common";
+import { Atom_NotificationStatus } from "@store";
+import { useNotificationStatus, useIsOpenedConfigPage } from "@logics_common";
 import { CloseButton } from "@common_components";
+import { useI18n } from "@useI18n";
 
 const CustomTransition = cssTransition({
     enter: "fade_in",
@@ -19,13 +22,7 @@ const CustomTransition = cssTransition({
     collapse: false,
 });
 
-
-export const SnackbarController = () => {
-    const { currentNotificationStatus, closeNotification } = useNotificationStatus();
-    // const [containerKey, setContainerKey] = useState(0);
-
-    const settings = currentNotificationStatus.data;
-
+const showToast = (settings, latest) => {
     const snackbar_classname = clsx(
         styles.snackbar_content,
         {
@@ -42,42 +39,58 @@ export const SnackbarController = () => {
         hide_duration = Number(settings.options?.hide_duration);
     }
 
+    const message_text = settings.message;
+    const category_id = settings.category_id ? settings.category_id : message_text;
 
+    const to_hide_progress_bar = (settings.options?.to_hide_progress_bar === true) ? true : false;
+
+    setTimeout(() => {
+        toast(message_text, {
+            toastId: category_id,
+            type: settings.status,
+            autoClose: hide_duration,
+            transition: CustomTransition,
+            toastClassName: snackbar_classname,
+            hideProgressBar: to_hide_progress_bar,
+            progressClassName: styles.toast_progress,
+            closeButton: ({ closeToast }) => <CloseButton size="small" aria-label={latest.current.t("common.dismiss_notification")} onClick={closeToast} />,
+            onClose: () => {
+                latest.current.closeNotification();
+            },
+        });
+    }, 100);
+};
+
+export const SnackbarController = () => {
+    const { t } = useI18n();
+    const { closeNotification } = useNotificationStatus();
+    const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
+    const atoms = useStore();
+    const latest = useRef(null);
+    latest.current = { t, closeNotification };
+
+    // Every notification is one write to a single atom. Several written in the
+    // same tick reach React as one render, so an effect on the rendered value
+    // saw only the last of them. The store reports each write. A write that
+    // keeps the same notification object (a republish) is not a new one.
     useEffect(() => {
-        if (!settings.is_open) return;
-
-        const message_text = settings.message;
-        const category_id = settings.category_id ? settings.category_id : message_text;
-
-        const to_hide_progress_bar = (settings.options?.to_hide_progress_bar === true) ? true : false;
-
-        const asyncShowNotification = async () => {
-            setTimeout(() => {
-                toast(message_text, {
-                    toastId: category_id,
-                    type: settings.status,
-                    autoClose: hide_duration,
-                    transition: CustomTransition,
-                    toastClassName: snackbar_classname,
-                    hideProgressBar: to_hide_progress_bar,
-                    progressClassName: styles.toast_progress,
-                    closeButton: ({ closeToast }) => <CloseButton size="small" onClick={closeToast} />,
-                    onClose: () => {
-                        closeNotification();
-                    },
-                });
-            }, 100);
+        let shown = null;
+        const showLatest = () => {
+            const settings = atoms.get(Atom_NotificationStatus).data;
+            if (settings === shown) return;
+            shown = settings;
+            if (settings?.is_open) showToast(settings, latest);
         };
-
-        // setContainerKey(prevKey => prevKey + 1);
-        asyncShowNotification();
-
-    }, [settings]);
+        showLatest();
+        return atoms.sub(Atom_NotificationStatus, showLatest);
+    }, [atoms]);
 
     return (
         <ToastContainer
-            // key={containerKey}
-            position="bottom-left"
+            position="top-left"
+            // One container for both pages, so a notice already showing moves
+            // with the page instead of staying over the other page's controls.
+            className={clsx({ [styles.over_settings]: currentIsOpenedConfigPage.data === true })}
             transition={CustomTransition}
             hideProgressBar={false}
             newestOnTop={false}

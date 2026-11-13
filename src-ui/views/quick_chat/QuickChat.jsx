@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useI18n } from '@useI18n';
 import { quickChatBridge } from '../../logics/quickChat/bridge';
+import { CHATBOX_MAX_LENGTH, chatboxOverflowLength } from '../../logics/common/chatboxLength';
 import styles from './QuickChat.module.scss';
 
 export const QuickChat = ({ bridge = quickChatBridge }) => {
@@ -8,21 +9,56 @@ export const QuickChat = ({ bridge = quickChatBridge }) => {
     const [value, setValue] = useState(''), [pending, setPending] = useState(false), [error, setError] = useState(null);
     const [context, setContext] = useState({ enter_to_send: true, clear_on_send: true });
     const field = useRef(null), composing = useRef(false), sending = useRef(false);
+    const lengthWarningId = useId(), overflowLength = chatboxOverflowLength(value);
+    const container = useRef(null), warning = useRef(null), grown = useRef(0), isOverflowing = overflowLength !== null;
+    useLayoutEffect(() => {
+        // This document has its own root. Font names stay a single CSS string,
+        // with the local Noto/system fallbacks supplied by root.css.
+        if (context.ui_scaling !== undefined) {
+            document.documentElement.style.setProperty('font-size', `${62.5 * context.ui_scaling / 100}%`);
+            document.documentElement.style.setProperty('--font_family', JSON.stringify(context.font_family));
+        }
+    }, [context.ui_scaling, context.font_family]);
+    // The warning gets room below the field: grow the window by its height and
+    // shrink back when it goes, so the field itself never gets smaller.
+    useLayoutEffect(() => {
+        const height = isOverflowing && warning.current
+            ? warning.current.offsetHeight + parseFloat(getComputedStyle(container.current).rowGap || '0') : 0;
+        const delta = height - grown.current;
+        if (!delta || !bridge.growBy) return;
+        grown.current = height;
+        bridge.growBy(delta).catch(error => console.warn('Quick chat window could not be resized', error));
+    }, [isOverflowing, bridge, context.ui_scaling, context.font_family]);
     useEffect(() => {
         let disposed = false;
-        const focus = async () => {
+        let revision = 0;
+        let focusRequested = false;
+        const refresh = async (focusInput = false) => {
+            focusRequested ||= focusInput;
+            const current = ++revision;
             try {
                 const next = await bridge.context();
-                if (disposed) return;
+                if (disposed || current !== revision) return;
                 setContext(next);
                 await i18n.changeLanguage(next.language);
-                field.current?.focus();
-            } catch { if (!disposed) setError('quick_chat_not_ready'); }
+                if (focusRequested && !disposed && current === revision) {
+                    focusRequested = false;
+                    field.current?.focus();
+                }
+            } catch { if (!disposed && current === revision) setError('quick_chat_not_ready'); }
         };
-        focus();
+        const focus = () => refresh(true);
         const off = bridge.onOpen(focus);
+        // Notifications carry no context; read it through the validated command.
+        const offContext = bridge.onContextChanged(() => refresh());
+        Promise.all([off, offContext]).then(() => { if (!disposed) focus(); })
+            .catch(() => { if (!disposed) setError('quick_chat_not_ready'); });
         window.addEventListener('focus', focus);
-        return () => { disposed = true; off.then(fn => fn()); window.removeEventListener('focus', focus); };
+        return () => {
+            disposed = true;
+            off.then(fn => fn(), () => {}); offContext.then(fn => fn(), () => {});
+            window.removeEventListener('focus', focus);
+        };
     }, [bridge, i18n]);
     const submit = async () => {
         if (sending.current || composing.current || !value.trim()) return;
@@ -38,21 +74,26 @@ export const QuickChat = ({ bridge = quickChatBridge }) => {
             setError(['quick_chat_not_ready', 'quick_chat_busy'].includes(code) ? code : 'quick_chat_not_ready');
         } finally { clearTimeout(timer); sending.current = false; setPending(false); field.current?.focus(); }
     };
-    return <main className={styles.container} onKeyDown={event => {
+    return <main ref={container} className={styles.container} onKeyDown={event => {
         if (event.key === 'Escape' && !composing.current && !event.nativeEvent.isComposing && event.keyCode !== 229) {
             event.preventDefault();
             bridge.hide().catch(() => setError('quick_chat_not_ready'));
         }
     }}>
         <textarea ref={field} aria-label={t('quick_chat.message')} value={value} readOnly={pending}
+            aria-describedby={overflowLength !== null ? lengthWarningId : undefined}
             onChange={event => { setValue(event.target.value); setError(null); }}
             onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }}
             onKeyDown={event => {
                 if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) return;
                 if (event.key === 'Enter' && !event.shiftKey && context.enter_to_send) { event.preventDefault(); if (!event.repeat) submit(); }
             }} />
+        {isOverflowing && <p ref={warning} id={lengthWarningId} className={styles.length_warning}>
+            <span role="status">{t('studio.chatbox_too_long', { max: CHATBOX_MAX_LENGTH })}</span>
+            <span className={styles.length_count}>{t('studio.chatbox_length', { length: overflowLength, max: CHATBOX_MAX_LENGTH })}</span>
+        </p>}
         <div className={styles.actions}>
-            <span role={error ? 'alert' : 'status'}>{error ? t(`quick_chat.${error}`) : pending ? t('quick_chat.sending') : t('quick_chat.hint')}</span>
+            <span role={error ? 'alert' : 'status'}>{error ? t(`quick_chat.${error}`) : pending ? t('quick_chat.sending') : t(context.enter_to_send ? 'quick_chat.hint' : 'quick_chat.hint_enter_newline')}</span>
             <button type="button" disabled={pending || !value.trim()} onClick={submit}>{t('quick_chat.send')}</button>
         </div>
     </main>;

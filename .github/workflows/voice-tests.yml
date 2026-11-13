@@ -15,10 +15,19 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: '0.13.5'
       - run: uv venv --python 3.11
-      - run: uv pip install -r requirements-voice-test.txt
+      - run: uv export --frozen --no-header --no-annotate --format requirements-txt --no-emit-project --only-group voice-test --output-file voice-test-requirements.txt
+      - run: uv pip sync --require-hashes voice-test-requirements.txt
       - if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config gcc g++ meson ninja-build libsndfile1-dev libglib2.0-dev liblua5.4-dev
+        # The runner's package mirror sometimes cannot be resolved for a while. Try again before failing the job.
+        run: |
+          for attempt in 1 2 3 4; do
+            sudo apt-get update && sudo apt-get install -y pkg-config gcc g++ meson ninja-build libsndfile1-dev libglib2.0-dev liblua5.4-dev && break
+            if [ "$attempt" = 4 ]; then exit 1; fi
+            sleep $((attempt * 20))
+          done
       - name: Prepare tested PipeWire API in an isolated prefix
         if: runner.os == 'Linux'
         run: |
@@ -38,6 +47,36 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: uv run --no-project python tools/dev.py check --scope ui
+  backend-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: '0.13.5'
+      - run: uv sync --frozen
+      - run: uv run --no-project python tools/dev.py check --scope backend --python .venv/Scripts/python.exe
+      # mainloop sends faulthandler to this file, so a native crash prints nothing to the job log.
+      - name: Show the native crash trace
+        if: failure()
+        shell: pwsh
+        run: if (Test-Path crash_trace.log) { Get-Content crash_trace.log -Tail 200 }
+  # Parts of this suite run only on Linux (the PipeWire graph tests), so the Windows job alone does not cover it.
+  backend-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: '0.13.5'
+      - run: uv python install 3.11
+      - run: uv run --no-project --python 3.11 python tools/dev.py setup --scope backend
+      - run: uv run --no-project --python 3.11 python tools/dev.py check --scope backend
+      - name: Show the native crash trace
+        if: failure()
+        run: if [ -f crash_trace.log ]; then tail -n 200 crash_trace.log; fi
   commit-conventions:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04

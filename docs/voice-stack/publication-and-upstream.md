@@ -1,44 +1,33 @@
-# VRCT-VOXの公開と上流への提案
+# VRCT-VOXの公開と上流VRCTとの関係
 現在の名称・配布物・識別子は[名称と識別子](project-rename.md)を参照してください。
 
-2026-10-28のユーザー指示: 開発を継続し、予定機能が完成した後に成果を公開する。上流への取り込み打診は将来の希望として保持する。
+## 現在の方針
 
-**同日追加指示（こちらが優先）:** 上流への連絡・取り込みの打診・PR作成（draftを含む）は、
-全機能が完成しても自動実行しない。実行前にユーザーの明示的な指示を必要とする。
-ローカルで比較・提案文・変更分割案を準備することと、外部へ送ることを区別する。
+リポジトリは[kein5/VRCT-VOX](https://github.com/kein5/VRCT-VOX)。repository IDは1435087352、default branchはdevelop。
+2026-10-31にGitHubのfork networkから外れたため、「forked from misyaguziya/VRCT」とは表示されない。
+[misyaguziya/VRCT](https://github.com/misyaguziya/VRCT)をMITライセンスのもとで改変した派生プロジェクトであることは変わらず、
+元の[LICENSE](../../LICENSE)、[NOTICE](../../NOTICE.md)、著作権表示、原作者への謝辞を維持する。
 
-リポジトリは[kein5/VRCT-VOX](https://github.com/kein5/VRCT-VOX)。repository IDは1435087352、
-fork元は[misyaguziya/VRCT](https://github.com/misyaguziya/VRCT)、default branchはdevelop。
-ローカルのoriginはこのURL、fork元はupstreamとして登録している。
+- 上流VRCTとの互換性は目標にしない。版も上流の3.xとは別に0.1.0から数える。
+- 上流への連絡、取り込みの打診、PR作成（draftを含む）は予定していない。保守担当者から明示的に依頼された場合に限り行う。
+- 既存の`VRCT`内部識別子、設定形式、IPC/OSC契約は、名称の変更だけを理由に一括置換しない。
+- 提供された仕様原本のファイル名や過去の検証記録は、原本・履歴として残す。
 
-## 開発中の扱い
+## 公開の状況
 
-現在の音声機能はレビュー可能なコミットで保持する。上流への連絡はしていない。
-既存の`VRCT`内部識別子、設定形式、IPC/OSC契約は名称の変更だけを理由に一括置換しない。
-配布アプリ名とfork固有identifierはP5でインストール先・設定移行・既存VRCTとの共存を確認して揃える。
-提供された仕様原本のファイル名や過去の検証記録は原本・履歴として残す。
+2026-10-31に[`v0.1.0-beta.1`](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.1)をプレリリースとして公開した
+（developのコミット`ba94359b`）。Linuxのtar.gzとAppImage、WindowsのZIP（標準版・CUDA版）とインストーラーを含む。
+ベータ版はdevelopから、正式版は`release/X.Y.Z`ブランチをmainへ統合してから作成する。
+手順は[配布候補とリリース下書き](release-candidates.md)を参照。
 
-## 完成後に行うこと
+独自配布物には制限付きのOCRモデルや、許諾のないVC/TTS/ASRの重みを含めない。配布対象ごとの依存と許諾は
+[ライセンス台帳](licensing.md)と[配布境界の記録](fork-distribution-isolation.md)で確認する。
 
-1. [完了記録](completion-ledger.md)のP1〜P5を実装と実測で閉じる。未検証をPASSへ読み替えず、
-   既存機能との互換性・停止/切断・両OS・混在負荷・ライセンスを確認する。
-2. fork専用の説明、設定手順、測定条件、既知の制約、変更履歴を整えて成果を公開する。
-   独自配布物に制限付きOCRモデルや無断のVC/TTS/ASR重みを含めない。配布対象ごとに依存・許諾を確認する。
-3. 上流の当時のCONTRIBUTING、issue/PR方針と現行コードとの差分を確認し、導入提案をローカルで準備する。
-   全部を一括採用してもらう前提にせず、保守負担と独立して取り込める単位を提示する。
-4. ユーザーから明示的に依頼された場合に限り、連絡や対象範囲に絞ったPR作成を行う。
-   上流へのmergeや破壊的な履歴変更はこの依頼には含めない。
+## 経緯
 
-取り込み候補は、Linux起動互換、音声イベントとTTS、仮想マイクと保持ミュート、外部VC、ASR、翻訳発声、
-試験・計測ツールなどを分けて説明できる形で保持する。fork固有の表示や配布設定は機能変更と分離する。
-本文や性能値は完成時点の実装・測定結果で作り直す。現段階で上流へ送る提案文を完成済みとは扱わない。
-
-完成後の成果公開の指示は維持する。**上流への連絡・打診・PR作成の自動実行は取り消された**。
-現時点で上流へのメッセージ送信・PR作成は行っていない。
-
-## 2026-10-29 配布前の追加条件
-
-OCR全重みの除外、ZIP/NSIS検査、本家upload/telemetry排除、fork識別子、READMEと支援窓口の分離を優先。
-[実装・未検証](fork-distribution-isolation.md)、[AUR案](linux-distribution-proposal.md)、
-[上流への小さな差分候補とPR文案](upstream-contribution-candidates.md)をローカルで作成。
-PR文案とpatchの作成は送信許可ではない。上流への連絡・PRは引き続き未実施。
+- 2026-10-28: 予定機能の完成後に成果を公開する方針とした。上流への取り込み打診は将来の希望として残した。
+  同日の追加指示で、上流への連絡・打診・PR作成は全機能が完成しても自動では行わず、ユーザーの明示的な指示を必要とすることにした。
+- 2026-10-29: 配布前の条件として、OCR全重みの除外、ZIP/NSIS検査、本家へのupload/telemetryの排除、fork固有の識別子、
+  READMEと支援窓口の分離を優先した。[配布境界の記録](fork-distribution-isolation.md)、[AUR案](linux-distribution-proposal.md)、
+  上流への差分候補をローカルで作成した（2026-11-01に削除）。この時点で上流への連絡・PRは行っていない。
+- 2026-10-31: `v0.1.0-beta.1`を公開し、リポジトリはfork networkから外れた。上流への提案の準備は、上の方針により止めている。

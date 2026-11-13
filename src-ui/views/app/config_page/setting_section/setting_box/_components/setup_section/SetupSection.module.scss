@@ -1,0 +1,6 @@
+.setup { min-width: 0; margin: .8rem 0; }
+.setup > summary { padding: .8rem 0; cursor: pointer; text-wrap: pretty; }
+.setup > summary:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .3rem; border-radius: .4rem; }
+.title { font-size: 1.5rem; font-weight: 600; color: var(--dark_200_color); }
+.status { margin-left: 1.2rem; font-size: 1.3rem; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--vox_secondary_text); }
+.body { display: grid; gap: 1.6rem; padding-top: .8rem; min-width: 0; }

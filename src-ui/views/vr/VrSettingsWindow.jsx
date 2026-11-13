@@ -1,3 +1,4 @@
+import { createLanguageNames } from "../../logics/common/languageNames.js";
 import { useLayoutEffect, useRef, useState } from "react";
 import clsx from "clsx";
 
@@ -14,13 +15,14 @@ import AppearanceSvg from "@images/mui_palette.svg?react";
 import HeadphonesSvg from "@images/headphones.svg?react";
 import TranslationSvg from "@images/translation.svg?react";
 import GraphicEqSvg from "@images/mui_graphic_eq.svg?react";
-import DiscoverTuneSvg from "@images/mui_discover_tune.svg?react";
 import ChatTranscribeSvg from "@images/chat_transcribe.svg?react";
 import WarningSvg from "@images/warning.svg?react";
 
 import { VrWindow } from "./VrWindow";
 import { Disclosure, Picker, SectionLabel, SegmentRow, SelectRow, StepperRow, ThresholdRow, ToggleRow } from "./VrSettingsRows";
 import { buildComputeDeviceOptions } from "../app/config_page/setting_section/setting_box/_components/compute_device/computeDeviceOptions";
+import { CLOUD_TRANSCRIPTION_ENGINES } from "../../logics/configs/cloudTranscription";
+import { isNonCommercialWeight } from "../../logics/configs/ctranslate2License";
 import styles from "./VrSettingsWindow.module.scss";
 
 // 左のカテゴリはデスクトップの設定画面と同じ順序・名前・アイコン。VRでは文字入力が要る項目
@@ -30,9 +32,8 @@ const CATEGORIES = [
     { id: "appearance", Icon: AppearanceSvg },
     { id: "translation", Icon: TranslationSvg },
     { id: "transcription", Icon: GraphicEqSvg },
-    { id: "ocr", Icon: ChatTranscribeSvg },
+    { id: "vrchat", Icon: ChatTranscribeSvg },
     { id: "vr", Icon: HmdSvg },
-    { id: "others", Icon: DiscoverTuneSvg },
 ];
 
 // 翻訳のAIのうち、接続済み (モデルの一覧が取れている) ものだけモデルを選べる
@@ -54,7 +55,8 @@ const toOptions = (list) => Object.entries(list ?? {}).map(([id, label]) => ({ i
 // VR設定ウィンドウ。開いている間はデスクトップで設定画面を開いたのと同じ扱いで、
 // 翻訳と文字起こしが止まる (VrApp / VrPanelSyncController)
 export const VrSettingsWindow = ({ onClose }) => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
+    const names = createLanguageNames(i18n.language);
     const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
     const [category, setCategory] = useState("device");
     // 選択肢の一覧を開いているとき: { title, options, selected_id, onPick }
@@ -82,11 +84,17 @@ export const VrSettingsWindow = ({ onClose }) => {
 
     // メインが設定画面を開いてメイン機能を止めるまでは操作させない (音量の確認がマイクを奪い合わないように)
     const is_ready = currentIsOpenedConfigPage.data === true;
-    const openPicker = (title, options, selected_id, onPick) => {
+    const openPicker = (title, options, selected_id, onPick, languageKind) => {
         savedScroll.current = listRef.current?.scrollTop ?? 0;
-        setPicker({ title, options, selected_id, onPick });
+        setPicker({ title, options, selected_id, onPick, languageKind });
     };
 
+    // Resolve language labels at render time, including a picker already open during a UI-language change.
+    const languageOptions = picker?.languageKind === "ui" ? names.uiOptions(picker.options)
+        : picker?.languageKind === "ocr" ? picker.options.map(option => ({ ...option,
+            label: option.id === "auto" ? t("config_page.ocr.source_language.auto") : names.language(option.id) })) : picker?.options;
+    const pickerTitle = picker?.languageKind === "ui" ? t("config_page.appearance.ui_language.label")
+        : picker?.languageKind === "ocr" ? t("config_page.ocr.source_language.label") : picker?.title;
     const category_label = (id) => (id === "vr" ? "VR" : t(`config_page.side_menu_labels.${id}`));
 
     return (
@@ -114,7 +122,7 @@ export const VrSettingsWindow = ({ onClose }) => {
                         <Category id={category} t={t} openPicker={openPicker} />
                     </div>
                     {picker && <div ref={pickerRef} className={styles.list} data-vr-settings-list="picker" onKeyDown={(event) => { if (event.key === "Escape") setPicker(null); }}>
-                        <Picker {...picker} title={`${category_label(category)} › ${picker.title}`} back_label={t("common.go_back_button_label")}
+                        <Picker {...picker} options={languageOptions} scrollRef={pickerRef} title={`${category_label(category)} › ${pickerTitle}`} back_label={t("common.go_back_button_label")}
                             onPick={(id) => { picker.onPick(id); setPicker(null); }} onBack={() => setPicker(null)} />
                     </div>}
                 </fieldset>
@@ -129,9 +137,8 @@ const Category = ({ id, t, openPicker }) => {
         case "appearance": return <AppearanceSettings t={t} openPicker={openPicker} />;
         case "translation": return <TranslationSettings t={t} openPicker={openPicker} />;
         case "transcription": return <TranscriptionSettings t={t} openPicker={openPicker} />;
-        case "ocr": return <OcrSettings t={t} openPicker={openPicker} />;
+        case "vrchat": return <VrchatSettings t={t} openPicker={openPicker} />;
         case "vr": return <VrSettings t={t} />;
-        case "others": return <OthersSettings t={t} />;
         default: return null;
     }
 };
@@ -158,7 +165,7 @@ const DeviceSettings = ({ t, openPicker }) => {
             <ToggleRow label={t("config_page.device.label_auto_select")}
                 variable={d.currentEnableAutoMicSelect} onToggle={d.toggleEnableAutoMicSelect} />
             {deviceRow(t("config_page.device.label_host"), d.currentMicHostList, d.currentSelectedMicHost, d.setSelectedMicHost, d.currentEnableAutoMicSelect)}
-            {deviceRow(t("config_page.device.label_device"), d.currentMicDeviceList, d.currentSelectedMicDevice, d.setSelectedMicDevice, d.currentEnableAutoMicSelect)}
+            {deviceRow(t("config_page.device.label_device"), d.currentMicDeviceOptions, d.currentSelectedMicDeviceId, d.setSelectedMicDeviceId, d.currentEnableAutoMicSelect)}
             <ThresholdRow
                 label={t("vr_panel.mic_threshold")} automatic_label={t("vr_panel.automatic")} CheckIcon={MicSvg}
                 threshold={d.currentMicThreshold} setThreshold={d.setMicThreshold}
@@ -167,10 +174,11 @@ const DeviceSettings = ({ t, openPicker }) => {
                 volume={currentMicVolume.data}
                 min={ui_configs.mic_threshold_min} max={ui_configs.mic_threshold_max} step={THRESHOLD_STEP}
             />
+            <VrcMicMuteSyncRow t={t} />
             <SectionLabel label={t("config_page.device.speaker_device.label")} />
             <ToggleRow label={t("config_page.device.label_auto_select")}
                 variable={d.currentEnableAutoSpeakerSelect} onToggle={d.toggleEnableAutoSpeakerSelect} />
-            {deviceRow(t("config_page.device.label_device"), d.currentSpeakerDeviceList, d.currentSelectedSpeakerDevice, d.setSelectedSpeakerDevice, d.currentEnableAutoSpeakerSelect)}
+            {deviceRow(t("config_page.device.label_device"), d.currentSpeakerDeviceOptions, d.currentSelectedSpeakerDeviceId, d.setSelectedSpeakerDeviceId, d.currentEnableAutoSpeakerSelect)}
             <ThresholdRow
                 label={t("vr_panel.speaker_threshold")} automatic_label={t("vr_panel.automatic")} CheckIcon={HeadphonesSvg}
                 threshold={d.currentSpeakerThreshold} setThreshold={d.setSpeakerThreshold}
@@ -185,21 +193,30 @@ const DeviceSettings = ({ t, openPicker }) => {
 
 // UIの言語・フォントはデスクトップと共通 (VR UIの表示にも使う)
 const AppearanceSettings = ({ t, openPicker }) => {
+    const { i18n } = useI18n();
+    const names = createLanguageNames(i18n.language);
     const { currentUiLanguage, setUiLanguage, currentSelectedFontFamily, setSelectedFontFamily } = useAppearance();
     const { currentSelectableFontFamilyList } = useStore_SelectableFontFamilyList();
-    const languages = ui_configs.selectable_ui_languages;
+    const o = useOthers();
+    const languages = names.uiOptions(ui_configs.selectable_ui_languages);
     const label = t("config_page.appearance.ui_language.label");
     const font_label = t("config_page.appearance.font_family.label");
     const fonts = toOptions(currentSelectableFontFamilyList.data);
     return (
         <>
+            <SectionLabel label={t("config_page.appearance.section_label_display")} />
             <SelectRow label={label} value={languages.find(l => l.id === currentUiLanguage.data)?.label ?? currentUiLanguage.data}
                 is_pending={currentUiLanguage.state === "pending"}
-                onOpen={() => openPicker(label, languages, currentUiLanguage.data, setUiLanguage)} />
+                onOpen={() => openPicker(label, ui_configs.selectable_ui_languages, currentUiLanguage.data, setUiLanguage, "ui")} />
             <SelectRow label={font_label} value={currentSelectedFontFamily.data}
                 is_pending={currentSelectedFontFamily.state === "pending" || currentSelectableFontFamilyList.state === "pending"}
                 is_disabled={fonts.length === 0} disabled_reason={t("vr_panel.settings.fonts_unavailable")}
                 onOpen={() => openPicker(font_label, fonts, currentSelectedFontFamily.data, setSelectedFontFamily)} />
+            <SectionLabel label={t("config_page.others.section_label_reading_aids")} />
+            <ToggleRow label={t("config_page.others.convert_message_to_hiragana.label")}
+                variable={o.currentConvertMessageToHiragana} onToggle={o.toggleConvertMessageToHiragana} />
+            <ToggleRow label={t("config_page.others.convert_message_to_romaji.label")}
+                variable={o.currentConvertMessageToRomaji} onToggle={o.toggleConvertMessageToRomaji} />
         </>
     );
 };
@@ -231,7 +248,11 @@ const ComputeSettings = ({ t, openPicker, device_list, device, setDevice, comput
 
 const TranscriptionSettings = ({ t, openPicker }) => {
     const tr = useTranscription();
-    const engines = [{ id: "Google", label: "Google" }, { id: "Whisper", label: "Whisper" }];
+    // Cloud engines appear once their key is registered in the settings page.
+    const available = tr.currentSelectableTranscriptionEngines.data || [];
+    const engines = [{ id: "Google", label: "Google" }, { id: "Whisper", label: "Whisper" },
+        ...CLOUD_TRANSCRIPTION_ENGINES.filter(engine => available.includes(engine.id))
+            .map(engine => ({ id: engine.id, label: t(`config_page.transcription.select_transcription_engine.engines.${engine.key}`) }))];
     const engine_label = t("config_page.transcription.select_transcription_engine.label");
     const whisper_label = t("config_page.transcription.whisper_weight_type.label");
     const weights = (tr.currentWhisperWeightTypeStatus.data ?? [])
@@ -256,7 +277,8 @@ const TranscriptionSettings = ({ t, openPicker }) => {
     };
     return (
         <>
-            <SelectRow label={engine_label} value={tr.currentSelectedTranscriptionEngine.data}
+            <SelectRow label={engine_label}
+                value={engines.find(engine => engine.id === tr.currentSelectedTranscriptionEngine.data)?.label ?? tr.currentSelectedTranscriptionEngine.data}
                 is_pending={tr.currentSelectedTranscriptionEngine.state === "pending"}
                 onOpen={() => openPicker(engine_label, engines, tr.currentSelectedTranscriptionEngine.data, tr.setSelectedTranscriptionEngine)} />
             {tr.currentSelectedTranscriptionEngine.data === "Whisper" && (
@@ -282,12 +304,14 @@ const TranscriptionSettings = ({ t, openPicker }) => {
 
 const TranslationSettings = ({ t, openPicker }) => {
     const tl = useTranslation();
-    // CTranslate2 はダウンロード済みのモデルだけ選べる (ダウンロードはデスクトップで行う)
-    const weights = (tl.currentCTranslate2WeightTypeStatus.data ?? [])
-        .filter(w => w.is_downloaded)
-        .map(w => ({ id: w.id, label: `${w.id} (${w.capacity})` }));
-    const ct2_label = t("config_page.translation.ctranslate2_weight_type.label", { ctranslate2: "CTranslate2" });
+    // CTranslate2 はダウンロード済みのモデルだけ選べる (ダウンロードはデスクトップで行う)。
+    // 非商用ライセンス (NLLB) のモデルは確認ダイアログが必要なので、デスクトップの
+    // 設定 > 翻訳 でのみ選べる。既に選択中なら表示はする (ライセンス表記付き)。
     const selected_weight = tl.currentSelectedCTranslate2WeightType;
+    const weights = (tl.currentCTranslate2WeightTypeStatus.data ?? [])
+        .filter(w => w.is_downloaded && (!isNonCommercialWeight(w) || w.id === selected_weight.data))
+        .map(w => ({ id: w.id, label: isNonCommercialWeight(w) ? `${w.id} (${w.capacity}, ${w.license})` : `${w.id} (${w.capacity})` }));
+    const ct2_label = t("config_page.translation.ctranslate2_weight_type.label", { ctranslate2: "CTranslate2" });
     return (
         <>
             <SelectRow label={ct2_label} value={selected_weight.data} is_pending={selected_weight.state === "pending"}
@@ -343,40 +367,51 @@ const VrSettings = ({ t }) => {
     );
 };
 
-const OthersSettings = ({ t }) => {
+// デスクトップと同じく、デバイスとVRChatの両方から同じ設定を操作する。
+const VrcMicMuteSyncRow = ({ t }) => {
     const o = useOthers();
-    const { currentIsOscAvailable } = useIsOscAvailable();
+    const { currentIsOscAvailable, oscUnavailableLabelKey } = useIsOscAvailable();
+    return (
+        <ToggleRow label={t("config_page.others.vrc_mic_mute_sync.label")}
+            variable={o.currentEnableVrcMicMuteSync} onToggle={o.toggleEnableVrcMicMuteSync}
+            is_disabled={currentIsOscAvailable.data === false}
+            disabled_reason={t(oscUnavailableLabelKey)} />
+    );
+};
+
+const VrchatSettings = ({ t, openPicker }) => {
+    const o = useOthers();
     const toggle = (name, key) => (
         <ToggleRow label={t(`config_page.others.${key}.label`)} variable={o[`current${name}`]} onToggle={o[`toggle${name}`]} />
     );
-    const is_osc_unavailable = currentIsOscAvailable.data === false;
     return (
         <>
+            <SectionLabel label={t("config_page.vrchat.section_label_chatbox")} />
             {toggle("EnableSendMessageToVrc", "send_message_to_vrc")}
             {toggle("EnableSendOnlyTranslatedMessages", "send_only_translated_messages")}
-            {toggle("EnableSendReceivedMessageToVrc", "send_received_message_to_vrc")}
             {toggle("EnableNotificationVrcSfx", "notification_vrc_sfx")}
-            <ToggleRow label={t("config_page.others.vrc_mic_mute_sync.label")}
-                variable={o.currentEnableVrcMicMuteSync} onToggle={o.toggleEnableVrcMicMuteSync}
-                is_disabled={is_osc_unavailable}
-                disabled_reason={t("config_page.common.warning_labels.unable_to_use_osc_query")} />
-            {toggle("ConvertMessageToRomaji", "convert_message_to_romaji")}
-            {toggle("ConvertMessageToHiragana", "convert_message_to_hiragana")}
+            {toggle("EnableSendReceivedMessageToVrc", "send_received_message_to_vrc")}
+            <VrcMicMuteSyncRow t={t} />
+            <SectionLabel label={t("config_page.ocr.section_title")} />
+            <OcrSettings t={t} openPicker={openPicker} />
         </>
     );
 };
 
 // チャット読み取りのON/OFFは機能の切り替えなので、ここには置かない (ランチャーで行う)
 const OcrSettings = ({ t, openPicker }) => {
+    const { i18n } = useI18n();
+    const names = createLanguageNames(i18n.language);
+    const languageLabel = id => id === "auto" ? t("config_page.ocr.source_language.auto") : names.language(id);
     const ocr = useOcr();
     const languages = ocr.currentSelectableOcrSourceLanguageList.data ?? {};
     const language = ocr.currentOcrSourceLanguage;
     const language_label = t("config_page.ocr.source_language.label");
     return (
         <>
-            <SelectRow label={language_label} value={languages[language.data] ?? language.data}
+            <SelectRow label={language_label} value={languageLabel(language.data)}
                 is_pending={language.state === "pending"}
-                onOpen={() => openPicker(language_label, toOptions(languages), language.data, ocr.setOcrSourceLanguage)} />
+                onOpen={() => openPicker(language_label, toOptions(languages), language.data, ocr.setOcrSourceLanguage, "ocr")} />
             <StepperRow label={t("config_page.ocr.poll_interval_ms.label")} variable={ocr.currentOcrPollIntervalMs}
                 setValue={ocr.setOcrPollIntervalMs} min={100} max={5000} step={50} format={(v) => `${v} ms`} />
             <StepperRow label={t("config_page.ocr.min_confidence.label")} variable={ocr.currentOcrMinConfidence}

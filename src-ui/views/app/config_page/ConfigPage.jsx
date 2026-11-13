@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import clsx from "clsx";
 import styles from "./ConfigPage.module.scss";
 
@@ -15,6 +15,20 @@ export const ConfigPage = () => {
     const wasOpen = useRef(false);
     const isClosed = currentIsOpenedConfigPage.data === false;
 
+    // Opening settings moves focus to the selected tab for keyboard users.
+    // WebKit can draw that focus ring after a mouse click too, so the sidebar
+    // hides it while the last input was a pointer.
+    useEffect(() => {
+        const set = input => () => { document.documentElement.dataset.lastInput = input; };
+        const pointer = set("pointer"), keyboard = set("keyboard");
+        window.addEventListener("pointerdown", pointer, true);
+        window.addEventListener("keydown", keyboard, true);
+        return () => {
+            window.removeEventListener("pointerdown", pointer, true);
+            window.removeEventListener("keydown", keyboard, true);
+        };
+    }, []);
+
     useLayoutEffect(() => {
         if (!isClosed) root.current?.querySelector('[aria-current="page"]')?.focus({ preventScroll: true });
         else if (wasOpen.current) document.querySelector('[data-open-settings]')?.focus({ preventScroll: true });
@@ -29,8 +43,8 @@ export const ConfigPage = () => {
                     <div className={styles.main_container}>
                         <SettingSection />
                     </div>
+                    <Topbar />
                 </div>
-                <Topbar />
                 <SearchBar />
             </div>
         </div>

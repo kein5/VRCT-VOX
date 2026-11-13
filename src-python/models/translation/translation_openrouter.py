@@ -1,12 +1,13 @@
-import requests
-from openai import OpenAI
-from langchain_openai import ChatOpenAI
-from pydantic import SecretStr
+from models.diagnostics import provider_errors
+from models.network_policy import without_tracing, chat_http_clients, fetch_openai_models, api_request, discovery, DISCOVERY_TIMEOUT
+from models.sdk_clients import ChatOpenAI, OpenAI, SecretStr
 
 try:
     from .translation_languages import translation_lang
     from .translation_utils import loadTranslatePromptConfig
     from .translation_model_list import RecentModelList
+    from .translation_response import extractTranslationText
+    from .translation_timeouts import CLOUD_LLM_TIMEOUT
 except Exception:
     import sys
     from os import path as os_path
@@ -14,8 +15,12 @@ except Exception:
     from translation_languages import translation_lang, loadTranslationLanguages
     from translation_utils import loadTranslatePromptConfig
     from translation_model_list import RecentModelList
+    from translation_response import extractTranslationText
+    from translation_timeouts import CLOUD_LLM_TIMEOUT
     translation_lang = loadTranslationLanguages(path=".", force=True)
 
+@provider_errors("OpenRouter")
+@discovery
 def _authentication_check(api_key: str) -> bool:
     """Check if the provided API key is valid by attempting to list models.
     """
@@ -25,15 +30,16 @@ def _authentication_check(api_key: str) -> bool:
         "Authorization": f"Bearer {api_key}"
     }
 
-    r = requests.get(url, headers=headers, timeout=10)
+    r = api_request("GET", url, headers=headers, timeout=DISCOVERY_TIMEOUT)
 
     return r.status_code == 200
 
+@provider_errors("OpenRouter")
+@discovery
 def _get_available_text_models(api_key: str, base_url: str | None = None) -> list[str]:
     """Extract only OpenRouter models suitable for translation and chat applications.
     """
-    client = OpenAI(api_key=api_key, base_url=base_url)
-    res = client.models.list()
+    res = fetch_openai_models(OpenAI, api_key, base_url or "https://openrouter.ai/api/v1")
     allowed_models = []
 
     for model in res.data:
@@ -68,6 +74,8 @@ class OpenRouterClient(RecentModelList):
     OpenRouter provides access to various LLM models via a unified API.
     The API endpoint: https://openrouter.ai/api/v1
     """
+    provider_name = "OpenRouter"
+
     def __init__(self, root_path: str = None):
         self.api_key = None
         self.model = None
@@ -89,12 +97,14 @@ class OpenRouterClient(RecentModelList):
 
         self.openrouter_llm = None
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def getModelList(self) -> list[str]:
         return self._remember(_get_available_text_models(self.api_key, self.base_url)) if self.api_key else []
 
     def getAuthKey(self) -> str:
         return self.api_key
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
     def setAuthKey(self, api_key: str) -> bool:
         result = _authentication_check(api_key)
         if result:
@@ -104,12 +114,17 @@ class OpenRouterClient(RecentModelList):
     def getModel(self) -> str:
         return self.model
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def updateClient(self) -> None:
         self.openrouter_llm = ChatOpenAI(
             base_url=self.base_url,
             model=self.model,
             api_key=SecretStr(self.api_key),
             streaming=False,
+            **chat_http_clients(self.base_url, CLOUD_LLM_TIMEOUT),
+            timeout=CLOUD_LLM_TIMEOUT,
+            max_retries=1,
         )
 
     def setContextHistory(self, history_items: list[dict]) -> None:
@@ -122,6 +137,8 @@ class OpenRouterClient(RecentModelList):
         """
         self._context_history = history_items or []
 
+    @provider_errors(lambda self, *args, **kwargs: self.provider_name)
+    @without_tracing
     def translate(self, text: str, input_lang: str, output_lang: str) -> str:
         system_prompt = self.prompt_template.format(
             supported_languages=self.supported_languages,
@@ -170,16 +187,10 @@ class OpenRouterClient(RecentModelList):
         ]
 
         resp = self.openrouter_llm.invoke(messages)
-        content = ""
-        if isinstance(resp.content, str):
-            content = resp.content
-        elif isinstance(resp.content, list):
-            for part in resp.content:
-                if isinstance(part, str):
-                    content += part
-                elif isinstance(part, dict) and "content" in part and isinstance(part["content"], str):
-                    content += part["content"]
-        return content.strip()
+        if resp.response_metadata.get("finish_reason") == "length":
+            # Discard partial output; Model.getTranslate uses the empty-translation failure path.
+            return ""
+        return extractTranslationText(resp.content)
 
 if __name__ == "__main__":
     AUTH_KEY = input("OPENROUTER_API_KEY: ")

@@ -47,20 +47,32 @@ def test_windows_installer_identity_finds_previous_install_location():
     assert 'Delete "$INSTDIR\\config.json"' not in install
 
 
-def test_telemetry_stays_disabled_even_with_stale_upstream_key(monkeypatch):
+def test_installer_never_skips_the_package_checksum():
+    script = (ROOT / "src-tauri/nsis/template.nsi").read_text(encoding="utf-8")
+    assert '"HTTP|404"' not in script
+    assert "size-only" not in script
+
+
+def test_upstream_telemetry_stays_unused_even_with_stale_upstream_key(monkeypatch):
     # Deliberately simulate an ignored key file left behind by an old build.
+    # VRCT-VOX has usage events of its own now; upstream's key and SDK must still never be used.
     sdk = Mock()
     monkeypatch.setitem(sys.modules, "telemetry_keys", SimpleNamespace(APP_KEYS={"stable": "test", "beta": "test"}))
     monkeypatch.setitem(sys.modules, "aptabase", SimpleNamespace(Aptabase=sdk))
     import models.telemetry.client as client
     importlib.reload(client)
-    wrapper = client.AptabaseWrapper()
+    assert not hasattr(client, "AptabaseWrapper")
+    # A closed port on this PC: the event goes nowhere, and never to upstream.
+    wrapper = client.IngestClient(endpoint="http://127.0.0.1:9/v1/events", timeout=0.5)
     async def lifecycle():
-        await wrapper.start("test")
-        await wrapper.track("test", {})
+        await wrapper.start("test", "ja")
+        await wrapper.track("app_started", {})
         await wrapper.stop()
     asyncio.run(lifecycle())
     sdk.assert_not_called()
+    source = (ROOT / "src-python/models/telemetry/client.py").read_text(encoding="utf-8")
+    assert "import aptabase" not in source and "import telemetry_keys" not in source and "from telemetry_keys" not in source
+    assert client.ENDPOINT.startswith("https://vrct-vox-telemetry.") and "aptabase" not in client.ENDPOINT
 
 
 def test_download_sources_belong_to_fork():
@@ -76,7 +88,8 @@ def test_download_sources_belong_to_fork():
 def test_release_workflow_cannot_publish_or_inject_upstream_keys():
     import yaml
     workflow = yaml.load((ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
-    assert set(workflow["on"]) == {"workflow_dispatch"}
+    assert set(workflow["on"]) == {"workflow_dispatch", "pull_request"}
+    assert workflow["on"]["pull_request"] == {"branches": ["main"]}
     assert workflow["permissions"] == {"contents": "read"}
     text = json.dumps(workflow)
     for forbidden in ("HF_TOKEN", "TELEMETRY_KEY", "hf upload", "create-release", "upload-release-asset", "ms-software/VRCT"):

@@ -5,17 +5,40 @@ import { useI18n } from "@useI18n";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useIsOpenedConfigPage } from "@logics_common";
+import { EnvReadout } from "../_components/env_readout/EnvReadout";
+import { SectionLabelComponent } from "../_components";
 export const Hotkeys = () => {
     const { t } = useI18n();
     return (
         <div className={styles.container}>
             <p className={styles.disabled_notice}>{t("config_page.hotkeys.disabled_notice")}</p>
-            <HotkeysBoxContainer />
+            <QuickChatHotkeyContainer />
+            <ToggleHotkeysContainer />
+            <VoiceHotkeysContainer />
         </div>
     );
 };
 
-const HotkeysBoxContainer = () => {
+// Stop and mute first: they are the ones a conversation cannot wait for.
+const VoiceHotkeysContainer = () => {
+    const { t } = useI18n();
+    const { currentHotkeys, setHotkeys } = useHotkeys();
+    const rows = [
+        ["stop_voice", t("config_page.hotkeys.stop_voice.label")],
+        ["toggle_voice_mute", t("config_page.hotkeys.toggle_voice_mute.label")],
+        ["toggle_tts", t("config_page.hotkeys.toggle_voice_switch.label", { name: "TTS" })],
+        ["toggle_rvc", t("config_page.hotkeys.toggle_voice_switch.label", { name: "RVC" })],
+    ];
+    return (
+        <div className={styles.container}>
+            <SectionLabelComponent label={t("config_page.hotkeys.section_label_voice")} />
+            {rows.map(([hotkey_id, label]) => <HotkeysEntryContainer key={hotkey_id} label={label} hotkey_id={hotkey_id}
+                value={currentHotkeys.data} state={currentHotkeys.state} setHotkeys={setHotkeys} />)}
+        </div>
+    );
+};
+
+const QuickChatHotkeyContainer = () => {
     const { t } = useI18n();
     const { currentHotkeys, setHotkeys, openQuickChat } = useHotkeys();
     const { setIsOpenedConfigPage } = useIsOpenedConfigPage();
@@ -26,6 +49,7 @@ const HotkeysBoxContainer = () => {
 
     return (
         <div className={styles.container}>
+            <SectionLabelComponent label={t("config_page.hotkeys.section_label_quick_chat")} />
             <HotkeysEntryContainer
                 label={t("quick_chat.label")}
                 hotkey_id="open_quick_chat"
@@ -34,12 +58,23 @@ const HotkeysBoxContainer = () => {
                 setHotkeys={setHotkeys}
             />
             <p className={styles.quick_chat_notice}>{t("quick_chat.shortcut_hint")}</p>
-            {platform === "wayland" && <p role="status" className={styles.quick_chat_notice}>{t("quick_chat.wayland_portal")}</p>}
-            {platform === "xwayland" && <p role="status" className={styles.quick_chat_notice}>{t("quick_chat.xwayland_hint")}</p>}
-            {platform === "unknown" && <p role="status" className={styles.quick_chat_notice}>{t("quick_chat.platform_unknown")}</p>}
+            {["wayland", "xwayland", "unknown"].includes(platform) && <EnvReadout className={styles.platform_readout}>
+                <p>{t({ wayland: "quick_chat.wayland_portal", xwayland: "quick_chat.xwayland_hint", unknown: "quick_chat.platform_unknown" }[platform])}</p>
+            </EnvReadout>}
             <button type="button" className={styles.open_quick_chat} onClick={() => { setIsOpenedConfigPage(false); openQuickChat(); }}>
                 {t("quick_chat.open")}
             </button>
+        </div>
+    );
+};
+
+const ToggleHotkeysContainer = () => {
+    const { t } = useI18n();
+    const { currentHotkeys, setHotkeys } = useHotkeys();
+
+    return (
+        <div className={styles.container}>
+            <SectionLabelComponent label={t("config_page.hotkeys.section_label_toggles")} />
             <HotkeysEntryContainer
                 label={t("config_page.hotkeys.toggle_vrct_visibility.label")}
                 hotkey_id="toggle_vrct_visibility"

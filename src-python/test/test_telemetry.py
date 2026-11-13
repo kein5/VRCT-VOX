@@ -8,11 +8,16 @@ import json
 import os
 import tempfile
 import unittest
-from datetime import date, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 from models.telemetry.state import TelemetryState
 from models.telemetry import Telemetry
+
+
+def _utc_today():
+    # The state counts days in UTC, the day an event itself carries.
+    return datetime.now(timezone.utc).date()
 
 
 class TelemetryStateTests(unittest.TestCase):
@@ -45,7 +50,7 @@ class TelemetryStateTests(unittest.TestCase):
     def test_app_started_resends_next_day(self):
         state = TelemetryState(storage_path=self.path)
         state.mark_app_started_sent_today()
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        yesterday = (_utc_today() - timedelta(days=1)).isoformat()
         # ファイルを直接書き換えて前日にする
         with open(self.path, "r", encoding="utf-8") as fp:
             data = json.load(fp)
@@ -72,7 +77,7 @@ class TelemetryStateTests(unittest.TestCase):
         self.assertFalse(state2.should_send_error_today("DEVICE_NO_MIC"))
 
     def test_prunes_old_error_entries_on_write(self):
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        yesterday = (_utc_today() - timedelta(days=1)).isoformat()
         seed = {
             "last_app_started_date": None,
             "errors_sent": {yesterday: ["OLD_CODE"]},
@@ -86,7 +91,7 @@ class TelemetryStateTests(unittest.TestCase):
         with open(self.path, "r", encoding="utf-8") as fp:
             saved = json.load(fp)
         self.assertNotIn(yesterday, saved["errors_sent"])
-        self.assertIn(date.today().isoformat(), saved["errors_sent"])
+        self.assertIn(_utc_today().isoformat(), saved["errors_sent"])
 
     def test_empty_error_code_is_noop(self):
         state = TelemetryState(storage_path=self.path)
@@ -120,6 +125,8 @@ class TelemetryFacadeTests(unittest.TestCase):
 
     def _new_telemetry_with_captured_events(self):
         telemetry = Telemetry()
+        # このPCの構成は問い合わせない（同梱の speech.cpp を起動しない）。
+        telemetry.hardware_source = lambda: None
         events = []
 
         async def capture(event_name, payload=None):

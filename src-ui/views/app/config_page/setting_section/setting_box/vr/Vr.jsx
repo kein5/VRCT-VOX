@@ -6,7 +6,6 @@ import { ui_configs } from "@ui_configs";
 import { Slider } from "../_components";
 import {
     RadioButtonContainer,
-    SwitchBoxContainer,
     CheckboxContainer,
     ActionButtonContainer,
 } from "../_templates/Templates";
@@ -20,6 +19,7 @@ import { ResetButton } from "@common_components";
 import {
     useVr,
 } from "@logics_configs";
+import { useIsOpenedConfigPage } from "@logics_common";
 import { useStdoutToPython } from "@useStdoutToPython";
 
 import RedoSvg from "@images/redo.svg?react";
@@ -27,10 +27,12 @@ import CheckMarkSvg from "@images/check_mark.svg?react";
 import SquareSvg from "@images/square.svg?react";
 import TriangleSvg from "@images/triangle.svg?react";
 import { randomIntMinMax } from "@utils";
+import { DesktopCaptionOverlay } from "./DesktopCaptionOverlay";
 
 export const Vr = () => {
     const { t } = useI18n();
     const [is_opened_small_settings, setIsOpenedSmallSettings] = useState(true);
+    const resetEditor = useRef(null);
     const toggleIsOpenedSmallSettings = () => {
         setIsOpenedSmallSettings(!is_opened_small_settings);
     };
@@ -48,41 +50,52 @@ export const Vr = () => {
 
 
     const restoreDefaultSettings = () => {
+        resetEditor.current?.();
         setOverlaySmallLogSettings(ui_configs.overlay_small_log_default_settings);
         setOverlayLargeLogSettings(ui_configs.overlay_large_log_default_settings);
     };
 
     return (
         <div className={styles.container}>
-            <div className={styles.wrapper}>
-                <PageSwitcherContainer
-                    toggleFunction={toggleIsOpenedSmallSettings}
-                    is_selected={is_opened_small_settings}
-                    label_1={t("config_page.vr.single_line")}
-                    label_2={t("config_page.vr.multi_lines")}
-                />
-                {is_opened_small_settings ? (
-                    <OverlaySettingsContainer
-                        id="overlay_settings_small"
-                        ui_configs={ui_configs.overlay_small_log}
-                        default_ui_configs={ui_configs.overlay_small_log_default_settings}
-                        current_overlay_settings={currentOverlaySmallLogSettings.data}
-                        setOverlaySettings={setOverlaySmallLogSettings}
-                        current_is_enabled_overlay={currentIsEnabledOverlaySmallLog}
-                        toggle_is_enabled_overlay={toggleIsEnabledOverlaySmallLog}
+            <div className={styles.overlay_section}>
+                <SectionLabelComponent label={t("config_page.vr.section_label_overlay")} />
+                <div className={styles.wrapper}>
+                    <PageSwitcherContainer
+                        toggleFunction={toggleIsOpenedSmallSettings}
+                        is_selected={is_opened_small_settings}
+                        label_1={t("config_page.vr.single_line")}
+                        label_2={t("config_page.vr.multi_lines")}
                     />
-                ) : (
-                    <OverlaySettingsContainer
-                        id="overlay_settings_large"
-                        ui_configs={ui_configs.overlay_large_log}
-                        default_ui_configs={ui_configs.overlay_large_log_default_settings}
-                        current_overlay_settings={currentOverlayLargeLogSettings.data}
-                        setOverlaySettings={setOverlayLargeLogSettings}
-                        current_is_enabled_overlay={currentIsEnabledOverlayLargeLog}
-                        toggle_is_enabled_overlay={toggleIsEnabledOverlayLargeLog}
-                    />
-                )}
+                    {is_opened_small_settings ? (
+                        <OverlaySettingsContainer
+                            key="small"
+                            resetRef={resetEditor}
+                            id="overlay_settings_small"
+                            ui_configs={ui_configs.overlay_small_log}
+                            default_ui_configs={ui_configs.overlay_small_log_default_settings}
+                            state={currentOverlaySmallLogSettings.state}
+                            current_overlay_settings={currentOverlaySmallLogSettings.data}
+                            setOverlaySettings={setOverlaySmallLogSettings}
+                            current_is_enabled_overlay={currentIsEnabledOverlaySmallLog}
+                            toggle_is_enabled_overlay={toggleIsEnabledOverlaySmallLog}
+                        />
+                    ) : (
+                        <OverlaySettingsContainer
+                            key="large"
+                            resetRef={resetEditor}
+                            id="overlay_settings_large"
+                            ui_configs={ui_configs.overlay_large_log}
+                            default_ui_configs={ui_configs.overlay_large_log_default_settings}
+                            state={currentOverlayLargeLogSettings.state}
+                            current_overlay_settings={currentOverlayLargeLogSettings.data}
+                            setOverlaySettings={setOverlayLargeLogSettings}
+                            current_is_enabled_overlay={currentIsEnabledOverlayLargeLog}
+                            toggle_is_enabled_overlay={toggleIsEnabledOverlayLargeLog}
+                        />
+                    )}
+                </div>
             </div>
+            <DesktopCaptionOverlay />
             <CommonSettingsContainer />
             <VrUiBetaContainer />
             <button
@@ -97,20 +110,30 @@ export const Vr = () => {
 
 const OverlaySettingsContainer = ({
     current_overlay_settings,
+    state,
     setOverlaySettings,
     current_is_enabled_overlay,
     toggle_is_enabled_overlay,
     ui_configs,
     default_ui_configs,
-    id
+    id,
+    resetRef,
 }) => {
     const { t } = useI18n();
     const [settings, setSettings] = useState(current_overlay_settings);
-    const [timeout_id, setTimeoutId] = useState(null);
+    const settingsRef = useRef(settings);
+    const timerRef = useRef(null);
+    const editVersion = useRef(0);
+    const pendingWrites = useRef(0);
+    const confirmedRef = useRef(current_overlay_settings);
+    confirmedRef.current = current_overlay_settings;
 
     useEffect(() => {
-        setSettings(current_overlay_settings);
-    }, [current_overlay_settings]);
+        if (state !== "pending" && timerRef.current === null && !pendingWrites.current) {
+            settingsRef.current = current_overlay_settings;
+            setSettings(current_overlay_settings);
+        }
+    }, [current_overlay_settings, state]);
 
 
     const [is_opened_position_controller, setIsOpenedPositionController] = useState(true);
@@ -118,28 +141,57 @@ const OverlaySettingsContainer = ({
         setIsOpenedPositionController(!is_opened_position_controller);
     };
 
-    const onChangeFunction = (key, value) => {
-        setSettings((prev) => ({ ...prev, [key]: value }));
+    useEffect(() => () => { clearTimeout(timerRef.current); editVersion.current++; }, []);
+    useEffect(() => {
+        resetRef.current = () => {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+            editVersion.current++;
+            settingsRef.current = default_ui_configs;
+            setSettings(default_ui_configs);
+        };
+        return () => { resetRef.current = null; };
+    }, [resetRef, default_ui_configs]);
 
-        if (timeout_id) clearTimeout(timeout_id);
-
-        const new_timeout_id = setTimeout(() => {
-            const new_data = { ...settings, [key]: value };
-            setOverlaySettings(new_data);
-        }, 50);
-
-        setTimeoutId(new_timeout_id);
+    const updateSettings = (key, value) => {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+        editVersion.current++;
+        settingsRef.current = { ...settingsRef.current, [key]: value };
+        setSettings(settingsRef.current);
     };
-
+    const sendSettings = async () => {
+        const version = editVersion.current;
+        pendingWrites.current++;
+        try {
+            const response = await setOverlaySettings(settingsRef.current);
+            if (version !== editVersion.current) return;
+            const confirmed = response?.status === 200 ? response.result
+                : response === false || response?.status ? confirmedRef.current : null;
+            if (confirmed) {
+                settingsRef.current = confirmed;
+                setSettings(confirmed);
+            }
+        } finally {
+            pendingWrites.current--;
+        }
+    };
+    const onChangeFunction = (key, value) => {
+        updateSettings(key, value);
+        timerRef.current = setTimeout(() => {
+            timerRef.current = null;
+            sendSettings();
+        }, 50);
+    };
     const selectFunction = (key, value) => {
-        const new_data = { ...settings, [key]: value };
-        setOverlaySettings(new_data);
+        updateSettings(key, value);
+        sendSettings();
     };
 
 
     return (
         <>
-            <SwitchBoxContainer
+            <CheckboxContainer
                 label={t("config_page.vr.overlay_enable")}
                 variable={current_is_enabled_overlay}
                 toggleFunction={toggle_is_enabled_overlay}
@@ -185,14 +237,21 @@ const PageSwitcherContainer = (props) => {
         [styles.is_selected]: !props.is_selected,
     });
 
+    // Two pressable halves; choosing the shown half changes nothing.
+    const half = (selected, className, label) => {
+        const choose = () => { if (!selected) props.toggleFunction(); };
+        return (
+            <div className={className} role="button" tabIndex={0} aria-pressed={selected} onClick={choose}
+                onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); choose(); } }}>
+                <p className={styles.controller_switcher_label}>{label}</p>
+            </div>
+        );
+    };
+
     return (
-        <div className={styles.controller_type_switch} onClick={() => props.toggleFunction()}>
-            <div className={toggle_button_class_names__position}>
-                <p className={styles.controller_switcher_label}>{props.label_1}</p>
-            </div>
-            <div className={toggle_button_class_names__rotation}>
-                <p className={styles.controller_switcher_label}>{props.label_2}</p>
-            </div>
+        <div className={styles.controller_type_switch}>
+            {half(props.is_selected, toggle_button_class_names__position, props.label_1)}
+            {half(!props.is_selected, toggle_button_class_names__rotation, props.label_2)}
         </div>
     );
 };
@@ -230,9 +289,10 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.position_wrapper}>
                 <p className={clsx(styles.slider_label, styles.x_position_label)}>
                     {t("config_page.vr.x_position")}
-                    <ResetButton onClickFunction={() => selectFunction("x_pos", default_ui_configs.x_pos)} />
+                    <ResetButton onClickFunction={() => selectFunction("x_pos", default_ui_configs.x_pos)} label={`${t("config_page.vr.x_position")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.x_position")}
                     className={styles.x_position_slider}
                     no_padding={true}
                     variable={settings.x_pos}
@@ -241,11 +301,13 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.x_pos.max}
                     setterFunction={(value) => onChangeFunction("x_pos", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     valueLabelDisplay={x_variable_display}
                     valueLabelDisplayLocation="top"
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.x_position_button_wrapper}
+                    label={t("config_page.vr.x_position")}
                     is_max={is_max_position_x}
                     is_min={is_min_position_x}
                     countUp={countUpPositionX}
@@ -256,9 +318,10 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.position_wrapper}>
                 <p className={clsx(styles.slider_label, styles.y_position_label)}>
                     {t("config_page.vr.y_position")}
-                    <ResetButton onClickFunction={() => selectFunction("y_pos", default_ui_configs.y_pos)} />
+                    <ResetButton onClickFunction={() => selectFunction("y_pos", default_ui_configs.y_pos)} label={`${t("config_page.vr.y_position")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.y_position")}
                     className={styles.y_position_slider}
                     no_padding={true}
                     variable={settings.y_pos}
@@ -267,12 +330,14 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.y_pos.max}
                     setterFunction={(value) => onChangeFunction("y_pos", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     orientation="vertical"
                     valueLabelDisplay={y_variable_display}
                     valueLabelDisplayLocation="right"
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.y_position_button_wrapper}
+                    label={t("config_page.vr.y_position")}
                     is_max={is_max_position_y}
                     is_min={is_min_position_y}
                     countUp={countUpPositionY}
@@ -283,9 +348,10 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.position_wrapper}>
                 <p className={clsx(styles.slider_label, styles.z_position_label)}>
                     {t("config_page.vr.z_position")}
-                    <ResetButton onClickFunction={() => selectFunction("z_pos", default_ui_configs.z_pos)} />
+                    <ResetButton onClickFunction={() => selectFunction("z_pos", default_ui_configs.z_pos)} label={`${t("config_page.vr.z_position")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.z_position")}
                     className={styles.z_position_slider}
                     no_padding={true}
                     variable={settings.z_pos}
@@ -294,12 +360,14 @@ export const PositionControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.z_pos.max}
                     setterFunction={(value) => onChangeFunction("z_pos", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     orientation="vertical"
                     valueLabelDisplay={z_variable_display}
                     valueLabelDisplayLocation="left"
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.z_position_button_wrapper}
+                    label={t("config_page.vr.z_position")}
                     is_max={is_max_position_z}
                     is_min={is_min_position_z}
                     countUp={countUpPositionZ}
@@ -342,9 +410,10 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.rotation_wrapper}>
                 <p className={clsx(styles.slider_label, styles.x_rotation_label)}>
                     {t("config_page.vr.x_rotation")}
-                    <ResetButton onClickFunction={() => selectFunction("x_rotation", default_ui_configs.x_rotation)} />
+                    <ResetButton onClickFunction={() => selectFunction("x_rotation", default_ui_configs.x_rotation)} label={`${t("config_page.vr.x_rotation")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.x_rotation")}
                     className={styles.x_rotation_slider}
                     no_padding={true}
                     variable={-settings.x_rotation}
@@ -354,12 +423,15 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.x_rotation.max}
                     setterFunction={(value) => onChangeFunction("x_rotation", -value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     orientation="vertical"
                     valueLabelDisplay={x_variable_display}
                     valueLabelDisplayLocation="right"
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.x_rotation_button_wrapper}
+                    label={t("config_page.vr.x_rotation")}
+                    up_decreases
                     is_max={is_min_rotation_x}
                     is_min={is_max_rotation_x}
                     countUp={countDownRotationX}
@@ -370,9 +442,10 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.rotation_wrapper}>
                 <p className={clsx(styles.slider_label, styles.y_rotation_label)}>
                     {t("config_page.vr.y_rotation")}
-                    <ResetButton onClickFunction={() => selectFunction("y_rotation", default_ui_configs.y_rotation)} />
+                    <ResetButton onClickFunction={() => selectFunction("y_rotation", default_ui_configs.y_rotation)} label={`${t("config_page.vr.y_rotation")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.y_rotation")}
                     className={styles.y_rotation_slider}
                     no_padding={true}
                     variable={settings.y_rotation}
@@ -381,11 +454,13 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.y_rotation.max}
                     setterFunction={(value) => onChangeFunction("y_rotation", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     valueLabelDisplay={y_variable_display}
                     valueLabelDisplayLocation="top"
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.y_rotation_button_wrapper}
+                    label={t("config_page.vr.y_rotation")}
                     is_max={is_max_rotation_y}
                     is_min={is_min_rotation_y}
                     countUp={countUpRotationY}
@@ -396,9 +471,10 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
             <div className={styles.rotation_wrapper}>
                 <p className={clsx(styles.slider_label, styles.z_rotation_label)}>
                     {t("config_page.vr.z_rotation")}
-                    <ResetButton onClickFunction={() => selectFunction("z_rotation", default_ui_configs.z_rotation)} />
+                    <ResetButton onClickFunction={() => selectFunction("z_rotation", default_ui_configs.z_rotation)} label={`${t("config_page.vr.z_rotation")}: ${t("common.reset_to_default")}`} />
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.z_rotation")}
                     className={styles.z_rotation_slider}
                     no_padding={true}
                     variable={settings.z_rotation}
@@ -407,12 +483,14 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
                     max={ui_configs.z_rotation.max}
                     setterFunction={(value) => onChangeFunction("z_rotation", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                     orientation="vertical"
                     valueLabelDisplay={z_variable_display}
                     valueLabelDisplayLocation="left"
                 />
                 <AdjustButtonContainer
                     wrapper_class_name={styles.z_rotation_button_wrapper}
+                    label={t("config_page.vr.z_rotation")}
                     is_max={is_max_rotation_z}
                     is_min={is_min_rotation_z}
                     countUp={countUpRotationZ}
@@ -423,32 +501,25 @@ export const RotationControls = ({ settings, onChangeFunction, selectFunction, u
     );
 };
 
-const AdjustButtonContainer = ({ wrapper_class_name, is_max, is_min, countUp, countDown }) => {
+// Step buttons beside a VR position or rotation slider; `label` names the axis.
+const AdjustButtonContainer = ({ wrapper_class_name, is_max, is_min, countUp, countDown, label, up_decreases = false }) => {
+    const { t } = useI18n();
+    const step = (disabled, run, key, extra) => (
+        <div
+            className={clsx(styles.button_wrapper, { [styles.is_disabled]: disabled, ...extra })}
+            role="button" tabIndex={0} aria-disabled={disabled || undefined}
+            aria-label={label ? t(`vr_panel.settings.${key}`, { label }) : undefined}
+            onClick={run}
+            onKeyDown={event => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); run(); } }}
+        >
+            <TriangleSvg className={styles.adjust_button_triangle_svg} aria-hidden="true" />
+        </div>
+    );
     return (
         <div className={wrapper_class_name}>
-            <div
-                className={clsx(
-                    styles.button_wrapper,
-                    {
-                        [styles.is_disabled]: is_max,
-                        [styles.up]: true,
-                    }
-                )}
-                onClick={countUp}
-            >
-                <TriangleSvg className={styles.adjust_button_triangle_svg} />
-            </div>
-            <div
-                className={clsx(
-                    styles.button_wrapper,
-                    {
-                        [styles.is_disabled]: is_min,
-                    }
-                )}
-                onClick={countDown}
-            >
-                <TriangleSvg className={styles.adjust_button_triangle_svg} />
-            </div>
+            {/* X rotation's upper button lowers the value; the names follow the action. */}
+            {step(is_max, countUp, up_decreases ? "decrease" : "increase", { [styles.up]: true })}
+            {step(is_min, countDown, up_decreases ? "increase" : "decrease", {})}
         </div>
     );
 };
@@ -467,6 +538,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     {t("config_page.vr.opacity")}
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.opacity")}
                     className={clsx(styles.other_controls_slider, styles.opacity_slider)}
                     no_padding={true}
                     variable={settings.opacity * 100}
@@ -477,6 +549,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     max={100}
                     setterFunction={(value) => onChangeFunction("opacity", value / 100)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                 />
             </div>
             <div className={styles.other_controls_wrapper}>
@@ -484,6 +557,7 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     {t("config_page.vr.ui_scaling")}
                 </p>
                 <Slider
+                    aria-label={t("config_page.vr.ui_scaling")}
                     className={clsx(styles.other_controls_slider, styles.ui_scaling_slider)}
                     no_padding={true}
                     variable={settings.ui_scaling * 100}
@@ -494,34 +568,39 @@ const OtherControls = ({settings, onChangeFunction, ui_configs}) => {
                     max={ui_configs.ui_scaling.max}
                     setterFunction={(value) => onChangeFunction("ui_scaling", value / 100)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                 />
             </div>
             <div className={styles.other_controls_wrapper}>
                 <p className={clsx(styles.other_controls_slider_label, styles.display_duration_label)}>{t("config_page.vr.display_duration")}</p>
                 <Slider
+                    aria-label={t("config_page.vr.display_duration")}
                     className={clsx(styles.other_controls_slider, styles.display_duration_slider)}
                     no_padding={true}
                     variable={settings.display_duration}
-                    valueLabelFormat="value second(s)"
+                    valueLabelFormat={value => t("config_page.common.duration_seconds", { count: value })}
                     step={1}
                     min={1}
                     max={60}
                     setterFunction={(value) => onChangeFunction("display_duration", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                 />
             </div>
             <div className={styles.other_controls_wrapper}>
                 <p className={clsx(styles.other_controls_slider_label, styles.fadeout_duration_label)}>{t("config_page.vr.fadeout_duration")}</p>
                 <Slider
+                    aria-label={t("config_page.vr.fadeout_duration")}
                     className={clsx(styles.other_controls_slider, styles.fadeout_duration_slider)}
                     no_padding={true}
                     variable={settings.fadeout_duration}
-                    valueLabelFormat="value second(s)"
+                    valueLabelFormat={value => t("config_page.common.duration_seconds", { count: value })}
                     step={1}
                     min={0}
                     max={5}
                     setterFunction={(value) => onChangeFunction("fadeout_duration", value)}
                     setter_timing="on_change"
+                    debounce_ms={0}
                 />
             </div>
         </div>
@@ -591,43 +670,48 @@ const VrUiBetaContainer = () => {
 const SendSampleTextToggleButton = () => {
     const { t } = useI18n();
     const { sendTextToOverlay } = useVr();
+    const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
     const [is_started, setIsStarted] = useState(false);
+    // Closing settings only hides this page; it stays mounted, so stop the
+    // samples here. Reopening settings does not restart them: only this button
+    // starts sending. The button follows is_sending, the same value as the
+    // interval, so it never says "stop" while nothing is being sent.
+    const is_settings_open = currentIsOpenedConfigPage.data === true;
+    const is_sending = is_started && is_settings_open;
 
     useEffect(() => {
-        let interval_id;
+        if (!is_settings_open) setIsStarted(false);
+    }, [is_settings_open]);
 
-        if (is_started) {
-            interval_id = setInterval(() => {
-                const text_data = Array.from(
-                    { length: randomIntMinMax(1, 5) },
-                    () => t("config_page.vr.sample_text_button.sample_text")
-                ).join(" ");
-                sendTextToOverlay(text_data);
-            }, 1000);
-        };
-
-        return () => {
-            if (interval_id) {
-                clearInterval(interval_id);
-            }
-        };
-    }, [is_started]);
+    useEffect(() => {
+        if (!is_sending) return undefined;
+        const interval_id = setInterval(() => {
+            const text_data = Array.from(
+                { length: randomIntMinMax(1, 5) },
+                () => t("config_page.vr.sample_text_button.sample_text")
+            ).join(" ");
+            sendTextToOverlay(text_data);
+        }, 1000);
+        return () => clearInterval(interval_id);
+    }, [is_sending]);
 
     const toggleFunction = () => {
-        setIsStarted(!is_started);
+        setIsStarted(is_settings_open && !is_started);
     };
 
-    const label = is_started
+    const label = is_sending
         ? t("config_page.vr.sample_text_button.stop")
         : t("config_page.vr.sample_text_button.start");
 
     return (
         <div className={styles.sample_text_button_wrapper}>
             <button
-                className={clsx(styles.sample_text_button, { [styles.is_started]: is_started })}
+                type="button"
+                className={clsx(styles.sample_text_button, { [styles.is_started]: is_sending })}
                 onClick={toggleFunction}
+                aria-label={label.replace(/\n/g, "")}
             >
-                {is_started ? (
+                {is_sending ? (
                     <SquareSvg className={styles.sample_text_button_square_svg} />
                 ) : (
                     <TriangleSvg className={styles.sample_text_button_triangle_svg} />

@@ -37,9 +37,11 @@ class TestFallbackUnsupportedLanguagesForEngine(unittest.TestCase):
 
     def test_resets_unsupported_source_language_to_default(self) -> None:
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             self.TAB_NO: {"1": {"language": "Arabic", "country": "Syria", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
+            **config.SELECTED_TARGET_LANGUAGES,
             self.TAB_NO: {
                 "1": {"language": "English", "country": "United States", "enable": True},
                 "2": {"language": "English", "country": "United States", "enable": False},
@@ -63,9 +65,11 @@ class TestFallbackUnsupportedLanguagesForEngine(unittest.TestCase):
         force the engine back to CTranslate2 - silently undoing the engine
         selection this fallback exists to preserve."""
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             self.TAB_NO: {"1": {"language": "Arabic", "country": "Syria", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
+            **config.SELECTED_TARGET_LANGUAGES,
             self.TAB_NO: {
                 "1": {"language": "Japanese", "country": "Japan", "enable": True},
                 "2": {"language": "English", "country": "United States", "enable": False},
@@ -87,9 +91,11 @@ class TestFallbackUnsupportedLanguagesForEngine(unittest.TestCase):
 
     def test_resets_unsupported_enabled_target_language_only(self) -> None:
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             self.TAB_NO: {"1": {"language": "Japanese", "country": "Japan", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
+            **config.SELECTED_TARGET_LANGUAGES,
             self.TAB_NO: {
                 "1": {"language": "Arabic", "country": "Syria", "enable": True},
                 "2": {"language": "Arabic", "country": "Syria", "enable": False},  # disabled: must be left alone
@@ -115,12 +121,15 @@ class TestFallbackUnsupportedLanguagesForEngine(unittest.TestCase):
         language. Each slot must avoid what earlier slots in the same pass
         already ended up with."""
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             self.TAB_NO: {"1": {"language": "Japanese", "country": "Japan", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
+            **config.SELECTED_TARGET_LANGUAGES,
             self.TAB_NO: {
+                **config.SELECTED_TARGET_LANGUAGES[self.TAB_NO],
                 # Neither Filipino nor Vietnamese is in DeepL_API's table.
-                "1": {"language": "Filipino", "country": "Philippines", "enable": True},
+                "1": {"language": "Latin", "country": "Italy", "enable": True},
                 "2": {"language": "Vietnamese", "country": "Vietnam", "enable": True},
                 "3": {"language": "English", "country": "United States", "enable": False},
             },
@@ -137,9 +146,11 @@ class TestFallbackUnsupportedLanguagesForEngine(unittest.TestCase):
 
     def test_no_change_when_languages_are_supported(self) -> None:
         config.SELECTED_YOUR_LANGUAGES = {
+            **config.SELECTED_YOUR_LANGUAGES,
             self.TAB_NO: {"1": {"language": "Japanese", "country": "Japan", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
+            **config.SELECTED_TARGET_LANGUAGES,
             self.TAB_NO: {
                 "1": {"language": "English", "country": "United States", "enable": True},
                 "2": {"language": "English", "country": "United States", "enable": False},
@@ -185,6 +196,10 @@ class TestSetSelectedTranslationEnginesValidatesFinalEngine(unittest.TestCase):
         # getter returns a live wrapper object rather than a plain dict -
         # snapshot it as a real dict so tearDown can restore it cleanly.
         self._original_status = dict(config.SELECTABLE_TRANSLATION_ENGINE_STATUS)
+        # These cases rely on Latin being missing from the NLLB tables, so
+        # pin an NLLB weight instead of depending on the default.
+        self._original_weight_type = config.CTRANSLATE2_WEIGHT_TYPE
+        config.CTRANSLATE2_WEIGHT_TYPE = "nllb-200-distilled-600M-ct2-int8"
 
         config.SELECTED_TAB_NO = self.TAB_NO
 
@@ -194,15 +209,17 @@ class TestSetSelectedTranslationEnginesValidatesFinalEngine(unittest.TestCase):
         config.SELECTED_YOUR_LANGUAGES = self._original_your_languages
         config.SELECTED_TARGET_LANGUAGES = self._original_target_languages
         config.SELECTABLE_TRANSLATION_ENGINE_STATUS = self._original_status
+        config.CTRANSLATE2_WEIGHT_TYPE = self._original_weight_type
 
     def test_language_falls_back_to_the_engine_actually_active_after_downgrade(self) -> None:
-        # Filipino: supported by Google, but not by CTranslate2's nllb-200
-        # weight tables (which only have the closely-related "Tagalog") -
-        # so the two engines disagree on it.
+        # Latin: supported by Google, but not by CTranslate2's nllb-200
+        # weight tables - so the two engines disagree on it.
         config.SELECTED_YOUR_LANGUAGES = {
-            self.TAB_NO: {"1": {"language": "Filipino", "country": "Philippines", "enable": True}},
+            **config.SELECTED_YOUR_LANGUAGES,
+            self.TAB_NO: {"1": {"language": "Latin", "country": "Italy", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
+            **config.SELECTED_TARGET_LANGUAGES,
             self.TAB_NO: {
                 "1": {"language": "English", "country": "United States", "enable": True},
                 "2": {"language": "English", "country": "United States", "enable": False},
@@ -214,13 +231,13 @@ class TestSetSelectedTranslationEnginesValidatesFinalEngine(unittest.TestCase):
         config.SELECTABLE_TRANSLATION_ENGINE_STATUS = {engine: False for engine in self.ENGINES}
         config.SELECTABLE_TRANSLATION_ENGINE_STATUS["CTranslate2"] = True
 
-        self.controller.setSelectedTranslationEngines({self.TAB_NO: "Google"})
+        self.controller.setSelectedTranslationEngines({**config.SELECTED_TRANSLATION_ENGINES, self.TAB_NO: "Google"})
 
         self.assertEqual(config.SELECTED_TRANSLATION_ENGINES[self.TAB_NO], "CTranslate2")
-        # Filipino is unsupported by the engine that actually ended up
+        # Latin is unsupported by the engine that actually ended up
         # active (CTranslate2), so it must have been reset - not left
         # dangling because the fallback only checked "Google".
-        self.assertNotEqual(config.SELECTED_YOUR_LANGUAGES[self.TAB_NO]["1"]["language"], "Filipino")
+        self.assertNotEqual(config.SELECTED_YOUR_LANGUAGES[self.TAB_NO]["1"]["language"], "Latin")
         self.assertTrue(model.isLanguageSupportedByEngine(
             "CTranslate2", config.SELECTED_YOUR_LANGUAGES[self.TAB_NO]["1"]["language"]
         ))
@@ -228,7 +245,7 @@ class TestSetSelectedTranslationEnginesValidatesFinalEngine(unittest.TestCase):
 
 class TestUpdateTranslationEngineAndEngineListResetsLanguageWhenCTranslate2AlsoUnsupported(unittest.TestCase):
     """CTranslate2 is the engine everything falls back to, but its default
-    nllb-200 weight tables don't cover every language either (e.g. Filipino,
+    nllb-200 weight tables (pinned below) don't cover every language either (e.g. Latin,
     which only has the closely-related "Tagalog" entry). If the user
     changes the LANGUAGE while CTranslate2 is already selected and the new
     language isn't in CTranslate2's table, there's no further engine to
@@ -259,6 +276,10 @@ class TestUpdateTranslationEngineAndEngineListResetsLanguageWhenCTranslate2AlsoU
         self._original_your_languages = config.SELECTED_YOUR_LANGUAGES
         self._original_target_languages = config.SELECTED_TARGET_LANGUAGES
         self._original_status = dict(config.SELECTABLE_TRANSLATION_ENGINE_STATUS)
+        # These cases rely on Latin being missing from the NLLB tables, so
+        # pin an NLLB weight instead of depending on the default.
+        self._original_weight_type = config.CTRANSLATE2_WEIGHT_TYPE
+        config.CTRANSLATE2_WEIGHT_TYPE = "nllb-200-distilled-600M-ct2-int8"
 
         config.SELECTED_TAB_NO = self.TAB_NO
         config.SELECTABLE_TRANSLATION_ENGINE_STATUS = {engine: True for engine in self.ENGINES}
@@ -269,14 +290,17 @@ class TestUpdateTranslationEngineAndEngineListResetsLanguageWhenCTranslate2AlsoU
         config.SELECTED_YOUR_LANGUAGES = self._original_your_languages
         config.SELECTED_TARGET_LANGUAGES = self._original_target_languages
         config.SELECTABLE_TRANSLATION_ENGINE_STATUS = self._original_status
+        config.CTRANSLATE2_WEIGHT_TYPE = self._original_weight_type
 
     def test_source_language_reset_when_ctranslate2_does_not_support_it_either(self) -> None:
-        config.SELECTED_TRANSLATION_ENGINES = {self.TAB_NO: "CTranslate2"}
-        # Filipino isn't in CTranslate2's default nllb-200 weight tables.
+        config.SELECTED_TRANSLATION_ENGINES = {**config.SELECTED_TRANSLATION_ENGINES, self.TAB_NO: "CTranslate2"}
+        # Latin isn't in CTranslate2's default nllb-200 weight tables.
         config.SELECTED_YOUR_LANGUAGES = {
-            self.TAB_NO: {"1": {"language": "Filipino", "country": "Philippines", "enable": True}},
+            **config.SELECTED_YOUR_LANGUAGES,
+            self.TAB_NO: {"1": {"language": "Latin", "country": "Italy", "enable": True}},
         }
         config.SELECTED_TARGET_LANGUAGES = {
+            **config.SELECTED_TARGET_LANGUAGES,
             self.TAB_NO: {
                 "1": {"language": "English", "country": "United States", "enable": True},
                 "2": {"language": "English", "country": "United States", "enable": False},
@@ -290,7 +314,7 @@ class TestUpdateTranslationEngineAndEngineListResetsLanguageWhenCTranslate2AlsoU
         self.assertEqual(config.SELECTED_TRANSLATION_ENGINES[self.TAB_NO], "CTranslate2")
         # ...but the language must have been reset to something it
         # actually supports, so CTranslate2 isn't left selected-but-greyed-out.
-        self.assertNotEqual(config.SELECTED_YOUR_LANGUAGES[self.TAB_NO]["1"]["language"], "Filipino")
+        self.assertNotEqual(config.SELECTED_YOUR_LANGUAGES[self.TAB_NO]["1"]["language"], "Latin")
         self.assertTrue(model.isLanguageSupportedByEngine(
             "CTranslate2", config.SELECTED_YOUR_LANGUAGES[self.TAB_NO]["1"]["language"]
         ))

@@ -11,6 +11,7 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from ui_details import open_engine_settings
 
 from models.speech_server.settings import normalize_settings
 from models.transcription.realtime_settings import normalize_settings as asr_settings
@@ -26,8 +27,8 @@ def test_low_latency_default_opt_in_save_and_busy_controls(ui):
     toggle = page.get_by_label('Low-latency standby (Irodori GPU)', exact=True)
     expect(toggle).not_to_be_checked()
     toggle.check()
-    page.get_by_role('button', name='Save server settings', exact=True).click()
-    expect(page.get_by_role('button', name='Save server settings', exact=True)).to_be_disabled()
+    page.get_by_role('button', name='Save changes', exact=True).click()
+    expect(page.get_by_role('button', name='Save changes', exact=True)).to_be_disabled()
     assert peer.settings['profiles']['japanese']['low_latency'] is True
     assert not any(ep == '/run/start_speech_server' for ep, _ in peer.sent)
     peer.state['japanese'].update(state='ready', generation=1,
@@ -46,7 +47,7 @@ def ui(tmp_path):
             sock.bind(('127.0.0.1', 0))
             port = sock.getsockname()[1]
         log = stack.enter_context((tmp_path / 'vite.log').open('w'))
-        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', str(port), '--strictPort'], cwd=ROOT, stdout=log, stderr=log)
+        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '.', '--host', '127.0.0.1', '--port', str(port), '--strictPort'], cwd=ROOT, stdout=log, stderr=log)
 
         def close_vite():
             vite.terminate()
@@ -64,8 +65,10 @@ def ui(tmp_path):
         browser = stack.enter_context(sync_playwright()).chromium.launch(executable_path=os.environ['VRCT_TEST_CHROMIUM'], headless=True)
         stack.callback(browser.close)
         page = browser.new_page(viewport={'width': 1200, 'height': 1600})
-        stack.callback(lambda: (tmp_path / 'page.html').write_text(page.content()))
+        stack.callback(lambda: (tmp_path / 'page.html').write_text(page.content(), encoding='utf-8'))
         page.set_default_timeout(4000)
+        # A cold Vite compiles every module on the first load, which takes longer than this on Windows.
+        page.set_default_navigation_timeout(30000)
         peer = SimpleNamespace(settings=normalize_settings({}), voice=VoiceSettings().to_dict(), asr=asr_settings({}),
                                state={name: dict(state='stopped', generation=0, base_url=None, error_code=None) for name in ('japanese', 'multilingual', 'asr')},
                                sent=[], replies=[], errors=[], reply_id=0, hold_start=False, reject_save=False)
@@ -89,6 +92,8 @@ def ui(tmp_path):
                 else:
                     peer.settings = normalize_settings(data)
                     reply(endpoint, peer.settings)
+            elif endpoint == '/get/data/speech_server_devices':
+                reply(endpoint, dict(devices=[]))
             elif endpoint == '/get/data/speech_server_state':
                 reply(endpoint, peer.state)
             elif endpoint == '/run/start_speech_server':
@@ -132,6 +137,7 @@ def ui(tmp_path):
         page.on('requestfailed', lambda request: pending_requests.discard(request.url))
         try:
             page.goto(f'http://127.0.0.1:{port}/tests/voice/speech-ui-entry/')
+            open_engine_settings(page)
         except Exception:
             print('Unfinished navigation resources:', sorted(pending_requests))
             print('Document state:', page.evaluate('document.readyState'))
@@ -148,7 +154,7 @@ def test_save_only_explicit_start_pending_stop_and_stale_ready(ui):
     expect(start).to_be_disabled()
     group.get_by_label('Model GGUF path', exact=True).fill('/local/tts.gguf')
     expect(start).to_be_disabled()
-    save = page.get_by_role('button', name='Save server settings', exact=True)
+    save = page.get_by_role('button', name='Save changes', exact=True)
     save.click()
     expect(start).to_be_enabled()
     assert not any(ep == '/run/start_speech_server' for ep, _ in peer.sent)
@@ -187,7 +193,7 @@ def test_memory_error_explains_cpu_retry_and_preserves_saved_device(ui):
     page, peer, reply = ui
     group = page.get_by_role('group', name='Japanese TTS', exact=True)
     group.get_by_label('Model GGUF path', exact=True).fill('/local/tts.gguf')
-    page.get_by_role('button', name='Save server settings', exact=True).click()
+    page.get_by_role('button', name='Save changes', exact=True).click()
     peer.state['japanese'].update(state='failed', generation=3, base_url=None,
                                 error_code='speech_server_out_of_memory')
     reply('/get/data/speech_server_state', peer.state)
@@ -198,10 +204,40 @@ def test_memory_error_explains_cpu_retry_and_preserves_saved_device(ui):
     group.get_by_label('Inference device', exact=True).select_option('cpu')
     start = group.get_by_role('button', name='Start server', exact=True)
     expect(start).to_be_disabled()
-    page.get_by_role('button', name='Save server settings', exact=True).click()
+    page.get_by_role('button', name='Save changes', exact=True).click()
     expect(start).to_be_enabled()
     assert peer.settings['profiles']['japanese']['device'] == 'cpu'
     assert not any(ep == '/run/start_speech_server' for ep, _ in peer.sent)
+
+
+def test_a_named_gpu_can_be_chosen_when_the_pc_reports_one(ui):
+    from playwright.sync_api import expect
+    page, peer, reply = ui
+    group = page.get_by_role('group', name='Japanese TTS', exact=True)
+    device = group.get_by_label('Inference device', exact=True)
+    help_text = group.get_by_text('Auto and GPU may use either one', exact=False)
+    expect(device.locator('option')).to_have_count(3)
+    expect(help_text).to_have_count(0)
+    reply('/get/data/speech_server_devices', dict(devices=[dict(name='Vulkan1', kind='gpu', label='Example GPU')]))
+    expect(device.locator('option')).to_have_count(4)
+    expect(help_text).to_be_visible()
+    device.select_option(label='Example GPU (Vulkan1)')
+    page.get_by_role('button', name='Save changes', exact=True).click()
+    expect(page.get_by_role('button', name='Save changes', exact=True)).to_be_disabled()
+    assert peer.settings['profiles']['japanese']['device'] == 'Vulkan1'
+    assert not any(ep == '/run/start_speech_server' for ep, _ in peer.sent)
+
+
+def test_a_saved_gpu_that_is_gone_stays_selected(ui):
+    from playwright.sync_api import expect
+    page, peer, reply = ui
+    group = page.get_by_role('group', name='Japanese TTS', exact=True)
+    device = group.get_by_label('Inference device', exact=True)
+    peer.settings['profiles']['japanese']['device'] = 'Vulkan9'
+    reply('/get/data/speech_server_settings', peer.settings)
+    expect(device).to_have_value('Vulkan9')
+    expect(device.locator('option', has_text='Vulkan9 (not found)')).to_have_count(1)
+    expect(page.get_by_role('button', name='Save changes', exact=True)).to_be_disabled()
 
 
 def test_asr_requires_vad_and_save_errors_allow_retry(ui):
@@ -210,11 +246,11 @@ def test_asr_requires_vad_and_save_errors_allow_retry(ui):
     group = page.get_by_role('group', name='ASR + VAD', exact=True)
     start = group.get_by_role('button', name='Start server', exact=True)
     group.get_by_label('Model GGUF path', exact=True).fill('/local/asr.gguf')
-    page.get_by_role('button', name='Save server settings', exact=True).click()
+    page.get_by_role('button', name='Save changes', exact=True).click()
     expect(start).to_be_disabled()
     group.get_by_label('VAD GGUF path', exact=True).fill('/local/vad.gguf')
     peer.reject_save = True
-    save = page.get_by_role('button', name='Save server settings', exact=True)
+    save = page.get_by_role('button', name='Save changes', exact=True)
     save.click()
     expect(page.get_by_role('alert').filter(has_text='speech_server_settings_invalid')).to_be_visible()
     expect(save).to_be_enabled()
@@ -229,7 +265,7 @@ def test_endpoint_selection_retains_external_urls_and_rejects_old_model_lists(ui
     page, peer, reply = ui
     page.get_by_label('Japanese server', exact=True).select_option('bundled')
     expect(page.get_by_label('Japanese server (Irodori)', exact=True)).to_have_count(0)
-    page.get_by_role('button', name='Save voice settings', exact=True).click()
+    page.get_by_role('button', name='Save changes', exact=True).click()
     page.get_by_label('Japanese server', exact=True).select_option('external')
     expect(page.get_by_label('Japanese server (Irodori)', exact=True)).to_have_value('http://127.0.0.1:8080')
     page.get_by_label('ASR server', exact=True).select_option('bundled')
@@ -246,3 +282,29 @@ def test_endpoint_selection_retains_external_urls_and_rejects_old_model_lists(ui
     received = reply('/get/data/realtime_asr_models', dict(server='bundled', configured_url=peer.asr['base_url'], base_url=peer.state['asr']['base_url'], server_generation=2, models=[dict(id='stale', languages=['ja'])]))
     page.wait_for_function('id => window.received.includes(id)', arg=received)
     expect(model.locator('option[value="stale"]')).to_have_count(0)
+
+
+def test_model_and_server_setup_is_folded_with_a_status_line_and_opens_on_error(ui):
+    from playwright.sync_api import expect
+    page, peer, reply = ui
+    page.reload()
+    summary = page.locator('summary').filter(has_text='Models and servers')
+    # One fold for all bundled servers; its summary says what each one is doing.
+    expect(summary).to_have_count(1)
+    expect(summary).to_contain_text('Japanese TTS: No model set · Stopped')
+    expect(summary).to_contain_text('Multilingual TTS: No model set · Stopped')
+    expect(summary).to_contain_text('ASR + VAD: No model set · Stopped')
+    model = page.get_by_role('group', name='Japanese TTS', exact=True).get_by_label('Model GGUF path', exact=True)
+    expect(model).not_to_be_visible()
+    # Two TTS engines share one GPU and memory reading.
+    expect(page.get_by_role('button', name='Refresh GPU and memory', exact=True, include_hidden=True)).to_have_count(1)
+    summary.focus()
+    page.keyboard.press('Enter')
+    expect(model).to_be_visible()
+    page.keyboard.press('Enter')
+    expect(model).not_to_be_visible()
+    # A server error is fixed in there, so the setup opens by itself.
+    peer.state['multilingual'].update(state='failed', generation=2, error_code='speech_server_exited')
+    reply('/get/data/speech_server_state', peer.state)
+    expect(summary).to_contain_text('Multilingual TTS: No model set · Failed')
+    expect(model).to_be_visible()

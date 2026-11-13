@@ -17,28 +17,91 @@ VRCT の既存パイプラインは「フレーズ確定後にまとめて1回�
 """
 
 import math
+from urllib.request import HTTPRedirectHandler, build_opener
 from typing import List, Optional, Protocol, Tuple
 
 import numpy as np
 import requests
-from openai import (
-    APIConnectionError,
-    APIStatusError,
-    APITimeoutError,
-    AuthenticationError,
-    OpenAI,
-    RateLimitError,
-)
+from httpx import Timeout
+import speech_recognition as _speech_recognition
 from speech_recognition import AudioData, Recognizer, UnknownValueError
 
 from errors import ErrorCode
 from models.transcription.transcription_deepgram import resolveDeepgramLanguageCode
 from models.transcription.transcription_languages import transcription_lang
+from models.transcription.transcription_openai_compatible import transcriptionResponseFormat
 from utils import errorLogging
+from models.diagnostics import provider_errors
+from models.network_policy import api_http_client, explicit_request_auth
+from models.sdk_clients import OpenAI
+
+
+# speech_recognition builds the Google Web Speech URL with plain HTTP, which
+# would send microphone audio unencrypted. The same endpoint serves HTTPS, so
+# upgrade only that URL where the library constructs its request.
+_GOOGLE_SPEECH_HTTP = "http://www.google.com/speech-api/"
+_PlainRequest = _speech_recognition.Request
+
+
+def _https_google_request(url, *args, **kwargs):
+    if isinstance(url, str) and url.startswith(_GOOGLE_SPEECH_HTTP):
+        url = "https://" + url[len("http://"):]
+    return _PlainRequest(url, *args, **kwargs)
+
+
+_speech_recognition.Request = _https_google_request
+
+
+class _NoApiRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _speech_urlopen(request, *args, **kwargs):
+    # Preserve system HTTPS proxies, but never replay audio through a redirect.
+    return build_opener(_NoApiRedirect()).open(request, *args, **kwargs)
+
+
+_speech_recognition.urlopen = _speech_urlopen
 
 # setup.exe ダウンロード等の HTTP 呼び出しで使っている (10, 60) と同じ
 # (connect, read) タイムアウト。実機検証の結果次第で調整する。
 _HTTP_TIMEOUT = (10, 60)
+_OPENAI_TIMEOUT = Timeout(connect=10, read=60, write=60, pool=10)
+
+
+def _normalize_language(value: Optional[str]) -> Optional[str]:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    value = value.strip().lower().replace("_", "-")
+    for language, countries in transcription_lang.items():
+        if value == language.lower():
+            return next(iter(countries.values()))["Whisper"]
+    value = {"chinese": "zh", "cantonese": "yue", "tagalog": "tl"}.get(value, value)
+    base, separator, suffix = value.partition("-")
+    return {"cmn": "zh", "iw": "he", "fil": "tl"}.get(base, base) + separator + suffix
+
+
+def resolveDetectedLanguage(detected_language: Optional[str], languages: List[str], countries: List[str]) -> Optional[str]:
+    """検出言語を選択済みの言語・国に照合する。不明なら None を保つ。"""
+    code = _normalize_language(detected_language)
+    if code is None:
+        return None
+    candidates = [(language, transcription_lang[language][country]) for language, country in zip(languages, countries)]
+    # 地域・文字体系まで一致する候補を、ベース言語だけの一致より優先する。
+    for language, entry in candidates:
+        if detected_language.strip().lower() == language.lower() or code == _normalize_language(entry["Google"]):
+            return language
+    parts = code.split("-")
+    if len(parts) > 1:
+        for language, entry in candidates:
+            candidate_parts = _normalize_language(entry["Google"]).split("-")
+            if parts[0] == candidate_parts[0] and all(part in candidate_parts[1:] for part in parts[1:]):
+                return language
+    for language, entry in candidates:
+        if code.split("-")[0] == entry["Whisper"]:
+            return language
+    return None
 
 
 class TranscriptionApiError(Exception):
@@ -60,16 +123,17 @@ class TranscriptionProvider(Protocol):
         no_speech_prob: float,
         no_repeat_ngram_size: int,
         force_language: bool,
-    ) -> Tuple[str, float, bool]:
+    ) -> Tuple[str, float, bool, Optional[str]]:
         """1つの言語候補に対して1回だけ試行する。
 
         Returns:
-            (text, confidence, is_definitive) のタプル。
+            (text, confidence, is_definitive, detected_language) のタプル。
             - text: 認識結果 (認識できなければ "")
             - confidence: 信頼度 (呼び出し元が複数候補から最良を選ぶ)
-            - is_definitive: True の場合、検出された言語が要求した言語と
-              一致した等の理由でこれ以上他の候補を試す必要が無いことを
-              示す (呼び出し元はこの合図でループを早期終了できる)。
+            - is_definitive: 自動検出など、他の候補でも同じ要求になる場合は
+              True。呼び出し元は検出言語を候補に照合してループを終了する。
+            - detected_language: 検出した言語名・コード。言語を明示指定した
+              要求では指定コードを返す。自動検出で不明なら None。
         """
         ...
 
@@ -85,6 +149,7 @@ class GoogleProvider:
     def __init__(self, recognizer: Recognizer) -> None:
         self._recognizer = recognizer
 
+    @provider_errors("Google")
     def transcribe(
         self,
         audio_data: AudioData,
@@ -95,7 +160,7 @@ class GoogleProvider:
         no_speech_prob: float,
         no_repeat_ngram_size: int,
         force_language: bool,
-    ) -> Tuple[str, float, bool]:
+    ) -> Tuple[str, float, bool, Optional[str]]:
         # 2026-09-07: クリップ前後の無音パディングやクリップ分割を
         # このプロバイダ内で行う対策を試したが、実機検証の結果「クリップの
         # 前後に無音パディングを付与する」対策はエンジンを問わず
@@ -119,8 +184,8 @@ class GoogleProvider:
                 join_all_results=True,
             )
         except UnknownValueError:
-            return "", 0.0, False
-        return text, confidence, False
+            return "", 0.0, False, None
+        return text, confidence, False, transcription_lang[language][country]["Google"]
 
 
 class LocalWhisperProvider:
@@ -139,7 +204,7 @@ class LocalWhisperProvider:
         no_speech_prob: float,
         no_repeat_ngram_size: int,
         force_language: bool,
-    ) -> Tuple[str, float, bool]:
+    ) -> Tuple[str, float, bool, Optional[str]]:
         raw = np.frombuffer(
             audio_data.get_raw_data(convert_rate=16000, convert_width=2), np.int16
         ).flatten().astype(np.float32) / 32768.0
@@ -163,11 +228,12 @@ class LocalWhisperProvider:
                 continue
             text += s.text
 
-        is_definitive = force_language or transcription_lang[language][country]["Whisper"] == info.language
-        return text, info.language_probability, is_definitive
+        # Whisper のセグメントは先頭に空白が付く。チャットボックスや翻訳へそのまま渡さない
+        return text.strip(), info.language_probability, True, source_language or getattr(info, "language", None)
 
 
 def _map_openai_exception(exc: Exception) -> ErrorCode:
+    from openai import APIConnectionError, APIStatusError, APITimeoutError, AuthenticationError, RateLimitError
     if isinstance(exc, AuthenticationError):
         return ErrorCode.TRANSCRIPTION_API_AUTH_FAILED
     if isinstance(exc, RateLimitError):
@@ -195,13 +261,16 @@ class OpenAICompatibleTranscriptionProvider:
     最も広くサポートされている WAV (`AudioData.get_wav_data()`) を使う。
     """
 
+    @provider_errors(lambda self, *args, **kwargs: self.engine_name)
     def __init__(self, api_key: str, base_url: str, model: str, engine_name: str) -> None:
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
         self.engine_name = engine_name
-        self._client = OpenAI(api_key=api_key, base_url=base_url, timeout=_HTTP_TIMEOUT)
+        self._client = OpenAI(api_key=api_key, base_url=base_url, timeout=_OPENAI_TIMEOUT,
+                              http_client=api_http_client(base_url, timeout=_OPENAI_TIMEOUT))
 
+    @provider_errors(lambda self, *args, **kwargs: self.engine_name)
     def transcribe(
         self,
         audio_data: AudioData,
@@ -212,7 +281,7 @@ class OpenAICompatibleTranscriptionProvider:
         no_speech_prob: float,
         no_repeat_ngram_size: int,
         force_language: bool,
-    ) -> Tuple[str, float, bool]:
+    ) -> Tuple[str, float, bool, Optional[str]]:
         wav_bytes = audio_data.get_wav_data(convert_rate=16000, convert_width=2)
         source_language = transcription_lang[language][country][self.engine_name] if force_language else None
 
@@ -221,13 +290,13 @@ class OpenAICompatibleTranscriptionProvider:
                 file=("audio.wav", wav_bytes, "audio/wav"),
                 model=self.model,
                 language=source_language,
-                response_format="verbose_json",
+                response_format=transcriptionResponseFormat(self.model),
                 temperature=0.0,
             )
         except Exception as exc:
             error_code = _map_openai_exception(exc)
-            errorLogging()
-            raise TranscriptionApiError(error_code) from exc
+            errorLogging(provider=self.engine_name)
+            raise TranscriptionApiError(error_code) from None
 
         segments = getattr(response, "segments", None) or []
         accepted_logprobs: List[float] = []
@@ -244,20 +313,19 @@ class OpenAICompatibleTranscriptionProvider:
             # フィルタリングができないため、テキストをそのまま採用する。
             text = getattr(response, "text", "") or ""
 
+        text = text.strip()
         if not text:
-            return "", 0.0, False
+            return "", 0.0, False, None
 
         # avg_logprob (対数確率、概ね負の値) を 0〜1 の疑似的な信頼度に変換する。
         # ローカル Whisper の info.language_probability に相当するものが
         # verbose_json には無いため、代替の指標として使う。
         confidence = math.exp(sum(accepted_logprobs) / len(accepted_logprobs)) if accepted_logprobs else 0.5
 
-        detected_language = getattr(response, "language", None)
-        is_definitive = force_language or (
-            detected_language is not None
-            and detected_language == transcription_lang[language][country][self.engine_name]
-        )
-        return text, confidence, is_definitive
+        # 自動検出の要求は候補を変えても同じ。検出言語が無い場合も
+        # 1回で終え、呼び出し元で不明な言語を候補の先頭に置き換えない。
+        detected_language = source_language or getattr(response, "language", None)
+        return text, confidence, True, detected_language
 
 
 _DEEPGRAM_LISTEN_URL = "https://api.deepgram.com/v1/listen"
@@ -285,8 +353,7 @@ class DeepgramProvider:
     (対応コードが不明、または候補言語が複数で1つに絞れない場合) は
     `detect_language=true` (自動検出) にフォールバックする。
     いずれの経路でも1回のAPI呼び出しで完結するため
-    (Deepgram自身が1呼び出しで多言語を判定できる、Whisper系のように
-    候補言語ごとに複数回呼ぶ必要が無い)、`is_definitive` は常に True を
+    (Deepgram自身が1呼び出しで多言語を判定できる)、`is_definitive` は True を
     返し、呼び出し元のループを1回で打ち切らせる。
 
     信頼度についても、avg_logprob/no_speech_prob に相当するセグメント
@@ -299,6 +366,7 @@ class DeepgramProvider:
         self.model = model
         self.model_languages = model_languages or []
 
+    @provider_errors("Deepgram")
     def transcribe(
         self,
         audio_data: AudioData,
@@ -309,7 +377,7 @@ class DeepgramProvider:
         no_speech_prob: float,
         no_repeat_ngram_size: int,
         force_language: bool,
-    ) -> Tuple[str, float, bool]:
+    ) -> Tuple[str, float, bool, Optional[str]]:
         wav_bytes = audio_data.get_wav_data(convert_rate=16000, convert_width=2)
 
         params = {"model": self.model}
@@ -329,31 +397,37 @@ class DeepgramProvider:
                 params=params,
                 data=wav_bytes,
                 timeout=_HTTP_TIMEOUT,
+                allow_redirects=False,
+                auth=explicit_request_auth,
             )
-        except requests.exceptions.Timeout as exc:
-            errorLogging()
-            raise TranscriptionApiError(ErrorCode.TRANSCRIPTION_API_TIMEOUT) from exc
-        except requests.exceptions.RequestException as exc:
-            errorLogging()
-            raise TranscriptionApiError(ErrorCode.TRANSCRIPTION_API_SERVER_ERROR) from exc
+        except requests.exceptions.Timeout:
+            errorLogging(provider="Deepgram")
+            raise TranscriptionApiError(ErrorCode.TRANSCRIPTION_API_TIMEOUT) from None
+        except requests.exceptions.RequestException:
+            errorLogging(provider="Deepgram")
+            raise TranscriptionApiError(ErrorCode.TRANSCRIPTION_API_SERVER_ERROR) from None
 
         if response.status_code != 200:
-            errorLogging()
+            errorLogging(provider="Deepgram", status=response.status_code)
             raise TranscriptionApiError(_map_deepgram_status(response.status_code))
 
-        payload = response.json()
         try:
+            payload = response.json()
             channel = payload["results"]["channels"][0]
             alternative = channel["alternatives"][0]
-        except (KeyError, IndexError):
-            return "", 0.0, False
+            text = alternative["transcript"]
+            confidence = alternative["confidence"]
+            if (not isinstance(text, str) or type(confidence) not in (int, float)
+                    or not math.isfinite(confidence) or not 0 <= confidence <= 1):
+                raise ValueError("invalid transcription result")
+        except (KeyError, IndexError, TypeError, ValueError, OverflowError):
+            errorLogging(provider="Deepgram")
+            raise TranscriptionApiError(ErrorCode.TRANSCRIPTION_API_SERVER_ERROR) from None
 
-        text = alternative.get("transcript", "") or ""
         if not text:
-            return "", 0.0, False
+            return "", 0.0, False, None
 
-        confidence = float(alternative.get("confidence", 0.0) or 0.0)
         # 明示コード・自動検出のいずれでも1回の呼び出しで完結するため、
         # この1回の結果が最終結果。呼び出し元 (transcribeAudioQueue) には
         # 他の候補言語を試させない。
-        return text, confidence, True
+        return text, float(confidence), True, resolved_code or channel.get("detected_language")

@@ -7,7 +7,7 @@ test_controller_init_watchdog_and_join_timeout.py と同じ手法: init() を
 """
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from config import config
 from controller import Controller
@@ -20,6 +20,8 @@ class _Sentinel(Exception):
 class TranscriptionEngineStatusInitTests(unittest.TestCase):
     def setUp(self) -> None:
         self.controller = Controller.__new__(Controller)
+        self.controller.run = lambda *a, **k: None
+        self.controller.run_mapping = {"connected_network": "/run/connected_network"}
         self.controller.startWatchdog = lambda *a, **k: None
         self.controller.connectedNetwork = lambda: None
         self.controller.disconnectedNetwork = lambda: None
@@ -145,7 +147,7 @@ class TranscriptionEngineStatusInitTests(unittest.TestCase):
     def test_failure_preparing_an_engine_makes_it_unavailable_and_init_continues(self, mock_model, _) -> None:
         mock_model.authenticationTranslatorGeminiAuthKey.return_value = True
         mock_model.getTranslatorGeminiModelList.return_value = ["g-a", "g-b"]
-        mock_model.updateTranslatorGeminiClient.side_effect = RuntimeError("boom")
+        mock_model.updateTranslatorGeminiClient.side_effect = RuntimeError("UNSAVED_KEY PRIVATE_CONVERSATION")
         original_keys = dict(config.AUTH_KEYS)
         original_list = list(config.SELECTABLE_GEMINI_MODEL_LIST)
         original_model = config._SELECTED_GEMINI_MODEL
@@ -158,10 +160,15 @@ class TranscriptionEngineStatusInitTests(unittest.TestCase):
         self.addCleanup(restore)
         config.AUTH_KEYS = {**config.AUTH_KEYS, "Gemini_API": "gm-test"}
 
-        with patch("controller.errorLogging"):
+        logger = Mock()
+        with patch("utils.error_logger", logger):
             self._run_init(mock_model)   # センチネルまで進む = 起動は止まらない
 
         self.assertFalse(config.SELECTABLE_TRANSLATION_ENGINE_STATUS["Gemini_API"])
+        records = [call.args[0] for call in logger.error.call_args_list]
+        self.assertTrue(any(record["provider"] == "Gemini_API" and record["error"] == "RuntimeError" for record in records))
+        self.assertNotIn("UNSAVED_KEY", repr(records))
+        self.assertNotIn("PRIVATE_CONVERSATION", repr(records))
 
     @patch("controller.isConnectedNetwork", return_value=True)
     @patch("controller.model")
@@ -210,14 +217,30 @@ class TranscriptionEngineStatusInitTests(unittest.TestCase):
 
     @patch("controller.isConnectedNetwork", return_value=True)
     @patch("controller.model")
-    def test_engine_with_invalid_key_is_cleared_from_config(self, mock_model, _) -> None:
+    def test_engine_whose_key_fails_the_check_keeps_the_key(self, mock_model, _) -> None:
         self._run_init(mock_model)
 
         self.assertFalse(config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"])
         self.assertEqual(config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST, [])
         self.assertIsNone(config.SELECTED_CUSTOM_WHISPER_MODEL)
-        # 無効なキーは起動時検証でクリアされる (翻訳エンジンの既存挙動と同じ)
-        self.assertIsNone(config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"])
+        # 確認の失敗はオフラインや一時的な障害でも起きるので、起動時にキーを消さない
+        self.assertEqual(config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"], "bad-key")
+
+    @patch("controller.isConnectedNetwork")
+    @patch("controller.model")
+    def test_translation_key_survives_failed_authentication_without_a_probe(self, mock_model, probe) -> None:
+        # Derive availability from the provider check; no download is due.
+        mock_model.authenticationTranslatorDeepLAuthKey.return_value = False
+        original_keys = dict(config.AUTH_KEYS)
+        self.addCleanup(setattr, config, "AUTH_KEYS", original_keys)
+        config.AUTH_KEYS = {**original_keys, "DeepL_API": "deepl-saved:fx"}
+
+        self._run_init(mock_model)
+
+        probe.assert_not_called()
+        mock_model.authenticationTranslatorDeepLAuthKey.assert_called_once_with(auth_key="deepl-saved:fx")
+        self.assertFalse(config.SELECTABLE_TRANSLATION_ENGINE_STATUS["DeepL_API"])
+        self.assertEqual(config.AUTH_KEYS["DeepL_API"], "deepl-saved:fx")
 
     @patch("controller.isConnectedNetwork", return_value=True)
     @patch("controller.model")

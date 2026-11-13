@@ -5,13 +5,23 @@
 """
 import json
 import os
-from datetime import date
+from datetime import datetime, timezone
 from threading import Lock
 from typing import Optional
 
+# How many sent events stay readable on this PC.
+SENT_LIMIT = 20
+
 
 def _today() -> str:
-    return date.today().isoformat()
+    # The day in UTC, the day of the timestamp an event itself carries: the receiver
+    # counts by that day, so "once a day" has to mean the same day here.
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def _is_sent_row(row) -> bool:
+    return (isinstance(row, dict) and isinstance(row.get("at"), str) and isinstance(row.get("body"), dict)
+            and type(row.get("accepted")) is bool)
 
 
 class TelemetryState:
@@ -20,9 +30,11 @@ class TelemetryState:
     永続ファイルのスキーマ:
         {
             "last_app_started_date": "YYYY-MM-DD",
-            "errors_sent": {"YYYY-MM-DD": ["ERROR_CODE_1", ...]}
+            "errors_sent": {"YYYY-MM-DD": ["ERROR_CODE_1", ...]},
+            "sent": [{"at": "YYYY-MM-DD HH:MM", "accepted": true, "body": {...}}, ...]
         }
-    書き込み時に当日以外のエントリを掃除する。
+    書き込み時に当日以外のエントリを掃除する。日付は UTC。
+    sent は送った内容そのものの直近 SENT_LIMIT 件で、設定画面から見られる（at はこの PC の時刻）。
     """
 
     def __init__(self, storage_path: Optional[str] = None):
@@ -33,19 +45,21 @@ class TelemetryState:
 
     def _load(self) -> dict:
         if not self._storage_path or not os.path.exists(self._storage_path):
-            return {"last_app_started_date": None, "errors_sent": {}}
+            return {"last_app_started_date": None, "errors_sent": {}, "sent": []}
         try:
             with open(self._storage_path, "r", encoding="utf-8") as fp:
                 loaded = json.load(fp)
             if not isinstance(loaded, dict):
                 raise ValueError("telemetry state root is not a dict")
+            sent = loaded.get("sent")
             return {
                 "last_app_started_date": loaded.get("last_app_started_date"),
                 "errors_sent": loaded.get("errors_sent") or {},
+                "sent": [row for row in sent if _is_sent_row(row)][-SENT_LIMIT:] if isinstance(sent, list) else [],
             }
         except Exception:
             # 破損時は初期化。呼び出し元に例外を伝播させない。
-            return {"last_app_started_date": None, "errors_sent": {}}
+            return {"last_app_started_date": None, "errors_sent": {}, "sent": []}
 
     def _save_locked(self):
         if not self._storage_path:
@@ -109,6 +123,20 @@ class TelemetryState:
                 today_list.append(error_code)
             self._data["errors_sent"] = {today: today_list}
             self._save_locked()
+
+    def record_sent(self, body: dict, accepted: bool):
+        """送った内容そのものを残す（直近 SENT_LIMIT 件）。"""
+        if not isinstance(body, dict):
+            return
+        row = {"at": datetime.now().strftime("%Y-%m-%d %H:%M"), "accepted": bool(accepted), "body": body}
+        with self._lock:
+            self._data["sent"] = (list(self._data.get("sent") or []) + [row])[-SENT_LIMIT:]
+            self._save_locked()
+
+    def sent(self) -> list:
+        """送った内容の記録（古い順）。"""
+        with self._lock:
+            return json.loads(json.dumps(self._data.get("sent") or []))
 
     def reset(self):
         """有効/無効フラグの実行時リセットのみ（永続データは保持）。"""

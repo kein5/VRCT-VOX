@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img" aria-labelledby="title desc" >
+<title id="title">TTS — text to speech</title>
+<desc id="desc">Original 24-unit glyph, 1.8-unit round stroke. Recolor with CSS currentColor when inlined.</desc>
+<g transform="translate(0 0) scale(1.0)"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 9h4L12 4.5v15L6.5 15h-4ZM15.5 8a5.7 5.7 0 0 1 0 8M19 4.5a10.6 10.6 0 0 1 0 15"/></g></g>
+</svg>

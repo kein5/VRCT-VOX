@@ -94,15 +94,18 @@ class GroqWhisperAuthKeyEndpointTests(_ConfigSnapshotMixin, unittest.TestCase):
         mock_model.authenticationTranscriptionApiKey.assert_not_called()
 
     @patch("controller.model")
-    def test_set_auth_key_failure_clears_state(self, mock_model) -> None:
+    def test_set_auth_key_failure_keeps_the_saved_key(self, mock_model) -> None:
+        # 確認の失敗はオフラインや 429 でも起きる。保存してあるキーと、それで使えている状態は残す
+        config.TRANSCRIPTION_AUTH_KEYS = {**config.TRANSCRIPTION_AUTH_KEYS, "Groq_Whisper": "sk-saved"}
+        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS = {**config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS, "Groq_Whisper": True}
         mock_model.authenticationTranscriptionApiKey.return_value = False
 
         response = self.controller.setGroqWhisperAuthKey("sk-bad")
 
         self.assertEqual(response["status"], 400)
-        self.assertIsNone(config.TRANSCRIPTION_AUTH_KEYS["Groq_Whisper"])
-        self.assertFalse(config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Groq_Whisper"])
-        self.assertEqual(config.SELECTABLE_GROQ_WHISPER_MODEL_LIST, [])
+        self.assertEqual(response["result"]["data"], "sk-saved")  # 画面の欄を保存してあるキーに戻す
+        self.assertEqual(config.TRANSCRIPTION_AUTH_KEYS["Groq_Whisper"], "sk-saved")
+        self.assertTrue(config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Groq_Whisper"])
 
     @patch("controller.model")
     def test_set_auth_key_with_no_models_is_treated_as_failure(self, mock_model) -> None:
@@ -175,34 +178,34 @@ class CustomWhisperURLEndpointTests(_ConfigSnapshotMixin, unittest.TestCase):
         mock_model.authenticationTranscriptionApiKey.assert_not_called()
 
     @patch("controller.model")
-    def test_set_url_with_auth_key_validates_and_applies(self, mock_model) -> None:
-        config.TRANSCRIPTION_AUTH_KEYS = {"Custom_Whisper": "local-secret"}
-        mock_model.authenticationTranscriptionApiKey.return_value = True
-        mock_model.getTranscriptionApiModelList.return_value = ["whisper"]
-
-        response = self.controller.setCustomWhisperURL("http://localhost:9000/v1")
-
-        self.assertEqual(response["status"], 200)
-        self.assertEqual(config.TRANSCRIPTION_CUSTOM_URL, "http://localhost:9000/v1")
-        self.assertTrue(config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"])
-        self.assertEqual(config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST, ["whisper"])
-        mock_model.getTranscriptionApiModelList.assert_called_once_with(
-            api_key="local-secret", base_url="http://localhost:9000/v1"
-        )
-
-    @patch("controller.model")
-    def test_set_url_that_fails_auth_keeps_old_url_and_clears_models(self, mock_model) -> None:
+    def test_set_url_with_auth_key_requires_reentry_without_outbound_calls(self, mock_model) -> None:
         config.TRANSCRIPTION_AUTH_KEYS = {"Custom_Whisper": "local-secret"}
         config.TRANSCRIPTION_CUSTOM_URL = "http://localhost:8000/v1"
         config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST = ["whisper"]
-        mock_model.authenticationTranscriptionApiKey.return_value = False
+        config.SELECTED_CUSTOM_WHISPER_MODEL = "whisper"
+        config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"] = True
 
-        response = self.controller.setCustomWhisperURL("http://unreachable:9000/v1")
+        response = self.controller.setCustomWhisperURL("https://candidate.example/v1")
 
         self.assertEqual(response["status"], 400)
+        self.assertEqual(response["result"]["error_code"], "CREDENTIAL_REENTRY_REQUIRED")
+        self.assertEqual(response["result"]["data"], "http://localhost:8000/v1")
         self.assertEqual(config.TRANSCRIPTION_CUSTOM_URL, "http://localhost:8000/v1")
-        self.assertFalse(config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"])
-        self.assertEqual(config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST, [])
+        self.assertEqual(config.TRANSCRIPTION_AUTH_KEYS["Custom_Whisper"], "local-secret")
+        self.assertTrue(config.SELECTABLE_TRANSCRIPTION_ENGINE_STATUS["Custom_Whisper"])
+        self.assertEqual(config.SELECTABLE_CUSTOM_WHISPER_MODEL_LIST, ["whisper"])
+        self.assertEqual(config.SELECTED_CUSTOM_WHISPER_MODEL, "whisper")
+        self.assertEqual(mock_model.mock_calls, [])
+
+    @patch("controller.model")
+    def test_set_same_url_with_auth_key_does_not_authenticate(self, mock_model) -> None:
+        config.TRANSCRIPTION_AUTH_KEYS = {"Custom_Whisper": "local-secret"}
+        config.TRANSCRIPTION_CUSTOM_URL = "http://localhost:8000/v1"
+
+        response = self.controller.setCustomWhisperURL("  http://localhost:8000/v1  ")
+
+        self.assertEqual(response, {"status": 200, "result": "http://localhost:8000/v1"})
+        self.assertEqual(mock_model.mock_calls, [])
 
 
 class DeepgramAuthKeyEndpointTests(_ConfigSnapshotMixin, unittest.TestCase):

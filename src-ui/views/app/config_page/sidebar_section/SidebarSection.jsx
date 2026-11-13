@@ -8,27 +8,44 @@ import {
 } from "@store";
 
 import MicSvg from "@images/mic.svg?react";
+import TtsSpeakerSvg from "@images/tts_speaker.svg?react";
+import VoiceConversionSvg from "@images/voice_conversion.svg?react";
 import AppearanceSvg from "@images/mui_palette.svg?react";
 import TranslationSvg from "@images/translation.svg?react";
 import GraphicEqSvg from "@images/mui_graphic_eq.svg?react";
 import HMDSvg from "@images/mui_head_mounted_device.svg?react";
-import DiscoverTuneSvg from "@images/mui_discover_tune.svg?react";
 import KeyboardAltSvg from "@images/mui_keyboard_alt.svg?react";
 import CodeBlocksSvg from "@images/mui_code_blocks.svg?react";
 import RefreshSvg from "@images/refresh.svg?react";
-import CrownSvg from "@images/mui_crown.svg?react";
 import ChatTranscribeSvg from "@images/chat_transcribe.svg?react";
+import DocumentScannerSvg from "@images/mui_document_scanner.svg?react";
 
-import chat_white_square from "@images/chato_white_square.png";
+import vrct_vox_icon from "@images/brand/icon-small.svg";
 
 import { VersionLabel } from "../version_label/VersionLabel.jsx";
 
+// Keyboard focus expands the rail; focus from a click or from opening the page does
+// not, or the rail would stay over the page after the pointer left. A focus counts as
+// keyboard focus when a key was pressed just before it (:focus-visible is not
+// reliable for this in WebKitGTK). Text fields always keep it open for typing.
+let lastKeyDownAt = -Infinity;
+if (typeof window !== "undefined") {
+    window.addEventListener("keydown", () => { lastKeyDownAt = performance.now(); }, true);
+}
+const isKeyboardFocus = (element) =>
+    element.matches?.("input:not([type=checkbox]):not([type=radio]), textarea") === true
+    || performance.now() - lastKeyDownAt < 1000;
+
 export const SidebarSection = () => {
     const { currentIsBreakPoint } = useStore_IsBreakPoint();
-    const [isHovered, setIsHovered] = useState(false);
+    const [isPointerOver, setIsPointerOver] = useState(false);
+    const [hasKeyboardFocus, setHasKeyboardFocus] = useState(false);
+    // Expand for the pointer and for keyboard focus (see isKeyboardFocus).
+    const isHovered = isPointerOver || hasKeyboardFocus;
 
     const container_class_names = clsx(styles.container, {
         [styles.is_small]: currentIsBreakPoint.data,
+        [styles.is_expanded]: isHovered,
     });
 
     const isCompact = currentIsBreakPoint.data && !isHovered;
@@ -36,10 +53,10 @@ export const SidebarSection = () => {
     return (
         <div
             className={container_class_names}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            onFocusCapture={() => setIsHovered(true)}
-            onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setIsHovered(false); }}
+            onMouseEnter={() => setIsPointerOver(true)}
+            onMouseLeave={() => setIsPointerOver(false)}
+            onFocusCapture={event => setHasKeyboardFocus(isKeyboardFocus(event.target))}
+            onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) setHasKeyboardFocus(false); }}
         >
             <div className={styles.scroll_container}>
                 <div className={styles.scroll_content}>
@@ -48,9 +65,9 @@ export const SidebarSection = () => {
                         <Tab tab_id="appearance" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="translation" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="transcription" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
+                        <Tab tab_id="vrchat" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="ocr" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="vr" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
-                        <Tab tab_id="others" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="hotkeys" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="tts" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="rvc" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
@@ -58,7 +75,6 @@ export const SidebarSection = () => {
                         <Tab tab_id="updater" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                     </div>
                     <div className={styles.separated_tabs_wrapper}>
-                        <Tab tab_id="supporters" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                         <Tab tab_id="about_vrct" isSmall={currentIsBreakPoint.data} isHovered={isHovered} />
                     </div>
                 </div>
@@ -70,20 +86,19 @@ export const SidebarSection = () => {
 
 export const TabIcon = ({ tab_id, className }) => {
     switch (tab_id) {
-        case "tts": return <GraphicEqSvg className={className} />;
-        case "rvc": return <MicSvg className={className} />;
+        case "tts": return <TtsSpeakerSvg className={className} />;
+        case "rvc": return <VoiceConversionSvg className={className} />;
         case "device": return <MicSvg className={className} />;
         case "appearance": return <AppearanceSvg className={clsx(className, styles.mui_icon)} />;
         case "translation": return <TranslationSvg className={className} />;
         case "transcription": return <GraphicEqSvg className={clsx(className, styles.mui_icon)} />;
-        case "ocr": return <ChatTranscribeSvg className={clsx(className, styles.mui_icon, styles.ocr_icon)} />;
+        case "vrchat": return <ChatTranscribeSvg className={clsx(className, styles.mui_icon, styles.ocr_icon)} />;
+        case "ocr": return <DocumentScannerSvg className={clsx(className, styles.mui_icon)} />;
         case "vr": return <HMDSvg className={clsx(className, styles.mui_icon)} />;
-        case "others" : return <DiscoverTuneSvg className={clsx(className, styles.mui_icon)} />;
         case "hotkeys": return <KeyboardAltSvg className={clsx(className, styles.mui_icon)} />;
         case "advanced_settings": return <CodeBlocksSvg className={clsx(className, styles.mui_icon)} />;
         case "updater": return <RefreshSvg className={clsx(className, styles.updater_icon)} />;
-        case "supporters": return <CrownSvg className={clsx(className, styles.mui_icon, styles.supporters_icon)} />;
-        case "about_vrct": return <img alt="" src={chat_white_square} className={clsx(className, styles.about_vrct_icon)} />;
+        case "about_vrct": return <img alt="" src={vrct_vox_icon} className={clsx(className, styles.about_vrct_icon)} />;
         default: return null;
     }
 };
@@ -107,8 +122,6 @@ const Tab = (props) => {
 
     const getLabel = () => {
         if (props.tab_id === "vr") return "VR";
-        if (props.tab_id === "supporters") return "Supporters";
-        if (props.tab_id === "about_vrct") return "About VRCT-VOX";
         return t(`config_page.side_menu_labels.${props.tab_id}`);
     };
 

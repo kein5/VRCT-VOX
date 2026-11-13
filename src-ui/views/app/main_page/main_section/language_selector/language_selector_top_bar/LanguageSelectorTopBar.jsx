@@ -15,9 +15,9 @@ export const LanguageSelectorTopBar = (props) => {
 
     return (
         <div className={styles.container}>
-            <div className={styles.go_back_button_wrapper} onClick={closeLanguageSelector}>
-                <p className={styles.go_back_button_label}>{t("common.go_back_button_label")}</p>
-            </div>
+            <button type="button" className={styles.go_back_button_wrapper} onClick={closeLanguageSelector}>
+                <span className={styles.go_back_button_label}>{t("common.go_back_button_label")}</span>
+            </button>
             <p className={styles.title}>{props.title}</p>
         </div>
     );

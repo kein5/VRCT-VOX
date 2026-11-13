@@ -11,13 +11,25 @@
     &.column {
         flex-direction: column;
         align-items: stretch;
+        width: 100%;
+        min-width: 0;
         max-width: 100%;
 
         .radio_button_container {
+            min-width: 0;
+            flex-wrap: wrap;
+            // 24rem of model information + 9rem action + 1.2rem gap.
+            // Flex wrapping measures this row, including any ancestor padding.
             .radio_button_wrapper {
-                flex-grow: 1;
+                flex: 1 1 24rem;
+                min-width: 0;
+                max-width: 100%;
             }
         }
+        .radio_button_header, .label_heading_wrapper { min-width: 0; }
+        .label_heading_wrapper { flex-wrap: wrap; }
+        .radio_button_label { min-width: 0; flex-shrink: 1; overflow-wrap: anywhere; }
+        .radio_button_desc { overflow-wrap: anywhere; }
     }
 
     &.has_desc:not(.column) {
@@ -96,7 +108,8 @@
         }
 
         .radio_button_desc {
-            color: var(--dark_650_color);
+            // License text must stay readable before a download: the control looks disabled, the text does not fade below 4.5:1.
+            color: var(--vox_description_text);
         }
 
         .default_badge {
@@ -149,10 +162,19 @@
 
 .radio_button_desc {
     font-size: 1.2rem;
-    color: var(--dark_500_color);
+    color: var(--vox_secondary_text);
     line-height: 1.4;
     overflow-wrap: break-word;
     width: 100%;
+}
+
+// e.g. the non-commercial license line of an NLLB translation weight. Placed
+// after the state rules above so it stays visible when selected or disabled.
+.radio_button_wrapper .radio_button_desc.desc_warning,
+.radio_button_wrapper.is_selected .radio_button_desc.desc_warning,
+.radio_button_wrapper.disabled .radio_button_desc.desc_warning {
+    color: var(--warning_color);
+    font-weight: 600;
 }
 
 .capacity_label {
@@ -168,7 +190,7 @@
 }
 
 .default_badge {
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     line-height: 1;
     padding: 0.2rem 0.5rem;
     border-radius: 0.2rem;

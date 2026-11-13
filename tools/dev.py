@@ -33,8 +33,9 @@ LINT_PATHS = [
     "src-python/models/voice_events.py", "src-python/models/http_stream.py", "tests/voice", "tools/voice_cli.py",
     "tools/voice_latency.py", "tools/voice_acceptance.py", "tools/voice_b_poc.py",
     "tools/voice_route.py", "tools/voice_route_acceptance.py", "tools/build_voice_gate.py",
-    "tools/check_voice_distribution.py", "tools/release_candidate.py",
-    "tools/prepare_release.py", "tools/dev.py", "tests/devtools",
+    "tools/check_voice_distribution.py", "tools/release_candidate.py", "tools/native_acceptance.py", "tools/vrchat_voice_host.py",
+    "tools/prepare_release.py", "tools/dev.py", "tools/build_linux.py",
+    "tools/check_python_lock.py", "tests/devtools",
 ]
 
 
@@ -56,7 +57,7 @@ def child_environment():
     env.update(HF_HUB_OFFLINE="1", HF_HUB_DISABLE_TELEMETRY="1",
                TRANSFORMERS_OFFLINE="1", SPEECH_NO_UPDATE_CHECK="1",
                CARGO_NET_OFFLINE="true", RUSTUP_AUTO_INSTALL="0",
-               PYTEST_DISABLE_PLUGIN_AUTOLOAD="1")
+               PYTEST_DISABLE_PLUGIN_AUTOLOAD="1", UV_NO_VERIFY_HASHES="0")
     return env
 
 
@@ -416,10 +417,12 @@ def setup(args, root):
             f"net.offline={'true' if args.offline else 'false'}", "fetch", "--locked",
             "--manifest-path", "src-tauri/Cargo.toml"])], root, dry_run=args.dry_run)
     if args.scope == "backend" and sys.platform != "linux":
-        raise DevError("Automated backend setup currently uses the Linux lock. Windows: use the existing runtime setup guide; headless/ui/browser setup works on both platforms.")
+        raise DevError("Automated backend setup currently builds the Linux packaging environment. Windows: run bat\\install.bat (uv sync); headless/ui/browser setup works on both platforms.")
     uv = ["uv", *(["--offline"] if args.offline else [])]
-    requirement = {"headless": "requirements-voice-test.txt", "browser": "requirements-voice-ui-test.txt",
-                   "backend": "requirements-linux-build.lock"}[args.scope]
+    # Every scope installs an exact subset of uv.lock (pyproject.toml groups).
+    groups = {"headless": ["--only-group", "voice-test"], "browser": ["--only-group", "voice-ui-test"],
+              "backend": ["--group", "dev", "--group", "linux-build"]}[args.scope]
+    requirement = f"build/dev/{args.scope}-requirements.txt"
     target = root / f"build/dev/{args.scope}-venv"
     python = choose_python(root, args.python) if args.python else str(env_python(target))
     if args.python:
@@ -443,11 +446,17 @@ def setup(args, root):
                 return result
             if not args.dry_run:
                 (target / OWNER_FILE).write_text(OWNER, encoding="utf8")
-    # Only the backend has a complete transitive lock. Headless/browser files
-    # contain direct requirements, so sync would omit pytest/requests deps.
-    method = "sync" if args.scope == "backend" else "install"
-    return execute([Step("Python dependencies", [*uv, "pip", method, "--python", python,
-        "-r", requirement])], root, dry_run=args.dry_run)
+    # The export is a complete transitive set. Owned environments are synced
+    # to it exactly; an explicit existing environment only gains packages.
+    method = "install" if args.python else "sync"
+    return execute([
+        Step("verify Python lock", [sys.executable, str(root / "tools/check_python_lock.py"), str(root / "uv.lock")]),
+        Step("locked requirements", [*uv, "export", "--quiet", "--frozen", "--no-header",
+            "--no-annotate", "--format", "requirements-txt", "--no-emit-project", *groups,
+            "--output-file", requirement]),
+        Step("Python dependencies", [*uv, "pip", method, "--python", python,
+            *([] if method == "sync" else ["-r"]), requirement]),
+    ], root, dry_run=args.dry_run)
 
 
 def parser():

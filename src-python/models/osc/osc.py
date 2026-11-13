@@ -1,269 +1,520 @@
-"""OSC helpers and a thin OSCQuery-enabled server wrapper.
+"""OSC delivery and owned, local-only OSCQuery receive/discovery resources."""
 
-This module provides `OSCHandler`, a convenience wrapper used by the
-application to send OSC messages and expose OSCQuery endpoints when the
-target address is localhost. The implementation is defensive: missing
-utilities are handled gracefully and logging helpers are used where
-available.
-"""
-
+import ipaddress
+import re
+import socket
 import time
-from typing import Any, Callable, Dict, Optional
-from time import sleep
-from threading import Thread
-from pythonosc import udp_client, dispatcher, osc_server
-try:
-    from tinyoscquery.queryservice import OSCQueryService
-    from tinyoscquery.query import OSCQueryBrowser, OSCQueryClient
-    from tinyoscquery.utility import get_open_udp_port, get_open_tcp_port
-    from tinyoscquery.shared.node import OSCAccess
-except Exception:
-    # tinyoscquery is optional for non-local usage; functionality that
-    # depends on it will be disabled if it's missing.
-    OSCQueryService = None  # type: ignore
-    OSCQueryBrowser = None  # type: ignore
-    OSCQueryClient = None  # type: ignore
-    def get_open_udp_port() -> int:  # type: ignore
-        return 0
+from http.server import HTTPServer
+from threading import Event, Lock, RLock, Thread, Timer
+from types import SimpleNamespace
+from typing import Callable, Dict, Optional
 
-    def get_open_tcp_port() -> int:  # type: ignore
-        return 0
-    OSCAccess = None  # type: ignore
+from pythonosc import udp_client, dispatcher, osc_packet, osc_server
+try:
+    from tinyoscquery.queryservice import OSCQueryService, OSCQueryHTTPHandler
+    from tinyoscquery.query import OSCQueryBrowser, OSCQueryListener
+    from tinyoscquery.shared.node import OSCQueryNode, OSCHostInfo, OSCAccess
+    from zeroconf import ServiceBrowser, Zeroconf
+    import requests
+except ImportError:
+    OSCQueryService = None
+    OSCQueryBrowser = None
+    OSCQueryHTTPHandler = object
 
 try:
     from utils import errorLogging, printLog
-except Exception:
-    def errorLogging() -> None:
+except ImportError:
+    def errorLogging():
         import traceback
-        print("Error occurred:", traceback.format_exc())
+        traceback.print_exc()
 
-    def printLog(log: str, data: Any = None) -> None:
+    def printLog(log, data=None):
         print(log, data)
 
 
-class OSCHandler:
-    """Thin wrapper managing OSC send/receive and optional OSCQuery advertising.
+OSC_QUERY_TIMEOUT_SECONDS = 2.0
+OSC_STOP_TIMEOUT_SECONDS = 2.0
+OSC_HTTP_REQUEST_TIMEOUT_SECONDS = 2.0
+LOOPBACK = "127.0.0.1"
 
-    Args:
-        ip_address: OSC server client target / bind address
-        port: UDP port to send to
+
+def usesOscQuery(ip_address) -> bool:
+    """OSCQuery (receiving and advertising) runs only when VRChat is on this PC.
+
+    A destination on another machine, such as a standalone headset, is a choice
+    the user made in settings, not a failure.
+    """
+    return ip_address in (LOOPBACK, "localhost")
+
+
+class ImmediateDispatcher(dispatcher.Dispatcher):
+    """VRChat state packets are applied on receipt, including bundle contents."""
+
+    def call_handlers_for_packet(self, data, client_address):
+        results = []
+        try:
+            for message in osc_packet.OscPacket(data).messages:
+                for handler in self.handlers_for_address(message.message.address):
+                    result = handler.invoke(client_address, message.message)
+                    if result is not None:
+                        results.append(result)
+        except osc_packet.ParseError:
+            pass
+        return results
+
+
+class DeadlineOSCQueryHTTPHandler(OSCQueryHTTPHandler):
+    def setup(self):
+        self.request.settimeout(OSC_HTTP_REQUEST_TIMEOUT_SECONDS)
+        super().setup()
+        # An absolute deadline also stops a peer that drips partial headers.
+        self._read_deadline = Timer(OSC_HTTP_REQUEST_TIMEOUT_SECONDS, self._expireRequest)
+        self._read_deadline.daemon = True
+        self._read_deadline.start()
+
+    def _expireRequest(self):
+        try:
+            self.request.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+    def finish(self):
+        self._read_deadline.cancel()
+        super().finish()
+
+
+class LocalOSCQueryService(OSCQueryService if OSCQueryService is not None else object):
+    """Use tinyoscquery's metadata API, but own construction and all cleanup.
+
+    Construction is inert; the lifecycle owner publishes this object before
+    start(), so every partially acquired resource remains reachable on failure.
     """
 
-    def __init__(self, ip_address: str = "127.0.0.1", port: int = 9000) -> None:
+    def __init__(self):
+        self.http_server = None
+        self.http_thread = None
+        self._zeroconf = None
 
-        self.is_osc_query_enabled: bool = ip_address in ["127.0.0.1", "localhost"]
+    def start(self, server_name, osc_port):
+        self.serverName = server_name
+        self.oscIp = LOOPBACK
+        self.oscPort = osc_port
+        self.root_node = OSCQueryNode("/", description="root node")
+        self.host_info = OSCHostInfo(server_name, {
+            "ACCESS": True, "CLIPMODE": False, "RANGE": True, "TYPE": True, "VALUE": True,
+        }, LOOPBACK, osc_port, "UDP")
+        # Assign ownership before bind/activate, including failures in bind.
+        self.http_server = HTTPServer((LOOPBACK, 0), DeadlineOSCQueryHTTPHandler, bind_and_activate=False)
+        self.http_server.root_node = self.root_node
+        self.http_server.host_info = self.host_info
+        self.http_server.server_bind()
+        self.http_server.server_activate()
+        self.httpPort = self.http_server.server_address[1]
+        self.http_thread = Thread(target=self.http_server.serve_forever, args=(0.1,),
+                                  name="osc_query_http", daemon=True)
+        self.http_thread.start()
+        self._zeroconf = Zeroconf()
+        self._startOSCQueryService()
+        self._advertiseOSCService()
 
-        self.osc_ip_address: str = ip_address
-        self.osc_port: int = port
-        self.osc_parameter_muteself: str = "/avatar/parameters/MuteSelf"
-        self.osc_parameter_chatbox_typing: str = "/chatbox/typing"
-        self.osc_parameter_chatbox_input: str = "/chatbox/input"
-        self.udp_client = udp_client.SimpleUDPClient(self.osc_ip_address, self.osc_port)
-        self.osc_server_name: str = "VRChat-Client"
-        self.osc_server = None
-        self.osc_query_service = None
-        self.osc_query_service_name: str = "VRCT"
-        self.osc_server_ip_address: str = ip_address
-        self.http_port: Optional[int] = None
-        self.osc_server_port: Optional[int] = None
-        self.dict_filter_and_target: Dict[str, Callable] = {}
+    def close(self):
+        # Called only by the bounded cleanup worker. Always attempt every owner.
+        try:
+            if self._zeroconf is not None:
+                try:
+                    self._zeroconf.unregister_all_services()
+                finally:
+                    self._zeroconf.close()
+        finally:
+            if self.http_server is not None:
+                try:
+                    if self.http_thread is not None and self.http_thread.is_alive():
+                        self.http_server.shutdown()
+                        self.http_thread.join()
+                finally:
+                    self.http_server.server_close()
+
+    def __del__(self):
+        # The dependency's destructor only unregisters, and races explicit close.
+        pass
+
+
+class LocalOSCQueryBrowser(OSCQueryBrowser if OSCQueryBrowser is not None else object):
+    def __init__(self):
+        self.zc = None
         self.browser = None
 
-    def getIsOscQueryEnabled(self) -> bool:
-        """Return whether OSCQuery support is enabled (local addresses only)."""
-        return self.is_osc_query_enabled
+    def start(self):
+        self.listener = OSCQueryListener()
+        self.zc = Zeroconf()
+        self.browser = ServiceBrowser(self.zc, ["_oscjson._tcp.local."], self.listener)
 
-    def setOscIpAddress(self, ip_address: str) -> None:
-        """Change the OSC target IP address and reinitialize services."""
-        self.is_osc_query_enabled = ip_address in ["127.0.0.1", "localhost"]
+    def ask_again(self):
+        """Ask who offers OSCQuery right now.
 
-        self.oscServerStop()
-        self.osc_ip_address = ip_address
-        self.udp_client = udp_client.SimpleUDPClient(self.osc_ip_address, self.osc_port)
-        self.receiveOscParameters()
-
-    def setOscPort(self, port: int) -> None:
-        """Change the OSC UDP port used for sending and reinitialize services."""
-        self.oscServerStop()
-        self.osc_port = port
-        self.udp_client = udp_client.SimpleUDPClient(self.osc_ip_address, self.osc_port)
-        self.receiveOscParameters()
-
-    # send OSC message typing
-    def sendTyping(self, flag: bool = False) -> None:
-        """Send /chatbox/typing with a boolean flag."""
-        self.udp_client.send_message(self.osc_parameter_chatbox_typing, [flag])
-
-    # send OSC message
-    def sendMessage(self, message: str = "", notification: bool = True) -> None:
-        """Send /chatbox/input if message is non-empty.
-
-        The second argument historically was a boolean flag for clearing; we keep
-        compatibility by sending [message, True, notification].
+        The browser asks only during its first seconds; after that it waits for services
+        to announce themselves. VRChat announces once when it starts, and that single
+        packet can be missed, so a VRChat started after this app could stay unseen.
+        The answers reach the browser's listener like any other record.
         """
-        if len(message) > 0:
-            self.udp_client.send_message(self.osc_parameter_chatbox_input, [f"{message}", True, notification])
+        from zeroconf import DNSOutgoing, DNSQuestion
+        from zeroconf.const import _CLASS_IN, _FLAGS_QR_QUERY, _TYPE_PTR
 
-    def getOSCParameterValue(self, address: str) -> Any:
-        if not self.is_osc_query_enabled:
-            # OSCQueryが無効な場合はNoneを返す
-            return None
-        value: Any = None
+        question = DNSOutgoing(_FLAGS_QR_QUERY)
+        question.add_question(DNSQuestion("_oscjson._tcp.local.", _TYPE_PTR, _CLASS_IN))
+        self.zc.send(question)
+
+    def close(self):
         try:
-            # browserインスタンスを再利用し、毎回の生成と破棄を避ける
-            if self.browser is None:
-                # OSCQueryBrowser may not be available; guard
-                if OSCQueryBrowser is None:
-                    return None
-                self.browser = OSCQueryBrowser()
-                sleep(1)  # 初回のみスリープ
-
-            service = self.browser.find_service_by_name(self.osc_server_name)
-            if service is None:
-                printLog("OSCQuery: query got no value", {"address": address, "reason": "service not in the browser",
-                                                           "known": list(self.browser.listener.oscjson_services)})
-            if service is not None:
-                osc_query_client = OSCQueryClient(service)
-                mute_self_node = osc_query_client.query_node(address)
-                # mute_self_node may be None when the node is not present on the
-                # remote OSCQuery service. Also mute_self_node.value may be None
-                # or an empty list. Guard against those cases to avoid
-                # AttributeError: 'NoneType' object has no attribute 'value'
-                if mute_self_node is None:
-                    printLog("OSCQuery: query got no value", {"address": address, "reason": "no such node (404)"})
-                    return None
-                # prefer explicit checks rather than relying on exceptions
-                node_value = getattr(mute_self_node, 'value', None)
-                if not node_value:
-                    printLog("OSCQuery: query got no value", {"address": address, "reason": "node has no value"})
-                    return None
-                value = node_value[0]
-        except Exception:
-            errorLogging()
-            # エラー発生時にbrowserをリセットして次回再初期化
             if self.browser is not None:
+                self.browser.cancel()
+        finally:
+            if self.zc is not None:
+                self.zc.close()
+
+
+class OSCQueryClient:
+    """Query a validated numeric loopback address without redirects or proxies."""
+
+    def __init__(self, service):
+        self.root = f"http://{ipaddress.ip_address(service.addresses[0])}:{service.port}"
+
+    def _get(self, path):
+        with requests.Session() as session:
+            session.trust_env = False
+            response = session.get(self.root + path, timeout=OSC_QUERY_TIMEOUT_SECONDS, allow_redirects=False)
+            if response.status_code != 200:
+                return None
+            return response.json()
+
+    def get_host_info(self):
+        value = self._get("/HOST_INFO")
+        return SimpleNamespace(name=value.get("NAME"), osc_ip=value.get("OSC_IP"),
+                               osc_port=value.get("OSC_PORT"), osc_transport=value.get("OSC_TRANSPORT")) if value else None
+
+    def query_node(self, address):
+        value = self._get(address)
+        # Do not coerce OSCQuery values: bool("false") would authorize an invalid state.
+        return SimpleNamespace(value=value.get("VALUE")) if value else None
+
+
+class OSCHandler:
+    def __init__(self, ip_address: str = LOOPBACK, port: int = 9000) -> None:
+        self._lifecycle_lock = RLock()
+        self._shutdown = False
+        self._generation = 0
+        self._cleanup_thread = None
+        self._cleanup_failed = False
+        self._query_cancel = Event()
+        self._parameter_query_lock = Lock()
+        self.is_osc_query_enabled = False
+        self.osc_ip_address = ip_address
+        self.osc_port = port
+        self.osc_server_ip_address = LOOPBACK
+        self.osc_parameter_muteself = "/avatar/parameters/MuteSelf"
+        self.osc_parameter_chatbox_typing = "/chatbox/typing"
+        self.osc_parameter_chatbox_input = "/chatbox/input"
+        self.udp_client = udp_client.SimpleUDPClient(ip_address, port)
+        self.osc_server_name = "VRChat-Client"
+        self.osc_query_service_name = "VRCT"
+        self.osc_server = None
+        self._receive_thread = None
+        self.osc_query_service = None
+        self.browser = None
+        self.http_port = None
+        self.osc_server_port = None
+        self.dict_filter_and_target: Dict[str, Callable] = {}
+
+    def getIsOscQueryEnabled(self):
+        with self._lifecycle_lock:
+            return self.is_osc_query_enabled and not self._shutdown
+
+    def setOscIpAddress(self, ip_address):
+        with self._lifecycle_lock:
+            self._replaceLocked(ip_address, self.osc_port)
+
+    def setOscPort(self, port):
+        with self._lifecycle_lock:
+            self._replaceLocked(self.osc_ip_address, port)
+
+    def _replaceLocked(self, ip_address, port):
+        if self._shutdown:
+            raise RuntimeError("OSC is shut down")
+        client = udp_client.SimpleUDPClient(ip_address, port)
+        previous_ip = self.osc_ip_address
+        try:
+            self._stopLocked()
+            try:
+                self._startLocked(ip_address)
+            except Exception:
+                self._stopLocked()
                 try:
-                    if hasattr(self.browser, 'zc') and self.browser.zc is not None:
-                        self.browser.zc.close()
-                    if hasattr(self.browser, 'browser') and self.browser.browser is not None:
-                        self.browser.browser.cancel()
+                    self._startLocked(previous_ip)
                 except Exception:
-                    pass
-                self.browser = None
-        return value
+                    self._stopLocked()
+                    printLog("OSC: previous receiver could not be restored")
+                raise
+        except Exception:
+            client._sock.close()
+            raise
+        previous_client = self.udp_client
+        self.udp_client = client
+        self.osc_ip_address = ip_address
+        self.osc_port = port
+        previous_client._sock.close()
+
+    def sendTyping(self, flag=False):
+        with self._lifecycle_lock:
+            if not self._shutdown:
+                self.udp_client.send_message(self.osc_parameter_chatbox_typing, [flag])
+
+    def sendMessage(self, message="", notification=True, current=None):
+        if message:
+            with self._lifecycle_lock:
+                if not self._shutdown and (current is None or current()):
+                    self.udp_client.send_message(self.osc_parameter_chatbox_input, [message, True, notification])
+                    return True
+        return False
+
+    def getOSCParameterValue(self, address):
+        deadline = time.monotonic() + OSC_QUERY_TIMEOUT_SECONDS
+        if not self._lifecycle_lock.acquire(timeout=OSC_QUERY_TIMEOUT_SECONDS):
+            return None
+        try:
+            if not self.is_osc_query_enabled or self._shutdown:
+                return None
+            generation = self._generation
+            browser = self.browser
+            cancel = self._query_cancel
+            port = self.osc_port
+        finally:
+            self._lifecycle_lock.release()
+        if not self._parameter_query_lock.acquire(blocking=False):
+            printLog("OSCQuery: query got no value", {"address": address, "reason": "previous query still running"})
+            return None
+        done = Event()
+        result = []
+        def query():
+            try:
+                if not cancel.is_set():
+                    result.append(self._queryOSCParameterValue(address, browser, cancel, port))
+            except Exception:
+                printLog("OSCQuery: parameter query failed", {"address": address})
+            finally:
+                self._parameter_query_lock.release()
+                done.set()
+
+        try:
+            Thread(target=query, name="osc_parameter_query", daemon=True).start()
+        except Exception:
+            self._parameter_query_lock.release()
+            return None
+        if not done.wait(max(0, deadline - time.monotonic())) or time.monotonic() >= deadline:
+            printLog("OSCQuery: query timed out", {"address": address})
+            return None
+        if generation != self._generation or cancel.is_set():
+            return None
+        return result[0] if result else None
+
+    @staticmethod
+    def _localServiceName(service):
+        if service is None or service.type != "_oscjson._tcp.local.":
+            return None
+        addresses = service.addresses
+        if not addresses or not all(ipaddress.IPv4Address(a).is_loopback for a in addresses):
+            return None
+        suffix = "._oscjson._tcp.local."
+        if not service.name.endswith(suffix):
+            return None
+        name = service.name[:-len(suffix)]
+        return name if re.fullmatch(r"VRChat-Client(?:[-:][A-Za-z0-9_-]+)?", name) else None
+
+    def _queryOSCParameterValue(self, address, browser, cancel, port):
+        # The browser belongs to receive startup. A query can never create it.
+        if browser is None or cancel.is_set():
+            return None
+        services = browser.get_discovered_oscquery()
+        if not services:
+            # Allow initial mDNS discovery within the same two-second deadline.
+            if cancel.wait(1.0):
+                return None
+            services = browser.get_discovered_oscquery()
+        candidates = []
+        for service in services:
+            try:
+                name = self._localServiceName(service)
+                if name is None or cancel.is_set():
+                    continue
+                client = OSCQueryClient(service)
+                host = client.get_host_info()
+                if (host is not None and host.name == name
+                        and ipaddress.ip_address(host.osc_ip).is_loopback
+                        and host.osc_port == port and host.osc_transport == "UDP"):
+                    candidates.append(client)
+            except (ValueError, TypeError, AttributeError):
+                continue
+        # Ambiguous local identities cannot establish which client owns the mic.
+        if len(candidates) != 1 or cancel.is_set():
+            return None
+        node = candidates[0].query_node(address)
+        values = getattr(node, "value", None)
+        return values[0] if isinstance(values, list) and values else None
+
+    def localVrchatPresence(self) -> Optional[bool]:
+        """Whether a VRChat on this PC is advertising OSC, which it does only while its OSC is enabled.
+
+        None when that cannot be known: the destination is another machine, receiving
+        could not start, or OSC is shut down.
+
+        A service that was discovered is asked for its host info before it counts: a
+        VRChat that was closed stays in discovery for a long time. When nothing answers,
+        discovery is asked again, so a VRChat started after this app is found by the
+        next call. Nothing is sent to VRChat's OSC port.
+        """
+        if not self._lifecycle_lock.acquire(timeout=OSC_QUERY_TIMEOUT_SECONDS):
+            return None
+        try:
+            if not self.is_osc_query_enabled or self._shutdown:
+                return None
+            browser = self.browser
+        finally:
+            self._lifecycle_lock.release()
+        if browser is None:
+            return None
+        def local(service):
+            try:
+                return self._localServiceName(service) is not None
+            except (ValueError, TypeError, AttributeError):
+                return False  # a malformed advertisement from something else is not VRChat
+
+        try:
+            candidates = [service for service in browser.get_discovered_oscquery() if local(service)]
+        except Exception:
+            return None
+        for service in candidates:
+            try:
+                if OSCQueryClient(service).get_host_info() is not None:
+                    return True
+            except Exception:
+                continue  # advertised earlier, not answering now
+        try:
+            browser.ask_again()
+        except Exception:
+            pass  # looking again is best effort; the answer is still "not found"
+        return False
 
     def getOSCParameterMuteSelf(self) -> Optional[bool]:
-        """Return the value of the MuteSelf parameter when available, else None."""
-        return self.getOSCParameterValue(self.osc_parameter_muteself)
+        value = self.getOSCParameterValue(self.osc_parameter_muteself)
+        return value if type(value) is bool else None
 
-    def setDictFilterAndTarget(self, dict_filter_and_target: Dict[str, Callable]) -> None:
-        """Set the mapping from OSC address filters to handler callables."""
-        self.dict_filter_and_target = dict_filter_and_target
+    def setDictFilterAndTarget(self, dict_filter_and_target):
+        with self._lifecycle_lock:
+            self.dict_filter_and_target = dict_filter_and_target
 
-    def receiveOscParameters(self) -> None:
-        """Start a local OSC server and advertise OSCQuery endpoints when supported.
+    def receiveOscParameters(self):
+        with self._lifecycle_lock:
+            if self._shutdown:
+                raise RuntimeError("OSC is shut down")
+            if self.is_osc_query_enabled:
+                return
+            self._stopLocked()
+            try:
+                self._startLocked(self.osc_ip_address)
+            except Exception:
+                self._stopLocked()
+                raise
 
-        If `tinyoscquery` is not available or OSCQuery is disabled, this is a
-        no-op.
-        """
-        if not self.is_osc_query_enabled or OSCQueryService is None:
-            # OSCQuery が無効またはライブラリが無い場合は何もしない
+    def _startLocked(self, ip_address):
+        if self._shutdown:
+            raise RuntimeError("OSC is shut down")
+        if not usesOscQuery(ip_address):
             return
+        if OSCQueryService is None or OSCQueryBrowser is None:
+            raise RuntimeError("OSCQuery is unavailable")
+        self._query_cancel = Event()
+        osc_dispatcher = ImmediateDispatcher()
+        for address, target in self.dict_filter_and_target.items():
+            osc_dispatcher.map(address, target)
+        self.osc_server = osc_server.BlockingOSCUDPServer((LOOPBACK, 0), osc_dispatcher)
+        self.osc_server_port = self.osc_server.server_address[1]
+        # Capture this server, never look up a mutable field in the receive thread.
+        self._receive_thread = Thread(target=self.oscServerServe, args=(self.osc_server,),
+                                      name="osc_receive", daemon=True)
+        self._receive_thread.start()
+        self.osc_query_service = LocalOSCQueryService()
+        self.osc_query_service.start(f"{self.osc_query_service_name}:{time.time_ns()}", self.osc_server_port)
+        self.http_port = self.osc_query_service.httpPort
+        for address in self.dict_filter_and_target:
+            self.osc_query_service.advertise_endpoint(address, access=OSCAccess.READWRITE_VALUE)
+        self.browser = LocalOSCQueryBrowser()
+        self.browser.start()
+        if self._shutdown:
+            raise RuntimeError("OSC is shut down")
+        self.is_osc_query_enabled = True
 
-        self.osc_server_port = get_open_udp_port()
-        self.http_port = get_open_tcp_port()
-        osc_dispatcher = dispatcher.Dispatcher()
-        for filter, target in self.dict_filter_and_target.items():
-            osc_dispatcher.map(filter, target)
-        # 受信は oscServerServe の1本のスレッドで順に処理する。ThreadingOSCUDPServer はパケットごとに
-        # スレッドを起こし、VRChat が送り続けるアバターのパラメータ (登録していないものも) だけで
-        # 受信スレッドが約0.1コアを使っていた (実測、起動からスレッド約32万本)。
-        # 登録する処理は受信を止めないよう、待たずに戻ること (待つ処理は別スレッドへ。model.py の startReceiveOSC)
-        self.osc_server = osc_server.BlockingOSCUDPServer((self.osc_server_ip_address, self.osc_server_port), osc_dispatcher)
-        Thread(target=self.oscServerServe, daemon=True).start()
+    def oscServerServe(self, server):
+        server.serve_forever(0.1)
 
-        max_retries = 5
-        for attempt in range(max_retries):
-            try:
-                # osc_server_name + UTC timestamp でユニークなサービス名を生成
-                service_name = f"{self.osc_query_service_name}:{int(time.time())}"
-                self.osc_query_service = OSCQueryService(service_name, self.http_port, self.osc_server_port)
-                for filter, target in self.dict_filter_and_target.items():
-                    # OSCAccess may be None when tinyoscquery is not present; guard
-                    if OSCAccess is not None:
-                        self.osc_query_service.advertise_endpoint(filter, access=OSCAccess.READWRITE_VALUE)
-                break
-            except Exception:
-                errorLogging()
-                self.osc_query_service = None
-                if attempt == max_retries - 1:
-                    # OSCQueryのセットアップは断念するが、OSCサーバ自体は動作を続ける
-                    break
-                sleep(1)
+    def _stopLocked(self):
+        self.is_osc_query_enabled = False
+        self._generation += 1
+        self._query_cancel.set()
+        if self._cleanup_thread is None:
+            self._cleanup_failed = False
 
-    def oscServerServe(self) -> None:
-        """Run the OSC server loop.
+            def cleanup():
+                actions = []
+                if self.osc_server is not None:
+                    def stop_receiver():
+                        try:
+                            if self._receive_thread is not None and self._receive_thread.is_alive():
+                                self.osc_server.shutdown()
+                                self._receive_thread.join()
+                        finally:
+                            self.osc_server.server_close()
+                    actions.append(stop_receiver)
+                if self.osc_query_service is not None:
+                    actions.append(self.osc_query_service.close)
+                if self.browser is not None:
+                    actions.append(self.browser.close)
+                def close_owner(action):
+                    try:
+                        action()
+                    except Exception:
+                        self._cleanup_failed = True
+                        printLog("OSC: resource cleanup failed")
 
-        poll_interval を短くする(10秒→0.5秒、バックエンドレビュー
-        フェーズ4項目30)。`serve_forever(poll_interval)` は内部で
-        `selector.select(timeout=poll_interval)` を使うだけなので、
-        間隔を縮めてもCPU使用率はほぼ変わらない(以前のコメントの
-        「CPU使用率削減のため2秒→10秒に」は根拠が薄いとレビューで
-        指摘された)。一方 `oscServerStop()` が呼ぶ`BaseServer.shutdown()`は
-        このpoll_interval単位でしか停止要求を確認しないため、10秒のままだと
-        OSCのIP/ポート変更(`setOscIpAddress`/`setOscPort`)や、アプリ終了時の
-        `oscServerStop()`呼び出しだけでUIが最大10秒無応答になっていた。
-        """
-        if self.osc_server is not None:
-            self.osc_server.serve_forever(0.5)
+                workers = [Thread(target=close_owner, args=(action,), daemon=True,
+                                  name="osc_close_owner") for action in actions]
+                for worker in workers:
+                    worker.start()
+                for worker in workers:
+                    worker.join()
+                if self._shutdown:
+                    self.udp_client._sock.close()
 
-    def oscServerStop(self) -> None:
-        """Stop and clean up any running OSC server and OSCQuery service."""
-        if isinstance(self.osc_server, osc_server.OSCUDPServer):
-            try:
-                self.osc_server.shutdown()
-            except Exception:
-                pass
-            self.osc_server = None
-        if OSCQueryService is not None and isinstance(self.osc_query_service, OSCQueryService):
-            try:
-                self.osc_query_service.http_server.shutdown()
-            except Exception:
-                pass
-            self.osc_query_service = None
-        # browser がある場合はクリーンアップ
-        if self.browser is not None:
-            try:
-                if hasattr(self.browser, 'zc') and self.browser.zc is not None:
-                    self.browser.zc.close()
-                if hasattr(self.browser, 'browser') and self.browser.browser is not None:
-                    self.browser.browser.cancel()
-            except Exception:
-                pass
-            self.browser = None
+            self._cleanup_thread = Thread(target=cleanup, name="osc_cleanup", daemon=True)
+            self._cleanup_thread.start()
+        self._cleanup_thread.join(OSC_STOP_TIMEOUT_SECONDS)
+        if self._cleanup_thread.is_alive() or self._cleanup_failed:
+            # Keep every owner and prohibit replacements until cleanup completes.
+            raise RuntimeError("OSC cleanup did not complete")
+        self._cleanup_thread = None
+        self.osc_server = None
+        self._receive_thread = None
+        self.osc_query_service = None
+        self.browser = None
 
-if __name__ == "__main__":
-    handler = OSCHandler()
-    handler.setDictFilterAndTarget({
-        "/avatar/parameters/MuteSelf": lambda address, *args: print(f"Received {address} with args {args}"),
-        "/chatbox/typing": lambda address, *args: print(f"Received {address} with args {args}"),
-        "/chatbox/input": lambda address, *args: print(f"Received {address} with args {args}"),
-    })
-    handler.receiveOscParameters()
-    sleep(5)
-    handler.sendTyping(True)
-    sleep(1)
-    handler.sendMessage(message="Hello World 1", notification=True)
-    sleep(10)
+    def requestStop(self):
+        self._shutdown = True
+        self._query_cancel.set()
 
-    print("IP address changed to 192.168.193.2")
-    handler.setOscIpAddress("192.168.193.2")
-    sleep(5)
-    handler.sendMessage(message="Hello World 2", notification=True)
-
-    print("IP address changed to 127.0.0.1")
-    handler.setOscIpAddress("127.0.0.1")
-    sleep(5)
-    handler.sendMessage(message="Hello World 3", notification=True)
-    sleep(10)
-    handler.oscServerStop()
+    def oscServerStop(self):
+        self.requestStop()
+        if not self._lifecycle_lock.acquire(timeout=OSC_STOP_TIMEOUT_SECONDS):
+            raise RuntimeError("OSC startup still owns lifecycle resources")
+        try:
+            self._stopLocked()
+        finally:
+            self.udp_client._sock.close()
+            self._lifecycle_lock.release()

@@ -12,6 +12,7 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from ui_details import open_engine_settings
 from models.speech_server.settings import normalize_settings
 from models.model_downloads.manager import Downloads
 
@@ -33,7 +34,7 @@ def ui(tmp_path):
         vite = subprocess.Popen(
             [
                 "node",
-                "node_modules/vite/bin/vite.js",
+                "node_modules/vite/bin/vite.js", ".",
                 "--host",
                 "127.0.0.1",
                 "--port",
@@ -64,6 +65,8 @@ def ui(tmp_path):
         stack.callback(browser.close)
         page = browser.new_page(viewport={"width": 1200, "height": 1600})
         page.set_default_timeout(5000)
+        # A cold Vite compiles every module on the first load, which takes longer than this on Windows.
+        page.set_default_navigation_timeout(30000)
         peer = SimpleNamespace(
             sent=[],
             replies=[],
@@ -157,6 +160,7 @@ def ui(tmp_path):
         page.expose_function("sidecarWrite", write)
         page.expose_function("sidecarRead", read)
         page.goto(f"http://127.0.0.1:{port}/tests/voice/model-download-ui-entry/")
+        open_engine_settings(page)
         yield page, peer, reply, state
         assert not peer.errors
 
@@ -201,6 +205,9 @@ def test_apply_requires_verified_completion_and_clean_draft(ui):
     field = page.get_by_label("Model GGUF path", exact=True)
     field.fill("/unsaved.gguf")
     expect(apply).to_be_disabled()
+    expect(
+        page.get_by_text("A path that this download replaces has unsaved edits.", exact=False)
+    ).to_be_visible()
     page.get_by_role("button", name="Discard changes", exact=True).click()
     expect(apply).to_be_enabled()
     apply.click()
@@ -209,6 +216,66 @@ def test_apply_requires_verified_completion_and_clean_draft(ui):
         "expected"
     ] == {"model": ""}
     assert not any(ep == "/run/start_speech_server" for ep, _ in peer.sent)
+
+
+def _download_ready(page, peer, reply, state):
+    page.get_by_role("button", name="Review download", exact=True).first.click()
+    page.get_by_role("dialog").get_by_role("checkbox").check()
+    page.get_by_role("button", name="Agree and download", exact=True).click()
+    page.get_by_role("progressbar").wait_for()
+    peer.jobs["irodori-v41-f16"].update(
+        phase="ready", paths={"model": "/verified/model.gguf"}
+    )
+    reply("/get/data/model_download_state", state())
+
+
+def test_apply_right_after_download_keeps_other_unsaved_edits(ui):
+    from playwright.sync_api import expect
+
+    # Regression: a voice file or device chosen before downloading used to
+    # disable Apply until the whole form was saved.
+    page, peer, reply, state = ui
+    voice = page.get_by_label("Voice GGUF path (optional)", exact=True)
+    voice.fill("/unsaved-voice.gguf")
+    page.get_by_label("Inference device", exact=True).select_option("gpu")
+    _download_ready(page, peer, reply, state)
+    apply = page.get_by_role("button", name="Apply model path", exact=True)
+    expect(apply).to_be_enabled()
+    apply.click()
+    expect(page.get_by_label("Model GGUF path", exact=True)).to_have_value(
+        "/verified/model.gguf"
+    )
+    expect(voice).to_have_value("/unsaved-voice.gguf")
+    expect(page.get_by_label("Inference device", exact=True)).to_have_value("gpu")
+    expect(page.get_by_text("Unsaved changes", exact=True)).to_be_visible()
+    # Apply persisted only the model path; the other edits are still a draft.
+    saved = peer.settings["profiles"]["japanese"]
+    assert (saved["model"], saved["voice_file"], saved["device"]) == (
+        "/verified/model.gguf", "", "auto"
+    )
+    assert not any(ep == "/set/data/speech_server_settings" for ep, _ in peer.sent)
+    page.get_by_role("button", name="Save changes", exact=True).click()
+    expect(page.get_by_text("Unsaved changes", exact=True)).to_have_count(0)
+    saved = peer.settings["profiles"]["japanese"]
+    assert (saved["model"], saved["voice_file"], saved["device"]) == (
+        "/verified/model.gguf", "/unsaved-voice.gguf", "gpu"
+    )
+    assert not any(ep == "/run/start_speech_server" for ep, _ in peer.sent)
+
+
+def test_apply_stays_blocked_while_the_target_server_runs(ui):
+    from playwright.sync_api import expect
+
+    page, peer, reply, state = ui
+    _download_ready(page, peer, reply, state)
+    peer.state["japanese"] = dict(state="preparing", generation=1, error_code=None)
+    reply("/get/data/speech_server_state", peer.state)
+    expect(
+        page.get_by_role("button", name="Apply model path", exact=True)
+    ).to_be_disabled()
+    expect(
+        page.get_by_text("Stop the target server or input before applying.", exact=False)
+    ).to_be_visible()
 
 
 def test_failure_stale_reply_and_rvc_requirements(ui):
@@ -362,11 +429,16 @@ def test_asr_profile_offers_haas_without_hardware_advice(ui):
 
     page, peer, _, _ = ui
     page.goto(page.url + "?view=asr")
+    open_engine_settings(page)
     expect(page.get_by_text("Haas-ja v1.0 · Q8_0", exact=True)).to_be_visible()
     expect(page.get_by_text("Irodori-TTS v4.1 Small MF · F16", exact=True)).to_have_count(0)
     expect(page.get_by_label("Memory headroom", exact=True)).to_have_count(0)
-    expect(page.get_by_text("also needs a VAD model", exact=False)).to_be_visible()
-    page.get_by_role("button", name="Review download", exact=True).click()
+    expect(page.get_by_text("also needs a VAD model", exact=False).first).to_be_visible()
+    # Different recognition models are listed side by side, with the VAD they need.
+    expect(page.get_by_text("Qwen3-ASR 0.6B · Q8_0 (30 languages)", exact=True)).to_be_visible()
+    expect(page.get_by_text("Silero VAD v6.2 · F32", exact=True)).to_be_visible()
+    expect(page.get_by_text("Haas-ja recognizes Japanese only.", exact=False)).to_be_visible()
+    page.get_by_role("button", name="Review download", exact=True).first.click()
     dialog = page.get_by_role("dialog")
     expect(dialog).to_contain_text("Third Intelligence / sakasegawa")
     expect(dialog).to_contain_text("656,381,472")

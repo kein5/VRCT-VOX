@@ -8,7 +8,12 @@ common:
     go_back_button_label: "돌아가기"
     default_label: "기본값"
 
+backend_errors:
+    CREDENTIAL_REENTRY_REQUIRED: "URL이 변경되었습니다. 저장된 키가 다른 서버로 전송되지 않도록 새 URL에서 사용할 키를 입력하세요. 키가 필요 없는 서버라면 먼저 저장된 키를 삭제한 다음 URL을 변경하세요."
+
 common_error:
+    ctranslate2_license_consent_required: "{{weight_type}}은(는) 비상업적 라이선스(CC-BY-NC-4.0)입니다. 먼저 설정 > 번역에서 라이선스를 확인하세요."
+    translation_language_unsupported: "{{model}}은(는) {{languages}}을(를) 번역할 수 없어 언어를 초기화했습니다. 이 언어를 사용하려면 다른 번역 엔진이나 {{ctranslate2}} 모델을 선택하세요."
     no_device_mic: "마이크 장치를 찾지 못했습니다."
     no_device_speaker: "스피커 장치를 찾지 못했습니다."
     copy_to_clipboard_failed: "클립보드에 복사하지 못했습니다."
@@ -32,7 +37,10 @@ common_error:
     invalid_hex_color: "유효한 HEX 색상 코드(예: {{brand_color_hex}}) 형식으로 입력해 주세요."
 
 common_warning:
-    unable_to_use_osc_query: "OSC IP 주소 설정으로 인해 OSC 데이터 수신이 불가능하므로, 아래 기능이 자동으로 비활성화되었습니다."
+    osc_query_remote: "OSC 전송 대상이 다른 기기일 때는 '{{sync}}' 기능을 사용할 수 없습니다. VRChat의 음소거 상태는 VRChat이 이 PC에서 실행 중일 때만 확인할 수 있습니다."
+    osc_query_remote_mic_stopped: "OSC 전송 대상이 다른 기기이므로 VRChat의 음소거 상태를 확인할 수 없습니다. '{{sync}}' 기능을 끄고 '{{microphone}}' 기능을 중지했습니다. 필요할 때 '{{microphone}}' 기능을 다시 켜 주세요."
+    osc_query_failed: "OSC 수신을 시작할 수 없어 '{{sync}}' 기능을 사용할 수 없습니다. 설정의 '{{settings}}'에서 OSC 설정을 확인하고 다시 저장해 주세요."
+    osc_query_failed_mic_stopped: "OSC 수신을 시작할 수 없어 VRChat의 음소거 상태를 확인할 수 없습니다. '{{sync}}' 기능을 끄고 '{{microphone}}' 기능을 중지했습니다. 설정의 '{{settings}}'에서 OSC 설정을 확인하고 다시 저장한 뒤 '{{microphone}}' 기능을 켜 주세요."
 
 main_page:
     translation: "번역"
@@ -51,6 +59,7 @@ main_page:
 
     translator_selector:
         is_selected_same_language: "'{{your_language}}'와 '{{target_language}}'에 동일한 언어가 선택되어 있으므로, '{{ctranslate2}}'만 사용할 수 있습니다."
+        unavailable_hint: "선택할 수 없는 엔진은 현재 언어나 설정에서 사용할 수 없습니다. API 키 등은 설정의 '번역'에서 확인하세요."
 
     message_log:
         all: "전체"
@@ -97,8 +106,22 @@ update_modal:
     warn_switch_channel: "{{channel}} 채널로 전환됩니다. 이후 업데이트 알림도 {{channel}}을 기준으로 합니다."
 
 config_page:
+    about_vrct:
+        summary: "음성 인식(ASR), 음성 합성(TTS), 음성 변환(RVC), 채팅 읽기(OCR), 번역을 VRChat용으로 하나에 담은 앱입니다."
+        fork_notice: "VRCT-VOX는 kein5가 개발하는 VRCT의 독립 fork이며 공식 VRCT 배포판이 아닙니다. 문제와 질문은 원본 VRCT 개발자가 아닌 VRCT-VOX Issues에 보내 주세요."
+        links:
+            repository: "GitHub"
+            releases: "릴리스"
+            issues: "문제 보고 (Issues)"
+            licenses: "라이선스 및 고지"
+        original_heading: "원본 VRCT"
+        original_desc: "VRCT-VOX는 VRCT를 바탕으로 만들어졌습니다. VRCT 개발자, 기여자, 그리고 응원해 주신 모든 분께 감사드립니다."
     search:
         placeholder: "설정 검색..."
+        label: "설정 검색"
+        results: "일치하는 설정"
+        clear: "검색 지우기"
+        requires: "필요: {{name}}"
         no_results: "일치하는 설정이 없습니다"
     common:
         version: "버전 {{version}}"
@@ -108,6 +131,7 @@ config_page:
         correct_auth_key_required: "올바른 API 키 필요"
         open_auth_key_webpage: "API 키 관리 페이지 열기"
         auth_key_success: "API 키 갱신이 완료되었습니다."
+        credential_reentry_required: "URL이 변경되었습니다. 저장된 키가 다른 서버로 전송되지 않도록 새 URL에서 사용할 키를 입력하세요. 키가 필요 없는 서버라면 먼저 저장된 키를 삭제한 다음 URL을 변경하세요."
         connection_check:
             button_label: "연결 확인"
             checking: "확인 중..."
@@ -122,8 +146,10 @@ config_page:
             type_template_high: "{{type_name}} (정확도 높음, 처리 느림)"
         warning_labels:
             unable_to_use_osc_query: "OSC IP 주소 설정 때문에 OSC 데이터를 받을 수 없어, 지금은 이 기능을 사용할 수 없습니다."
+            unable_to_use_osc_query_remote: "OSC 전송 대상이 다른 기기일 때는 사용할 수 없습니다. VRChat의 음소거 상태는 VRChat이 이 PC에서 실행 중일 때만 확인할 수 있습니다."
 
     side_menu_labels:
+        vrchat: "VRChat"
         device: "장치"
         appearance: "모양"
         translation: "번역"
@@ -173,6 +199,8 @@ config_page:
             desc_for_vad: "AI(Silero VAD)로 사람의 목소리를 감지해, 말이 끝날 때마다 음성 인식으로 보냅니다. 배경 음악이나 게임 소리를 잘못 인식하는 일이 줄어듭니다."
 
     appearance:
+        section_label_display: "표시"
+        section_label_send_buttons: "전송 버튼"
         transparency:
             label: "투명도"
             desc: "메인 화면의 투명도를 변경합니다."
@@ -204,6 +232,17 @@ config_page:
             desc: "번역 엔진 '{{ctranslate2}}'로 번역할 때 사용할 번역 모델을 선택할 수 있습니다."
             small: "일반 모델 ({{capacity}})"
             large: "정밀 모델 ({{capacity}})"
+            license_commercial: "라이선스: {{license}} (상업적 이용 가능)"
+            license_non_commercial: "비상업적 라이선스 ({{license}})"
+            confirm_title: "비상업적 라이선스"
+            confirm_body: "{{weight_type}}의 라이선스는 {{license}}입니다. 상업적 목적으로 사용할 수 없습니다. M2M100 모델(MIT 라이선스)에는 이런 제한이 없습니다."
+            confirm_check: "라이선스를 확인했으며 비상업적 목적으로만 사용하겠습니다."
+            confirm_download: "다운로드"
+            confirm_select: "이 모델 사용"
+            confirm_cancel: "취소"
+            license_link: "라이선스 조항"
+            model_card_link: "모델 카드"
+            non_commercial_notice: "현재 {{ctranslate2}} 모델 {{weight_type}}은(는) 비상업적 라이선스({{license}})입니다. 이전 버전의 기본값이었으며 설정은 변경하지 않았습니다. 상업적으로 이용하려면 설정 > 번역에서 M2M100 모델(MIT)을 선택하세요."
         translation_compute_device:
             label: "AI 번역 처리 장치"
 
@@ -301,13 +340,13 @@ config_page:
             desc: "음성 인식 신뢰도(avg_logprob)의 임계값입니다. 0에 가까울수록 확신도가 높은 발화만 채택하여 오인식을 억제합니다. (기본값: -0.8)"
         mic_no_speech_prob:
             label: "Mic No Speech Prob"
-            desc: "발화가 포함되지 않을 확률(no_speech_prob)의 임계값입니다. 이 확률을 초과한 구간은 무음으로 무시하여 노이즈로 인한 오인식을 억제합니다. 0에 가까울수록 엄격해져 작은 소리도 음성으로 인식합니다. (기본값: 0.6)"
+            desc: "발화가 포함되지 않을 확률(no_speech_prob)의 임계값입니다. 이 확률을 초과한 구간은 무음으로 무시하여 노이즈로 인한 오인식을 억제합니다. 0에 가까울수록 엄격해져 작은 목소리의 발화도 무음으로 무시되기 쉽습니다. (기본값: 0.6)"
         speaker_avg_logprob:
             label: "Speaker Avg Logprob"
             desc: "음성 인식 신뢰도(avg_logprob)의 임계값입니다. 0에 가까울수록 확신도가 높은 발화만 채택하여 오인식을 억제합니다. (기본값: -0.8)"
         speaker_no_speech_prob:
             label: "Speaker No Speech Prob"
-            desc: "발화가 포함되지 않을 확률(no_speech_prob)의 임계값입니다. 이 확률을 초과한 구간은 무음으로 무시하여 노이즈로 인한 오인식을 억제합니다. 0에 가까울수록 엄격해져 작은 소리도 음성으로 인식합니다. (기본값: 0.6)"
+            desc: "발화가 포함되지 않을 확률(no_speech_prob)의 임계값입니다. 이 확률을 초과한 구간은 무음으로 무시하여 노이즈로 인한 오인식을 억제합니다. 0에 가까울수록 엄격해져 작은 목소리의 발화도 무음으로 무시되기 쉽습니다. (기본값: 0.6)"
 
     vr:
         single_line: "한 줄"
@@ -332,6 +371,7 @@ config_page:
         fadeout_duration: "페이드 아웃 시간"
         common_settings: "공통 설정"
         vr_ui_beta: "VR UI (베타)"
+        section_label_overlay: "자막 오버레이"
         tracker: "표시할 트래커의 위치"
         hmd: "HMD"
         left_hand: "왼손"
@@ -349,8 +389,8 @@ config_page:
             desc: "음성 인식된 텍스트를 클립보드에 복사합니다. SteamVR에서 VR 앱 창을 찾아 전환할 수 있을 때만 그 창에 자동으로 붙여 넣습니다.\n※ Windows 기본 클립보드 기능을 사용합니다."
 
     others:
-        section_label_sounds: "사운드"
         section_label_message_formats: "메시지 형식"
+        section_label_reading_aids: "히라가나·로마자"
         auto_clear_the_message_box:
             label: "전송 후 입력창 비우기"
         send_only_translated_messages:
@@ -387,8 +427,8 @@ config_page:
             label: "메시지 형식 (송신)"
             desc: "VRChat에서 상대방에게 실제로 보이는 형식을 변경할 수 있습니다."
         received_message_format:
-            label: "메시지 형식 (Speaker2Chatbox)"
-            desc: "현재로서는 Speaker2Chatbox로 전송할 때의 표시용으로 사용됩니다."
+            label: "메시지 형식 (수신)"
+            desc: "청취한 메시지를 VRChat에 보낼 때의 표시에 사용됩니다."
         common_convert_message_hiragana_romaji:
             desc_1: "번역 언어로 일본어를 선택했을 때만 지원합니다."
             desc_2: "일본어 특성상 정확도에 한계가 있습니다."
@@ -397,10 +437,10 @@ config_page:
             desc: "'{{convert_message_to_hiragana}}'와 함께 켜면 마우스를 올렸을 때 표시됩니다."
         convert_message_to_hiragana:
             label: "히라가나 표시"
-        telemetry:
-            label: "VRCT-VOX 개선에 참여"
-            desc: "개발자가 \"다들 잘 써 주고 있구나~\" 하고 흐뭇해하며 기능을 개선할 수 있도록 사용 현황 데이터를 보냅니다.\n※ 대화 내용 등 개인 정보는 일절 보내지 않습니다."
-            aptabase_privacy_policy_label: "Aptabase 개인정보 처리방침"
+
+    vrchat:
+        section_label_chatbox: "채팅박스로 보내기"
+        section_label_tts_output: "읽어 주기 출력"
 
     ocr:
         section_title: "VRChat 채팅 읽기"
@@ -446,6 +486,8 @@ config_page:
     hotkeys:
         input_placeholder: "키 조합을 입력하세요"
         disabled_notice: "※설정 화면이 열려 있는 동안에는 오작동을 방지하기 위해 단축키 기능이 일시적으로 비활성화됩니다."
+        section_label_quick_chat: "빠른 채팅"
+        section_label_toggles: "창 및 기능 전환"
         error_in_use: "\"{{action_name}}\" 단축키({{hotkey}})가 이미 다른 곳에서 사용 중이므로 등록할 수 없습니다."
         error_failed_to_register_at_launch: "\"{{action_name}}\" 단축키({{hotkey}})가 다른 애플리케이션에서 사용 중이므로 사용할 수 없습니다."
         toggle_vrct_visibility:
@@ -458,6 +500,9 @@ config_page:
             label: "'{{transcription_receive}}' 켜기/끄기 전환"
 
     advanced_settings:
+        section_label_osc: "OSC"
+        section_label_logs: "로그"
+        section_label_config_file: "설정 파일"
         osc_ip_address:
             label: "OSC IP 주소"
         osc_port:
@@ -663,6 +708,9 @@ voice_ui:
     route_hint: "TTS와 직접 음성이 공유하는 경로입니다. 변경 전에 직접 입력을 중지하세요. 외부 케이블로 전환하면 관리 입력 연결이 해제됩니다."
     save_route: "오디오 경로 저장"
     discard: "변경 취소"
+    save_bar: "설정 저장"
+    save_changes: "변경 사항 저장"
+    changed_items: "변경한 설정"
     unsaved: "저장하지 않은 변경 사항"
     saved: "저장됨"
     save_failed: "저장 실패 — 편집 내용 유지"
@@ -672,7 +720,6 @@ voice_ui:
     keep_editing: "계속 편집"
     discard_leave: "버리고 이동"
     input_conflict: "다른 직접 음성 엔진이 실행 중입니다. 해당 설정 페이지에서 먼저 중지하세요."
-    engine_settings: "엔진 설정"
     memory_error: "메모리가 부족합니다. 다른 GPU 앱을 중지하거나 CPU를 선택해 저장한 후 서버를 다시 시작하세요."
     check_settings: "{{page}} 설정을 확인하세요."
     state_unknown: "상태를 확인하지 못했습니다. 백엔드 연결 후 다시 시도하세요."
@@ -699,6 +746,7 @@ quick_chat:
     send: "전송"
     sending: "전송 중…"
     hint: "Shift+Enter: 줄바꿈 · Esc: 닫기"
+    hint_enter_newline: "Enter: 줄바꿈 · Esc: 닫기"
     open: "입력 창 열기"
     shortcut_hint: "입력 창을 여는 단축키를 설정하세요. 기본 단축키는 없습니다. Esc로 닫아도 초안이 유지됩니다."
     clear_shortcut: "단축키 해제: {{action}}"

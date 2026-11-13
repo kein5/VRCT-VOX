@@ -1,0 +1,8 @@
+// The first-run notice about usage data. The request and its purpose read first; the
+// details (what is sent, what is not, how to change it) follow with air between them.
+.notice {
+    h3 { margin: 0 0 1.2rem; }
+    p { margin: 0 0 1rem; }
+    // Two lines of about the same length, broken between phrases where the engine can.
+    .purpose { font-size: 1.5rem; line-height: 1.6; text-wrap: balance; word-break: auto-phrase; }
+}
