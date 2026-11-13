@@ -719,6 +719,21 @@ config_page:
         right_hand: "右手"
         overlay_show_only_translated_messages:
             label: "翻訳後のメッセージのみ表示する"
+        section_label_desktop_overlay: "デスクトップの字幕オーバーレイ"
+        desktop_overlay:
+            label: "デスクトップに字幕を表示する"
+            desc: "会話ログに出た文をほかのウィンドウの上に字幕として重ねます。ヘッドセットを使わないVRChatの画面にも出せます。字幕はクリックを通すので、下のウィンドウをそのまま操作できます。VRCT-VOXのメイン画面があるモニターに出ます。"
+        desktop_overlay_position:
+            label: "字幕を出す場所"
+            bottom: "画面の下"
+            top: "画面の上"
+        desktop_overlay_font_size:
+            label: "字幕の文字の大きさ"
+        desktop_overlay_display_duration:
+            label: "字幕の表示時間"
+        desktop_overlay_opacity:
+            label: "字幕の背景の濃さ"
+            desc: "0%にすると背景の板が消えて、縁取りのある文字だけになります。"
         vr_panel:
             label: "VR UIを表示する"
             desc: "VRの中に、機能のON/OFFやログ・言語・設定を操作できる手首のランチャーとウィンドウを表示します。字幕のオーバーレイとは別に使えます。"

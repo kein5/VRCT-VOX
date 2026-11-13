@@ -5,6 +5,7 @@ use std::fs::{create_dir_all, OpenOptions};
 use std::io::{Error, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+mod caption_overlay;
 mod quick_chat;
 mod single_instance;
 #[cfg(target_os = "linux")]
@@ -192,12 +193,15 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(quick_chat::QuickChatState::default())
+        .manage(caption_overlay::CaptionOverlayState::default())
         .manage(portal_shortcuts::PortalShortcuts::default())
         .manage(portal_screencast::Screencast::default())
         .invoke_handler(tauri::generate_handler![get_font_list, set_vr_panel_window, main_window_restore,
             quick_chat::quick_chat_context, quick_chat::quick_chat_configure, quick_chat::quick_chat_submit,
             quick_chat::quick_chat_take, quick_chat::quick_chat_finish, quick_chat::quick_chat_hide,
             quick_chat::quick_chat_show, quick_chat::quick_chat_shortcut_platform,
+            caption_overlay::caption_overlay_supported, caption_overlay::caption_overlay_set,
+            caption_overlay::caption_overlay_update, caption_overlay::caption_overlay_snapshot,
             portal_shortcuts::portal_shortcuts_bind,
             portal_screencast::screencast_support, portal_screencast::screencast_start,
             portal_screencast::screencast_stop])

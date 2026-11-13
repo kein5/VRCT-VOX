@@ -1,0 +1,6 @@
+{
+    "identifier": "caption-overlay",
+    "description": "The caption overlay only listens for the notice that its captions changed; a native command that checks its label hands them over.",
+    "windows": ["caption_overlay"],
+    "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}

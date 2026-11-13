@@ -9,7 +9,7 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vitejs.dev/config/
 export default defineConfig(() => {
     return {
-        // The page entries (index.html, vr.html, quick-chat.html) live in src-ui;
+        // The page entries (index.html, vr.html, quick-chat.html, caption-overlay.html) live in src-ui;
         // the build still writes them to the root of dist for Tauri.
         root: path.resolve(__dirname, "src-ui"),
         plugins: [
@@ -57,6 +57,7 @@ export default defineConfig(() => {
                     main: path.resolve(__dirname, "src-ui/index.html"),
                     vr: path.resolve(__dirname, "src-ui/vr.html"),
                     quick_chat: path.resolve(__dirname, "src-ui/quick-chat.html"),
+                    caption_overlay: path.resolve(__dirname, "src-ui/caption-overlay.html"),
                 },
             },
             sourcemap: true,

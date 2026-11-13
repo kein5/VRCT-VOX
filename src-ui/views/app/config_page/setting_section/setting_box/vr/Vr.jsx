@@ -27,6 +27,7 @@ import CheckMarkSvg from "@images/check_mark.svg?react";
 import SquareSvg from "@images/square.svg?react";
 import TriangleSvg from "@images/triangle.svg?react";
 import { randomIntMinMax } from "@utils";
+import { DesktopCaptionOverlay } from "./DesktopCaptionOverlay";
 
 export const Vr = () => {
     const { t } = useI18n();
@@ -94,6 +95,7 @@ export const Vr = () => {
                     )}
                 </div>
             </div>
+            <DesktopCaptionOverlay />
             <CommonSettingsContainer />
             <VrUiBetaContainer />
             <button

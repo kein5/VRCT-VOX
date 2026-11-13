@@ -16,6 +16,7 @@ async function setup(context) {
         "@ui_configs": { ui_configs: {} }, "../_components": { Slider: "slider", SectionLabelComponent: "section" },
         "../_templates/Templates": { RadioButtonContainer: "radio", CheckboxContainer: "checkbox", ActionButtonContainer: "action" },
         "@common_components": { ResetButton: "reset" }, "@utils": {},
+        "./DesktopCaptionOverlay": { DesktopCaptionOverlay: "desktop" },
         "@logics_configs": { useVr: () => ({ currentOverlaySmallLogSettings: { data: saved, state: "ok" } }) },
         "@logics_common": { useIsOpenedConfigPage: () => ({ currentIsOpenedConfigPage: { data: true } }) },
     });
@@ -80,6 +81,7 @@ test("closing settings stops the overlay sample text, and reopening does not res
     context.after(() => Object.values(runtimes).forEach(runtime => runtime.unmount()));
     const saved = { tracker: "HMD" };
     const { Vr } = await loadModule(new URL("./Vr.jsx", import.meta.url), { ...runtimes.button, api }, {
+        "./DesktopCaptionOverlay": { DesktopCaptionOverlay: "desktop" },
         "@ui_configs": { ui_configs: {} }, "../_components": { Slider: "slider", SectionLabelComponent: "section" },
         "../_templates/Templates": { RadioButtonContainer: "radio", CheckboxContainer: "checkbox", ActionButtonContainer: "action" },
         "@common_components": { ResetButton: "reset" }, "@utils": { randomIntMinMax: () => 1 },

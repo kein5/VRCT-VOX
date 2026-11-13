@@ -1,0 +1,43 @@
+// Lines stack from the edge the band sits on: upward from the bottom of the
+// screen, downward from the top.
+.container {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.25em;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 0.2em 0;
+}
+.container.is_top { justify-content: flex-start; }
+
+.line {
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 0.2em 0.7em;
+    border-radius: 0.3em;
+    // The plate keeps the words readable over a bright scene; the outline keeps
+    // them readable when the plate is made fully transparent.
+    background: rgba(8, 12, 22, var(--caption_plate, 0.6));
+    text-align: center;
+    text-shadow: 0 0 0.12em #000, 0 0.06em 0.2em rgba(0, 0, 0, 0.9);
+    opacity: 1;
+    transition: opacity 0.4s ease;
+}
+.line.is_fading { opacity: 0; }
+
+.text, .translation {
+    margin: 0;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+// The user's own words and the other side are told apart by a colour and by
+// the bar at the left, never by colour alone.
+.sent { border-left: 0.2em solid #6ea8ff; }
+.received { border-left: 0.2em solid #6fd3a8; }
+.translation { color: #cfe3ff; }
+.received .translation { color: #d2f3e3; }
+// Still being recognized or sent.
+.is_pending .text { font-style: italic; }

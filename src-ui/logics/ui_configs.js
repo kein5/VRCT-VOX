@@ -36,6 +36,10 @@ export const ui_configs = {
     get overlay_large_log_default_settings() {
         return { ...this._overlay_log_default_settings_base, tracker: "LeftHand" };
     },
+    // Captions over the desktop (OVERLAY_DESKTOP_SETTINGS in src-python/config.py).
+    get overlay_desktop_default_settings() {
+        return { position: "bottom", font_size: 28, display_duration: 6, opacity: 0.6 };
+    },
 
     // Shared message format parts base
     _default_message_format_parts: {
