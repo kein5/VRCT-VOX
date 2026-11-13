@@ -245,7 +245,9 @@ def test_the_endpoint_can_be_replaced_by_a_loopback_address_only(monkeypatch, ov
 
 
 def test_the_display_language_travels_as_one_of_five_tags():
-    assert [locale_tag(code) for code in ("en", "ja", "ko", "zh-Hans", "zh-Hant")] == ["en-US", "ja-JP", "ko-KR", "zh-CN", "zh-TW"]
+    assert [locale_tag(code) for code in ("en", "ja")] == ["en-US", "ja-JP"]
+    # A UI language this version no longer has is reported as English.
+    assert locale_tag("ko") == "en-US"
     assert locale_tag("") == "en-US" and locale_tag("fr") == "en-US" and locale_tag(None) == "en-US"
     properties = system_properties("0.1.0-beta.7", "ja")
     assert set(properties) == {"app_version", "os", "os_version", "locale"}

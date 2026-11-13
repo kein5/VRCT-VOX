@@ -20,6 +20,9 @@ from models.transcription.realtime_settings import normalize_settings as normali
 from models.speech_server.settings import normalize_settings as normalize_speech_server_settings
 from typing import Optional, Dict, Any, Callable
 
+# UI languages that 0.1.0 offered and 0.2.0 dropped. Translation to and from them is unchanged.
+RETIRED_UI_LANGUAGES = frozenset(("ko", "zh-Hant", "zh-Hans"))
+
 # Guard optional, potentially heavy or platform-specific imports so importing
 # config.py doesn't raise in environments missing those packages.
 try:
@@ -1447,7 +1450,7 @@ class Config:
             self._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = list(transcription_lang[first_key].values())[0].keys()
         except Exception:
             self._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = []
-        self._SELECTABLE_UI_LANGUAGE_LIST = ["en", "ja", "ko", "zh-Hant", "zh-Hans"]
+        self._SELECTABLE_UI_LANGUAGE_LIST = ["en", "ja"]
         # OCRエンジンが読める言語だけ (VRCTが翻訳できる言語の全てではない)。
         self._SELECTABLE_OCR_SOURCE_LANGUAGE_LIST = list(ocr_selectable_languages)
         self._SELECTABLE_COMPUTE_DEVICE_LIST = getComputeDeviceList()
@@ -1853,6 +1856,10 @@ class Config:
                 # Empty disables discovery; never move a saved key to a fallback host.
                 setattr(self, "_" + key, "")
                 self.INVALID_SAVED_API_URLS.append(key)
+                continue
+            # Korean and Chinese were UI languages until 0.1.0. A setting that names one
+            # falls back to English quietly: it is not a broken file.
+            if key == "UI_LANGUAGE" and value in RETIRED_UI_LANGUAGES:
                 continue
             # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。
             # 未知キー（Descriptorなし）は無視して注入を防止。

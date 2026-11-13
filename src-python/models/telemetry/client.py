@@ -35,7 +35,7 @@ SCHEMA = 2
 ERROR_CODE = re.compile(r"[A-Za-z0-9_.-]{1,64}")
 TIMEOUT = 5.0
 # The display language as the tag the receiver stores.
-LOCALES = {"en": "en-US", "ja": "ja-JP", "ko": "ko-KR", "zh-Hans": "zh-CN", "zh-Hant": "zh-TW"}
+LOCALES = {"en": "en-US", "ja": "ja-JP"}
 _PRINTABLE = re.compile(r"[\x20-\x7e]{1,64}")
 
 

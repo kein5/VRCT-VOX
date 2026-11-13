@@ -4,11 +4,11 @@ import { test } from "node:test";
 import i18next from "i18next";
 import yaml from "js-yaml";
 
-const resources = Object.fromEntries(["en", "ja", "ko"].map(language => [language, {
+const resources = Object.fromEntries(["en", "ja"].map(language => [language, {
     translation: yaml.load(readFileSync(new URL(`../../../locales/${language}.yml`, import.meta.url), "utf8")),
 }]));
 
-for (const language of ["en", "ja", "ko"]) {
+for (const language of ["en", "ja"]) {
     test(`${language}: the model download consent resolves readable translations`, async () => {
         const translations = i18next.createInstance();
         await translations.init({ lng: language, fallbackLng: "en", resources });

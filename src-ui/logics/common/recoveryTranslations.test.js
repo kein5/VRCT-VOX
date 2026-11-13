@@ -6,12 +6,12 @@ import yaml from "js-yaml";
 import { hooks, loadModule, find, stubGlobals } from "../test/hookHarness.js";
 import { loadBridgeStore } from "../test/bridgeHarness.js";
 
-const resources = Object.fromEntries(["en", "ja", "ko"].map(language => [language, {
+const resources = Object.fromEntries(["en", "ja"].map(language => [language, {
     translation: yaml.load(readFileSync(new URL(`../../../locales/${language}.yml`, import.meta.url), "utf8")),
 }]));
 const icon = () => null;
 
-for (const language of ["en", "ja", "ko"]) test(`${language}: recovery actions, stderr and splash use the selected locale with unchanged diagnostics`, async context => {
+for (const language of ["en", "ja"]) test(`${language}: recovery actions, stderr and splash use the selected locale with unchanged diagnostics`, async context => {
     const i18n = i18next.createInstance();
     await i18n.init({ lng: language, fallbackLng: "en", resources });
     const t = i18n.t.bind(i18n), translations = { useI18n: () => ({ t, i18n }) };

@@ -136,7 +136,7 @@ _debounce_time: int = 2  # デバウンス時間（秒）
 | `SELECTABLE_WHISPER_WEIGHT_TYPE_LIST` | List[str] | Whisper重みタイプリスト | 動的取得 |
 | `SELECTABLE_TRANSLATION_ENGINE_LIST` | List[str] | 翻訳エンジンリスト | 動的取得 |
 | `SELECTABLE_TRANSCRIPTION_ENGINE_LIST` | List[str] | 音声認識エンジンリスト | 動的取得 |
-| `SELECTABLE_UI_LANGUAGE_LIST` | List[str] | UI言語リスト | ["en", "ja", "ko", "zh-Hant", "zh-Hans"] |
+| `SELECTABLE_UI_LANGUAGE_LIST` | List[str] | UI言語リスト | ["en", "ja"] |
 | `COMPUTE_MODE` | str | 計算モード | "cuda" or "cpu" |
 | `SELECTABLE_COMPUTE_DEVICE_LIST` | List[Dict] | 選択可能な計算デバイスリスト | 動的取得 |
 | `SEND_MESSAGE_BUTTON_TYPE_LIST` | List[str] | 送信ボタンタイプリスト | ["show", "hide", "show_and_disable_enter_key"] |

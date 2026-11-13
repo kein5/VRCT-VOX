@@ -20,7 +20,7 @@ A stable release starts from a `release/X.Y.Z` branch cut from `develop` whose o
 - Do not commit secrets, API keys, voice recordings or model files without a redistribution license.
 - New or upgraded dependencies must have a compatible license; update [NOTICE.md](NOTICE.md) when bundled components change. Python dependencies live in `pyproject.toml` and `uv.lock` (`uv lock`).
 - Models offered for download go into the download catalog (`src-python/models/model_downloads/catalog.py`) with a pinned revision, file sizes, SHA-256 and the license shown before download. Do not make a model with a non-commercial or otherwise restrictive license a default.
-- User-facing text goes into `locales/`. English (`en.yml`) and Japanese (`ja.yml`) are required; add Korean and Chinese (`ko.yml`, `zh-Hant.yml`, `zh-Hans.yml`) where you can, otherwise the English text is shown.
+- User-facing text goes into `locales/`. English (`en.yml`) and Japanese (`ja.yml`) are the only UI languages; update both. Korean and Chinese were dropped as UI languages in 0.2.0 (they remain translation languages).
 - Icons and logos are generated from `docs/brand/` with `tools/brand_assets.py`; edit the sources there, not the generated files.
 
 Automated checks on every pull request: the model-free contract tests on Linux and Windows, the commit-message check, dependency review (known vulnerabilities and licenses), and CodeQL code scanning. Pull requests to `main` must pass the required checks before merging.
