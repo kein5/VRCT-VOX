@@ -96,6 +96,21 @@ export default defineConfig({
   appearance: 'force-dark',
   head: [['meta', { name: 'theme-color', content: '#111b2c' }]],
   transformHead: ({ pageData }) => alternates(pageData.relativePath),
+  markdown: {
+    image: { lazyLoading: true },
+    config(md) {
+      // Every picture in a page is a screenshot: it can take focus and opens larger (theme/index.ts).
+      const image = md.renderer.rules.image!
+      md.renderer.rules.image = (tokens, index, options, env, self) => {
+        const token = tokens[index]
+        token.attrSet('data-zoom', '')
+        token.attrSet('tabindex', '0')
+        token.attrSet('role', 'button')
+        token.attrSet('aria-haspopup', 'dialog')
+        return image(tokens, index, options, env, self)
+      }
+    },
+  },
   locales: {
     // Both languages live under their own path; / picks one (see index.md).
     ja: {

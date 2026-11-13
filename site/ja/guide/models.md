@@ -4,10 +4,12 @@ VRCT-VOXの配布物には読み上げ・音声認識・声の変換・文字認
 
 ## 取得の流れ
 
-1. 各ページの「既定モデルのダウンロード」で「取得内容を確認」を押します。
+1. 各ページの「既定モデルのダウンロード」で「取得内容を確認」を押します。「TTS」と「音声認識」では「モデルとサーバー」の中にあります。
 2. 提供元、モデル名、正確な容量、利用条件へのリンク、保存先を確かめます。
 3. 同意のチェックを入れて「同意してダウンロード」を押します。取得中は取り消せます。
 4. 取得と検証が終わったら「モデルパスを適用」を押します。対象のサーバーや入力は先に停止しておいてください。
+
+![モデルの取得と利用条件を確かめる画面](/screenshots/ja/model-consent.webp)
 
 取得しただけ、適用しただけでは、サーバーの起動、読み上げ、マイクの使用は始まりません。
 
@@ -26,7 +28,7 @@ VRCT-VOXの配布物には読み上げ・音声認識・声の変換・文字認
 | 音声認識（日本語） | Haas-ja v1.0 · Q8_0 | 0.61 GiB | Apache-2.0 |
 | 音声認識（30言語） | Qwen3-ASR 0.6B · Q8_0 | 0.78 GiB | Apache-2.0 |
 | 発話区間の検出 | Silero VAD v6.2 · F32 | 1.2 MB | MIT |
-| 話者の聞き分け（任意） | Nemotron 3 Diarization · Q8_0 | 101 MB | OpenMDW-1.1 |
+| 話者の聞き分け（任意） | Nemotron 3 Diarization · Q8_0 | 約106 MB | OpenMDW-1.1 |
 | 声の変換（RVC） | Saisho Utane · RVC v2 | 0.31 GiB | CC BY 4.0（クレジット表示が必要） |
 | 文字認識 | PP-OCRv6 small（日本語・英語・中国語・ラテン文字） | 約30 MB | Apache-2.0 |
 | 文字認識 | PP-OCRv5 mobile（韓国語・キリル文字・タイ文字・アラビア文字・デーヴァナーガリー） | 各8〜14 MB | Apache-2.0 |
@@ -39,7 +41,7 @@ VRCT-VOXの配布物には読み上げ・音声認識・声の変換・文字認
 
 ## 保存先
 
-取得したモデルは設定ファイル（`config.json`）と同じフォルダーの`downloaded_models`に保存します。Linuxでは`~/.config/vrct-vox/downloaded_models`です。
+取得したモデルは設定ファイル（`config.json`）と同じフォルダーの`downloaded_models`に保存します。Linuxでは`~/.config/vrct-vox/downloaded_models`、Windowsではアプリを入れたフォルダーの`downloaded_models`です。翻訳とWhisperのモデルは別の場所で、Windowsではアプリのフォルダーの`weights`に、Linuxでは`~/.local/share/vrct-vox`の中に入ります。
 
 ## 起動時の自動取得
 

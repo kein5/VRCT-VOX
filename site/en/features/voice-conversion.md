@@ -4,10 +4,6 @@ Converts your microphone with an RVC or Seed-VC runtime you prepare, and sends i
 
 ![Settings → RVC](/screenshots/en/rvc.webp)
 
-::: tip On Windows
-To reach VRChat, install a virtual cable such as VB-CABLE. Choose its playback end as the output device, and its recording end as VRChat's microphone.
-:::
-
 ## RVC
 
 The settings are under Settings → "RVC".
@@ -31,10 +27,11 @@ As a default model, you can get Saisho Utane's RVC v2 model (CC BY 4.0, about 0.
 ### Using it
 
 1. Enter "RVC runtime folder", "Permitted RVC model (.pth)" and the other fields, and save.
-2. Press "Prepare and use virtual microphone". When it is ready, press "Resume voice".
+2. Give the converted voice a way out.
+   - On Linux, press "Prepare and use virtual microphone". When it is ready, press "Resume voice". In VRChat, choose "VRCT Managed Virtual Microphone" as your microphone.
+   - On Windows, install a virtual cable such as VB-CABLE. Choose its playback end as "Output device" under Settings → "TTS", and its recording end as VRChat's microphone.
 3. Under "Input to forward", choose the microphone you speak into. It starts as the "Mic" chosen under "Device".
-4. In VRChat, choose "VRCT Managed Virtual Microphone" as your microphone.
-5. Turn "RVC" on on the main screen.
+4. Turn "RVC" on on the main screen.
 
 ## Seed-VC
 

@@ -8,11 +8,11 @@ Speaks your text or its translation into a virtual microphone that VRChat uses. 
 
 Speech comes from the bundled [speech.cpp](https://github.com/nyosegawa/speech.cpp) servers. Japanese is spoken with Irodori-TTS and other languages with Qwen3-TTS.
 
-Neither model is bundled. Get them with "Download a default model" under "Bundled speech.cpp servers" (see [Model downloads](../guide/models)). You can also point to GGUF files you already have.
+Neither model is bundled. Open "Models and servers" further down the page and get them with "Download a default model" (see [Model downloads](../guide/models)). You can also point to GGUF files you already have.
 
 ## First steps
 
-1. Under Settings → "TTS" → "Bundled speech.cpp servers", download a model or enter a GGUF path.
+1. Under Settings → "TTS" → "Models and servers", download a model or enter a GGUF path.
 2. Save with "Save changes" at the top, then press "Start server". Saving alone does not load the model.
 3. Set "Chat voice" to "Original text". To speak translations, choose "Translated text" and a "Translation slot".
 4. Choose where to play under "Output device". Trying earphones first is a good idea. If a device is missing, press "Refresh devices".
@@ -28,15 +28,15 @@ For VRChat to hear the speech, set the output to a virtual microphone and choose
 
 ## Stopping
 
-There are three ways to stop, each with a different scope.
+There are three ways to stop, each with a different scope. "Stop speech" and "Mute" are always at the top of the main screen.
 
 | Action | What stops |
 |---|---|
 | Turn "TTS" off on the main screen | Accepting, playing and queueing speech. Text sending, RVC and translation continue |
-| "Stop playback and clear queue" | The current speech and the queue only |
-| "Device" → "Audio route" → "Mute until resumed" | The whole audio route (with the managed microphone, both TTS and voice conversion) |
+| "Stop speech" | The current speech and the queue only. "Stop playback and clear queue" under Settings → "TTS" does the same |
+| "Mute" | The whole audio route (with the managed microphone, both TTS and voice conversion). It lasts until you resume, and the button reads "Muted" meanwhile. "Mute until resumed" under Settings → "Device" → "Audio route" does the same |
 
-TTS and the bundled servers are off again after you restart the app.
+Both can be assigned to [hotkeys](./quick-chat#hotkeys). TTS and the bundled servers are off again after you restart the app.
 
 ## Low-latency standby (Japanese, GPU)
 

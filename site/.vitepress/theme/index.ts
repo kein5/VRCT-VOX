@@ -1,15 +1,40 @@
+import { h } from 'vue'
 import DefaultTheme from 'vitepress/theme'
 import type { Theme } from 'vitepress'
+import HomeShot from './HomeShot.vue'
 import { LOCALE_KEY } from './locale'
 import './custom.css'
 
+// A screenshot in a page is shown at about half its size. Click it, or press Enter on it, to see it
+// at full size; a click or Esc closes the larger view. config.mts marks the pictures with data-zoom.
+function zoom(image: HTMLImageElement) {
+  const dialog = document.createElement('dialog')
+  dialog.className = 'shot-zoom'
+  dialog.setAttribute('aria-label', image.alt)
+  const large = document.createElement('img')
+  large.src = image.currentSrc || image.src
+  large.alt = image.alt
+  dialog.append(large)
+  dialog.addEventListener('click', () => dialog.close())
+  dialog.addEventListener('close', () => {
+    dialog.remove()
+    image.focus()
+  })
+  document.body.append(dialog)
+  dialog.showModal()
+}
+
 export default {
   extends: DefaultTheme,
+  Layout: () => h(DefaultTheme.Layout, null, { 'home-hero-after': () => h(HomeShot) }),
   enhanceApp() {
     if (typeof document === 'undefined') return
-    // Remember a language picked in the nav's language menu, so / opens it next time.
     document.addEventListener('click', (event) => {
-      const link = (event.target as Element | null)?.closest?.('.VPNavBarTranslations a, .VPNavScreenTranslations a')
+      const target = event.target as Element | null
+      const image = target?.closest?.('img[data-zoom]')
+      if (image) zoom(image as HTMLImageElement)
+      // Remember a language picked in the nav's language menu, so / opens it next time.
+      const link = target?.closest?.('.VPNavBarTranslations a, .VPNavScreenTranslations a')
       const locale = link?.getAttribute('href')?.match(/\/(ja|en)\//)?.[1]
       if (locale) {
         try {
@@ -17,6 +42,13 @@ export default {
         } catch {
           // Storage can be blocked; the browser language decides then.
         }
+      }
+    })
+    document.addEventListener('keydown', (event) => {
+      const target = event.target as Element | null
+      if ((event.key === 'Enter' || event.key === ' ') && target?.matches?.('img[data-zoom]')) {
+        event.preventDefault()
+        zoom(target as HTMLImageElement)
       }
     })
   },
