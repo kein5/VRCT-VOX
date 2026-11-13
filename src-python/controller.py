@@ -3072,10 +3072,13 @@ class Controller:
                         model.changeTranslatorCTranslate2Model()
                         model.setChangedTranslatorParameters(False)
                     else:
-                        errorLogging()
                         # 理由を返す。False だけを返すと、画面ではスイッチが戻るだけで何も分からない
                         missing = (isinstance(e, MissingCTranslate2Tokenizer) or
                                    not model.hasTranslatorCTranslate2ModelWeightFile(config.CTRANSLATE2_WEIGHT_TYPE))
+                        if not missing:
+                            # A model that was never downloaded is where every new user starts, and the
+                            # UI answers it with the download review. Only a load that failed is logged.
+                            errorLogging()
                         return VRCTError.create_error_response(
                             ErrorCode.TRANSLATION_MODEL_MISSING if missing else ErrorCode.TRANSLATION_MODEL_LOAD_FAILED,
                             data=False,
