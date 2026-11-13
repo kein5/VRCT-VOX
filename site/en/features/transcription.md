@@ -29,6 +29,22 @@ The ASR server needs both a recognition model and Silero VAD. Get them under "Bu
 
 The bundled server loads one recognition model, shared by the microphone and game audio. If you talk with people who don't speak Japanese, choose Qwen3-ASR. "Detect automatically (auto)" needs a model that can detect the language, such as Qwen3-ASR.
 
+### Speaker labels
+
+Game audio captions can carry a label for who spoke (A, B, …). Download and apply the diarization model (Nemotron 3 Diarization, 101 MB, OpenMDW-1.1) under "Bundled speech.cpp servers" → "ASR + VAD"; it takes effect the next time the server starts. To stop using it, clear "Diarization GGUF path".
+
+- The log shows "Speaker A". In the desktop caption overlay the label comes before the words, and each voice has its own colour.
+- The labels are guessed from the sound of the voices. They do not name anyone, and similar voices can share a label.
+- When two people speak with little pause, their words share one caption. It then shows both, as "Speaker A, B".
+- Labels start over each time you turn the switch on.
+- A caption settles about 0.3 seconds later (measured on an RTX 3060 Ti).
+- A GPU is needed. A CPU alone cannot keep up.
+- Microphone captions do not use it.
+
+::: info What was checked
+Checked on Windows 11 with conversations of two to six synthetic voices, not with human voices. The results are in the developers' [record](https://github.com/kein5/VRCT-VOX/blob/develop/docs/voice-stack/speaker-diarization-2026-11-13.md) (in Japanese).
+:::
+
 ### Term dictionary
 
 Add words you want recognized, and how to write them, under "Term dictionary". Common VRChat terms are built in.

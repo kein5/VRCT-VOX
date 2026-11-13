@@ -147,3 +147,20 @@ miniaudioの二重ライセンス、静的GCCランタイムのGPLv3＋Runtime L
 WhisperはOpenAIのMITモデルを元にしたSystran・Zoont・deepdmlのCTranslate2変換版で、同梱しない。[NOTICE](../../NOTICE.md#downloadable-whisper-weights)に提供元を記載し、取得画面でMITと固定ファイルの正確な合計容量を表示する。CTranslate2翻訳はM2M100とその文章分割ファイルがMIT、NLLBとその文章分割ファイルがCC-BY-NC-4.0（非商用）。[NOTICEの一覧](../../NOTICE.md#downloadable-ctranslate2-translation-weights)を正本とする。非商用モデルは既定にしない。
 
 内蔵モデルの取得は、選択済みのNLLBや同じ一式に含まれるtokenizerも含め、モデルと固定した一覧への明示的な同意を必要とする。起動時の取得は、その同意の記録がある版だけに限る。tokenizerはCTranslate2変換リポジトリ内の固定済みファイルを使い、容量・SHA-256を検証する。確認画面の合計容量に含め、取得元の変更によりmanifestの再同意が必要になる。ライセンスの条件は変えない。この追記で配布許可や完全性の検証完了を主張しない。取得画面と移行の詳細は[モデル取得](model-downloads.md#内蔵whisperctranslate2と文章分割ファイル)を参照する。
+
+## 話者分離モデル（2026-11-13）
+
+ゲーム音声の字幕で話者を区別するために、取得できるモデルへNemotron 3 Diarization（Q8_0）を足した。配布物には含めない。利用者が同意画面で確認してから、Hugging Faceの固定revisionからこのPCへ取得する。
+
+| 項目 | 内容 |
+|---|---|
+| 提供元 | NVIDIA（[nvidia/Nemotron-3-Diarization](https://huggingface.co/nvidia/Nemotron-3-Diarization)）。GGUFへの変換はsakasegawa |
+| 取得元 | [sakasegawa/Nemotron-3-Diarization-GGUF](https://huggingface.co/sakasegawa/Nemotron-3-Diarization-GGUF/tree/9096d41cb78bba7ac882b96d453e25239eac692b) @ `9096d41cb78bba7ac882b96d453e25239eac692b` |
+| ファイル | `Nemotron-3-Diarization-99M-Q8_0.gguf`、106,179,488 bytes、SHA-256 `336df6350dce2ea5ff06aa6e2b249d331a859ced13305fbb45c44bdb3c0abe20` |
+| ライセンス | [OpenMDW-1.1](https://openmdw.ai/license/1-1/)。リポジトリに`LICENSE.OpenMDW-1.1`がある。取得にログインは要らない |
+
+2026-11-13にOpenMDW-1.1の本文を読んだ。モデルと関連物を制限なく扱える許諾で、配布するときは契約の写しと著作権表示・出所の表示を残す条件である。特許や著作権の侵害を主張する訴訟を起こすと許諾が終わる。出力の利用には制限も義務も課さない。VRCT-VOXはこのモデルを再配布しないので、配布時の条件は当てはまらない。同意画面ではモデルカードとリポジトリ内のライセンス文へのリンクを示す。
+
+元のモデルカードは学習データに日本語を挙げていない。日本語での精度は提供元も変換者も公表していない。この条件と手元での試験の結果は[話者分離の選定と試験](speaker-diarization-2026-11-13.md)に記録した。
+
+候補のうち、Streaming Sortformer v2.1（NVIDIA Open Model License）とMultitalker Parakeet（同）は採用していない。Sortformer v1（CC-BY-NC-4.0）は非商用なので候補から外した。pyannoteのモデルは取得にログインと利用規約への同意が要るので、カタログに載せられない。

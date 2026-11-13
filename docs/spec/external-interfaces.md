@@ -129,9 +129,12 @@ Plamo、Gemini、OpenAI、Groq、OpenRouter、OpenAI互換、LM Studio、Ollama�
 | 読み上げ | — | `POST /v1/audio/speech`に`{input, voice, language, response_format: "pcm", seed?, instructions?}`。応答は`audio/pcm`。4000文字まで |
 | 音声認識（REST） | — | `POST /v1/audio/transcriptions` |
 | リアルタイム音声認識 | — | `ws://…/v1/realtime`。`session.update`と`input_audio_buffer.append`、`commit`、`clear` |
+| 話者分離（任意） | `asr`プロファイルに話者分離モデルのパスがあれば、同じサーバーに3つ目のモデルとして読み込ませる | `/v1/models`が`diarization`を返すサーバーへのスピーカーの接続だけが、`session.update`の`audio.input.diarization`に`{}`を入れる。確定した発話の`speakers`（ラベル、開始、終了）を受け取る。マイクの接続は要求しない |
 | RVCワーカー | `build/vrct-vc-worker … rvc …` | stdin・stdoutでPCM（48kHz、3840フレーム単位）。制御はJSON行（32KiBまで） |
 
 同梱TTSサーバーの停止・異常終了は、起動ごとの識別子と、その実行を使うTTSの世代を照合して処理する。現在のTTSが使うサーバーが終了したときは、TTSをオフにして待機中・再生中の読み上げを取り消し、従来どおり音声の状態取得でUIに伝える。同じ実行の停止直後と後処理後に通知が重なっても、無効化とTTSの世代更新は一度だけ行う。古い実行からの遅れた通知で、別の接続先や新しいサーバー実行を使うTTSをオフにしない。
+
+同梱ASRサーバーは認識モデルとVADモデルを必ず読み込み、設定に話者分離モデルのパスがあるときだけそれも読み込む。起動の確認では`/v1/models`の内容を設定と照合する。話者分離モデルを指定したのにサーバーがそれを持たないとき、指定していないのに持つときは、`speech_server_model_tasks`で起動を失敗にする。
 
 同梱ASRサーバーも、起動ごとの識別子とマイク・スピーカーそれぞれの収録世代を照合する。終了した実行を使う収録だけを停止し、同じ終了通知を重ねて処理しない。古い実行の通知で新しい収録を止めない。異常終了で停止した場合は、従来どおり原因を通知する。
 

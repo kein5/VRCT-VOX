@@ -26,6 +26,7 @@ VRCT-VOXの配布物には読み上げ・音声認識・声の変換・文字認
 | 音声認識（日本語） | Haas-ja v1.0 · Q8_0 | 0.61 GiB | Apache-2.0 |
 | 音声認識（30言語） | Qwen3-ASR 0.6B · Q8_0 | 0.78 GiB | Apache-2.0 |
 | 発話区間の検出 | Silero VAD v6.2 · F32 | 1.2 MB | MIT |
+| 話者の聞き分け（任意） | Nemotron 3 Diarization · Q8_0 | 101 MB | OpenMDW-1.1 |
 | 声の変換（RVC） | Saisho Utane · RVC v2 | 0.31 GiB | CC BY 4.0（クレジット表示が必要） |
 | 文字認識 | PP-OCRv6 small（日本語・英語・中国語・ラテン文字） | 約30 MB | Apache-2.0 |
 | 文字認識 | PP-OCRv5 mobile（韓国語・キリル文字・タイ文字・アラビア文字・デーヴァナーガリー） | 各8〜14 MB | Apache-2.0 |
