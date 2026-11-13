@@ -17,7 +17,8 @@ import styles from './VrLanguageWindow.module.scss';
 const keys = ['1', '2', '3'];
 const same = (a, b) => a?.language === b?.language && a?.country === b?.country;
 const unique = entries => entries.filter((entry, index) => entries.findIndex(other => same(entry, other)) === index);
-const engineLabel = engine => engine?.label?.replace('\n', ' ') ?? '';
+// A label may break in more than one place; every break becomes a space.
+const engineLabel = engine => engine?.label?.replaceAll('\n', ' ') ?? '';
 
 // Shares the confirmed settings components; language changes wait for their final backend response.
 export function VrLanguageWindow({ onClose }) {

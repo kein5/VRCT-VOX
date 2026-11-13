@@ -34,14 +34,14 @@ def test_google_speech_recognition_never_uses_plain_http():
     "/run/transcription_receive_speaker_message", "/run/transcription_ocr_message",
 ])
 def test_conversation_text_stays_out_of_the_diagnostic_log(endpoint):
-    secret = "ごきげんようみなさん"
-    payload = {"id": "42", "original": {"message": secret, "transliteration": []},
+    spoken = "ごきげんようみなさん"
+    payload = {"id": "42", "original": {"message": spoken, "transliteration": []},
                "translations": [{"message": "Good day, everyone"}]}
     with patch.object(utils, "process_logger") as logger, patch.object(utils, "_enqueueLogLine"):
         utils.printLog(endpoint, {"send_data": payload})
         utils.printResponse(200, endpoint, payload)
     logged = repr([call.args for call in logger.info.call_args_list])
-    assert secret not in logged and "Good day" not in logged
+    assert spoken not in logged and "Good day" not in logged
     assert "'42'" in logged  # Identifiers stay for diagnosis.
 
 
