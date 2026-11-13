@@ -423,6 +423,23 @@ def test_log_directory_collision_keeps_complete_saved_settings(isolated, monkeyp
     assert (state / "logs").read_text() == "user file"
 
 
+@pytest.mark.parametrize("retired", ["ko", "zh-Hant", "zh-Hans"])
+def test_a_retired_ui_language_starts_in_english_without_an_error(isolated, monkeypatch, tmp_path, retired):
+    # Korean and Chinese were UI languages until 0.1.0. Such a setting is not a broken file:
+    # the app starts in English, writes English back, and leaves nothing in error.log.
+    state = tmp_path / "retired"
+    state.mkdir()
+    (state / "config.json").write_text(json.dumps({"UI_LANGUAGE": retired, "MESSAGE_BOX_RATIO": 23}))
+    monkeypatch.setenv("VRCT_CONFIG_DIR", str(state))
+    isolated.ns["errorLogging"].reset_mock()
+    config = isolated.ns["Config"]()
+    assert config.UI_LANGUAGE == "en"
+    assert config.SELECTABLE_UI_LANGUAGE_LIST == ["en", "ja"]
+    saved = strict_json((state / "config.json").read_text())
+    assert saved["UI_LANGUAGE"] == "en" and saved["MESSAGE_BOX_RATIO"] == 23
+    isolated.ns["errorLogging"].assert_not_called()
+
+
 def test_incomplete_initialization_never_loads_or_publishes_singleton(isolated, monkeypatch):
     cls = isolated.ns["Config"]
     load = Mock()

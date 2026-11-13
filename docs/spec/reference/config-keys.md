@@ -164,7 +164,7 @@
 | `SELECTABLE_WHISPER_WEIGHT_TYPE_LIST` |  | `getattr(whisper_models, 'keys', lambda: [])()` | 読み取り専用 |
 | `SELECTABLE_TRANSLATION_ENGINE_LIST` |  | `getattr(translation_lang, 'keys', lambda: [])()` | 読み取り専用 |
 | `SELECTABLE_TRANSCRIPTION_ENGINE_LIST` |  | `list(transcription_lang[first_key].values())[0].keys()` | 読み取り専用 |
-| `SELECTABLE_UI_LANGUAGE_LIST` |  | `['en', 'ja', 'ko', 'zh-Hant', 'zh-Hans']` | 読み取り専用 |
+| `SELECTABLE_UI_LANGUAGE_LIST` |  | `['en', 'ja']` | 読み取り専用 |
 | `SELECTABLE_OCR_SOURCE_LANGUAGE_LIST` |  | `list(ocr_selectable_languages)` | 読み取り専用 |
 | `COMPUTE_MODE` |  | `'cuda' if any((device.get('device') == 'cuda' for device in self._SELECTABLE_COMPUTE_DE…` | 読み取り専用 |
 | `SELECTABLE_COMPUTE_DEVICE_LIST` |  | `getComputeDeviceList()` | 読み取り専用 |

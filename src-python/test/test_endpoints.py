@@ -221,7 +221,7 @@ class TestMainloop():
             case "/set/data/font_family":
                 data = random.choice(["Arial", "Verdana", "Times New Roman"])
             case "/set/data/ui_language":
-                data = random.choice(["en", "ja", "ko", "zh-Hant", "zh-Hans"])
+                data = random.choice(["en", "ja"])
             case "/set/data/main_window_geometry":
                 data = {
                     "x_pos": random.randint(0, 1920),

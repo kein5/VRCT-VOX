@@ -97,10 +97,7 @@
                 "displayLanguageSelector": true,
                 "languages": [
                     "English",
-                    "Japanese",
-                    "Korean",
-                    "TradChinese",
-                    "SimpChinese"
+                    "Japanese"
                 ]
             }
         }

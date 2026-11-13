@@ -15,15 +15,12 @@ import LanguageSvg from "@images/mui_language.svg?react";
 import intro_icon from "@images/brand/icon-small.svg";
 import logo_en from "@images/brand/logo-en.svg";
 import logo_ja from "@images/brand/logo-ja.svg";
-import logo_ko from "@images/brand/logo-ko.svg";
-import logo_zh_hant from "@images/brand/logo-zh-Hant.svg";
-import logo_zh_hans from "@images/brand/logo-zh-Hans.svg";
 import { VrTooltipButton } from "./VrTooltip";
 import shared from "./VrSettingsWindow.module.scss";
 import styles from "./VrLauncher.module.scss";
 
 const LONG_PRESS_MS = 600;
-const INTRO_LOGOS = { en: logo_en, ja: logo_ja, ko: logo_ko, "zh-Hant": logo_zh_hant, "zh-Hans": logo_zh_hans };
+const INTRO_LOGOS = { en: logo_en, ja: logo_ja };
 export const VrLauncher = ({ windows, toggleLog, openLog, togglePopup }) => {
     const { t, i18n } = useI18n();
     const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();

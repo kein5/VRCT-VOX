@@ -2772,16 +2772,8 @@ class Model:
 
     def createOverlayImageSmallMessage(self, message):
         self.ensure_initialized()
-        ui_language = config.UI_LANGUAGE
-        convert_languages = {
-            "en": "Default",
-            "jp": "Japanese",
-            "ko":"Korean",
-            "zh-Hans":"Chinese Simplified",
-            "zh-Hant":"Chinese Traditional",
-        }
-        language = convert_languages.get(ui_language, "Default")
-        return self.overlay_image.createOverlayImageSmallLog(message, language)
+        # The sample text is in the UI language; English and Japanese share the default font.
+        return self.overlay_image.createOverlayImageSmallLog(message, "Default")
 
     def clearOverlayImageSmallLog(self):
         self.ensure_initialized()
@@ -2838,15 +2830,8 @@ class Model:
 
     def createOverlayImageLargeMessage(self, message):
         self.ensure_initialized()
-        ui_language = config.UI_LANGUAGE
-        convert_languages = {
-            "en": "Default",
-            "jp": "Japanese",
-            "ko":"Korean",
-            "zh-Hans":"Chinese Simplified",
-            "zh-Hant":"Chinese Traditional",
-        }
-        language = convert_languages.get(ui_language, "Default")
+        # The sample text is in the UI language; English and Japanese share the default font.
+        language = "Default"
         overlay_image = OverlayImage(config.PATH_LOCAL)
 
         for _ in range(2):
