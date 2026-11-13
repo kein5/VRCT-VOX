@@ -138,7 +138,7 @@ for (const language of ["en", "ja"]) test(`${language}: partial output warning n
         } });
         const notice = s.notices.at(-1);
         assert.ok(notice.key.includes(i18n.t(`message_outputs.${output}`)));
-        assert.match(notice.key, language === "ja" ? /再送すると、ほかの出力先に同じメッセージが重ねて届く/ : /If you resend it, those outputs may receive it twice/);
+        assert.match(notice.key, language === "ja" ? /再送するとほかの出力先に同じメッセージが重ねて届く/ : /If you resend it, those outputs may receive it twice/);
         assert.equal(notice.type, "warning");
     }
 });
