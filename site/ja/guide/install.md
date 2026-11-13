@@ -44,7 +44,7 @@ AppImageとtar.gzのどちらで起動しても、同じ場所を使います。
 | ZIP（CPU版） | `VRCT-VOX.zip` | インストールせずに、展開したフォルダーから使いたい場合 |
 | ZIP（CUDA版） | `VRCT-VOX_cuda.zip` | 同じくZIPで、NVIDIAのGPUを使う場合 |
 
-CPU版はどのPCでも動きます。GPU版（CUDA版）にはNVIDIAのGPUが必要です。ダウンロードは大きくなりますが、Whisperの音声認識が速くなります。読み上げとリアルタイム字幕（同梱のspeech.cpp）がGPUを使えるのは、どちらの版でも同じです。
+CPU版はどのPCでも動きます。GPU版（CUDA版）はNVIDIAのGPUがあるPC向けで、Whisperの音声認識とローカルの翻訳をGPUで動かせます。その分ダウンロードが大きくなります。読み上げとリアルタイム字幕（同梱のspeech.cpp）がGPUを使えるのは、どちらの版でも同じです。
 
 ::: warning 初めて起動するときにSmartScreenの警告が出ます
 Windows版はコード署名をしていません。「WindowsによってPCが保護されました」と出たら、「詳細情報」を押してから「実行」を押します。

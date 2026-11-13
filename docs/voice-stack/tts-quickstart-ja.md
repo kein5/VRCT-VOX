@@ -5,12 +5,12 @@ AppImageにはspeech.cppの実行ファイルを同梱している。音声モ�
 以下は現在の英語GUIの項目名。
 
 1. メイン画面の歯車から **TTS** を開く。RVCは隣の専用ページ、共通の音声経路は **Device** にある。
-2. **Bundled speech.cpp servers → Japanese TTS** の **Model GGUF path** に
+2. ページの下のほうにある **Models and servers** を開き、**Japanese TTS** の **Model GGUF path** に
    既存のIrodori GGUFモデルのフルパスを入力する。`~`も利用できる。
    **Voice GGUF path (optional)** は空欄、**Inference device** は **Automatic** にする。
-3. **Save server settings** を押した後、Japanese TTSの **Start server** を押す。
+3. 画面の上の **Save changes** を押した後、Japanese TTSの **Start server** を押す。
    **Ready** になるまで待つ。保存だけではモデルを起動しない。
-4. 上側の読み上げ設定を次の値にして **Save voice settings** を押す。
+4. 上側の読み上げ設定を次の値にして **Save changes** を押す。
 
 | 項目 | イヤホンで試すときの値 |
 |---|---|
@@ -31,9 +31,9 @@ Linuxでは通常の再生デバイスも選べる。
 6. メイン画面に戻り、**Your Language = Japanese (Japan)** を選んで **TTS** をONにする。
    下部の入力欄へ日本語を入れて送信すると読み上げる。
 
-トップの **TTS OFF** は読み上げ受付・再生・待ち行列を止める。直接入力・RVC・翻訳・OSCは継続する。
-TTSページの **Stop playback and clear queue** は現在の発声と待ち行列だけを止める。
-Deviceページの **Mute until resumed** は共通経路全体のミュートなので、TTS OFFとは用途が異なる。
+メイン画面の **TTS** をOFFにすると読み上げ受付・再生・待ち行列を止める。直接入力・RVC・翻訳・OSCは継続する。
+TTSページの **Stop playback and clear queue** は現在の発声と待ち行列だけを止める。メイン画面の上の **Stop speech** も同じ。
+Deviceページの **Mute until resumed** は共通経路全体のミュートなので、TTSのOFFとは用途が異なる。メイン画面の上の **Mute** も同じ。
 アプリ再起動後はTTS受付と同梱サーバーがOFFに戻る。必要な枠を起動してからTTSをONにする。
 
 各言語枠の **Seed mode** は既定でランダム。**Specify a value** では0を含む整数を指定できる。

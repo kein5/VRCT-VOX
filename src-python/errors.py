@@ -474,6 +474,9 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "The CTranslate2 model is not downloaded; translation was not enabled",
         "severity": "error",
         "user_action_required": True,
+        # Where every new user starts, not a failure: the UI opens the download review.
+        # Counting it would put one "error" into the usage events of each first run.
+        "reported": False,
     },
     ErrorCode.TRANSLATION_MODEL_LOAD_FAILED: {
         "category": ErrorCategory.TRANSLATION,
@@ -1065,9 +1068,11 @@ class VRCTError:
                 "severity": metadata["severity"],
             }
         }
-        _notify_error_hooks(error_code.value)
+        # "reported": False marks a code that answers an expected state (ERROR_METADATA).
+        if metadata.get("reported", True):
+            _notify_error_hooks(error_code.value)
         return response
-    
+
     @staticmethod
     def create_exception_error_response(
         exception: Exception,

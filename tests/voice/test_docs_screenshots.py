@@ -48,6 +48,8 @@ REVIEW = {"ja": "取得内容を確認", "en": "Review download"}
 # studio-entry shows a fixture version; the documentation shows the app's own.
 FIXTURE_VERSION = "3.6.0-beta.1"
 APP_VERSION = json.loads((Path(__file__).resolve().parents[2] / "package.json").read_text())["version"]
+# The last line of tests/voice/caption-overlay-entry/entry.jsx, to know its captions are drawn.
+CAPTION_SAMPLE = "Thank you. I'm looking forward to it!"
 # Where downloaded models go on Linux (site/*/guide/models.md).
 SAVE_TO = "~/.config/vrct-vox/downloaded_models"
 # The log stamps each row with the time it arrived; a fixed clock keeps the pictures the same between runs.
@@ -174,3 +176,9 @@ def test_docs_screenshots(studio, tmp_path, lang):  # noqa: F811
     shown = SAVE_TO + folder[len(models):].replace("\\", "/")
     save(page, out / "model-consent.webp", replace=[[folder, shown]])
     page.keyboard.press("Escape")
+
+    # The desktop captions themselves, over a stand-in scene (tests/voice/caption-overlay-entry).
+    # The page does not depend on the display language; each language keeps its own copy.
+    page.goto(f"{origin.scheme}://{origin.netloc}/tests/voice/caption-overlay-entry/")
+    page.get_by_text(CAPTION_SAMPLE, exact=True).wait_for()
+    save(page, out / "captions-on-screen.webp")
