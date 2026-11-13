@@ -50,7 +50,10 @@ a = Analysis(
     runtime_hooks=[],
     excludes=['pandas', 'matplotlib', 'PyQt5'],
     # LGPL Python code stays as replaceable source files outside the PYZ archive.
-    module_collection_mode={'zeroconf': 'py', 'bidi': 'py'},
+    # Transformers lists the folder next to each package's __file__ to build its lazy imports.
+    # Inside the PYZ archive that __file__ is a .pyc that is not on the disk, the listing fails,
+    # and no tokenizer can be built (local translation never turns on). As source files it works.
+    module_collection_mode={'zeroconf': 'py', 'bidi': 'py', 'transformers': 'py'},
     noarchive=False,
     optimize=0,
 )

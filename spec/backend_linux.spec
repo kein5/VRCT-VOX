@@ -44,7 +44,9 @@ a = Analysis([str(root / 'src-python/mainloop.py')], pathex=[str(root / 'packagi
     excludes=['pandas', 'matplotlib', 'PyQt5', 'torch', 'tensorflow',
               'windows_capture', 'pytest', 'ruff'], noarchive=False, optimize=0,
     # LGPL Python code stays as replaceable source files outside the PYZ archive.
-    module_collection_mode={'zeroconf': 'py', 'bidi': 'py'})
+    # Transformers lists the folder next to each package's __file__ to build its lazy imports;
+    # inside the PYZ archive that listing fails and no tokenizer can be built (see backend.spec).
+    module_collection_mode={'zeroconf': 'py', 'bidi': 'py', 'transformers': 'py'})
 a.datas = filter_toc(a.datas)
 a.binaries = filter_toc(a.binaries)
 pyz = PYZ(a.pure)
