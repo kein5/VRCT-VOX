@@ -3,7 +3,7 @@ layout: home
 hero:
   name: VRCT-VOX
   text: VRChatでの会話を、翻訳・字幕・読み上げで支える
-  tagline: 翻訳、音声認識、読み上げ（TTS）、声の変換、チャット読み取りをまとめたデスクトップアプリです。VRCTの非公式な派生版で、ベータ版です。
+  tagline: 翻訳、音声認識、読み上げ（TTS）、声の変換、チャット読み取りをまとめたデスクトップアプリです。VRCTの非公式な派生版です。
   actions:
     - theme: brand
       text: はじめる

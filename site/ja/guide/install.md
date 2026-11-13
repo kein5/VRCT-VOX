@@ -1,6 +1,6 @@
 # インストール
 
-配布物は[GitHub Releases](https://github.com/kein5/VRCT-VOX/releases)にあります。ベータ版は「Pre-release」として公開しています。
+配布物は[GitHub Releases](https://github.com/kein5/VRCT-VOX/releases)にあります。正式版には「Latest」の印が付きます。ベータ版は「Pre-release」として公開しています。
 
 ## Linux
 
