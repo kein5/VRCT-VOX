@@ -155,7 +155,12 @@ class SpeechCppASR:
             conn.close()
 
     def _survey(self, token, deadline):
-        """The recognition models, and whether the server also holds a diarization model."""
+        """The recognition models, and whether the server can also tell who speaks.
+
+        A diarization model on the CPU does not count. It cannot keep up with speech as
+        it arrives, and every caption waits for it: on a Core i7-1255U the delay grew
+        past a minute within 96 s of speech, where captions alone took 2.7 s.
+        """
         payload, _ = self._request('GET', '/v1/models', token, deadline)
         if not isinstance(payload, dict) or not isinstance(payload.get('data'), list):
             raise ASRError('invalid_models')
@@ -165,7 +170,10 @@ class SpeechCppASR:
                 raise ASRError('invalid_models')
             speech = row['speech']
             if speech.get('task') != 'recognition':
-                diarizes = diarizes or speech.get('task') == 'diarization'
+                # The server names the device it loaded the model on, such as "Vulkan0" or "CPU".
+                device = speech.get('device')
+                diarizes = diarizes or (speech.get('task') == 'diarization'
+                                        and isinstance(device, str) and device.strip().lower() not in ('', 'cpu'))
                 continue
             name, languages = row.get('id'), speech.get('languages')
             options = speech.get('options')

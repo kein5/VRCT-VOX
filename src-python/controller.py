@@ -923,7 +923,7 @@ class Controller:
     # toggle's wait if that end state is somehow never published.
     _ASR_SERVER_WAIT = SPEECH_START_TIMEOUT + 5
     _ASR_START_FAILURES = ("speech_server_out_of_memory", "speech_server_start_timeout",
-                           "speech_server_vulkan_missing")
+                           "speech_server_vulkan_missing", "speech_server_device_failed")
 
     def _realtimeToggles(self):
         if sys.platform == "linux":
@@ -2664,7 +2664,7 @@ class Controller:
     # Server failures with their own next step; the rest share a generic code.
     _TTS_START_FAILURES = ('speech_server_out_of_memory', 'speech_server_start_timeout',
                            'speech_server_low_latency_requires_gpu_irodori',
-                           'speech_server_vulkan_missing')
+                           'speech_server_vulkan_missing', 'speech_server_device_failed')
 
     def enableTts(self, data, *args, **kwargs) -> dict:
         if (not isinstance(data, dict) or set(data) != {'generation'}
