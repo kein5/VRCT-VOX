@@ -3,7 +3,7 @@ from dataclasses import dataclass, replace
 import re
 from urllib.parse import quote
 
-CATALOG_VERSION = '2026-11-01.7'
+CATALOG_VERSION = '2026-11-13.1'
 
 
 @dataclass(frozen=True)
@@ -39,6 +39,8 @@ HAAS_REV = '6b965d5007ba780585de51549d57a8c1c0d67c7e'
 # The revision speech.cpp 0.10.0's own catalog pins for qwen3-asr-0.6b and silero-vad.
 QWEN_ASR_REV = 'ee78f8709547f39bea3b924a16c72403826cac92'
 SILERO_REV = '7fcb7aa2a70c312f8579fc987b3e1cdecf9321ca'
+# The files speech.cpp 0.10.0 names nemotron-3-diarization (docs/models/sortformer.md).
+NEMOTRON_DIARIZATION_REV = '9096d41cb78bba7ac882b96d453e25239eac692b'
 CATALOG = (
     Model('irodori-v41-f16', 'japanese', 'Irodori-TTS v4.1 Small MF · F16', 'Aratako / sakasegawa',
           'sakasegawa/Irodori-TTS-v4.1-Small-MF-GGUF', IRODORI_REV, 'MIT + Apache-2.0', (
@@ -81,6 +83,15 @@ CATALOG = (
               f'https://huggingface.co/sakasegawa/silero-vad-GGUF/blob/{SILERO_REV}/LICENSE'),
           'silero', (Artifact('silero-vad-309K-v6.2-F32.gguf', 1238624,
                              '2fc312514e5fc4fa4ffd02b25c76a4853fa4130e8fb9777d01502183b01238cb', 'model'),)),
+    # Optional: tells who speaks in the speaker captions. Applies to the asr profile's
+    # diarization_model. Q8_0 is the file speech.cpp fetches for this name; on AMI its
+    # error rate is 9.52% against 9.46% for F32 (speech.cpp's own measurement).
+    Model('nemotron-3-diarization-q8', 'diarization', 'Nemotron 3 Diarization · Q8_0 (up to 8 speakers)',
+          'NVIDIA / sakasegawa', 'sakasegawa/Nemotron-3-Diarization-GGUF', NEMOTRON_DIARIZATION_REV, 'OpenMDW-1.1', (
+              f'https://huggingface.co/sakasegawa/Nemotron-3-Diarization-GGUF/blob/{NEMOTRON_DIARIZATION_REV}/README.md',
+              f'https://huggingface.co/sakasegawa/Nemotron-3-Diarization-GGUF/blob/{NEMOTRON_DIARIZATION_REV}/LICENSE.OpenMDW-1.1'),
+          'nemotron_diarization', (Artifact('Nemotron-3-Diarization-99M-Q8_0.gguf', 106179488,
+                                           '336df6350dce2ea5ff06aa6e2b249d331a859ced13305fbb45c44bdb3c0abe20', 'model'),)),
 )
 
 CATALOG = (*CATALOG,
@@ -92,10 +103,11 @@ CATALOG = (*CATALOG,
                  '4bb9ba9e822ab614798c416c7f0187994f349be41221966fa911aca24f237930', 'model'),)))
 
 
-TARGETS = ('japanese', 'multilingual', 'asr', 'vad', 'rvc', 'ocr')
+TARGETS = ('japanese', 'multilingual', 'asr', 'vad', 'diarization', 'rvc', 'ocr')
 # Where an applied file goes: (speech server profile, settings field). RVC is separate.
 SPEECH_FIELDS = {'japanese': ('japanese', 'model'), 'multilingual': ('multilingual', 'model'),
-                 'asr': ('asr', 'model'), 'vad': ('asr', 'vad_model')}
+                 'asr': ('asr', 'model'), 'vad': ('asr', 'vad_model'),
+                 'diarization': ('asr', 'diarization_model')}
 
 
 # --- OCR (chat reading) models: begin -----------------------------------------

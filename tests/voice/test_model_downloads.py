@@ -357,7 +357,7 @@ def test_catalog_contains_pinned_artifacts_and_no_private_model():
     from models.model_downloads.catalog import CATALOG, validate_catalog
 
     validate_catalog(CATALOG)
-    assert {m.target for m in CATALOG} == {"japanese", "multilingual", "asr", "vad", "rvc", "ocr"}
+    assert {m.target for m in CATALOG} == {"japanese", "multilingual", "asr", "vad", "diarization", "rvc", "ocr"}
     assert "Mia" not in repr(CATALOG)
     for m in CATALOG:
         pins = {m.revision, *(a.remote[1] for a in m.artifacts if a.remote)}
@@ -404,6 +404,27 @@ def test_multilingual_recognizer_and_vad_are_pinned_to_speechcpp_catalog():
     assert any(url.endswith("/LICENSE") for url in vad.licenses)
     assert SPEECH_FIELDS["vad"] == ("asr", "vad_model") and SPEECH_FIELDS["asr"] == ("asr", "model")
     assert CATALOG_VERSION != "2026-10-31.1"  # Reviewed entries changed: stale consent must fail.
+
+
+def test_diarization_model_is_pinned_and_goes_to_its_own_field_of_the_asr_profile():
+    # Revision, size and SHA-256 are the Hugging Face LFS metadata of this exact revision, read on
+    # 2026-11-13; the file is the one speech.cpp 0.10.0 fetches for nemotron-3-diarization.
+    from models.model_downloads.catalog import CATALOG, CATALOG_VERSION, SPEECH_FIELDS
+
+    rows = [m for m in CATALOG if m.target == "diarization"]
+    assert [m.id for m in rows] == ["nemotron-3-diarization-q8"]
+    model = rows[0]
+    assert (model.repo, model.revision, model.license, model.notice) == (
+        "sakasegawa/Nemotron-3-Diarization-GGUF", "9096d41cb78bba7ac882b96d453e25239eac692b",
+        "OpenMDW-1.1", "nemotron_diarization")
+    assert [(a.filename, a.size, a.sha256, a.role) for a in model.artifacts] == [(
+        "Nemotron-3-Diarization-99M-Q8_0.gguf", 106179488,
+        "336df6350dce2ea5ff06aa6e2b249d331a859ced13305fbb45c44bdb3c0abe20", "model")]
+    # OpenMDW asks that the agreement goes with the model: the review links to the copy in the repository.
+    assert any(url.endswith("/LICENSE.OpenMDW-1.1") for url in model.licenses)
+    # It never replaces the recognizer or the detector.
+    assert SPEECH_FIELDS["diarization"] == ("asr", "diarization_model")
+    assert CATALOG_VERSION not in ("2026-10-31.1", "2026-11-01.7")
 
 @pytest.mark.parametrize(
     "url",

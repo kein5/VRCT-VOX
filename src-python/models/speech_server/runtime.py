@@ -154,6 +154,7 @@ class SpeechServer:
         row=self.options
         args=[str(binary),'serve',row['model']]
         if row['vad_model']: args.append(row['vad_model'])
+        if row.get('diarization_model'): args.append(row['diarization_model'])
         args+=['--host','127.0.0.1','--port','0','--device',row['device']]
         if row['voice_file']: args+=['--add-voice','custom='+row['voice_file']]
         return launch_owned(args,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
@@ -166,6 +167,8 @@ class SpeechServer:
             row=self.options
             args=[str(self.helper),str(os.getpid()),str(owner),str(binary),'speech-server',
                   row['model'],row['vad_model'],row['voice_file'],row['device']]
+            # The helper takes a diarization model as one more argument, only when there is one.
+            if row.get('diarization_model'): args.append(row['diarization_model'])
             return subprocess.Popen(args,pass_fds=(owner,),stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,bufsize=0,
                 env=dict(external_process_env(),NO_COLOR='1'))
@@ -179,6 +182,8 @@ class SpeechServer:
         try: tasks=[row['speech']['task'] for row in models['data']]
         except (KeyError,TypeError): raise _Failure('speech_server_model_tasks') from None
         expected=['recognition','detection'] if self.profile=='asr' else ['synthesis']
+        # A file in the diarization field that is another kind of model fails here.
+        if self.profile=='asr' and self.options.get('diarization_model'): expected.append('diarization')
         if sorted(tasks)!=sorted(expected): raise _Failure('speech_server_model_tasks')
         if self.profile!='asr' and self._listener is None:
             self._listener=listener_monitors.own(('127.0.0.1',port),self._child)
