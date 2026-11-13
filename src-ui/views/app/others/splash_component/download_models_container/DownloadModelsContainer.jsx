@@ -1,5 +1,6 @@
 import styles from "./DownloadModelsContainer.module.scss";
-import vrct_logo_for_dark_mode from "@images/vrct_logo_for_dark_mode.png";
+// VRCT-VOX's own logo, in English as on the startup screen beside it.
+import brand_logo from "@images/brand/logo-en.svg";
 import vrct_now_downloading from "@images/VRCT_now_downloading.png";
 
 import {
@@ -27,8 +28,8 @@ export const DownloadModelsContainer = () => {
                 ))}
             </div>
             <div className={styles.labels_wrapper}>
-                <img src={vrct_logo_for_dark_mode} className={styles.logo_img}/>
-                <img src={vrct_now_downloading} className={styles.vrct_now_downloading_img}/>
+                <img src={brand_logo} className={styles.logo_img} alt="VRCT-VOX" />
+                <img src={vrct_now_downloading} className={styles.vrct_now_downloading_img} alt="Now downloading AI models for initialization..." />
             </div>
         </div>
     );
