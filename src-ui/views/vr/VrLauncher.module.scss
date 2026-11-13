@@ -33,7 +33,7 @@ $intro-land: 2.1s; // アイコンが手首に着く時刻 (_INTRO_FRONT_SEC + _
     @for $i from 1 through 3 { .group:last-of-type > :nth-child(#{$i}) { animation-delay: 3.05s + ($i + 3) * 0.065s; } }
 }
 .intro_icon { position: absolute; z-index: 1; left: 50%; top: 50%; translate: -50% -50%; pointer-events: none; opacity: 0; height: 112px; animation: intro_icon 2.2s 0.13s both; }
-.intro_logo { position: absolute; z-index: 1; left: 50%; top: 50%; width: 264px; aspect-ratio: 3200 / 850; translate: -50% -50%; pointer-events: none; background: var(--vrct-logo) center / contain no-repeat; opacity: 0; animation: intro_logo 1.6s #{$intro-land + 0.13s} both; }
+.intro_logo { position: absolute; z-index: 1; left: 50%; top: 50%; width: 264px; aspect-ratio: 1000 / 240; translate: -50% -50%; pointer-events: none; background: var(--intro-logo) center / contain no-repeat; opacity: 0; animation: intro_logo 1.6s #{$intro-land + 0.13s} both; }
 // 最終のランチャーの形 (角の丸みも枠線も同じ) を短くした枠が現れ、幅だけが広がる
 @keyframes intro_frame {
     0%, 50% { opacity: 0; left: 31%; right: 31%; }
