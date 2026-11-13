@@ -5,10 +5,11 @@
 | ID | 内容 | 根拠 | 状態 |
 |---|---|---|---|
 | OI-03 | VRChatへ送る文に長さの上限や分割の処理がない。VRChatのチャットボックスに表示されるのは144文字まで | `src-python/models/osc/osc.py`、`src-ui/logics/common/chatboxLength.js` | 切り詰めと分割はしないと決めた（2026-11-03）。入力が144文字を超えたら、メイン画面の入力欄とQuick Chatの入力欄のそばに警告を出す。翻訳を付けて送る文の長さは数えていない |
-| OI-06 | `/run/enable_ai_models`を受けて更新する`IsVrctAvailable`を読む画面がない。いまはお知らせを出すだけである | `src-ui/logics/common/useIsVrctAvailable.jsx` | 未決 |
+| OI-06 | `/run/enable_ai_models`を受けて更新する`IsVrctAvailable`を読む画面がない。以前はお知らせを出していたが、足りないモデルを会話が空の画面に出すようにしたので（2026-11-13、`src-ui/logics/main/useSetupNeeds.js`）、いまは値を保存するだけである | `src-ui/logics/common/useIsVrctAvailable.jsx` | 未決。エンドポイントごと外すか決めていない |
 | OI-07 | UIだけにあるルートが57件ある。多くは`ui_config_setter.js`の定義が機械的に作るもので、使われない | [IPCエンドポイント一覧](reference/ipc-endpoints.md)の「UIだけにあるルート」 | 整理するか未決 |
 | OI-08 | 要求に通し番号がなく、応答はエンドポイント名で対応づける。同じエンドポイントへの要求が重なると、どの応答がどの要求のものか分からない。言語の変更だけはUIが対応づけを補っている | [IPCプロトコル](ipc-protocol.md#言語の変更の対応づけ) | 設計上の制約。変えるならプロトコルの版を上げる |
 | OI-09 | `config.json`に版番号がない。キーの意味を変えるときに移行の手がかりがない | [データ形式と保存](data-and-persistence.md#configjson) | 未決 |
+| OI-21 | チャット読み取りの設定の場所が、デスクトップとVRで違う。デスクトップは「チャット読み取り」のページに分けた（2026-11-13）。VRの設定は「VRChat」のページの中に置いたままである。OI-11で一度そろえた構成が、また分かれた | `src-ui/views/app/config_page/setting_section/setting_box/SettingBox.jsx`、`src-ui/views/vr/VrSettingsWindow.jsx` | 未決。VRの設定は項目が4つだけなので、そのままにしている |
 | OI-10 | エラーコード98件のうち10件は、UIに個別の処理がない。いずれも音声認識の失敗（`AUDIO_*`、`ASR_ERROR`、`TRANSCRIPTION_API_*`など）で、`/run/transcription_recognition_error`として会話ログに出るため汎用の通知にはならない。会話ログでは`backend_errors`の文言で翻訳する（2026-11-08）。`AUDIO_TRACKER_STOP_TIMEOUT`はテレメトリー用で画面には届かない | [エラーコード一覧](reference/error-codes.md) | 確認済み。新しいコードを足すときは同じ確認をし、会話ログに出るコードには`en.yml`と`ja.yml`の文言を足す |
 
 ## 調べて直したもの

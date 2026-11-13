@@ -3,12 +3,19 @@
 ## Chat reading says the window was not found
 
 - Start VRChat before turning on Chat Transcribe.
-- Check that "Window name" under Settings → "VRChat" matches your client's title. The default is `VRChat`.
+- Check that "Window name" under Settings → "Chat Transcribe" matches your client's title. The default is `VRChat`.
 - On Linux, VRChat is found by its window name when it runs as an X11/XWayland window (Proton's default). When it runs as a native Wayland window, inside gamescope for example, share the window first (see [Chat reading](../features/chat-reading)).
 
 ## It says models are missing
 
 On that feature's page, download the model and press "Apply model path" (see [Model downloads](./models)). For speech and speech recognition, also press "Start server".
+
+## Messages do not appear in the VRChat chatbox
+
+- Open Settings → "VRChat". The top of the page says whether a VRChat with OSC enabled was found on this PC. The same line is in "Quick settings" on the main screen.
+- If it says none was found, start VRChat, then open its Action Menu and set "Options" → "OSC" to "Enabled". The line changes shortly after.
+- A message marked "Not sent to VRChat (off in settings)" in the log was held back because "Send Message To VRChat" is off. Turn it on under Settings → "VRChat".
+- This check uses OSCQuery on this PC only. When the destination is another machine, it says VRChat cannot be checked; messages are still sent. If a firewall blocks local discovery (mDNS), it can say none was found while messages still arrive.
 
 ## VRChat does not hear the speech
 

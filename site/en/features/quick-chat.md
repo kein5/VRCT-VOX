@@ -29,6 +29,12 @@ Under Settings → "Hotkeys" you can assign keys to:
 - turning Voice2Chatbox on and off
 - turning Speaker2Log on and off
 - opening Quick Chat
+- stopping speech
+- muting or resuming the voice
+- turning TTS on and off
+- turning RVC on and off
+
+Stopping speech and muting do the same as the stop and mute buttons at the top of the main screen. None of these has a key assigned at first.
 
 Hotkeys are paused while the settings are open, so they don't fire by accident.
 
