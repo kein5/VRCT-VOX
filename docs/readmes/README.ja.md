@@ -5,7 +5,7 @@
   </picture>
 </h1>
 
-[English](/README.md) · [한국어](README.ko.md) · [繁體中文](README.zh-Hant.md)
+[English](/README.md)
 
 VRCT-VOXは音声認識（ASR）、読み上げ（TTS）、ボイスチェンジ（RVC）、チャット読み取り（OCR）、翻訳をまとめたVRChat向けのデスクトップアプリです。[VRCT](https://github.com/misyaguziya/VRCT)をもとに[kein5](https://github.com/kein5)が開発しています。**VRCTの公式版ではなく、VRCTの開発者やVRChatが承認したものでもありません。**
 
