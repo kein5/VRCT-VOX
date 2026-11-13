@@ -44,7 +44,7 @@ The AppImage and the tar.gz use the same locations.
 | ZIP (CPU) | `VRCT-VOX.zip` | You want to run from an unpacked folder without installing |
 | ZIP (CUDA) | `VRCT-VOX_cuda.zip` | The same, with an NVIDIA GPU |
 
-The CPU version runs on any PC. The GPU (CUDA) version needs an NVIDIA GPU and is a larger download; in return Whisper speech recognition is faster. Speech and realtime captions (the bundled speech.cpp) can use a GPU in either version.
+The CPU version runs on any PC. The GPU (CUDA) version is for PCs with an NVIDIA GPU: Whisper speech recognition and local translation can run on the GPU, and the download is larger. Speech and realtime captions (the bundled speech.cpp) can use a GPU in either version.
 
 ::: warning SmartScreen warns on first launch
 The Windows build is not code-signed. When "Windows protected your PC" appears, press "More info" and then "Run anyway".

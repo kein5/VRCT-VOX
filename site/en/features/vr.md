@@ -24,6 +24,10 @@ Turn on "Subtitle Overlay" in "Quick settings" at the top right of the main scre
 
 Turn on "Show captions on the desktop" under Settings → "VR" → "Desktop caption overlay". The lines of the message log are drawn above other windows.
 
+![Captions at the bottom of the screen. Two other voices carry the labels A and B, and your own words are blue](/screenshots/en/captions-on-screen.webp)
+
+The background is a drawing for this page. In use, the captions sit above whatever is on your screen, such as VRChat.
+
 ![The desktop caption overlay section of Settings → VR](/screenshots/en/desktop-captions.webp)
 
 - Your own words (microphone or typing) are blue and the other side's (speakers or Chat Transcribe) are purple, the same colours as the message log. The bar sits at the right for your own words and at the left for the other side.
