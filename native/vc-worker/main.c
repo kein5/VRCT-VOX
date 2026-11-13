@@ -37,10 +37,12 @@ static bool device_allowed(const char *text) {
 int main(int argc, char **argv) {
     bool rvc = argc == 12 && strcmp(argv[8], "rvc") == 0;
     bool router = argc == 5 && (strcmp(argv[4], "router") == 0 || strcmp(argv[4], "router-frozen") == 0);
-    bool speech = argc == 9 && strcmp(argv[4], "speech-server") == 0;
+    bool speech = (argc == 9 || argc == 10) && strcmp(argv[4], "speech-server") == 0;
+    /* A tenth argument is a diarization model for the server to load as well. */
+    char *diarization = speech && argc == 10 ? argv[9] : "";
     if (speech && (argv[5][0] != '/' || (argv[6][0] && argv[6][0] != '/') ||
         (argv[7][0] && argv[7][0] != '/') || strlen(argv[7]) >= PATH_MAX ||
-        !device_allowed(argv[8]))) return 2;
+        (argc == 10 && diarization[0] != '/') || !device_allowed(argv[8]))) return 2;
     if (!router && !speech && ((argc != 8 && !rvc) || argv[3][0] != '/' || argv[4][0] != '/' || argv[5][0] != '/' ||
         argv[6][0] != '/' || strlen(argv[7]) != 32 ||
         strspn(argv[7], "0123456789abcdef") != 32)) return 2;
@@ -75,6 +77,7 @@ int main(int argc, char **argv) {
             int n = 0;
             args[n++] = argv[3]; args[n++] = "serve"; args[n++] = argv[5];
             if (argv[6][0]) args[n++] = argv[6];
+            if (diarization[0]) args[n++] = diarization;
             args[n++] = "--host"; args[n++] = "127.0.0.1";
             args[n++] = "--port"; args[n++] = "0";
             args[n++] = "--device"; args[n++] = argv[8];

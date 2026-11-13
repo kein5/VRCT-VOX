@@ -238,7 +238,23 @@ def test_speech_supervisor_fixes_host_port_and_limits_arguments(tmp_path):
             check=True,
         )
         assert json.loads(named.stdout)[-2:] == ["--device", "Vulkan12"]
+        # One more argument is a diarization model, loaded after the detection model.
+        diarizing = subprocess.run(
+            [*args, "/model.gguf", "/vad.gguf", "", "auto", "/diarization.gguf"],
+            pass_fds=(fd,),
+            capture_output=True,
+            timeout=3,
+            check=True,
+        )
+        assert json.loads(diarizing.stdout) == [
+            "serve", "/model.gguf", "/vad.gguf", "/diarization.gguf",
+            "--host", "127.0.0.1", "--port", "0", "--device", "auto",
+        ]
         for values in [
+            ("/model", "/vad", "", "auto", ""),
+            ("/model", "/vad", "", "auto", "diarization"),
+            ("/model", "/vad", "", "auto", "--host"),
+            ("/model", "/vad", "", "auto", "/diarization", "/extra"),
             ("named-model", "", "", "auto"),
             ("/model", "", "", "--host"),
             ("/model", "vad", "", "auto"),

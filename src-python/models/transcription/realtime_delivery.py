@@ -92,6 +92,8 @@ class RealtimeDelivery:
             text=update.text,
             translations=[],
             expires_ns=update.received_ns + 2_000_000_000,
+            # The diarization's labels for who spoke; empty for partials and without diarization.
+            speakers=list(getattr(update, "speakers", ())),
         )
 
     def _report(self, code, *, terminal=False):

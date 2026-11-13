@@ -32,6 +32,48 @@ def test_final_replaces_partial_and_never_reverts_or_repeats():
     assert r.accept(event('completed', transcript='さらに重複', stop='complete')) == ()
 
 
+def speakers_of(rows, **values):
+    r = reducer('speaker')
+    r.accept(event('speech_started'))
+    partial = r.accept(event('delta', delta='途中', speakers=rows))[0]
+    final = r.accept(event('completed', transcript='確定', stop='complete', speakers=rows, **values))[0]
+    assert partial.speakers == ()  # only a completed utterance names its speakers
+    return final.speakers
+
+
+def part(label, start, end):
+    return {'speaker': label, 'start_ms': start, 'end_ms': end}
+
+
+def test_a_final_names_who_spoke_in_the_order_they_first_speak():
+    # Two voices in one utterance: the caption holds both, first speaker first.
+    assert speakers_of([part('C', 24290, 28560), part('B', 26970, 28150)]) == ('C', 'B')
+    # One voice in several parts is named once.
+    assert speakers_of([part('A', 200, 1000), part('A', 1400, 3300)]) == ('A',)
+    # A stray frame of another voice does not put a second speaker on the line...
+    assert speakers_of([part('A', 0, 2000), part('B', 2000, 2100), part('B', 2200, 2300)]) == ('A',)
+    # ...but when no one reaches that length, the longest still names the line.
+    assert speakers_of([part('A', 0, 150), part('B', 150, 380)]) == ('B',)
+    # At most four, those who spoke the most, still in order of speaking.
+    crowd = [part(label, index * 1000, index * 1000 + 500 + index * 10) for index, label in enumerate('ABCDEF')]
+    assert speakers_of(crowd) == ('C', 'D', 'E', 'F')
+    # Labels go on past Z after a diarization restarts within a session.
+    assert speakers_of([part('AB', 0.0, 900.5)]) == ('AB',)
+
+
+@pytest.mark.parametrize('rows', [
+    None, 'A', {'speaker': 'A'}, [], ['A'], [part('a', 0, 900)], [part('', 0, 900)], [part('ABCD', 0, 900)],
+    [part('A', 900, 0)], [part('A', -1, 900)], [part('A', True, 900)], [part('A', '0', 900)],
+    [{'speaker': 'A', 'start_ms': 0}], [part('A', 0, 900), 'B'], [part('A', 0, 900)] * 257,
+])
+def test_speakers_not_in_the_documented_form_leave_the_caption_without_speakers(rows):
+    r = reducer('speaker')
+    r.accept(event('speech_started'))
+    values = {} if rows is None else {'speakers': rows}
+    final = r.accept(event('completed', transcript='確定', stop='complete', **values))[0]
+    assert final.is_final and final.text == '確定' and final.speakers == ()
+
+
 def test_duplicate_event_id_does_not_append_partial_twice():
     r = reducer()
     r.accept(event('committed'))

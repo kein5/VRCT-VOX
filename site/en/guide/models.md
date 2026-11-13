@@ -26,6 +26,7 @@ Downloaded files are checked by size and SHA-256 before use. They come only from
 | Speech recognition (Japanese) | Haas-ja v1.0 · Q8_0 | 0.61 GiB | Apache-2.0 |
 | Speech recognition (30 languages) | Qwen3-ASR 0.6B · Q8_0 | 0.78 GiB | Apache-2.0 |
 | Speech detection | Silero VAD v6.2 · F32 | 1.2 MB | MIT |
+| Speaker labels (optional) | Nemotron 3 Diarization · Q8_0 | 101 MB | OpenMDW-1.1 |
 | Voice conversion (RVC) | Saisho Utane · RVC v2 | 0.31 GiB | CC BY 4.0 (credit required) |
 | Text recognition | PP-OCRv6 small (Japanese, English, Chinese, Latin) | about 30 MB | Apache-2.0 |
 | Text recognition | PP-OCRv5 mobile (Korean, Cyrillic, Thai, Arabic, Devanagari) | 8–14 MB each | Apache-2.0 |

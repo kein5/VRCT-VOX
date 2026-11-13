@@ -47,7 +47,7 @@ class Session:
             state="ready" if self.active else "closed",
         )
 
-    def emit(self, item="u", final=False, revision=1, text="text"):
+    def emit(self, item="u", final=False, revision=1, text="text", speakers=()):
         update = TranscriptUpdate(
             self.source,
             self.namespace,
@@ -57,6 +57,7 @@ class Session:
             final,
             "final" if final else "partial",
             received_ns=int(self.clock() * 1e9),
+            speakers=speakers,
         )
         if final and self.snapshot_voice is not None:
             update = replace(update, voice_snapshot=self.snapshot_voice())
@@ -102,6 +103,28 @@ def test_partials_replace_only_and_final_is_processed_once():
         eventually(lambda: any(p["state"] == "outcome" for p in published))
         assert [p["outcome"] for p in published if p["state"] == "outcome"] == ["delivered"]
         assert not errors
+    finally:
+        assert delivery.close()
+
+
+def test_speakers_of_a_final_stay_on_its_caption_through_translation():
+    session, published, errors = Session(), [], []
+
+    def process(update, current):
+        return {"original": {"message": update.text, "transliteration": []},
+                "translations": [{"message": "translation", "transliteration": []}]}
+
+    delivery = create(session, published.append, process, errors)
+    try:
+        delivery.start()
+        session.emit(revision=1)
+        session.emit(final=True, revision=2, speakers=("C", "B"))
+        eventually(lambda: any(p["state"] == "outcome" for p in published))
+        by_state = {p["state"]: p for p in published}
+        # A partial has no speakers yet; the final and its translated row carry the same ones.
+        assert by_state["partial"]["speakers"] == []
+        assert by_state["final"]["speakers"] == ["C", "B"] and by_state["translated"]["speakers"] == ["C", "B"]
+        assert "speakers" not in by_state["outcome"] and not errors
     finally:
         assert delivery.close()
 

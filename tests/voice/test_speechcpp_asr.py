@@ -93,6 +93,20 @@ def test_audio_cannot_be_configured_for_remote_or_credentialed_url(url):
         module().SpeechCppASR(url)
 
 
+def test_survey_tells_whether_the_server_also_holds_a_diarization_model():
+    with server() as (url, state):
+        client = module().SpeechCppASR(url)
+        models, diarizes = client.survey()
+        assert [m.id for m in models] == ['asr'] and diarizes is False
+        # As `speech serve ASR VAD DIARIZATION` lists them; one request answers both.
+        state.models['data'] += [{'id': 'silero-vad', 'speech': {'task': 'detection'}},
+                                 {'id': 'Nemotron-3-Diarization', 'speech': {'task': 'diarization'}}]
+        before = state.get_count
+        models, diarizes = client.survey()
+        assert [m.id for m in models] == ['asr'] and diarizes is True and state.get_count == before + 1
+        assert [m.id for m in client.recognizers()] == ['asr']
+
+
 def test_discovery_and_multipart_preserve_stereo_samples_and_rate(monkeypatch):
     monkeypatch.setenv('HTTP_PROXY', 'http://127.0.0.1:1')
     with server() as (url, state):

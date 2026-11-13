@@ -1,4 +1,5 @@
 import { sameValue } from "../common/polledState.js";
+import { speakerLabels } from "../common/speakerLabels.js";
 
 // Pure caption state. Receipt time is enforced by Python, identity/order here.
 const sources = ["mic", "speaker"];
@@ -64,6 +65,9 @@ export const applyRealtimeCaption = (current, payload, activeNamespaces) => {
     if (p.state === "discarded" || !p.text.trim()) {
         return { rows: current.rows.filter(row => row.id !== id), retired: retire(current.retired, id) };
     }
+    // Only a completed utterance names its speakers; its translated row keeps them.
+    const named = p.source === "speaker" ? speakerLabels(p.speakers) : [];
+    const speakers = named.length ? named : previous?.speakers ?? [];
     const row = {
         id, created_at: previous?.created_at ?? new Date().toLocaleTimeString("ja-JP", { hour12: false, hour: "2-digit", minute: "2-digit" }),
         category: p.source === "mic" ? "sent" : "received", status: "pending",
@@ -71,6 +75,7 @@ export const applyRealtimeCaption = (current, payload, activeNamespaces) => {
         realtime: { source: p.source, namespace: p.namespace, generation: p.generation,
             item_id: p.item_id, revision: p.revision, state: p.state },
         messages: { original: p.original ?? { message: p.text, transliteration: [] }, translations: p.translations ?? [] },
+        ...(speakers.length ? { speakers } : {}),
     };
     const rows = [...current.rows];
     if (index < 0) rows.push(row);

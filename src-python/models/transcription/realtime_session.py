@@ -146,7 +146,8 @@ class RealtimeSession:
             utterance_diagnostics.flush(self.source)
 
     def _preflight(self):
-        models = SpeechCppASR(self.options.base_url, timeout=5).recognizers(
+        """(request options, diarization) for this session, from what the server holds."""
+        models, diarizes = SpeechCppASR(self.options.base_url, timeout=5).survey(
             self._cancel
         )
         selected = next(
@@ -160,18 +161,23 @@ class RealtimeSession:
                 if self.options.language == "auto"
                 else "realtime_language_unsupported"
             )
-        return request_options(selected.options, self.options.vocabulary)
+        # Only the speaker side holds several voices: the microphone is the user alone.
+        # A server with a diarization model is the user's choice to tell them apart
+        # (the bundled server loads one only when its settings name the file).
+        return request_options(selected.options, self.options.vocabulary), diarizes and self.source == "speaker"
 
     async def _consume(self):
-        extra = await asyncio.to_thread(self._preflight)
+        extra, diarization = await asyncio.to_thread(self._preflight)
         if self._stop.is_set():
             return
+        # Named only when asked for, so a client without the argument still fits.
         client = self._client_factory(
             self.options.base_url,
             self.options.model,
             self.options.language,
             self.source,
             options=extra,
+            **({"diarization": True} if diarization else {}),
         )
         with self._lock:
             self._client, self._namespace = client, client.namespace

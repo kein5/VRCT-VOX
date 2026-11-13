@@ -59,19 +59,23 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
                 const row = draft.profiles[name], owner = state[name];
                 const busy = saving || !!pending[name] || !owner || ["preparing", "ready", "stopping"].includes(owner.state);
                 const input = key => <label key={key}>{t(`speech_servers.${key}`)}
-                    <input value={row[key]} disabled={busy} maxLength={4096} spellCheck={false}
+                    <input value={row[key] ?? ""} disabled={busy} maxLength={4096} spellCheck={false}
                         onChange={event => field(name, key, event.target.value)} />
                 </label>;
                 return <fieldset key={name}>
                     <legend>{t(`speech_servers.${name}`)}</legend>
                     {input("model")}{input(name === "asr" ? "vad_model" : "voice_file")}
+                    {/* Optional: with it the server also tells who speaks in the game audio captions. */}
+                    {name === "asr" && <>{input("diarization_model")}<Description text={t("speech_servers.diarization_help")} /></>}
                     {/* Other unsaved edits survive an apply; only an edited model path conflicts. */}
-                    {/* The asr profile also takes a VAD file; "expected" names the field each target replaces. */}
-                    <ModelDownloads targets={name === "asr" ? ["asr", "vad"] : [name]} deviceMode={settings.profiles[name].device}
+                    {/* The asr profile also takes a VAD file and a diarization file; "expected" names the field each target replaces. */}
+                    <ModelDownloads targets={name === "asr" ? ["asr", "vad", "diarization"] : [name]} deviceMode={settings.profiles[name].device}
                         reserve={name === "asr" ? undefined : reserve}
                         blocked={busy ? "busy" : row.model !== settings.profiles[name].model ||
-                            (name === "asr" && row.vad_model !== settings.profiles.asr.vad_model) ? "edited" : false}
-                        expected={name === "asr" ? { asr: { model: settings.profiles.asr.model }, vad: { model: settings.profiles.asr.vad_model } }
+                            (name === "asr" && (row.vad_model !== settings.profiles.asr.vad_model ||
+                                row.diarization_model !== settings.profiles.asr.diarization_model)) ? "edited" : false}
+                        expected={name === "asr" ? { asr: { model: settings.profiles.asr.model }, vad: { model: settings.profiles.asr.vad_model },
+                                diarization: { model: settings.profiles.asr.diarization_model } }
                             : { [name]: { model: settings.profiles[name].model } }} />
                     <label>{t("speech_servers.device")}<select aria-label={t("speech_servers.device")} value={row.device} disabled={busy}
                         onChange={event => field(name, "device", event.target.value)}>

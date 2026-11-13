@@ -37,21 +37,25 @@ class Dependencies:
         self.capture_release.set()
         self.models = (RecognitionModel("asr", ("ja",), True),)
         self.preflight_started = Event()
+        # Whether the server holds a diarization model, and what each client was asked for.
+        self.diarizes = False
+        self.asked_diarization = []
 
     def rest(self, url, timeout):
         owner = self
 
         class REST:
-            def recognizers(self, cancel_token):
+            def survey(self, cancel_token):
                 owner.preflight_started.set()
                 while not owner.preflight_release.wait(0.005):
                     cancel_token.check()
-                return owner.models
+                return owner.models, owner.diarizes
 
         return REST()
 
-    def client(self, url, model, language, source, options=None):
+    def client(self, url, model, language, source, options=None, diarization=False):
         owner = self
+        owner.asked_diarization.append(diarization)
 
         class Client:
             namespace = uuid4().hex
@@ -157,6 +161,23 @@ def session(monkeypatch, source="mic", dependencies=None, **kwargs):
         **kwargs,
     )
     return instance, deps
+
+
+@pytest.mark.parametrize("source,diarizes,asked", [
+    ("speaker", True, True),     # several voices, and a server that can tell them apart
+    ("speaker", False, False),   # no diarization model: the session is as before
+    ("mic", True, False),        # the microphone is the user alone
+])
+def test_only_a_speaker_session_asks_a_diarizing_server_who_speaks(monkeypatch, source, diarizes, asked):
+    d = Dependencies()
+    d.diarizes = diarizes
+    s, _ = session(monkeypatch, source=source, dependencies=d)
+    try:
+        s.start()
+        eventually(lambda: s.health()["state"] == "ready")
+        assert d.asked_diarization == [asked]
+    finally:
+        assert s.close()
 
 
 def test_final_voice_ownership_is_bound_before_waiting_in_session_mailbox(monkeypatch):

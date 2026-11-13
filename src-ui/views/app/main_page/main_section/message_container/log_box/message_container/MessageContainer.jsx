@@ -6,7 +6,7 @@ import { MessageSubMenuContainer } from "./message_sub_menu_container/MessageSub
 import { store } from "@store";
 
 export const MessageContainer = memo(function MessageContainer({ id, messages, status, category, created_at, source, realtime, delivery_reason,
-    sendMessage, updateMessageInputValue, showResendButton }) {
+    speakers, sendMessage, updateMessageInputValue, showResendButton }) {
     const { t } = useI18n();
     const [is_hovered, setIsHovered] = useState(false);
     const [is_locked, setIsLocked] = useState(false);
@@ -59,6 +59,10 @@ export const MessageContainer = memo(function MessageContainer({ id, messages, s
         : is_ocr_message
         ? t("main_page.message_log.received_ocr", { ocr: t("main_page.ocr") })
         : t("main_page.message_log.received");
+    // Who spoke, where the server told the voices apart: "A", or "A・B" when two share a caption.
+    const speakers_text = !is_sent_message && speakers?.length
+        ? t("main_page.message_log.speakers", { speakers: speakers.join(t("main_page.message_log.speakers_separator")) })
+        : null;
 
     const message_type_class_name = clsx({
         [styles.sent_message]: is_sent_message,
@@ -80,6 +84,7 @@ export const MessageContainer = memo(function MessageContainer({ id, messages, s
                         [styles.ocr_category]: is_ocr_message, [styles.failed]: is_failed,
                         [styles.not_sent]: is_not_sent, [styles.vrchat_off]: is_vrchat_off,
                     })}>{category_text}</p>
+                    {speakers_text && <p className={clsx(styles.category, message_type_class_name)}>{speakers_text}</p>}
                     {/* The VR atlas needs static pixels while a send is pending. Its label above shows the state. */}
                     {(is_sent_message || is_realtime) && is_pending && !store.is_vr_panel && <span className={styles.loader} aria-hidden="true"></span>}
                 </div>

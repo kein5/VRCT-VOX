@@ -36,7 +36,8 @@ class _NoRedirect(connect):
 
 
 class SpeechCppRealtime:
-    def __init__(self, base_url, model, language, source, server_vad=True, options=None):
+    def __init__(self, base_url, model, language, source, server_vad=True, options=None, diarization=False):
+        """diarization: ask the server's diarization model who speaks in each utterance."""
         self.base_url = local_url(base_url)
         options = dict(options or {})
         if (
@@ -47,6 +48,7 @@ class SpeechCppRealtime:
                 for v in (model, language)
             )
             or type(server_vad) is not bool
+            or type(diarization) is not bool
             # Only the vocabulary members; their values are checked by asr_vocabulary.
             or set(options) - {"keywords", "prompt"}
             or not isinstance(options.get("keywords", []), list)
@@ -54,7 +56,7 @@ class SpeechCppRealtime:
         ):
             raise ValueError("invalid_realtime_settings")
         self.model, self.language, self.server_vad = model, language, server_vad
-        self.options = options
+        self.options, self.diarization = options, diarization
         self.namespace = uuid4().hex
         self._events = TranscriptEvents(source, self.namespace)
         self.state, self.error = "new", None
@@ -67,19 +69,19 @@ class SpeechCppRealtime:
         self._commit_sent_at = None
 
     def _settings(self):
-        return {
-            "type": "transcription",
-            "audio": {
-                "input": {
-                    "format": {"type": "audio/pcm", "rate": 24000},
-                    "transcription": {"model": self.model, "language": self.language, **self.options},
-                    "turn_detection": {"type": "server_vad"}
-                    if self.server_vad
-                    else None,
-                    "noise_reduction": None,
-                }
-            },
+        audio = {
+            "format": {"type": "audio/pcm", "rate": 24000},
+            "transcription": {"model": self.model, "language": self.language, **self.options},
+            "turn_detection": {"type": "server_vad"}
+            if self.server_vad
+            else None,
+            "noise_reduction": None,
         }
+        if self.diarization:
+            # speech.cpp's own member: {} is the diarization model's defaults (low_latency).
+            # Each completed utterance then waits about a second more and carries "speakers".
+            audio["diarization"] = {}
+        return {"type": "transcription", "audio": {"input": audio}}
 
     @staticmethod
     def _decode(raw):
@@ -110,7 +112,7 @@ class SpeechCppRealtime:
                 # The server echoes the vocabulary it will use; anything else is not ours.
                 and all(transcription.get(key) == value for key, value in self.options.items())
                 and audio.get("noise_reduction") is None
-                and audio.get("diarization") is None
+                and audio.get("diarization") == ({} if self.diarization else None)
                 and (
                     (isinstance(vad, dict) and vad.get("type") == "server_vad")
                     if self.server_vad

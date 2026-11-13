@@ -137,6 +137,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
                 {entry.target === "rvc" && <p>{t("model_downloads.rvc_requirements")}</p>}
                 {entry.target === "asr" && <p>{t("model_downloads.asr_requirements")}</p>}
                 {entry.target === "vad" && <p>{t("model_downloads.vad_requirements")}</p>}
+                {entry.target === "diarization" && <p>{t("model_downloads.diarization_requirements")}</p>}
                 {job && <EnvReadout tone={job.phase === "ready" ? "active" : job.phase === "failed" ? "failed" : "neutral"}>
                     <p>{t(`model_downloads.phase_${job.phase}`)}{active && ` · ${gib(job.received_bytes)} / ${gib(job.total_bytes)}`}</p>
                 </EnvReadout>}
@@ -163,6 +164,7 @@ export const ModelDownloads = ({ targets, expected, blocked = false, deviceMode 
             {selected.target === "rvc" && <p>{t("model_downloads.rvc_requirements")}</p>}
             {selected.target === "asr" && <p>{t("model_downloads.asr_requirements")}</p>}
             {selected.target === "vad" && <p>{t("model_downloads.vad_requirements")}</p>}
+            {selected.target === "diarization" && <p>{t("model_downloads.diarization_requirements")}</p>}
             <p>{t("model_downloads.connection_notice")}</p>
             <p>{t("model_downloads.no_start")}</p>
             <p>{t("model_downloads.source")}: <a href={selected.source} onClick={event => openLink(event, selected.source)} target="_blank" rel="noreferrer">{selected.repo}</a></p>
