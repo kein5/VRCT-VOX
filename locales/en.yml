@@ -961,7 +961,7 @@ config_page:
         section_label_telemetry: "Usage data"
         telemetry:
             label: "Send usage data"
-            desc: "Sends the developers a note that the app started, and the kind of error (its error code) when one happens. Each carries the app version, the OS and its version, the display language, and this PC's hardware (CPU, memory, GPUs and their driver versions). The text and audio of conversations, the names of microphones and speakers, and user names are never sent. The sender's IP address and anything that tells one PC from another are not kept. The same thing is sent once a day at most."
+            desc: "Sends the developers a note that the app started, and the kind of error (its error code) when one happens. Each carries the app version, the OS and its version, the display language, and this PC's hardware (CPU, memory, GPUs and their driver versions). The text and audio of conversations, the names of microphones and speakers, and user names are never sent. The sender's IP address and anything that tells one PC from another are not kept. The receiver records when an event arrived and the country it came from. The same thing is sent once a day at most."
         osc_ip_address:
             label: "OSC IP Address"
         osc_port:
@@ -1619,7 +1619,7 @@ message_outputs:
 telemetry_notice:
     title: "About usage data"
     what: "VRCT-VOX sends the developers a note that the app started, and the kind of error (its error code) when one happens. Each carries the app version, the OS and its version, the display language, and this PC's hardware (CPU, memory, GPUs and their driver versions)."
-    not_sent: "The text and audio of conversations, the names of microphones and speakers, and user names are never sent. The sender's IP address and anything that tells one PC from another are not kept."
+    not_sent: "The text and audio of conversations, the names of microphones and speakers, and user names are never sent. The sender's IP address and anything that tells one PC from another are not kept. The receiver records when an event arrived and the country it came from."
     change: "You can change this later under Settings → Advanced → \"Send usage data\". Nothing is sent until you choose."
     send: "Send"
     dont_send: "Don't send"
@@ -1630,6 +1630,7 @@ telemetry_contents:
     intro: "This is what this PC sends. It is sent once a day as the note that the app started. The time will be the moment it is sent."
     error_note: "When an error happens, the same is sent with the error code added, once a day for each code."
     destination: "Sent to: {{endpoint}}"
+    receiver_note: "The receiver also records when the event arrived and the country it came from."
     raw: "The data itself"
     sent_title: "What has been sent"
     sent_none: "Nothing has been sent yet."

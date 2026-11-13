@@ -57,7 +57,9 @@ test("the event is shown field by field and as the data itself", async context =
     // Reachable by keyboard, since it can be longer than its box.
     assert.equal(raw.props.tabIndex, 0);
     const paragraphs = all(s.tree, node => node.type === "p").map(text);
-    assert.deepEqual(paragraphs, ["telemetry_contents.intro", "telemetry_contents.error_note", "telemetry_contents.destination"]);
+    // What the event holds, then what the receiver records beside it (the time it arrived and the country).
+    assert.deepEqual(paragraphs, ["telemetry_contents.intro", "telemetry_contents.error_note", "telemetry_contents.destination",
+        "telemetry_contents.receiver_note"]);
     // In the notice, nothing has been sent yet: no list of it.
     assert.equal(find(s.tree, node => node.type === "section"), null);
 });
