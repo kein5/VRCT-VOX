@@ -59,3 +59,19 @@ def test_wait_timeout_cancels_and_joins_before_retry():
     assert thread.join.call_args_list[0].args == (0.01,)
     join_timeout = thread.join.call_args_list[1].args[0]
     assert 0 <= join_timeout <= control.cancel.call_args.kwargs["timeout"] <= 2
+
+
+def test_stop_never_waits_longer_than_asked_while_the_clock_stands_still():
+    # Windows' monotonic clock moves in 16 ms ticks: `now + 2 - now` is then 2.000000000000057.
+    from unittest.mock import patch
+
+    from models.legacy_model_downloads import LegacyDownloads
+    owner = LegacyDownloads()
+    control, thread = MagicMock(), MagicMock()
+    thread.is_alive.return_value = False
+    owner.jobs["base"] = control, thread
+    # At this reading, (now + 2) - now is 2.0000000000000284.
+    with patch("models.legacy_model_downloads.time.monotonic", return_value=255.52801547630176):
+        assert owner.stop("base", timeout=2)
+    assert control.cancel.call_args.kwargs["timeout"] <= 2
+    assert thread.join.call_args.args[0] <= 2
