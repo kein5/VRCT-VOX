@@ -86,18 +86,15 @@ def test_missing_or_mismatched_tokenizer_rejects_before_parser(bundle, monkeypat
     assert (path / filename).exists()
 
 
-def test_missing_tokenizer_maps_enable_to_model_missing(bundle, monkeypatch):
-    root, weight, _, _ = bundle
-    monkeypatch.setattr(utils, "transformers", SimpleNamespace(
-        M2M100Tokenizer=SimpleNamespace(from_pretrained=Mock(side_effect=OSError("missing"))),
-        NllbTokenizerFast=SimpleNamespace(from_pretrained=Mock(side_effect=OSError("missing")))))
+def enable_translation(root, weight, monkeypatch):
+    """Presses Translation in a Controller whose model loads the real Translator from root."""
     monkeypatch.setattr(translator, "transformers", Mock())
     monkeypatch.setattr(translator, "ctranslate2", Mock())
     monkeypatch.setattr(model_module, "config", SimpleNamespace(PATH_DATA=str(root)))
     instance = translator.Translator()
     backend = Mock()
     backend.isLoadedCTranslate2Model.return_value = False
-    backend.hasTranslatorCTranslate2ModelWeightFile.return_value = True
+    backend.hasTranslatorCTranslate2ModelWeightFile.side_effect = lambda name: utils.hasCTranslate2WeightFile(str(root), name)
     backend.detectVRAMError.return_value = (False, "")
     backend.changeTranslatorCTranslate2Model.side_effect = lambda: instance.changeCTranslate2Model(str(root), weight, compute_type="int8")
     monkeypatch.setattr(controller_module, "model", backend)
@@ -105,7 +102,57 @@ def test_missing_tokenizer_maps_enable_to_model_missing(bundle, monkeypatch):
         SELECTED_TRANSLATION_ENGINES={"1": "CTranslate2"}, CTRANSLATE2_WEIGHT_TYPE=weight)
     monkeypatch.setattr(controller_module, "config", config)
     app = controller_module.Controller.__new__(controller_module.Controller)
-    response = app.setEnableTranslation()
-    assert response["result"]["error_code"] == "TRANSLATION_MODEL_MISSING"
+    return app.setEnableTranslation(), config, instance
+
+
+def test_a_tokenizer_that_cannot_be_built_from_verified_files_is_a_load_failure(bundle, monkeypatch):
+    # The files are the pinned ones. Sending the user to Downloads would fetch nothing new,
+    # fail the same way and open the review again, for ever.
+    root, weight, _, _ = bundle
+    monkeypatch.setattr(utils, "transformers", SimpleNamespace(
+        M2M100Tokenizer=SimpleNamespace(from_pretrained=Mock(side_effect=OSError("library failure"))),
+        NllbTokenizerFast=SimpleNamespace(from_pretrained=Mock(side_effect=OSError("library failure")))))
+    with pytest.raises(utils.CTranslate2TokenizerLoadError):
+        utils.downloadCTranslate2Tokenizer(root, weight)
+    response, config, instance = enable_translation(root, weight, monkeypatch)
+    assert response["result"]["error_code"] == "TRANSLATION_MODEL_LOAD_FAILED"
     assert response["result"]["data"] is False
     assert not config.ENABLE_TRANSLATION and not instance.isLoadedCTranslate2Model()
+
+
+def test_a_package_whose_transformers_cannot_import_the_tokenizer_is_a_load_failure(bundle, monkeypatch):
+    # Every Windows package up to 0.1.0-beta.7: `import transformers` worked, and the first
+    # use of a tokenizer class raised FileNotFoundError from inside the library, because it
+    # lists the folder next to a __file__ that is not on the disk. A FileNotFoundError is
+    # not, by itself, a missing model.
+    root, weight, _, _ = bundle
+
+    class Broken:
+        def __getattr__(self, name):
+            raise FileNotFoundError(2, "The system cannot find the path specified", r"_internal\transformers\models\__init__.pyc")
+    monkeypatch.setattr(utils, "transformers", Broken())
+    with pytest.raises(utils.CTranslate2TokenizerLoadError) as raised:
+        utils.downloadCTranslate2Tokenizer(root, weight)
+    assert not isinstance(raised.value, utils.MissingCTranslate2Tokenizer)
+    response, config, _ = enable_translation(root, weight, monkeypatch)
+    assert response["result"]["error_code"] == "TRANSLATION_MODEL_LOAD_FAILED"
+    assert not config.ENABLE_TRANSLATION
+    # Transformers that cannot be imported at all is the same kind of failure.
+    monkeypatch.setattr(utils, "transformers", None)
+    with pytest.raises(utils.CTranslate2TokenizerLoadError):
+        utils.downloadCTranslate2Tokenizer(root, weight)
+
+
+def test_tokenizer_files_that_are_gone_are_still_a_missing_model(bundle, monkeypatch):
+    root, weight, path, _ = bundle
+    load = Mock()
+    monkeypatch.setattr(utils, "transformers", SimpleNamespace(
+        M2M100Tokenizer=SimpleNamespace(from_pretrained=load), NllbTokenizerFast=SimpleNamespace(from_pretrained=load)))
+    (path / "tokenizer_config.json").unlink()
+    with pytest.raises(utils.MissingCTranslate2Tokenizer):
+        utils.downloadCTranslate2Tokenizer(root, weight)
+    load.assert_not_called()
+    response, config, _ = enable_translation(root, weight, monkeypatch)
+    # This one the review can repair: it opens.
+    assert response["result"]["error_code"] == "TRANSLATION_MODEL_MISSING"
+    assert not config.ENABLE_TRANSLATION
