@@ -1409,7 +1409,7 @@ class Config:
         self._SELECTED_MIC_DEVICE_ID = ''
         self._SELECTED_SPEAKER_DEVICE_ID = ''
         # Read Only
-        self._VERSION = "0.1.0"
+        self._VERSION = "0.2.0-beta.1"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
