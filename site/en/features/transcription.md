@@ -38,7 +38,7 @@ Game audio captions can carry a label for who spoke (A, B, …). Download and ap
 - When two people speak with little pause, their words share one caption. It then shows both, as "Speaker A, B".
 - Labels start over each time you turn the switch on.
 - A caption settles about 0.3 seconds later (measured on an RTX 3060 Ti).
-- A GPU is needed. A CPU alone cannot keep up.
+- A GPU is needed. A CPU alone cannot keep up, so while the server runs on the CPU, captions carry no labels even with the model.
 - Microphone captions do not use it.
 
 ::: info What was checked

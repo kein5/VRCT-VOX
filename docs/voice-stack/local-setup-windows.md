@@ -6,7 +6,7 @@ Windowsでは、TTS、同梱のspeech.cppサーバー、リアルタイム字幕
 
 ## 必要なもの
 
-- GPUドライバー。同梱のspeech.cppはVulkan版で、ドライバーが入れる`vulkan-1.dll`を使います。ないとサーバーは起動しません。speech.cppのWindows版にCPU専用の配布はありません。
+- GPUドライバー。同梱のspeech.cppはVulkan版で、ドライバーが入れる`vulkan-1.dll`を使います。ないとサーバーは起動しません。speech.cppのWindows版にCPU専用の配布はありません。`vulkan-1.dll`があってGPUが見つからないPCでは、「自動」はCPUを選びます。字幕だけならCPUでも動きました（[GPUの構成の模擬](windows-voice-report.md#gpuの構成の模擬2026-11-13)。Core i7-1255Uで遅れの中央値は2.7秒）。GPUが計算に失敗するとき（メーカーのドライバーがなく、Direct3D 12への変換層だけがあるPCなど）は、ドライバーの更新か別の推論デバイスを勧める案内が出ます。
 - 仮想ケーブル。VB-CABLEなど、再生側と録音側の組になった製品を手動で入れます。アプリは入れません。
 - モデル。音声モデルは設定画面の取得欄から、ライセンスとサイズを確認して取得します。
 - RVCとSeed-VCには、NVIDIAのGPU。
