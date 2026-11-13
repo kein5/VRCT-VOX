@@ -71,6 +71,9 @@ def test_pyinstaller_filters_restricted_weight_from_expanded_toc(spec_name):
     voice = ("build/speechcpp/", "voice_worker/", "licenses/python/")
     assert [entry[0] for entry in analysis.datas if not entry[0].startswith(voice)] == [
         "ocr_onnx/LICENSE.txt", "faster_whisper/assets/silero_vad_v6.onnx"]
+    # The upstream model's own license files are no longer collected: neither is the model.
+    for source, _ in analyze.call_args.kwargs["datas"]:
+        assert "models/ocr/onnx" not in source.replace("\\", "/")
     assert collect.call_args.args[2] == analysis.datas
     assert collect.call_args.args[1] == [("runtime.dll", "dependency/runtime.dll", "BINARY")]
     assert ("./../LICENSE", "licenses/VRCT/") in analyze.call_args.kwargs["datas"]

@@ -1,10 +1,12 @@
 # チャットボックス検出モデルのライセンスと出自
 
+> **0.2.0で削除**: ここで扱う上流VRCTのモデル（`chatbox_yolox_tiny.onnx`）は、0.2.0でリポジトリから消した。VRCT-VOXは独立したプロジェクトになり、許諾が認める「VRCTの改善のためのフォーク」に当たらなくなったためである。以下は、0.1.0までのコミットにある同じファイルについての記録として残す。VRCT-VOX独自の検出モデルは別に学習したもので、MITで公開している。
+
 `src-python/models/ocr/onnx/chatbox_yolox_tiny.onnx` の権利関係をまとめる。
 リポジトリ全体は MIT だが、**このファイルだけは MIT の対象外**で、VRCT 専用の
 利用許諾が適用される。正式な表記は [`NOTICE.md`](../NOTICE.md)、条文は
-[`LICENSE.txt`](../src-python/models/ocr/onnx/LICENSE.txt)（日本語・正文）と
-[`LICENSE.en.txt`](../src-python/models/ocr/onnx/LICENSE.en.txt)（英訳）。
+[`LICENSE.txt`](https://github.com/kein5/VRCT-VOX/blob/250cec9681752c2f897d9a15a38e647c38561842/src-python/models/ocr/onnx/LICENSE.txt)（日本語・正文）と
+[`LICENSE.en.txt`](https://github.com/kein5/VRCT-VOX/blob/250cec9681752c2f897d9a15a38e647c38561842/src-python/models/ocr/onnx/LICENSE.en.txt)（英訳）。リンク先は削除の直前のコミット。
 
 ## 現状
 
@@ -41,7 +43,7 @@ PP-OCR の重みも同じく Apache-2.0。こちらは制約にならない。
 
 義務として残るのは、配布物へのライセンス全文と著作権表示の添付。
 
-- 全文は `src-python/models/ocr/onnx/LICENSE.txt` と `LICENSE.en.txt` に置いてある。
+- 全文は0.1.0までのコミットの `src-python/models/ocr/onnx/LICENSE.txt` と `LICENSE.en.txt` にある。
 - `spec/backend.spec` / `spec/backend_cuda.spec` は `src-python/models/ocr/onnx`
   ディレクトリごと `ocr_onnx/` として同梱するので、この2ファイルと `NOTICE.txt` は
   **自動的に配布物へ入る**。モデルを差し替えるときにこれらを消さないこと。

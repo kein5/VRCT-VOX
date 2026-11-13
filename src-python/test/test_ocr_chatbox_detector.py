@@ -163,11 +163,12 @@ class TestUpstreamModelNeverLoads(unittest.TestCase):
         self.assertTrue(isAllowedModelPath(f"/data/downloaded_models/{DETECTOR_MODEL_ID}/rev/{DETECTOR_FILE_NAME}"))
 
     def test_find_model_path_is_never_consulted(self) -> None:
+        # The lookup that found the upstream model is gone with it (0.2.0).
         self.assertNotIn("findModelPath", vars(ocr_chatbox_detector))
-        with patch.object(ocr_bubble_detector, "findModelPath", side_effect=AssertionError("upstream lookup")):
-            detector = ChatboxDetector(f"/nowhere/{DETECTOR_FILE_NAME}")
-            self.assertFalse(detector.isAvailable())
-            self.assertEqual(detector.detect(np.zeros((8, 8, 3), np.uint8)), [])
+        self.assertNotIn("findModelPath", vars(ocr_bubble_detector))
+        detector = ChatboxDetector(f"/nowhere/{DETECTOR_FILE_NAME}")
+        self.assertFalse(detector.isAvailable())
+        self.assertEqual(detector.detect(np.zeros((8, 8, 3), np.uint8)), [])
 
     def test_pipeline_module_does_not_import_the_upstream_detector(self) -> None:
         self.assertNotIn("BubbleDetector", vars(ocr_pipeline))
