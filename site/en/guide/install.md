@@ -1,6 +1,6 @@
 # Install
 
-Downloads are on [GitHub Releases](https://github.com/kein5/VRCT-VOX/releases). Betas are published as pre-releases.
+Downloads are on [GitHub Releases](https://github.com/kein5/VRCT-VOX/releases). The stable release is marked "Latest"; betas are published as pre-releases.
 
 ## Linux
 

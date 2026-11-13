@@ -23,14 +23,14 @@ RVCには音声モデルのほかに実行環境、HuBERT、RMVPEが必要です
 
 ## 配布状況
 
-現在のバージョンは **[0.1.0-beta.7](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0-beta.7)**（プレリリース）です。バージョン番号は本家VRCT（3.x）とは別に0.1.0から数えます。ベータ版は`develop`から、正式版は`main`から公開します。
+現在のバージョンは **[0.1.0](https://github.com/kein5/VRCT-VOX/releases/tag/v0.1.0)** です。バージョン番号は本家VRCT（3.x）とは別に0.1.0から数えます。ベータ版は`develop`から、正式版は`main`から公開します。
 
 - **Linux**: AppImageとtar.gz（x64、Vulkan）。CachyOS（KDE Plasma Wayland）で実際のモデルを使って試験しています。
 - **Windows**: インストーラーとzip（CPU版）、CUDA版のzip。Windows 11の実機で実際のモデルを使って試験しています（[検証記録](/docs/voice-stack/windows-voice-report.md)）。電子署名がないため、初回起動時にSmartScreenの警告が出ます。
 
 各ファイルの`.sha256`と`SHA256SUMS-*`でダウンロードしたファイルを確認できます（電子署名ではありません）。アプリ内の自動更新は無効です。AURでの配布は予定していますが、まだ登録していません。
 
-このベータ版には次の制限があります。
+次の制限があります。
 
 - チャット読み取り（OCR）にはモデルが必要ですが、同梱していません。利用条件に同意したうえで、設定の「チャット読み取り」で取得してください。LinuxではVRChatのウィンドウをXWayland経由で読み取ります。Waylandネイティブのウィンドウ（gamescopeの中のVRChatなど）は、ウィンドウを共有すると読み取れます。設定の「チャット読み取り」で「ウィンドウを共有…」を押すと、デスクトップのウィンドウ選択画面が開きます。
 - LinuxのVR UIと、VRヘッドセットの画面のチャット読み取りは、SteamVRの代わりになる試験用の仕組みでだけ確認しました。実際のヘッドセットでは確認していません。Linux版の動作確認はKDE Plasma（Wayland）だけです。

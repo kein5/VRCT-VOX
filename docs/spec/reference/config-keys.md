@@ -145,7 +145,7 @@
 
 | キー | 型・検証 | 既定値 | 扱い |
 |---|---|---|---|
-| `VERSION` |  | `'0.1.0-beta.7'` | 読み取り専用 |
+| `VERSION` |  | `'0.1.0'` | 読み取り専用 |
 | `PATH_LOCAL` |  | `os_path.dirname(sys.executable)` | 読み取り専用 |
 | `PATH_DATA` |  | `str(data_root(self._PATH_LOCAL))` | 読み取り専用 |
 | `PATH_CONFIG` |  | `os_path.join(state_dir, 'config.json')` | 読み取り専用 |

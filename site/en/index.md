@@ -3,7 +3,7 @@ layout: home
 hero:
   name: VRCT-VOX
   text: Translation, captions and speech for your VRChat conversations
-  tagline: A desktop app that combines translation, speech recognition, text to speech (TTS), voice conversion and chat reading. It is an unofficial derivative of VRCT, in beta.
+  tagline: A desktop app that combines translation, speech recognition, text to speech (TTS), voice conversion and chat reading. It is an unofficial derivative of VRCT.
   actions:
     - theme: brand
       text: Get started
