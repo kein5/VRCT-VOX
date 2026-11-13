@@ -11,6 +11,7 @@ import re
 from models.obs.settings import parse_numeric_setting
 import time
 import sys
+from os import environ as os_environ
 from pathlib import Path
 from audio_device_identity import capture_key, device_id, device_options, resolve_device
 from device_manager import device_manager
@@ -5086,19 +5087,71 @@ class Controller:
         return {"status":200, "result":data}
 
 
+    # The notice a user answers once before any usage event is sent. Raise it when what is
+    # sent changes, so that everyone is told again.
+    TELEMETRY_NOTICE_VERSION = 1
+
+    @staticmethod
+    def _telemetryForcedOff() -> bool:
+        """VRCT_TELEMETRY=off: no usage event is sent and the notice is not asked, whatever the settings say.
+
+        For automated runs of the real app, and for anyone who wants it off from outside.
+        """
+        return os_environ.get("VRCT_TELEMETRY", "").strip().lower() == "off"
+
+    @staticmethod
+    def _telemetryAllowed() -> bool:
+        """Usage events may be sent: the setting is on and the user has answered the notice."""
+        return (not Controller._telemetryForcedOff() and config.ENABLE_TELEMETRY is True
+                and config.TELEMETRY_NOTICE >= Controller.TELEMETRY_NOTICE_VERSION)
+
     @staticmethod
     def setEnableTelemetry(*args, **kwargs) -> dict:
-        if config.ENABLE_TELEMETRY is False:
-            config.ENABLE_TELEMETRY = True
+        # Turning the setting on or off is an answer of its own: the notice is not asked again.
+        config.TELEMETRY_NOTICE = Controller.TELEMETRY_NOTICE_VERSION
+        config.ENABLE_TELEMETRY = True
+        if Controller._telemetryAllowed():
             model.telemetryInit(enabled=True, app_version=config.VERSION)
         return {"status":200, "result":config.ENABLE_TELEMETRY}
 
     @staticmethod
     def setDisableTelemetry(*args, **kwargs) -> dict:
+        config.TELEMETRY_NOTICE = Controller.TELEMETRY_NOTICE_VERSION
         if config.ENABLE_TELEMETRY is True:
             config.ENABLE_TELEMETRY = False
-            model.telemetryShutdown()
+        model.telemetryShutdown()
         return {"status":200, "result":config.ENABLE_TELEMETRY}
+
+    @staticmethod
+    def getTelemetryNotice(*args, **kwargs) -> dict:
+        """Whether the notice is still to be answered. Nothing is sent while it is."""
+        return {"status": 200, "result": {
+            "pending": (not Controller._telemetryForcedOff()
+                        and config.TELEMETRY_NOTICE < Controller.TELEMETRY_NOTICE_VERSION),
+            "enabled": config.ENABLE_TELEMETRY,
+        }}
+
+    @staticmethod
+    def getTelemetryPreview(*args, **kwargs) -> dict:
+        """What a usage event from this PC holds, for the user to read before and after choosing.
+
+        {"endpoint", "app_started": the event as it would be sent now, "sent": what was sent, oldest first}.
+        Answers while the notice is pending and while sending is off; nothing is sent by asking.
+        """
+        return {"status": 200, "result": model.telemetryPreview(app_version=config.VERSION)}
+
+    @staticmethod
+    def setTelemetryNotice(data, *args, **kwargs) -> dict:
+        """The user's answer to the notice, {"send": bool}. Sending starts only from here."""
+        if not isinstance(data, dict) or set(data) != {"send"} or type(data["send"]) is not bool:
+            return {"status": 400, "result": {"error_code": "telemetry_notice_invalid"}}
+        config.ENABLE_TELEMETRY = data["send"]
+        config.TELEMETRY_NOTICE = Controller.TELEMETRY_NOTICE_VERSION
+        if Controller._telemetryAllowed():
+            model.telemetryInit(enabled=True, app_version=config.VERSION)
+        else:
+            model.telemetryShutdown()
+        return Controller.getTelemetryNotice()
 
     @staticmethod
     def setEnableAutoDownloadModels(*args, **kwargs) -> dict:
@@ -7239,9 +7292,11 @@ class Controller:
         config.revalidate_selected_models()
 
         # telemetry Init
+        # Not before the user has answered the notice: a settings file from an older
+        # version, or a first start, sends nothing until then.
         printLog("Telemetry Init")
-        if config.ENABLE_TELEMETRY is True:
-            model.telemetryInit(enabled=config.ENABLE_TELEMETRY, app_version=config.VERSION)
+        if Controller._telemetryAllowed():
+            model.telemetryInit(enabled=True, app_version=config.VERSION)
 
         # Update Settings
         printLog("Update settings")

@@ -1170,12 +1170,32 @@ export const SETTINGS_ARRAY = [
         base_endpoint_name: "auto_download_models",
     },
     {
+        // Usage events (the app started; an error by its code) go to VRCT-VOX's receiver unless this is off.
         Category: "Others",
         Base_Name: "Telemetry",
-        default_value: false,
+        default_value: true,
         ui_template_id: "toggle",
         logics_template_id: "toggle_enable_disable",
         base_endpoint_name: "telemetry",
+    },
+    {
+        // The one-time notice about usage events: {pending, enabled}. Nothing is sent while it is pending.
+        Category: "Others",
+        Base_Name: "TelemetryNotice",
+        default_value: { pending: false, enabled: true },
+        ui_template_id: "object",
+        logics_template_id: "get_set",
+        base_endpoint_name: "telemetry_notice",
+    },
+    {
+        // What a usage event from this PC holds, and what was sent: {endpoint, app_started, sent}.
+        // Asked for only when the user opens it (the backend runs a child process to answer).
+        Category: "Others",
+        Base_Name: "TelemetryPreview",
+        default_value: null,
+        ui_template_id: "object",
+        logics_template_id: "get_only",
+        base_endpoint_name: "telemetry_preview",
     },
     {
         Category: "Updater",

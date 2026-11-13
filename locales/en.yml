@@ -958,6 +958,10 @@ config_page:
         section_label_osc: "OSC"
         section_label_logs: "Logs"
         section_label_config_file: "Config File"
+        section_label_telemetry: "Usage data"
+        telemetry:
+            label: "Send usage data"
+            desc: "Sends the developers a note that the app started, and the kind of error (its error code) when one happens. Each carries the app version, the OS and its version, the display language, and this PC's hardware (CPU, memory, GPUs and their driver versions). The text and audio of conversations, the names of microphones and speakers, and user names are never sent. The sender's IP address and anything that tells one PC from another are not kept. The same thing is sent once a day at most."
         osc_ip_address:
             label: "OSC IP Address"
         osc_port:
@@ -1612,6 +1616,45 @@ message_outputs:
     tts: "Speech"
     unknown: "An output"
 
+telemetry_notice:
+    title: "About usage data"
+    what: "VRCT-VOX sends the developers a note that the app started, and the kind of error (its error code) when one happens. Each carries the app version, the OS and its version, the display language, and this PC's hardware (CPU, memory, GPUs and their driver versions)."
+    not_sent: "The text and audio of conversations, the names of microphones and speakers, and user names are never sent. The sender's IP address and anything that tells one PC from another are not kept."
+    change: "You can change this later under Settings → Advanced → \"Send usage data\". Nothing is sent until you choose."
+    send: "Send"
+    dont_send: "Don't send"
+telemetry_contents:
+    show: "See what is sent"
+    loading: "Checking what would be sent…"
+    unavailable: "Could not get what would be sent."
+    intro: "This is what this PC sends. It is sent once a day as the note that the app started. The time will be the moment it is sent."
+    error_note: "When an error happens, the same is sent with the error code added, once a day for each code."
+    destination: "Sent to: {{endpoint}}"
+    raw: "The data itself"
+    sent_title: "What has been sent"
+    sent_none: "Nothing has been sent yet."
+    sent_accepted: "Sent"
+    sent_failed: "Did not arrive"
+    gpu_driver: "driver {{version}}"
+    fields:
+        event: "Kind of event"
+        timestamp: "Time (UTC)"
+        app_version: "App version"
+        os: "OS"
+        os_version: "OS version"
+        locale: "Display language"
+        error_code: "Error code"
+        v: "Data format number"
+        hw_cpu: "CPU"
+        hw_cores: "Logical cores"
+        hw_ram_gb: "Memory"
+        hw_gpu: "GPU {{number}}"
+    events:
+        app_started: "The app started"
+        error: "An error happened"
+    gpu_kind:
+        gpu: "discrete"
+        igpu: "integrated"
 transcription_consent:
     title: "Choose speech recognition"
     google_notice: "Google sends microphone or speaker audio to Google’s speech service. No API key is needed."

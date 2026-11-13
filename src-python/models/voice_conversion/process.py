@@ -20,6 +20,7 @@ from models.audio_routing.source_bridge import _read_graph, _sink, select_source
 from models.transcription.capture_pipewire import (
     CaptureError, PipeWireCapture, _validate, capture_error_code,
 )
+from models.failure_report import report_failure
 from models.owned_child import PipeWriter
 from models.tts.speechcpp_tts import CancelToken, SpeechError
 from . import protocol as p
@@ -238,6 +239,7 @@ class VCProcess:
         self.stop()
         if summary is not None:
             printLog('voice conversion stopped', summary)
+            report_failure('voice_conversion', code)
 
     def _capture_failed(self, code):
         safe = capture_error_code(code)

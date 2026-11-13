@@ -34,7 +34,8 @@ class Backend:
         except OSError:
             self.server = None  # Another test owns the port; OSC is not checked then.
         env = dict(os.environ, VRCT_CONFIG_DIR=str(self.state), PYTHONPATH=str(SCRATCH / "site"),
-                   VOX_REPO=str(ROOT), VOX_FAKE_VR_OUT=str(self.fake), PYTHONIOENCODING="utf-8")
+                   VOX_REPO=str(ROOT), VOX_FAKE_VR_OUT=str(self.fake), PYTHONIOENCODING="utf-8",
+                   VRCT_TELEMETRY="off")  # A test run sends no usage events.
         env.pop("HF_HUB_OFFLINE", None)
         if audio:
             env["VOX_FAKE_AUDIO_DIR"] = str(self.audio_dir)

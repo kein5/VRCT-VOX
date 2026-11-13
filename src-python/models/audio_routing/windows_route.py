@@ -9,6 +9,7 @@ from queue import Empty, Full, Queue
 from threading import Lock, Thread, current_thread
 import time
 
+from models.failure_report import report_failure
 from models.tts.speechcpp_tts import CancelToken, SpeechError
 from .devices_windows import WindowsOutput, enumerate_outputs, same_virtual_cable
 from .source_bridge import Endpoint, _source_id
@@ -178,11 +179,15 @@ class WindowsBridge:
         return thread is None or not thread.is_alive()
 
     def _fail(self, code):
+        failed = False
         with self._lock:
             if not self._token.is_set():
                 self._error = code
                 self._requested = self._active = False
+                failed = True
         self.stop()
+        if failed:
+            report_failure('voice_conversion', code)
 
     def _audio(self, captured):
         try:

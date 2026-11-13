@@ -29,7 +29,7 @@ pytestmark = pytest.mark.skipif(
 def backend(state, attempt):
     env = dict(os.environ, VRCT_CONFIG_DIR=str(state),
                XDG_DATA_HOME=str(state / "data"), XDG_CACHE_HOME=str(state / "cache"),
-               HF_HOME=str(state / "hf"), HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1")
+               HF_HOME=str(state / "hf"), HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1", VRCT_TELEMETRY="off")
     executable = os.environ.get("VRCT_TEST_SIDECAR")
     command = [executable] if executable else [sys.executable, "-u", str(ROOT / "src-python/mainloop.py")]
     events = Queue()
@@ -98,7 +98,7 @@ def backend(state, attempt):
 def test_real_startup_settings_and_restart_without_models(tmp_path):
     state = tmp_path / "native-state"
     state.mkdir()
-    initial = {"AUTO_DOWNLOAD_MODELS": False, "ENABLE_TELEMETRY": False,
+    initial = {"AUTO_DOWNLOAD_MODELS": False, "ENABLE_TELEMETRY": False, "TELEMETRY_NOTICE": 1,
                "AUTO_MIC_SELECT": False, "AUTO_SPEAKER_SELECT": False,
                "SEND_MESSAGE_TO_VRC": False, "VRC_MIC_MUTE_SYNC": False,
                "OSC_IP_ADDRESS": "127.0.0.2", "WEBSOCKET_SERVER": False}

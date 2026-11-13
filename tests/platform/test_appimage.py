@@ -73,7 +73,8 @@ def test_normal_launch_keeps_window_painted_after_idle_and_hover(appimage, tmp_p
     state = initial_state(tmp_path)
     env = dict(os.environ, VRCT_CONFIG_DIR=str(state), VRCT_DATA_DIR=str(tmp_path/'data'),
                VRCT_CACHE_DIR=str(tmp_path/'cache'), XDG_DATA_HOME=str(tmp_path/'xdg-data'),
-               XDG_CACHE_HOME=str(tmp_path/'xdg-cache'), HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1')
+               XDG_CACHE_HOME=str(tmp_path/'xdg-cache'), HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1',
+               VRCT_TELEMETRY='off')
     check_displays_on()
     pointer = dict(re.findall(r'^(X|Y)=(\d+)$', subprocess.check_output(
         ['xdotool', 'getmouselocation', '--shell'], text=True, timeout=3), re.M))

@@ -1,5 +1,6 @@
 import { TranscriptionConsentController } from "./_app_controllers/TranscriptionConsentController";
 import { TranslationSetupController } from "./_app_controllers/TranslationSetupController";
+import { TelemetryNoticeController } from "./_app_controllers/TelemetryNoticeController";
 import { useI18n } from "@useI18n";
 import { useRef } from "react";
 
@@ -89,6 +90,7 @@ const Contents = () => {
                 <ModalController fallback={mainPage} />
                 <TranscriptionConsentController />
                 <TranslationSetupController />
+                <TelemetryNoticeController />
             </div>
             :
             <UpdatingComponent />

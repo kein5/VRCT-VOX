@@ -3,12 +3,14 @@ import styles from "./AdvancedSettings.module.scss";
 import { DirectVoiceSettings } from "./DirectVoiceSettings";
 import { AutoExportMessageLogsContainer } from "../shared_items/SharedItems";
 import { Description } from "../_components/description/Description";
+import { TelemetryContents } from "../_components/telemetry/TelemetryContents";
 import { parsePortInput, PORT_INPUT_LIMITS } from "../../../../../../logics/configs/networkPortInput";
 import { buildObsBrowserSourceUrl } from "../../../../../../logics/configs/obsBrowserSourceUrl";
 
 import { useCopyToClipboard, useOpenFolder } from "@logics_common";
 import {
     useAdvancedSettings,
+    useOthers,
     useSaveButtonLogic,
 } from "@logics_configs";
 
@@ -40,6 +42,10 @@ export const AdvancedSettings = () => {
             <div>
                 <SectionLabelComponent label={t("config_page.advanced_settings.section_label_config_file")} />
                 <OpenConfigFolderContainer />
+            </div>
+            <div>
+                <SectionLabelComponent label={t("config_page.advanced_settings.section_label_telemetry")} />
+                <TelemetryContainer />
             </div>
             <WebsocketContainer />
             <DirectVoiceSettings variant="legacy" />
@@ -113,6 +119,29 @@ const OpenConfigFolderContainer = () => {
                 clicked_duration={1000}
                 onclickFunction={openFolder_ConfigFile}
             />
+        </>
+    );
+};
+
+// Usage events (the app started; an error by its code) are sent unless this is off.
+// Turning it on or off here also answers the one-time notice.
+const TelemetryContainer = () => {
+    const { t } = useI18n();
+    const { currentTelemetry, toggleTelemetry } = useOthers();
+
+    return (
+        <>
+            <CheckboxContainer
+                setting_id="telemetry"
+                label={t("config_page.advanced_settings.telemetry.label")}
+                desc={t("config_page.advanced_settings.telemetry.desc")}
+                variable={currentTelemetry}
+                toggleFunction={toggleTelemetry}
+            />
+            {/* The event itself as this PC would send it, and what was sent before. */}
+            <div className={styles.telemetry_contents}>
+                <TelemetryContents with_sent />
+            </div>
         </>
     );
 };

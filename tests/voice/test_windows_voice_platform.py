@@ -164,6 +164,8 @@ def test_an_engine_failure_with_a_next_step_is_named(monkeypatch, line, code):
     monkeypatch.setattr(rt, 'launch_owned', lambda args, **kwargs: real(
         [sys.executable, '-c', f"import sys; sys.stderr.write('speech.cpp 0.10.0 - serve\\n{line}\\n'); sys.exit(1)"],
         **kwargs))
+    reported = []
+    monkeypatch.setattr(rt, 'report_failure', lambda area, failure: reported.append((area, failure)))
     server = rt.SpeechServer('asr', OPTIONS, binary=sys.executable)
     server.start()
     deadline = time.monotonic() + 30
@@ -172,6 +174,8 @@ def test_an_engine_failure_with_a_next_step_is_named(monkeypatch, line, code):
     health = server.health()
     assert health == dict(state='failed', base_url=None, error_code=code)
     assert 'private' not in str(health)
+    # The usage events hear of it once, by the same fixed code.
+    assert reported == [('speech_server', code)]
     assert server.close(timeout=3)
 
 

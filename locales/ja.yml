@@ -958,6 +958,10 @@ config_page:
         section_label_osc: "OSC"
         section_label_logs: "ログ"
         section_label_config_file: "設定ファイル"
+        section_label_telemetry: "利用状況の送信"
+        telemetry:
+            label: "利用状況を送信する"
+            desc: "起動したことと、起きたエラーの種類（エラーコード）を開発者へ送ります。アプリのバージョン、OSの種類とバージョン、表示言語、PCの構成（CPU、メモリ、GPUとそのドライバのバージョン）が付きます。会話の文字や音声、マイクやスピーカーの名前、ユーザー名は送りません。送信元のIPアドレスやPCを見分ける番号は保存しません。同じ日の同じ内容は1回だけ送ります。"
         osc_ip_address:
             label: "OSCの送信先IPアドレス"
         osc_port:
@@ -1612,6 +1616,45 @@ message_outputs:
     tts: "読み上げ"
     unknown: "一部の出力先"
 
+telemetry_notice:
+    title: "利用状況の送信について"
+    what: "起動したことと、起きたエラーの種類（エラーコード）を開発者へ送ります。アプリのバージョン、OSの種類とバージョン、表示言語、PCの構成（CPU、メモリ、GPUとそのドライバのバージョン）が付きます。"
+    not_sent: "会話の文字や音声、マイクやスピーカーの名前、ユーザー名は送りません。送信元のIPアドレスやPCを見分ける番号は保存しません。"
+    change: "あとから「設定」→「高度な設定」の「利用状況を送信する」で変えられます。どちらかを選ぶまで何も送りません。"
+    send: "送信する"
+    dont_send: "送信しない"
+telemetry_contents:
+    show: "送信される内容を見る"
+    loading: "内容を確かめています…"
+    unavailable: "内容を取得できませんでした。"
+    intro: "このPCから送られる内容です。起動を知らせる通知として1日に1回送ります。時刻には送信した時点のものが入ります。"
+    error_note: "エラーが起きたときは、同じ内容にエラーコードを付けて送ります。同じエラーコードは1日に1回だけです。"
+    destination: "送信先: {{endpoint}}"
+    raw: "送信するデータそのもの"
+    sent_title: "これまでに送った内容"
+    sent_none: "まだ何も送っていません。"
+    sent_accepted: "送信済み"
+    sent_failed: "届きませんでした"
+    gpu_driver: "ドライバ {{version}}"
+    fields:
+        event: "通知の種類"
+        timestamp: "時刻（UTC）"
+        app_version: "アプリのバージョン"
+        os: "OS"
+        os_version: "OSのバージョン"
+        locale: "表示言語"
+        error_code: "エラーコード"
+        v: "データ形式の番号"
+        hw_cpu: "CPU"
+        hw_cores: "論理コア数"
+        hw_ram_gb: "メモリ"
+        hw_gpu: "GPU {{number}}"
+    events:
+        app_started: "起動した"
+        error: "エラーが起きた"
+    gpu_kind:
+        gpu: "単体GPU"
+        igpu: "内蔵GPU"
 transcription_consent:
     title: "音声認識エンジンを選ぶ"
     google_notice: "Google を使うと、マイクやスピーカーの音声が Google の音声認識サービスに送られます。API キーは不要です。"

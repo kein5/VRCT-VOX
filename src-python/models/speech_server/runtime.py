@@ -16,6 +16,7 @@ import time
 from .settings import PROFILES
 from .low_latency import LowLatencyStandby
 from .warmup import warm_up
+from models.failure_report import report_failure
 from models.owned_child import launch_owned, wait_readable
 from models.tts.listener_monitor import listener_monitors
 from models.tts.speechcpp_tts import CancelToken
@@ -295,6 +296,7 @@ class SpeechServer:
                 if not self._cleanup_ok: failure='speech_server_cleanup_unconfirmed'
                 elif self._stop.is_set(): failure=None
                 self._state.update(state='failed' if failure else 'stopped',base_url=None,error_code=failure)
+            if failure: report_failure('speech_server',failure)
             if self.on_end:
                 try: self.on_end(self.profile)
                 except Exception:

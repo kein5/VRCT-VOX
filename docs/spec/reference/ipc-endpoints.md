@@ -10,7 +10,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - UIの受信先: 200の応答を処理するUIのフック（`useReceiveRoutes.js`の静的ルートと`ui_config_setter.js`の定義から生成）。「—」は受信先がない。
 - ログで伏せる: `process.log`で値を`***MASKED***`に置き換える（`SENSITIVE_ENDPOINT_MARKERS`）。stdoutのIPCそのものは伏せない。
 
-## 要求（408件: 削除 11、取得 182、実行 37、有効化 39、無効化 39、設定 100）
+## 要求（411件: 削除 11、取得 184、実行 37、有効化 39、無効化 39、設定 101）
 
 | エンドポイント | 種別 | 処理（controller） | 初期化前 | UIの受信先 | 備考 |
 |---|---|---|---|---|---|
@@ -82,6 +82,9 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/set/disable/auto_download_models` | 無効化 | `setDisableAutoDownloadModels` | 可 | useOthers.setSuccessAutoDownloadModels |  |
 | `/set/enable/telemetry` | 有効化 | `setEnableTelemetry` | 可 | useOthers.setSuccessTelemetry |  |
 | `/set/disable/telemetry` | 無効化 | `setDisableTelemetry` | 可 | useOthers.setSuccessTelemetry |  |
+| `/get/data/telemetry_notice` | 取得 | `getTelemetryNotice` | 可 | useOthers.updateFromBackendTelemetryNotice |  |
+| `/set/data/telemetry_notice` | 設定 | `setTelemetryNotice` | 可 | useOthers.setSuccessTelemetryNotice |  |
+| `/get/data/telemetry_preview` | 取得 | `getTelemetryPreview` | 可 | useOthers.updateFromBackendTelemetryPreview |  |
 | `/run/shutdown` | 実行 | `shutdown` | 可 | （受け取るだけ） |  |
 | `/run/swap_your_language_and_target_language` | 実行 | `swapYourLanguageAndTargetLanguage` | 可 | useLanguageSettings.updateBothSelectedLanguages |  |
 | `/run/update_software` | 実行 | `updateSoftware` | 可 | （受け取るだけ） |  |
