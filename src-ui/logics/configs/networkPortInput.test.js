@@ -38,6 +38,7 @@ async function settingsHarness() {
         "./DirectVoiceSettings": { DirectVoiceSettings: () => null },
         "../shared_items/SharedItems": { AutoExportMessageLogsContainer: () => null },
         "../_components/description/Description": { Description: () => null },
+        "../_components/telemetry/TelemetryContents": { TelemetryContents: () => null },
         "../../../../../../logics/configs/obsBrowserSourceUrl": { buildObsBrowserSourceUrl },
         "../../../../../../logics/configs/networkPortInput": { parsePortInput, PORT_INPUT_LIMITS },
         "@logics_common": { useCopyToClipboard: () => ({ copyToClipboard: url => copied.push(url) }) },

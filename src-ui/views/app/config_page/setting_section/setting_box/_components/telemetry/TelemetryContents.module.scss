@@ -1,0 +1,60 @@
+.contents {
+    margin-top: 1.2rem;
+    font-size: 1.3rem;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+
+    summary {
+        cursor: pointer;
+        min-height: 3.2rem;
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        color: var(--primary_200_color, #a9ccff);
+        &::before { content: "▸"; }
+        &:focus-visible { outline: .2rem solid var(--primary_300_color, #7fb2ff); outline-offset: .2rem; }
+    }
+    &[open] > summary::before, details[open] > summary::before { content: "▾"; }
+    p { margin: .8rem 0; }
+}
+
+.rows {
+    display: grid;
+    gap: .6rem;
+    margin: 1.2rem 0;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: minmax(8rem, 14rem) minmax(0, 1fr);
+    column-gap: 1.2rem;
+    row-gap: .2rem;
+    // Labels wrap only between words, never inside a Japanese label.
+    dt { font-weight: 500; color: var(--vox_secondary_text, #adbed6); overflow-wrap: normal; word-break: keep-all; }
+    dd { min-width: 0; margin: 0; font-variant-numeric: tabular-nums; user-select: text; }
+    @media (max-width: 700px) {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.raw {
+    pre {
+        margin: .4rem 0 .8rem;
+        padding: 1rem 1.2rem;
+        max-height: 24rem;
+        overflow: auto;
+        border-radius: .6rem;
+        background: var(--dark_900_color, #12161d);
+        font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+        font-size: 1.2rem;
+        white-space: pre-wrap;
+        user-select: text;
+        &:focus-visible { outline: .2rem solid var(--primary_300_color, #7fb2ff); outline-offset: .2rem; }
+    }
+}
+
+.sent {
+    margin-top: 1.6rem;
+    h4 { margin: 0 0 .4rem; font-size: 1.3rem; font-weight: 500; }
+    ul { margin: 0; padding: 0; list-style: none; }
+}

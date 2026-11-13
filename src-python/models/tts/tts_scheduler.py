@@ -5,6 +5,7 @@ from time import monotonic, monotonic_ns
 
 from models.audio_routing.audio_router import AudioRouter
 from models.audio_routing.monitor_output import MonitorTee
+from models.failure_report import report_failure
 from .settings import VoiceSettings
 from .speechcpp_tts import CancelToken, SpeechCppTTS, SpeechError
 from .voice_trace import write_voice_trace, install_gc_diagnostics
@@ -293,19 +294,23 @@ class VoiceEventBus:
                     if epoch == self._epoch:
                         self._stats["last_error"] = None
             except Exception as exc:
+                failure = None
                 with self._condition:
                     if token.is_set() and token.reason == "cancelled":
                         outcome = "cancelled"
                         self._stats["cancelled"] += 1
                     else:
                         self._stats["errors"] += 1
+                        # ValueError and OS/driver exceptions can include input
+                        # content or device paths. Never put those into status.
+                        failure = (token.reason if token.is_set() else
+                                   str(exc) if isinstance(exc, SpeechError) else
+                                   "language_or_text_unavailable" if isinstance(exc, ValueError) else
+                                   "audio_output_error")
                         if epoch == self._epoch:
-                            # ValueError and OS/driver exceptions can include input
-                            # content or device paths. Never put those into status.
-                            self._stats["last_error"] = (token.reason if token.is_set() else
-                                                         str(exc) if isinstance(exc, SpeechError) else
-                                                         "language_or_text_unavailable" if isinstance(exc, ValueError) else
-                                                         "audio_output_error")
+                            self._stats["last_error"] = failure
+                if failure:
+                    report_failure("tts", failure)
             finally:
                 if monitor is not None:
                     monitor.close(drain=outcome == "completed")  # Idempotent; never waits.

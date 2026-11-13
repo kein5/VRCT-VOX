@@ -1323,7 +1323,14 @@ class Config:
     OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR = ManagedProperty('OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR', type_=str)
 
     # --- Telemetry Settings ---
+    # Usage events go to VRCT-VOX's own receiver unless the user turns this off
+    # (models/telemetry). Nothing is sent before the notice below has been shown.
     ENABLE_TELEMETRY = ManagedProperty('ENABLE_TELEMETRY', type_=bool)
+    # The version of the telemetry notice the user has seen; 0 for none. A settings file
+    # from before the notice existed carries ENABLE_TELEMETRY false without anyone having
+    # chosen it, so the choice counts only from the notice on.
+    TELEMETRY_NOTICE = ManagedProperty('TELEMETRY_NOTICE', type_=int, allowed=lambda v, inst: 0 <= v <= 1000,
+                                       immediate_save=True)
     AUTO_DOWNLOAD_MODELS = ManagedProperty('AUTO_DOWNLOAD_MODELS', type_=bool)
     LEGACY_MODEL_DOWNLOAD_CONSENTS = ManagedProperty(
         'LEGACY_MODEL_DOWNLOAD_CONSENTS', type_=dict, immediate_save=True,
@@ -1739,7 +1746,8 @@ class Config:
         self._OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS = 3
         self._OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR = "#000000"
         self._ENABLE_CLIPBOARD = False
-        self._ENABLE_TELEMETRY = False
+        self._ENABLE_TELEMETRY = True
+        self._TELEMETRY_NOTICE = 0
         # Existing weights remain usable; network downloads require opt-in.
         self._AUTO_DOWNLOAD_MODELS = False
         self._LEGACY_MODEL_DOWNLOAD_CONSENTS = {}

@@ -42,6 +42,52 @@ def report_error_code(error_code: str) -> None:
         _notify_error_hooks(str(error_code))
 
 
+# The voice features do not answer with an ErrorCode: a server, a conversion or a caption
+# session ends in a "failed" state that carries a fixed lowercase code. These are the codes
+# that are reported (to the usage events) when that happens. A code outside its list is
+# reported under the list's "other" name, or not at all where there is none, so that a
+# string nobody listed never leaves the PC.
+REPORTED_FAILURES = {
+    # models/speech_server/runtime.py: a bundled speech.cpp server that ended on its own.
+    "speech_server": (frozenset((
+        "speech_server_out_of_memory", "speech_server_device_failed", "speech_server_vulkan_missing",
+        "speech_server_start_timeout", "speech_server_exited", "speech_server_launch_failed",
+        "speech_server_protocol", "speech_server_readiness", "speech_server_model_tasks",
+        "speech_server_low_latency_requires_gpu_irodori", "speech_bundle_missing_or_invalid",
+        "speech_server_cleanup_unconfirmed")), "speech_server_failed_other"),
+    # models/voice_conversion/process.py and models/audio_routing/windows_route.py.
+    "voice_conversion": (frozenset((
+        "vc_capture_overrun", "vc_capture_invalid", "vc_capture_failed", "vc_worker_eof", "vc_worker_failed",
+        "vc_sink_changed", "vc_output_failed", "source_bridge_output_failed", "source_bridge_capture_failed")),
+        "voice_conversion_failed_other"),
+    # models/transcription/realtime_session.py: a caption session that ended on its own.
+    "realtime": (frozenset((
+        "realtime_session_failed", "realtime_capture_failed", "realtime_capture_stop_failed",
+        "realtime_asr_timeout")), "realtime_failed_other"),
+    # models/tts/tts_scheduler.py: one speech request. What the text or the settings caused is not reported.
+    "tts": (frozenset((
+        "first_audio_timeout", "request_timeout", "transport_error", "audio_output_error", "output_missing",
+        "output_disconnected", "output_stalled", "output_failed", "output_drain_timeout", "truncated_pcm",
+        "truncated_http", "empty_pcm", "speech_server_not_ready")), None),
+}
+
+
+def reported_failure_code(area: str, code) -> Optional[str]:
+    """The code a failure is reported under, or None when it is not reported."""
+    listed = REPORTED_FAILURES.get(area)
+    if listed is None:
+        return None
+    codes, other = listed
+    return code if isinstance(code, str) and code in codes else other
+
+
+def report_failure(area: str, code) -> None:
+    """Reports a voice feature's failure by its fixed code. Safe to call from any thread, and never raises."""
+    reported = reported_failure_code(area, code)
+    if reported:
+        _notify_error_hooks(reported)
+
+
 class ErrorCode(str, Enum):
     """エラーコード定数
     

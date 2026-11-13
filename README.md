@@ -50,7 +50,7 @@ Executables and packages use `vrct-vox` / `VRCT-VOX`, and the application ID is 
 
 ## Privacy and models
 
-Aptabase telemetry is disabled, even when an old upstream key file exists. Translation and speech services you choose still receive the text or audio you send them; turning off telemetry does not make every feature offline.
+VRCT-VOX sends two kinds of usage events to its own receiver unless you turn that off (Settings → Advanced → "Send usage data"): that the app started, once a day, and an error by its fixed code, once a day per code. Each carries the app version, the OS and its version, the display language, and the PC's hardware (CPU, memory, GPUs and their driver versions). The app shows you exactly what it sends ("See what is sent"). The text and audio of conversations, audio device names and user names are never sent, and nothing is sent before you have answered a one-time notice. Upstream VRCT's Aptabase telemetry is not used, even when an old upstream key file exists. Translation and speech services you choose still receive the text or audio you send them; turning off usage data does not make every feature offline. See [privacy](/site/en/guide/privacy.md).
 
 No model is bundled. TTS, ASR, RVC and Seed-VC models are downloaded only on request, or provided by you. Built packages contain no OCR weights, including the upstream chat-bubble detector, which may not be shipped in a fork's release. The repository keeps that detector only for the development uses its [terms](/src-python/models/ocr/onnx/LICENSE.en.txt) allow, so do not package a source checkout wholesale. The Mia2026 test voice is for local testing only and is never distributed. The bundled speech.cpp binaries carry their own notices; each model has its own license.
 

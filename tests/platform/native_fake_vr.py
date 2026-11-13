@@ -29,7 +29,7 @@ class FakeVrApp:
         state = self.output / "config/vrct-vox"
         state.mkdir(parents=True, exist_ok=True)
         (state / "config.json").write_text(json.dumps({
-            "AUTO_DOWNLOAD_MODELS": False, "ENABLE_TELEMETRY": False, "AUTO_MIC_SELECT": False,
+            "AUTO_DOWNLOAD_MODELS": False, "ENABLE_TELEMETRY": False, "TELEMETRY_NOTICE": 1, "AUTO_MIC_SELECT": False,
             "AUTO_SPEAKER_SELECT": False, "SEND_MESSAGE_TO_VRC": False, "VRC_MIC_MUTE_SYNC": False,
             "OSC_IP_ADDRESS": "127.0.0.2", "WEBSOCKET_SERVER": False, "UI_LANGUAGE": "en",
             # Shown at startup, and not only while the (fake) head looks at the wrist.
@@ -44,7 +44,7 @@ class FakeVrApp:
         env = dict(os.environ, VRCT_DEV_VENV=".venv_linux",
                    XDG_CONFIG_HOME=str(self.output / "config"), XDG_DATA_HOME=str(self.output / "data"),
                    XDG_CACHE_HOME=str(self.output / "cache"), VRCT_CONFIG_DIR=str(self.output / "config/vrct-vox"),
-                   HF_HOME=str(self.output / "hf"), HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1",
+                   HF_HOME=str(self.output / "hf"), HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1", VRCT_TELEMETRY="off",
                    PYTHONPATH=str(ROOT / "tools/fake_vr_site"), VOX_FAKE_VR_OUT=str(self.fake))
         self.stdout = (self.output / "app.log").open("w")
         self.process = subprocess.Popen([binary], env=env, stdout=self.stdout, stderr=subprocess.STDOUT,

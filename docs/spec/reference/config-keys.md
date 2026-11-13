@@ -6,7 +6,7 @@
 
 チャット読み取りの`OCR_CAPTURE_REGION`はデスクトップウィンドウ用、`OCR_VR_CAPTURE_REGION`はSteamVRの左目側の映像用。旧版の単一範囲はウィンドウ用に保持し、未保存のVR側には全体を補う。[範囲の形と移行](../data-and-persistence.md#チャット読み取りの範囲)を参照。
 
-## config.jsonに保存するキー（126件）
+## config.jsonに保存するキー（127件）
 
 | キー | 型・検証 | 既定値 | 保存 |
 |---|---|---|---|
@@ -90,7 +90,8 @@
 | `OBS_BROWSER_SOURCE_FONT_COLOR` | str | `'#FFFFFF'` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_FONT_OUTLINE_THICKNESS` | int、許可値 lambda v, inst: is_valid_numeric_setting('FONT_OUTLINE_THICKNESS', v) | `3` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_FONT_OUTLINE_COLOR` | str | `'#000000'` | 2秒後にまとめて |
-| `ENABLE_TELEMETRY` | bool | `False` | 2秒後にまとめて |
+| `ENABLE_TELEMETRY` | bool | `True` | 2秒後にまとめて |
+| `TELEMETRY_NOTICE` | int、許可値 lambda v, inst: 0 <= v <= 1000 | `0` | 即時 |
 | `AUTO_DOWNLOAD_MODELS` | bool | `False` | 2秒後にまとめて |
 | `LEGACY_MODEL_DOWNLOAD_CONSENTS` | dict、許可値 lambda v, inst: all((isinstance(k, str) and isinstance(value, str) for k, value in v.items())) | `{}` | 即時 |
 | `SELECTED_TAB_NO` | str、許可値 lambda v, inst: v in inst.SELECTABLE_TAB_NO_LIST | `'1'` | 2秒後にまとめて |

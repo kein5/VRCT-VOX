@@ -303,6 +303,9 @@ mapping = {
     "/set/disable/auto_download_models" : {"status": True, "variable":controller.setDisableAutoDownloadModels},
     "/set/enable/telemetry" : {"status": True, "variable":controller.setEnableTelemetry},
     "/set/disable/telemetry" : {"status": True, "variable":controller.setDisableTelemetry},
+    "/get/data/telemetry_notice" : {"status": True, "variable":controller.getTelemetryNotice},
+    "/set/data/telemetry_notice" : {"status": True, "variable":controller.setTelemetryNotice},
+    "/get/data/telemetry_preview" : {"status": True, "variable":controller.getTelemetryPreview},
     "/run/shutdown": {"status": True, "variable":controller.shutdown},
 
     "/run/swap_your_language_and_target_language": {"status": True, "variable":controller.swapYourLanguageAndTargetLanguage},
@@ -773,6 +776,9 @@ _INIT_MAPPING_EXCLUDED_ENDPOINTS = frozenset({
     # Asks the speech server over HTTP. Windows takes 2 s to refuse a closed local
     # port, and a stalled server takes 5 s. The UI requests it after startup.
     "/get/data/realtime_asr_models",
+    # Asks the bundled speech.cpp for the PC's devices (a child process, up to 3 s). The
+    # notice and the settings ask for it when the user opens what is sent.
+    "/get/data/telemetry_preview",
 })
 
 init_mapping = {

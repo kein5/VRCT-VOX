@@ -6,6 +6,7 @@ from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread, current_thread
 from time import monotonic_ns
 
+from models.failure_report import report_failure
 from models.tts.speechcpp_tts import CancelToken
 from .capture_pipewire import _validate, open_capture
 from .realtime_audio import RealtimeIngress
@@ -128,8 +129,11 @@ class RealtimeSession:
 
     def _fail(self, code):
         with self._lock:
+            first = self._state != "failed"
             self._error, self._state = code, "failed"
         self.request_stop()
+        if first:
+            report_failure("realtime", code)
 
     def _thread_main(self):
         try:

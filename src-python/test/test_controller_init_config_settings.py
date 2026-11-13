@@ -55,15 +55,24 @@ class TestInitMappingExcludesNetworkEndpoints(unittest.TestCase):
         self.assertIn("/get/data/realtime_asr_models", mapping)
         self.assertNotIn("/get/data/realtime_asr_models", init_mapping)
 
+    def test_telemetry_preview_is_not_collected_at_startup(self) -> None:
+        """同梱の speech.cpp を子プロセスで起動して PC の構成を読むので、起動時には集めない。
+
+        UI 側は、利用者が「送信される内容を見る」を開いたときに自分で要求する。
+        """
+        self.assertIn("/get/data/telemetry_preview", mapping)
+        self.assertNotIn("/get/data/telemetry_preview", init_mapping)
+
     def test_other_get_data_endpoints_are_still_collected(self) -> None:
-        """除外は次の 4 つだけで、他は従来どおり集められること。
+        """除外は次のものだけで、他は従来どおり集められること。
 
         ocr_capture_status は実行中の状態で、チャット読み取りの設定を開いている間だけ UI が読む。
         """
         get_data_keys = {k for k in mapping if k.startswith("/get/data/")}
         self.assertEqual(get_data_keys - set(init_mapping),
                          {"/get/data/available_releases", "/get/data/ocr_readiness", "/get/data/ocr_capture_status",
-                          "/get/data/realtime_asr_models", "/get/data/vrchat_osc_presence"})
+                          "/get/data/realtime_asr_models", "/get/data/vrchat_osc_presence",
+                          "/get/data/telemetry_preview"})
 
 
 class TestUpdateConfigSettingsIsolatesFailures(unittest.TestCase):

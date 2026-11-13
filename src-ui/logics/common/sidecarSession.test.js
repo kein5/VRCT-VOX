@@ -331,6 +331,7 @@ for (const initialized of [false, true]) test(`production exit ${initialized ? "
     const SplashComponent = () => null, StartupFailedComponent = () => null;
     const app = await loadModule(new URL("../../views/app/App.jsx", import.meta.url), b.runtime, {
         "./_app_controllers/TranscriptionConsentController": {}, "./_app_controllers/TranslationSetupController": {}, "./_app_controllers": {},
+        "./_app_controllers/TelemetryNoticeController": {},
         "./_app_controllers/QuickChatController": {}, "./_app_controllers/CaptionOverlayController": {},
         "./main_page/MainPage": {}, "./config_page/ConfigPage": {},
         "./others": { SplashComponent }, "@logics_common": common,

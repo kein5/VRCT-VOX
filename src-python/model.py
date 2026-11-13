@@ -3288,7 +3288,26 @@ class Model:
                 storage_path = os_path.join(config.PATH_DATA, "telemetry_state.json")
             except Exception:
                 storage_path = None
-        self.telemetry.init(enabled=enabled, app_version=app_version, storage_path=storage_path)
+        try:
+            locale = config.UI_LANGUAGE
+        except Exception:
+            locale = ""
+        self.telemetry.init(enabled=enabled, app_version=app_version, storage_path=storage_path, locale=locale)
+
+    def telemetryPreview(self, app_version: str) -> dict:
+        """What a usage event from this PC holds now, and what was sent before (Telemetry.preview)."""
+        try:
+            # Before the first send (the notice is pending, or sending is off) the record
+            # of what was sent has not been opened yet.
+            if not self.telemetry.get_state().get("storage_path"):
+                self.telemetry.state.set_storage_path(os_path.join(config.PATH_DATA, "telemetry_state.json"))
+        except Exception:
+            pass
+        try:
+            locale = config.UI_LANGUAGE
+        except Exception:
+            locale = ""
+        return self.telemetry.preview(app_version=app_version, locale=locale)
 
     def telemetryShutdown(self):
         """Model cleanup on application shutdown."""

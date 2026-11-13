@@ -307,7 +307,8 @@ class NativeWebDriver:
                    XDG_DATA_HOME=str(self.output / "data"),
                    XDG_CACHE_HOME=str(self.output / "cache"),
                    HF_HOME=str(self.output / "hf"), HF_HUB_OFFLINE="1",
-                   TRANSFORMERS_OFFLINE="1", **self.extra_env)
+                   # A test run sends no usage events and is not asked the one-time notice.
+                   TRANSFORMERS_OFFLINE="1", VRCT_TELEMETRY="off", **self.extra_env)
         # Release/AppImage tests must not attach to an installed instance.
         env.setdefault("VRCT_CONFIG_DIR", str(self.output / "config/vrct-vox"))
         self.log = (self.output / "driver.log").open("w")

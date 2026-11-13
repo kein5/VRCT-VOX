@@ -108,7 +108,28 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 - 自動取得を予定していない起動では接続確認を送らない。`/run/connected_network`の`null`は未確認、真偽値は取得ホストへの確認結果を表す。UIは`false`のときだけ接続エラーを表示する。この値だけでGoogle音声認識などを使えない状態にはせず、各要求の成否で判定する。
 - 公式APIの接続先はコードで固定する。環境変数によるOpenAI・GeminiのURL変更、LangSmith gateway、OllamaのAPIキーは使わない。クラウドHTTPSではシステムのプロキシを使える。Requestsの認証は登録済みヘッダーを保ち、netrcの認証情報へ置き換えない。localhostとローカルIPアドレスへのAPI接続ではプロキシを使わない。APIのリダイレクトは追わず、モデル取得だけは既存のHTTPSホスト許可リストに従う。
 - カスタムURLの許可範囲と保存時の扱いは[ネットワーク設定](data-and-persistence.md#ネットワーク設定)を参照する。
-- 更新の確認とテレメトリーは送信しない（[横断的な振る舞い](cross-cutting.md#同意と外部への送信)）。
+- 更新の確認は送信しない（[横断的な振る舞い](cross-cutting.md#同意と外部への送信)）。
+
+### 利用状況の通知
+
+送るかどうかの条件は[横断的な振る舞い](cross-cutting.md#同意と外部への送信)にある。受け側はVRCT-VOXのもの（Cloudflare Workers）で、このリポジトリの外で管理している。受け側の検査の規則を変えるときは、先に受け側の担当と合わせる。
+
+| 項目 | 内容 |
+|---|---|
+| 宛先 | `POST https://vrct-vox-telemetry.kei9d09.workers.dev/v1/events`。接続先はコードで固定する |
+| 鍵 | ヘッダー`X-Ingest-Key`。アプリに埋め込む公開の値で、2種類の通知を送る以外の権限はない |
+| 本文 | `{"event": "app_started", "v": 2, "timestamp", "app_version", "os", "os_version", "locale", "hw"}`。`error`はこれに`error_code`（`[A-Za-z0-9_.-]{1,64}`）が付く |
+| `timestamp` | 通知を組み立てた時刻。ISO 8601のUTCで、秒まで（`YYYY-MM-DDTHH:MM:SSZ`） |
+| `hw` | `{"cpu", "cores", "ram_gb", "gpus": [{"name", "kind", "vram_gb", "driver"}]}`。読み取れた項目だけが入り、何も読めなければ`hw`ごと省く。名前は表示できるASCIIの64文字まで。`ram_gb`は一般的な容量の段階に丸める。`gpus`は4台まで。`kind`は`gpu`か`igpu`。`driver`はWindowsではレジストリにあるディスプレイアダプターのドライバのバージョン、LinuxではNVIDIAのドライバのバージョンだけ |
+| `os`と`locale` | `os`は`Windows`、`Linux`、`Other`のどれか。`locale`は表示言語を5種類のタグ（`en-US`、`ja-JP`、`ko-KR`、`zh-CN`、`zh-TW`）にしたもの |
+| 応答 | `200 {"ok": true, "accepted": N}`。鍵がなければ401、JSONでなければ400。検査に通らない通知は`accepted`に数えない |
+| 通信 | 1件につき1回のPOST。タイムアウトは5秒。リダイレクトは追わず、プロキシは使わない。失敗しても再送しない |
+
+- 2種類以外の通知と、形式に合わないエラーコードは、送る前に捨てる。
+- PCの構成は同梱のspeech.cppの`speech devices --json`から読む（[モデル取得の目安](../voice-stack/model-downloads.md)と同じ一覧）。起動は待たせず、最初の通知の前に1回だけ読む。
+- デプロイ済みの受け側は、知らない項目が付いた通知も受け付ける（2026-11-14に`v`と`hw`を付けた`app_started`で確認した。応答は`accepted: 1`）。受け側が`hw`を保存するかどうかは受け側の実装による。
+- 環境変数`VRCT_TELEMETRY_URL`は、開発者が自分のPCに立てた代わりの受け側を指すためのもので、ループバックのHTTPのアドレスだけを受け付ける。ほかの値は無視する。
+- 受け側は送信元のIPアドレスや端末の識別子を保存しない設計である（受け側の担当の説明による）。通信の相手として、Cloudflareは送信元のアドレスを扱う。
 
 ### LLMでの翻訳
 
