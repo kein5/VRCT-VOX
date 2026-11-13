@@ -10,6 +10,10 @@
 
 On that feature's page, download the model and press "Apply model path" (see [Model downloads](./models)). For speech and speech recognition, also press "Start server".
 
+## Translation does not turn on after the model downloads (Windows)
+
+This was a bug in the Windows builds up to 0.1.0-beta.6: the download review kept opening and Translation stayed off. Update to 0.1.0 or later.
+
 ## Messages do not appear in the VRChat chatbox
 
 - Open Settings → "VRChat". The top of the page says whether a VRChat with OSC enabled was found on this PC. The same line is in "Quick settings" on the main screen.
@@ -19,7 +23,7 @@ On that feature's page, download the model and press "Apply model path" (see [Mo
 
 ## VRChat does not hear the speech
 
-1. Check that "Device" → "Audio route" is not muted. If it is, press "Resume voice".
+1. If the button at the top of the main screen reads "Muted", the voice is muted. Press "Resume voice" under Settings → "Device" → "Audio route".
 2. Check that the output under "TTS" and the microphone chosen in VRChat match (see [Linux audio route](./linux-audio)).
 3. Check that the bundled server is running. Servers are stopped again after you restart the app.
 4. VRChat's microphone test records briefly and then plays back. Start the test while the input meter is moving.

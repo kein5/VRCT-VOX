@@ -3,14 +3,20 @@
 Not a test: it renders tests/voice/studio-entry with the offline sidecar peer,
 like test_studio_ui.py, and writes images. It runs only when asked, through
 tools/docs_screenshots.py, so `check` never does it.
+
+The peer answers with sample data (a short conversation, a VRChat that was
+found, a catalogue of models), so the pictures show the app in use and carry
+nobody's device names.
 """
 
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
+from ui_details import open_engine_settings
 
 from test_studio_ui import studio, ui  # noqa: F401  (fixtures)
 
@@ -29,28 +35,70 @@ PAGES = {
     "hotkeys": {"ja": "ホットキー", "en": "Hotkeys"},
     "advanced": {"ja": "高度な設定", "en": "Advanced"},
 }
-# File name -> the heading to bring to the top of the picture, where the page's top is another section.
-SECTIONS = {}
+# File name -> (settings page, the text to bring to the top of the picture, open the folded setup first).
+SECTIONS = {
+    "asr-models": ("transcription", {"ja": "ASR + VAD", "en": "ASR + VAD"}, True),
+    "desktop-captions": ("vr", {"ja": "デスクトップの字幕オーバーレイ", "en": "Desktop caption overlay"}, False),
+}
 TITLE = {"ja": "ここから会話を始めましょう", "en": "Your conversation starts here"}
 OPEN_SETTINGS = {"ja": "設定を開く", "en": "Open settings"}
+BACK = {"ja": "戻る", "en": "Go Back"}
+QUICK_SETTINGS = {"ja": "クイック設定", "en": "Quick settings"}
+REVIEW = {"ja": "取得内容を確認", "en": "Review download"}
 # studio-entry shows a fixture version; the documentation shows the app's own.
 FIXTURE_VERSION = "3.6.0-beta.1"
 APP_VERSION = json.loads((Path(__file__).resolve().parents[2] / "package.json").read_text())["version"]
+# Where downloaded models go on Linux (site/*/guide/models.md).
+SAVE_TO = "~/.config/vrct-vox/downloaded_models"
+# The log stamps each row with the time it arrived; a fixed clock keeps the pictures the same between runs.
+CLOCK = datetime(2026, 1, 10, 21, 30)
+# studio-entry sets "your language" to Japanese and the target to English in both display languages.
+CONVERSATION = [
+    ("/run/transcription_send_mic_message", "こんばんは！このワールドは初めて来ました。", "Good evening! This is my first time in this world."),
+    ("/run/transcription_receive_speaker_message", "Welcome! Let me show you around.", "ようこそ！案内しますね。"),
+    ("/run/transcription_send_mic_message", "ありがとうございます。お願いします！", "Thank you. Yes, please!"),
+]
+ANSWERS = {
+    "/get/data/vrchat_osc_presence": "found",
+    "/get/data/selectable_translation_engines": ["CTranslate2"],
+    "/get/data/selected_translation_engines": {"1": "CTranslate2", "2": "CTranslate2", "3": "CTranslate2"},
+    "/get/data/selectable_transcription_engines": ["Google", "Whisper"],
+    "/get/data/selected_transcription_engine": "Whisper",
+}
 
 
-def save(page, path):
+def answer(peer):
+    """Let the peer answer the sample data above, after what the studio fixture already answers."""
+    studio_answers = peer.extra
+
+    def extra(endpoint, data):
+        if endpoint in ANSWERS:
+            push(peer, endpoint, ANSWERS[endpoint])
+            return True
+        return studio_answers(endpoint, data)
+
+    peer.extra = extra
+
+
+def push(peer, endpoint, result):
+    peer.replies.append(dict(endpoint=endpoint, result=result, status=200))
+
+
+def save(page, path, replace=()):
+    """Write the picture. `replace` lists (shown text, text for the picture) pairs beyond the version."""
     page.evaluate(
         "async () => { await Promise.all(document.getAnimations()"
         ".filter(a => a.effect.getTiming().iterations !== Infinity)"
         ".map(a => a.finished.catch(() => {}))); }"
     )
     page.evaluate(
-        """([fixture, actual]) => {
+        """pairs => {
             const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
             for (let node = walker.nextNode(); node; node = walker.nextNode())
-                if (node.nodeValue.includes(fixture)) node.nodeValue = node.nodeValue.replaceAll(fixture, actual);
+                for (const [shown, wanted] of pairs)
+                    if (node.nodeValue.includes(shown)) node.nodeValue = node.nodeValue.replaceAll(shown, wanted);
         }""",
-        [FIXTURE_VERSION, APP_VERSION],
+        [[FIXTURE_VERSION, APP_VERSION], *replace],
     )
     from PIL import Image
 
@@ -60,22 +108,69 @@ def save(page, path):
     png.unlink()
 
 
+def main_page_in_use(page, peer, lang):
+    """Translation on, an engine chosen, and a short conversation in the log."""
+    for endpoint in ("/get/data/selectable_translation_engines", "/get/data/selected_translation_engines"):
+        push(peer, endpoint, ANSWERS[endpoint])
+    push(peer, "/set/enable/translation", True)
+    # A VRChat on this PC with OSC on: messages are sent and mute sync is available.
+    push(peer, "/get/data/send_message_to_vrc", True)
+    push(peer, "/run/enable_osc_query", {"data": True, "disabled_functions": []})
+    for endpoint, original, translation in CONVERSATION:
+        push(peer, endpoint, {
+            "original": {"message": original, "transliteration": []},
+            "translations": [{"message": translation, "transliteration": []}],
+        })
+    page.get_by_text(CONVERSATION[-1][2], exact=True).wait_for()
+
+
 @pytest.mark.parametrize("lang", ["ja", "en"])
-def test_docs_screenshots(studio, lang):  # noqa: F811
-    page, _ = studio
+def test_docs_screenshots(studio, tmp_path, lang):  # noqa: F811
+    page, peer = studio
+    answer(peer)
     out = Path(OUTPUT) / lang
     out.mkdir(parents=True, exist_ok=True)
     origin = urlsplit(page.url)
+    page.clock.set_fixed_time(CLOCK)
     page.goto(f"{origin.scheme}://{origin.netloc}/tests/voice/studio-entry/?lang={lang}")
     page.get_by_role("heading", name=TITLE[lang]).wait_for()
+    main_page_in_use(page, peer, lang)
     save(page, out / "main.webp")
+
+    page.get_by_role("button", name=QUICK_SETTINGS[lang]).click()
+    page.wait_for_timeout(600)
+    save(page, out / "quick-settings.webp")
+    page.keyboard.press("Escape")
+
+    # The desktop caption section asks the Tauri shell whether its window exists (Windows only).
+    page.evaluate(
+        "window.__TAURI_INTERNALS__ = { invoke: async command => command === 'caption_overlay_supported' ? true : null }"
+    )
     page.get_by_role("button", name=OPEN_SETTINGS[lang], exact=True).click()
     for name, labels in PAGES.items():
         page.get_by_role("button", name=labels[lang], exact=True).click()
         page.wait_for_timeout(300)
-        if name in SECTIONS:
-            heading = page.get_by_text(SECTIONS[name][lang], exact=True).first
-            heading.wait_for()
-            heading.evaluate("node => node.scrollIntoView({ block: 'start' })")
-            page.wait_for_timeout(300)
         save(page, out / f"{name}.webp")
+    for name, (parent, labels, folded) in SECTIONS.items():
+        page.get_by_role("button", name=PAGES[parent][lang], exact=True).click()
+        page.wait_for_timeout(300)
+        if folded:
+            open_engine_settings(page)
+        heading = page.get_by_text(labels[lang], exact=True).first
+        heading.wait_for()
+        heading.evaluate("node => node.scrollIntoView({ block: 'start' })")
+        page.wait_for_timeout(300)
+        save(page, out / f"{name}.webp")
+
+    page.get_by_role("button", name=PAGES["tts"][lang], exact=True).click()
+    open_engine_settings(page)
+    page.get_by_role("button", name=REVIEW[lang], exact=True).first.click()
+    page.get_by_role("dialog").wait_for()
+    page.wait_for_timeout(300)
+    # The dialog names the folder it saves to. Here that is this run's temporary folder, under the
+    # home of whoever made the pictures; show the place a Linux install uses instead.
+    models = str(tmp_path / "models")
+    folder = page.get_by_role("dialog").get_by_text(models).first.inner_text()
+    shown = SAVE_TO + folder[len(models):].replace("\\", "/")
+    save(page, out / "model-consent.webp", replace=[[folder, shown]])
+    page.keyboard.press("Escape")

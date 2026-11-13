@@ -2,7 +2,8 @@
 layout: home
 hero:
   name: VRCT-VOX
-  text: VRChatでの会話を、翻訳・字幕・読み上げで支える
+  # Each span stays on one line where it fits (custom.css), so the headline breaks between them.
+  text: <span class="nb">VRChatの会話を</span><span class="nb">翻訳・字幕・読み上げで支える</span>
   tagline: 翻訳、音声認識、読み上げ（TTS）、声の変換、チャット読み取りをまとめたデスクトップアプリです。VRCTの非公式な派生版です。
   actions:
     - theme: brand
@@ -11,6 +12,9 @@ hero:
     - theme: alt
       text: ダウンロード
       link: https://github.com/kein5/VRCT-VOX/releases
+shot:
+  src: /screenshots/ja/main.webp
+  alt: VRCT-VOXのメイン画面。日本語の発言に英語の訳が、相手の英語の発言に日本語の訳が付いている
 features:
   - title: 翻訳して送る
     details: 入力した文章を翻訳して、VRChatのチャットボックスへ送ります。ローカルの翻訳モデルと外部の翻訳APIを選べます。

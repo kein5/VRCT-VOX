@@ -19,7 +19,9 @@ Captured game audio is never sent to your microphone or the chatbox.
 
 ### What you need
 
-The ASR server needs both a recognition model and Silero VAD. Get them under "Bundled speech.cpp servers" → "ASR + VAD" (see [Model downloads](../guide/models)).
+The ASR server needs both a recognition model and Silero VAD. Open "Models and servers" further down the page and get them under "ASR + VAD" (see [Model downloads](../guide/models)).
+
+![The "ASR + VAD" section of "Models and servers" in Settings → Transcription](/screenshots/en/asr-models.webp)
 
 | Model | Languages | Size | License |
 |---|---|---|---|
@@ -31,7 +33,7 @@ The bundled server loads one recognition model, shared by the microphone and gam
 
 ### Speaker labels
 
-Game audio captions can carry a label for who spoke (A, B, …). Download and apply the diarization model (Nemotron 3 Diarization, 101 MB, OpenMDW-1.1) under "Bundled speech.cpp servers" → "ASR + VAD"; it takes effect the next time the server starts. To stop using it, clear "Diarization GGUF path".
+Game audio captions can carry a label for who spoke (A, B, …). Download and apply the diarization model (Nemotron 3 Diarization, about 106 MB, OpenMDW-1.1) under "Models and servers" → "ASR + VAD"; it takes effect the next time the server starts. To stop using it, clear "Diarization GGUF path (optional)".
 
 - The log shows "Speaker A". In the desktop caption overlay the label comes before the words, and each voice has its own colour.
 - The labels are guessed from the sound of the voices. They do not name anyone, and similar voices can share a label.
@@ -59,4 +61,4 @@ On Linux it pastes into apps that run as X11/XWayland windows, such as VRChat un
 
 On Windows you can choose the speech recognition inherited from upstream VRCT (Google, Whisper) under "Transcription Engines". If you turn transcription on before choosing an engine, a "Choose speech recognition" screen opens. Google sends your microphone or speaker audio to Google's speech service. Whisper recognizes audio on this PC. The app never switches from the engine you chose to another one on its own.
 
-Realtime captions work too: choose "Bundled" as the server under "Realtime captions", and the main screen's microphone and speaker switches use them.
+Realtime captions work too: choose "Bundled server" for "ASR server" under "Realtime captions", and the main screen's microphone and speaker switches use them.

@@ -11,6 +11,9 @@ hero:
     - theme: alt
       text: Download
       link: https://github.com/kein5/VRCT-VOX/releases
+shot:
+  src: /screenshots/en/main.webp
+  alt: The VRCT-VOX main window. A message sent in Japanese has its English translation, and the other player's English reply has its Japanese translation
 features:
   - title: Translate and send
     details: Translates what you type and sends it to the VRChat chatbox. Choose local translation models or external translation APIs.

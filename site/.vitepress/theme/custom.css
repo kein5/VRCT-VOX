@@ -19,7 +19,9 @@
   --vp-button-brand-bg: #2865dc;
   --vp-button-brand-hover-bg: #3470e8;
   --vp-button-brand-active-bg: #2865dc;
-  --vp-home-hero-name-color: #edf3ff;
+  /* The product name is drawn with the gradient below; the colour is what shows where clipping is unsupported. */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(100deg, #edf3ff 0%, #a9ccff 45%, #5b8ff5 100%);
 }
 
 /* Japanese first: system and locally installed Noto fonts, nothing remote. */
@@ -30,4 +32,125 @@
 .vp-doc img {
   border: 1px solid var(--vp-c-divider);
   border-radius: 8px;
+}
+
+/* Screenshots open at full size (theme/index.ts). */
+.vp-doc img[data-zoom] {
+  cursor: zoom-in;
+}
+
+.vp-doc img[data-zoom]:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 3px;
+}
+
+.shot-zoom {
+  max-width: min(96vw, 1200px);
+  max-height: 94vh;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg);
+  cursor: zoom-out;
+}
+
+.shot-zoom::backdrop {
+  background: rgba(5, 10, 18, 0.82);
+}
+
+.shot-zoom img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Home: the product name leads, and the line under it says what the app does. */
+.VPHome .VPHero .name {
+  font-size: 52px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.VPHome .VPHero .text {
+  margin-top: 12px;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+@media (min-width: 640px) {
+  .VPHome .VPHero .name {
+    font-size: 72px;
+  }
+
+  .VPHome .VPHero .text {
+    font-size: 30px;
+  }
+}
+
+@media (min-width: 960px) {
+  .VPHome .VPHero .name {
+    font-size: 96px;
+  }
+
+  .VPHome .VPHero .text {
+    margin-top: 16px;
+    font-size: 36px;
+  }
+}
+
+/* Home: break the Japanese headline at phrase boundaries, and show the app under it. */
+.VPHero .text,
+.VPHero .tagline {
+  text-wrap: balance;
+  word-break: auto-phrase;
+  line-break: strict;
+}
+
+.VPHero .text .nb {
+  display: inline-block;
+}
+
+@media (min-width: 960px) {
+  .VPHero:not(.has-image) .main {
+    max-width: 820px;
+  }
+
+  .VPHero:not(.has-image) .text {
+    max-width: 780px;
+  }
+
+  .VPHero:not(.has-image) .tagline {
+    max-width: 680px;
+  }
+}
+
+.home-shot {
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 0 24px 48px;
+}
+
+.home-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+
+@media (min-width: 640px) {
+  .home-shot {
+    padding: 0 48px 64px;
+  }
+}
+
+@media (min-width: 960px) {
+  .home-shot {
+    padding: 0 64px 64px;
+  }
 }
