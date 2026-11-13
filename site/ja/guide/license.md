@@ -12,13 +12,13 @@ VRCT-VOXは[MIT License](https://github.com/kein5/VRCT-VOX/blob/develop/LICENSE)
 
 - 一覧は[モデルの取得](./models)と[翻訳](../features/translation)にあります。
 - NLLBの翻訳モデルは非商用（CC-BY-NC-4.0）です。
-- Saisho UtaneのRVCモデル（CC BY 4.0）を公開する作品で使うときは、クレジットの表示が必要です。
+- 公開する作品でSaisho UtaneのRVCモデル（CC BY 4.0）を使うときは、クレジットの表示が必要です。
 
-本家VRCTの吹き出し検出モデルは、派生版の配布物に含めることが許されていないため、VRCT-VOXの配布物には入れていません。チャット読み取りで使えるVRCT-VOX独自の吹き出し検出モデルは、これとは別に学習したもので、MITで公開しています。配布物には含めず、同意したときだけ取得します。検証用の音声Mia2026も、手元の試験専用で、配布しません。
+本家VRCTの吹き出し検出モデルは、派生版の配布物に含めることが許されていないため、VRCT-VOXの配布物には入れていません。チャット読み取りで使えるVRCT-VOX独自の吹き出し検出モデルは、これとは別に学習したもので、MITで公開しています。配布物には含めず、同意したときだけ取得します。検証用の音声Mia2026も手元の試験専用で、配布しません。
 
 ## 謝辞
 
-VRCT-VOXは、VRCTチームの成果の上に作られています。
+VRCT-VOXはVRCTチームの成果の上に作られています。
 
 - みしゃ / misyaguziya（メインの開発）
 - しいな / Shiina_12siy（UI/UXとローカライズ）
@@ -26,4 +26,4 @@ VRCT-VOXは、VRCTチームの成果の上に作られています。
 - どね / done_vrc（ロゴ）
 - そして[VRCTのすべてのコントリビューター](https://github.com/misyaguziya/VRCT/graphs/contributors)
 
-VRChatとその関連する名称は、VRChat Inc.の商標または登録商標です。VRCT-VOXはVRChat Inc.とは関係ありません。
+VRChatとその関連する名称はVRChat Inc.の商標または登録商標です。VRCT-VOXはVRChat Inc.とは関係ありません。

@@ -4,23 +4,23 @@
 
 ## Linux
 
-x64向けのVulkan版を、AppImageとtar.gzの2つの形で配布しています。
+x64向けのVulkan版をAppImageとtar.gzの2つの形で配布しています。
 
 ### AppImage
 
 ```sh
-sha256sum -c VRCT-VOX-<版>-linux-x64-vulkan-release.AppImage.sha256
-chmod +x VRCT-VOX-<版>-linux-x64-vulkan-release.AppImage
-./VRCT-VOX-<版>-linux-x64-vulkan-release.AppImage
+sha256sum -c VRCT-VOX-<バージョン>-linux-x64-vulkan-release.AppImage.sha256
+chmod +x VRCT-VOX-<バージョン>-linux-x64-vulkan-release.AppImage
+./VRCT-VOX-<バージョン>-linux-x64-vulkan-release.AppImage
 ```
 
-FUSEを使えない環境では、`APPIMAGE_EXTRACT_AND_RUN=1`を付けて起動します。このときは、展開のために一時領域が別に必要です（手元の版では約1.7 GB）。
+FUSEを使えない環境では、`APPIMAGE_EXTRACT_AND_RUN=1`を付けて起動します。このときは、展開のために一時領域が別に必要です（手元のバージョンでは約1.7 GB）。
 
 ### tar.gz
 
 ```sh
-sha256sum -c VRCT-VOX-<版>-linux-x64-vulkan-release.tar.gz.sha256
-tar -xzf VRCT-VOX-<版>-linux-x64-vulkan-release.tar.gz
+sha256sum -c VRCT-VOX-<バージョン>-linux-x64-vulkan-release.tar.gz.sha256
+tar -xzf VRCT-VOX-<バージョン>-linux-x64-vulkan-release.tar.gz
 ./VRCT-VOX/vrct-vox
 ```
 
@@ -54,9 +54,9 @@ Windows版はコード署名をしていないため、初めて起動すると�
 
 ## 更新
 
-アプリ内の自動更新は無効にしています。新しい版は、GitHub Releasesから入れ直してください。設定とダウンロードしたモデルは、上の場所に残ります。
+アプリ内の自動更新は無効にしています。新しいバージョンはGitHub Releasesから入れ直してください。設定とダウンロードしたモデルは上の場所に残ります。
 
-Windowsのインストーラーは、新しい版を展開して確かめてから古い版と置き換え、途中で失敗したときは古い版に戻します。設定、モデル、ログは消しません。
+Windowsのインストーラーは新しいバージョンを展開して確かめてから古いバージョンと置き換え、途中で失敗したときは古いバージョンに戻します。設定、モデル、ログは消しません。
 
 ## 起動は1つだけ
 
