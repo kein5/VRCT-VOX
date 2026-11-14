@@ -93,3 +93,33 @@
 .translation:first-child { color: var(--caption_ink); }
 // Still being recognized or sent.
 .is_pending .text { font-style: italic; }
+
+// The flow strip: a small fixed-size panel in the band's corner away from the captions
+// (top left when they stack from the bottom, bottom left when from the top).
+.container { position: relative; }
+.flow {
+    position: absolute; left: 0.4em; top: 0.4em;
+    width: min(26em, 46%); display: flex; flex-direction: column; gap: 0.3em;
+    font-size: 0.5em; line-height: 1.35; font-variant-numeric: tabular-nums;
+}
+.is_top .flow { top: auto; bottom: 0.4em; }
+.flow_item {
+    padding: 0.35em 0.6em; border-radius: 0.3em; color: #e6eefc;
+    background: rgba(8, 12, 22, max(0.55, var(--caption_plate, 0.6)));
+    text-shadow: 0 0 0.12em #000, 0 0 0.12em #000;
+}
+.flow_voice { border-left: 0.25em solid #58b0ee; }
+.flow_chat { border-left: 0.25em solid #8fa6c8; }
+.flow_text { margin: 0 0 0.2em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.flow_label { margin-right: 0.5em; padding: 0 0.35em; border-radius: 0.25em; background: rgba(255, 255, 255, 0.16); font-weight: 700; }
+.flow_row { display: grid; grid-template-columns: minmax(5em, 9em) 1fr auto; align-items: center; gap: 0.5em; }
+.flow_name { color: #b8c6dc; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.flow_track { position: relative; height: 0.55em; border-radius: 0.15em; background: rgba(255, 255, 255, 0.12); }
+.flow_bar { position: absolute; top: 0; bottom: 0; border-radius: 0.15em; }
+.flow_bar_stage { background: #5b92ff; }
+.flow_bar_chatbox { background: #4fb8a8; }
+.flow_bar_speech { background: #e0a656; }
+.flow_bar_conversion { background: repeating-linear-gradient(90deg, #f08cc2 0 0.3em, transparent 0.3em 0.45em); }
+.flow_value { min-width: 4.5em; text-align: right; white-space: nowrap; }
+.flow_off .flow_value, .flow_off .flow_name { color: #95a3ba; }
+.flow_note { margin: 0; padding: 0.2em 0.6em; border-radius: 0.3em; background: rgba(8, 12, 22, 0.6); color: #dce7fb; align-self: flex-start; }

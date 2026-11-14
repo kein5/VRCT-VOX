@@ -11,6 +11,7 @@ import ChatTranscribeSvg from "@images/chat_transcribe.svg?react";
 import CopyThinSvg from "@images/copy_thin.svg?react";
 import ConfigurationSvg from "@images/configuration.svg?react";
 import LanguageSvg from "@images/mui_language.svg?react";
+import FlowSvg from "@images/io_flow.svg?react";
 // The intro shows VRCT-VOX's own mark, like the About page: this is not the official VRCT.
 import intro_icon from "@images/brand/icon-small.svg";
 import logo_en from "@images/brand/logo-en.svg";
@@ -56,6 +57,8 @@ export const VrLauncher = ({ windows, toggleLog, openLog, togglePopup }) => {
                     onClick={is_log_lost ? () => asyncStdoutToPython("/run/vr_panel_recall_log") : toggleLog} onLongPress={recallLog} />
                 <WindowButton Svg={LanguageSvg} label={t("vr_panel.window_language")}
                     is_open={windows.popup === "language"} onClick={() => togglePopup("language")} />
+                <WindowButton Svg={FlowSvg} label={t("io_flow.vr_window")}
+                    is_open={windows.popup === "io_flow"} onClick={() => togglePopup("io_flow")} />
                 <WindowButton Svg={ConfigurationSvg} label={t("vr_panel.window_settings")}
                     is_open={windows.popup === "settings"} onClick={() => togglePopup("settings")} />
             </div>

@@ -962,6 +962,16 @@ export const SETTINGS_ARRAY = [
         base_endpoint_name: "overlay_desktop_settings",
     },
     {
+        // The flow overlay: the desktop strip on or off, and how many recent inputs it and the
+        // VR window list (1 by default, up to 3).
+        Category: "Vr",
+        Base_Name: "IoFlowOverlaySettings",
+        default_value: { desktop: false, count: 1 },
+        ui_template_id: "object",
+        logics_template_id: "get_set",
+        base_endpoint_name: "io_flow_overlay_settings",
+    },
+    {
         Category: "Vr",
         Base_Name: "OverlayShowOnlyTranslatedMessages",
         default_value: false,

@@ -1,0 +1,14 @@
+.panel {
+    flex-shrink: 0; max-height: 50%; overflow-y: auto;
+    margin: 0 1.6rem; padding: 1.2rem 1.6rem 1.6rem;
+    border: .1rem solid var(--vox_border); border-radius: var(--vox_radius); background: var(--vox_canvas);
+}
+.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .4rem 1.2rem; margin-bottom: 1.2rem; }
+.title { font-size: 1.6rem; font-weight: 600; margin: 0; }
+.hint { flex: 1 1 20rem; margin: 0; font-size: 1.2rem; color: var(--vox_description_text); }
+.close {
+    min-height: 3.2rem; padding: .4rem 1.2rem; border-radius: var(--vox_radius); font-size: 1.3rem;
+    color: var(--dark_200_color); background: var(--vox_surface); border: .1rem solid var(--vox_border); cursor: pointer;
+    &:hover { background-color: var(--dark_800_color); }
+    &:focus-visible { outline: .2rem solid var(--primary_200_color); outline-offset: .2rem; }
+}

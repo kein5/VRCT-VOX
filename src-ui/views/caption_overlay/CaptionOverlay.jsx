@@ -51,6 +51,7 @@ export const CaptionOverlay = ({ bridge = captionOverlayBridge, now = Date.now }
     const lines = snapshot ? visibleLines(snapshot.lines, now()) : [];
     return (
         <div className={clsx(styles.container, { [styles.is_top]: snapshot?.position === "top" })}>
+            {snapshot?.flow?.length > 0 && <FlowStrip items={snapshot.flow} note={snapshot.flow_note} />}
             {lines.map(line => {
                 // Who spoke, where the game audio's voices were told apart: "A", or "A·B" for two in one line.
                 const speakers = line.kind === "received" ? speakerLabels(line.speakers) : [];
@@ -72,3 +73,28 @@ export const CaptionOverlay = ({ bridge = captionOverlayBridge, now = Date.now }
         </div>
     );
 };
+
+// Where the user's latest inputs went and how long each step took, in ms. Every word comes
+// from the main window; this only draws them. It sits in the band's corner away from the
+// captions, so the two never cover each other.
+const FlowStrip = ({ items, note }) => (
+    <div className={styles.flow}>
+        {items.map(item => (
+            <div key={item.id} className={clsx(styles.flow_item, styles[`flow_${item.input}`])}>
+                <p className={styles.flow_text}><span className={styles.flow_label}>{item.label}</span>{item.text}</p>
+                {item.rows.map((row, index) => (
+                    <div key={index} className={clsx(styles.flow_row, { [styles.flow_off]: row.off })}>
+                        <span className={styles.flow_name}>{row.label}</span>
+                        <span className={styles.flow_track}>
+                            {!row.off && <span className={clsx(styles.flow_bar, styles[`flow_bar_${row.kind}`])}
+                                style={{ left: `${(row.start / item.scale) * 100}%`,
+                                    width: `${Math.max(0.5, ((row.end - row.start) / item.scale) * 100)}%` }} />}
+                        </span>
+                        <span className={styles.flow_value}>{row.value}</span>
+                    </div>
+                ))}
+            </div>
+        ))}
+        {note && <p className={styles.flow_note}>{note}</p>}
+    </div>
+);

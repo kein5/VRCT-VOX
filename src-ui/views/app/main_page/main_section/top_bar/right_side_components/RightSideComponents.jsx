@@ -5,6 +5,7 @@ import styles from "./RightSideComponents.module.scss";
 import RefreshSvg from "@images/refresh.svg?react";
 import HelpSvg from "@images/help.svg?react";
 import TuneSvg from "@images/mui_discover_tune.svg?react";
+import FlowSvg from "@images/io_flow.svg?react";
 
 import { useStore_OpenedQuickSetting } from "@store";
 import {
@@ -18,6 +19,7 @@ import {
     useOthers,
 } from "@logics_configs";
 import { useMainFunction } from "@logics_main";
+import { useIoFlow } from "../../../../../../logics/flow/useIoFlow";
 import { OpenQuickSettingButton } from "./_buttons/OpenQuickSettingButton";
 import { VrchatPresence } from "../../../../others/vrchat_presence/VrchatPresence";
 
@@ -30,6 +32,7 @@ export const RightSideComponents = () => {
     return (
         <div className={styles.container}>
             <SoftwareUpdateAvailableButton />
+            <IoFlowButton />
             <QuickSettingsMenu />
             <a
                 className={styles.help_and_info_button}
@@ -124,6 +127,21 @@ const QuickSettingsMenu = () => {
                 <VrchatPresence className={styles.menu_readout} />
             </div>}
         </div>
+    );
+};
+
+// Opens the panel that shows where the user's voice and chat go, and how long each took.
+const IoFlowButton = () => {
+    const { t } = useI18n();
+    const { isPanelOpen, togglePanel } = useIoFlow();
+    return (
+        <button type="button" className={clsx(styles.menu_button, { [styles.has_on]: isPanelOpen })}
+            aria-expanded={isPanelOpen} aria-controls="io_flow_panel" title={t("io_flow.open_hint")} onClick={togglePanel}>
+            <FlowSvg className={styles.menu_svg} aria-hidden="true" />
+            <span className={styles.menu_text}>
+                <span className={styles.menu_label}>{t("io_flow.open")}</span>
+            </span>
+        </button>
     );
 };
 
