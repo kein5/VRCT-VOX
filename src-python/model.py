@@ -3137,10 +3137,6 @@ class Model:
                     return
                 self.th_watchdog = None
 
-    def message_handler(self, server, websocket, message):
-        """WebSocketメッセージ受信時の処理"""
-        pass
-
     @staticmethod
     def _listenerTlsContext(host, tls_files=None):
         """None on loopback; beyond this PC the user's certificate, or None plus False to refuse.
@@ -3165,9 +3161,10 @@ class Model:
         with self._websocket_lifecycle_lock:
             server = self.websocket_server
             if server is None or server.is_stopped:
+                # No message handler: the app only pushes, so the server drops what clients send
+                # on its loop, within the incoming limits (SEC-06).
                 server = WebSocketServer(host=host, port=port, token=config.WEBSOCKET_AUTH_TOKEN,
                                          ssl_context=context)
-                server.set_message_handler(self.message_handler)
                 self.websocket_server = server
             try:
                 attempt = server.begin_start(timeout=_WEBSOCKET_START_TIMEOUT)
