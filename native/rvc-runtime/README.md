@@ -130,8 +130,12 @@ The 40 kHz output F0 agreement (95.6 % against 99.1 %) is the one figure that is
 than the reference's own seed-to-seed spread. The model there is the multi-speaker
 pretraining base, whose output is not a clean voice; it has not been examined further.
 
-**Not verified:** the listening judgement (spec 13.2) is prepared but has not been made
-by a person yet, see below; performance against the current external runtime (13.3) has
+**Listening (spec 13.2), 2026-11-15:** the maintainer listened to the four public cases
+below in a browser and could not tell the Rust output from the reference; all four were
+judged the same voice and phrasing. ABX trial counts were not recorded.
+
+**Not verified:** listening with v1, 32 kHz or F0-less models (no public model was
+available, see below); performance against the current external runtime (13.3) has
 not been measured; fp16 and CUDA have not been run; no real v1, 32 kHz or F0-less voice
 model was available, so those variants are verified with random weights and, for v1, the
 HuBERT v1 features.
