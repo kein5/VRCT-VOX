@@ -1,6 +1,6 @@
 # ADR-007: 訳文の読み上げを声の変換に通す
 
-Status: 提案。実装前の設計。採用はこの設計で実装と試験が済んでから決める。
+Status: 採用（2026-11-14）。WindowsではこのPCの実物のRVCで確かめた。Linuxの管理対象の経路は、実機ではまだ確かめていない。
 Date: 2026-11-14
 Related: [ADR-004](adr-004-audio-integration-boundaries.md)、[ADR-005](adr-005-managed-microphone-lifetime.md)、[ADR-006](adr-006-external-source-health.md)
 
@@ -47,6 +47,14 @@ Related: [ADR-004](adr-004-audio-integration-boundaries.md)、[ADR-005](adr-005-
 - 遅れ: 発言の終わりから訳文が聞こえるまでに、音声認識、翻訳、読み上げ、変換の時間が足される。変換はブロック単位なので、読み上げだけのときより少なくとも80 msから数百 ms延びる見込みである。実測してから数字を書く。
 - 試験: 変換の子プロセスの代わりに入力をそのまま変形して返す試験用のworkerで、差し替え、途切れ、取り消し、ミュートと抑制の組み合わせを確かめる。実物では、このPC（Windows 11）でSaisho UtaneのRVCモデルを使い、出力を仮想ケーブルの録音側で受けて確かめる。Linuxの管理対象の経路は、PipeWireのあるPCで確かめる。
 - 仕様: [横断的な振る舞い](../spec/cross-cutting.md)のミュートの節と、[契約](../spec/contracts.md)のTTSとRVCの独立したスイッチの記述を更新する。TTSとRVCのスイッチは独立のまま。読み上げが変換を通るのは、2つが両方オンのときだけである。
+
+## 実装と確認（2026-11-14）
+
+- 設定は`VoiceSettings.conversion`（`off`/`on`）。`on`と「直接音声と読み上げを混ぜる」は一緒に保存できない。
+- アプリは`ConvertedSpeechRouter`で読み上げを48 kHzにし（soxr）、`IsolatedVCProcess.speak`で80 msずつ、再生より最大400 ms先まで送る。変換のプロセスは`VCProcess.speech_chunk`で受け、マイクの20 msを置き換える。
+- ミュートと直接音声の抑制は、制御の枠（`monitor_mute`）の`suppressed`で分けた。`conversion`が`on`のとき、Linuxのゲートは直接音声を抑えない。
+- 実測（Windows 11、RTX 3060 Ti、Saisho Utane、偽の入力で20 msごとに無音を渡す）: 変換の往復は約31 ms。読み上げの変換後の音量は中央値約3000で、入力の小さな音（約530）よりはっきり大きい。抑制ありではマイクのブロックは0になり、読み上げは出た。抑制ありで、送り始めてから変換した読み上げが出るまで47 ms。
+- アプリを起動しての確認（speech.cppの読み上げから、仮想ケーブルの録音側まで）はまだしていない。
 
 ## 覆す条件
 

@@ -45,12 +45,15 @@ class VoiceEventBus:
     """Serialize final chat and opted-in microphone translations."""
     def __init__(self, settings=None, *, provider_factory=SpeechCppTTS, router=None,
                  capacity=4, max_age=5.0, request_timeout=30.0, resolve_server=None, enabled=True,
-                 monitor_factory=MonitorTee, on_monitor_error=None):
+                 monitor_factory=MonitorTee, on_monitor_error=None, converted_router=None):
         install_gc_diagnostics()
         self.settings = settings or VoiceSettings()
         self.provider_factory = provider_factory
         self.resolve_server = resolve_server
         self.router = router or AudioRouter()
+        # Speech through the running voice conversion (ADR-007), when the settings ask
+        # for it and a conversion runs; otherwise speech plays on its device as before.
+        self.converted_router = converted_router
         self.monitor_factory = monitor_factory
         self.on_monitor_error = on_monitor_error
         self.capacity = capacity
@@ -277,8 +280,13 @@ class VoiceEventBus:
                         self._stats["last_first_write_ms"] = round((timestamp - event.timestamp_ns) / 1e6, 3)
                         self._stats["sample_rate"] = rate
 
-                monitor = self._open_monitor(settings, epoch)
-                if monitor is None:
+                converted = (settings.conversion == "on" and self.converted_router is not None
+                             and self.converted_router.available())
+                # Through the conversion its own monitor plays the converted voice.
+                monitor = None if converted else self._open_monitor(settings, epoch)
+                if converted:
+                    self.converted_router.play(frames, settings.playback_device, token, first_audio)
+                elif monitor is None:
                     self.router.play(frames, settings.playback_device, token, first_audio)
                 else:
                     with self._condition:

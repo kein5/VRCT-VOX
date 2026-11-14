@@ -11,13 +11,18 @@ from models.audio_routing.monitor_output import parse_monitor
 from models.audio_routing.source_bridge import _source_id
 from models.owned_child import PipeWriter, launch_owned
 from models.transcription.capture_pipewire import _validate
-from .router_protocol import BASE_STATE, Reader, encode, validate_health
+from .router_protocol import BASE_STATE, Reader, encode, speech_frame, validate_health
 from .settings import start_options
 
 ROOT = resource_root()
 HELPER = ROOT / 'build/vrct-vc-worker'
 # A Windows router pays for its Python imports before its first health frame.
 OWNED_ROUTER_START = 30
+# Speech through the conversion (ADR-007): one 80 ms block per frame, sent at most
+# this far ahead of real time, and waited out by about two conversion blocks.
+SPEECH_FRAME = 7680
+SPEECH_LEAD_NS = 400_000_000
+SPEECH_TAIL_NS = 250_000_000
 
 
 def _launch_owned():
@@ -81,9 +86,13 @@ class IsolatedVCProcess:
         self._thread = self._child = self._stdin = None
         self._cleanup_ok = True
         self._monitor_muted = True
+        self._direct_suppressed = False
         self._monitor_revision = 0
         self._sent_monitor_revision = 0
         self._monitor_pending_since = None
+        # Every frame to the router, in order and whole: a speech frame does not fit a
+        # pipe's atomic write, so controls queue behind it instead of cutting into it.
+        self._out = bytearray()
 
     def set_monitor_muted(self, muted):
         # Receiver/gate fast path: never write a pipe or wait for the router here.
@@ -92,8 +101,71 @@ class IsolatedVCProcess:
                 self._monitor_muted = bool(muted)
                 self._monitor_revision += 1
 
+    def set_direct_suppressed(self, suppressed):
+        """Silence the microphone's blocks only; converted speech still plays (ADR-007)."""
+        with self._lock:
+            if self._direct_suppressed != bool(suppressed):
+                self._direct_suppressed = bool(suppressed)
+                self._monitor_revision += 1
+
     def _monitor_control(self):
-        return dict(kind='monitor_mute', muted=self._monitor_muted, revision=self._monitor_revision)
+        return dict(kind='monitor_mute', muted=self._monitor_muted, suppressed=self._direct_suppressed,
+                    revision=self._monitor_revision)
+
+    def speak(self, chunks, token, on_first_audio=None):
+        """Send speech (an iterable of 48 kHz mono s16le bytes) to be converted, in real time.
+
+        Speech is sent as it arrives, at most SPEECH_LEAD_NS ahead of what the router
+        plays. Returns once all of it has had time to play, or raises when the token or this
+        owner stops; then the router drops what it still holds.
+        """
+        start = None
+        sent_ns = 0
+
+        def send(chunk):
+            nonlocal start, sent_ns
+            if start is None:
+                start = time.monotonic_ns()
+            while time.monotonic_ns() - start < sent_ns - SPEECH_LEAD_NS:
+                self._speech_check(token)
+                time.sleep(.01)
+            self._speech_check(token)
+            with self._lock:
+                self._out.extend(speech_frame(chunk))
+            if sent_ns == 0 and on_first_audio is not None:
+                on_first_audio(time.monotonic_ns(), 48000)
+            sent_ns += len(chunk) * 1_000_000_000 // (2 * 48000)
+
+        try:
+            pending = bytearray()
+            for data in chunks:
+                self._speech_check(token)
+                pending.extend(data)
+                while len(pending) >= SPEECH_FRAME:
+                    send(bytes(pending[:SPEECH_FRAME]))
+                    del pending[:SPEECH_FRAME]
+            if len(pending) >= 2:
+                send(bytes(pending[:len(pending) - len(pending) % 2]))
+            with self._lock:
+                self._out.extend(encode(dict(kind='speech_end')))
+            # The conversion adds a block or two; wait them out so the next speech follows.
+            while start is not None and time.monotonic_ns() - start < sent_ns + SPEECH_TAIL_NS:
+                self._speech_check(token)
+                time.sleep(.01)
+        except BaseException:
+            with self._lock:
+                self._out.extend(encode(dict(kind='speech_cancel')))
+            raise
+
+    def _speech_check(self, token):
+        token.check()
+        with self._lock:
+            if self._stop.is_set() or not self._state.get('active'):
+                raise RuntimeError('vc_speech_unavailable')
+
+    def speaking_available(self):
+        with self._lock:
+            return bool(self._state.get('active')) and not self._stop.is_set()
 
     def start(self, *, source):
         _validate(source, 'mic')
@@ -105,8 +177,8 @@ class IsolatedVCProcess:
                 request.update(monitor=self.monitor)
             if self.output is not None:
                 request.update(output=self.output)
-            if self._controlled:
-                request.update(monitor_control=self._monitor_control())
+            # Always: the direct-voice suppression travels here on every route.
+            request.update(monitor_control=self._monitor_control())
             self._sent_monitor_revision = self._monitor_revision
             request = encode(request)
             self._state.update(requested=True, pending=True, state='preparing')
@@ -136,20 +208,19 @@ class IsolatedVCProcess:
 
     def _check_control(self):
         self._check()
-        if not self._controlled:
-            return
         now = time.monotonic()
         with self._lock:
             if self._monitor_revision != self._sent_monitor_revision:
                 if self._monitor_pending_since is None:
                     self._monitor_pending_since = now
-                frame = encode(self._monitor_control())
-                # This small frame fits PIPE_BUF: EAGAIN leaves it wholly unsent.
+                self._out.extend(encode(self._monitor_control()))
+                self._sent_monitor_revision = self._monitor_revision
+            if self._out:
                 try:
-                    count = self._stdin.write(frame)
-                    if count != len(frame):
+                    count = self._stdin.write(bytes(self._out))
+                    if count is None or count <= 0:
                         raise OSError('vc_router_failed')
-                    self._sent_monitor_revision = self._monitor_revision
+                    del self._out[:count]
                 except BlockingIOError:
                     pass
             limit = 1 if self._router_seen else OWNED_ROUTER_START

@@ -40,6 +40,7 @@ from models.transcription.asr_vocabulary import merged_terms
 from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
+from models.tts.converted_router import ConvertedSpeechRouter
 from models.tts.speechcpp_tts import SpeechError, SpeechCppTTS
 from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, SpeechServers, list_gpus
 from models.model_downloads.manager import Downloads
@@ -450,12 +451,12 @@ class Controller:
         self.legacy_downloads = LegacyDownloads()
         self.model_hardware = HardwareProbe()
         self.direct_voice = DirectVoice(converted_factory=create_converted_process)
+        self.voice_events.converted_router = ConvertedSpeechRouter(self.direct_voice)
         self.voice_route = VoiceRoute(self.voice_events, gate=PipeWireGate(),
                                      store=MuteState(Path(config_path).with_name('voice_mute_state.json')),
                                      on_muted=self.direct_voice.set_monitor_muted)
         self.voice_route.configure(self.voice_events.settings.routing == 'managed',
-            suppress_direct=(self.voice_events.settings.mic_mode == 'translated'
-                             and self.voice_events.settings.direct_policy == 'suppress'))
+            suppress_direct=self._gateSuppressesDirect(self.voice_events.settings))
         self._applyDirectPolicy(self.voice_events.settings)
         self._voice_settings_lock = Lock()
         self._language_settings_lock = RLock()
@@ -2620,7 +2621,7 @@ class Controller:
                 if settings.routing != 'managed' and not device_route:
                     self.direct_voice.stop()
                 self.voice_route.configure(settings.routing == 'managed',
-                    suppress_direct=(settings.mic_mode == 'translated' and settings.direct_policy == 'suppress'))
+                    suppress_direct=self._gateSuppressesDirect(settings))
                 self._applyDirectPolicy(settings)
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
@@ -2836,10 +2837,22 @@ class Controller:
     def _directUsesOutputDevice():
         return sys.platform == 'win32'
 
+    @staticmethod
+    def _suppressesDirect(settings):
+        return settings.mic_mode == 'translated' and settings.direct_policy == 'suppress'
+
+    @classmethod
+    def _gateSuppressesDirect(cls, settings):
+        # Speech through the conversion leaves by the conversion's sink, so the OS gate
+        # cannot silence that sink; the conversion silences the microphone's blocks itself.
+        return cls._suppressesDirect(settings) and settings.conversion != 'on'
+
     def _applyDirectPolicy(self, settings):
         # The managed route does this with an OS gate; a device route has none.
-        self.direct_voice.set_suppressed(self._directUsesOutputDevice() and settings.mic_mode == 'translated'
-                                         and settings.direct_policy == 'suppress')
+        suppress, through = self._suppressesDirect(settings), settings.conversion == 'on'
+        self.direct_voice.set_suppressed(self._directUsesOutputDevice() and suppress and not through)
+        # Block by block, on either route, while speech goes through the conversion (ADR-007).
+        self.direct_voice.set_direct_suppressed(suppress and through)
 
     def _directOutput(self, mode, options):
         """Device for a Windows Start; None on Linux, where the managed route decides."""

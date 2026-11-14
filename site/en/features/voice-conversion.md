@@ -39,6 +39,15 @@ Under Settings → "Advanced" → "Input forwarding", set "Direct voice mode" to
 
 Seed-VC is a GPL-3.0 engine and needs a supported NVIDIA GPU.
 
+## Speech in the converted voice
+
+Set "Speak through voice conversion" under Settings → "TTS" to On, and while a voice conversion runs, speech is converted too before it reaches the virtual microphone. Together with speaking the translation of what you say ("Speak final translations"), others hear the translation in your converted voice.
+
+- During speech the conversion takes the speech in place of the microphone, then returns to the microphone. So this cannot go with mixing direct input and speech.
+- With "Suppress direct input" chosen, your microphone is not heard and only the converted speech is.
+- When no conversion runs, speech plays as before.
+- Speech is heard a little later, by the time the conversion takes.
+
 ## Notes
 
 - Using someone else's voice as a model or reference needs their permission.

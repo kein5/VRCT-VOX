@@ -3,7 +3,7 @@ import sys
 import time
 
 from .direct_voice import create_worker_process
-from .router_protocol import Reader, encode, validate_monitor_control
+from .router_protocol import Reader, control_kind, encode, speech_pcm, validate_monitor_control
 from models.audio_routing.monitor_output import parse_monitor
 from models.audio_routing.source_bridge import parse_source
 from models.owned_child import PipeWriter, wait_readable
@@ -29,18 +29,22 @@ def main():
             raise ValueError('vc_router_request_invalid')
         # With a device route the mute intent gates the main output, not only a monitor.
         controlled = monitor is not None or output is not None
-        muted, revision = validate_monitor_control(request.get('monitor_control',
-            dict(kind='monitor_mute', muted=True, revision=0)))
+        control = request.get('monitor_control', dict(kind='monitor_mute', muted=True, revision=0))
+        muted, revision = validate_monitor_control(control)
+        suppressed = control.get('suppressed', False)
         # Drain controls already sent during launch, including EOF/Stop, before
-        # creating any capture or inference resources.
+        # creating any capture or inference resources. Speech cannot play yet.
         while reader.pending or wait_readable(sys.stdin.buffer, 0):
             try:
-                muted, updated = validate_monitor_control(reader.read(timeout=1))
+                frame = reader.read(timeout=1)
             except EOFError:
                 return 0
+            if control_kind(frame) != 'monitor_mute':
+                continue
+            muted, updated = validate_monitor_control(frame)
             if updated <= revision:
                 raise ValueError('vc_router_request_invalid')
-            revision = updated
+            revision, suppressed = updated, frame.get('suppressed', False)
         source = parse_source(request['source'])
         extra = {} if monitor is None else {'monitor': monitor}
         if output is not None:
@@ -48,19 +52,31 @@ def main():
         process = create_worker_process(request['options'], **extra)
         if controlled:
             process.set_monitor_muted(muted)
+        process.set_direct_suppressed(suppressed)
         process.start(source=source)
         health = PipeWriter(sys.stdout)
         while True:
-            if reader.pending or wait_readable(sys.stdin.buffer, .05):
+            # Speech arrives in 80 ms frames; read all that is there before the next snapshot.
+            while reader.pending or wait_readable(sys.stdin.buffer, .05):
                 try:
-                    muted, updated = validate_monitor_control(reader.read(timeout=1))
+                    frame = reader.read(timeout=1)
                 except EOFError:
                     return 0  # Closing the owned control pipe is Stop.
-                if updated <= revision:
-                    raise ValueError('vc_router_request_invalid')
-                if controlled:
-                    process.set_monitor_muted(muted)
-                revision = updated
+                kind = control_kind(frame)
+                if kind == 'speech':
+                    process.speech_chunk(speech_pcm(frame))  # Beyond its bound it is dropped.
+                elif kind == 'speech_end':
+                    process.speech_end()
+                elif kind == 'speech_cancel':
+                    process.speech_cancel()
+                else:
+                    muted, updated = validate_monitor_control(frame)
+                    if updated <= revision:
+                        raise ValueError('vc_router_request_invalid')
+                    if controlled:
+                        process.set_monitor_muted(muted)
+                    process.set_direct_suppressed(frame.get('suppressed', False))
+                    revision = updated
             state = process.health()
             state['monitor_revision'] = revision
             frame = encode(dict(kind='health', sent_ns=time.monotonic_ns(), **state))
