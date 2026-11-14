@@ -302,9 +302,13 @@ def main() -> int:
         path = OUT / name
         text = render()
         if args.write:
+            if path.exists() and path.read_text(encoding="utf-8") == text:
+                continue
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding="utf-8")
-            print(f"wrote {path.relative_to(ROOT)}")
+            # LF on every OS, as the repository stores it; Windows would otherwise write CRLF.
+            with open(path, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(text)
+            print(f"wrote {path.relative_to(ROOT) if ROOT in path.parents else path}")
         elif not path.exists() or path.read_text(encoding="utf-8") != text:
             stale.append(str(path.relative_to(ROOT)))
     if stale:

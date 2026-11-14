@@ -45,6 +45,11 @@ def update_versions():
         import subprocess
         subprocess.run(["uv", "lock"], cwd=root, check=True)
 
+    # docs/spec/reference/config-keys.md lists VERSION, and CI checks the catalog is current.
+    import subprocess
+    import sys
+    subprocess.run([sys.executable, os.path.join(root, "tools", "spec_catalog.py"), "--write"], cwd=root, check=True)
+
     print(f"updated to version {version}")
 
 if __name__ == "__main__":
