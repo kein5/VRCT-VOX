@@ -25,6 +25,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SCOPES = ("quick", "tooling", "node", "ui", "voice", "lint", "backend", "rust", "commits", "all")
 GROUPS = {"quick": ("tooling", "node", "lint"),
           "all": ("tooling", "node", "ui", "voice", "lint", "backend", "rust")}
+# Rust crates outside the Tauri app, each with its own Cargo.lock and tests.
+NATIVE_CRATES = ("native/speech-server",)
 SETUP_SCOPES = ("headless", "ui", "browser", "backend", "rust", "sidecar")
 OWNER_FILE = ".vrct-vox-dev-env"
 OWNER = "VRCT-VOX developer environment v1\n"
@@ -287,6 +289,9 @@ def checks_plan(args, root):
         elif scope == "rust":
             steps.append(Step("Cargo check", ["cargo", "check", "--locked", "--offline",
                 "--manifest-path", "src-tauri/Cargo.toml"]))
+            for crate in NATIVE_CRATES:
+                steps.append(Step(f"Cargo test {crate}", ["cargo", "test", "--locked", "--offline",
+                    "--manifest-path", f"{crate}/Cargo.toml"]))
         elif scope == "commits":
             if not args.base or args.base.startswith("-"):
                 raise DevError("commits requires --base REF (for example origin/develop); old history is not rewritten.")
@@ -424,9 +429,10 @@ def setup(args, root):
     if args.scope == "rust":
         # execute normally enforces Cargo offline. Dependency acquisition is
         # explicit here, so use Cargo's per-command override, never in check.
-        return execute([Step("locked Rust dependencies", ["cargo", "--config",
+        return execute([Step(f"locked Rust dependencies {manifest}", ["cargo", "--config",
             f"net.offline={'true' if args.offline else 'false'}", "fetch", "--locked",
-            "--manifest-path", "src-tauri/Cargo.toml"])], root, dry_run=args.dry_run)
+            "--manifest-path", f"{manifest}/Cargo.toml"])
+            for manifest in ("src-tauri", *NATIVE_CRATES)], root, dry_run=args.dry_run)
     if args.scope == "backend" and sys.platform != "linux":
         raise DevError("Automated backend setup currently builds the Linux packaging environment. Windows: run bat\\install.bat (uv sync); headless/ui/browser setup works on both platforms.")
     uv = ["uv", *(["--offline"] if args.offline else [])]
