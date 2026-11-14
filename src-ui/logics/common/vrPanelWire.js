@@ -59,7 +59,7 @@ export const decodeLogUpdate = (received, encoded) => {
 // 接続先 (URL、ホスト、ポート) と、実行するプログラムを含む音声の設定も頼めない。接続先の変更では、
 // 保存したキーを新しい接続先へ送って確かめるため、VR画面を乗っ取ればキーを外へ送らせられる
 const BLOCKED_RELAY_PATHS = ["/run/shutdown", "/run/update_software", "/run/open_filepath_logs", "/run/open_filepath_config_file",
-    "/set/data/websocket_host", "/set/data/websocket_port", "/set/data/obs_browser_source_port",
+    "/set/data/websocket_host", "/set/data/websocket_port", "/set/data/websocket_tls", "/set/data/obs_browser_source_port",
     "/set/data/osc_ip_address", "/set/data/osc_port",
     "/set/data/voice_settings", "/set/data/direct_voice_settings", "/set/data/speech_server_settings", "/set/data/realtime_asr_settings"];
 export const isRelayAllowed = (path) => typeof path === "string"

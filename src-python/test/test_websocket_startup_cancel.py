@@ -141,6 +141,7 @@ def harness(monkeypatch):
         WEBSOCKET_HOST="127.0.0.1", WEBSOCKET_PORT=2231,
         WEBSOCKET_AUTH_TOKEN="test-token", WEBSOCKET_SERVER=False,
         OBS_BROWSER_SOURCE=False, OBS_BROWSER_SOURCE_PORT=2232,
+        WEBSOCKET_TLS_CERT_FILE="", WEBSOCKET_TLS_KEY_FILE="",
     )
     gates, servers, workers = [], [], []
 

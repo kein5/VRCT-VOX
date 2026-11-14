@@ -196,6 +196,8 @@ export const STATIC_ROUTE_META_LIST = [
     // Saved after sharing a window, not from a settings control: no "saved" notice.
     { endpoint: "/set/data/ocr_portal_restore_token", ns: configs, hook_name: "useOcr", method_name: "updateFromBackendOcrPortalRestoreToken" },
     { endpoint: "/get/data/hotkeys", ns: configs, hook_name: "useHotkeys", method_name: "updateHotkeys" },
+    // A new WebSocket and OBS token; the settings page says so where the button is.
+    { endpoint: "/run/regenerate_websocket_auth_token", ns: configs, hook_name: "useAdvancedSettings", method_name: "updateFromBackendWebsocketAuthToken" },
     { endpoint: "/set/data/hotkeys", ns: configs, hook_name: "useHotkeys", method_name: "setSuccessHotkeys" },
 
     // // Not Implemented.

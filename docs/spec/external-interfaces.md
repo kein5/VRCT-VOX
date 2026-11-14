@@ -39,13 +39,28 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 |---|---|
 | 有効化 | `WEBSOCKET_SERVER`（既定オフ）。OBSブラウザソースをオンにすると一緒にオンになる。待ち受けの開始を最大6秒待ち、時間切れや停止要求では起動を取り消してオンにしない。ホストやポートの変更でbindできなければ、元のアドレスで立て直してエラーを返す |
 | 待ち受け | `WEBSOCKET_HOST`（既定`127.0.0.1`。IPv4のみ。`0.0.0.0`、IPv6、ホスト名は拒否）、`WEBSOCKET_PORT`（既定2231、整数の1〜65535） |
-| 認証 | 接続時に`?token=<WEBSOCKET_AUTH_TOKEN>`を付ける。合わなければ接続前にHTTP 403。トークンは初回起動時に作り、設定画面では伏せて表示する。保存値がnull・空白だけ・空文字列・文字列以外なら、新しく生成した既定の秘密値を保存する。空でないトークンがなければサーバーを起動しない |
+| 暗号化 | ループバック（127.0.0.0/8）では`ws://`のまま。それ以外のアドレスでは、利用者が指定した証明書と秘密鍵で`wss://`（TLS 1.2以上）だけを使う。使える証明書がなければ待ち受けない（[この PC の外での待ち受け](#この-pc-の外での待ち受け)） |
+| 認証 | 接続時に`?token=<WEBSOCKET_AUTH_TOKEN>`を付ける。合わなければ接続前にHTTP 403。トークンは初回起動時に作り、設定画面では伏せて表示する。保存値がnull・空白だけ・空文字列・文字列以外なら、新しく生成した既定の秘密値を保存する。空でないトークンがなければサーバーを起動しない。`/run/regenerate_websocket_auth_token`で作り直すと、古いトークンでの接続をすぐに切り、以後は拒否する |
 | 受信 | 受け取るが何もしない。1メッセージの上限は64 KiB |
 | 送信 | 処理したメッセージごとに[メッセージの形](data-and-persistence.md#websocketとobsへ送るメッセージ)を全クライアントへ送る。OBSの表示設定が変わると`SETTINGS_UPDATED`を送る |
 
 ホストとポートは[ネットワーク設定](data-and-persistence.md#ネットワーク設定)の検証に通ってから保存・再起動する。WebSocketとOBSをIPv4に統一し、bindの事前確認とコピーするURLの形式をそろえる。
 
 起動中はまだ待ち受けず、期限内に準備が終わった場合だけ接続を受け付ける。取り消した起動が遅れて完了しても待ち受けを始めない。ループとソケットはその起動のスレッドで閉じ、終了を最大2秒待つ（起動待ちの6秒とは別枠）。中断できない処理が残った場合は参照を保ち、終了するまで再起動を失敗として返す。起動中の無効化やホスト・ポート変更でも、変更前の起動を取り消す。
+
+### この PC の外での待ち受け
+
+ループバック以外のアドレスで待ち受けると、同じネットワークで通信を見られる人がトークンと会話を読めてしまう（セキュリティ監査 SEC-01）。そのため WebSocket と OBS は、ループバック以外では TLS だけで待ち受ける（`src-python/models/websocket/tls.py`）。
+
+- 証明書と秘密鍵は`WEBSOCKET_TLS_CERT_FILE`と`WEBSOCKET_TLS_KEY_FILE`（PEMのファイルのパス、既定は空）。同じファイルに両方が入っていてもよい。パスフレーズ付きの鍵は使えない（コンソールで尋ねて止まらないよう、空のパスフレーズで読む）。1 MiBを超えるファイル、通常のファイルでないもの、空のファイルは読まない。
+- `/set/data/websocket_tls`は`{"cert_file", "key_file"}`を受け取り、両方を読み込めたときだけ保存する。片方だけ、形の違う要求、読み込めない組は`WEBSOCKET_TLS_INVALID`。両方を空にすると未設定に戻るが、ホストがループバック以外の間は`WEBSOCKET_HOST_NEEDS_TLS`で拒否する。ループバック以外で動いているサーバーは、新しい組で起動し直してから保存する。起動し直せなければ前の組で立て直し、`WEBSOCKET_SERVER_UNAVAILABLE`を返す。エラーの`data`は保存済みの組。
+- `/set/data/websocket_host`は、ループバック以外のアドレスに、読み込める証明書がなければ`WEBSOCKET_HOST_NEEDS_TLS`を返し、サーバーを止めない。
+- サーバーを起動する処理（`Model.startWebSocketServer`、`Model.startObsBrowserSourceServer`）も同じ確認をする。ループバック以外で証明書を読み込めなければ、待ち受けずに失敗を返す。どの経路からも、平文の待ち受けをLANのアドレスに開かない。
+- 起動時、保存済みのホストがループバック以外で証明書を読み込めなければ、ホストを`127.0.0.1`に戻して保存する。初期設定をUIへ渡したあとに、`/set/data/websocket_host`へ`WEBSOCKET_HOST_RESET_WITHOUT_TLS`（`data`は`127.0.0.1`）を送る。以前の版でLANのアドレスを設定していた場合もこの扱いになる。
+- 証明書が読めなかった理由はログに理由の種類（`missing`、`unreadable`、`not_a_file`、`size`、`load_failed`）だけを書き、パスやファイルの中身は書かない。
+- OBSのHTTPSでは、TLSのハンドシェイクを各要求の処理スレッドで行い、要求全体の5秒の期限に含める。ハンドシェイクを止めたままの接続が、受け付けの処理をふさぐことはない。WebSocketのハンドシェイクの期限は10秒。
+- 設定画面がコピーするURLは、ホストがループバックなら`ws://`と`http://`、それ以外なら`wss://`と`https://`。HTTPSで配ったOBSのページは`wss://`で接続し直す。
+- OBS用とWebSocket用のトークンは分けない。OBSのページは字幕を受け取るためにWebSocketのトークンを持つので、分けてもOBSのURLを知った人は会話を読める。漏れたときは作り直しで両方を一度に無効にする。
 
 ### 送信の上限
 
@@ -64,14 +79,14 @@ VRCT-VOXが他のプログラムとやり取りする口。UIとサイドカー�
 
 `src-python/models/obs/obs_browser_source_server.py`。配信画面に字幕を出すHTMLを配る。
 
-- `OBS_BROWSER_SOURCE`（既定オフ）、`OBS_BROWSER_SOURCE_PORT`（既定2232、整数の1〜65535）。待ち受けるアドレスは`WEBSOCKET_HOST`と同じ。
+- `OBS_BROWSER_SOURCE`（既定オフ）、`OBS_BROWSER_SOURCE_PORT`（既定2232、整数の1〜65535）。待ち受けるアドレスは`WEBSOCKET_HOST`と同じ。ループバック以外ではWebSocketと同じ証明書でHTTPSだけを使う（[この PC の外での待ち受け](#この-pc-の外での待ち受け)）。
 - 表示設定の数値は整数に限る。最大メッセージ数は1〜50、表示時間は1〜120秒、フェードアウト時間は0〜120秒、文字サイズは10〜200px、縁取りの太さは0〜20px。IPCでは整数の文字列も受け付け、成功応答と配信通知には保存した整数を返す。範囲外・小数・真偽値は既存の`OBS_BROWSER_SOURCE_*_INVALID`で拒否し、保存も配信もしない。保存ファイルに無効な値があれば、読み込み時に既定値へ戻す。初回表示と開いているページへの更新も同じ範囲を使う。
 - OBSとWebSocketのオン・オフ、両サーバーのホスト・ポート変更は[同じIPCロック](ipc-protocol.md#並行性とロック)で直列に処理する。WebSocketをオフにするとOBSもオフになる。OBSだけをオフにしてもWebSocketは止めない。
 - OBSの有効化が失敗したら、その試行で新しく起動したWebSocketを停止する。もともと動いていたWebSocketは維持する。有効化中に依存先のWebSocketを起動できなければ`WEBSOCKET_SERVER_UNAVAILABLE`、OBSのポートを確保できなければ`OBS_BROWSER_SOURCE_PORT_UNAVAILABLE`、OBSの起動に失敗すれば`OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE`を返す。
 - 保存済みの設定による起動でも、OBSの実際の起動結果を確認する。失敗したらOBSをオフにし、途中まで確保したサーバーを停止する。初期設定をUIへ渡した後に、上記のOBSエラーを通知する。動作しているWebSocketは維持する。
 - WebSocketホストの変更では、有効なOBSも新しいホストで待ち受けを開始してから設定を確定する。OBSの再起動に失敗したら両サーバーを元のホストへ戻し、`OBS_BROWSER_SOURCE_HOST_UNAVAILABLE`を返す。WebSocketの復旧にも失敗したら両方をオフにし、OBSだけ復旧できなければOBSをオフにする。
 - OBSポートの変更で再起動に失敗したら、元のポートで復旧を試み、`OBS_BROWSER_SOURCE_SERVER_UNAVAILABLE`を返す。復旧できなければOBSをオフにする。整数でないか1〜65535の範囲外のポートには、設定やサービスを変更する前に`OBS_BROWSER_SOURCE_PORT_INVALID`を返す。失敗した要求の値とUIの待機解除は[エラーの扱い](cross-cutting.md#エラーの扱い)に従う。
-- `GET /`と`GET /obs`は`?token=<WEBSOCKET_AUTH_TOKEN>`が必要。`hmac.compare_digest`で照合し、トークンがないか合わなければ403と短い平文だけを返す。認証前にHTMLやトークンを返さない。
+- `GET /`と`GET /obs`は`?token=<WEBSOCKET_AUTH_TOKEN>`が必要。`hmac.compare_digest`で照合し、トークンがないか合わなければ403と短い平文だけを返す。認証前にHTMLやトークンを返さない。照合には要求ごとに現在のトークンを使うので、作り直した直後から古いトークンは通らない。
 - `GET /obs/connection`は`Authorization: Bearer <WEBSOCKET_AUTH_TOKEN>`で同じ照合を行い、現在のWebSocketポートだけを`{"wsPort": 整数}`で返す。トークンは応答に含めず、クエリ文字列による認証は受け付けない。HTMLと同じHost検証とキャッシュ・参照元の制限を使う。
 - `GET /health`は認証なしで`ok`だけを返す。それ以外のパスは404。どのパスでも、`Host`がIPアドレスか`localhost`でなければ403（DNSリバインディング対策）。
 - HTMLの応答には`Cache-Control: no-store, max-age=0`と`Referrer-Policy: no-referrer`を付ける。アクセスログは出さず、クエリ文字列を記録しない。

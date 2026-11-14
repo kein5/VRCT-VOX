@@ -1,5 +1,6 @@
 import asyncio
 import hmac
+import ssl
 import threading
 from dataclasses import dataclass, field
 from time import monotonic
@@ -23,6 +24,8 @@ _MAX_CLIENT_BUFFER_BYTES = 1024 * 1024
 _FRAME_OVERHEAD_BYTES = 14
 _PING_INTERVAL = 20.0
 _PING_TIMEOUT = 20.0
+# A client that opens a connection and never finishes the TLS handshake is dropped.
+_TLS_HANDSHAKE_TIMEOUT = 10.0
 
 
 class _BoundedConnection(ServerConnection):
@@ -77,16 +80,20 @@ class WebSocketServer:
     トークンを渡されていないクライアント (= VRCT 自身が生成した
     OBS Browser Source ページ以外) を拒否する。
     """
-    def __init__(self, host: str='127.0.0.1', port: int=8765, token: Optional[str] = None):
+    def __init__(self, host: str='127.0.0.1', port: int=8765, token: Optional[str] = None,
+                 ssl_context: Optional[ssl.SSLContext] = None):
         """
         サーバーのホスト名とポートを指定して初期化します。
 
         空でない token が必須。接続 URL のクエリパラメータ (?token=...)
         が一致しないクライアントの WebSocket ハンドシェイクを拒否する。
+        ssl_context があれば wss:// で待ち受ける (この PC の外で待ち受けるときに必須。
+        models/websocket/tls.py)。
         """
         self.host = host
         self.port = port
         self.token = token
+        self.ssl_context = ssl_context
         self.clients: Set[ServerConnection] = set()  # 接続クライアント集合
         self._message_handler: Optional[Callable[['WebSocketServer', ServerConnection, str], None]] = None
         self._lifecycle_lock = threading.Lock()
@@ -125,6 +132,28 @@ class WebSocketServer:
                 HTTPStatus.FORBIDDEN, "Forbidden: invalid or missing token\n"
             )
         return None
+
+    def set_token(self, token: str) -> None:
+        """Accept only `token` from now on and close every connection made with the old one.
+
+        Every open connection was authenticated with the previous token, so all of them go.
+        A client that still has the old token is refused when it reconnects.
+        """
+        if not isinstance(token, str) or not token.strip():
+            raise ValueError("WebSocket authentication token is required")
+        self.token = token
+        run = self._run
+        if run is None or run.loop is None:
+            return
+
+        def close_all():
+            for client in tuple(self.clients):
+                self.clients.discard(client)
+                client.transport.abort()
+        try:
+            run.loop.call_soon_threadsafe(close_all)
+        except RuntimeError:
+            pass  # The loop already closed: there are no connections left.
 
     def set_message_handler(self, handler: Callable[['WebSocketServer', ServerConnection, str], None]):
         """
@@ -286,6 +315,8 @@ class WebSocketServer:
             max_size=_MAX_INCOMING_MESSAGE_SIZE,
             create_connection=_BoundedConnection, compression=None,
             ping_interval=_PING_INTERVAL, ping_timeout=_PING_TIMEOUT,
+            **({"ssl": self.ssl_context, "ssl_handshake_timeout": _TLS_HANDSHAKE_TIMEOUT}
+               if self.ssl_context is not None else {}),
         )
         if run.cancelled.is_set() or monotonic() >= run.deadline:
             raise TimeoutError("WebSocket server startup timed out")

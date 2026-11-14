@@ -1266,6 +1266,15 @@ export const SETTINGS_ARRAY = [
         base_endpoint_name: "websocket_auth_token",
     },
     {
+        // The certificate and key (paths) used when WebSocket and OBS listen beyond this PC.
+        Category: "AdvancedSettings",
+        Base_Name: "WebsocketTls",
+        default_value: { cert_file: "", key_file: "" },
+        ui_template_id: "object",
+        logics_template_id: "get_set",
+        base_endpoint_name: "websocket_tls",
+    },
+    {
         Category: "AdvancedSettings",
         Base_Name: "EnableObsBrowserSource",
         default_value: false,

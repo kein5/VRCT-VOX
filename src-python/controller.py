@@ -9,6 +9,8 @@ import copy
 import functools
 import re
 from models.obs.settings import parse_numeric_setting
+from models.websocket import tls as websocket_tls
+from secrets import token_urlsafe
 import time
 import sys
 from os import environ as os_environ
@@ -6011,6 +6013,12 @@ class Controller:
                     ErrorCode.VALIDATION_INVALID_IP,
                     data=config.WEBSOCKET_HOST
                 )
+            elif not Controller._tlsReadyFor(data):
+                # Beyond this PC only over TLS (SEC-01): set the certificate first.
+                response = VRCTError.create_error_response(
+                    ErrorCode.WEBSOCKET_HOST_NEEDS_TLS,
+                    data=config.WEBSOCKET_HOST
+                )
             else:
                 if model.checkWebSocketServerAlive() is False:
                     # Also cancel an attempt still binding the previous address.
@@ -6114,6 +6122,95 @@ class Controller:
         公開する。
         """
         return {"status":200, "result":config.WEBSOCKET_AUTH_TOKEN}
+
+    @staticmethod
+    def regenerateWebSocketAuthToken(*args, **kwargs) -> dict:
+        """Replace the token (SEC-01): a leaked URL stops working at once.
+
+        WebSocket connections made with the old token are closed and the OBS page refuses it.
+        OBS and other apps need the newly copied URL. The response is masked in the log.
+        """
+        token = token_urlsafe(32)
+        config.WEBSOCKET_AUTH_TOKEN = token
+        model.setWebSocketAuthToken(token)
+        printLog("WebSocket token replaced; connections with the old token were closed")
+        return {"status":200, "result":config.WEBSOCKET_AUTH_TOKEN}
+
+    @staticmethod
+    def _webSocketTlsFiles() -> dict:
+        return {"cert_file": config.WEBSOCKET_TLS_CERT_FILE, "key_file": config.WEBSOCKET_TLS_KEY_FILE}
+
+    @staticmethod
+    def _tlsReadyFor(host, tls_files=None) -> bool:
+        """True when the servers may listen on `host`: loopback, or a usable certificate is set."""
+        cert_file, key_file = tls_files or (config.WEBSOCKET_TLS_CERT_FILE, config.WEBSOCKET_TLS_KEY_FILE)
+        try:
+            websocket_tls.listener_context(host, cert_file, key_file)
+        except websocket_tls.TlsSettingsError:
+            return False
+        return True
+
+    @staticmethod
+    def _resetWebSocketHostWithoutTls() -> bool:
+        """At startup, bring a host beyond this PC back to 127.0.0.1 if it has no usable certificate.
+
+        A LAN host saved by an older version, or one whose certificate can no longer be used,
+        would otherwise open nothing (or, before SEC-01, a plain listener on the LAN). The UI
+        is told why after initialization. Returns True when the host was changed.
+        """
+        if Controller._tlsReadyFor(config.WEBSOCKET_HOST):
+            return False
+        config.WEBSOCKET_HOST = "127.0.0.1"
+        printLog("WebSocket host moved back to 127.0.0.1: listening beyond this PC needs a TLS certificate")
+        return True
+
+    @staticmethod
+    def getWebSocketTls(*args, **kwargs) -> dict:
+        return {"status":200, "result":Controller._webSocketTlsFiles()}
+
+    @staticmethod
+    def setWebSocketTls(data, *args, **kwargs) -> dict:
+        """Save the certificate and key used beyond this PC: {"cert_file", "key_file"}.
+
+        Both paths, or both empty to clear them. The pair must load before it is saved, and it
+        cannot be cleared while the host is beyond this PC. When the servers already listen
+        there, they restart with the new pair first, and go back to the old one on failure.
+        """
+        current = Controller._webSocketTlsFiles()
+        fields = ("cert_file", "key_file")
+        if (not isinstance(data, dict) or set(data) != set(fields)
+                or not all(isinstance(data[name], str) for name in fields)):
+            return VRCTError.create_error_response(ErrorCode.WEBSOCKET_TLS_INVALID, data=current)
+        files = tuple(data[name].strip() for name in fields)
+        if files == ("", ""):
+            if websocket_tls.requires_tls(config.WEBSOCKET_HOST):
+                return VRCTError.create_error_response(ErrorCode.WEBSOCKET_HOST_NEEDS_TLS, data=current)
+        else:
+            try:
+                websocket_tls.server_context(*files)
+            except websocket_tls.TlsSettingsError as error:
+                printLog(f"WebSocket TLS certificate refused ({error})")
+                return VRCTError.create_error_response(ErrorCode.WEBSOCKET_TLS_INVALID, data=current)
+        if dict(zip(fields, files)) == current:
+            return {"status":200, "result":current}
+
+        if websocket_tls.requires_tls(config.WEBSOCKET_HOST) and model.checkWebSocketServerAlive():
+            restart_obs = config.OBS_BROWSER_SOURCE is True
+            if restart_obs:
+                model.stopObsBrowserSourceServer()
+            model.stopWebSocketServer()
+            started = model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT, tls_files=files)
+            if started and restart_obs:
+                started = model.startObsBrowserSourceServer(
+                    config.WEBSOCKET_HOST, int(config.OBS_BROWSER_SOURCE_PORT), tls_files=files)
+            if not started:
+                model.stopObsBrowserSourceServer()
+                model.stopWebSocketServer()
+                Controller._restoreWebSocketServer(restore_obs=restart_obs)
+                return VRCTError.create_error_response(ErrorCode.WEBSOCKET_SERVER_UNAVAILABLE, data=current)
+
+        config.WEBSOCKET_TLS_CERT_FILE, config.WEBSOCKET_TLS_KEY_FILE = files
+        return {"status":200, "result":Controller._webSocketTlsFiles()}
 
 
     @staticmethod
@@ -7375,6 +7472,7 @@ class Controller:
 
         # Init WebSocket Server
         printLog("Init WebSocket Server")
+        websocket_host_reset = Controller._resetWebSocketHostWithoutTls()
         # OBS Browser Source depends on WebSocket Server to receive messages.
         if config.OBS_BROWSER_SOURCE is True and config.WEBSOCKET_SERVER is False:
             config.WEBSOCKET_SERVER = True
@@ -7427,6 +7525,9 @@ class Controller:
         if obs_startup_error is not None:
             response = VRCTError.create_error_response(obs_startup_error, data=False)
             self.run(response["status"], "/set/enable/obs_browser_source", response["result"])
+        if websocket_host_reset:
+            response = VRCTError.create_error_response(ErrorCode.WEBSOCKET_HOST_RESET_WITHOUT_TLS, data=config.WEBSOCKET_HOST)
+            self.run(response["status"], "/set/data/websocket_host", response["result"])
         # After initialization_complete so the UI is ready to show it.
         self.notifyNonCommercialCTranslate2Weight()
         for key in getattr(config, "INVALID_SAVED_API_URLS", []):

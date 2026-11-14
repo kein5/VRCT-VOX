@@ -692,6 +692,9 @@ mapping = {
     "/get/data/websocket_port": {"status": True, "variable":controller.getWebSocketPort},
     "/set/data/websocket_port": {"status": True, "variable":controller.setWebSocketPort},
     "/get/data/websocket_auth_token": {"status": True, "variable":controller.getWebSocketAuthToken},
+    "/run/regenerate_websocket_auth_token": {"status": True, "variable":controller.regenerateWebSocketAuthToken},
+    "/get/data/websocket_tls": {"status": True, "variable":controller.getWebSocketTls},
+    "/set/data/websocket_tls": {"status": True, "variable":controller.setWebSocketTls},
     "/get/data/websocket_server": {"status": True, "variable":controller.getWebSocketServer},
     "/set/enable/websocket_server": {"status": True, "variable":controller.setEnableWebSocketServer},
     "/set/disable/websocket_server": {"status": True, "variable":controller.setDisableWebSocketServer},
@@ -954,7 +957,8 @@ class Main:
                 "/set/enable/websocket_server", "/set/disable/websocket_server",
                 "/set/enable/obs_browser_source", "/set/disable/obs_browser_source",
                 "/set/data/websocket_host", "/set/data/websocket_port",
-                "/set/data/obs_browser_source_port",
+                "/set/data/obs_browser_source_port", "/set/data/websocket_tls",
+                "/run/regenerate_websocket_auth_token",
             }:
                 return "/lock/obs_websocket_lifecycle"
             if endpoint.startswith("/set/enable/"):
