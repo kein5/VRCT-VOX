@@ -38,6 +38,11 @@ jobs:
         run: |
           python -m tools.prepare_release --linux-run "$LINUX_RUN" --windows-run "$WINDOWS_RUN" \
             --commit "$CANDIDATE_COMMIT" --branch "$RELEASE_BRANCH" --output build/release-draft
+      # CHANGELOG.md is the record of each release; the draft's notes are made from its section.
+      - name: Require the version's CHANGELOG section and write the draft notes from it
+        run: |
+          python tools/changelog.py check
+          python tools/changelog.py release-notes --output build/release-draft/notes.md
       - name: Create draft only; publication remains a maintainer action
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,7 +58,7 @@ jobs:
           payload = pathlib.Path('build/release-draft/payload')
           command = ['gh', 'release', 'create', 'v' + version, '--repo', 'kein5/VRCT-VOX',
                      '--draft', '--target', os.environ['CANDIDATE_COMMIT'], '--title', 'VRCT-VOX ' + version,
-                     '--notes-file', 'docs/release-draft-template.md']
+                     '--notes-file', 'build/release-draft/notes.md']
           # Betas never become the repository's latest release.
           command += ['--prerelease', '--latest=false'] if channel == 'beta' else ['--latest']
           subprocess.run(command + [str(path) for path in sorted(payload.iterdir())], check=True)

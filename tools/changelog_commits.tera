@@ -1,0 +1,2 @@
+{# One JSON object per commit, for tools/changelog.py; Cocogitto parses the commits. #}{% for commit in commits %}{{ commit | json_encode() | safe }}
+{% endfor %}

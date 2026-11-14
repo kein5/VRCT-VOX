@@ -77,8 +77,10 @@ jobs:
       - name: Show the native crash trace
         if: failure()
         run: if [ -f crash_trace.log ]; then tail -n 200 crash_trace.log; fi
+  # Pull requests, and pushes to develop and main that did not come through one, so commits
+  # made without the local commit-msg hook are checked too.
   commit-conventions:
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'))
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -90,5 +92,10 @@ jobs:
         run: cargo install cocogitto --version 7.0.0 --locked
       - name: Check new commits only
         env:
-          COMMIT_BASE: ${{ github.event.pull_request.base.sha }}
-        run: python tools/dev.py check --scope commits --base "$COMMIT_BASE"
+          COMMIT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ "$COMMIT_BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "A new branch has no earlier commit to compare with; its pull request is checked instead."
+            exit 0
+          fi
+          python tools/dev.py check --scope commits --base "$COMMIT_BASE"

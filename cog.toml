@@ -4,8 +4,51 @@ ignore_merge_commits = true
 ignore_fixup_commits = false
 tag_prefix = "v"
 
-# Deliberately no git_hooks, bump hooks, publish commands, or version rewriting.
+# The version and the tags stay with the existing release flow: package.json holds the version
+# (npm run update-version copies it), and publishing the GitHub release draft creates the
+# v<version> tag. So there is no `cog bump`, no bump hooks and no publish commands here.
+# CHANGELOG.md is written once, when a release is prepared, by tools/changelog.py, which reads
+# the commits through `cog changelog` (see CONTRIBUTING.md, "Changelog and releases").
+
+# Rejects a commit message that is not a Conventional Commit, before the commit is made.
+# Install it in a clone with `cog install-hook commit-msg` (CONTRIBUTING.md).
+[git_hooks.commit-msg]
+script = """#!/bin/sh
+# Installed by `cog install-hook commit-msg` from cog.toml. Rejects a commit message that is
+# not a Conventional Commit. Merge commits pass, as `cog check` ignores them too.
+file="$1"
+first=$(sed -n '1p' "$file")
+case "$first" in
+  "fixup! "*|"squash! "*|"amend! "*)
+    echo "commit-msg: '${first%% *}' commit kept for git rebase --autosquash; squash it before the pull request (CI rejects it)." >&2
+    exit 0 ;;
+esac
+if command -v cog >/dev/null 2>&1; then
+  exec cog verify --file "$file"
+elif command -v mise >/dev/null 2>&1; then
+  exec mise exec -- cog verify --file "$file"
+fi
+echo "commit-msg: Cocogitto (cog) is not installed, so the message cannot be checked." >&2
+echo "Install Cocogitto 7 (docs/development.md), or remove .git/hooks/commit-msg to stop checking." >&2
+exit 1
+"""
+
+# Each type's title is the heading tools/changelog.py sorts it under; keep the titles distinct.
+[commit_types]
+feat = { changelog_title = "Features", order = 1 }
+fix = { changelog_title = "Bug Fixes", order = 2 }
+perf = { changelog_title = "Performance", order = 3 }
+revert = { changelog_title = "Reverts", order = 4 }
+refactor = { changelog_title = "Refactoring", order = 5 }
+build = { changelog_title = "Build", order = 6 }
+ci = { changelog_title = "CI", order = 7 }
+test = { changelog_title = "Tests", order = 8 }
+docs = { changelog_title = "Documentation", order = 9 }
+style = { changelog_title = "Style", order = 10 }
+chore = { changelog_title = "Chores", order = 11 }
+
 [changelog]
+path = "CHANGELOG.md"
 template = "remote"
 remote = "github.com"
 owner = "kein5"
