@@ -13,7 +13,7 @@ import os
 import socket
 import time
 from http.client import HTTPConnection, HTTPSConnection
-from threading import Lock
+from threading import Lock, RLock
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -70,7 +70,8 @@ def owner(monkeypatch):
     instance = object.__new__(model_module.Model)
     instance.ensure_initialized = Mock()
     instance._websocket_lifecycle_lock = Lock()
-    instance._obs_lifecycle_lock = Lock()
+    # Model holds this lock while it stops the old OBS server, which takes it again: as in Model, an RLock.
+    instance._obs_lifecycle_lock = RLock()
     instance.websocket_server = None
     instance.obs_browser_source_server = None
     instance.settings = settings

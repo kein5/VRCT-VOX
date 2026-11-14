@@ -3,7 +3,7 @@ saved, an old LAN host goes back to this PC at startup, and the token can be rep
 
 The servers are mocked here; test_websocket_tls.py runs them for real.
 """
-from threading import Lock
+from threading import Lock, RLock
 from types import SimpleNamespace
 from unittest.mock import Mock, call
 
@@ -194,7 +194,7 @@ def _model(monkeypatch):
     owner = object.__new__(model_module.Model)
     owner.ensure_initialized = Mock()
     owner._websocket_lifecycle_lock = Lock()
-    owner._obs_lifecycle_lock = Lock()
+    owner._obs_lifecycle_lock = RLock()  # As in Model: start takes it again through stop.
     owner.websocket_server = None
     owner.obs_browser_source_server = None
     monkeypatch.setattr(model_module, "WebSocketServer", Mock(side_effect=AssertionError("plain listener opened")))
