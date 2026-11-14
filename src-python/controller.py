@@ -2389,7 +2389,7 @@ class Controller:
         self._recordMessageLatency(spec, asr_ms, translate_elapsed_ms, pipeline_elapsed_ms)
         if trace is not None:
             self._publishIoTrace(trace, translation if snapshot.translation_enabled is not False else None,
-                                 translate_elapsed_ms, failures)
+                                 translate_elapsed_ms, pipeline_elapsed_ms - translate_elapsed_ms, failures)
 
         if spec.delivery == "return":
             return {"id": msg_id, **payload}
@@ -2398,7 +2398,14 @@ class Controller:
     # --- The flow panel: where the user's own messages go, and how long each step took (ms).
 
     def _ioTraceEmit(self, payload):
-        self.run(200, "/run/io_trace", payload)
+        # A readout never stops the message it describes, nor the speech that follows.
+        try:
+            self.run(200, "/run/io_trace", payload)
+        except Exception:
+            try:
+                errorLogging()
+            except Exception:
+                pass
 
     def _beginIoTrace(self, spec, message, msg_id, started_ns, asr_ms, speech_update):
         traces = getattr(self, "io_traces", None)
@@ -2430,10 +2437,11 @@ class Controller:
             return result
         return traced
 
-    def _publishIoTrace(self, trace, translation, translate_ms, failures):
+    def _publishIoTrace(self, trace, translation, translate_ms, deliver_ms, failures):
         if translation is not None:
             trace.stage("translate", translate_ms)
             trace.translation = next((text for text in translation if isinstance(text, str) and text), "")
+        trace.stage("deliver", deliver_ms)
         for failure in failures:
             name = {"osc": "chatbox", "tts": "speech"}.get(failure.get("output"))
             if name is not None:

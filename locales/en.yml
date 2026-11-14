@@ -1688,7 +1688,15 @@ io_flow:
     used: "Used"
     recognition_realtime: "Realtime"
     translation_off: "Not translated"
-    latest: "Latest"
+    latest_text: "Latest: “{{text}}”"
+    newest: "Newest input"
+    unused: "Not used: {{outputs}} ({{reason}})"
+    list_separator: ", "
+    group_separator: "; "
+    output_short:
+        chatbox: "Chatbox"
+        speech: "Speech"
+    mic_off_lane: "The microphone is off. When it is on, your voice goes to the outputs below."
     total: "Total"
     no_trace: "Nothing measured yet. Speak or send a chat message to see it here."
     timeline: "Time taken (scale 0 to {{scale}} ms)"
@@ -1699,6 +1707,7 @@ io_flow:
         recognition: "Speech recognition"
         wait: "Waiting"
         translate: "Translation"
+        deliver: "Handing to outputs"
     output:
         chatbox: "VRChat chatbox"
         speech: "Speech"
@@ -1728,7 +1737,6 @@ io_flow:
         suppress: "Your microphone stops while speech plays"
         mix: "Speech and your microphone are mixed"
     reason:
-        mic_off: "The microphone is off"
         vrchat_off: "Not sent to VRChat by your setting"
         setting_off: "Off in the settings"
         mic_speech_off: "Translations of what you say are not spoken"

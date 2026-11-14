@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { flowNote, outputDetail, outputTime, stripItems, timelineRows } from "./flowText.js";
+import { flowNote, offGroups, outputDetail, outputTime, stripItems, timelineRows } from "./flowText.js";
 
 const t = (key, options) => options ? `${key}:${JSON.stringify(options)}` : key;
 const names = { language: name => `lang(${name})` };
@@ -16,6 +16,15 @@ test("each output of the route map says what it does, or why it is not used", ()
         'io_flow.live.converted:{"engine":"RVC"} · io_flow.during_speech.suppress');
     assert.equal(outputDetail({ id: "live_voice", on: true, carried: "vrchat_mic", during_speech: null }, t, names), "io_flow.live.vrchat_mic");
     assert.equal(outputDetail({ id: "websocket", on: true }, t, names), "io_flow.used");
+});
+
+test("unused outputs fold into one line per reason, in their order", () => {
+    const rows = [{ id: "chatbox", on: true }, { id: "vr_log", on: false, reason: "setting_off" },
+        { id: "speech", on: false, reason: "tts_off" }, { id: "websocket", on: false, reason: "setting_off" }];
+    assert.deepEqual(offGroups(rows, t), [
+        { reason: "setting_off", outputs: "io_flow.output.vr_logio_flow.list_separatorio_flow.output.websocket", text: "io_flow.reason.setting_off" },
+        { reason: "tts_off", outputs: "io_flow.output.speech", text: "io_flow.reason.tts_off" }]);
+    assert.deepEqual(offGroups(undefined, t), []);
 });
 
 test("the latest message's time for an output is in ms, or its state when it did not go out", () => {
@@ -35,7 +44,7 @@ test("a timeline lists the stages in order, then each arrival, then what did not
         ["stage", "10 ms", 0, 10], ["stage", "200 ms", 10, 210], ["chatbox", "240 ms", 0, 240],
         ["speech", "800 ms", 0, 800], ["conversion", "31 ms", 800, 831]]);
     const off = timelineRows(trace("b", "chat", { chatbox: { state: "off", at_ms: null } }), t);
-    assert.deepEqual(off, [{ kind: "chatbox", label: "io_flow.output.chatbox", value: "io_flow.state.off", start: 0, end: 0, off: true }]);
+    assert.deepEqual(off, [{ kind: "chatbox", label: "io_flow.output_short.chatbox", value: "io_flow.state.off", start: 0, end: 0, off: true }]);
 });
 
 test("the desktop strip lists the newest inputs first, worded, and fits the overlay's limits", () => {

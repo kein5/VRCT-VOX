@@ -849,6 +849,8 @@ class TestIoTrace(_MessagePipelineTestBase):
         self.assertEqual((trace["id"], trace["input"], trace["origin"]), ("7", "chat", "send"))
         self.assertEqual(trace["outputs"]["chatbox"], {"state": "off", "at_ms": None})
         self.assertNotIn("translate", trace["stages"])
+        # Even with nothing sent, handing the message to the outputs is timed.
+        self.assertIsInstance(trace["stages"]["deliver"], int)
 
     def test_a_failed_chatbox_send_is_reported_as_failed(self) -> None:
         self._model.oscSendMessage.side_effect = RuntimeError("osc down")
@@ -872,3 +874,18 @@ class TestIoTrace(_MessagePipelineTestBase):
     def test_messages_from_others_have_no_trace(self) -> None:
         self.controller.speakerMessage({"text": "hello", "language": "English"})
         self.assertEqual(self.traces(), [])
+
+class TestIoTraceNeverBreaksDelivery(_MessagePipelineTestBase):
+    def test_a_failing_readout_still_returns_the_chat(self) -> None:
+        from models.io_trace import IoTraces
+        self.controller.io_traces = IoTraces(self.controller._ioTraceEmit)
+
+        def run(status, endpoint, result):
+            if endpoint == "/run/io_trace":
+                raise RuntimeError("UI pipe gone")
+            self.run_calls.append((status, endpoint, result))
+        self.controller.run = run
+        with patch("controller.errorLogging"):
+            result = self.controller.chatMessage({"id": "11", "message": "hello"})
+        self.assertEqual(result["result"]["id"], "11")
+        self._model.addTranslationHistory.assert_called_once()

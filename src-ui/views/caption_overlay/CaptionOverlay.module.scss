@@ -94,15 +94,17 @@
 // Still being recognized or sent.
 .is_pending .text { font-style: italic; }
 
-// The flow strip: a small fixed-size panel in the band's corner away from the captions
-// (top left when they stack from the bottom, bottom left when from the top).
-.container { position: relative; }
+// The flow strip sits beside the captions, at the band's left, on the edge the captions
+// stack from; the captions keep the rest of the width, so neither covers the other.
+.with_flow { display: flex; align-items: flex-end; gap: 0.6em; width: 100%; height: 100%; box-sizing: border-box; }
+.with_flow.is_top { align-items: flex-start; }
+.with_flow > .container { flex: 1; min-width: 0; }
 .flow {
-    position: absolute; left: 0.4em; top: 0.4em;
-    width: min(26em, 46%); display: flex; flex-direction: column; gap: 0.3em;
-    font-size: 0.5em; line-height: 1.35; font-variant-numeric: tabular-nums;
+    flex: 0 0 auto; width: min(13em, 34%); max-height: 100%; overflow: hidden; padding: 0.2em 0;
+    display: flex; flex-direction: column; gap: 0.15em;
+    font-size: 1em; line-height: 1.35; font-variant-numeric: tabular-nums;
 }
-.is_top .flow { top: auto; bottom: 0.4em; }
+.flow > * { font-size: 0.5em; }
 .flow_item {
     padding: 0.35em 0.6em; border-radius: 0.3em; color: #e6eefc;
     background: rgba(8, 12, 22, max(0.55, var(--caption_plate, 0.6)));
@@ -115,6 +117,7 @@
 .flow_row { display: grid; grid-template-columns: minmax(5em, 9em) 1fr auto; align-items: center; gap: 0.5em; }
 .flow_name { color: #b8c6dc; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .flow_track { position: relative; height: 0.55em; border-radius: 0.15em; background: rgba(255, 255, 255, 0.12); }
+.flow_no_track { background: transparent; }
 .flow_bar { position: absolute; top: 0; bottom: 0; border-radius: 0.15em; }
 .flow_bar_stage { background: #5b92ff; }
 .flow_bar_chatbox { background: #4fb8a8; }

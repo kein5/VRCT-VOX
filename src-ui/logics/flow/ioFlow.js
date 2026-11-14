@@ -8,7 +8,7 @@
 export const TRACE_KEEP = 20;
 export const INPUTS = ["voice", "chat"];
 // Stages before any output, in the order they happen.
-export const STAGES = ["recognition", "wait", "translate"];
+export const STAGES = ["recognition", "wait", "translate", "deliver"];
 
 const isMs = value => Number.isInteger(value) && value >= 0;
 

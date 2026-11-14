@@ -49,9 +49,9 @@ export const CaptionOverlay = ({ bridge = captionOverlayBridge, now = Date.now }
     });
 
     const lines = snapshot ? visibleLines(snapshot.lines, now()) : [];
-    return (
+    const flow = snapshot?.flow?.length > 0;
+    const captions = (
         <div className={clsx(styles.container, { [styles.is_top]: snapshot?.position === "top" })}>
-            {snapshot?.flow?.length > 0 && <FlowStrip items={snapshot.flow} note={snapshot.flow_note} />}
             {lines.map(line => {
                 // Who spoke, where the game audio's voices were told apart: "A", or "A·B" for two in one line.
                 const speakers = line.kind === "received" ? speakerLabels(line.speakers) : [];
@@ -72,6 +72,13 @@ export const CaptionOverlay = ({ bridge = captionOverlayBridge, now = Date.now }
             })}
         </div>
     );
+    if (!flow) return captions;
+    return (
+        <div className={clsx(styles.with_flow, { [styles.is_top]: snapshot.position === "top" })}>
+            <FlowStrip items={snapshot.flow} note={snapshot.flow_note} />
+            {captions}
+        </div>
+    );
 };
 
 // Where the user's latest inputs went and how long each step took, in ms. Every word comes
@@ -85,7 +92,7 @@ const FlowStrip = ({ items, note }) => (
                 {item.rows.map((row, index) => (
                     <div key={index} className={clsx(styles.flow_row, { [styles.flow_off]: row.off })}>
                         <span className={styles.flow_name}>{row.label}</span>
-                        <span className={styles.flow_track}>
+                        <span className={clsx(styles.flow_track, { [styles.flow_no_track]: row.off })}>
                             {!row.off && <span className={clsx(styles.flow_bar, styles[`flow_bar_${row.kind}`])}
                                 style={{ left: `${(row.start / item.scale) * 100}%`,
                                     width: `${Math.max(0.5, ((row.end - row.start) / item.scale) * 100)}%` }} />}

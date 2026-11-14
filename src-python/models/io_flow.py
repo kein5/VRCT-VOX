@@ -11,9 +11,7 @@ def _output(name, on, reason=None, **detail):
     return {"id": name, "on": bool(on), "reason": None if on else reason, **detail}
 
 
-def _chatbox(state, source_on, source_reason):
-    if not source_on:
-        return _output("chatbox", False, source_reason)
+def _chatbox(state):
     if not state["send_to_vrc"]:
         return _output("chatbox", False, "vrchat_off")
     if not state["translation"]:
@@ -43,12 +41,10 @@ def _speech_path(state):
 
 
 def _voice(state):
+    # While the microphone is off the lane says so once, and its outputs still show
+    # where the voice would go when it is turned on.
     voice = state["voice"]
-    mic_on = state["mic_on"]
-    mic_reason = "mic_off"
-    if not mic_on:
-        speech_reason = "mic_off"
-    elif voice.get("mic_mode") != "translated":
+    if voice.get("mic_mode") != "translated":
         speech_reason = "mic_speech_off"
     elif not state["translation"]:
         speech_reason = "translation_off"
@@ -68,18 +64,18 @@ def _voice(state):
     if speaking and live in ("converted", "passthrough"):
         during_speech = voice.get("direct_policy", "suppress")
     outputs = [
-        _chatbox(state, mic_on, mic_reason),
+        _chatbox(state),
         _output("speech", speaking, speech_reason, path=_speech_path(state) if speaking else None,
                 language=state["speech_language"] if speaking else None),
         _output("live_voice", live != "muted", "muted", carried=live, engine=direct.get("engine"),
                 during_speech=during_speech),
-        _output("desktop_caption", mic_on and state["desktop"], mic_reason if not mic_on else "setting_off"),
-        _output("vr_log", mic_on and state["large_log"], mic_reason if not mic_on else "setting_off"),
-        _output("clipboard", mic_on and state["clipboard"], mic_reason if not mic_on else "setting_off"),
-        _output("websocket", mic_on and state["websocket"], mic_reason if not mic_on else "setting_off"),
+        _output("desktop_caption", state["desktop"], "setting_off"),
+        _output("vr_log", state["large_log"], "setting_off"),
+        _output("clipboard", state["clipboard"], "setting_off"),
+        _output("websocket", state["websocket"], "setting_off"),
     ]
     return {
-        "on": mic_on,
+        "on": state["mic_on"],
         "recognition": {"realtime": state["realtime"], "engine": None if state["realtime"] else state["engine"]},
         "translation": _translation(state),
         "outputs": outputs,
@@ -97,7 +93,7 @@ def _chat(state):
         speech_reason = _speech_block(state)
     speaking = speech_reason is None
     outputs = [
-        _chatbox(state, True, None),
+        _chatbox(state),
         _output("speech", speaking, speech_reason, path=_speech_path(state) if speaking else None,
                 content=mode if speaking else None,
                 language=(state["speech_language"] if mode == "translated" else state["source_language"])

@@ -24,6 +24,18 @@ export const outputDetail = (row, t, names) => {
     return t("io_flow.used");
 };
 
+// The outputs not in use, one group per reason: "VR log, Clipboard" and why.
+export const offGroups = (outputs, t) => {
+    const groups = new Map();
+    for (const row of outputs ?? []) {
+        if (row.on) continue;
+        if (!groups.has(row.reason)) groups.set(row.reason, []);
+        groups.get(row.reason).push(t(`io_flow.output.${row.id}`));
+    }
+    return [...groups].map(([reason, names]) => ({ reason, outputs: names.join(t("io_flow.list_separator")),
+        text: t(`io_flow.reason.${reason}`) }));
+};
+
 // The latest trace's time for an output of the route map, worded; null when it has none.
 export const outputTime = (row, trace, t) => {
     if (!trace) return null;
@@ -41,7 +53,7 @@ export const timelineRows = (trace, t) => {
         start: segment.start, end: segment.start + segment.ms, off: false,
     }));
     for (const arrival of outputArrivals(trace)) {
-        rows.push({ kind: arrival.kind, label: t(`io_flow.output.${arrival.kind}`), value: formatMs(arrival.at),
+        rows.push({ kind: arrival.kind, label: t(`io_flow.output_short.${arrival.kind}`), value: formatMs(arrival.at),
             start: 0, end: arrival.at, off: false });
         if (arrival.conversion !== null && arrival.conversion !== undefined) {
             rows.push({ kind: "conversion", label: t("io_flow.conversion_guide"), value: formatMs(arrival.conversion),
@@ -52,7 +64,7 @@ export const timelineRows = (trace, t) => {
     for (const name of ["chatbox", "speech"]) {
         const state = trace?.outputs?.[name]?.state;
         if (["off", "superseded", "failed", "not_spoken", "queued"].includes(state)) {
-            rows.push({ kind: name, label: t(`io_flow.output.${name}`), value: t(`io_flow.state.${state}`), start: 0, end: 0, off: true });
+            rows.push({ kind: name, label: t(`io_flow.output_short.${name}`), value: t(`io_flow.state.${state}`), start: 0, end: 0, off: true });
         }
     }
     return rows;

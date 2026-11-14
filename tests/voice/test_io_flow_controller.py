@@ -44,7 +44,8 @@ def test_io_flow_describes_the_current_settings(controller_module):  # noqa: F81
         flow = result["result"]
         voice = {row["id"]: row for row in flow["voice"]["outputs"]}
         chat = {row["id"]: row for row in flow["chat"]["outputs"]}
-        assert voice["chatbox"] == {"id": "chatbox", "on": False, "reason": "mic_off"}
+        assert flow["voice"]["on"] is False
+        assert voice["chatbox"]["on"] and voice["chatbox"]["content"] == "original"
         assert chat["chatbox"]["on"] and chat["chatbox"]["content"] == "original"
         assert chat["desktop_caption"]["on"]
         # TTS starts off in the app; the panel says so instead of guessing.

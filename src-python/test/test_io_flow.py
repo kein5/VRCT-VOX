@@ -39,8 +39,14 @@ def test_spoken_translation_with_the_converted_voice():
     assert flow["conversion_round_trip_ms"] == 31
 
 
+def test_with_the_microphone_off_the_lane_still_shows_where_the_voice_would_go():
+    flow = describe(state(mic_on=False))
+    assert flow["voice"]["on"] is False
+    voice = outputs(flow["voice"])
+    assert voice["chatbox"]["on"] and voice["speech"]["on"] and voice["desktop_caption"]["on"]
+
+
 @pytest.mark.parametrize("changes, reason", [
-    (dict(mic_on=False), "mic_off"),
     (dict(voice=dict(mic_mode="off")), "mic_speech_off"),
     (dict(translation=False), "translation_off"),
     (dict(realtime=False), "not_realtime"),

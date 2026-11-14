@@ -1,0 +1,39 @@
+{
+    "flow": {
+        "voice": {
+            "on": true,
+            "recognition": {"realtime": true, "engine": null},
+            "translation": {"on": true, "source": "Japanese", "targets": ["English"]},
+            "outputs": [
+                {"id": "chatbox", "on": true, "reason": null, "content": "both"},
+                {"id": "speech", "on": true, "reason": null, "path": "converted", "language": "English"},
+                {"id": "live_voice", "on": true, "reason": null, "carried": "converted", "engine": "rvc", "during_speech": "suppress"},
+                {"id": "desktop_caption", "on": true, "reason": null},
+                {"id": "vr_log", "on": false, "reason": "setting_off"},
+                {"id": "clipboard", "on": false, "reason": "setting_off"},
+                {"id": "websocket", "on": false, "reason": "setting_off"}
+            ]
+        },
+        "chat": {
+            "on": true,
+            "translation": {"on": true, "source": "Japanese", "targets": ["English"]},
+            "outputs": [
+                {"id": "chatbox", "on": true, "reason": null, "content": "both"},
+                {"id": "speech", "on": false, "reason": "chat_speech_off", "path": null, "content": null, "language": null},
+                {"id": "desktop_caption", "on": true, "reason": null},
+                {"id": "vr_log", "on": false, "reason": "setting_off"},
+                {"id": "websocket", "on": false, "reason": "setting_off"}
+            ]
+        },
+        "conversion_round_trip_ms": 31
+    },
+    "traces": [
+        {"id": "v1", "input": "voice", "text": "こんばんは", "translation": "Good evening", "origin": "final", "stages": {"wait": 6, "translate": 190, "deliver": 18}, "outputs": {"chatbox": {"state": "sent", "at_ms": 204}, "speech": {"state": "playing", "at_ms": 760, "converted": true, "conversion_ms": 30}}},
+        {"id": "v2", "input": "voice", "text": "このワールドは初めて来ました", "translation": "This is my first time in this world", "origin": "final", "stages": {"wait": 9, "translate": 260, "deliver": 20}, "outputs": {"chatbox": {"state": "sent", "at_ms": 279}, "speech": {"state": "playing", "at_ms": 910, "converted": true, "conversion_ms": 32}}},
+        {"id": "v3", "input": "voice", "text": "よろしくお願いします", "translation": "Nice to meet you", "origin": "final", "stages": {"wait": 7, "translate": 205, "deliver": 19}, "outputs": {"chatbox": {"state": "sent", "at_ms": 222}, "speech": {"state": "playing", "at_ms": 840, "converted": true, "conversion_ms": 31}}},
+        {"id": "c1", "input": "chat", "text": "了解です", "translation": "Got it", "origin": "send", "stages": {"translate": 176, "deliver": 14}, "outputs": {"chatbox": {"state": "sent", "at_ms": 186}}},
+        {"id": "v4", "input": "voice", "text": "どこから来ましたか", "translation": "Where are you from?", "origin": "final", "stages": {"wait": 8, "translate": 230, "deliver": 21}, "outputs": {"chatbox": {"state": "sent", "at_ms": 249}, "speech": {"state": "playing", "at_ms": 1180, "converted": true, "conversion_ms": 33}}},
+        {"id": "v5", "input": "voice", "text": "ありがとうございます。お願いします！", "translation": "Thank you. Yes, please!", "origin": "final", "stages": {"wait": 8, "translate": 212, "deliver": 21}, "outputs": {"chatbox": {"state": "sent", "at_ms": 226}, "speech": {"state": "playing", "at_ms": 820, "converted": true, "conversion_ms": 31}}},
+        {"id": "c2", "input": "chat", "text": "あとでフレンド申請しますね", "translation": "I'll send you a friend request later", "origin": "send", "stages": {"translate": 198, "deliver": 15}, "outputs": {"chatbox": {"state": "sent", "at_ms": 209}}}
+    ]
+}
