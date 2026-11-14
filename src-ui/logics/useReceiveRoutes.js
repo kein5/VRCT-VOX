@@ -466,6 +466,12 @@ export const useReceiveRoutes = () => {
                 // console.log(`from backend: %c ${JSON.stringify(parsed_data)}`, style_348);
                 break;
 
+            case 403:
+                // The backend refused a request relayed for the VR panel (vrPanelWire.js lists what
+                // is relayed; the backend keeps the same list). The pending value was restored above.
+                console.warn("The backend refused a request relayed for the VR panel", endpoint);
+                break;
+
             case 404:
             case 423:
                 // Language mutations already publish their own failure notice.

@@ -5232,8 +5232,10 @@ class Controller:
 
     @staticmethod
     def setEnableTelemetry(*args, **kwargs) -> dict:
-        # Turning the setting on or off is an answer of its own: the notice is not asked again.
-        config.TELEMETRY_NOTICE = Controller.TELEMETRY_NOTICE_VERSION
+        """Turn the setting on. This is not consent (SEC-07): while the notice is unanswered,
+        nothing is sent and the notice stays pending. Only the notice's answer
+        (setTelemetryNotice) can start sending for the first time; the settings page sends that
+        answer itself when the notice is still pending."""
         config.ENABLE_TELEMETRY = True
         if Controller._telemetryAllowed():
             model.telemetryInit(enabled=True, app_version=config.VERSION)
@@ -5241,6 +5243,7 @@ class Controller:
 
     @staticmethod
     def setDisableTelemetry(*args, **kwargs) -> dict:
+        # Turning it off answers the notice too: an answer that sends nothing is safe from any caller.
         config.TELEMETRY_NOTICE = Controller.TELEMETRY_NOTICE_VERSION
         if config.ENABLE_TELEMETRY is True:
             config.ENABLE_TELEMETRY = False

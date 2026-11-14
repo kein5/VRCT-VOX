@@ -115,7 +115,7 @@ export const VrPanelSyncController = () => {
                 emitState(atomEntries());
                 return;
             }
-            asyncStdoutToPython(payload.path, payload.value, payload.languageRequest).then(sent => {
+            asyncStdoutToPython(payload.path, payload.value, payload.languageRequest, "vr_panel").then(sent => {
                 if (sent === false && isLanguageMutation(payload.path)) emitState(atomEntries());
             }).catch(console.error);
         });

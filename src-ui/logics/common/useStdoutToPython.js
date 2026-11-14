@@ -12,7 +12,9 @@ import { isLanguageMutation, beginLanguageMutation, createLanguageRequestId, get
 export const useStdoutToPython = () => {
     const { showNotification_Error } = useNotificationStatus();
     const { t } = useI18n();
-    const asyncStdoutToPython = async (path, value = undefined, languageRequest = undefined) => {
+    // origin: "vr_panel" when the main window relays a request of the VR panel. The backend
+    // then checks the path against its own list too (src-python/models/vr_panel_policy.py).
+    const asyncStdoutToPython = async (path, value = undefined, languageRequest = undefined, origin = undefined) => {
         const is_language_write = isLanguageMutation(path);
         const request = is_language_write ? { ...languageRequest, endpoint: path,
             requestId: languageRequest?.requestId ?? createLanguageRequestId(),
@@ -37,6 +39,7 @@ export const useStdoutToPython = () => {
             }
             const send_object = { endpoint: path };
             if (value !== undefined) send_object.data = encode(JSON.stringify(value));
+            if (origin !== undefined) send_object.origin = origin;
             if (!backend_subprocess) return false;
             exitToken = expectBackendExit(session, path);
             writeAttempted = true;
