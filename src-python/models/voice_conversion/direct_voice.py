@@ -55,6 +55,34 @@ class DirectVoice:
         self._monitor_muted = True
         self._monitor_enabled = False
         self._suppressed = False
+        self._direct_suppressed = False
+
+    def set_direct_suppressed(self, suppressed):
+        """Speech through the conversion (ADR-007): silence the microphone's blocks only."""
+        with self._lock:
+            self._direct_suppressed = bool(suppressed)
+            if self._requested and hasattr(self._backend, 'set_direct_suppressed'):
+                self._backend.set_direct_suppressed(self._direct_suppressed)
+
+    def _converting(self):
+        backend = self._backend if self._requested and self._mode == 'converted' else None
+        if backend is None or not hasattr(backend, 'speak'):
+            return None
+        available = getattr(backend, 'speaking_available', None)
+        return backend if available is None or available() else None
+
+    def speaking_available(self):
+        """True while a conversion runs that speech can be sent through."""
+        with self._lock:
+            return self._converting() is not None
+
+    def speak(self, pcm, token, on_first_audio=None):
+        """Convert speech (48 kHz mono s16le) in place of the microphone while it lasts."""
+        with self._lock:
+            backend = self._converting()
+        if backend is None:
+            raise RuntimeError('vc_speech_unavailable')
+        backend.speak(pcm, token, on_first_audio)
 
     def _send_mute(self):
         if self._requested and self._monitor_enabled:
@@ -116,6 +144,8 @@ class DirectVoice:
                     self._backend = self._converted(deepcopy(choices), monitor=dict(monitor), **extra)
                 self._requested = True
                 self._send_mute()
+                if hasattr(self._backend, 'set_direct_suppressed'):
+                    self._backend.set_direct_suppressed(self._direct_suppressed)
                 self._backend.start(source=source)
             except Exception:
                 self._requested = False

@@ -1,4 +1,5 @@
-"""Bounded metadata-only control for the isolated VC transport."""
+"""Bounded control for the isolated VC transport, and speech for it to convert (ADR-007)."""
+import base64
 import json
 import os
 import re
@@ -37,11 +38,46 @@ def validate_health(value):
 
 
 def validate_monitor_control(value):
-    if (not isinstance(value, dict) or set(value) != {'kind', 'muted', 'revision'}
+    if (not isinstance(value, dict) or set(value) - {'suppressed'} != {'kind', 'muted', 'revision'}
             or value['kind'] != 'monitor_mute' or type(value['muted']) is not bool
+            or type(value.get('suppressed', False)) is not bool
             or type(value['revision']) is not int or not 0 <= value['revision'] < 2**63):
         raise ValueError('vc_router_request_invalid')
     return value['muted'], value['revision']
+
+
+# Speech spoken through the conversion (ADR-007). Audio on this pipe, as base64 in a
+# bounded frame: at most one 80 ms block of 48 kHz mono s16le. Never logged.
+SPEECH_KINDS = ('speech', 'speech_end', 'speech_cancel')
+
+
+def speech_frame(pcm):
+    if type(pcm) is not bytes or not pcm or len(pcm) % 2 or len(pcm) > 7680:
+        raise ValueError('vc_router_request_invalid')
+    return encode(dict(kind='speech', pcm=base64.b64encode(pcm).decode('ascii')))
+
+
+def control_kind(value):
+    """'monitor_mute' or one of SPEECH_KINDS, for a frame from the owner; else invalid."""
+    kind = value.get('kind') if isinstance(value, dict) else None
+    if kind == 'monitor_mute':
+        validate_monitor_control(value)
+        return kind
+    if kind in ('speech_end', 'speech_cancel') and set(value) == {'kind'}:
+        return kind
+    if kind == 'speech' and set(value) == {'kind', 'pcm'} and isinstance(value['pcm'], str):
+        return kind
+    raise ValueError('vc_router_request_invalid')
+
+
+def speech_pcm(value):
+    try:
+        pcm = base64.b64decode(value['pcm'], validate=True)
+    except (ValueError, TypeError):
+        raise ValueError('vc_router_request_invalid') from None
+    if not pcm or len(pcm) % 2 or len(pcm) > 7680:
+        raise ValueError('vc_router_request_invalid')
+    return pcm
 
 
 class Reader:
