@@ -1,6 +1,6 @@
 # インストール
 
-配布物は[GitHub Releases](https://github.com/kein5/VRCT-VOX/releases)にあります。正式版には「Latest」の印が付きます。ベータ版は「Pre-release」として公開しています。
+配布物は[GitHub Releases](https://github.com/kein5/VRCT-VOX/releases)にあります。正式版には「Latest」の印が付きます。ベータ版は「Pre-release」として公開しています。対応するOSと、機能ごとに必要なメモリ、GPU、空き容量は[動作環境と推奨スペック](requirements)にあります。
 
 ## Linux
 
