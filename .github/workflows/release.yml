@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # A release pull request carries its version's CHANGELOG.md section (tools/changelog.py write).
+  # A stable release pull request carries its version's CHANGELOG.md section (tools/changelog.py write).
   changelog:
     name: CHANGELOG has this version
     if: github.event_name == 'pull_request'

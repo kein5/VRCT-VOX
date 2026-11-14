@@ -1,15 +1,17 @@
-"""Writes CHANGELOG.md when a release is prepared, and the GitHub release notes from it.
+"""Writes CHANGELOG.md when a stable release is prepared, and the GitHub release notes.
 
-    python tools/changelog.py write           # add the section of package.json's version
-    python tools/changelog.py print           # show that section, write nothing
-    python tools/changelog.py check           # fail unless CHANGELOG.md has that section
+    python tools/changelog.py write           # add the section of package.json's (stable) version
+    python tools/changelog.py print           # show the version's changes, write nothing
+    python tools/changelog.py check           # a stable version needs its CHANGELOG.md section
     python tools/changelog.py release-notes --output notes.md
 
-Cocogitto reads the commits (`cog changelog <previous tag>..HEAD` with
-tools/changelog_commits.tera); this file sorts them for readers. A section covers the commits
-since the nearest earlier release tag (v*). It is written once per release: running it again
-gives the same file, and a section that would come out differently is not replaced unless
---force is given. The rules are in CONTRIBUTING.md, "Changelog and releases".
+Only stable releases go into CHANGELOG.md. A stable section covers every commit since the
+previous stable release, its betas included. A beta (X.Y.Z-beta.N) gets no section; its release
+notes are made from the commits since the nearest earlier release tag. Cocogitto reads the
+commits (`cog changelog <tag>..HEAD` with tools/changelog_commits.tera); this file sorts them for
+readers. A section is written once: running it again gives the same file, and a section that
+would come out differently is not replaced unless --force is given. The rules are in
+CONTRIBUTING.md, "Changelog and releases".
 """
 from __future__ import annotations
 
@@ -47,8 +49,10 @@ SECTION = re.compile(r"^## \[(?P<version>[^\]]+)\] - (?P<date>\d{4}-\d{2}-\d{2})
 OLDER_HEADING = "## Earlier releases"
 HEADER = """# Changelog
 
-All notable changes to VRCT-VOX, newest first. Versions follow [Semantic Versioning](https://semver.org/);
-`X.Y.Z-beta.N` versions are pre-releases from `develop`. The layout follows the ideas of
+All notable changes to VRCT-VOX, newest first. Only stable releases are listed: each section
+covers everything since the previous stable release, its betas included. Betas (`X.Y.Z-beta.N`,
+from `develop`) are described in their [GitHub pre-release notes](https://github.com/kein5/VRCT-VOX/releases).
+Versions follow [Semantic Versioning](https://semver.org/). The layout follows the ideas of
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): changes that users notice come first, and
 changes for developers follow.
 
@@ -90,7 +94,8 @@ def load_type_titles(path=ROOT / "cog.toml"):
 def parse_commits(lines, titles):
     commits = []
     for line in lines:
-        if not line.strip():
+        # Between releases inside the range, cog prints a `- - -` line; only JSON lines are commits.
+        if not line.lstrip().startswith("{"):
             continue
         row = json.loads(line)
         if row["type"] not in titles:
@@ -190,7 +195,13 @@ def sections(text):
     return result
 
 
+def is_pre_release(version):
+    return "-" in version
+
+
 def update_changelog(text, version, section, force=False):
+    if is_pre_release(version):
+        raise ChangelogError(f"{version} is a pre-release; only stable releases are written to CHANGELOG.md")
     if not text.strip():
         text = HEADER + "\n" + OLDER
     section = section.rstrip("\n") + "\n\n"
@@ -220,30 +231,14 @@ def section_text(text, version):
     raise ChangelogError(f"CHANGELOG.md has no section for {version}; run python tools/changelog.py write first")
 
 
-def pre_releases(text, version):
-    """Pre-releases of a stable version already in the file, oldest first."""
-    if "-" in version:
-        return []
-    found = [name for name, _, _ in sections(text) if name.split("-", 1)[0] == version and "-" in name]
-    return sorted(found, key=lambda name: [int(part) if part.isdigit() else part for part in re.split(r"[.-]", name)])
-
-
-def release_notes(text, version, *, repo_url=REPO_URL, checklist=""):
-    """GitHub release notes: what users weigh first, then the user-facing list, internals counted.
-
-    A stable release also carries the user-facing changes of the pre-releases it includes, since
-    its users may come straight from the previous stable release."""
-    user, internal = {}, {}
-    for name in [version, *reversed(pre_releases(text, version))]:
-        body = section_text(text, name)
-        for target, part in ((user, _between(body, "### User-facing Changes", "### Internal Changes")),
-                             (internal, _between(body, "### Internal Changes", None))):
-            for heading, entries in _headed(part):
-                target.setdefault(heading, []).append(entries.strip("\n"))
-    breaking = "\n".join(user.pop("Breaking Changes", []))
-    rest = "\n\n".join(f"### {heading}\n\n" + "\n".join(user[heading]) for heading in USER_HEADINGS if heading in user)
-    counts = [(heading, sum(len(re.findall(r"^- ", part, re.M)) for part in internal[heading]))
-              for heading in INTERNAL_HEADINGS if heading in internal]
+def release_notes(section, version, *, repo_url=REPO_URL, checklist=""):
+    """GitHub release notes from a section: what users weigh first, then the user-facing list,
+    with internal changes counted. A stable release points to CHANGELOG.md, a beta to its commits."""
+    user = dict(_headed(_between(section, "### User-facing Changes", "### Internal Changes")))
+    internal = _headed(_between(section, "### Internal Changes", None))
+    breaking = user.pop("Breaking Changes", "").strip("\n")
+    rest = "\n\n".join(f"### {heading}\n\n" + user[heading].strip("\n") for heading in USER_HEADINGS if heading in user)
+    counts = [(heading, len(re.findall(r"^- ", part, re.M))) for heading, part in internal]
     lines = []
     if checklist.strip():
         lines += ["<!--", checklist.strip(), "-->", ""]
@@ -257,7 +252,12 @@ def release_notes(text, version, *, repo_url=REPO_URL, checklist=""):
         total = sum(count for _, count in counts)
         detail = ", ".join(f"{heading} {count}" for heading, count in counts)
         lines += [f"Internal changes: {total} ({detail}).", ""]
-    lines += [f"The full list is in [CHANGELOG.md]({repo_url}/blob/v{version}/CHANGELOG.md).", ""]
+    if is_pre_release(version):
+        compare = re.search(r"\]\((\S+/compare/\S+)\)", section)
+        if compare:
+            lines += [f"All commits: [{compare[1].rsplit('/', 1)[1]}]({compare[1]}).", ""]
+    else:
+        lines += [f"The full list is in [CHANGELOG.md]({repo_url}/blob/v{version}/CHANGELOG.md).", ""]
     return "\n".join(lines)
 
 
@@ -294,7 +294,18 @@ def git(root, *args):
 
 
 def previous_tag(root, version):
-    return git(root, "describe", "--tags", "--abbrev=0", "--match", "v[0-9]*", "--exclude", f"v{version}", "HEAD")
+    """The nearest earlier release tag; for a stable release, the nearest earlier stable one."""
+    stable = [] if is_pre_release(version) else ["--exclude", "v*-*"]
+    return git(root, "describe", "--tags", "--abbrev=0", "--match", "v[0-9]*", *stable, "--exclude", f"v{version}", "HEAD")
+
+
+def pre_release_tags(root, version):
+    """The betas of a stable version that HEAD contains, oldest first, without the v."""
+    if is_pre_release(version):
+        return []
+    tags = (git(root, "tag", "--merged", "HEAD", "--list", f"v{version}-*") or "").split()
+    return sorted((tag[1:] for tag in tags), key=lambda name: [int(part) if part.isdigit() else part
+                                                                for part in re.split(r"[.-]", name)])
 
 
 def read_commits(root, since):
@@ -316,7 +327,7 @@ def build_section(root, version, text, date=None):
     if not since:
         raise ChangelogError("no earlier release tag (v*) is reachable from HEAD")
     date = section_date(text, version) or date or datetime.date.today().isoformat()
-    return render_section(version, date, since, read_commits(root, since), included=pre_releases(text, version))
+    return render_section(version, date, since, read_commits(root, since), included=pre_release_tags(root, version))
 
 
 def main(argv=None):
@@ -334,11 +345,15 @@ def main(argv=None):
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     try:
         if args.command == "check":
-            section_text(text, version)
-            print(f"CHANGELOG.md has a section for {version}")
+            if is_pre_release(version):
+                print(f"{version} is a pre-release; CHANGELOG.md lists stable releases only")
+            else:
+                section_text(text, version)
+                print(f"CHANGELOG.md has a section for {version}")
         elif args.command == "release-notes":
             checklist = TEMPLATE_CHECKLIST.read_text(encoding="utf-8") if TEMPLATE_CHECKLIST.exists() else ""
-            notes = release_notes(text, version, checklist=checklist)
+            section = build_section(root, version, text) if is_pre_release(version) else section_text(text, version)
+            notes = release_notes(section, version, checklist=checklist)
             if args.output:
                 Path(args.output).parent.mkdir(parents=True, exist_ok=True)
                 Path(args.output).write_text(notes, encoding="utf-8", newline="\n")
@@ -346,6 +361,9 @@ def main(argv=None):
                 sys.stdout.write(notes)
         else:
             section = build_section(root, version, text, args.date)
+            if args.command == "write" and is_pre_release(version):
+                raise ChangelogError(f"{version} is a pre-release; only stable releases are written to CHANGELOG.md "
+                                     "(its release notes come from release-notes)")
             if args.command == "print":
                 sys.stdout.write(section)
                 return 0

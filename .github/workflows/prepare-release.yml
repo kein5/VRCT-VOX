@@ -27,6 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # The tags and history: a beta's notes list the commits since the previous release tag.
+          fetch-depth: 0
           persist-credentials: false
       - name: Verify origin, successful runs, commit, version and every asset hash
         env:
@@ -38,8 +40,10 @@ jobs:
         run: |
           python -m tools.prepare_release --linux-run "$LINUX_RUN" --windows-run "$WINDOWS_RUN" \
             --commit "$CANDIDATE_COMMIT" --branch "$RELEASE_BRANCH" --output build/release-draft
-      # CHANGELOG.md is the record of each release; the draft's notes are made from its section.
-      - name: Require the version's CHANGELOG section and write the draft notes from it
+      - name: Install pinned commit parser
+        run: cargo install cocogitto --version 7.0.0 --locked
+      # A stable release's notes come from its CHANGELOG.md section; a beta's from its commits.
+      - name: Require a stable version's CHANGELOG section and write the draft notes
         run: |
           python tools/changelog.py check
           python tools/changelog.py release-notes --output build/release-draft/notes.md

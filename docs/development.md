@@ -157,7 +157,7 @@ cog verify "feat(dev): add developer checks"
 # 基点はローカルに存在するrefを明示する
 python tools/dev.py check --scope commits --base origin/develop
 
-# 次のリリースのCHANGELOGの節を、書き込まずに表示する
+# 次のリリースの変更を、書き込まずに表示する
 python tools/changelog.py print
 ```
 
@@ -167,7 +167,7 @@ CLIは指定refとHEADの共通祖先を求め、その後のコミットだけ�
 
 既存履歴を遡って形式を直す必要はありません。引数なしの `cog check` は全履歴を調べるため、通常は上記の範囲指定を使います。merge commitは設定で除外し、fixup commitは除外しません。CIはPRのコミットと、developとmainへpushされたコミットを検査します。[履歴検証](https://docs.cocogitto.io/guide/check.html)、[Gitフック](https://docs.cocogitto.io/guide/git_hooks.html)、[changelog](https://docs.cocogitto.io/guide/changelog.html)の公式手順も参照できます。
 
-`CHANGELOG.md` はリリースを準備するときに `tools/changelog.py` が書きます。コミットの解析はCocogittoの `cog changelog` に任せ、利用者向けと内部向けの分類と書式をこのスクリプトが決めます。種別ごとの見出しは `cog.toml` の `[commit_types]` にあります。試験は `tests/devtools/test_changelog.py` です。
+`CHANGELOG.md` は正式版のリリースを準備するときに `tools/changelog.py` が書きます。載せるのは正式版だけで、前の正式版からの変更をまとめます。ベータ版のノートは、前のタグからのコミットで作ります。コミットの解析はCocogittoの `cog changelog` に任せ、利用者向けと内部向けの分類と書式をこのスクリプトが決めます。種別ごとの見出しは `cog.toml` の `[commit_types]` にあります。試験は `tests/devtools/test_changelog.py` です。
 
 開発CLIはフックを自動では入れません。フックは開発者が `cog install-hook commit-msg` で入れます。履歴を書き換える `cog edit`、版とタグを作る `cog bump`、commit/push、公開hookも開発CLIに含めません。版は今までどおり `package.json` で決めて `npm run update-version` で反映し、タグはGitHub Releasesの下書きを公開したときにできます。
 

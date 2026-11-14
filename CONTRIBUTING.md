@@ -82,22 +82,21 @@ CI checks the commits of every pull request, and the commits pushed to `develop`
 
 ## Changelog and releases
 
-[`CHANGELOG.md`](CHANGELOG.md) is the record of what each release changed. It is written once per release, when the release is prepared, not on every commit. Do not edit it in a feature branch.
+[`CHANGELOG.md`](CHANGELOG.md) is the record of what each stable release changed. A stable section covers everything since the previous stable release, its betas included, so betas get no section of their own; their changes are in their GitHub pre-release notes. The section is written once, when the stable release is prepared, not on every commit. Do not edit it in a feature branch.
 
 ### Preparing a release
 
 1. Set the version in `package.json` (`X.Y.Z-beta.N` on `develop`, `X.Y.Z` on a `release/X.Y.Z` branch) and run `npm run update-version`.
-2. Run `npm run changelog` (`python tools/changelog.py write`). It reads the commits since the nearest earlier release tag (`v*`) through Cocogitto and adds the version's section at the top of `CHANGELOG.md`. Run `python tools/changelog.py print` to see the section without writing it.
-3. Read the section. If a line is unclear, fix it in the file; the tool will not overwrite a section that differs from what it would write unless you pass `--force`.
-4. Commit both as `chore(release): version X.Y.Z` and open the pull request. Release pull requests to `main` fail if the section is missing.
-5. Build the candidates and run "Prepare verified VRCT-VOX release draft" ([release candidates](docs/voice-stack/release-candidates.md)). The draft's notes are made from the CHANGELOG section.
-6. Before publishing the draft, write its Highlights, Upgrade Notes and Known Issues. Publishing creates the `vX.Y.Z` tag.
+2. For a stable release only, run `npm run changelog` (`python tools/changelog.py write`). It reads the commits since the previous stable release tag through Cocogitto and adds the version's section at the top of `CHANGELOG.md`, naming the betas it includes. Read the section; if a line is unclear, fix it in the file. The tool will not overwrite a section that differs from what it would write unless you pass `--force`. For a beta, skip this step; `write` refuses a beta.
+3. Commit as `chore(release): version X.Y.Z` and open the pull request. Release pull requests to `main` fail if the section is missing.
+4. Build the candidates and run "Prepare verified VRCT-VOX release draft" ([release candidates](docs/voice-stack/release-candidates.md)). A stable draft's notes are made from its CHANGELOG section; a beta's from its commits since the previous release tag. Run `python tools/changelog.py print` or `release-notes` to see them beforehand.
+5. Before publishing the draft, write its Highlights, Upgrade Notes and Known Issues. Publishing creates the `vX.Y.Z` tag.
 
 Running `write` again gives the same file. It stops if the tag `vX.Y.Z` already exists. Tags are created only by publishing a GitHub release; do not run `cog bump` and do not push tags by hand.
 
 ### What goes where
 
-Each section lists "User-facing Changes" first and "Internal Changes" after. Headings without entries are left out.
+Each section, and each release's notes, lists "User-facing Changes" first and "Internal Changes" after. Headings without entries are left out.
 
 | Group | Heading | Commits |
 |---|---|---|
@@ -125,7 +124,7 @@ Release commits (`chore(release): ...`) and merge commits are left out. The same
 
 ### GitHub Releases
 
-The CHANGELOG section is the full list; the GitHub release helps users decide whether to update. Its draft starts with Highlights, Breaking Changes (copied from the section), Upgrade Notes and Known Issues, then the user-facing changes. Internal changes are counted and linked to `CHANGELOG.md`. A stable release's draft also lists the user-facing changes of the pre-releases it includes, since its users may come straight from the previous stable release. Keep the two consistent: change the CHANGELOG first, then the release text.
+The CHANGELOG section is the full list of a stable release; the GitHub release helps users decide whether to update. Its draft starts with Highlights, Breaking Changes, Upgrade Notes and Known Issues, then the user-facing changes. Internal changes are counted, with a link to `CHANGELOG.md` for a stable release and to the comparison of commits for a beta. Keep the two consistent: change the CHANGELOG first, then the release text.
 
 ### Troubleshooting
 
@@ -155,7 +154,7 @@ Issue や PR は日本語でも構いません。作業ブランチは `develop`
 
 - コミットは Conventional Commits の形式で書きます。種別の選び方と例は上の「Commit messages」にあります。
 - 形式の検査は commit-msg フックで行います。Cocogitto 7 を入れて、複製ごとに `cog install-hook commit-msg` を一度実行してください。CI も PR と、develop・main への push を検査します。
-- `CHANGELOG.md` はリリースを準備するときに `npm run changelog` で書きます。機能のブランチでは編集しません。手順と分類は上の「Changelog and releases」にあります。
+- `CHANGELOG.md` に載せるのは正式版だけです。正式版のリリースを準備するときに `npm run changelog` で書きます。ベータ版の変更は GitHub のプレリリースのノートに載せます。機能のブランチでは編集しません。手順と分類は上の「Changelog and releases」にあります。
 - テストと確認した内容を PR に書いてください。
 - 表示する文言は `locales/` の英語と日本語の両方に足します。
 - ダウンロードできるモデルは、版・サイズ・SHA-256・ライセンスを固定してカタログに登録します。非商用ライセンスのモデルは既定にしません。

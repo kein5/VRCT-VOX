@@ -74,6 +74,10 @@ class ParseTest(unittest.TestCase):
         self.assertEqual((item.type, item.scope, item.breaking), ("fix", "api", True))
         self.assertEqual(item.footers, (("BREAKING CHANGE", "read the new field."),))
 
+    def test_skips_the_separator_cog_prints_between_releases(self):
+        line = json.dumps({"id": "b" * 40, "type": "Features", "scope": None, "summary": "show", "footers": []})
+        self.assertEqual(len(cl.parse_commits([line, "", "- - -", "", line.replace("b" * 40, "c" * 40)], TITLES)), 2)
+
     def test_every_title_in_cog_toml_is_distinct(self):
         self.assertEqual(len(TITLES), 11)
         self.assertEqual(TITLES["Features"], "feat")
@@ -131,41 +135,46 @@ class RenderTest(unittest.TestCase):
 
 
 class UpdateTest(unittest.TestCase):
-    SECTION = "## [0.2.0-beta.1] - 2026-11-14\n\nChanges since v0.1.0.\n"
+    SECTION = "## [0.2.0] - 2026-11-14\n\nChanges since v0.1.0.\n"
 
     def test_creates_the_file_with_its_header_and_the_link_to_older_releases(self):
-        text = cl.update_changelog("", "0.2.0-beta.1", self.SECTION)
+        text = cl.update_changelog("", "0.2.0", self.SECTION)
         self.assertTrue(text.startswith("# Changelog\n"))
-        self.assertLess(text.index("## [0.2.0-beta.1]"), text.index(cl.OLDER_HEADING))
-        self.assertEqual(cl.update_changelog(text, "0.2.0-beta.1", self.SECTION), text)
+        self.assertIn("Only stable releases are listed", text)
+        self.assertLess(text.index("## [0.2.0]"), text.index(cl.OLDER_HEADING))
+        self.assertEqual(cl.update_changelog(text, "0.2.0", self.SECTION), text)
 
     def test_a_new_release_goes_above_the_previous_one(self):
-        text = cl.update_changelog("", "0.2.0-beta.1", self.SECTION)
-        newer = self.SECTION.replace("0.2.0-beta.1", "0.2.0-beta.2")
-        text = cl.update_changelog(text, "0.2.0-beta.2", newer)
-        self.assertLess(text.index("## [0.2.0-beta.2]"), text.index("## [0.2.0-beta.1]"))
+        text = cl.update_changelog("", "0.2.0", self.SECTION)
+        newer = self.SECTION.replace("0.2.0", "0.3.0")
+        text = cl.update_changelog(text, "0.3.0", newer)
+        self.assertLess(text.index("## [0.3.0]"), text.index("## [0.2.0]"))
 
     def test_a_different_section_for_a_written_release_needs_force(self):
-        text = cl.update_changelog("", "0.2.0-beta.1", self.SECTION)
+        text = cl.update_changelog("", "0.2.0", self.SECTION)
         changed = self.SECTION + "\n- One more line\n"
         with self.assertRaises(cl.ChangelogError):
-            cl.update_changelog(text, "0.2.0-beta.1", changed)
-        self.assertIn("One more line", cl.update_changelog(text, "0.2.0-beta.1", changed, force=True))
+            cl.update_changelog(text, "0.2.0", changed)
+        self.assertIn("One more line", cl.update_changelog(text, "0.2.0", changed, force=True))
 
-    def test_reads_back_the_date_and_the_pre_releases(self):
-        text = cl.update_changelog("", "0.2.0-beta.1", self.SECTION)
-        self.assertEqual(cl.section_date(text, "0.2.0-beta.1"), "2026-11-14")
-        self.assertIsNone(cl.section_date(text, "0.2.0"))
-        self.assertEqual(cl.pre_releases(text, "0.2.0"), ["0.2.0-beta.1"])
+    def test_reads_back_the_date(self):
+        text = cl.update_changelog("", "0.2.0", self.SECTION)
+        self.assertEqual(cl.section_date(text, "0.2.0"), "2026-11-14")
+        self.assertIsNone(cl.section_date(text, "0.3.0"))
+
+    def test_pre_releases_are_not_written(self):
+        with self.assertRaises(cl.ChangelogError):
+            cl.update_changelog("", "0.2.0-beta.1", self.SECTION.replace("0.2.0", "0.2.0-beta.1"))
 
 
 class ReleaseNotesTest(unittest.TestCase):
-    def test_notes_lead_with_what_users_weigh_and_point_to_the_changelog(self):
-        section = cl.render_section("0.2.0-beta.1", "2026-11-14", "v0.1.0", [
+    def section(self, version, previous):
+        return cl.render_section(version, "2026-11-14", previous, [
             commit("feat", "add a page", id_="2" * 40), commit("test", "cover", id_="1" * 40),
             commit("docs", "explain", id_="4" * 40)], repo_url=REPO)
-        notes = cl.release_notes(cl.update_changelog("", "0.2.0-beta.1", section), "0.2.0-beta.1", repo_url=REPO,
-                                 checklist="- check the hashes")
+
+    def test_notes_lead_with_what_users_weigh(self):
+        notes = cl.release_notes(self.section("0.2.0", "v0.1.0"), "0.2.0", repo_url=REPO, checklist="- check the hashes")
         order = [notes.index(heading) for heading in
                  ("## Highlights", "## Breaking Changes", "## Upgrade Notes", "## Known Issues", "## Changes")]
         self.assertEqual(order, sorted(order))
@@ -173,29 +182,20 @@ class ReleaseNotesTest(unittest.TestCase):
         self.assertIn("Add a page", notes)
         self.assertNotIn("Cover", notes)
         self.assertIn("Internal changes: 2 (Tests 1, Documentation 1).", notes)
-        self.assertIn(f"{REPO}/blob/v0.2.0-beta.1/CHANGELOG.md", notes)
         self.assertIn("<!--\n- check the hashes\n-->", notes)
 
-    def test_stable_notes_gather_what_its_pre_releases_changed(self):
-        text = ""
-        for version, previous, item in (
-                ("0.2.0-beta.1", "v0.1.0", commit("feat", "add a page", id_="1" * 40)),
-                ("0.2.0-beta.2", "v0.2.0-beta.1", commit("fix", "change the reply", breaking=True, id_="2" * 40)),
-                ("0.2.0", "v0.2.0-beta.2", commit("chore", "version 0.2.0", scope="release"))):
-            extra = [commit("test", "cover " + version, id_=version[-1] * 40)] if "beta" in version else []
-            section = cl.render_section(version, "2026-11-14", previous, [item, *extra],
-                                        repo_url=REPO, included=cl.pre_releases(text, version))
-            text = cl.update_changelog(text, version, section)
-        notes = cl.release_notes(text, "0.2.0", repo_url=REPO, checklist="")
-        self.assertIn("Change the reply", notes.split("## Breaking Changes")[1].split("## Upgrade Notes")[0])
-        self.assertIn("### Features", notes)
-        self.assertIn("Add a page", notes)
-        self.assertNotIn("No user-facing changes.", notes)
-        self.assertIn("Internal changes: 2 (Tests 2).", notes)
+    def test_a_stable_release_points_to_the_changelog(self):
+        notes = cl.release_notes(self.section("0.2.0", "v0.1.0"), "0.2.0", repo_url=REPO, checklist="")
+        self.assertIn(f"{REPO}/blob/v0.2.0/CHANGELOG.md", notes)
 
-    def test_no_notes_without_a_changelog_section(self):
+    def test_a_pre_release_points_to_its_commits(self):
+        notes = cl.release_notes(self.section("0.2.0-beta.1", "v0.1.0"), "0.2.0-beta.1", repo_url=REPO, checklist="")
+        self.assertIn(f"{REPO}/compare/v0.1.0...v0.2.0-beta.1", notes)
+        self.assertNotIn("CHANGELOG.md", notes)
+
+    def test_no_notes_for_a_stable_release_without_its_section(self):
         with self.assertRaises(cl.ChangelogError):
-            cl.release_notes("# Changelog\n", "0.2.0-beta.1", repo_url=REPO, checklist="")
+            cl.section_text("# Changelog\n", "0.2.0")
 
 
 class VersionTest(unittest.TestCase):
@@ -209,48 +209,76 @@ class VersionTest(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("git") and cl.cog_command(), "needs git and Cocogitto")
 class EndToEndTest(unittest.TestCase):
-    """Writes the changelog of a small repository with real commits, twice."""
+    """A small repository with real commits: a beta, then the stable release."""
 
     def git(self, *args):
         subprocess.run(["git", *args], cwd=self.repo, check=True, capture_output=True)
+
+    def commit_files(self, *rows):
+        for name, message in rows:
+            (self.repo / name).write_text(name)
+            self.git("add", name)
+            self.git("commit", "-q", "-m", message)
+
+    def set_version(self, version):
+        (self.repo / "package.json").write_text(json.dumps({"version": version}))
 
     def setUp(self):
         self.repo = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.repo, ignore_errors=True)
         shutil.copy(ROOT / "cog.toml", self.repo)
-        (self.repo / "package.json").write_text(json.dumps({"version": "0.2.0-beta.1"}))
+        self.set_version("0.2.0-beta.1")
         self.git("init", "-q", "-b", "develop")
         self.git("config", "user.email", "t@example.invalid")
         self.git("config", "user.name", "tester")
         self.git("add", ".")
         self.git("commit", "-q", "-m", "chore: start")
         self.git("tag", "v0.1.0")
-        for name, message in (("a", "feat(ui): show the flow"), ("b", "test: cover the flow"),
-                              ("c", "fix(api)!: change the reply\n\nBREAKING CHANGE: read the new field.")):
-            (self.repo / name).write_text(name)
-            self.git("add", name)
-            self.git("commit", "-q", "-m", message)
+        self.commit_files(("a", "feat(ui): show the flow"), ("b", "test: cover the flow"))
 
     def run_tool(self, *args):
         return subprocess.run([sys.executable, str(ROOT / "tools" / "changelog.py"), *args, "--root", str(self.repo)],
                               capture_output=True, text=True, encoding="utf-8")
 
-    def test_writes_once_and_a_second_run_changes_nothing(self):
+    def test_a_beta_gets_notes_from_its_commits_and_no_changelog_section(self):
+        write = self.run_tool("write")
+        self.assertNotEqual(write.returncode, 0)
+        self.assertIn("stable", write.stderr)
+        self.assertFalse((self.repo / "CHANGELOG.md").exists())
+        check = self.run_tool("check")
+        self.assertEqual(check.returncode, 0, check.stderr)
+        notes = self.run_tool("release-notes")
+        self.assertEqual(notes.returncode, 0, notes.stderr)
+        self.assertIn("Show the flow", notes.stdout)
+        self.assertIn("compare/v0.1.0...v0.2.0-beta.1", notes.stdout)
+
+    def test_the_stable_section_covers_its_betas_and_a_second_run_changes_nothing(self):
+        self.git("tag", "v0.2.0-beta.1")
+        self.commit_files(("c", "fix(api)!: change the reply\n\nBREAKING CHANGE: read the new field."))
+        self.set_version("0.2.0")
+        self.assertNotEqual(self.run_tool("check").returncode, 0)
         first = self.run_tool("write", "--date", "2026-11-14")
         self.assertEqual(first.returncode, 0, first.stderr)
         text = (self.repo / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn("## [0.2.0-beta.1] - 2026-11-14", text)
+        self.assertIn("## [0.2.0] - 2026-11-14", text)
+        self.assertIn("compare/v0.1.0...v0.2.0", text)
+        self.assertIn("This release includes the changes of 0.2.0-beta.1", text)
+        self.assertIn("Show the flow", text)
         self.assertLess(text.index("#### Breaking Changes"), text.index("#### Features"))
         self.assertLess(text.index("### User-facing Changes"), text.index("### Internal Changes"))
         again = self.run_tool("write", "--date", "2026-11-20")
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertEqual((self.repo / "CHANGELOG.md").read_text(encoding="utf-8"), text)
+        self.assertEqual(self.run_tool("check").returncode, 0)
+        notes = self.run_tool("release-notes")
+        self.assertIn("blob/v0.2.0/CHANGELOG.md", notes.stdout)
 
     def test_refuses_a_version_that_is_already_tagged(self):
-        self.git("tag", "v0.2.0-beta.1")
+        self.set_version("0.2.0")
+        self.git("tag", "v0.2.0")
         result = self.run_tool("write")
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("v0.2.0-beta.1", result.stderr)
+        self.assertIn("v0.2.0", result.stderr)
 
 
 if __name__ == "__main__":
