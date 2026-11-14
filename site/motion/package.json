@@ -1,0 +1,20 @@
+{
+  "name": "vrct-vox-motion",
+  "private": true,
+  "description": "Short animations for the user guide's home page, rendered with Remotion into site/public/motion.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "node render.mjs"
+  },
+  "devDependencies": {
+    "@remotion/bundler": "4.0.543",
+    "@remotion/cli": "4.0.543",
+    "@remotion/renderer": "4.0.543",
+    "gsap": "3.15.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.543"
+  }
+}
