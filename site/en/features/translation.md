@@ -1,3 +1,7 @@
+---
+route: translation
+---
+
 # Translation
 
 Translates what you type and what speech recognition turns into text. Turn it on and off with "Translation" on the main screen, and choose the engine under "Translator". The settings are under Settings → "Translation".

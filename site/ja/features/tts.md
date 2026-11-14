@@ -1,3 +1,7 @@
+---
+route: tts
+---
+
 # テキスト読み上げ（TTS）
 
 入力した文章や翻訳を声にして、VRChatのマイクに流します（仮想マイクを使います）。設定は「設定」→「テキスト読み上げ（TTS）」にあります。
@@ -7,7 +11,7 @@
 ## 必要なもの
 
 - 読み上げのモデル。アプリに入っている[speech.cpp](https://github.com/nyosegawa/speech.cpp)のサーバーで動かします。日本語はIrodori-TTS、ほかの言語はQwen3-TTSを使います。どちらもアプリには入っていないので、取得するか手元のファイルを指定します（[モデルの取得](../guide/models)、[自分のモデルを使う](../guide/custom-models#tts)）。
-- VRChatへ声を届けるときは仮想マイク。Linuxでは「管理対象の仮想マイク（Linux）」を使えます（[Linuxの音声経路](../guide/linux-audio)）。WindowsではVB-CABLEなどの仮想ケーブルを別に入れて使います。
+- VRChatへ声を届けるときは仮想マイク。Windowsでは仮想ケーブルを別に入れます（[Windowsの音声経路](../guide/windows-audio)）。Linuxでは「管理対象の仮想マイク（Linux）」を使えます（[Linuxの音声経路](../guide/linux-audio)）。
 
 ## はじめて使う
 
@@ -24,7 +28,12 @@
 
 ## VRChatへ声を届ける
 
-「出力デバイス」で仮想マイクを選び、VRChatのマイクの設定でも同じ仮想マイクを選びます。仮想マイクが必要な理由は[声と文字の流れ](../guide/how-it-works#仮想マイクが必要な理由)にあります。
+「出力デバイス」で仮想マイクを選び、VRChatのマイクの設定でも同じ仮想マイクを選びます。
+
+- Windowsでは「出力デバイス」に「CABLE Input」を、VRChatのマイクに「CABLE Output」を選びます（[Windowsの音声経路](../guide/windows-audio)）。
+- Linuxでは「VRCT Managed Virtual Microphone」を使います（[Linuxの音声経路](../guide/linux-audio)）。
+
+仮想マイクが必要な理由は[声と文字の流れ](../guide/how-it-works#仮想マイクが必要な理由)にあります。
 
 ## 自分でも聞く
 

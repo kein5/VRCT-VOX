@@ -144,6 +144,16 @@ Native buttons carry actions and accessible names. Focus rings remain visible, n
 
 Quick Chat and the VR panel inherit shared colors without changing input/audio contracts. TTS/RVC/download forms share field, action and status styling. A persistent saved compact-mode preference remains separate from the temporary narrow-window layout.
 
+## The user guide (site/)
+
+The guide is a reading surface in the same Dark Studio, chosen on 2026-11-15 after an impeccable and unslop audit found it read as stock VitePress. The world owns the frame, and the reading column stays calm: about 40 Japanese characters a line, the reader's own fonts (no web font, VitePress's Inter removed), real contrast.
+
+- The signature is the route strip at the top of each voice and text feature page and each audio-route page: the steps voice or text passes through, with this page's step lit. Blue lanes are what you send, purple lanes what comes back, as in the how-it-works diagram. A page names its route in front matter (`route: tts`); the routes are in `site/.vitepress/theme/routes.ts`.
+- Section headings are the settings' category heading: the title with a hairline running to the right, no rule above.
+- Callouts, "what you need" lines (`{.needs}`) and folds sit on the raised surface with a hairline all round. State color lives in the title and a tint of the border, amber for warnings and red for danger; no thick side stripe.
+- A short list of features is `{.feature-rows}`: the name, which is the link, in its own column and one line of what it does.
+- The product name on the home page is solid text at the largest size; buttons use the control radius (8px), not pills.
+
 ## Do's and Don'ts
 
 - Do preserve model consent, dirty-form guards, independent switches and stop/mute behavior.

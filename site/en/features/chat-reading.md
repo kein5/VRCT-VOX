@@ -1,3 +1,7 @@
+---
+route: chat-reading
+---
+
 # Chat reading (OCR)
 
 Reads the text of chatboxes shown on the VRChat screen, so it can be logged or translated. The settings are under Settings → "Chat reading (OCR)".

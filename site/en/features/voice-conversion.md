@@ -1,3 +1,7 @@
+---
+route: voice-conversion
+---
+
 # Voice changer (RVC, Seed-VC)
 
 Changes your microphone's voice into another voice and gets it to VRChat through a virtual microphone. The voice is changed by an RVC or Seed-VC runtime that you set up separately. The settings are under Settings → "Voice changer (RVC)".
@@ -36,7 +40,7 @@ As a default model, you can get Saisho Utane's RVC v2 model (CC BY 4.0, about 0.
 
 2. Set up a virtual microphone that carries the changed voice to VRChat.
    - On Linux, press "Prepare and use virtual microphone". When it is ready, press "Resume voice". In VRChat, choose "VRCT Managed Virtual Microphone" as your microphone.
-   - On Windows, install a virtual cable such as VB-CABLE. Choose its playback end as "Output device" under Settings → "Text to speech (TTS)", and its recording end as VRChat's microphone.
+   - On Windows, install a virtual cable such as VB-CABLE. Choose its playback end ("CABLE Input") as "Output device" under Settings → "Text to speech (TTS)", and its recording end ("CABLE Output") as VRChat's microphone ([Windows audio route](../guide/windows-audio)).
 3. Under "Input to forward", choose the microphone you speak into. It starts as the "Mic" chosen under "Device".
 4. Turn on "Voice changer (RVC)" on the main screen.
 
