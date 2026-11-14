@@ -1,5 +1,6 @@
 import { defineConfig, type DefaultTheme } from 'vitepress'
 import { tokenize } from './searchTokenize.mjs'
+import { slugify } from './slugify.mjs'
 
 const repo = 'https://github.com/kein5/VRCT-VOX'
 const site = 'https://kein5.github.io/VRCT-VOX/'
@@ -119,6 +120,9 @@ export default defineConfig({
   transformHead: ({ pageData }) => alternates(pageData.relativePath),
   markdown: {
     image: { lazyLoading: true },
+    // Japanese ids stay composed, so links to headings with voiced marks find them (slugify.mjs).
+    anchor: { slugify },
+    toc: { slugify },
     config(md) {
       // Every picture in a page is a screenshot: it can take focus and opens larger (theme/index.ts).
       const image = md.renderer.rules.image!

@@ -7,6 +7,7 @@ on:
     paths:
       - 'site/**'
       - 'tools/check_site_search.mjs'
+      - 'tools/check_site_anchors.mjs'
       - '.github/workflows/pages.yml'
   push:
     branches: [develop]
@@ -40,6 +41,8 @@ jobs:
         working-directory: site
       # Words in the middle of Japanese sentences can be found, with and without Intl.Segmenter.
       - run: node tools/check_site_search.mjs site/.vitepress/dist
+      # Every link to a #heading finds it (the build only checks that the page exists).
+      - run: node tools/check_site_anchors.mjs site/.vitepress/dist
       - if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
