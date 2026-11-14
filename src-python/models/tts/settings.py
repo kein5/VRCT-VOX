@@ -37,6 +37,14 @@ def language_tag(language):
     raise ValueError("Unsupported or unknown speech language")
 
 
+# Japanese speech can come from an engine the user installed and runs (ADR-008). The app only
+# connects to it on this PC; it never installs, starts or bundles it.
+ENGINES = ("speechcpp", "voicevox", "coeiroink", "aivis", "sharevox")
+ENGINE_URL_FIELDS = {"voicevox": "voicevox_url", "coeiroink": "coeiroink_url",
+                     "aivis": "aivis_url", "sharevox": "sharevox_url"}
+ENGINE_VOICE_ID = re.compile(r"[0-9]{1,9}|[0-9A-Fa-f-]{1,64}:[0-9]{1,9}")
+
+
 @dataclass(frozen=True)
 class VoiceSettings:
     mode: str = "off"  # off | original | translated (chat only)
@@ -62,6 +70,16 @@ class VoiceSettings:
     # Speak through the running voice conversion (RVC, Seed-VC) in place of the
     # microphone, so speech has the converted voice (ADR-007). Off by default.
     conversion: str = "off"  # off | on
+    # Which engine reads Japanese, its URL, and the voice chosen in it. The voice keeps its names
+    # too, so that it can be found again when an engine update changes the ids.
+    japanese_engine: str = "speechcpp"  # speechcpp | voicevox | coeiroink | aivis | sharevox
+    voicevox_url: str = "http://127.0.0.1:50021"
+    coeiroink_url: str = "http://127.0.0.1:50032"
+    aivis_url: str = "http://127.0.0.1:10101"
+    sharevox_url: str = "http://127.0.0.1:50025"
+    engine_voice_id: str = ""
+    engine_voice_speaker: str = ""
+    engine_voice_style: str = ""
 
     @property
     def playback_device(self):
@@ -100,6 +118,15 @@ class VoiceSettings:
         local_url(settings.japanese_url)
         if settings.multilingual_url:
             local_url(settings.multilingual_url)
+        if settings.japanese_engine not in ENGINES:
+            raise ValueError("Unknown speech engine")
+        for field in ENGINE_URL_FIELDS.values():
+            local_url(getattr(settings, field))
+        if settings.engine_voice_id and not ENGINE_VOICE_ID.fullmatch(settings.engine_voice_id):
+            raise ValueError("Invalid engine voice")
+        for name in (settings.engine_voice_speaker, settings.engine_voice_style):
+            if len(name) > 128 or any(ord(c) < 32 or ord(c) == 127 for c in name):
+                raise ValueError("Invalid engine voice name")
         for voice in (settings.japanese_voice, settings.multilingual_voice):
             if not voice.strip() or len(voice) > 128 or any(ord(c) < 32 for c in voice):
                 raise ValueError("Invalid voice name")
@@ -126,9 +153,15 @@ class VoiceSettings:
     def to_dict(self):
         return asdict(self)
 
+    def engine_for(self, language):
+        """The engine that reads `language`: an installed engine for Japanese, else speech.cpp."""
+        return self.japanese_engine if language_tag(language) == 'ja' else 'speechcpp'
+
     def options_for(self, language):
         role = 'japanese' if language_tag(language) == 'ja' else 'multilingual'
         options = {}
+        if self.engine_for(language) != 'speechcpp':
+            return options  # Seed and instructions are speech.cpp's.
         seed = getattr(self, role + '_seed')
         if seed != '':
             options['seed'] = int(seed)
@@ -150,6 +183,14 @@ class VoiceSettings:
             raise ValueError("No text in the selected speech mode")
         language = language_tag(language)
         role = "japanese" if language == "ja" else "multilingual"
+        engine = self.engine_for(language)
+        if engine != "speechcpp":
+            from .external_engine import EngineVoice
+            from .speechcpp_tts import SpeechError
+            if not self.engine_voice_id:
+                raise SpeechError("tts_engine_voice_unset")  # A safe code the user can act on.
+            voice = EngineVoice(self.engine_voice_id, self.engine_voice_speaker, self.engine_voice_style)
+            return local_url(getattr(self, ENGINE_URL_FIELDS[engine])), voice, language, text
         if getattr(self, role + "_server") == "bundled":
             if resolve_server is None:
                 raise ValueError("speech_server_not_ready")
@@ -158,7 +199,8 @@ class VoiceSettings:
             return self.japanese_url, self.japanese_voice, language, text
         if not self.multilingual_url:
             raise ValueError("Configure a separate Qwen3-TTS server for this language")
-        if self.japanese_server == "external" and local_url(self.multilingual_url) == local_url(self.japanese_url):
+        if (self.japanese_engine == "speechcpp" and self.japanese_server == "external"
+                and local_url(self.multilingual_url) == local_url(self.japanese_url)):
             raise ValueError("Japanese and multilingual TTS require separate servers")
         return self.multilingual_url, self.multilingual_voice, language, text
 

@@ -6,6 +6,7 @@ from time import monotonic, monotonic_ns
 from models.audio_routing.audio_router import AudioRouter
 from models.audio_routing.monitor_output import MonitorTee
 from models.failure_report import report_failure
+from .engines import engine_client
 from .settings import VoiceSettings
 from .speechcpp_tts import CancelToken, SpeechCppTTS, SpeechError
 from .voice_trace import write_voice_trace, install_gc_diagnostics
@@ -45,10 +46,13 @@ class VoiceEventBus:
     """Serialize final chat and opted-in microphone translations."""
     def __init__(self, settings=None, *, provider_factory=SpeechCppTTS, router=None,
                  capacity=4, max_age=5.0, request_timeout=30.0, resolve_server=None, enabled=True,
-                 monitor_factory=MonitorTee, on_monitor_error=None, converted_router=None):
+                 monitor_factory=MonitorTee, on_monitor_error=None, converted_router=None,
+                 engine_factory=engine_client):
         install_gc_diagnostics()
         self.settings = settings or VoiceSettings()
         self.provider_factory = provider_factory
+        # Japanese from an engine the user installed (ADR-008): (engine, url) -> client.
+        self.engine_factory = engine_factory
         self.resolve_server = resolve_server
         self.router = router or AudioRouter()
         # Speech through the running voice conversion (ADR-007), when the settings ask
@@ -272,8 +276,11 @@ class VoiceEventBus:
             outcome = "error"
             try:
                 url, voice, language, text = settings.request_for(event, resolve_server=self.resolve_server)
-                frames = self.provider_factory(url).synthesize_stream(text, voice, language, token,
-                                                                    **settings.options_for(language))
+                engine = settings.engine_for(language)
+                provider = (self.provider_factory(url) if engine == "speechcpp"
+                            else self.engine_factory(engine, url))
+                frames = provider.synthesize_stream(text, voice, language, token,
+                                                    **settings.options_for(language))
 
                 def first_audio(timestamp, rate):
                     nonlocal first_write
