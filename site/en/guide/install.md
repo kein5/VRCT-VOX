@@ -63,6 +63,16 @@ The settings (`config.json`), logs and downloaded models are inside the folder t
 
 Every file has a `.sha256`, and `SHA256SUMS-*` lists them all. These check that a file is intact; they are not signatures.
 
+From 0.3.0, every file also has build provenance: a record, signed by GitHub, of which workflow in this repository built the file and from which commit. Provenance can only be made inside this repository's workflows, so the right to replace release files is not enough to make it.
+
+To check a file, install the [GitHub CLI](https://cli.github.com/) and run this in the folder you downloaded to, with the name of the file you want to check:
+
+```sh
+gh attestation verify VRCT-VOX_setup.exe --repo kein5/VRCT-VOX
+```
+
+If it prints "Verification succeeded!", the file was built by this repository's workflow. If it fails, don't use the file, and tell us in an Issue.
+
 ## Updates
 
 The in-app updater is disabled. Install a new version from GitHub Releases. Your settings and downloaded models stay in the locations above.

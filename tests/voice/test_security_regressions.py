@@ -13,6 +13,8 @@ import yaml
 from test_controller_integration import controller_module  # noqa: F401
 
 ROOT = Path(__file__).resolve().parents[2]
+# Workflow file -> the one job that signs build provenance for the release candidates.
+ATTESTING_JOBS = {"build-linux.yml": "candidate", "release.yml": "candidate"}
 
 
 @pytest.mark.parametrize("method,setting", [
@@ -98,7 +100,7 @@ def test_workflows_pin_external_code_and_keep_inputs_out_of_scripts(workflow):
         assert document["permissions"] == {"contents": "read", "actions": "read"}
         assert set(document["jobs"]) == {"draft"}
         draft = document["jobs"]["draft"]
-        assert draft["permissions"] == {"contents": "write", "actions": "read"}
+        assert draft["permissions"] == {"contents": "write", "actions": "read", "attestations": "read"}
         assert "github.repository == 'kein5/VRCT-VOX'" in draft["if"]
         assert "github.ref == 'refs/heads/develop'" in draft["if"]
         commands = "\n".join(step.get("run", "") for step in draft["steps"])
@@ -117,6 +119,19 @@ def test_workflows_pin_external_code_and_keep_inputs_out_of_scripts(workflow):
         assert "github.ref == 'refs/heads/develop'" in deploy["if"]
         assert "github.event_name != 'pull_request'" in deploy["if"]
         assert all("run" not in step for step in deploy["steps"])
+    elif workflow.name in ATTESTING_JOBS:
+        # The candidate job signs build provenance (second security audit SEC-04): only that job
+        # gets id-token and attestations, and only a manual run uses them.
+        assert document["permissions"] == {"contents": "read"}
+        for name, job in document["jobs"].items():
+            if name != ATTESTING_JOBS[workflow.name]:
+                assert "permissions" not in job, name
+                continue
+            assert job["permissions"] == {"contents": "read", "id-token": "write", "attestations": "write"}
+            attest = [step for step in job["steps"] if step.get("uses", "").startswith("actions/attest-build-provenance@")]
+            assert len(attest) == 1
+            assert attest[0]["if"] == "github.event_name == 'workflow_dispatch'"
+            assert attest[0]["with"]["subject-path"].endswith("release-candidate/*")
     else:
         assert document["permissions"] == {"contents": "read"}
         assert all("permissions" not in job for job in document["jobs"].values())
