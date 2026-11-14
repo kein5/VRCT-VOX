@@ -79,7 +79,8 @@ If you run a recognition server of your own on this computer, choose the externa
 The app's own Whisper models are the listed ones only. To use another Whisper model, run an OpenAI-compatible Whisper server (`/v1/audio/transcriptions`) yourself and connect to it.
 
 1. Open "Custom Whisper server" in Settings → "Speech recognition (ASR)" → "Cloud speech recognition".
-2. Enter the URL, and a key if it needs one, and save. Saving checks that the server can be reached and reads its list of models.
+2. Enter the URL and a key, and save. If the server needs no key, enter any text as the key. With the key empty, the app only remembers the URL: it does not check the server or read its models.
+   Saving checks that the server can be reached and reads its list of models.
 3. Choose a model, and choose "Custom Whisper server" as the engine above.
 
 Use HTTPS. HTTP works only for this computer (localhost) or an IP address on your local network.
