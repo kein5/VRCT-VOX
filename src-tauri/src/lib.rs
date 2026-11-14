@@ -191,9 +191,9 @@ pub fn run() {
                 window.app_handle().exit(0);
             }
         })
+        // Only the plugins the windows use. The UI reads and writes no files and makes no HTTP
+        // requests of its own, so the fs and http plugins are gone (security audit SEC-05).
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_http::init())
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .manage(quick_chat::QuickChatState::default())
