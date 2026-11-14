@@ -1,3 +1,7 @@
+---
+route: transcription
+---
+
 # Speech recognition (ASR) and realtime captions
 
 Turns your voice and other players' voices into text. The settings are under Settings → "Speech recognition (ASR)".

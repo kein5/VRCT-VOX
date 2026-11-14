@@ -1,3 +1,7 @@
+---
+route: linux-audio
+---
+
 # Linuxの音声経路
 
 テキスト読み上げやボイスチェンジャーの声をVRChatに届けるには、VRCT-VOXの音声をVRChatのマイク入力へつなぐ必要があります。Linuxでは、VRCT-VOXが管理する仮想マイク（PipeWire）を作れます。

@@ -30,8 +30,8 @@ What you hear from them, and the text made from it, is never sent on to your mic
 
 VRChat hears only the microphone you choose in VRChat. For the voice VRCT-VOX makes (speech, or your changed voice) to reach VRChat, VRChat has to receive it as a microphone. A virtual microphone does that: it passes the sound an app plays to other apps as if it came from a microphone.
 
+- On Windows, install a virtual cable such as VB-CABLE separately ([Windows audio route](./windows-audio)).
 - On Linux, VRCT-VOX can prepare a virtual microphone it manages ([Linux audio route](./linux-audio)).
-- On Windows, install a virtual cable such as VB-CABLE separately.
 
 In VRChat, choose the virtual microphone (the recording end of the virtual cable) as the microphone.
 

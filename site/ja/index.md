@@ -4,17 +4,14 @@ hero:
   name: VRCT-VOX
   # Each span stays on one line where it fits (custom.css), so the headline breaks between them.
   text: <span class="nb">VRChatの会話を</span><span class="nb">翻訳・字幕・読み上げで支える</span>
-  tagline: 翻訳、音声認識（ASR）、テキスト読み上げ（TTS）、ボイスチェンジャー（RVC）、チャット読み取り（OCR）をまとめたデスクトップアプリです。VRCTの非公式な派生版です。
+  tagline: 翻訳、字幕、読み上げ、声の変換、チャットの読み取りを1つにまとめたデスクトップアプリです。VRCTの非公式な派生版です。
   actions:
     - theme: brand
-      text: はじめる
-      link: /ja/guide/introduction
+      text: インストール
+      link: /ja/guide/install
     - theme: alt
       text: やりたいことから探す
       link: /ja/guide/tasks
-    - theme: alt
-      text: ダウンロード
-      link: https://github.com/kein5/VRCT-VOX/releases
 shot:
   src: /screenshots/ja/main.webp
   alt: VRCT-VOXのメイン画面。日本語の発言に英語の訳が、相手の英語の発言に日本語の訳が付いている

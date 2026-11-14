@@ -1,3 +1,7 @@
+---
+route: linux-audio
+---
+
 # Linux audio route
 
 For VRChat to hear speech or converted voice, VRCT-VOX's audio has to reach VRChat's microphone input. On Linux, VRCT-VOX can create a virtual microphone (PipeWire) that it manages.

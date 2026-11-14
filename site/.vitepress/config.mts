@@ -16,7 +16,8 @@ function alternates(relativePath: string): [string, Record<string, string>][] {
 }
 
 // Pages are grouped by what a reader comes to do: start, find a task, look a feature up, fix
-// something. The feature pages keep the order of the app's settings menu.
+// something. The voice and text features keep the order of the app's main switches; the
+// screens and integrations follow them.
 function sidebarJa(): DefaultTheme.SidebarItem[] {
   return [
     {
@@ -37,13 +38,18 @@ function sidebarJa(): DefaultTheme.SidebarItem[] {
       ],
     },
     {
-      text: '機能の詳細',
+      text: '声と文字の機能',
       items: [
         { text: '翻訳', link: '/ja/features/translation' },
         { text: '音声認識（ASR）とリアルタイム字幕', link: '/ja/features/transcription' },
         { text: 'テキスト読み上げ（TTS）', link: '/ja/features/tts' },
         { text: 'ボイスチェンジャー（RVC・Seed-VC）', link: '/ja/features/voice-conversion' },
         { text: 'チャット読み取り（OCR）', link: '/ja/features/chat-reading' },
+      ],
+    },
+    {
+      text: '画面と連携',
+      items: [
         { text: 'VRとオーバーレイ', link: '/ja/features/vr' },
         { text: '入力と出力', link: '/ja/features/io-flow' },
         { text: '入力の小窓とホットキー', link: '/ja/features/quick-chat' },
@@ -54,6 +60,7 @@ function sidebarJa(): DefaultTheme.SidebarItem[] {
       text: '設定と運用',
       items: [
         { text: 'モデルの取得', link: '/ja/guide/models' },
+        { text: 'Windowsの音声経路', link: '/ja/guide/windows-audio' },
         { text: 'Linuxの音声経路', link: '/ja/guide/linux-audio' },
         { text: '困ったとき', link: '/ja/guide/troubleshooting' },
         { text: 'プライバシー', link: '/ja/guide/privacy' },
@@ -83,13 +90,18 @@ function sidebarEn(): DefaultTheme.SidebarItem[] {
       ],
     },
     {
-      text: 'Features',
+      text: 'Voice and text',
       items: [
         { text: 'Translation', link: '/en/features/translation' },
         { text: 'Speech recognition (ASR) and realtime captions', link: '/en/features/transcription' },
         { text: 'Text to speech (TTS)', link: '/en/features/tts' },
         { text: 'Voice changer (RVC, Seed-VC)', link: '/en/features/voice-conversion' },
         { text: 'Chat reading (OCR)', link: '/en/features/chat-reading' },
+      ],
+    },
+    {
+      text: 'Screens and integrations',
+      items: [
         { text: 'VR and overlay', link: '/en/features/vr' },
         { text: 'Inputs and outputs', link: '/en/features/io-flow' },
         { text: 'Quick Chat and hotkeys', link: '/en/features/quick-chat' },
@@ -100,6 +112,7 @@ function sidebarEn(): DefaultTheme.SidebarItem[] {
       text: 'Setup and operation',
       items: [
         { text: 'Model downloads', link: '/en/guide/models' },
+        { text: 'Windows audio route', link: '/en/guide/windows-audio' },
         { text: 'Linux audio route', link: '/en/guide/linux-audio' },
         { text: 'Troubleshooting', link: '/en/guide/troubleshooting' },
         { text: 'Privacy', link: '/en/guide/privacy' },
@@ -118,7 +131,12 @@ export default defineConfig({
   lastUpdated: false,
   // Dark Studio (DESIGN.md) only; no light theme to keep in sync.
   appearance: 'force-dark',
-  head: [['meta', { name: 'theme-color', content: '#111b2c' }]],
+  head: [
+    ['meta', { name: 'theme-color', content: '#111b2c' }],
+    // The app's own icon. Head links are not prefixed with base, so the path carries it.
+    ['link', { rel: 'icon', type: 'image/png', sizes: '32x32', href: '/VRCT-VOX/favicon.png' }],
+    ['link', { rel: 'apple-touch-icon', href: '/VRCT-VOX/apple-touch-icon.png' }],
+  ],
   transformHead: ({ pageData }) => alternates(pageData.relativePath),
   markdown: {
     image: { lazyLoading: true },
@@ -146,9 +164,12 @@ export default defineConfig({
       link: '/ja/',
       description: 'VRChat向けの翻訳・音声認識・読み上げ・声の変換・チャット読み取りアプリVRCT-VOXの使い方',
       themeConfig: {
+        // The top bar points at the three pages a reader looks for first; downloads start
+        // from the install page, which says which file to take.
         nav: [
           { text: 'ガイド', link: '/ja/guide/introduction' },
-          { text: 'ダウンロード', link: `${repo}/releases` },
+          { text: 'インストール', link: '/ja/guide/install' },
+          { text: '困ったとき', link: '/ja/guide/troubleshooting' },
         ],
         sidebar: sidebarJa(),
         outline: { label: 'このページの内容' },
@@ -175,7 +196,8 @@ export default defineConfig({
       themeConfig: {
         nav: [
           { text: 'Guide', link: '/en/guide/introduction' },
-          { text: 'Download', link: `${repo}/releases` },
+          { text: 'Install', link: '/en/guide/install' },
+          { text: 'Troubleshooting', link: '/en/guide/troubleshooting' },
         ],
         sidebar: sidebarEn(),
         footer: {

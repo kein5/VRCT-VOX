@@ -1,7 +1,9 @@
 import { h } from 'vue'
-import DefaultTheme from 'vitepress/theme'
+// Without VitePress's bundled Inter: the guide uses the reader's own fonts (custom.css).
+import DefaultTheme from 'vitepress/theme-without-fonts'
 import type { Theme } from 'vitepress'
 import HomeShot from './HomeShot.vue'
+import RouteStrip from './RouteStrip.vue'
 import { LOCALE_KEY } from './locale'
 import './custom.css'
 
@@ -26,7 +28,12 @@ function zoom(image: HTMLImageElement) {
 
 export default {
   extends: DefaultTheme,
-  Layout: () => h(DefaultTheme.Layout, null, { 'home-hero-after': () => h(HomeShot) }),
+  Layout: () =>
+    h(DefaultTheme.Layout, null, {
+      'home-hero-after': () => h(HomeShot),
+      // Feature pages open with their part of the voice and text route (front matter `route`).
+      'doc-before': () => h(RouteStrip),
+    }),
   enhanceApp() {
     if (typeof document === 'undefined') return
     document.addEventListener('click', (event) => {

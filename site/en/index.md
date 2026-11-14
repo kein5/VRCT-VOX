@@ -3,17 +3,14 @@ layout: home
 hero:
   name: VRCT-VOX
   text: Translation, captions and speech for your VRChat conversations
-  tagline: A desktop app that combines translation, speech recognition (ASR), text to speech (TTS), a voice changer (RVC) and chat reading (OCR). It is an unofficial derivative of VRCT.
+  tagline: One desktop app for translation, captions, speech, a voice changer and chat reading. It is an unofficial derivative of VRCT.
   actions:
     - theme: brand
-      text: Get started
-      link: /en/guide/introduction
+      text: Install
+      link: /en/guide/install
     - theme: alt
       text: Find what you want to do
       link: /en/guide/tasks
-    - theme: alt
-      text: Download
-      link: https://github.com/kein5/VRCT-VOX/releases
 shot:
   src: /screenshots/en/main.webp
   alt: The VRCT-VOX main window. A message sent in Japanese has its English translation, and the other player's English reply has its Japanese translation

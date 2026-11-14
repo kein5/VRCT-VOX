@@ -1,5 +1,7 @@
-/* Dark Studio palette from DESIGN.md (the app's own colours). Also on :root,
-   because the forced dark class needs JavaScript and the / picker must read without it. */
+/* The guide wears the app's Dark Studio (DESIGN.md): navy surfaces, hairlines, one blue for
+   what you send and the flow diagram's purple for what comes back (RouteStrip.vue).
+   Also on :root, because the forced dark class needs JavaScript and the / picker must read
+   without it. */
 :root,
 .dark {
   color-scheme: dark;
@@ -7,30 +9,271 @@
   --vp-c-bg-alt: #0d1625;
   --vp-c-bg-elv: #18253b;
   --vp-c-bg-soft: #18253b;
-  --vp-c-divider: #344662;
+  --vp-c-divider: #2b3b55;
   --vp-c-border: #344662;
   --vp-c-gutter: #0d1625;
   --vp-c-text-1: #edf3ff;
   --vp-c-text-2: #adbed6;
-  --vp-c-brand-1: #a9ccff;
+  --vp-c-text-3: #8d9fb9;
+  --vp-c-brand-1: #80acff;
   --vp-c-brand-2: #3470e8;
   --vp-c-brand-3: #2865dc;
   --vp-c-brand-soft: rgba(40, 101, 220, 0.18);
   --vp-button-brand-bg: #2865dc;
   --vp-button-brand-hover-bg: #3470e8;
   --vp-button-brand-active-bg: #2865dc;
-  /* The product name is drawn with the gradient below; the colour is what shows where clipping is unsupported. */
-  --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: linear-gradient(100deg, #edf3ff 0%, #a9ccff 45%, #5b8ff5 100%);
+  --vp-button-alt-bg: #18253b;
+  --vp-button-alt-hover-bg: #213049;
+  --vp-button-alt-border: #344662;
+  --vp-button-alt-hover-border: #4a5f80;
+  --vp-code-color: #dbe6fb;
+  --vp-code-bg: #1b2a43;
+  --vp-code-link-color: #80acff;
+  --vp-code-link-hover-color: #a9ccff;
+  --vp-code-block-bg: #0d1625;
+  --vp-home-hero-name-color: #edf3ff;
+  --vp-home-hero-name-background: none;
+  --vp-custom-block-font-size: 15px;
+  --vp-custom-block-code-font-size: 14px;
+  /* Roles shared by the callouts, the route strip and the sidebar. */
+  --vox-mine: #6ea8ff;
+  --vox-theirs: #b48cff;
+  --vox-rule: #5b92ff;
+  --vox-warning: #cb944f;
+  --vox-failed: #f08a85;
+  --vox-surface: #18253b;
+  --vox-hairline: #2b3b55;
 }
 
-/* Japanese first: system and locally installed Noto fonts, nothing remote. */
+/* No remote or bundled web font: Latin from the system UI face, Japanese from the reader's
+   own fonts (BIZ UDPGothic ships with Japanese Windows). theme/index.ts drops VitePress's Inter. */
 :root {
-  --vp-font-family-base: 'Inter', 'Noto Sans JP', 'Noto Sans CJK JP', 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
+  --vp-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', 'Noto Sans CJK JP',
+    'Hiragino Sans', 'BIZ UDPGothic', 'Yu Gothic UI', 'Meiryo', system-ui, sans-serif;
 }
+
+/* ---------- Reading column ---------- */
+
+/* About 40 Japanese characters a line at 16px. */
+@media (min-width: 960px) {
+  .VPDoc.has-aside .content-container {
+    max-width: 640px;
+  }
+}
+
+.vp-doc p,
+.vp-doc li {
+  text-wrap: pretty;
+}
+
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3 {
+  letter-spacing: 0;
+  text-wrap: balance;
+  word-break: auto-phrase;
+}
+
+.vp-doc h1 {
+  font-size: 30px;
+  line-height: 40px;
+  font-weight: 600;
+}
+
+/* A section heading as in the app's settings: the title with a hairline running to the right. */
+.vp-doc h2 {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 56px 0 16px;
+  padding-top: 0;
+  border-top: 0;
+  font-size: 22px;
+  line-height: 32px;
+  font-weight: 600;
+}
+
+.vp-doc h2::after {
+  content: '';
+  flex: 1 0 24px;
+  height: 1px;
+  background: var(--vox-hairline);
+}
+
+.vp-doc h3 {
+  margin-top: 32px;
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+/* Links stay underlined, but quietly, so a page full of them still reads as text. */
+.vp-doc a {
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgba(128, 172, 255, 0.45);
+  text-underline-offset: 4px;
+}
+
+.vp-doc a:hover {
+  text-decoration-color: currentColor;
+}
+
+.vp-doc :not(pre) > code {
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+/* ---------- Callouts: the app's surface and state colours ---------- */
+
+/* A raised surface with a hairline all round; the state colour is in the title and a tint of
+   the border, never a thick side stripe. */
+.vp-doc .custom-block {
+  border: 1px solid var(--vp-c-border);
+  border-radius: 8px;
+  padding: 12px 16px 4px;
+  background: var(--vox-surface);
+  color: var(--vp-c-text-1);
+}
+
+.vp-doc .custom-block .custom-block-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--vp-c-brand-1);
+}
+
+.vp-doc .custom-block.warning {
+  border-color: rgba(203, 148, 79, 0.55);
+}
+
+.vp-doc .custom-block.warning .custom-block-title {
+  color: var(--vox-warning);
+}
+
+.vp-doc .custom-block.danger {
+  border-color: rgba(240, 138, 133, 0.55);
+}
+
+.vp-doc .custom-block.danger .custom-block-title {
+  color: var(--vox-failed);
+}
+
+.vp-doc .custom-block.details {
+  padding-bottom: 12px;
+}
+
+.vp-doc .custom-block.details summary {
+  color: var(--vp-c-text-1);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vp-doc .custom-block a {
+  color: var(--vp-c-brand-1);
+  font-weight: 500;
+}
+
+/* 「必要なもの」 before a task's steps, on the app's raised surface (`{.needs}`). */
+.vp-doc p.needs {
+  margin: 12px 0 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--vox-hairline);
+  border-radius: 8px;
+  background: var(--vox-surface);
+  font-size: 15px;
+  line-height: 24px;
+}
+
+/* A short list of features: the name (a link) in its own column, one line of what it does
+   (`{.feature-rows}`). One column on phones. */
+.vp-doc ul.feature-rows {
+  margin: 16px 0 24px;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--vox-hairline);
+}
+
+.vp-doc ul.feature-rows > li {
+  display: grid;
+  grid-template-columns: 13em 1fr;
+  column-gap: 24px;
+  margin: 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--vox-hairline);
+  color: var(--vp-c-text-2);
+}
+
+.vp-doc ul.feature-rows > li > a:first-child {
+  color: var(--vp-c-text-1);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.vp-doc ul.feature-rows > li > a:first-child:hover {
+  color: var(--vp-c-brand-1);
+  text-decoration: underline;
+}
+
+@media (max-width: 639px) {
+  .vp-doc ul.feature-rows > li {
+    grid-template-columns: 1fr;
+    row-gap: 4px;
+  }
+}
+
+/* An in-page contents list ([[toc]]) reads as a compact index, two columns on wide screens. */
+.vp-doc .table-of-contents > ul {
+  columns: 2 16em;
+  column-gap: 32px;
+  padding: 12px 16px;
+  border: 1px solid var(--vox-hairline);
+  border-radius: 8px;
+  list-style: none;
+}
+
+.vp-doc .table-of-contents li {
+  break-inside: avoid;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.vp-doc .table-of-contents a {
+  text-decoration: none;
+}
+
+.vp-doc .table-of-contents a:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Tables and code ---------- */
+
+.vp-doc th,
+.vp-doc td {
+  font-size: 15px;
+}
+
+.vp-doc th {
+  color: var(--vp-c-text-1);
+  background: var(--vox-surface);
+}
+
+.vp-doc tr:nth-child(2n) {
+  background: transparent;
+}
+
+/* The first column holds a name; give it room before the long column takes the width. */
+.vp-doc td:first-child {
+  min-width: 7em;
+}
+
+.vp-doc div[class*='language-'] {
+  border: 1px solid var(--vox-hairline);
+  border-radius: 8px;
+}
+
+/* ---------- Pictures ---------- */
 
 .vp-doc img {
-  border: 1px solid var(--vp-c-divider);
+  border: 1px solid var(--vox-hairline);
   border-radius: 8px;
 }
 
@@ -40,7 +283,7 @@
 }
 
 .vp-doc img[data-zoom]:focus-visible {
-  outline: 2px solid var(--vp-c-brand-1);
+  outline: 2px solid #a9ccff;
   outline-offset: 3px;
 }
 
@@ -49,7 +292,7 @@
   max-height: 94vh;
   padding: 0;
   overflow: auto;
-  border: 1px solid var(--vp-c-divider);
+  border: 1px solid var(--vp-c-border);
   border-radius: 8px;
   background: var(--vp-c-bg);
   cursor: zoom-out;
@@ -65,12 +308,66 @@
   height: auto;
 }
 
-/* Home: the product name leads, and the line under it says what the app does. */
+/* ---------- Sidebar ---------- */
+
+/* Group names are quiet labels; the page you are on is bold, with a selection marker as thin
+   as VitePress's own. */
+.VPSidebarItem.level-0 > .item > .text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vp-c-text-3);
+}
+
+.VPSidebarItem.level-1 .text {
+  color: var(--vp-c-text-2);
+}
+
+.VPSidebarItem.level-1.is-active > .item .link > .text {
+  color: var(--vp-c-text-1);
+  font-weight: 600;
+}
+
+.VPSidebarItem.level-1 > .item {
+  position: relative;
+}
+
+.VPSidebarItem.level-1.is-active > .item::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: -14px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--vox-rule);
+}
+
+/* Touch: a full finger's height per line. */
+@media (max-width: 959px) {
+  .VPSidebarItem.level-1 .text {
+    padding: 10px 0;
+  }
+}
+
+/* The page outline on phones: long symptom headings wrap instead of being cut. */
+.VPLocalNavOutlineDropdown .outline-link {
+  white-space: normal;
+}
+
+/* ---------- Focus ---------- */
+
+:focus-visible {
+  outline-color: #a9ccff;
+}
+
+/* ---------- Home ---------- */
+
+/* The product name leads in solid text; size and space make it the largest thing on the page. */
 .VPHome .VPHero .name {
   font-size: 52px;
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.1;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 
 .VPHome .VPHero .text {
@@ -79,6 +376,10 @@
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: 0;
+}
+
+.VPHome .VPHero .tagline {
+  color: var(--vp-c-text-2);
 }
 
 @media (min-width: 640px) {
@@ -102,7 +403,14 @@
   }
 }
 
-/* Home: break the Japanese headline at phrase boundaries, and show the app under it. */
+/* Buttons share the app's control radius instead of pills. */
+.VPHome .VPButton.medium {
+  border-radius: 8px;
+  line-height: 42px;
+  font-size: 15px;
+}
+
+/* Break the Japanese headline at phrase boundaries, and show the app under it. */
 .VPHero .text,
 .VPHero .tagline {
   text-wrap: balance;
@@ -138,7 +446,7 @@
   display: block;
   width: 100%;
   height: auto;
-  border: 1px solid var(--vp-c-divider);
+  border: 1px solid var(--vp-c-border);
   border-radius: 12px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
 }
