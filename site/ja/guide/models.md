@@ -50,6 +50,8 @@ VRCT-VOXの配布物には読み上げ・音声認識・声の変換・文字認
 
 同梱のspeech.cppのサーバーは、推論デバイスが「自動」か「GPU」のとき、内蔵GPUより独立GPUを先に使います。独立GPUが複数あればメモリの多いほうを使います。使うGPUは「モデルとサーバー」の「推論デバイス」で指定もできます。
 
+AMDやIntelのGPUで翻訳したいときは、[ローカルLLM](../features/translation#ローカルllmと互換サーバー)を使えます。OllamaやLM StudioはAMDとIntelのGPUにも対応しています。音声を文字にするときは、どのGPUでも動くリアルタイム字幕（同梱のspeech.cpp）を使ってください。
+
 ## 保存先
 
 取得したモデルは設定ファイル（`config.json`）と同じフォルダーの`downloaded_models`に保存します。Linuxでは`~/.config/vrct-vox/downloaded_models`、Windowsではアプリを入れたフォルダーの`downloaded_models`です。翻訳とWhisperのモデルは別の場所で、Windowsではアプリのフォルダーの`weights`に、Linuxでは`~/.local/share/vrct-vox`の中に入ります。
