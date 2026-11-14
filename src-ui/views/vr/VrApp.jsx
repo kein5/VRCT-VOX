@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { getDefaultStore } from "jotai";
 
@@ -119,13 +120,18 @@ const VrPointerHover = ({ atlasRef }) => {
 };
 
 // メインウィンドウから送られてくるatomの値を、このウィンドウのatomへそのまま反映する。
-// 会話ログは差分で届くので、前に受け取ったログに当てる。差分の元を受け取っていなければ、全件を頼み直す
+// 会話ログは差分で届くので、前に受け取ったログに当てる。差分の元を受け取っていなければ、全件を頼み直す。
+// 状態はこのウィンドウが開いたチャンネルだけで届く (SEC-03。src-tauri/src/vr_panel_state.rs)。
+// イベントにすると、イベントを聞けるほかのウィンドウにも会話ログが届いてしまう
 const VrStateReceiver = () => {
     useEffect(() => {
         const jotai = getDefaultStore();
         let receivedLog = null;
         let isAwaitingFullLog = true; // 起動時の vr-panel-ready で全件が届く
-        const unlisten = listen("vr-panel-state", ({ payload }) => {
+        let active = true;
+        const channel = new Channel();
+        channel.onmessage = (payload) => {
+            if (!active) return;
             for (const [name, encoded] of Object.entries(payload)) {
                 let value;
                 if (isLogUpdate(encoded)) {
@@ -145,10 +151,12 @@ const VrStateReceiver = () => {
                 if (atom) jotai.set(atom, previous => name === "VrPanelLayout" &&
                     keepNewestVrLayout(previous.data, value.data) === previous.data ? previous : value);
             }
-        });
+        };
         // 受信の準備ができてから全状態を要求する (メインが先に起動していた場合)
-        unlisten.then(() => emit("vr-panel-ready"));
-        return () => { unlisten.then(f => f()); };
+        invoke("vr_panel_state_subscribe", { channel })
+            .then(() => { if (active) emit("vr-panel-ready"); })
+            .catch(console.error);
+        return () => { active = false; };
     }, []);
     return null;
 };

@@ -6,11 +6,13 @@ import { keepNewestVrLayout } from "../../logics/common/vrPanelTooltip.js";
 
 test("closed log region is inert and unpainted while the receiver keeps its data current", async context => {
     stubGlobals(context, { requestAnimationFrame: () => 1, cancelAnimationFrame: () => {} });
-    const runtime = hooks(), listeners = new Map(), atoms = new Map();
+    const runtime = hooks(), listeners = new Map(), atoms = new Map(), subscriptions = [], emitted = [];
+    class Channel { onmessage = () => {}; }
     const layout = { atlas: [2000, 1000], regions: { panel: [0, 0, 900, 900] } };
     const VrLogWindow = () => null, VrLauncher = () => null;
     const { VrApp } = await loadModule(new URL("./VrApp.jsx", import.meta.url), runtime, {
-        "@tauri-apps/api/event": { emit: () => {}, listen: (name, handler) => {
+        "@tauri-apps/api/core": { Channel, invoke: async (name, args) => { subscriptions.push([name, args.channel]); } },
+        "@tauri-apps/api/event": { emit: (...args) => { emitted.push(args); }, listen: (name, handler) => {
             listeners.set(name, handler);
             return Promise.resolve(() => listeners.delete(name));
         } },
@@ -42,7 +44,14 @@ test("closed log region is inert and unpainted while the receiver keeps its data
     // Run the receiver's standalone effect, without rendering any log body.
     runtime.api.useEffect = effect => { context.after(effect()); };
     receiver.type();
-    const receive = listeners.get("vr-panel-state");
-    receive({ payload: { MessageLogs: wire.encodeOrdered({ state: "ok", data: [{ id: "new", status: "pending" }] }) } });
+    // SEC-03: the state arrives on the panel's own channel; the panel asks for it once subscribed.
+    assert.equal(listeners.has("vr-panel-state"), false);
+    assert.equal(subscriptions.length, 1);
+    const [command, channel] = subscriptions[0];
+    assert.equal(command, "vr_panel_state_subscribe");
+    emitted.length = 0;
+    await Promise.resolve();
+    assert.deepEqual(emitted.map(([name]) => name), ["vr-panel-ready"]);
+    channel.onmessage({ MessageLogs: wire.encodeOrdered({ state: "ok", data: [{ id: "new", status: "pending" }] }) });
     assert.equal(atoms.get("logs").data[0].id, "new");
 });
