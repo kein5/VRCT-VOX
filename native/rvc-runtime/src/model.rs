@@ -135,7 +135,7 @@ impl VoiceModel {
         if config.resblock_kernel_sizes.len() != config.resblock_dilation_sizes.len() || config.resblock_kernel_sizes.is_empty() {
             return Err(Error::format(KIND, "residual block kernel and dilation lists differ in length"));
         }
-        if config.n_heads == 0 || !config.hidden_channels.is_multiple_of(config.n_heads) || config.inter_channels % 2 != 0 {
+        if config.n_heads == 0 || !config.hidden_channels.is_multiple_of(config.n_heads) || !config.inter_channels.is_multiple_of(2) {
             return Err(Error::format(KIND, "inconsistent channel counts"));
         }
         let phone = self.tensor("enc_p.emb_phone.weight")?;

@@ -28,7 +28,7 @@ const LOG_FLOOR: f32 = 1e-5;
 /// Salience bins of the network output and their spacing.
 pub const SALIENCE_BINS: usize = 360;
 const CENTS_PER_BIN: f64 = 20.0;
-const CENTS_OFFSET: f64 = 1997.379_408_437_619_1;
+const CENTS_OFFSET: f64 = 1_997.379_408_437_619;
 
 /// The log-mel front end RMVPE was trained with: 1024-point FFT, 10 ms hop, 128 HTK-scale
 /// triangular filters between 30 Hz and 8 kHz with area normalisation.
@@ -172,9 +172,9 @@ pub fn interpolate_unvoiced(f0: &mut [f32]) {
     for pair in voiced.windows(2) {
         let (left, right) = (pair[0], pair[1]);
         let (start, end) = (f0[left] as f64, f0[right] as f64);
-        for index in left + 1..right {
-            let position = (index - left) as f64 / (right - left) as f64;
-            f0[index] = (start + (end - start) * position) as f32;
+        for (step, value) in f0[left + 1..right].iter_mut().enumerate() {
+            let position = (step + 1) as f64 / (right - left) as f64;
+            *value = (start + (end - start) * position) as f32;
         }
     }
 }

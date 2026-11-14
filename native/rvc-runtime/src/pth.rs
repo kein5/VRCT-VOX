@@ -197,10 +197,7 @@ impl<'a> Archive<'a> {
         let u32_at = |at: usize| bytes.get(at..at + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap()) as usize);
         let u64_at = |at: usize| bytes.get(at..at + 8).map(|b| u64::from_le_bytes(b.try_into().unwrap()) as usize);
         let floor = bytes.len().saturating_sub(22 + 65_535);
-        let end = (floor..=bytes.len().saturating_sub(22))
-            .rev()
-            .find(|&at| bytes[at..at + 4] == [0x50, 0x4b, 0x05, 0x06])
-            .ok_or_else(|| bad("no end of central directory"))?;
+        let end = (floor..=bytes.len().saturating_sub(22)).rev().find(|&at| bytes[at..at + 4] == [0x50, 0x4b, 0x05, 0x06]).ok_or_else(|| bad("no end of central directory"))?;
         let mut count = u16_at(end + 10).unwrap();
         let mut offset = u32_at(end + 16).unwrap();
         if count == 0xffff || offset == 0xffff_ffff {
@@ -278,6 +275,8 @@ impl<'a> Archive<'a> {
     }
 }
 
+type Pairs = Rc<RefCell<Vec<(Item, Item)>>>;
+
 /// What sits on the pickle stack. Containers are shared so that a memoised list or
 /// dict filled in after it was memoised is seen complete by every later reference.
 #[derive(Debug, Clone)]
@@ -285,7 +284,7 @@ enum Item {
     Leaf(Rc<Value>),
     Tuple(Rc<Vec<Item>>),
     List(Rc<RefCell<Vec<Item>>>),
-    Dict(Rc<RefCell<Vec<(Item, Item)>>>),
+    Dict(Pairs),
 }
 
 impl Item {
@@ -382,7 +381,7 @@ impl Machine<'_> {
         self.stack.push(Item::leaf(value));
     }
 
-    fn top_dict(&mut self) -> Result<Rc<RefCell<Vec<(Item, Item)>>>> {
+    fn top_dict(&mut self) -> Result<Pairs> {
         match self.stack.last() {
             Some(Item::Dict(items)) => Ok(items.clone()),
             _ => Err(bad("expected a dict on the stack")),
@@ -460,7 +459,7 @@ impl Machine<'_> {
                 b'}' => self.stack.push(Item::Dict(Rc::default())),
                 b']' => self.stack.push(Item::List(Rc::default())),
                 b')' => self.stack.push(Item::Tuple(Rc::default())),
-                0x85 | 0x86 | 0x87 => {
+                0x85..=0x87 => {
                     let count = (opcode - 0x84) as usize;
                     if self.stack.len() < count {
                         return Err(bad("stack underflow"));

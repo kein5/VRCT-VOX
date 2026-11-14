@@ -147,7 +147,6 @@ def run_case(reference, name, *, model_path, audio, index_path=None, index_rate=
     real_get_f0 = pipe.get_f0
 
     def get_f0(x, p_len, f0_up_key, f0_method):
-        rmvpe_before = getattr(pipe, 'model_rmvpe', None)
         result = real_get_f0(x, p_len, f0_up_key, f0_method)
         record['f0'].append((np.asarray(x).copy(), [np.asarray(value).copy() for value in result]))
         return result
@@ -247,6 +246,9 @@ def main():
                                       chunk=(1, 6, 38, 41))),
         ('pretrained_40k_zero', dict(model_path=v2_40k, audio=speech, sid=0)),
         ('pretrained_40k_seeded', dict(model_path=v2_40k, audio=speech, sid=0, noise='seeded', seed=7)),
+        # The same conversions with another seed: how far two noise draws of the reference are apart.
+        ('saisho_48k_seeded_b', dict(model_path=voice, audio=speech, index_path=index, index_rate=0.75, noise='seeded', seed=8)),
+        ('pretrained_40k_seeded_b', dict(model_path=v2_40k, audio=speech, sid=0, noise='seeded', seed=8)),
     ]
     for (version, f0, rate), path in randoms.items():
         cases.append((path.stem + '_zero', dict(model_path=path, audio=speech, sid=2, transpose=3 if f0 else 0)))
