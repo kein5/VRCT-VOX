@@ -24,13 +24,15 @@ jobs:
     permissions:
       contents: write
       actions: read
+      # Reads the candidates' build provenance (gh attestation verify).
+      attestations: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           # The tags and history: a beta's notes list the commits since the previous release tag.
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify origin, successful runs, commit, version and every asset hash
+      - name: Verify origin, successful runs, commit, version, every asset hash and its signed build provenance
         env:
           GH_TOKEN: ${{ github.token }}
           LINUX_RUN: ${{ inputs.linux_run }}

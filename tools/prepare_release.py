@@ -50,6 +50,29 @@ def check_run(run, platform, commit, branch):
         raise ValueError("Candidate must originate in the canonical repository")
 
 
+def verify_provenance(directory, platform, commit, branch):
+    """Every file of a candidate must carry a signed build provenance attestation (second security
+    audit SEC-04): made by this platform's candidate workflow in this repository, from this commit
+    of the release branch, on a GitHub-hosted runner. The SHA-256 files alone cannot show that,
+    because whoever could replace an asset could replace its checksum too.
+    """
+    workflow = f"{REPOSITORY}/.github/workflows/{WORKFLOWS[platform]}"
+    for path in sorted(path for path in directory.iterdir() if path.is_file()):
+        subprocess.run(
+            [
+                "gh", "attestation", "verify", str(path),
+                "--repo", REPOSITORY,
+                "--signer-workflow", workflow,
+                "--source-digest", commit,
+                "--source-ref", f"refs/heads/{branch}",
+                "--deny-self-hosted-runners",
+                "--format", "json",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+
+
 def prepare(output, run_ids, commit, version, branch):
     # Never execute downloaded code. Only allowlisted files from verified runs
     # are copied to the draft payload; candidate integrity is a hard failure.
@@ -87,6 +110,7 @@ def prepare(output, run_ids, commit, version, branch):
             check=True,
         )
         manifest = verify(directory, platform, commit, version)
+        verify_provenance(directory, platform, commit, branch)
         for entry in manifest["assets"]:
             destination = payload / entry["name"]
             if destination.exists():

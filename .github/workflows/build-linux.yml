@@ -48,6 +48,12 @@ jobs:
   candidate:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    # id-token and attestations sign the build provenance of a manual candidate (second security
+    # audit SEC-04). Pull requests from forks get read-only tokens, and the step skips PRs.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     env:
       CARGO_BUILD_JOBS: '4'
       SPEECH_VARIANT: ${{ inputs.speech_variant || 'linux-x64-vulkan' }}
@@ -138,6 +144,13 @@ jobs:
           python tools/release_candidate.py stage build/linux/release-candidate --platform linux --commit "$CANDIDATE_COMMIT" \
             --asset build/linux/artifacts/*.AppImage --asset build/linux/artifacts/*.tar.gz
           python tools/release_candidate.py verify build/linux/release-candidate --platform linux --commit "$CANDIDATE_COMMIT"
+      # Signed build provenance (GitHub Artifact Attestations, Sigstore) for every candidate file:
+      # it names this workflow, the commit and the run. prepare-release.yml refuses files without it.
+      - name: Attest the candidate files
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: build/linux/release-candidate/*
       # Candidate storage only. No release creation, package registry, or secrets.
       - name: Store inspected candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
