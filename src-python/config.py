@@ -1323,6 +1323,11 @@ class Config:
         'WEBSOCKET_AUTH_TOKEN', type_=str,
         allowed=lambda v, inst: isinstance(v, str) and bool(v.strip()),
     )
+    # この PC の外 (127.0.0.0/8 以外) で WebSocket と OBS を待ち受けるときの証明書と秘密鍵
+    # (PEM のファイルのパス)。どちらも空なら未設定。使うのは WEBSOCKET_HOST がループバックで
+    # ないときだけで、そのときは使える証明書がなければ待ち受けない (models/websocket/tls.py)。
+    WEBSOCKET_TLS_CERT_FILE = ManagedProperty('WEBSOCKET_TLS_CERT_FILE', type_=str)
+    WEBSOCKET_TLS_KEY_FILE = ManagedProperty('WEBSOCKET_TLS_KEY_FILE', type_=str)
 
     # --- OBS Browser Source (overlay for OBS) ---
     OBS_BROWSER_SOURCE = ManagedProperty('OBS_BROWSER_SOURCE', type_=bool)
@@ -1751,6 +1756,8 @@ class Config:
         # load_config() の setattr() でその値に上書きされる (=以降は
         # 再起動しても同じトークンが使われる)。
         self._WEBSOCKET_AUTH_TOKEN = secrets_token_urlsafe(32)
+        self._WEBSOCKET_TLS_CERT_FILE = ""
+        self._WEBSOCKET_TLS_KEY_FILE = ""
         self._OBS_BROWSER_SOURCE = False
         self._OBS_BROWSER_SOURCE_PORT = 2232
         self._OBS_BROWSER_SOURCE_MAX_MESSAGES = 14

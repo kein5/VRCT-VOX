@@ -124,6 +124,7 @@ export const _useBackendErrorHandling = () => {
         updateEnableWebsocket,
         updateWebsocketHost,
         updateWebsocketPort,
+        updateWebsocketTls,
         updateEnableObsBrowserSource,
         updateObsBrowserSourcePort,
         updateObsBrowserSourceMaxMessages,
@@ -539,7 +540,27 @@ export const _useBackendErrorHandling = () => {
                 return;
             case "WEBSOCKET_SERVER_UNAVAILABLE":
                 if (endpoint === "/set/enable/obs_browser_source") settleObsLifecycleError();
-                else updateEnableWebsocket(data);
+                else if (endpoint === "/set/data/websocket_tls") {
+                    // The servers could not restart with the new certificate and went back to the old one.
+                    updateWebsocketTls(data);
+                    asyncStdoutToPython("/get/data/websocket_server");
+                    asyncStdoutToPython("/get/data/obs_browser_source");
+                } else updateEnableWebsocket(data);
+                showNotification_Error(localized, { category_id: error_code });
+                return;
+            // Beyond this PC only over TLS. From the host field, the certificate fields, or at
+            // startup, when a saved LAN host without a usable certificate went back to 127.0.0.1.
+            case "WEBSOCKET_HOST_NEEDS_TLS":
+                if (endpoint === "/set/data/websocket_tls") updateWebsocketTls(data);
+                else updateWebsocketHost(data);
+                showNotification_Error(localized, { category_id: error_code });
+                return;
+            case "WEBSOCKET_HOST_RESET_WITHOUT_TLS":
+                updateWebsocketHost(data);
+                showNotification_Warning(localized, { category_id: error_code, hide_duration: null });
+                return;
+            case "WEBSOCKET_TLS_INVALID":
+                updateWebsocketTls(data);
                 showNotification_Error(localized, { category_id: error_code });
                 return;
 

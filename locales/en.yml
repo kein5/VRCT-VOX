@@ -281,6 +281,9 @@ backend_errors:
     WEBSOCKET_PORT_UNAVAILABLE: "Another app is using the WebSocket port. Choose a different port."
     WEBSOCKET_PORT_INVALID: "Enter a WebSocket port from 1 to 65535 using whole numbers."
     WEBSOCKET_SERVER_UNAVAILABLE: "The WebSocket server cannot start. Check that no other app is using its host and port."
+    WEBSOCKET_HOST_NEEDS_TLS: "Connecting from other PCs needs a certificate and key. Without them, the host must be 127.0.0.1."
+    WEBSOCKET_HOST_RESET_WITHOUT_TLS: "The WebSocket host was set back to 127.0.0.1. Connecting from other PCs now needs a certificate and key: set them under Advanced, then enter the host again."
+    WEBSOCKET_TLS_INVALID: "This certificate and key cannot be used. Check that both are PEM files, that they belong together, and that the key has no passphrase."
     OBS_BROWSER_SOURCE_HOST_UNAVAILABLE: "That host cannot be used for the OBS browser source server."
     OBS_BROWSER_SOURCE_PORT_UNAVAILABLE: "Another app is using the OBS browser source port. Choose a different port."
     OBS_BROWSER_SOURCE_PORT_INVALID: "Enter an OBS browser source port from 1 to 65535 using whole numbers."
@@ -994,6 +997,21 @@ config_page:
             locked_by_obs_browser_source: "Disable OBS Browser Source to change this"
         websocket_host:
             label: "WebSocket Host (IPv4)"
+            desc: "With 127.0.0.1 it works on this PC only. To use it from other PCs, enter this PC's LAN IP address, after setting the certificate and key below."
+        websocket_tls_cert_file:
+            label: "Certificate file"
+            desc: "Needed only for use from other PCs: the path to a PEM certificate. Traffic to other PCs is then encrypted (wss://, https://). The PCs and OBS that connect must trust this certificate."
+        websocket_tls_key_file:
+            label: "Private key file"
+            desc: "The path to the PEM private key that goes with the certificate. A key with a passphrase cannot be used. If the key is in the certificate file, enter the same path."
+        websocket_token:
+            label: "Make a new connection key"
+            desc: "Use this if someone else may have seen a copied URL. The old URLs stop working at once."
+            confirm_title: "Make a new connection key?"
+            confirm_body: "The URLs that OBS and other apps use stop working at once. Afterwards, copy the WebSocket and OBS URLs again and set them up again."
+            confirm_cancel: "Cancel"
+            confirm_ok: "Make a new key"
+            done: "A new connection key was made. Copy the WebSocket and OBS URLs again."
         websocket_port:
             label: "WebSocket Port"
         websocket_url:

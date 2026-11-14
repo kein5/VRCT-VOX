@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import i18next from "i18next";
 import { parsePortInput, PORT_INPUT_LIMITS } from "./networkPortInput.js";
-import { buildObsBrowserSourceUrl } from "./obsBrowserSourceUrl.js";
+import { buildObsBrowserSourceUrl, buildWebsocketUrl } from "./obsBrowserSourceUrl.js";
 import { hooks, loadModule, find } from "../test/hookHarness.js";
 import { loadBridgeRoutes } from "../test/bridgeHarness.js";
 
@@ -23,25 +23,45 @@ const obsNumeric = [
     ["FontOutlineThickness", "font_outline_thickness", 0, 20],
 ];
 const box = "../../views/app/config_page/setting_section/setting_box/";
-async function settingsHarness() {
-    const runtime = hooks(), drafts = [], sent = [], copied = [];
-    let saveOptions;
+async function settingsHarness({ host = "127.0.0.1" } = {}) {
+    const runtime = hooks(), drafts = [], sent = [], copied = [], ipc = [], notices = [], dialogs = [];
+    let saveOptions, draftOptions;
     const advanced = {};
     for (const name of ["OscPort", "WebsocketPort", "ObsBrowserSourcePort", ...obsNumeric.map(([name]) => `ObsBrowserSource${name}`)]) {
         advanced[`current${name}`] = { state: "ok", data: 2231 };
         advanced[`set${name}`] = value => sent.push([name, value]);
     }
     Object.assign(advanced, {
-        currentWebsocketHost: { data: "127.0.0.1" }, currentWebsocketAuthToken: { data: "test+token&あ" },
+        currentWebsocketHost: { data: host }, currentWebsocketAuthToken: { data: "test+token&あ" },
+        currentWebsocketTls: { state: "ok", data: { cert_file: "C:/certs/vox.pem", key_file: "C:/certs/vox-key.pem" } },
+        setWebsocketTls: async value => { sent.push(["WebsocketTls", value]); return { status: 200, result: value }; },
     });
     const module = await loadModule(new URL(box + "advanced_settings/AdvancedSettings.jsx", import.meta.url), runtime, {
         "./DirectVoiceSettings": { DirectVoiceSettings: () => null },
         "../shared_items/SharedItems": { AutoExportMessageLogsContainer: () => null },
         "../_components/description/Description": { Description: () => null },
         "../_components/telemetry/TelemetryContents": { TelemetryContents: () => null },
-        "../../../../../../logics/configs/obsBrowserSourceUrl": { buildObsBrowserSourceUrl },
+        "../../../../../../logics/configs/obsBrowserSourceUrl": { buildObsBrowserSourceUrl, buildWebsocketUrl },
         "../../../../../../logics/configs/networkPortInput": { parsePortInput, PORT_INPUT_LIMITS },
-        "@logics_common": { useCopyToClipboard: () => ({ copyToClipboard: url => copied.push(url) }) },
+        // A minimal draft: the saved pair, edited in place, submitted through the given write.
+        "../../../../../../logics/voice/useSettingsDraft": { useSettingsDraft: (saved, error, updateError, options) => {
+            draftOptions = options;
+            const draft = { ...saved };
+            return { draft, dirty: true, saving: false, navigationDialog: null,
+                setDraft: update => Object.assign(draft, update(draft)), submit: write => write(draft) };
+        } },
+        "../../../../../../logics/common/useConsentDialog": { useConsentDialog: open => {
+            dialogs.push(open);
+            return { dialog: { current: null }, close: () => {} };
+        } },
+        "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython: async (endpoint, data) => {
+            ipc.push([endpoint, data]);
+            return { status: 200, result: "new-token" };
+        } }) },
+        "@logics_common": {
+            useCopyToClipboard: () => ({ copyToClipboard: url => copied.push(url) }),
+            useNotificationStatus: () => ({ showNotification_Success: text => notices.push(text) }),
+        },
         "@logics_configs": {
             useAdvancedSettings: () => advanced,
             useSaveButtonLogic: options => {
@@ -56,9 +76,13 @@ async function settingsHarness() {
     const child = (tree, name) => find(tree, node => node.type?.name === name).type;
     const ws = runtime.render(child(root, "WebsocketContainer"));
     const obs = runtime.render(child(root, "ObsBrowserSourceContainer"));
-    return { runtime, drafts, sent, copied, get saveOptions() { return saveOptions; },
+    return { runtime, drafts, sent, copied, ipc, notices, dialogs, get saveOptions() { return saveOptions; },
+        get draftOptions() { return draftOptions; },
         components: [module.OscPortContainer, child(ws, "WebsocketPortContainer"), child(obs, "ObsBrowserSourcePortContainer")],
         urlComponent: child(ws, "WebsocketUrlContainer"),
+        obsUrlComponent: child(obs, "ObsBrowserSourceUrlContainer"),
+        tlsComponent: child(ws, "WebsocketTlsContainer"),
+        tokenComponent: child(ws, "WebsocketTokenContainer"),
         numericComponents: obsNumeric.map(([name]) => child(obs, `ObsBrowserSource${name}Container`)),
     };
 }
@@ -102,6 +126,52 @@ test("WebSocket copy uses the exact token returned by the backend and masks only
     assert.ok(!JSON.stringify(row.props).includes("test+token"));
 });
 
+test("a LAN host copies encrypted URLs for WebSocket and OBS", async () => {
+    const s = await settingsHarness({ host: "192.168.1.20" });
+    s.runtime.render(s.urlComponent).props.onclickFunction();
+    s.runtime.render(s.obsUrlComponent).props.children[0].props.onclickFunction();
+    assert.ok(s.copied[0].startsWith("wss://192.168.1.20:2231/?token="), s.copied[0]);
+    assert.ok(s.copied[1].startsWith("https://192.168.1.20:"), s.copied[1]);
+});
+
+test("the certificate and key are saved together as one pair", async () => {
+    const s = await settingsHarness();
+    const rows = s.runtime.render(s.tlsComponent).props.children.filter(Boolean);
+    const [cert, key] = rows.filter(row => row.props?.setting_id?.startsWith("websocket_tls_"));
+    assert.deepEqual([cert.props.variable, key.props.variable], ["C:/certs/vox.pem", "C:/certs/vox-key.pem"]);
+    cert.props.onChangeFunction("D:/new.pem");
+    await key.props.saveFunction();
+    assert.deepEqual(s.sent.at(-1), ["WebsocketTls", { cert_file: "D:/new.pem", key_file: "C:/certs/vox-key.pem" }]);
+    // The save bar lists the field by its own label.
+    assert.equal(s.draftOptions.label(["key_file"]), "config_page.advanced_settings.websocket_tls_key_file.label");
+});
+
+test("a new connection key is made only after the question is answered", async () => {
+    const s = await settingsHarness();
+    let tree = s.runtime.render(s.tokenComponent);
+    const [button] = tree.props.children;
+    assert.equal(tree.props.children[1], false); // No dialog yet.
+    button.props.onclickFunction();
+    assert.deepEqual(s.ipc, []);
+    tree = s.runtime.render(s.tokenComponent);
+    const dialog = find(tree, node => node.type === "dialog");
+    assert.ok(dialog && s.dialogs.at(-1) === true);
+    const [cancel, confirm] = find(dialog, node => node.type === "div" && Array.isArray(node.props.children)
+        && node.props.children.every(child => child?.type === "button")).props.children;
+    assert.equal(cancel.props.autoFocus, true); // The safe choice has the focus.
+    cancel.props.onClick();
+    assert.deepEqual(s.ipc, []);
+    assert.equal(s.runtime.render(s.tokenComponent).props.children[1], false);
+
+    s.runtime.render(s.tokenComponent).props.children[0].props.onclickFunction();
+    const again = find(s.runtime.render(s.tokenComponent), node => node.type === "dialog");
+    const buttons = find(again, node => node.type === "div" && Array.isArray(node.props.children)
+        && node.props.children.every(child => child?.type === "button")).props.children;
+    await buttons[1].props.onClick();
+    assert.deepEqual(s.ipc, [["/run/regenerate_websocket_auth_token", undefined]]);
+    assert.deepEqual(s.notices, ["config_page.advanced_settings.websocket_token.done"]);
+});
+
 for (const language of ["en", "ja"]) {
     const translation = yaml.load(readFileSync(new URL(`../../../locales/${language}.yml`, import.meta.url), "utf8"));
     for (const [endpoint, code, field, previous] of [
@@ -109,6 +179,10 @@ for (const language of ["en", "ja"]) {
         ["websocket_port", "WEBSOCKET_PORT_INVALID", "WebsocketPort", 2231],
         ["obs_browser_source_port", "OBS_BROWSER_SOURCE_PORT_INVALID", "ObsBrowserSourcePort", 2232],
         ["websocket_host", "VALIDATION_INVALID_IP", "WebsocketHost", "127.0.0.1"],
+        ["websocket_host", "WEBSOCKET_HOST_NEEDS_TLS", "WebsocketHost", "127.0.0.1"],
+        ["websocket_host", "WEBSOCKET_HOST_RESET_WITHOUT_TLS", "WebsocketHost", "127.0.0.1"],
+        ["websocket_tls", "WEBSOCKET_HOST_NEEDS_TLS", "WebsocketTls", { cert_file: "a.pem", key_file: "b.pem" }],
+        ["websocket_tls", "WEBSOCKET_TLS_INVALID", "WebsocketTls", { cert_file: "", key_file: "" }],
     ]) {
         test(`${language}: ${code} restores the setting and shows localized guidance`, async context => {
             context.mock.method(console, "error", () => {});

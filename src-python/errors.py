@@ -244,6 +244,9 @@ class ErrorCode(str, Enum):
     WEBSOCKET_PORT_UNAVAILABLE = "WEBSOCKET_PORT_UNAVAILABLE"
     WEBSOCKET_PORT_INVALID = "WEBSOCKET_PORT_INVALID"
     WEBSOCKET_SERVER_UNAVAILABLE = "WEBSOCKET_SERVER_UNAVAILABLE"
+    WEBSOCKET_HOST_NEEDS_TLS = "WEBSOCKET_HOST_NEEDS_TLS"
+    WEBSOCKET_HOST_RESET_WITHOUT_TLS = "WEBSOCKET_HOST_RESET_WITHOUT_TLS"
+    WEBSOCKET_TLS_INVALID = "WEBSOCKET_TLS_INVALID"
 
     # ============================================================================
     # OBS Browser Sourceエラー (OBS_BROWSER_SOURCE_*)
@@ -895,6 +898,24 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
     ErrorCode.WEBSOCKET_SERVER_UNAVAILABLE: {
         "category": ErrorCategory.WEBSOCKET,
         "message": "WebSocket server host or port is not available",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.WEBSOCKET_HOST_NEEDS_TLS: {
+        "category": ErrorCategory.WEBSOCKET,
+        "message": "Listening beyond this PC needs a TLS certificate and key",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.WEBSOCKET_HOST_RESET_WITHOUT_TLS: {
+        "category": ErrorCategory.WEBSOCKET,
+        "message": "The WebSocket host went back to 127.0.0.1: listening beyond this PC needs a TLS certificate and key",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+    ErrorCode.WEBSOCKET_TLS_INVALID: {
+        "category": ErrorCategory.WEBSOCKET,
+        "message": "The TLS certificate or key cannot be used",
         "severity": "error",
         "user_action_required": True,
     },

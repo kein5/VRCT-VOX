@@ -6,7 +6,7 @@
 
 チャット読み取りの`OCR_CAPTURE_REGION`はデスクトップウィンドウ用、`OCR_VR_CAPTURE_REGION`はSteamVRの左目側の映像用。旧版の単一範囲はウィンドウ用に保持し、未保存のVR側には全体を補う。[範囲の形と移行](../data-and-persistence.md#チャット読み取りの範囲)を参照。
 
-## config.jsonに保存するキー（128件）
+## config.jsonに保存するキー（130件）
 
 | キー | 型・検証 | 既定値 | 保存 |
 |---|---|---|---|
@@ -82,6 +82,8 @@
 | `WEBSOCKET_HOST` | str、許可値 lambda v, inst: isValidWebSocketHost(v) | `'127.0.0.1'` | 2秒後にまとめて |
 | `WEBSOCKET_PORT` | int、許可値 lambda v, inst: isValidPort(v) | `2231` | 2秒後にまとめて |
 | `WEBSOCKET_AUTH_TOKEN` | str、許可値 lambda v, inst: isinstance(v, str) and bool(v.strip()) | `secrets_token_urlsafe(32)` | 2秒後にまとめて |
+| `WEBSOCKET_TLS_CERT_FILE` | str | `''` | 2秒後にまとめて |
+| `WEBSOCKET_TLS_KEY_FILE` | str | `''` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE` | bool | `False` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_PORT` | int、許可値 lambda v, inst: isValidPort(v) | `2232` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_MAX_MESSAGES` | int、許可値 lambda v, inst: is_valid_numeric_setting('MAX_MESSAGES', v) | `14` | 2秒後にまとめて |

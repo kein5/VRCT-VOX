@@ -10,7 +10,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - UIの受信先: 200の応答を処理するUIのフック（`useReceiveRoutes.js`の静的ルートと`ui_config_setter.js`の定義から生成）。「—」は受信先がない。
 - ログで伏せる: `process.log`で値を`***MASKED***`に置き換える（`SENSITIVE_ENDPOINT_MARKERS`）。stdoutのIPCそのものは伏せない。
 
-## 要求（414件: 削除 11、取得 186、実行 37、有効化 39、無効化 39、設定 102）
+## 要求（417件: 削除 11、取得 187、実行 38、有効化 39、無効化 39、設定 103）
 
 | エンドポイント | 種別 | 処理（controller） | 初期化前 | UIの受信先 | 備考 |
 |---|---|---|---|---|---|
@@ -368,6 +368,9 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/get/data/websocket_port` | 取得 | `getWebSocketPort` | 可 | useAdvancedSettings.updateFromBackendWebsocketPort |  |
 | `/set/data/websocket_port` | 設定 | `setWebSocketPort` | 可 | useAdvancedSettings.setSuccessWebsocketPort |  |
 | `/get/data/websocket_auth_token` | 取得 | `getWebSocketAuthToken` | 可 | useAdvancedSettings.updateFromBackendWebsocketAuthToken | ログで伏せる |
+| `/run/regenerate_websocket_auth_token` | 実行 | `regenerateWebSocketAuthToken` | 可 | useAdvancedSettings.updateFromBackendWebsocketAuthToken | ログで伏せる |
+| `/get/data/websocket_tls` | 取得 | `getWebSocketTls` | 可 | useAdvancedSettings.updateFromBackendWebsocketTls |  |
+| `/set/data/websocket_tls` | 設定 | `setWebSocketTls` | 可 | useAdvancedSettings.setSuccessWebsocketTls |  |
 | `/get/data/websocket_server` | 取得 | `getWebSocketServer` | 可 | useAdvancedSettings.updateFromBackendEnableWebsocket |  |
 | `/set/enable/websocket_server` | 有効化 | `setEnableWebSocketServer` | 可 | useAdvancedSettings.setSuccessEnableWebsocket |  |
 | `/set/disable/websocket_server` | 無効化 | `setDisableWebSocketServer` | 可 | useAdvancedSettings.setSuccessEnableWebsocket |  |
