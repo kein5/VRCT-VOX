@@ -191,6 +191,8 @@ TTSのスイッチをオフにしたときは、そのスイッチが起動し�
 
 設定画面は別ウィンドウではなく、`main`の中のページである。
 
+WindowsのWebView2は、全ウィンドウを同じ起動引数で作る（`src-tauri/tauri.conf.json`の`main`と、`src-tauri/src/lib.rs`の`BROWSER_ARGS`。同じであることはテストで確かめる）。Tauri既定の`--disable-features`から`msSmartScreenProtection`を外し、SmartScreenを既定どおり動かす（第2回セキュリティ監査 SEC-03）。隠れたウィンドウの描画を止める機能（`CalculateNativeWinOcclusion`と、背景での描画の停止）は無効にする。VRパネルを画面の外に置いて撮影するためである。
+
 ### WebviewのContent Security Policy（CSP）
 
 `src-tauri/tauri.conf.json`の`app.security.csp`を、上記3ウィンドウの配布用HTMLに共通で適用する。Tauri CLI 2.12.4の`node_modules/@tauri-apps/cli/config.schema.json`にあるdirective map形式を使う（Rust側はTauri 2.12.5）。ブラウザーから読み込む資源の許可であり、Rust/Pythonの通信やTauri capabilityの代わりではない。

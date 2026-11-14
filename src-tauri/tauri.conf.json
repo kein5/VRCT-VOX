@@ -22,7 +22,7 @@
                 "transparent": true,
                 "decorations": false,
                 "shadow": false,
-                "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --disable-renderer-backgrounding"
+                "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --disable-renderer-backgrounding"
             }
         ],
         "security": {
