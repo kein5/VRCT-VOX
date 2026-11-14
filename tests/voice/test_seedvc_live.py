@@ -24,6 +24,9 @@ from models.voice_conversion import protocol as p
 mode, session, engine = sys.argv[1:]
 if mode == 'load_stall': time.sleep(30)
 out = sys.stdout.buffer
+if mode == 'no_gpu':
+    out.write(p.encode_packet(p.failed_info(session, 'vc_gpu_unavailable'))); out.flush()
+    sys.exit(1)
 out.write(p.encode_packet(p.ready_info(session, engine=('seed-vc' if mode == 'wrong_engine' else engine)))); out.flush()
 if mode == 'no_read': time.sleep(30)
 while True:
@@ -223,6 +226,14 @@ def test_bad_worker_never_forwards_raw_and_requires_new_start(
         assert not p.health()["active"] and sent == []
         with pytest.raises(RuntimeError, match="single_use"):
             p.start(source=SOURCE)
+
+
+@pytest.mark.parametrize("engine", ["seed-vc", "rvc"])
+def test_a_worker_without_a_gpu_fails_with_that_reason(tmp_path, monkeypatch, engine):
+    with fixture(tmp_path, monkeypatch, "no_gpu", engine=engine) as (p, captures, children, sent, closed, _):
+        wait_for(lambda: p.health()["error"], timeout=5)
+        assert p.health()["error"] == "vc_gpu_unavailable"
+        assert not p.health()["active"] and captures == [] and sent == []
 
 
 def test_silence_is_not_conversion_proof(tmp_path, monkeypatch):

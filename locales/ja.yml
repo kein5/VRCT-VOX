@@ -68,6 +68,7 @@ voice:
         vc_output_missing: "出力デバイスが見つかりません。TTSの設定で選び直してください。"
         vc_output_failed: "出力デバイスへ書き込めませんでした。デバイスを確認してもう一度開始してください。"
         vc_feedback_blocked: "入力と出力が同じ仮想ケーブルの両端です。音声が自分に戻ってしまうので、入力には実際のマイクを選んでください。"
+        vc_gpu_unavailable: "声の変換に使うNVIDIAのGPUが見つかりません。GPUのドライバーと、外付けのGPUが外れていないかを確かめてから、もう一度開始してください。RVCとSeed-VCはいまNVIDIAのGPUだけで動きます。"
         vc_capture_overrun: "変換が追いつかず停止しました。検索結果の混合率を0にするか、GPUやCPUを使う他のアプリを閉じてから、もう一度開始してください。"
         vc_block_expired: "変換が大きく遅れたため停止しました。GPUやCPUを使う他のアプリを閉じてから、もう一度開始してください。"
         direct_voice_stop_required: "音声経路を変える前に入力の転送を停止してください。"

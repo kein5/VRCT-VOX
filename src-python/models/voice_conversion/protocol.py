@@ -53,7 +53,25 @@ def input_info(session, sequence, start_ns):
                 start_ns=start_ns, end_ns=start_ns + BLOCK_NS, rate=RATE, channels=1)
 
 
+# Why a worker could not become ready, from a fixed list, so the owner can say so instead
+# of reporting a worker that ended. Nothing the worker writes is shown beyond these codes.
+WORKER_FAILURES = frozenset((
+    'vc_gpu_unavailable', 'vc_model_missing', 'vc_runtime_version_unsupported',
+    'vc_checkpoint_incomplete', 'vc_index_failed'))
+
+
+def failed_info(session, code):
+    if code not in WORKER_FAILURES:
+        raise ProtocolError('vc_ready_invalid')
+    return dict(type='failed', protocol=1, session=_session(session), code=code)
+
+
 def require_ready(info, pcm, session, *, engine='seed-vc'):
+    if isinstance(info, dict) and info.get('type') == 'failed':
+        code = info.get('code')
+        if not pcm and code in WORKER_FAILURES and _same(info, dict(failed_info(session, code), pcm_bytes=0)):
+            raise ProtocolError(code)
+        raise ProtocolError('vc_ready_invalid')
     if pcm or not _same(info, dict(ready_info(session, engine=engine), pcm_bytes=0)):
         raise ProtocolError('vc_ready_invalid')
 

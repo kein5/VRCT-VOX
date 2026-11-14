@@ -58,6 +58,7 @@ REPORTED_FAILURES = {
     # models/voice_conversion/process.py and models/audio_routing/windows_route.py.
     "voice_conversion": (frozenset((
         "vc_capture_overrun", "vc_capture_invalid", "vc_capture_failed", "vc_worker_eof", "vc_worker_failed",
+        "vc_gpu_unavailable",
         "vc_sink_changed", "vc_output_failed", "source_bridge_output_failed", "source_bridge_capture_failed")),
         "voice_conversion_failed_other"),
     # models/transcription/realtime_session.py: a caption session that ended on its own.
