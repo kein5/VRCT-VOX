@@ -7,10 +7,10 @@
 | `icon.svg` | App icon from 256 px. The dock shows the TTS, RVC, OCR and translation glyphs. |
 | `icon-small.svg` | App icon up to 128 px: the microphone and two caption bars, without the dock. |
 | `glyphs/*.svg` | The five function glyphs on a 24-unit grid with a 1.8-unit round stroke. They use `currentColor`. |
-| `logo-<lang>-on-dark.svg`, `logo-<lang>-on-light.svg` | Logos with function labels in English (`en`), Japanese (`ja`), Korean (`ko`), Traditional Chinese (`zh-Hant`) and Simplified Chinese (`zh-Hans`). They have a transparent background. The READMEs switch between them with `prefers-color-scheme`. |
+| `logo-<lang>-on-dark.svg`, `logo-<lang>-on-light.svg` | Logos with function labels in English (`en`) and Japanese (`ja`), the UI languages. Korean and Chinese logos were dropped with those UI languages in 0.2.0. They have a transparent background. The READMEs switch between them with `prefers-color-scheme`. |
 | `src-ui/views/assets/brand/` | Copies of the dark-background logos for the About page and of `icon-small.svg` for its settings tab. |
 
-All lettering is outlined, so the SVGs render the same without fonts. The Latin letters are drawn for this logo. The Japanese, Korean and Chinese labels are outlines of Noto Sans CJK Bold (SIL Open Font License 1.1). The SVGs contain no embedded raster images or external references.
+All lettering is outlined, so the SVGs render the same without fonts. The Latin letters are drawn for this logo. The Japanese labels are outlines of Noto Sans CJK Bold (SIL Open Font License 1.1). The SVGs contain no embedded raster images or external references.
 
 ## Palette
 

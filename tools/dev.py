@@ -28,6 +28,16 @@ GROUPS = {"quick": ("tooling", "node", "lint"),
 SETUP_SCOPES = ("headless", "ui", "browser", "backend", "rust", "sidecar")
 OWNER_FILE = ".vrct-vox-dev-env"
 OWNER = "VRCT-VOX developer environment v1\n"
+# Plain unit tests that live in tests/platform next to the helpers they test; the rest of
+# that folder needs a desktop, a driver or real devices and runs only when asked.
+PLATFORM_UNIT_TESTS = (
+    "tests/platform/test_display_power_guard.py",
+    "tests/platform/test_runtime_settings.py",
+    "tests/platform/test_sidecar_warnings.py",
+    "tests/platform/test_voice_measurement_math.py",
+)
+# The same, needing the app's dependencies (python-osc).
+PLATFORM_BACKEND_TESTS = ("tests/platform/test_native_chatbox_helpers.py",)
 LINT_PATHS = [
     "src-python/models/tts", "src-python/models/audio_routing",
     "src-python/models/voice_events.py", "src-python/models/http_stream.py", "tests/voice", "tools/voice_cli.py",
@@ -269,7 +279,8 @@ def checks_plan(args, root):
             if scope == "ui":
                 steps.append(Step("Vite build", ["npm", "--ignore-scripts", "run", "vite-build"]))
         elif scope in ("voice", "backend"):
-            args_pytest = ["-c", "tests/voice/pytest.ini", "tests/voice"] if scope == "voice" else ["-c", "pytest.ini", "src-python/test"]
+            args_pytest = (["-c", "tests/voice/pytest.ini", "tests/voice", *PLATFORM_UNIT_TESTS] if scope == "voice"
+                           else ["-c", "pytest.ini", "src-python/test", *PLATFORM_BACKEND_TESTS])
             steps.append(Step(f"{scope} pytest", [python, "-m", "pytest", *args_pytest, "-q"]))
         elif scope == "lint":
             steps.append(Step("Ruff", [python, "-m", "ruff", "check", *LINT_PATHS]))

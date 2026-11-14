@@ -41,17 +41,12 @@ FEATURES = ('asr', 'tts', 'rvc', 'ocr', 'translate')
 LABELS = {
     'en': ('ASR', 'TTS', 'RVC', 'OCR', 'TRANSLATE'),
     'ja': ('音声認識', '音声合成', '声質変換', '文字認識', '翻訳'),
-    'ko': ('음성인식', '음성합성', '음성변환', '문자인식', '번역'),
-    'zh-Hant': ('語音辨識', '語音合成', '聲音轉換', '文字辨識', '翻譯'),
-    'zh-Hans': ('语音识别', '语音合成', '声音转换', '文字识别', '翻译'),
 }
-FACES = {'ja': 'Noto Sans CJK JP', 'ko': 'Noto Sans CJK KR', 'zh-Hant': 'Noto Sans CJK TC', 'zh-Hans': 'Noto Sans CJK SC'}
+# English and Japanese only, as the UI languages (Korean and Chinese were dropped in 0.2.0).
+FACES = {'ja': 'Noto Sans CJK JP'}
 DESCRIPTIONS = {
     'en': 'VRCT-VOX: speech recognition, text to speech, voice conversion, screen text reading and translation.',
     'ja': 'VRCT-VOX：音声認識、音声合成、声質変換、文字認識、翻訳。',
-    'ko': 'VRCT-VOX: 음성 인식, 음성 합성, 음성 변환, 문자 인식, 번역.',
-    'zh-Hant': 'VRCT-VOX：語音辨識、語音合成、聲音轉換、文字辨識、翻譯。',
-    'zh-Hans': 'VRCT-VOX：语音识别、语音合成、声音转换、文字识别、翻译。',
 }
 THEMES = {'dark': ('#F5F5F7', '#B9D8FF'), 'light': ('#13161C', '#174899')}
 

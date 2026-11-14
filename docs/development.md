@@ -102,9 +102,9 @@ python tools/dev.py check --scope rust --dry-run
 | `tooling` | 標準ライブラリのunittestで `tests/devtools` を検証 |
 | `node` | `src-ui` 以下の `.test.js` / `.test.mjs` を全列挙して `node --test` |
 | `lint` | voice CIと同じRuff対象に開発CLI、配布候補CLI2本、専用試験を追加。自動修正なし |
-| `voice` | `tests/voice/pytest.ini` を使ったモデルなしの契約試験 |
+| `voice` | `tests/voice/pytest.ini` を使ったモデルなしの契約試験と、`tests/platform`にある単体の試験4件 |
 | `ui` | Nodeの試験と `npm run vite-build`。ブラウザの操作は含まない |
-| `backend` | 既存 `pytest.ini` による `src-python/test`。runtime依存が必要 |
+| `backend` | 既存 `pytest.ini` による `src-python/test` と、`tests/platform`の単体の試験1件。runtime依存が必要 |
 | `rust` | `cargo check --locked --offline`。キャッシュやOS依存がなければ失敗 |
 | `quick` | `tooling`、`node`、`lint`。既定値 |
 | `all` | 上記7対象。時間がかかるため統合時に明示実行 |

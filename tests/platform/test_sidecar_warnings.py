@@ -17,9 +17,10 @@ warnings.formatwarning = format_warning
 warnings.warn("first line\\n日本語の次行", FutureWarning)
 raise RuntimeError("real failure")
 '''
+    # UTF-8 on both ends: Windows would otherwise write and read stderr in the ANSI code page.
     result = subprocess.run([sys.executable, "-c", program], cwd=tmp_path,
-                            env=dict(os.environ, PYTHONPATH=str(ROOT / "src-python")),
-                            capture_output=True, text=True, timeout=5)
+                            env=dict(os.environ, PYTHONPATH=str(ROOT / "src-python"), PYTHONIOENCODING="utf-8"),
+                            capture_output=True, text=True, encoding="utf-8", timeout=5)
     lines = result.stderr.splitlines()
     warning = json.loads(lines[0])
     assert warning == {"type": "vrct_warning", "category": "FutureWarning",
