@@ -394,6 +394,7 @@ update_modal:
     warn_switch_channel: "You are switching to the {{channel}} channel. Future update notifications will follow {{channel}} releases."
 
 config_page:
+    custom_model_link: "How to use your own model"
     about_vrct:
         image_links:
             dev_misya_x: "みしゃ (misyaguziya) on X"

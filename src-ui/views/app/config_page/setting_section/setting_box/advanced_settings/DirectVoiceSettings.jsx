@@ -13,6 +13,7 @@ import { SetupSection } from "../_components/setup_section/SetupSection";
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
 import { Description } from "../_components/description/Description";
 import { FormRow } from "../_components/form_row/FormRow";
+import { CustomModelLink } from "../_components/custom_model_link/CustomModelLink";
 
 const defaults = { mode: "passthrough", runtime: "", reference: "", engine: "seed-vc",
     rvc_runtime: "", rvc_model: "", rvc_index: "", rvc_pitch: 0, rvc_index_rate: 0 };
@@ -145,6 +146,8 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
                     <input type="text" value={draft[name]} disabled={busy} maxLength={4096}
                         onChange={e => setDraft({ ...draft, [name]: e.target.value })} />
                 </label>)}
+                {/* How to use a model or reference voice of your own. */}
+                <CustomModelLink section={rvc ? "rvc" : "seed-vc"} />
             </fieldset>}
             {converted && <VcRuntimeSetup engine={rvc ? "rvc" : "seed-vc"} current={rvc ? draft.rvc_runtime : draft.runtime} disabled={busy || saving}
                 onUse={path => setDraft({ ...draft, [rvc ? "rvc_runtime" : "runtime"]: path })} />}

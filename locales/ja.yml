@@ -394,6 +394,7 @@ update_modal:
     warn_switch_channel: "{{channel}}チャンネルに切り替わります。次回以降のアップデート通知も{{channel}}が対象になります。"
 
 config_page:
+    custom_model_link: "自分のモデルを使う方法"
     about_vrct:
         image_links:
             dev_misya_x: "みしゃ（misyaguziya）のX"

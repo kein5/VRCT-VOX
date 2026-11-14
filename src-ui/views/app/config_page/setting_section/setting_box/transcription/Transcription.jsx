@@ -1,4 +1,5 @@
 import { CredentialPair } from "../_components/credential_pair/CredentialPair";
+import { CustomModelLink } from "../_components/custom_model_link/CustomModelLink";
 import { SpeechServers } from "../advanced_settings/SpeechServers";
 import { useI18n } from "@useI18n";
 import styles from "./Transcription.module.scss";
@@ -328,6 +329,8 @@ const CloudTranscription_Container = () => {
                             ? <CredentialPair settings={transcription} base={engine.base} provider={engine.key} section="transcription" />
                             : <CloudAuthKey_Box engine={engine} />}
                         <CloudModel_Box engine={engine} />
+                        {/* A Whisper server of your own runs the model you choose. */}
+                        {engine.has_url && <CustomModelLink section="whisper-server" />}
                     </SetupSection>
                 );
             })}
