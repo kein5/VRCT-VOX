@@ -10,7 +10,7 @@ from models.owned_child import wait_readable
 LIMIT = 32768
 BASE_STATE = dict(requested=False, active=False, pending=False, stopping=False,
                   conversion_verified=False, error=None, state='off', converted_blocks=0,
-                  monitor_error=None, monitor_revision=0)
+                  monitor_error=None, monitor_revision=0, round_trip_ms=None)
 
 
 def encode(value):
@@ -28,6 +28,8 @@ def validate_health(value):
             or any(type(value[key]) is not bool for key in BASE_STATE if type(BASE_STATE[key]) is bool)
             or type(value['converted_blocks']) is not int or not 0 <= value['converted_blocks'] < 2**63
             or type(value['monitor_revision']) is not int or not 0 <= value['monitor_revision'] < 2**63
+            or (value['round_trip_ms'] is not None and (type(value['round_trip_ms']) is not int
+                or not 0 <= value['round_trip_ms'] <= 60_000))
             or value['state'] not in ('off', 'preparing', 'ready', 'converted', 'idle', 'failed', 'stopped')
             or (value['error'] is not None and (not isinstance(value['error'], str)
                 or not re.fullmatch(r'(?:vc|asr_capture)_[a-z_]{1,56}', value['error'])))

@@ -50,6 +50,10 @@ FIXTURE_VERSION = "3.6.0-beta.1"
 APP_VERSION = json.loads((Path(__file__).resolve().parents[2] / "package.json").read_text())["version"]
 # The last line of tests/voice/caption-overlay-entry/entry.jsx, to know its captions are drawn.
 CAPTION_SAMPLE = "Thank you. I'm looking forward to it!"
+# Where the voice and chat go, and their times in ms: the panel, the desktop strip and VR share it.
+FLOW = json.loads((Path(__file__).resolve().parent / "fixtures" / "io_flow_sample.json").read_text(encoding="utf-8"))
+FLOW_BUTTON = {"ja": "入力と出力", "en": "Inputs and outputs"}
+FLOW_LATEST = "ありがとうございます。お願いします！"
 # Where downloaded models go on Linux (site/*/guide/models.md).
 SAVE_TO = "~/.config/vrct-vox/downloaded_models"
 # The log stamps each row with the time it arrived; a fixed clock keeps the pictures the same between runs.
@@ -144,6 +148,16 @@ def test_docs_screenshots(studio, tmp_path, lang):  # noqa: F811
     save(page, out / "quick-settings.webp")
     page.keyboard.press("Escape")
 
+    # The inputs and outputs panel, with the sample route and recent times.
+    page.get_by_role("button", name=FLOW_BUTTON[lang], exact=True).click()
+    push(peer, "/get/data/io_flow", FLOW["flow"])
+    for trace in FLOW["traces"]:
+        push(peer, "/run/io_trace", trace)
+    page.get_by_text(FLOW_LATEST, exact=False).first.wait_for()
+    page.wait_for_timeout(300)
+    save(page, out / "io-flow.webp")
+    page.get_by_role("button", name=FLOW_BUTTON[lang], exact=True).click()
+
     # The desktop caption section asks the Tauri shell whether its window exists (Windows only).
     page.evaluate(
         "window.__TAURI_INTERNALS__ = { invoke: async command => command === 'caption_overlay_supported' ? true : null }"
@@ -182,3 +196,18 @@ def test_docs_screenshots(studio, tmp_path, lang):  # noqa: F811
     page.goto(f"{origin.scheme}://{origin.netloc}/tests/voice/caption-overlay-entry/")
     page.get_by_text(CAPTION_SAMPLE, exact=True).wait_for()
     save(page, out / "captions-on-screen.webp")
+    # The same window with the flow strip, worded in this language.
+    page.goto(f"{origin.scheme}://{origin.netloc}/tests/voice/caption-overlay-entry/?flow=1&lang={lang}")
+    page.get_by_text(CAPTION_SAMPLE, exact=True).wait_for()
+    page.get_by_text(FLOW_LATEST, exact=False).first.wait_for()
+    save(page, out / "flow-on-screen.webp")
+
+    # The VR panel's window at its real size (vr_layout.json popup region).
+    size = page.viewport_size
+    page.set_viewport_size({"width": 720, "height": 640})
+    page.goto(f"{origin.scheme}://{origin.netloc}/tests/voice/vr-flow-entry/?lang={lang}")
+    # VR shows one timeline, for the newest input of either lane: the last trace of the sample.
+    page.get_by_text(FLOW["traces"][-1]["text"], exact=False).first.wait_for()
+    page.wait_for_timeout(300)
+    save(page, out / "vr-io-flow.webp")
+    page.set_viewport_size(size)

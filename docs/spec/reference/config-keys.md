@@ -6,7 +6,7 @@
 
 チャット読み取りの`OCR_CAPTURE_REGION`はデスクトップウィンドウ用、`OCR_VR_CAPTURE_REGION`はSteamVRの左目側の映像用。旧版の単一範囲はウィンドウ用に保持し、未保存のVR側には全体を補う。[範囲の形と移行](../data-and-persistence.md#チャット読み取りの範囲)を参照。
 
-## config.jsonに保存するキー（127件）
+## config.jsonに保存するキー（128件）
 
 | キー | 型・検証 | 既定値 | 保存 |
 |---|---|---|---|
@@ -51,6 +51,7 @@
 | `OVERLAY_SMALL_LOG_SETTINGS` | 検証 _overlay_small_validator | `{'x_pos': 0.0, 'y_pos': 0.0, 'z_pos': 0.0, 'x_rotation': 0.0, 'y_rotation': 0.0, 'z_rot…` | 2秒後にまとめて |
 | `OVERLAY_LARGE_LOG_SETTINGS` | 検証 _overlay_large_validator | `{'x_pos': 0.0, 'y_pos': 0.0, 'z_pos': 0.0, 'x_rotation': 0.0, 'y_rotation': 0.0, 'z_rot…` | 2秒後にまとめて |
 | `OVERLAY_DESKTOP_SETTINGS` | 検証 _overlay_desktop_validator | `{'position': 'bottom', 'font_size': 28, 'display_duration': 6, 'opacity': 0.6}` | 2秒後にまとめて |
+| `IO_FLOW_OVERLAY_SETTINGS` | 検証 _io_flow_overlay_validator | `{'desktop': False, 'count': 1}` | 2秒後にまとめて |
 | `OVERLAY_VR_PANEL_SETTINGS` | 検証 _make_overlay_vr_window_validator('OVERLAY_VR_PANEL_SETTINGS') | `{'width': 900, 'height': 700, 'x_pos': 0.5209, 'y_pos': 0.6442, 'z_pos': -0.9509, 'x_ro…` | 2秒後にまとめて |
 | `OVERLAY_VR_LAUNCHER_SETTINGS` | 検証 _make_overlay_vr_window_validator('OVERLAY_VR_LAUNCHER_SETTINGS') | `dict(DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS)` | 2秒後にまとめて |
 | `SEND_MESSAGE_FORMAT_PARTS` | 検証 _format_validator_send | `{'message': {'prefix': '', 'suffix': ''}, 'separator': '\n', 'translation': {'prefix': …` | 2秒後にまとめて |

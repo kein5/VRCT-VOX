@@ -1,0 +1,52 @@
+// The flow panel: the graph, the outputs not in use, and the latest times of each input.
+.view { display: flex; flex-direction: column; gap: 1.2rem; font-size: 1.3rem; color: var(--dark_200_color); }
+.compact { gap: .8rem; }
+.waiting, .no_trace, .origin, .live { color: var(--vox_description_text); font-size: 1.2rem; margin: 0; }
+.live { font-variant-numeric: tabular-nums; }
+// A narrow window scrolls the graph sideways instead of squeezing its boxes.
+.graph_scroll { overflow-x: auto; }
+
+.unused { display: flex; flex-direction: column; gap: .3rem; margin: 0; padding: 0; list-style: none;
+    font-size: 1.2rem; color: var(--vox_description_text); }
+.unused li { display: flex; gap: .6rem; align-items: baseline; overflow-wrap: anywhere; }
+.lane_mark { flex-shrink: 0; padding: 0 .5rem; border-radius: .3rem; font-weight: 600; color: #0b0f18; }
+.mark_voice { background: #58b0ee; }
+.mark_chat { background: #a58cf0; }
+
+.latest_pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(30rem, 1fr)); gap: 1.2rem; }
+.latest {
+    display: flex; flex-direction: column; gap: .4rem; padding: .8rem 1.2rem; margin: 0;
+    border-left: .3rem solid var(--vox_readout_rule); border-radius: var(--vox_radius); background: var(--vox_surface);
+}
+.latest_voice { border-left-color: #58b0ee; }
+.latest_chat { border-left-color: #a58cf0; }
+.latest_title { font-size: 1.4rem; font-weight: 600; margin: 0; }
+.latest_head { display: flex; justify-content: space-between; gap: 1.2rem; margin: 0; }
+.latest_text { min-width: 0; overflow-wrap: anywhere; }
+.latest_total { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.timeline { display: grid; gap: .3rem; }
+.row { display: grid; grid-template-columns: minmax(8rem, 12rem) 1fr auto; align-items: center; gap: .8rem; font-size: 1.2rem; }
+.row_label { overflow-wrap: anywhere; color: var(--vox_secondary_text); }
+.row_value { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; min-width: 6.4rem; }
+.row.is_off .row_value { color: var(--vox_description_text); }
+.track { position: relative; height: 1rem; border-radius: .2rem; background: var(--vox_canvas); }
+.no_track { background: transparent; }
+.bar { position: absolute; top: 0; bottom: 0; border-radius: .2rem; background: var(--vox_state_active); }
+// Stages blue, outputs in the colours of their boxes, the conversion as a dashed extension of speech.
+.bar_stage { background: #5b92ff; }
+.bar_chatbox { background: #4fb8a8; }
+.bar_speech { background: #e0a656; }
+.bar_conversion { background: repeating-linear-gradient(90deg, #f08cc2 0 .4rem, transparent .4rem .6rem); }
+.axis { display: flex; justify-content: space-between; font-size: 1.2rem; color: var(--vox_description_text); font-variant-numeric: tabular-nums; }
+.axis_row > span:last-child { min-width: 6.4rem; }
+
+.history { display: flex; align-items: flex-end; gap: 1rem; margin-top: .4rem; }
+.bars { display: flex; align-items: flex-end; gap: .2rem; height: 2.6rem; }
+.spark { width: .6rem; border-radius: .1rem; background: var(--vox_border); }
+.spark.is_last { background: var(--vox_state_active); }
+.history_text { font-size: 1.2rem; color: var(--vox_secondary_text); font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: no-preference) {
+    .bar { transition: width 120ms, left 120ms; }
+}

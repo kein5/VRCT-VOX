@@ -604,6 +604,8 @@ mapping = {
     "/set/disable/overlay_desktop": {"status": True, "variable":controller.setDisableOverlayDesktop},
     "/get/data/overlay_desktop_settings": {"status": True, "variable":controller.getOverlayDesktopSettings},
     "/set/data/overlay_desktop_settings": {"status": True, "variable":controller.setOverlayDesktopSettings},
+    "/get/data/io_flow_overlay_settings": {"status": True, "variable":controller.getIoFlowOverlaySettings},
+    "/set/data/io_flow_overlay_settings": {"status": True, "variable":controller.setIoFlowOverlaySettings},
 
     "/get/data/overlay_show_only_translated_messages": {"status": True, "variable":controller.getOverlayShowOnlyTranslatedMessages},
     "/set/enable/overlay_show_only_translated_messages": {"status": True, "variable":controller.setEnableOverlayShowOnlyTranslatedMessages},
@@ -680,6 +682,8 @@ mapping = {
     "/get/data/direct_voice_sources": {"status": True, "variable":controller.getDirectVoiceSources},
     "/set/data/direct_voice_settings": {"status": True, "variable":controller.setDirectVoiceSettings},
     "/get/data/direct_voice_state": {"status": True, "variable":controller.getDirectVoiceState},
+    # The flow panel: where the user's voice and chat go now. Stage times arrive as /run/io_trace.
+    "/get/data/io_flow": {"status": True, "variable":controller.getIoFlow},
     "/run/start_direct_voice": {"status": True, "variable":controller.startDirectVoice},
     "/run/stop_direct_voice": {"status": True, "variable":controller.stopDirectVoice},
 

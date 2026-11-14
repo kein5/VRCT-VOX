@@ -23,6 +23,7 @@ import styles from "./App.module.scss";
 import { MainPage } from "./main_page/MainPage";
 import { QuickChatController } from "./_app_controllers/QuickChatController";
 import { CaptionOverlayController } from "./_app_controllers/CaptionOverlayController";
+import { IoFlowController } from "./_app_controllers/IoFlowController";
 import { ConfigPage } from "./config_page/ConfigPage";
 
 import {
@@ -52,6 +53,7 @@ export const App = () => {
                 <GlobalHotKeyController />
                 <QuickChatController />
                 <CaptionOverlayController />
+                <IoFlowController />
                 <UiLanguageController />
                 <ConfigPageCloseTriggerController />
                 <UiSizeController />

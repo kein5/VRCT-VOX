@@ -72,3 +72,35 @@ def test_a_malformed_object_is_refused_without_changing_anything(isolated, contr
     assert response["status"] == 400
     assert response["result"]["error_code"] == "VALIDATION_CONFIG_VALUE_INVALID"
     assert isolated.config.OVERLAY_DESKTOP_SETTINGS == DEFAULT
+
+
+@pytest.fixture
+def flow_controller(isolated):  # noqa: F811 - imported pytest fixture
+    ns = dict(config=isolated.config, ConfigValidationError=isolated.ns["ConfigValidationError"],
+              ErrorCode=ErrorCode, VRCTError=VRCTError, functools=functools, printLog=Mock())
+    path = SOURCE / "controller.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    tree.body = [node for node in tree.body if isinstance(node, ast.FunctionDef)
+                 and node.name == "_configValidationErrorResponse"]
+    exec(compile(tree, str(path), "exec"), ns)
+    definitions("controller.py", ns, class_methods={"setIoFlowOverlaySettings"})
+    return ns["Controller"]()
+
+
+def test_flow_overlay_is_off_with_one_input_until_changed(isolated, flow_controller):  # noqa: F811
+    config = isolated.config
+    assert config.IO_FLOW_OVERLAY_SETTINGS == {"desktop": False, "count": 1}
+    wanted = {"desktop": True, "count": 3}
+    assert flow_controller.setIoFlowOverlaySettings(wanted) == {"status": 200, "result": wanted}
+    config.saveConfigToFile()
+    assert json.loads(isolated.path.read_text(encoding="utf-8"))["IO_FLOW_OVERLAY_SETTINGS"] == wanted
+
+
+@pytest.mark.parametrize("damage", [
+    None, {}, {"desktop": True}, {"desktop": 1, "count": 1}, {"desktop": True, "count": 0},
+    {"desktop": True, "count": 4}, {"desktop": True, "count": True}, {"desktop": True, "count": 1, "vr": True},
+])
+def test_flow_overlay_refuses_a_malformed_value(isolated, flow_controller, damage):  # noqa: F811
+    response = flow_controller.setIoFlowOverlaySettings(damage)
+    assert response["status"] == 400
+    assert isolated.config.IO_FLOW_OVERLAY_SETTINGS == {"desktop": False, "count": 1}

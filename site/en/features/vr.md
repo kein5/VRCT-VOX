@@ -36,6 +36,7 @@ The background is a drawing for this page. In use, the captions sit above whatev
 - You can change where they appear (bottom or top of the screen), the text size, the display duration and how dark the background is.
 - They appear on the monitor that holds VRCT-VOX's main window.
 - "Show Only Translated Messages" applies to these captions too.
+- The same window can also show where your inputs went and how long they took. See [Inputs and outputs](io-flow#on-the-desktop).
 - They do not appear above an app in exclusive full screen. VRChat's full screen is a borderless window, so they do appear there.
 - On Linux they work when you start the AppImage, also on a Wayland desktop, where the app runs through XWayland. Start the tar.gz with `GDK_BACKEND=x11`; without it the app runs on native Wayland and the section is not shown.
 
