@@ -3,6 +3,7 @@ import { h } from 'vue'
 import DefaultTheme from 'vitepress/theme-without-fonts'
 import type { Theme } from 'vitepress'
 import HomeShot from './HomeShot.vue'
+import HomeShowcase from './HomeShowcase.vue'
 import RouteStrip from './RouteStrip.vue'
 import { LOCALE_KEY } from './locale'
 import './custom.css'
@@ -31,6 +32,8 @@ export default {
   Layout: () =>
     h(DefaultTheme.Layout, null, {
       'home-hero-after': () => h(HomeShot),
+      // The features, each beside a short loop of what it does (front matter `showcase`).
+      'home-features-before': () => h(HomeShowcase),
       // Feature pages open with their part of the voice and text route (front matter `route`).
       'doc-before': () => h(RouteStrip),
     }),
