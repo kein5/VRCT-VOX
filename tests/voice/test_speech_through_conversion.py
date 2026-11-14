@@ -12,6 +12,7 @@ from models.tts.speechcpp_tts import CancelToken, SpeechError
 from models.voice_conversion import router_protocol as rp
 from models.voice_conversion.direct_voice import DirectVoice
 from models.voice_events import AudioFrame
+from test_controller_integration import controller_module  # noqa: F401
 
 
 def test_the_choice_is_off_by_default_and_cannot_mix_with_the_voice():
@@ -201,9 +202,9 @@ def test_a_cancelled_or_stopped_speech_tells_the_router_to_drop_it():
     ("translated", "mix", "off", False, False, False),
     ("off", "suppress", "on", False, False, False),
 ])
-def test_who_silences_the_direct_voice(monkeypatch, windows, mic_mode, policy, conversion,
+def test_who_silences_the_direct_voice(monkeypatch, controller_module, windows, mic_mode, policy, conversion,
                                        device_silenced, blocks_silenced, gate):
-    import controller as module
+    module = controller_module
     calls = {}
     app = module.Controller.__new__(module.Controller)
     app.direct_voice = SimpleNamespace(set_suppressed=lambda v: calls.update(device=v),

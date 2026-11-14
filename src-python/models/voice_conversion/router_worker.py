@@ -52,7 +52,8 @@ def main():
         process = create_worker_process(request['options'], **extra)
         if controlled:
             process.set_monitor_muted(muted)
-        process.set_direct_suppressed(suppressed)
+        if suppressed:
+            process.set_direct_suppressed(True)
         process.start(source=source)
         health = PipeWriter(sys.stdout)
         while True:
@@ -75,7 +76,9 @@ def main():
                         raise ValueError('vc_router_request_invalid')
                     if controlled:
                         process.set_monitor_muted(muted)
-                    process.set_direct_suppressed(frame.get('suppressed', False))
+                    if frame.get('suppressed', False) != suppressed:
+                        suppressed = frame.get('suppressed', False)
+                        process.set_direct_suppressed(suppressed)
                     revision = updated
             state = process.health()
             state['monitor_revision'] = revision

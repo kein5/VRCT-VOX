@@ -99,7 +99,9 @@ class IsolatedVCProcess:
         with self._lock:
             if self._monitor_muted != bool(muted):
                 self._monitor_muted = bool(muted)
-                self._monitor_revision += 1
+                # Without a monitor or device the OS gate mutes; the router needs no frame.
+                if self._controlled:
+                    self._monitor_revision += 1
 
     def set_direct_suppressed(self, suppressed):
         """Silence the microphone's blocks only; converted speech still plays (ADR-007)."""
@@ -177,8 +179,9 @@ class IsolatedVCProcess:
                 request.update(monitor=self.monitor)
             if self.output is not None:
                 request.update(output=self.output)
-            # Always: the direct-voice suppression travels here on every route.
-            request.update(monitor_control=self._monitor_control())
+            # The direct-voice suppression travels here on every route.
+            if self._controlled or self._direct_suppressed:
+                request.update(monitor_control=self._monitor_control())
             self._sent_monitor_revision = self._monitor_revision
             request = encode(request)
             self._state.update(requested=True, pending=True, state='preparing')
