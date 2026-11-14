@@ -17,6 +17,7 @@
     "clean": "python utils\\clean.py",
     "clean-soft": "python utils\\clean.py --soft",
     "update-version": "python utils\\update_version.py",
+    "changelog": "python tools/changelog.py write",
     "dev": "npm run task-kill && npm run clean && npm run update-version && npm run build-python && npm run dev-ui",
     "dev-cuda": "npm run task-kill && npm run clean && npm run update-version && npm run build-python-cuda && npm run dev-ui",
     "dev-fast": "set \"VRCT_DEV_VENV=.venv\" && npm run task-kill && npm run sidecar-dev && npm run dev-ui",

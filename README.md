@@ -68,7 +68,7 @@ VRChat and its associated properties are trademarks or registered trademarks of 
 
 ## Development
 
-Python work uses `uv`. Start with `npm run doctor`, install the headless checks with `npm run setup:headless`, and install the UI dependencies with `python tools/dev.py setup --scope ui`. `npm run check` runs the developer-tool, Node and lint checks. The [developer guide](docs/development.md) covers the voice, backend and Rust checks, browser tests and Cocogitto. See [CONTRIBUTING.md](CONTRIBUTING.md) for branches and pull requests.
+Python work uses `uv`. Start with `npm run doctor`, install the headless checks with `npm run setup:headless`, and install the UI dependencies with `python tools/dev.py setup --scope ui`. `npm run check` runs the developer-tool, Node and lint checks. The [developer guide](docs/development.md) covers the voice, backend and Rust checks, browser tests and Cocogitto. See [CONTRIBUTING.md](CONTRIBUTING.md) for branches, commit messages and pull requests. What each release changed is in [CHANGELOG.md](CHANGELOG.md), from 0.2.0 on; earlier releases are on [GitHub Releases](https://github.com/kein5/VRCT-VOX/releases).
 
 - [Build and CI guide (Japanese)](/docs/readme_build.md)
 - [Linux build pipeline](/docs/voice-stack/linux-build-pipeline.md) and [AppImage](/docs/voice-stack/appimage.md)

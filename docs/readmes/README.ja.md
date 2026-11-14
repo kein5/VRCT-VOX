@@ -65,7 +65,9 @@ VRChatおよび関連する名称はVRChat Inc.の商標または登録商標で
 
 ## 開発
 
-Pythonの環境には`uv`を使います。`npm run doctor`で開発環境を確認し、検査用の依存を`npm run setup:headless`、UIの依存を`python tools/dev.py setup --scope ui`で入れます。`npm run check`で開発ツール・Nodeのテスト・lintを実行します。音声・バックエンド・Rustの検査、ブラウザでのテスト、Cocogittoは[開発ガイド](/docs/development.md)を、ブランチとPRの決まりは[CONTRIBUTING.md](/CONTRIBUTING.md)を参照してください。
+Pythonの環境には`uv`を使います。`npm run doctor`で開発環境を確認し、検査用の依存を`npm run setup:headless`、UIの依存を`python tools/dev.py setup --scope ui`で入れます。`npm run check`で開発ツール・Nodeのテスト・lintを実行します。音声・バックエンド・Rustの検査、ブラウザでのテスト、Cocogittoは[開発ガイド](/docs/development.md)を、ブランチ、コミットメッセージ、PRの決まりは[CONTRIBUTING.md](/CONTRIBUTING.md)を参照してください。
+
+リリースごとの変更は[CHANGELOG.md](/CHANGELOG.md)にあります（0.2.0から）。それより前のリリースは[GitHub Releases](https://github.com/kein5/VRCT-VOX/releases)にあります。
 
 - [ビルドとCIのガイド](/docs/readme_build.md)
 - [Linuxのビルドパイプライン](/docs/voice-stack/linux-build-pipeline.md)と[AppImage](/docs/voice-stack/appimage.md)
