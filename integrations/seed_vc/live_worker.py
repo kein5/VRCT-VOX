@@ -56,7 +56,13 @@ def main():
         import numpy as np
         from scipy.signal import resample_poly
         resample_poly(np.zeros(p.FRAMES, dtype=np.float32), 147, 320)
-        engine, _, _ = create_engine(args.engine, args.assets, args.reference)
+        try:
+            engine, _, _ = create_engine(args.engine, args.assets, args.reference)
+        except (ValueError, RuntimeError) as exc:
+            if str(exc) not in p.WORKER_FAILURES:
+                raise
+            _write(output, p.failed_info(args.session, str(exc)))
+            return 1
         engine.set_config(**PROFILES['low'])
         engine._prepare_buffers(channels=1)
         if engine.config.samplerate != 22050 or engine.block_frame != 1764:
@@ -79,4 +85,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

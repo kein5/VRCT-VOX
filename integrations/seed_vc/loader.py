@@ -171,7 +171,8 @@ def create_engine(engine_root, assets_root, reference):
     import torch
     from realtime_vc_engine import RealtimeVCEngine
     if not torch.cuda.is_available():
-        raise RuntimeError('cuda_required_for_this_poc')
+        # Seed-VC runs only on CUDA here; the owner says so instead of "the worker ended".
+        raise ValueError('vc_gpu_unavailable')
     loader = LocalModelLoader(assets, engine_root)
     args = SimpleNamespace(gpu=0, fp16=True, checkpoint_path=None, config_path=None)
     engine = RealtimeVCEngine(args, model_loader=loader, enumerate_devices=False)

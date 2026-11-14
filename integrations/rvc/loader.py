@@ -179,6 +179,11 @@ def create_engine(engine_path, assets, model, index, pitch, index_rate):
     if not (2, 7) <= tuple(int(x) for x in torch.__version__.split('.')[:2]):
         raise ValueError('vc_runtime_version_unsupported')
     device, dtype, _, _ = get_device_dtype_sm(0)
+    # Upstream falls back to the CPU without a word: no NVIDIA driver, or an external GPU
+    # unplugged. A block then takes longer than it lasts and the voice stops a while later
+    # with "could not keep up". Saying so at the start is the clearer failure.
+    if not str(device).startswith('cuda'):
+        raise ValueError('vc_gpu_unavailable')
     config = SimpleNamespace(device=device, is_half=dtype == torch.float16)
     hubert.HUBERT_MODEL_PATH = assets / 'hubert_base'
     def load_hubert(device, is_half):

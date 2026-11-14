@@ -68,6 +68,7 @@ voice:
         vc_output_missing: "The output device was not found. Choose it again on the TTS page."
         vc_output_failed: "Writing to the output device failed. Check the device and start again."
         vc_feedback_blocked: "The input and output are the two ends of one virtual cable, which would feed the voice back into itself. Choose your real microphone as the input."
+        vc_gpu_unavailable: "No NVIDIA GPU is available for voice conversion. Check the GPU driver, and that an external GPU is still connected, then start again. RVC and Seed-VC currently run on NVIDIA GPUs only."
         vc_capture_overrun: "Conversion could not keep up and stopped. Set the retrieval blend to 0, or close other apps that use the GPU or CPU, then start again."
         vc_block_expired: "Conversion fell too far behind and stopped. Close other apps that use the GPU or CPU, then start again."
         direct_voice_stop_required: "Stop input forwarding before changing the audio route."
