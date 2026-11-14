@@ -1227,7 +1227,7 @@ speech_servers:
     device: "Inference device"
     device_named: "{{label}} ({{name}})"
     device_missing: "{{name}} (not found)"
-    device_help: "On a PC with both integrated and dedicated graphics, Auto and GPU may use either one. You can choose here. Running this on the GPU that RVC uses can make RVC stop more easily."
+    device_help: "Auto and GPU use a dedicated GPU before integrated graphics, and of several dedicated GPUs the one with the most memory, for AMD, Intel and NVIDIA alike. You can choose one here. Running this on the GPU that RVC uses can make RVC stop more easily."
     low_latency: "Low-latency standby (Irodori GPU)"
     low_latency_help: "While the server runs, it keeps the GPU warm with silent requests, even with TTS off, so the first speech starts sooner. Uses more power and may compete with games. Stop the server before changing this. Latency is not guaranteed."
     low_latency_warming: "Preparing low-latency standby"

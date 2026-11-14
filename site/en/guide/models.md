@@ -39,6 +39,17 @@ Translation models are downloaded under Settings → "Translation", and Whisper 
 
 The TTS page shows your GPU's name and its total and free memory, and suggests the standard or the lighter model for that free memory. This is guidance only; it does not reserve memory or guarantee that it runs. Leave more headroom when you use VRChat at the same time.
 
+## Which GPUs are used
+
+| Feature | GPU |
+|---|---|
+| Speech, realtime captions and speaker labels (the bundled speech.cpp) | AMD, Intel and NVIDIA (Vulkan) |
+| Local translation and Whisper speech recognition | NVIDIA (the Windows GPU version). Other GPUs run them on the CPU |
+| Voice conversion (RVC, Seed-VC) | NVIDIA |
+| Chat reading | Runs on the CPU |
+
+With the inference device set to Automatic or GPU, the bundled speech.cpp servers use a dedicated GPU before integrated graphics, and of several dedicated GPUs the one with the most memory. You can also pick one under "Inference device" in "Models and servers".
+
 ## Where models are saved
 
 Downloaded models go to `downloaded_models` in the same folder as the settings file (`config.json`). On Linux that is `~/.config/vrct-vox/downloaded_models`; on Windows it is `downloaded_models` in the folder the app is in. Translation and Whisper models are kept elsewhere: in `weights` in the app's folder on Windows, and under `~/.local/share/vrct-vox` on Linux.
