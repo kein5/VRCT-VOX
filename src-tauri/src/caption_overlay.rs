@@ -152,17 +152,103 @@ fn show_without_focus(overlay: &WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(not(windows))]
+/// Linux, on X11 or XWayland: the window is mapped as an unmanaged (override-redirect)
+/// window. A window manager stacks a focused full-screen game above "keep above"
+/// windows (KWin's active layer), so a managed window would vanish under VRChat in
+/// full screen. An unmanaged window is never focused, decorated or listed, and
+/// KWin keeps it above managed windows, as it does tooltips and menus.
+#[cfg(target_os = "linux")]
+async fn on_gtk<F>(overlay: &WebviewWindow, work: F) -> Result<(), String>
+where
+    F: FnOnce(&gtk::ApplicationWindow) -> Result<(), String> + Send + 'static,
+{
+    let (tx, mut rx) = tauri::async_runtime::channel(1);
+    let target = overlay.clone();
+    overlay
+        .run_on_main_thread(move || {
+            let result = target.gtk_window().map_err(|error| error.to_string()).and_then(|window| work(&window));
+            let _ = tx.try_send(result);
+        })
+        .map_err(|error| error.to_string())?;
+    rx.recv().await.ok_or("caption_overlay_unavailable")?
+}
+
+/// Before any setting that needs the native window: tao's click-through request
+/// unwraps the GdkWindow and panics while the window is not realized (seen on the
+/// first open in CI). Realizing does not map it, so override-redirect still applies.
+#[cfg(target_os = "linux")]
+async fn prepare(overlay: &WebviewWindow) -> Result<(), String> {
+    use gtk::prelude::*;
+
+    on_gtk(overlay, |window| {
+        window.realize();
+        let native = window.window().ok_or("caption_overlay_unavailable")?;
+        if !native.is_visible() {
+            // X11 takes this attribute only while the window is unmapped.
+            native.set_override_redirect(true);
+        }
+        window.set_accept_focus(false);
+        window.set_focus_on_map(false);
+        Ok(())
+    })
+    .await
+}
+
+#[cfg(target_os = "linux")]
+async fn show_without_focus(overlay: &WebviewWindow) -> Result<(), String> {
+    use gtk::prelude::*;
+
+    on_gtk(overlay, |window| {
+        window.show_all();
+        if let Some(native) = window.window() {
+            native.raise();
+        }
+        Ok(())
+    })
+    .await
+}
+
+/// Keeps the unmanaged window on top. Under a plain X11 window manager a game raised
+/// later can cover it; KWin needs nothing here. Raising never takes the focus.
+#[cfg(target_os = "linux")]
+fn raise(overlay: &WebviewWindow) {
+    use gtk::prelude::*;
+
+    let target = overlay.clone();
+    let _ = overlay.run_on_main_thread(move || {
+        if let Ok(window) = target.gtk_window() {
+            if let Some(native) = window.window() {
+                native.raise();
+            }
+            // A transparent X11 surface may stay unpainted until it is drawn again.
+            window.queue_draw();
+        }
+    });
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn show_without_focus(overlay: &WebviewWindow) -> Result<(), String> {
     overlay.show().map_err(|error| error.to_string())
 }
 
-/// Windows only for now: a window that stays above a game and passes clicks
-/// through has not been tried on the Linux desktops (Wayland has no such role).
+/// Windows, and Linux where GTK draws on X11 (the AppImage, which uses XWayland on
+/// a Wayland desktop). Native Wayland gives a client no window that stays above a
+/// full-screen game; the layer-shell protocol would, and is not used yet.
+fn platform_supported() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        !crate::quick_chat::native_wayland()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        cfg!(windows)
+    }
+}
+
 #[tauri::command]
 pub fn caption_overlay_supported(window: WebviewWindow) -> Result<bool, String> {
     sender(window.label(), "main")?;
-    Ok(cfg!(windows))
+    Ok(platform_supported())
 }
 
 // One open or close at a time: a close that has not finished must not look
@@ -197,7 +283,7 @@ pub async fn caption_overlay_set(
         }
         return Ok(());
     }
-    if !cfg!(windows) {
+    if !platform_supported() {
         return Err("caption_overlay_unsupported".into());
     }
     let monitor = window
@@ -227,11 +313,20 @@ pub async fn caption_overlay_set(
             .build()
             .map_err(|error| error.to_string())?,
     };
+    #[cfg(target_os = "linux")]
+    prepare(&overlay).await?;
     overlay.set_ignore_cursor_events(true).map_err(|error| error.to_string())?;
     overlay.set_position(PhysicalPosition::new(x, y)).map_err(|error| error.to_string())?;
     overlay.set_size(PhysicalSize::new(width, height)).map_err(|error| error.to_string())?;
     overlay.set_always_on_top(true).map_err(|error| error.to_string())?;
-    show_without_focus(&overlay)
+    #[cfg(target_os = "linux")]
+    {
+        show_without_focus(&overlay).await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        show_without_focus(&overlay)
+    }
 }
 
 /// The main window hands over what to draw.
@@ -246,6 +341,10 @@ pub fn caption_overlay_update(
     *state.0.lock().map_err(|_| "caption_overlay_unavailable")? = snapshot;
     // No overlay window yet is not an error: it reads the snapshot when it opens.
     let _ = window.app_handle().emit_to(LABEL, "caption-overlay-changed", ());
+    #[cfg(target_os = "linux")]
+    if let Some(overlay) = window.app_handle().get_webview_window(LABEL) {
+        raise(&overlay);
+    }
     Ok(())
 }
 
