@@ -50,6 +50,8 @@ The TTS page shows your GPU's name and its total and free memory, and suggests t
 
 With the inference device set to Automatic or GPU, the bundled speech.cpp servers use a dedicated GPU before integrated graphics, and of several dedicated GPUs the one with the most memory. You can also pick one under "Inference device" in "Models and servers".
 
+To translate on an AMD or Intel GPU, use a [local LLM](../features/translation#local-llms-and-compatible-servers): Ollama and LM Studio support those GPUs too. To turn speech into text, use realtime captions (the bundled speech.cpp), which run on any GPU.
+
 ## Where models are saved
 
 Downloaded models go to `downloaded_models` in the same folder as the settings file (`config.json`). On Linux that is `~/.config/vrct-vox/downloaded_models`; on Windows it is `downloaded_models` in the folder the app is in. Translation and Whisper models are kept elsewhere: in `weights` in the app's folder on Windows, and under `~/.local/share/vrct-vox` on Linux.
