@@ -53,6 +53,29 @@ test("settings transport returns its canonical write response, never a matching 
     assert.deepEqual(Object.keys(writes[0]), ["endpoint", "data"], "wire format is unchanged");
 });
 
+// SEC-02: a request relayed for the VR panel carries its origin, which the backend checks.
+test("a relayed request is marked for the backend, and the main window's own requests are not", async () => {
+    const subject = await setup(), writes = [];
+    subject.store.backend_subprocess = { write: async line => { writes.push(JSON.parse(line)); } };
+    await subject.send("/set/enable/translation", undefined, undefined, "vr_panel");
+    await subject.send("/set/enable/translation");
+    assert.deepEqual(writes, [{ endpoint: "/set/enable/translation", origin: "vr_panel" }, { endpoint: "/set/enable/translation" }]);
+});
+
+// A refused relay restores the value the main window showed as pending.
+test("a refused relayed write restores its pending value", async () => {
+    const subject = await setup();
+    subject.store.backend_subprocess = { write: async () => true };
+    // A settings write waits for its own response; the refusal is that response.
+    const saving = subject.send("/set/data/osc_port", 9001, undefined, "vr_panel");
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const refusal = { endpoint: "/set/data/osc_port", status: 403, result: { error_code: "vr_panel_request_refused" } };
+    pendingRequestRecovery.receive(refusal, () => {});
+    settingsWriteResponses.receive(refusal);
+    assert.deepEqual(await saving, refusal);
+    assert.equal(subject.value.state, "ok");
+});
+
 test("backend recovery releases pending settings response owners", async () => {
     const subject = await setup();
     subject.store.backend_subprocess = { write: async () => true };

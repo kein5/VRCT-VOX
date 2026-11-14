@@ -67,6 +67,7 @@ for _stage, _module in (("import_audio_devices", "device_manager"), ("import_con
 
 from controller import Controller  # noqa: E402
 from utils import printLog, printResponse, errorLogging, encodeBase64, isQuietPoll, openTraceLog # noqa: E402
+from models.vr_panel_policy import request_allowed  # noqa: E402
 
 startup_timing.mark("import_controller")
 
@@ -1000,6 +1001,12 @@ class Main:
 
                 if received_data:
                     endpoint = received_data.get("endpoint")
+                    if not request_allowed(received_data.get("origin"), endpoint):
+                        # A request relayed for the VR panel outside its list (SEC-02). It is
+                        # not decoded or queued; the UI's own list should have kept it back.
+                        printLog("Refused a request relayed for the VR panel", {"endpoint": endpoint})
+                        printResponse(403, endpoint, {"error_code": "vr_panel_request_refused"})
+                        continue
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
                     if not isQuietPoll(endpoint):

@@ -233,7 +233,7 @@ Python sidecarはshell pluginのstdin/stdoutでつなぐ。UIはPythonのHTTPサ
 
 Quick Chatのコンテキストは、`ready`、`language`、`enter_to_send`、`clear_on_send`に加え、保存済みの`ui_scaling`（整数、40〜200%）と`font_family`（空白だけではなく、制御文字を含まない256文字以内のローカルフォント名）を持つ。Rustは呼び出し元と値を検証してから置き換える。新しい2項目を省略した要求は100%と`Yu Gothic UI`を使う。小窓はフォント名をCSSの文字列として扱い、既存のNoto／システムフォントへのフォールバックを保つ。設定ファイルのキーやPython側のIPC形式は変更しない。
 
-VRパネルの要求は`main`が中継する。中継しないのは、アプリの終了と更新、ファイルを開く操作、モデルの取得、認証キーとトークン、接続先（`*_url`、WebSocket・OBS・OSCのホストとポート）、音声の設定（読み上げ、直接の音声、音声サーバー、リアルタイム音声認識）である（`src-ui/logics/common/vrPanelWire.js`）。VRパネルへ写す状態にも、認証キーとトークンは入れない。ウィンドウの共有を戻すトークン（`ocr_portal_restore_token`）も、中継と写しの対象から外す。
+VRパネルの要求は`main`が中継する（セキュリティ監査 SEC-02）。中継するのは、VRパネルが実際に送る操作として`VR_PANEL_RELAY_PATHS`（`src-ui/logics/common/vrPanelWire.js`）に載せたものだけで、載っていない操作は新しいエンドポイントも含めて中継しない。載せているのは、VRパネル自身の窓と操作バー、ランチャーの4つのスイッチ、言語の窓、VRの設定の窓が変える設定（デバイスとしきい値、翻訳・音声認識・チャット読み取りの選択、メッセージの変換、VRの字幕、表示言語とフォント）である。アプリの終了と更新、ファイルを開く操作、モデルや実行環境の取得、認証キーとトークン、接続先（URL、WebSocket・OBS・OSCのホストとポート、証明書）、音声の設定、テレメトリの有効化と同意は載せない。`main`は中継する要求に`"origin": "vr_panel"`を付け、バックエンドも同じ一覧（`src-python/models/vr_panel_policy.py`）で確かめる。一覧にない要求は解釈せず、403と`vr_panel_request_refused`を返す。`origin`のない要求は`main`自身のもので、`vr_panel`以外の`origin`は拒否する。2つの一覧が同じことは試験で確かめる。`vr-panel-stdout`のイベントを送れるのは、イベントの送信権限を持つ`main`と`vr_panel`のウィンドウだけである（`src-tauri/capabilities`）。VRパネルへ写す状態にも、認証キーとトークンは入れない。ウィンドウの共有を戻すトークン（`ocr_portal_restore_token`）も、中継と写しの対象から外す。
 
 ### ウィンドウ間の連携
 
