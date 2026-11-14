@@ -202,7 +202,7 @@ def test_a_cancelled_or_stopped_speech_tells_the_router_to_drop_it():
     ("translated", "mix", "off", False, False, False),
     ("off", "suppress", "on", False, False, False),
 ])
-def test_who_silences_the_direct_voice(monkeypatch, controller_module, windows, mic_mode, policy, conversion,
+def test_who_silences_the_direct_voice(monkeypatch, controller_module, windows, mic_mode, policy, conversion,  # noqa: F811
                                        device_silenced, blocks_silenced, gate):
     module = controller_module
     calls = {}
