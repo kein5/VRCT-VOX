@@ -30,6 +30,20 @@ const assets = readdirSync(join(dist, "assets")).filter(name => name.endsWith(".
 const pages = [readFileSync(join(dist, "ja", "index.html"), "utf8"), ...assets];
 if (!pages.some(text => text.includes("Intl.Segmenter"))) failures.push("the built pages do not carry the word splitter (Intl.Segmenter)");
 
+// A browser without Intl.Segmenter must still get words, split on spaces and punctuation.
+const segmenter = Intl.Segmenter;
+try {
+    delete Intl.Segmenter;
+    const words = tokenize("Voice changer (RVC)、テキスト読み上げ");
+    if (JSON.stringify(words) !== JSON.stringify(["Voice", "changer", "RVC", "テキスト読み上げ"])) {
+        failures.push(`without Intl.Segmenter the splitter gave ${JSON.stringify(words)}`);
+    }
+} catch (error) {
+    failures.push(`without Intl.Segmenter the splitter failed: ${error.message}`);
+} finally {
+    Intl.Segmenter = segmenter;
+}
+
 for (const [locale, words] of Object.entries(WORDS)) {
     const file = files.find(name => name.startsWith(`@localSearchIndex${locale}.`));
     if (!file) { failures.push(`${locale}: no search index in ${chunks}`); continue; }
