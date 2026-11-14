@@ -4779,6 +4779,7 @@ version = "0.0.0"
 dependencies = [
  "font-kit",
  "gdkx11",
+ "glob",
  "gtk",
  "serde",
  "serde_json",

@@ -27,6 +27,11 @@ tauri-plugin-http = "=2.8.3"
 tauri-plugin-shell = "=2.6.0"
 font-kit = "=0.14.3"
 
+[dev-dependencies]
+# Already locked through tauri-plugin-opener, which matches its URL scope with it; the tests use
+# the same matcher on the capability files.
+glob = "=0.3.4"
+
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-global-shortcut = "=2.4.1"
 tauri-plugin-single-instance = "=2.5.5"

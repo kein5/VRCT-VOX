@@ -1,10 +1,9 @@
 {
     "$schema": "../gen/schemas/desktop-schema.json",
     "identifier": "default",
-    "description": "Capability for the main window",
+    "description": "Core permissions of the main window and the VR panel. Opening links is granted to main alone, in vrct_capability.json, for the sites the app links to.",
     "windows": ["main", "vr_panel"],
     "permissions": [
-        "core:default",
-        "opener:default"
+        "core:default"
     ]
 }

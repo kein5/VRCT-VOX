@@ -290,3 +290,5 @@ VRパネルで会話ログを閉じている間も、状態の受信とログの
 ### 権限
 
 `src-tauri/capabilities/`で、`main`にウィンドウ操作、ショートカット、ファイル、GitHubへのHTTP、サイドカーの起動を許す。`quick_chat`にはイベントの受信だけを許し、コマンドは呼び出し元のウィンドウ名をRust側で確かめる。
+
+ブラウザーでURLを開けるのは`main`だけで、開けるのは`vrct_capability.json`の`opener:allow-open-url`に挙げたURLだけである（第2回セキュリティ監査 SEC-02）。同じウィンドウに当たる権限は合わさるので、`opener:default`のような広い権限はどのファイルにも入れない。一覧には、アプリが表示するリンクの行き先を挙げる。ユーザー向けドキュメント、このリポジトリ、元のVRCTと貢献者のページ、APIキーを作るページ、Hugging Faceのモデルカード、ライセンスの本文である。`..`を含むパス、パーセントで符号化した`.`と`\`、`@`を含むURLは拒否する。照合はglobで行い、Windowsでは`\`と`/`を同じ文字とみなす。UIに書いたURLと、Pythonのカタログが渡す取得元とライセンスのリンクがどれも一覧に入っていることは、試験で確かめる（`src-ui/logics/common/openerScope.test.js`、`tests/voice/test_url_open_scope.py`、`src-tauri/src/opener_scope_tests.rs`）。新しいリンクを足したら、一覧にも足す。
