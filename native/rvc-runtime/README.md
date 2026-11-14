@@ -173,6 +173,57 @@ clip and a LibriSpeech utterance, both CC BY 4.0): four cases, 48 trials. The
 specification asks for v1/v2, 32/40/48 kHz and with/without F0; the public set covers v2
 with F0 at 40 and 48 kHz only, so the other variants need models passed with `--voice`.
 
+### Objective comparison
+
+`reference/objective_compare.py` measures what the listening test asks, with models
+pinned in `setup_reference.py` (about 1.4 GB more):
+
+| Question | Measure |
+|---|---|
+| Same voice? | speaker-embedding cosine similarity (SpeechBrain ECAPA-TDNN, VoxCeleb; Apache-2.0) |
+| Same phrasing? | character error rate between Whisper-small transcripts (Apache-2.0), and against the input's transcript |
+| As natural? | TorchAudio-Squim subjective MOS estimate |
+| Same timbre? | MFCC distortion (mel-cepstral distortion formula on MFCCs), log-spectral distance |
+| Same intonation? | F0 voicing agreement and pitch difference in cents (RMVPE) |
+| Same level? | RMS level difference |
+
+Synthesis noise is random, so every model and input is converted with four seeds by
+both implementations. A measure passes when "runtime against reference" is no further
+apart than the reference's own seeds are from each other (for the per-output measures:
+the runtime's mean lies within the reference's range widened by half of it).
+
+```sh
+$REF/venv/bin/python native/rvc-runtime/reference/objective_compare.py --language en
+# your own models and recordings (kept local):
+$REF/venv/bin/python native/rvc-runtime/reference/objective_compare.py --voice my.pth my.index --input me.wav --language ja
+```
+
+It writes `$REF/objective/report.md` and `report.json`. Transcripts are only used for
+the error rates and are neither printed nor stored.
+
+Results (2026-11-15, same machine, CPU; the two public models × the two public clips,
+seeds 7–10). Each cell gives the lowest and highest per-case mean over the four cases.
+
+| Measure | Reference against reference | Runtime against reference | Within the spread |
+|---|---|---|---|
+| Speaker similarity (cosine) | 0.915 – 0.965 | 0.915 – 0.970 | 4 / 4 |
+| CER between transcripts | 0.000 – 0.036 | 0.000 – 0.027 | 4 / 4 |
+| MFCC distortion | 21.616 – 30.184 | 21.556 – 30.430 | 4 / 4 |
+| Log-spectral distance (dB) | 7.031 – 7.936 | 7.044 – 7.933 | 4 / 4 |
+| F0 voicing agreement | 0.948 – 0.989 | 0.947 – 0.990 | 4 / 4 |
+| F0 difference (cents, median) | 2.504 – 2.857 | 2.444 – 2.894 | 4 / 4 |
+| Level difference (dB) | 0.099 – 0.338 | 0.088 – 0.361 | 4 / 4 |
+| Squim MOS estimate | 3.760 – 4.450 | 3.741 – 4.426 | 4 / 4 |
+| CER against the input transcript | 0.000 – 0.030 | 0.000 – 0.027 | 4 / 4 |
+
+36 of 36 measures are within the reference's own spread. For the per-output measures (MOS and
+CER against the input) the columns compare the outputs of each implementation rather than pairs.
+The MFCC distortion uses librosa MFCCs, so its values are not comparable with published
+mel-cepstral distortion figures; only the comparison between the columns is meaningful.
+With four seeds, the 40 kHz voicing agreement that looked low in the single-seed
+conformance test (95.6 % against 99.1 %) is within the reference spread (0.947 – 0.965
+against 0.948 – 0.955).
+
 ### Speed and memory (same machine, CPU)
 
 | Input | Time | Peak memory |
