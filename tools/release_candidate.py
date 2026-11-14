@@ -32,21 +32,19 @@ def names(platform, version, files):
             )
     elif platform == "linux":
         pattern = rf"VRCT-VOX-{re.escape(version)}-linux-x64-(?:cpu|vulkan)-release"
-        if len(files) != 2 or not all(
-            re.fullmatch(pattern + r"\.(?:tar\.gz|AppImage)", name) for name in files
+        suffixes = (".tar.gz", ".AppImage", ".deb", ".rpm")
+        if len(files) != len(suffixes) or not all(
+            re.fullmatch(pattern + r"\.(?:tar\.gz|AppImage|deb|rpm)", name) for name in files
         ):
             raise ValueError(
-                "Linux candidate must include the versioned archive and AppImage"
+                "Linux candidate must include the versioned archive, AppImage, deb and rpm"
             )
-        if (
-            len(
-                {
-                    name.removesuffix(".tar.gz").removesuffix(".AppImage")
-                    for name in files
-                }
-            )
-            != 1
-        ):
+        stems = set()
+        for name in files:
+            for suffix in suffixes:
+                name = name.removesuffix(suffix)
+            stems.add(name)
+        if len(stems) != 1 or {name[len(next(iter(stems))):] for name in files} != set(suffixes):
             raise ValueError("Linux candidates must use the same engine variant")
     else:
         raise ValueError("Unsupported candidate platform")
