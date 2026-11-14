@@ -217,7 +217,7 @@ npm run vite-build
 
 ### 比較用 HTML
 
-- [デザイン比較 HTML](vr_ui_settings_preview.html)。React、スタイル、翻訳、アイコンを含む単独ファイルで、ネット接続や Tauri を必要としない。
+- [デザイン比較 HTML](https://github.com/kein5/VRCT-VOX/blob/250cec9681752c2f897d9a15a38e647c38561842/docs/vr_ui_settings_preview.html)（0.2.0でリポジトリから外した。リンク先は外す直前のコミット）。React、スタイル、翻訳、アイコンを含む単独ファイルで、ネット接続や Tauri を必要としない。
 - A は §10 の追加後の実 `VrSettingsWindow` / `VrSettingsRows` / `VrWindow` と SCSS を使用。内部サイズは `vr_layout.json` と同じ 720×640。ブラウザーの幅が狭いときだけ表示を縮小する。
 - B は HTML 内だけの CSS 案。選択値をラベルの下へ移し、長い値の折り返しと 20 px 表示を追加。選択行は最小 96 px、＋/− と左右選択は 64 px。バナー/補助文字のコントラストとフォーカス枠も変更。
 - 「通常」「切り替え中」「モデル未準備」「長い機器名・モデル名」と表示言語を切り替えられる。設定操作はサンプル値だけを変更し、約 0.65 秒の待ちを模擬する。実モデルの読込時間を示すものではない。
@@ -266,7 +266,7 @@ npm run vite-build
 
 ユーザーの依頼で UI/UX Pro Max と Web Design Guidelines をユーザーのスキルディレクトリへ導入し、本文と関連ガイドを読んで HTML 案を改善した。プロジェクトの依存は追加していない。
 
-- [HTML 比較プレビュー](vr_ui_settings_preview.html) に A「現在の実装」・B「前回の整理案」・C「UX 改善案」を収録。初期表示は C。設定値と機器名はサンプルで、バックエンド・SteamVR には接続しない。
+- [HTML 比較プレビュー](https://github.com/kein5/VRCT-VOX/blob/250cec9681752c2f897d9a15a38e647c38561842/docs/vr_ui_settings_preview.html) に A「現在の実装」・B「前回の整理案」・C「UX 改善案」を収録。初期表示は C。設定値と機器名はサンプルで、バックエンド・SteamVR には接続しない。
 - 音声認識はエンジン・モデルの後にマイク3項目を置く。処理設定とスピーカー設定は折りたたみ、処理設定は現在値を見せる。通常状態は日英ともマイク3行が初期画面内に収まる。
 - 24文字超の選択値を2段で全文表示し、短い値は横並びを維持。短い値も必要時は折り返す。処理デバイスとタイプの Picker 見出しはカテゴリと操作対象を残す。
 - Picker 中も設定コンポーネントを保持し、選択・取消後にスクロール位置と展開状態を復元する。「戻る」を一覧上部に固定し、Escape でも取消できる。
@@ -289,7 +289,7 @@ npm run vite-build
 ### プレビューの継続編集
 
 - 編集用の JSX、CSS、モック、ビルダーは `C:/Users/misyaguzi/.codex/visualizations/2026/10/01/01a0f64c-b1e5-7762-afc4-3bb47707198f/vr-settings-design/` に保存。C の正本は同ディレクトリの `VrSettingsWindowProposal.jsx` / `VrSettingsRowsProposal.jsx` / `VrWindowProposal.jsx`。worktree 内の生成途中のコピーは使わない。
-- 次回の再生成は別 worktree を用意し、現在の未コミット UI 4ファイル（§10）を反映して、`node build-preview.mjs <worktree の絶対パス>` を実行する。出力 HTML をこの文書と同じ場所の `vr_ui_settings_preview.html` へコピーし、ブラウザーを再読込する。
+- 次回の再生成は別 worktree を用意し、現在の未コミット UI 4ファイル（§10）を反映して、`node build-preview.mjs <worktree の絶対パス>` を実行する。出力 HTML をブラウザーで開いて確かめる。0.2.0から、出力はリポジトリに入れない（CodeQLが組み込みのコードを警告するため）。
 - HTML 自体は単体で表示可能。ローカル表示 URL は `http://127.0.0.1:8768/vr-settings-preview.html`。
 
 ## 13. 承認された C 案の本体実装（2026-10-01）
@@ -350,7 +350,7 @@ npm run vite-build
 
 ### HTML と確認結果
 
-- 保存先: `docs/vr_ui_language_preview.html`。表示 URL: `http://127.0.0.1:8768/language/vr-language-preview.html`。
+- 保存先: [`docs/vr_ui_language_preview.html`](https://github.com/kein5/VRCT-VOX/blob/250cec9681752c2f897d9a15a38e647c38561842/docs/vr_ui_language_preview.html)（0.2.0で外した）。表示 URL: `http://127.0.0.1:8768/language/vr-language-preview.html`。
 - 編集用の JSX／モック／CSS／ビルダー／証拠画像は `C:/Users/misyaguzi/.codex/visualizations/2026/10/01/01a0f64c-b1e5-7762-afc4-3bb47707198f/vr-settings-design/language/`。実装の `VrLanguageWindow`、共有 `VrWindow`、SCSS と実際の `useLanguageSettings` をビルド。ストア・バックエンド応答は模擬値で、実設定への送信は行わない。
 - 選択候補135件は音声認識の静的カタログを Python AST で読んだサンプル。モデルを初期化せず、実機の `SelectableLanguageList` や認証済みエンジン一覧を取得したものではない。同言語の利用制限は controller の規則をモックで再現。
 - 検証用 worktree は共有依存へのリンクを置かず、終了後にアーカイブ済み。再生成時は新しい worktree に現在の共有 `VrWindow` と5 locale の差分を反映して、同ディレクトリで `node build-preview.mjs <worktree の絶対パス>` を実行する。ビルダーはメイン checkout の既存依存を絶対パスで読む。
@@ -379,7 +379,7 @@ npm run vite-build
 
 ### HTML と継続編集
 
-- 保存先: `docs/vr_ui_language_proposal.html`。表示 URL: `http://127.0.0.1:8768/language-proposal/vr-language-proposal.html`。
+- 保存先: [`docs/vr_ui_language_proposal.html`](https://github.com/kein5/VRCT-VOX/blob/250cec9681752c2f897d9a15a38e647c38561842/docs/vr_ui_language_proposal.html)（0.2.0で外した）。表示 URL: `http://127.0.0.1:8768/language-proposal/vr-language-proposal.html`。
 - HTML 上部で「改善案／現行UI」、5言語、12ケースを切替可能。通常、上限、候補12件、長い名前、同言語、同言語・別の国、重複枠、利用不可エンジン、反映中、反映失敗、初回同期前、PC設定画面による操作停止を比較できる。
 - 編集用 JSX／SCSS／モック／辞書／ビルダー／画像／`measurements.json` は `C:/Users/misyaguzi/.codex/visualizations/2026/10/01/01a0f64c-b1e5-7762-afc4-3bb47707198f/vr-settings-design/language-proposal/` に保存。
 - 再生成は同ディレクトリの `node build-preview.mjs`。現在の checkout の製品ソースと既存依存を絶対パスで読み、`write:false` で HTML にまとめる。worktree・依存ディレクトリへの Junction・依存追加は不要。出力 HTML を上記の docs 保存先へコピーし、ブラウザーを再読込する。
@@ -435,7 +435,7 @@ npm run vite-build
 
 ### 実装確認用HTML
 
-- 保存先: `docs/vr_ui_language_implementation.html`。
+- 保存先: [`docs/vr_ui_language_implementation.html`](https://github.com/kein5/VRCT-VOX/blob/250cec9681752c2f897d9a15a38e647c38561842/docs/vr_ui_language_implementation.html)（0.2.0で外した）。
 - URL: `http://127.0.0.1:8768/language-implementation/vr-language-preview.html`。
 - 編集・再生成用のJSX／モック／ビルダー／証拠は `C:/Users/misyaguzi/.codex/visualizations/2026/10/01/01a0f64c-b1e5-7762-afc4-3bb47707198f/vr-settings-design/language-implementation/`。同ディレクトリで `node build-preview.mjs` を実行し、HTMLをdocs保存先へコピーして再読込する。現checkoutの既存依存を絶対パスで読む。依存追加・worktree・Junctionは不要。
 - UI、Jotaiストア、`useLanguageSettings`、送信処理、coordinator／adapterは実コード。Tauri中継とPython応答、候補135件、エンジン可否だけを模擬化する。Python JSONの要求記録にはmetadataが混入していないことを確認した。実設定への送信は行わない。

@@ -3,8 +3,8 @@
 ## Optional voice integration in this fork
 
 VRCT-VOX is an independent fork of VRCT. Original VRCT copyright and MIT
-license notices are retained in `LICENSE`. The model exception below describes
-the retained upstream source asset; **fork binary distributions exclude all OCR
+license notices are retained in `LICENSE`. The upstream chat-bubble model was
+removed in 0.2.0 (see below); **fork binary distributions exclude all OCR
 weights** while retaining their attribution documents.
 
 The fork supports external engines and a fixed speech.cpp binary bundle with
@@ -21,78 +21,20 @@ not include it, so those web translators are unavailable; local CTranslate2
 translation, DeepL and the LLM providers remain. The distribution policy
 rejects it in any build.
 
-## Exception: the chat-bubble detection model
+## Removed: VRCT's chat-bubble detection model
 
-| | |
-|---|---|
-| File (repository) | `src-python/models/ocr/onnx/chatbox_yolox_tiny.onnx` |
-| File (built application) | `_internal/ocr_onnx/chatbox_yolox_tiny.onnx` |
-| Copyright | Copyright (c) 2026 misyaguziya. All rights reserved. |
-| License | VRCT Chat-Bubble Detection Model License Agreement — [`LICENSE.txt`](src-python/models/ocr/onnx/LICENSE.txt) (Japanese, authoritative) / [`LICENSE.en.txt`](src-python/models/ocr/onnx/LICENSE.en.txt) (English translation) |
+Commits up to VRCT-VOX 0.1.0 contain `src-python/models/ocr/onnx/chatbox_yolox_tiny.onnx`,
+the chat-bubble detection model of upstream VRCT. It is not covered by the MIT
+License: it is licensed under the VRCT Chat-Bubble Detection Model License
+Agreement (Copyright (c) 2026 misyaguziya), whose text sits next to it in those
+commits and in [upstream VRCT](https://github.com/misyaguziya/VRCT). That
+agreement allows a fork to run the model while working on VRCT itself, and not
+to ship it in a fork's own release.
 
-This file is **not** covered by the MIT License in `LICENSE`. The original VRCT application code is MIT-licensed; the fork additions and
-third-party components described above retain their respective notices.
-
-### What you may and may not do
-
-You may:
-
-- run the model as part of VRCT on your own machine, and keep backup copies
-  for that purpose;
-- **run it in a fork of VRCT** while developing, fixing, testing or
-  otherwise contributing to VRCT — forks do not have to strip the model out
-  to be able to build and run;
-- fork or mirror this repository with the model unmodified inside it,
-  together with its license and copyright notice;
-- redistribute an official VRCT distribution with the model unmodified
-  inside it.
-
-You may **not**:
-
-- ship the model inside a fork's own built release (installer, executable
-  distribution and the like);
-- use the model in software that is not VRCT or a fork of it, or use it
-  standalone;
-- redistribute it separately, or sell, lend or transfer it;
-- create derived models — including by further training, quantizing,
-  pruning, converting or distilling it;
-- use its outputs to train, evaluate or distil any machine learning model.
-
-The agreement linked above is the authoritative statement; this section is
-a summary. If you need terms beyond that, contact the copyright holder.
-
-### Why the model is separate
-
-The model is trained on VRChat screenshots that were collected and
-annotated by hand. That dataset, and the weights produced from it, are the
-part of VRCT that is not simply source code, and they are kept under the
-author's own terms. The intent is narrow: keep the model from being lifted
-into unrelated projects. Working on VRCT itself, in a fork, is not what
-these terms are aimed at.
-
-The base it is trained from does not constrain this. It is fine-tuned from
-`yolox_tiny.pth`, the COCO-pretrained weights published by Megvii under
-Apache-2.0, using YOLOX 0.3.0 (also Apache-2.0). Apache-2.0 does not claim
-the trained result.
-
-Earlier releases bundled `chatbox_yolov8n.onnx`, fine-tuned from Ultralytics
-YOLOv8 weights and therefore distributed under AGPL-3.0. That model has been
-replaced and is no longer shipped. Copies already obtained under AGPL-3.0
-remain under AGPL-3.0; the change applies from the release that carries
-`chatbox_yolox_tiny.onnx` onward. The background is in
-[`docs/ocr_model_license.md`](docs/ocr_model_license.md).
-
-### VRCT itself is unaffected
-
-VRCT's source code stays MIT, and creating and distributing a fork is free
-under the MIT License. The only consequence for a fork is that it cannot
-put the model in its own released build; it can still develop and run with
-it. A fork that wants to ship detection can train its own detector — the
-procedure, the training configuration and the dataset preparation scripts
-are all published in
-[upstream VRCT](https://github.com/misyaguziya/VRCT/blob/develop/docs/ocr_yolo_training.md). VRCT also builds
-and runs without the model, in which case only chat-bubble detection within
-the OCR feature is unavailable.
+VRCT-VOX never shipped or ran the model, and is no longer a fork that works on
+VRCT, so the file was removed in 0.2.0. VRCT-VOX's own detector, trained
+separately and published under MIT, is downloaded only with the user's consent
+(see the OCR section below and `docs/ocr_model_license.md` for the background).
 
 ## Third-party OCR model weights (upstream VRCT; not in VRCT-VOX builds)
 

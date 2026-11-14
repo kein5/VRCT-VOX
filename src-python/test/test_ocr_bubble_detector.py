@@ -12,17 +12,15 @@ YOLOv8n から YOLOX へ載せ替えたときに前処理と後処理の両方�
 推論そのものは、cv2とonnxruntimeが入っている環境でだけ動く煙テストで見る。
 """
 
+import os
 import unittest
-from os import path as os_path
 from unittest.mock import patch
 
 import numpy as np
 
 from models.ocr.ocr_bubble_detector import (
     DEFAULT_IMAGE_SIZE,
-    MODEL_FILE_NAME,
     BubbleDetector,
-    findModelPath,
     nonMaxSuppression,
 )
 
@@ -59,7 +57,7 @@ def _fakeCv2():
     return mock
 
 
-PRESENT_FILE = findModelPath() or __file__  # 実体があれば何でもよい (中身は読まれない)
+PRESENT_FILE = __file__  # 実体があれば何でもよい (中身は読まれない)
 
 
 def _detectorWithSession(detections, frame_shape=(1455, 2575, 3), **kwargs):
@@ -68,14 +66,6 @@ def _detectorWithSession(detections, frame_shape=(1455, 2575, 3), **kwargs):
     detector._input_name = "images"
     frame = np.zeros(frame_shape, dtype=np.uint8)
     return detector, frame
-
-
-class TestModelIsBundled(unittest.TestCase):
-    def test_model_file_sits_where_the_loader_looks_for_it(self) -> None:
-        path = findModelPath()
-        self.assertIsNotNone(path, "同梱モデルが見つからない (配置か spec/backend.spec の datas を確認)")
-        self.assertTrue(os_path.isfile(path))
-        self.assertTrue(path.endswith(MODEL_FILE_NAME))
 
 
 class TestAvailability(unittest.TestCase):
@@ -95,9 +85,9 @@ class TestAvailability(unittest.TestCase):
         # ファイルの実体まで見ていることを確認する。
         self.assertFalse(BubbleDetector(model_path="no_such_model.onnx").isAvailable())
 
-    def test_unavailable_when_no_model_is_found_at_all(self) -> None:
-        with patch("models.ocr.ocr_bubble_detector.findModelPath", return_value=None):
-            self.assertFalse(BubbleDetector().isAvailable())
+    def test_unavailable_without_a_model_path(self) -> None:
+        # Nothing is looked up: the upstream model and its lookup are gone (0.2.0).
+        self.assertFalse(BubbleDetector().isAvailable())
 
     def test_empty_frame_is_not_sent_to_the_model(self) -> None:
         detector, _ = _detectorWithSession([[10, 10, 10, 10, 0.9, 0.9]])
@@ -236,15 +226,21 @@ class TestNonMaxSuppression(unittest.TestCase):
             nonMaxSuppression(np.zeros((0, 4), np.float32), np.zeros(0), 0.65), [])
 
 
-@unittest.skipIf(cv2 is None or onnxruntime is None, "cv2/onnxruntimeが無い環境ではスキップ")
+# The upstream model this ran on is gone (0.2.0). VRCT-VOX's own detector is a download;
+# name its file in VRCT_TEST_CHATBOX_DETECTOR to run this against it.
+REAL_MODEL = os.environ.get("VRCT_TEST_CHATBOX_DETECTOR")
+
+
+@unittest.skipIf(cv2 is None or onnxruntime is None or not REAL_MODEL,
+                 "needs cv2, onnxruntime and VRCT_TEST_CHATBOX_DETECTOR")
 class TestRealModelSmoke(unittest.TestCase):
-    """同梱モデルを実際に読んで、例外を出さず期待した形式を返すことだけ見る。"""
+    """実際のモデルを読んで、例外を出さず期待した形式を返すことだけ見る。"""
 
     def test_runs_end_to_end_on_any_window_shape(self) -> None:
-        # 同梱モデルは入力可変でエクスポートしてある。固定サイズのモデルを
+        # モデルは入力可変でエクスポートしてある。固定サイズのモデルに
         # 置き換えてしまうと onnxruntime が形の不一致で落ち、detect() が
         # 例外を握りつぶして「OCRは動くが何も出ない」状態になる。
-        detector = BubbleDetector()
+        detector = BubbleDetector(model_path=REAL_MODEL)
         self.assertTrue(detector.isAvailable())
         for h, w in ((1455, 2575), (1080, 1920), (1400, 1000), (1024, 1024)):
             results = detector.detect(np.zeros((h, w, 3), dtype=np.uint8))
