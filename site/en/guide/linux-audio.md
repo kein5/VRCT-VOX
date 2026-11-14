@@ -26,7 +26,7 @@ No administrator rights are needed. You need PipeWire and systemd user services.
 
 ## Mute and resume
 
-"Mute until resumed" under "Device" → "Audio route" stops both speech and voice conversion going through this virtual microphone. Press "Resume voice" to resume. When you start VRCT-VOX again, it starts muted.
+"Mute until resumed" under "Device" → "Audio route" stops both speech and the voice changer going through this virtual microphone. Press "Resume voice" to resume. When you start VRCT-VOX again, it starts muted.
 
 ## Removing the virtual microphone
 

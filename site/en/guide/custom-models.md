@@ -126,7 +126,7 @@ The models of local AI translation are the listed ones only. To translate with a
 2. In Settings → "Translation" → "Local LLM & Compatible Server", press that server's connection check.
 3. Choose the model, and choose the server as the translation engine on the main screen.
 
-See [Translation](../features/translation#local-llms-and-compatible-servers) for more.
+See [Translation](../features/translation#use-local-llms-and-compatible-servers) for more.
 
 ## Models you bought or found published {#bought-models}
 
