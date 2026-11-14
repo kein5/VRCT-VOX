@@ -99,6 +99,7 @@ class World:
         lock.parent.mkdir()
         lock.write_text('pinned\n')
         monkeypatch.setattr(rs, 'worker_file', lambda path: tmp_path / 'worker' / path)
+        monkeypatch.setitem(rs.SOURCE_TREE_DIGESTS, 'https://github.com/engine.zip', rs.tree_digest(source))
         rs.version_of.cache_clear()
         self.runtime = rs.Runtime(
             'rvc', 'RVC', '3.12', (('requirements.lock', 'https://index'), ('requirements.lock', '')),
@@ -219,6 +220,31 @@ def test_a_source_that_differs_from_the_pin_is_never_used(world):
     job = world.finish()['jobs']['rvc']
     assert job['error_code'] == 'vc_runtime_source_failed'
     assert not (world.setup.folder(world.runtime) / 'engine').exists()
+
+
+@pytest.mark.parametrize('extra', [{'configs/v2.json': '{"injected": true}'}, {'lib/native.dll': 'MZ'},
+                                   {'infer.pyc': 'compiled'}])
+def test_a_changed_or_added_file_that_is_not_python_is_refused(world, extra):
+    """SEC-04: the .py digest alone accepted these; the digest of every file does not."""
+    world.source = {'infer.py': 'pass\n', **extra}
+    world.start()
+    job = world.finish()['jobs']['rvc']
+    assert job['error_code'] == 'vc_runtime_source_failed'
+    folder = world.setup.folder(world.runtime)
+    assert not (folder / 'engine').exists() and not (folder / 'engine.part').exists()
+    assert not (folder / 'engine.zip').exists()
+
+
+def test_a_source_with_no_pinned_files_is_not_fetched(world, monkeypatch):
+    monkeypatch.delitem(rs.SOURCE_TREE_DIGESTS, 'https://github.com/engine.zip')
+    world.start()
+    assert world.finish()['jobs']['rvc']['error_code'] == 'vc_runtime_source_failed'
+    assert 'https://github.com/engine.zip' not in world.requests
+
+
+def test_both_engines_have_their_files_pinned():
+    for runtime in (rs.rvc_runtime(), rs.seed_runtime()):
+        assert re.fullmatch(r'[0-9a-f]{64}', rs.SOURCE_TREE_DIGESTS[runtime.source_url]), runtime.id
 
 
 def test_a_corrupt_asset_is_rejected_and_not_kept(world):
@@ -378,6 +404,80 @@ def test_unpacking_refuses_to_leave_the_target(tmp_path):
         source.writestr('top/../../evil.py', 'x')
     with pytest.raises(ValueError, match='source_path_unsafe'):
         rs.unpack_source(archive, tmp_path / 'out')
+
+
+def _archive(tmp_path, entries):
+    archive = tmp_path / 'source.zip'
+    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as source:
+        for entry in entries:
+            if isinstance(entry, zipfile.ZipInfo):
+                source.writestr(entry, b'target')
+            else:
+                name, data = entry
+                source.writestr(name, data)
+    return archive
+
+
+def _symlink(name):
+    info = zipfile.ZipInfo(name)
+    info.external_attr = (0o120777 << 16)
+    return info
+
+
+@pytest.mark.parametrize('entries,code', [
+    ([('/top/a.py', 'x')], 'source_path_unsafe'),
+    ([('top/C:/a.py', 'x')], 'source_path_unsafe'),
+    ([('top\\..\\a.py', 'x')], 'source_path_unsafe'),
+    ([('top/a\x01.py', 'x')], 'source_path_unsafe'),
+    ([('top/a.py', 'x'), ('other/b.py', 'x')], 'source_path_unsafe'),
+    ([('top/Engine.py', 'x'), ('top/engine.py', 'y')], 'source_path_unsafe'),
+    ([('top/a.py', 'x'), _symlink('top/link')], 'source_entry_type'),
+])
+def test_unpacking_refuses_unsafe_entries_before_writing_anything(tmp_path, entries, code):
+    """SEC-04: every entry is checked first, so a refused archive leaves nothing behind."""
+    archive = _archive(tmp_path, entries)
+    with pytest.raises(ValueError, match=code):
+        rs.unpack_source(archive, tmp_path / 'out')
+    assert not (tmp_path / 'out').exists()
+
+
+def test_unpacking_refuses_encrypted_entries(tmp_path):
+    archive = _archive(tmp_path, [('top/a.py', 'x')])
+    data = bytearray(archive.read_bytes())
+    # The general purpose flag of the local header and of the central directory entry.
+    for signature, offset in ((b'PK\x03\x04', 6), (b'PK\x01\x02', 8)):
+        at = data.index(signature) + offset
+        data[at] |= 0x1
+    archive.write_bytes(bytes(data))
+    with pytest.raises(ValueError, match='source_entry_type'):
+        rs.unpack_source(archive, tmp_path / 'out')
+
+
+@pytest.mark.parametrize('limit,value', [('SOURCE_MAX_ENTRIES', 3), ('SOURCE_MAX_BYTES', 100), ('SOURCE_MAX_RATIO', 10)])
+def test_unpacking_refuses_archives_over_the_limits(tmp_path, monkeypatch, limit, value):
+    archive = _archive(tmp_path, [(f'top/{index}.txt', b'\0' * 1000) for index in range(4)])
+    monkeypatch.setattr(rs, limit, value)
+    with pytest.raises(ValueError, match='source_too_large'):
+        rs.unpack_source(archive, tmp_path / 'out')
+    assert not (tmp_path / 'out').exists()
+
+
+def test_an_archive_within_the_limits_unpacks_without_its_top_folder(tmp_path):
+    archive = _archive(tmp_path, [('top/', b''), ('top/sub/', b''), ('top/sub/a.py', 'pass\n'), ('top/data.bin', b'\x00\x01')])
+    rs.unpack_source(archive, tmp_path / 'out')
+    assert (tmp_path / 'out/sub/a.py').read_bytes() == b'pass\n'
+    assert (tmp_path / 'out/data.bin').read_bytes() == b'\x00\x01'
+
+
+def test_the_tree_digest_covers_every_file_and_its_name(tmp_path):
+    (tmp_path / 'a.py').write_text('pass\n')
+    first = rs.tree_digest(tmp_path)
+    assert first == rs.source_digest(tmp_path)  # With only .py files the two agree.
+    (tmp_path / 'b.json').write_text('{}')
+    second = rs.tree_digest(tmp_path)
+    assert second != first and rs.source_digest(tmp_path) == first
+    (tmp_path / 'b.json').rename(tmp_path / 'c.json')
+    assert rs.tree_digest(tmp_path) not in (first, second)
 
 
 PATCH = '''--- a/engine.py
