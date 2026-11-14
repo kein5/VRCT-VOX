@@ -51,7 +51,7 @@ def services(monkeypatch):
             state.ws.append(self)
 
         def set_message_handler(self, handler):
-            pass
+            raise AssertionError("the app reads nothing clients send (SEC-06)")
 
         def begin_start(self, timeout):
             return self

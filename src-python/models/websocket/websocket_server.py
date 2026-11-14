@@ -9,12 +9,20 @@ from urllib.parse import urlparse, parse_qs
 import websockets
 from websockets.asyncio.server import ServerConnection, broadcast
 from typing import Callable, Set, Optional
-from utils import errorLogging
+from utils import errorLogging, printLog
 
 _STOP_JOIN_TIMEOUT = 2.0
 # The server only pushes messages; what clients send is ignored. Accept small
 # frames only (OWASP suggests 64 KB or less) instead of the 1 MiB default.
 _MAX_INCOMING_MESSAGE_SIZE = 64 * 1024
+# Per connection, what a client may send even though nothing reads it (SEC-06): 10 messages
+# and 128 KiB a second on average, with bursts of 20 messages and 256 KiB. A client over
+# either budget is closed with 1008 (policy violation).
+_INCOMING_MESSAGES_PER_SECOND = 10.0
+_INCOMING_MESSAGE_BURST = 20
+_INCOMING_BYTES_PER_SECOND = 128 * 1024
+_INCOMING_BYTE_BURST = 256 * 1024
+_POLICY_CLOSE_TIMEOUT = 2.0
 # UTF-8 payload bytes. Admission includes callbacks waiting for the owner loop,
 # queued messages and the fanout in progress, so producers cannot bypass limits.
 _MAX_OUTGOING_MESSAGE_SIZE = 256 * 1024
@@ -43,6 +51,37 @@ class _BoundedConnection(ServerConnection):
             self.transport.abort()
         except websockets.exceptions.ConnectionClosed:
             pass
+
+
+class _IncomingBudget:
+    """Token buckets for what one client sends: messages and bytes (SEC-06)."""
+
+    def __init__(self, clock=monotonic):
+        self._clock = clock
+        self._last = clock()
+        self._messages = float(_INCOMING_MESSAGE_BURST)
+        self._bytes = float(_INCOMING_BYTE_BURST)
+
+    def admit(self, size: int) -> bool:
+        now = self._clock()
+        elapsed = max(0.0, now - self._last)
+        self._last = now
+        self._messages = min(float(_INCOMING_MESSAGE_BURST),
+                             self._messages + elapsed * _INCOMING_MESSAGES_PER_SECOND)
+        self._bytes = min(float(_INCOMING_BYTE_BURST), self._bytes + elapsed * _INCOMING_BYTES_PER_SECOND)
+        # The tolerance keeps rounding in the clock arithmetic from refusing a client that sends
+        # at exactly the allowed rate.
+        if self._messages < 1.0 - 1e-6 or self._bytes < size - 1e-3:
+            return False
+        self._messages = max(0.0, self._messages - 1.0)
+        self._bytes = max(0.0, self._bytes - size)
+        return True
+
+
+def _incoming_size(message) -> int:
+    if isinstance(message, (bytes, bytearray, memoryview)):
+        return len(message)
+    return len(message.encode("utf-8", errors="replace"))
 
 
 @dataclass
@@ -167,22 +206,44 @@ class WebSocketServer:
         単一クライアントとのセッションを処理するハンドラです。
         新規接続時にクライアントを集合に追加し、メッセージを受信してコールバックを呼び出します。
         切断時には集合からクライアントを削除します。
+
+        コールバックがなければ、受け取ったメッセージはループの上で捨て、ワーカースレッドを使わない。
+        どちらの場合も、受信の上限 (_IncomingBudget) を超えた接続は 1008 で閉じる (SEC-06)。
         """
         # 接続クライアントを集合に追加
         self.clients.add(websocket)
+        budget = _IncomingBudget()
         try:
             async for message in websocket:
+                if not budget.admit(_incoming_size(message)):
+                    self.clients.discard(websocket)
+                    await self._close_for_policy(websocket)
+                    break
+                handler = self._message_handler
+                if handler is None:
+                    continue
                 # メッセージ受信時にコールバック呼び出し
-                if self._message_handler:
-                    await asyncio.to_thread(
-                        self._dispatch_message, self._message_handler, websocket, message
-                    )
+                await asyncio.to_thread(self._dispatch_message, handler, websocket, message)
         except websockets.exceptions.ConnectionClosed:
             # クライアントが切断した場合
             pass
         finally:
             # 切断時に集合から削除(既に削除済みでも例外にならないようdiscardを使用)
             self.clients.discard(websocket)
+
+    @staticmethod
+    async def _close_for_policy(websocket):
+        """Close with 1008; a client that does not answer the close is cut off after 2 seconds."""
+        printLog("WebSocket client sent more than the incoming limit; closing it")
+        try:
+            async with asyncio.timeout(_POLICY_CLOSE_TIMEOUT):
+                await websocket.close(code=1008, reason="incoming message limit")
+        except (TimeoutError, websockets.exceptions.ConnectionClosed):
+            pass
+        finally:
+            transport = getattr(websocket, "transport", None)
+            if transport is not None:
+                transport.abort()
 
     def _dispatch_message(self, handler, websocket, message):
         # Callbacks can enter Model locks or perform I/O. Keep exception logging

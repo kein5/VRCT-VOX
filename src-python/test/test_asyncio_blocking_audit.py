@@ -266,20 +266,79 @@ def test_websocket_large_fanout_yields_between_client_batches(monkeypatch):
     run_loop(run())
 
 
-def test_model_ignores_incoming_websocket_messages_without_logging(monkeypatch):
-    from model import Model
-
+def test_without_a_handler_incoming_messages_are_dropped_on_the_loop(monkeypatch):
+    """The app sets no handler (SEC-06): messages never reach a worker thread or the log."""
     async def run():
-        # Bind the production callback without initializing the app singleton.
-        model = object.__new__(Model)
         server = websocket_server.WebSocketServer()
-        errors, sent = [], []
+        errors, sent, threads = [], [], []
         monkeypatch.setattr(websocket_server, "errorLogging", lambda: errors.append(sys.exc_info()[1]))
+        monkeypatch.setattr(websocket_server.asyncio, "to_thread",
+                            lambda *args, **kwargs: threads.append(args) or asyncio.sleep(0))
         monkeypatch.setattr(server, "send", sent.append)
-        server.set_message_handler(model.message_handler)
         await asyncio.wait_for(server._handler(Messages()), 1)
-        assert errors == []
-        assert sent == []
+        assert (errors, sent, threads) == ([], [], [])
         assert not server.clients
 
     run_loop(run())
+
+
+class Flood:
+    """A client that sends `count` messages of `size` characters as fast as it can."""
+
+    def __init__(self, count, size=1):
+        self.remaining, self.message = count, "x" * size
+        self.received, self.closed_with, self.transport = 0, None, SimpleNamespace(aborted=False)
+        self.transport.abort = lambda: setattr(self.transport, "aborted", True)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if self.remaining == 0 or self.closed_with is not None:
+            raise StopAsyncIteration
+        self.remaining -= 1
+        self.received += 1
+        return self.message
+
+    async def close(self, code, reason):
+        self.closed_with = (code, reason)
+
+
+@pytest.mark.parametrize("count,size,closed_after", [
+    (websocket_server._INCOMING_MESSAGE_BURST, 1, None),  # a burst within the budget stays open
+    (200, 1, websocket_server._INCOMING_MESSAGE_BURST + 1),  # message count
+    (10, 60 * 1024, 5),  # 4 x 60 KiB fit in 256 KiB, the fifth does not
+])
+def test_a_client_over_the_incoming_budget_is_closed_with_1008(monkeypatch, count, size, closed_after):
+    async def run():
+        server = websocket_server.WebSocketServer()
+        monkeypatch.setattr(websocket_server, "printLog", lambda *args: None)
+        # A frozen clock: nothing refills while the client floods.
+        monkeypatch.setattr(websocket_server, "monotonic", lambda: 100.0)
+        client = Flood(count, size)
+        await asyncio.wait_for(server._handler(client), 1)
+        if closed_after is None:
+            assert client.closed_with is None and not client.transport.aborted
+            assert client.received == count
+        else:
+            assert client.closed_with == (1008, "incoming message limit")
+            assert client.transport.aborted
+            assert client.received == closed_after
+        assert not server.clients
+
+    run_loop(run())
+
+
+def test_the_incoming_budget_refills_with_time():
+    now = [0.0]
+    budget = websocket_server._IncomingBudget(clock=lambda: now[0])
+    for _ in range(websocket_server._INCOMING_MESSAGE_BURST):
+        assert budget.admit(10)
+    assert not budget.admit(10)
+    now[0] += 1.0  # ten messages a second
+    assert all(budget.admit(10) for _ in range(10))
+    assert not budget.admit(10)
+    # A steady 10 messages a second is never cut off.
+    for _ in range(100):
+        now[0] += 0.1
+        assert budget.admit(1000)
