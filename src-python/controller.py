@@ -41,6 +41,8 @@ from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
 from models.tts.converted_router import ConvertedSpeechRouter
+from models.io_flow import describe as describe_io_flow
+from models.io_trace import IoTraces
 from models.tts.speechcpp_tts import SpeechError, SpeechCppTTS
 from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, SpeechServers, list_gpus
 from models.model_downloads.manager import Downloads
@@ -315,6 +317,7 @@ _SIMPLE_CONFIG_GETTERS = {
     "getOverlayLargeLogSettings": "OVERLAY_LARGE_LOG_SETTINGS",
     "getOverlayDesktop": "OVERLAY_DESKTOP",
     "getOverlayDesktopSettings": "OVERLAY_DESKTOP_SETTINGS",
+    "getIoFlowOverlaySettings": "IO_FLOW_OVERLAY_SETTINGS",
     "getOverlayShowOnlyTranslatedMessages": "OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES",
     "getSendMessageToVrc": "SEND_MESSAGE_TO_VRC",
     "getSendReceivedMessageToVrc": "SEND_RECEIVED_MESSAGE_TO_VRC",
@@ -452,6 +455,10 @@ class Controller:
         self.model_hardware = HardwareProbe()
         self.direct_voice = DirectVoice(converted_factory=create_converted_process)
         self.voice_events.converted_router = ConvertedSpeechRouter(self.direct_voice)
+        # The flow panel: stage times of the user's own messages, and the engine converting the voice.
+        self.io_traces = IoTraces(self._ioTraceEmit)
+        self.voice_events.on_first_audio = self._ioSpeechStarted
+        self._direct_engine = None
         self.voice_route = VoiceRoute(self.voice_events, gate=PipeWireGate(),
                                      store=MuteState(Path(config_path).with_name('voice_mute_state.json')),
                                      on_muted=self.direct_voice.set_monitor_muted)
@@ -2127,6 +2134,8 @@ class Controller:
         failures = []
 
         def sink(output, action):
+            if trace is not None and output in ("osc", "tts"):
+                action = self._tracedSink(trace, output, action)
             self._runMessageSink(output, (lambda: output_progress(action)) if output_progress else action,
                                  current, failures, spec, msg_id)
 
@@ -2151,6 +2160,7 @@ class Controller:
         # Realtime mic intent is stamped before entering the session mailbox.
         # Typed chat carries the receiver's generation through translation.
         voice_started_ns = time.monotonic_ns()
+        trace = self._beginIoTrace(spec, message, msg_id, voice_started_ns, asr_ms, speech_update)
 
         # Original speech has no dependency on the translator or text delivery.
         # The receiver's generation also invalidates chat waiting in Main.queue.
@@ -2377,10 +2387,92 @@ class Controller:
 
         pipeline_elapsed_ms = round((time.perf_counter() - pipeline_started_at) * 1000)
         self._recordMessageLatency(spec, asr_ms, translate_elapsed_ms, pipeline_elapsed_ms)
+        if trace is not None:
+            self._publishIoTrace(trace, translation if snapshot.translation_enabled is not False else None,
+                                 translate_elapsed_ms, failures)
 
         if spec.delivery == "return":
             return {"id": msg_id, **payload}
         return None
+
+    # --- The flow panel: where the user's own messages go, and how long each step took (ms).
+
+    def _ioTraceEmit(self, payload):
+        self.run(200, "/run/io_trace", payload)
+
+    def _beginIoTrace(self, spec, message, msg_id, started_ns, asr_ms, speech_update):
+        traces = getattr(self, "io_traces", None)
+        if traces is None or spec not in (MIC_MESSAGE_SPEC, REALTIME_MIC_SPEC, CHAT_MESSAGE_SPEC):
+            return None
+        trace_id = msg_id if msg_id is not None else uuid4()
+        if spec is CHAT_MESSAGE_SPEC:
+            return traces.begin(trace_id, "chat", message, "send", started_ns)
+        received = getattr(speech_update, "received_ns", None)
+        if type(received) is int and 0 < received <= started_ns:
+            trace = traces.begin(trace_id, "voice", message, "final", received)
+            trace.stage("wait", (started_ns - received) / 1e6)
+            return trace
+        if isinstance(asr_ms, (int, float)) and not isinstance(asr_ms, bool) and asr_ms >= 0:
+            trace = traces.begin(trace_id, "voice", message, "recognition", started_ns - int(asr_ms * 1e6))
+            trace.stage("recognition", asr_ms)
+            return trace
+        return traces.begin(trace_id, "voice", message, "received", started_ns)
+
+    @staticmethod
+    def _tracedSink(trace, output, action):
+        def traced():
+            result = action()
+            if output == "osc":
+                state = {True: "sent", False: "superseded"}.get(result, "off")
+                trace.output("chatbox", state, time.monotonic_ns() if state == "sent" else None)
+            else:
+                trace.speech_queued(result is True)
+            return result
+        return traced
+
+    def _publishIoTrace(self, trace, translation, translate_ms, failures):
+        if translation is not None:
+            trace.stage("translate", translate_ms)
+            trace.translation = next((text for text in translation if isinstance(text, str) and text), "")
+        for failure in failures:
+            name = {"osc": "chatbox", "tts": "speech"}.get(failure.get("output"))
+            if name is not None:
+                trace.output(name, "failed")
+        self.io_traces.publish(trace)
+
+    def _ioSpeechStarted(self, event, timestamp_ns, converted):
+        # TTS worker thread. The conversion's round trip is its recent median, a guide only.
+        conversion_ms = self.direct_voice.health().get("round_trip_ms") if converted else None
+        self.io_traces.speech_started(event.event_id, timestamp_ns, converted=converted, conversion_ms=conversion_ms)
+
+    def getIoFlow(self, *args, **kwargs) -> dict:
+        tab = config.SELECTED_TAB_NO
+        targets = config.SELECTED_TARGET_LANGUAGES.get(tab, {})
+        enabled = [row.get("language") for _, row in sorted(targets.items()) if row.get("enable") is True]
+        voice = self.voice_events.settings
+        selected = targets.get(voice.target_slot, {})
+        status = self.voice_events.status()
+        direct = self.direct_voice.health()
+        with self._realtime_lock:
+            realtime_requested = self._realtime_requested["mic"]
+        state = dict(
+            mic_on=config.ENABLE_TRANSCRIPTION_SEND is True or realtime_requested,
+            realtime=self._realtimeToggles(), engine=config.SELECTED_TRANSCRIPTION_ENGINE,
+            translation=config.ENABLE_TRANSLATION is True,
+            source_language=config.SELECTED_YOUR_LANGUAGES.get(tab, {}).get("1", {}).get("language"),
+            targets=enabled,
+            speech_language=selected.get("language") if selected.get("enable") is True else None,
+            send_to_vrc=config.SEND_MESSAGE_TO_VRC is True,
+            only_translated=config.SEND_ONLY_TRANSLATED_MESSAGES is True,
+            desktop=config.OVERLAY_DESKTOP is True, large_log=config.OVERLAY_LARGE_LOG is True,
+            clipboard=config.ENABLE_CLIPBOARD is True,
+            websocket=model.checkWebSocketServerAlive() is True,
+            voice=voice.to_dict(), tts_enabled=status["tts_enabled"] is True, muted=status["muted"] is True,
+            direct=dict(mode=direct["mode"], active=direct["active"] is True,
+                        engine=self._direct_engine if direct["mode"] == "converted" else None),
+            round_trip_ms=direct.get("round_trip_ms"),
+        )
+        return {"status": 200, "result": describe_io_flow(state)}
 
     @staticmethod
     def _recordMessageLatency(spec, asr_ms, translate_elapsed_ms, pipeline_elapsed_ms, *, aborted=False):
@@ -2576,7 +2668,7 @@ class Controller:
                     targets=snapshot.target_languages, target_slots=snapshot.target_slots,
                     selected_slot=voice_settings.target_slot)
                 if voice_settings.mode == "original" or event.translated_text is not None:
-                    self.voice_events.publish(event, expected_generation=generation)
+                    return self.voice_events.publish(event, expected_generation=generation)
 
     def _publishMicVoice(self, voice_snapshot, snapshot, update, translations, success, provenance, current):
         settings, generation, source_generation = voice_snapshot
@@ -2942,6 +3034,7 @@ class Controller:
                 extra = {} if output is None else {'output': output}
                 self.direct_voice.start(source=source, expected_generation=data['_direct_generation'],
                                         mode=mode, options=options, monitor=monitor, **extra)
+                self._direct_engine = options.get('engine') if mode == 'converted' else None
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
         return self.getDirectVoiceState()
@@ -4800,6 +4893,12 @@ class Controller:
     def setOverlayDesktopSettings(data, *args, **kwargs) -> dict:
         config.OVERLAY_DESKTOP_SETTINGS = data
         return {"status":200, "result":config.OVERLAY_DESKTOP_SETTINGS}
+
+    @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
+    def setIoFlowOverlaySettings(data, *args, **kwargs) -> dict:
+        config.IO_FLOW_OVERLAY_SETTINGS = data
+        return {"status":200, "result":config.IO_FLOW_OVERLAY_SETTINGS}
 
     @staticmethod
     @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)

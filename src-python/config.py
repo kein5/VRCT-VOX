@@ -606,6 +606,15 @@ def _overlay_desktop_validator(val, inst):
             new[key] = float(v)
     return new
 
+def _io_flow_overlay_validator(val, inst):
+    """The flow overlay: the desktop strip on or off, and how many recent inputs it shows (1 to 3)."""
+    base = inst.IO_FLOW_OVERLAY_SETTINGS
+    if not (isinstance(val, dict) and set(val.keys()) == set(base.keys())):
+        return None
+    if type(val["desktop"]) is not bool or type(val["count"]) is not int or not 1 <= val["count"] <= 3:
+        return None
+    return {"desktop": val["desktop"], "count": val["count"]}
+
 def _make_overlay_vr_window_validator(name):
     """VR UIのウィンドウ (ログ・ランチャー) の位置設定用。VR内で掴んで動かした結果だけが保存される。"""
     def validator(val, inst):
@@ -1253,6 +1262,7 @@ class Config:
     OVERLAY_LARGE_LOG_SETTINGS = ValidatedProperty('OVERLAY_LARGE_LOG_SETTINGS', _overlay_large_validator)
     # Captions over the desktop, for VRChat without a headset. The UI draws them in its own window.
     OVERLAY_DESKTOP_SETTINGS = ValidatedProperty('OVERLAY_DESKTOP_SETTINGS', _overlay_desktop_validator)
+    IO_FLOW_OVERLAY_SETTINGS = ValidatedProperty('IO_FLOW_OVERLAY_SETTINGS', _io_flow_overlay_validator)
     # VRパネルの位置。UIからは設定せず、VR内で掴んで動かした位置だけが保存される。
     OVERLAY_VR_PANEL_SETTINGS = ValidatedProperty('OVERLAY_VR_PANEL_SETTINGS', _make_overlay_vr_window_validator('OVERLAY_VR_PANEL_SETTINGS'))
     # VR UIのランチャー (手首の帯) の位置。OVERLAY_VR_PANEL_SETTINGS はログウィンドウの位置。
@@ -1672,6 +1682,8 @@ class Config:
             "display_duration": 6,
             "opacity": 0.6,
         }
+        # Where the user's voice and chat go, with stage times, over the desktop (one input by default).
+        self._IO_FLOW_OVERLAY_SETTINGS = {"desktop": False, "count": 1}
         self._OVERLAY_VR_LAUNCHER_SETTINGS = dict(DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS)
         self._OVERLAY_VR_PANEL = False
         self._OVERLAY_VR_PANEL_LOCKED = False

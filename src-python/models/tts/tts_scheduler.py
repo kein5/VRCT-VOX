@@ -74,6 +74,8 @@ class VoiceEventBus:
         self._source_epochs = {}
         # expired counts speech that waited past max_age. It is also in dropped;
         # the UI warns when it grows, because the user sees no other sign.
+        # Called on the worker thread with (event, first write ns, converted).
+        self.on_first_audio = None
         self._stats = {"accepted": 0, "completed": 0, "dropped": 0, "expired": 0, "duplicates": 0,
                        "cancelled": 0, "errors": 0, "last_error": None,
                        "last_first_write_ms": None, "sample_rate": None, "monitor_error": None}
@@ -279,6 +281,12 @@ class VoiceEventBus:
                     with self._condition:
                         self._stats["last_first_write_ms"] = round((timestamp - event.timestamp_ns) / 1e6, 3)
                         self._stats["sample_rate"] = rate
+                    if self.on_first_audio is not None:
+                        # The flow panel: when this message became audible, and by which path.
+                        try:
+                            self.on_first_audio(event, timestamp, converted)
+                        except Exception:
+                            pass  # A readout never stops speech.
 
                 converted = (settings.conversion == "on" and self.converted_router is not None
                              and self.converted_router.available())

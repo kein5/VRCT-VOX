@@ -193,4 +193,6 @@ class DirectVoice:
                                      and bool(state.get('conversion_verified'))),
                 monitor_error=(state.get('monitor_error') if self._requested and self._mode == 'converted'
                                else None),
+                round_trip_ms=(state.get('round_trip_ms') if self._requested and self._mode == 'converted'
+                               else None),
             )

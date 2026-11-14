@@ -50,6 +50,11 @@ def _summary_ms(values):
     return dict(median=round(ordered[len(ordered) // 2] / 1e6, 1), max=round(ordered[-1] / 1e6, 1))
 
 
+def _median_ms(values):
+    # The recent conversion round trip, in whole ms, for the live readout.
+    return round(sorted(values)[len(values) // 2] / 1e6) if values else None
+
+
 class _PipeWireRoute:
     """The managed sink; its OS gate owns mute, so writes need no gating here."""
     gates_output = False
@@ -209,7 +214,7 @@ class VCProcess:
                                                             and not self._requested),
                         conversion_verified=self._verified, error=self._error,
                         state=self._state, converted_blocks=self._blocks,
-                        monitor_error=self._monitor_error)
+                        monitor_error=self._monitor_error, round_trip_ms=_median_ms(tuple(self._rounds)))
 
     def _monitor_failed(self, code):
         # Monitor thread. A notice only: conversion and the managed sink go on.

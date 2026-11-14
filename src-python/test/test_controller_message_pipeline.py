@@ -816,3 +816,59 @@ class TestOcrMessage(_MessagePipelineTestBase):
     def test_history_is_recorded_as_ocr(self) -> None:
         self.controller.ocrMessage({"text": "こんにちは", "language": "Japanese"})
         self._model.addTranslationHistory.assert_called_once_with("ocr", "こんにちは", snapshot=ANY)
+
+
+class TestIoTrace(_MessagePipelineTestBase):
+    """The flow panel's stage times (ms) for the user's own messages."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        from models.io_trace import IoTraces
+        self.controller.io_traces = IoTraces(self.controller._ioTraceEmit)
+
+    def traces(self):
+        return [result for _, endpoint, result in self.run_calls if endpoint == "/run/io_trace"]
+
+    def test_mic_message_counts_from_recognition_and_records_each_stage(self) -> None:
+        self._model.getInputTranslate.return_value = (["hola"], [True], ['translated'])
+        self.controller.micMessage({"text": "hello", "language": "English", "asr_ms": 120})
+        [trace] = self.traces()
+        self.assertEqual((trace["input"], trace["origin"], trace["text"], trace["translation"]),
+                         ("voice", "recognition", "hello", "hola"))
+        self.assertEqual(trace["stages"]["recognition"], 120)
+        self.assertIn("translate", trace["stages"])
+        self.assertEqual(trace["outputs"]["chatbox"]["state"], "sent")
+        # Sent after recognition, so no earlier than the recognition itself.
+        self.assertGreaterEqual(trace["outputs"]["chatbox"]["at_ms"], 120)
+
+    def test_chat_with_vrchat_off_says_the_chatbox_was_not_used(self) -> None:
+        config.SEND_MESSAGE_TO_VRC = False
+        config.ENABLE_TRANSLATION = False
+        self.controller.chatMessage({"id": "7", "message": "hello"})
+        [trace] = self.traces()
+        self.assertEqual((trace["id"], trace["input"], trace["origin"]), ("7", "chat", "send"))
+        self.assertEqual(trace["outputs"]["chatbox"], {"state": "off", "at_ms": None})
+        self.assertNotIn("translate", trace["stages"])
+
+    def test_a_failed_chatbox_send_is_reported_as_failed(self) -> None:
+        self._model.oscSendMessage.side_effect = RuntimeError("osc down")
+        self.controller.chatMessage({"id": "8", "message": "hello"})
+        [trace] = self.traces()
+        self.assertEqual(trace["outputs"]["chatbox"]["state"], "failed")
+
+    def test_speech_that_starts_later_is_added_to_its_message(self) -> None:
+        import time
+        self.controller.direct_voice = MagicMock()
+        self.controller.direct_voice.health.return_value = {"round_trip_ms": 31}
+        self.controller.chatMessage({"id": "9", "message": "hello"})
+        event = MagicMock(event_id="9")
+        self.controller._ioSpeechStarted(event, time.monotonic_ns(), True)
+        first, second = self.traces()
+        self.assertNotIn("speech", first["outputs"])
+        speech = second["outputs"]["speech"]
+        self.assertEqual((speech["state"], speech["converted"], speech["conversion_ms"]), ("playing", True, 31))
+        self.assertIsInstance(speech["at_ms"], int)
+
+    def test_messages_from_others_have_no_trace(self) -> None:
+        self.controller.speakerMessage({"text": "hello", "language": "English"})
+        self.assertEqual(self.traces(), [])
