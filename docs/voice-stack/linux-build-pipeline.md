@@ -7,6 +7,18 @@ preservation; copying only the executable or flattening `_internal` is unsupport
 Add `--appimage --download-appimage-tools` for an additional inspected AppImage;
 see [AppImage build and acceptance](appimage.md). The CI builds both formats.
 
+The CI then makes a `.deb` and an `.rpm` from the same candidate directory with
+`python3 tools/linux_packages.py --candidate build/linux/candidate/VRCT-VOX --output-dir build/linux/artifacts`
+(needs `dpkg-deb` and `rpmbuild`). They install the unchanged files under `/opt/vrct-vox`,
+add `/usr/bin/vrct-vox`, a desktop entry, an icon and the license notices, and write
+`/opt/vrct-vox/package-manager` (`deb` or `rpm`) so the app can tell a package-manager install.
+They require glibc (the highest version the manifest records), GTK 3, WebKitGTK 4.1 and, for the
+Vulkan variant, the Vulkan loader, which speech.cpp loads from the system. The PipeWire tools and
+Mesa Vulkan drivers are recommended. `tools/ci/check_linux_package.sh` installs each package in a
+clean Ubuntu 24.04, Debian 13 or Fedora 44 container without recommended packages and checks
+that the GUI binary's libraries resolve, the bundled engine and backend self-check start, and
+removal leaves nothing behind. It does not open the GUI.
+
 The GitHub Actions workflow `VRCT-VOX Linux candidate (no publication)` targets Ubuntu 24.04.
 It runs on relevant pull requests or manual dispatch, tests the relocated package,
 and the AppImage extraction fallback, then retains successful candidates for seven days. It has `contents: read`, no

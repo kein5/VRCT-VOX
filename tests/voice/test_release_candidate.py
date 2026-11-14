@@ -173,13 +173,40 @@ def test_rejects_modified_or_misidentified_candidate(candidate, mutation):
         verify(candidate, "windows", SHA, VERSION)
 
 
-def test_linux_variant_pair_required(tmp_path):
+def _linux_assets(tmp_path, suffixes):
     assets = []
-    for suffix in ("vulkan-release.AppImage", "cpu-release.tar.gz"):
+    for suffix in suffixes:
         path = tmp_path / f"VRCT-VOX-{VERSION}-linux-x64-{suffix}"
         path.write_bytes(b"candidate")
         assets.append(path)
+    return assets
+
+
+def test_linux_candidate_carries_archive_appimage_deb_and_rpm(tmp_path):
+    assets = _linux_assets(tmp_path, ("vulkan-release.tar.gz", "vulkan-release.AppImage",
+                                      "vulkan-release.deb", "vulkan-release.rpm"))
+    stage(tmp_path / "out", assets, "linux", SHA, VERSION)
+    names = {entry["name"] for entry in verify(tmp_path / "out", "linux", SHA, VERSION)["assets"]}
+    assert {name.rsplit(".", 1)[-1] for name in names} == {"gz", "AppImage", "deb", "rpm"}
+
+
+def test_linux_candidate_without_its_packages_is_refused(tmp_path):
+    assets = _linux_assets(tmp_path, ("vulkan-release.tar.gz", "vulkan-release.AppImage"))
+    with pytest.raises(ValueError, match="deb and rpm"):
+        stage(tmp_path / "out", assets, "linux", SHA, VERSION)
+
+
+def test_linux_variant_pair_required(tmp_path):
+    assets = _linux_assets(tmp_path, ("vulkan-release.AppImage", "cpu-release.tar.gz",
+                                      "vulkan-release.deb", "vulkan-release.rpm"))
     with pytest.raises(ValueError, match="same engine"):
+        stage(tmp_path / "out", assets, "linux", SHA, VERSION)
+
+
+def test_linux_candidate_needs_one_of_each_format(tmp_path):
+    assets = _linux_assets(tmp_path, ("vulkan-release.tar.gz", "vulkan-release.AppImage",
+                                      "vulkan-release.deb", "cpu-release.deb"))
+    with pytest.raises(ValueError):
         stage(tmp_path / "out", assets, "linux", SHA, VERSION)
 
 

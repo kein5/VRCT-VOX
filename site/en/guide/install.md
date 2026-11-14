@@ -4,12 +4,33 @@ Downloads are on [GitHub Releases](https://github.com/kein5/VRCT-VOX/releases). 
 
 ## Linux
 
-There is an x64 Vulkan build in two formats: AppImage and tar.gz.
+There is an x64 Vulkan build in four formats: deb, rpm, AppImage and tar.gz (deb and rpm from 0.3.0). Put `SHA256SUMS-linux` in the folder with your download and check that the file is intact:
+
+```sh
+sha256sum -c --ignore-missing SHA256SUMS-linux
+```
+
+### deb (Ubuntu, Debian)
+
+```sh
+sudo apt install ./VRCT-VOX-<version>-linux-x64-vulkan-release.deb
+```
+
+The app goes to `/opt/vrct-vox` and shows up in your app list as VRCT-VOX. From a terminal, run `vrct-vox`. Install a new version with the same command. To remove it, run `sudo apt remove vrct-vox`.
+
+### rpm (Fedora)
+
+```sh
+sudo dnf install ./VRCT-VOX-<version>-linux-x64-vulkan-release.rpm
+```
+
+It installs to the same place and starts the same way as the deb. To remove it, run `sudo dnf remove vrct-vox`.
+
+The deb and rpm are tested on Ubuntu 24.04, Debian 13 and Fedora 44: they install, and the libraries they need are all there. The PipeWire tools and Vulkan drivers come in as recommended packages.
 
 ### AppImage
 
 ```sh
-sha256sum -c VRCT-VOX-<version>-linux-x64-vulkan-release.AppImage.sha256
 chmod +x VRCT-VOX-<version>-linux-x64-vulkan-release.AppImage
 ./VRCT-VOX-<version>-linux-x64-vulkan-release.AppImage
 ```
@@ -19,7 +40,6 @@ Without FUSE, start it with `APPIMAGE_EXTRACT_AND_RUN=1`. This needs extra free 
 ### tar.gz
 
 ```sh
-sha256sum -c VRCT-VOX-<version>-linux-x64-vulkan-release.tar.gz.sha256
 tar -xzf VRCT-VOX-<version>-linux-x64-vulkan-release.tar.gz
 ./VRCT-VOX/vrct-vox
 ```
@@ -34,7 +54,7 @@ Keep the contents of the unpacked `VRCT-VOX` folder together, as they are. WebKi
 | Data | `~/.local/share/vrct-vox` |
 | Cache | `~/.cache/vrct-vox` |
 
-The AppImage and the tar.gz use the same locations.
+The deb, rpm, AppImage and tar.gz all use the same locations.
 
 ## Windows
 

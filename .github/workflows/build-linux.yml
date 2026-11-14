@@ -84,7 +84,7 @@ jobs:
             pipewire-bin libvulkan1 libglfw3 libportaudio2 libasound2-dev
             webkit2gtk-driver xvfb xauth x11-utils dbus-x11 fonts-noto-cjk
             desktop-file-utils libgtk-3-dev libgdk-pixbuf-2.0-dev glib-networking
-            imagemagick xdotool meson ninja-build libsndfile1-dev libglib2.0-dev liblua5.4-dev"
+            imagemagick xdotool meson ninja-build libsndfile1-dev libglib2.0-dev liblua5.4-dev rpm"
           # The runner's package mirror sometimes cannot be resolved for a while. Try again before failing the job.
           for attempt in 1 2 3 4; do
             sudo apt-get update && sudo apt-get install -y $packages && break
@@ -137,12 +137,29 @@ jobs:
             uv run --no-project --python build/linux/venv/bin/python python -m pytest \
             -c tests/voice/pytest.ini tests/platform/test_appimage.py -q \
             --basetemp=build/linux/appimage-acceptance > appimage-acceptance.log 2>&1
+      # The same files as the tar.gz, installed under /opt/vrct-vox (tools/linux_packages.py).
+      - name: Build deb and rpm packages
+        run: python3 tools/linux_packages.py --candidate build/linux/candidate/VRCT-VOX --output-dir build/linux/artifacts
+      # Clean images pinned by digest; each installs with its own package manager and only the
+      # declared requirements.
+      - name: Install the packages in clean Ubuntu, Debian and Fedora
+        run: |
+          for image in \
+            ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5 \
+            debian:13@sha256:9c6e381421d0f48d1b8133e573f33c185ee16cbf505eda9c4a8a4791b25ea8a6; do
+            docker run --rm -v "$PWD/build/linux/artifacts:/packages:ro" -v "$PWD/tools/ci:/ci:ro" "$image" \
+              bash /ci/check_linux_package.sh /packages/"$(basename build/linux/artifacts/*.deb)"
+          done
+          docker run --rm -v "$PWD/build/linux/artifacts:/packages:ro" -v "$PWD/tools/ci:/ci:ro" \
+            fedora:44@sha256:15da97ed9aa94dd3d92c3925eb89520f6c80e07ea7ee24cba848d1f8b6912b3e \
+            bash /ci/check_linux_package.sh /packages/"$(basename build/linux/artifacts/*.rpm)"
       - name: Record immutable candidate identity and hashes
         env:
           CANDIDATE_COMMIT: ${{ github.sha }}
         run: |
           python tools/release_candidate.py stage build/linux/release-candidate --platform linux --commit "$CANDIDATE_COMMIT" \
-            --asset build/linux/artifacts/*.AppImage --asset build/linux/artifacts/*.tar.gz
+            --asset build/linux/artifacts/*.AppImage --asset build/linux/artifacts/*.tar.gz \
+            --asset build/linux/artifacts/*.deb --asset build/linux/artifacts/*.rpm
           python tools/release_candidate.py verify build/linux/release-candidate --platform linux --commit "$CANDIDATE_COMMIT"
       # Signed build provenance (GitHub Artifact Attestations, Sigstore) for every candidate file:
       # it names this workflow, the commit and the run. prepare-release.yml refuses files without it.

@@ -4,12 +4,33 @@
 
 ## Linux
 
-x64向けのVulkan版をAppImageとtar.gzの2つの形で配布しています。
+x64向けのVulkan版を、deb、rpm、AppImage、tar.gzの4つの形で配布しています（debとrpmは0.3.0から）。ダウンロードしたファイルと同じフォルダーに`SHA256SUMS-linux`も置いて、ファイルが壊れていないかを確かめます。
+
+```sh
+sha256sum -c --ignore-missing SHA256SUMS-linux
+```
+
+### deb（Ubuntu、Debian）
+
+```sh
+sudo apt install ./VRCT-VOX-<バージョン>-linux-x64-vulkan-release.deb
+```
+
+アプリは`/opt/vrct-vox`に入り、アプリの一覧に「VRCT-VOX」が出ます。端末からは`vrct-vox`で起動できます。新しいバージョンも同じコマンドで入れます。消すときは`sudo apt remove vrct-vox`を実行します。
+
+### rpm（Fedora）
+
+```sh
+sudo dnf install ./VRCT-VOX-<バージョン>-linux-x64-vulkan-release.rpm
+```
+
+入る場所と起動のしかたはdebと同じです。消すときは`sudo dnf remove vrct-vox`を実行します。
+
+debとrpmは、Ubuntu 24.04、Debian 13、Fedora 44で、入れられることと、必要なライブラリがそろうことを確かめています。PipeWireのツールとVulkanのドライバーは推奨のパッケージとして入ります。
 
 ### AppImage
 
 ```sh
-sha256sum -c VRCT-VOX-<バージョン>-linux-x64-vulkan-release.AppImage.sha256
 chmod +x VRCT-VOX-<バージョン>-linux-x64-vulkan-release.AppImage
 ./VRCT-VOX-<バージョン>-linux-x64-vulkan-release.AppImage
 ```
@@ -19,7 +40,6 @@ FUSEを使えない環境では、`APPIMAGE_EXTRACT_AND_RUN=1`を付けて起動
 ### tar.gz
 
 ```sh
-sha256sum -c VRCT-VOX-<バージョン>-linux-x64-vulkan-release.tar.gz.sha256
 tar -xzf VRCT-VOX-<バージョン>-linux-x64-vulkan-release.tar.gz
 ./VRCT-VOX/vrct-vox
 ```
@@ -34,7 +54,7 @@ tar -xzf VRCT-VOX-<バージョン>-linux-x64-vulkan-release.tar.gz
 | データ | `~/.local/share/vrct-vox` |
 | キャッシュ | `~/.cache/vrct-vox` |
 
-AppImageとtar.gzのどちらで起動しても、同じ場所を使います。
+deb、rpm、AppImage、tar.gzのどれで起動しても、同じ場所を使います。
 
 ## Windows
 
