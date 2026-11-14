@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RVC 聴き比べ（ABX）</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1f23; --muted: #5d636e; --line: #d9d6cf;
+    --accent: #1f5fbf; --accent-ink: #ffffff; --good: #1d7a46; --warn: #a2580b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181c; --panel: #1f2228; --ink: #e9eaed; --muted: #a2a8b3; --line: #353a44;
+            --accent: #7fb0ff; --accent-ink: #0d1117; --good: #6fd09a; --warn: #f0b060; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.7 "Noto Sans", system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 28px 0 8px; }
+  p { margin: 8px 0; }
+  .muted { color: var(--muted); font-size: 0.92rem; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-top: 16px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+  button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+           border-radius: 8px; padding: 10px 16px; min-width: 96px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button:focus-visible, textarea:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+  button.playing { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  kbd { font: 0.85em ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+  progress { width: 100%; height: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  textarea { width: 100%; min-height: 72px; font: inherit; color: var(--ink); background: var(--panel);
+             border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  .good { color: var(--good); } .warn { color: var(--warn); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>RVC 聴き比べ（ABX）</h1>
+  <p class="muted">本家実装（基準）と Rust 実装の出力を、どちらがどちらか分からない状態で聴き比べます。</p>
+
+  <section id="intro" class="panel">
+    <h2 style="margin-top:0">進め方</h2>
+    <p>1 回の試行では A・B・X の 3 つを聴きます。X は A か B のどちらかと同じ音声です。X がどちらと同じかを答えてください。聴き直しは何度でもできます。</p>
+    <p>合成にはランダムなノイズが入るため、<strong>本家どうしでも毎回わずかに違う音になります</strong>。そこで「本家と Rust」の組に加えて、「本家と本家（乱数だけ違う）」の組も対照として混ぜてあります。どの組かは表示しません。</p>
+    <p>ABX のあと、モデルごとに「同じ声・同じ言い回しに聞こえるか」を答えます（仕様書 13.2 の判定）。</p>
+    <p class="muted">ヘッドホンを推奨します。キー操作：<kbd>A</kbd> <kbd>B</kbd> <kbd>X</kbd> で再生、<kbd>1</kbd> で「X は A」、<kbd>2</kbd> で「X は B」、<kbd>Space</kbd> で停止。</p>
+    <p id="summary" class="muted"></p>
+    <div class="row"><button id="start" class="primary">始める</button><button id="resume" hidden>続きから再開</button></div>
+  </section>
+
+  <section id="abx" class="panel" hidden>
+    <p class="muted" id="abx-count" aria-live="polite"></p>
+    <progress id="abx-progress" value="0" max="1"></progress>
+    <p id="abx-case"></p>
+    <div class="row" role="group" aria-label="再生">
+      <button data-play="a">▶ A</button><button data-play="b">▶ B</button><button data-play="x">▶ X</button>
+      <button data-play="input">▶ 変換前</button><button id="abx-stop">■ 停止</button>
+    </div>
+    <p>X はどちらと同じですか。</p>
+    <div class="row" role="group" aria-label="回答">
+      <button id="answer-a" class="primary">X は A</button><button id="answer-b" class="primary">X は B</button>
+    </div>
+    <p class="muted">分からないときも、どちらかを選んでください（当て推量でかまいません）。</p>
+  </section>
+
+  <section id="rating" class="panel" hidden>
+    <p class="muted" id="rating-count" aria-live="polite"></p>
+    <p id="rating-case"></p>
+    <div class="row" role="group" aria-label="再生">
+      <button data-play="one">▶ 音声 1</button><button data-play="two">▶ 音声 2</button>
+      <button data-play="input">▶ 変換前</button><button id="rating-stop">■ 停止</button>
+    </div>
+    <p>音声 1 と音声 2 は、同じ声・同じ言い回しに聞こえますか。</p>
+    <div class="row" role="group" aria-label="回答">
+      <button data-rate="same" class="primary">同じに聞こえる</button>
+      <button data-rate="different">違って聞こえる</button>
+      <button data-rate="unsure">判断できない</button>
+    </div>
+    <label for="note" class="muted">気づいたこと（任意）</label>
+    <textarea id="note"></textarea>
+  </section>
+
+  <section id="result" class="panel" hidden>
+    <h2 style="margin-top:0">結果</h2>
+    <p id="verdict"></p>
+    <div style="overflow-x:auto"><table id="result-table"></table></div>
+    <p class="muted">「正答」は X を当てた回数です。当て推量なら半分前後になります。p は、区別できていないと仮定したときにこの回数以上当たる確率です。「本家と Rust」の正答が「本家と本家」と同じ程度なら、Rust 実装は本家の乱数違いと聴き分けられていません。</p>
+    <div class="row">
+      <button id="save" class="primary">結果を JSON で保存</button><button id="copy">結果をコピー</button><button id="again">最初からやり直す</button>
+    </div>
+    <p class="muted" id="copied" aria-live="polite"></p>
+  </section>
+</main>
+
+<script>
+"use strict";
+const MANIFEST = /*MANIFEST*/{"cases": [], "trials": 6}/*END*/;
+const KEY = "rvc-abx-" + MANIFEST.created;
+const $ = (id) => document.getElementById(id);
+const player = new Audio();
+let state = null;       // { trials, answers, ratings, order, position, phase }
+let current = {};       // name -> file for the buttons on screen
+
+function shuffle(items) {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  return items;
+}
+
+function newSession() {
+  const trials = [];
+  MANIFEST.cases.forEach((item, index) => {
+    for (const kind of ["test", "control"]) {
+      for (let n = 0; n < MANIFEST.trials; n++) {
+        // Which side the reference sits on, and which of the two X repeats, are both random.
+        trials.push({ index, kind, swap: Math.random() < 0.5, x: Math.random() < 0.5 ? "a" : "b" });
+      }
+    }
+  });
+  return { trials: shuffle(trials), answers: [], ratings: [],
+           order: shuffle(MANIFEST.cases.map((_, index) => ({ index, swap: Math.random() < 0.5 }))),
+           position: 0, phase: "abx" };
+}
+
+function store() {
+  try { sessionStorage.setItem(KEY, JSON.stringify(state)); } catch (error) { /* not available: keep going */ }
+}
+
+function stop() {
+  player.pause();
+  document.querySelectorAll("button.playing").forEach((button) => button.classList.remove("playing"));
+}
+
+function play(name, button) {
+  stop();
+  if (!current[name]) return;
+  player.src = current[name];
+  player.currentTime = 0;
+  player.play().catch(() => {});
+  if (button) button.classList.add("playing");
+}
+player.addEventListener("ended", stop);
+
+function show(id) {
+  for (const section of ["intro", "abx", "rating", "result"]) $(section).hidden = section !== id;
+  stop();
+}
+
+function describe(item) {
+  return `${item.label} ／ 入力：${item.input_label}`;
+}
+
+function render() {
+  if (state.phase === "abx") {
+    if (state.position >= state.trials.length) { state.phase = "rating"; state.position = 0; store(); return render(); }
+    const trial = state.trials[state.position];
+    const item = MANIFEST.cases[trial.index];
+    const other = trial.kind === "test" ? item.ours : item.reference_b;
+    const a = trial.swap ? other : item.reference_a;
+    const b = trial.swap ? item.reference_a : other;
+    current = { a, b, x: trial.x === "a" ? a : b, input: item.input };
+    $("abx-count").textContent = `試行 ${state.position + 1} / ${state.trials.length}`;
+    $("abx-progress").value = state.position / state.trials.length;
+    $("abx-case").textContent = describe(item);
+    show("abx");
+  } else if (state.phase === "rating") {
+    if (state.position >= state.order.length) { state.phase = "done"; store(); return render(); }
+    const entry = state.order[state.position];
+    const item = MANIFEST.cases[entry.index];
+    current = { one: entry.swap ? item.ours : item.reference_a, two: entry.swap ? item.reference_a : item.ours, input: item.input };
+    $("rating-count").textContent = `判定 ${state.position + 1} / ${state.order.length}`;
+    $("rating-case").textContent = describe(item);
+    $("note").value = "";
+    show("rating");
+  } else {
+    renderResult();
+    show("result");
+  }
+}
+
+function answer(choice) {
+  if (state.phase !== "abx") return;
+  const trial = state.trials[state.position];
+  state.answers.push({ index: trial.index, kind: trial.kind, correct: choice === trial.x });
+  state.position++;
+  store();
+  render();
+}
+
+function rate(value) {
+  const entry = state.order[state.position];
+  state.ratings.push({ index: entry.index, value, note: $("note").value.trim() });
+  state.position++;
+  store();
+  render();
+}
+
+// One-sided binomial tail: probability of at least `correct` out of `total` by guessing.
+function tail(correct, total) {
+  let probability = 0;
+  for (let k = correct; k <= total; k++) {
+    let combinations = 1;
+    for (let i = 0; i < k; i++) combinations = combinations * (total - i) / (i + 1);
+    probability += combinations / Math.pow(2, total);
+  }
+  return Math.min(1, probability);
+}
+
+function tally() {
+  const rows = MANIFEST.cases.map((item, index) => {
+    const count = (kind) => {
+      const answers = state.answers.filter((entry) => entry.index === index && entry.kind === kind);
+      const correct = answers.filter((entry) => entry.correct).length;
+      return { correct, total: answers.length, p: tail(correct, answers.length) };
+    };
+    const rating = state.ratings.find((entry) => entry.index === index) || {};
+    return { id: item.id, label: item.label, input: item.input_label, test: count("test"), control: count("control"),
+             same_voice: rating.value || null, note: rating.note || "" };
+  });
+  const sum = (kind) => rows.reduce((total, row) => ({ correct: total.correct + row[kind].correct, total: total.total + row[kind].total }), { correct: 0, total: 0 });
+  const overall = { test: sum("test"), control: sum("control") };
+  for (const kind of ["test", "control"]) overall[kind].p = tail(overall[kind].correct, overall[kind].total);
+  return { created: MANIFEST.created, finished: new Date().toISOString(), trials_per_pair: MANIFEST.trials, overall, cases: rows };
+}
+
+function renderResult() {
+  const result = tally();
+  const words = { same: "同じに聞こえる", different: "違って聞こえる", unsure: "判断できない" };
+  const cell = (entry) => `${entry.correct} / ${entry.total}（p = ${entry.p.toFixed(3)}）`;
+  const escape = (text) => String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  let html = "<thead><tr><th>モデル ／ 入力</th><th>本家と Rust の正答</th><th>本家と本家の正答</th><th>同じ声・言い回し</th></tr></thead><tbody>";
+  for (const row of result.cases) {
+    html += `<tr><td>${escape(row.label)}<br><span class="muted">${escape(row.input)}</span></td><td class="num">${cell(row.test)}</td><td class="num">${cell(row.control)}</td>` +
+            `<td>${words[row.same_voice] || "—"}${row.note ? `<br><span class="muted">${escape(row.note)}</span>` : ""}</td></tr>`;
+  }
+  html += `<tr><th>合計</th><td class="num">${cell(result.overall.test)}</td><td class="num">${cell(result.overall.control)}</td><td></td></tr></tbody>`;
+  $("result-table").innerHTML = html;
+  const same = result.cases.filter((row) => row.same_voice === "same").length;
+  const different = result.cases.filter((row) => row.same_voice === "different").length;
+  const verdict = $("verdict");
+  verdict.className = different ? "warn" : "good";
+  verdict.textContent = `「同じに聞こえる」${same} 件、「違って聞こえる」${different} 件（全 ${result.cases.length} 件）。` +
+    `ABX の正答は、本家と Rust が ${result.overall.test.correct} / ${result.overall.test.total}、本家と本家が ${result.overall.control.correct} / ${result.overall.control.total} でした。`;
+  $("save").onclick = () => {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2) + "\n"], { type: "application/json" }));
+    link.download = "rvc-abx-result.json";
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+  $("copy").onclick = () => {
+    const text = JSON.stringify(result, null, 2);
+    const done = () => { $("copied").textContent = "コピーしました。"; };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, () => { $("copied").textContent = "コピーできませんでした。保存を使ってください。"; });
+    else $("copied").textContent = "この環境ではコピーできません。保存を使ってください。";
+  };
+}
+
+function begin(session) {
+  state = session;
+  store();
+  render();
+}
+
+$("summary").textContent = MANIFEST.cases.length
+  ? `モデルと入力の組み合わせ ${MANIFEST.cases.length} 件、ABX は全 ${MANIFEST.cases.length * 2 * MANIFEST.trials} 試行（1 組あたり ${MANIFEST.trials} 回）です。`
+  : "聴き比べる音声がありません。make_listening_set.py を実行してください。";
+$("start").disabled = !MANIFEST.cases.length;
+$("start").onclick = () => begin(newSession());
+try {
+  const saved = JSON.parse(sessionStorage.getItem(KEY) || "null");
+  if (saved && saved.trials) { $("resume").hidden = false; $("resume").onclick = () => begin(saved); }
+} catch (error) { /* nothing saved */ }
+$("again").onclick = () => { try { sessionStorage.removeItem(KEY); } catch (error) { /* ignore */ } state = null; show("intro"); };
+$("answer-a").onclick = () => answer("a");
+$("answer-b").onclick = () => answer("b");
+$("abx-stop").onclick = stop;
+$("rating-stop").onclick = stop;
+document.querySelectorAll("[data-play]").forEach((button) => button.addEventListener("click", () => play(button.dataset.play, button)));
+document.querySelectorAll("[data-rate]").forEach((button) => button.addEventListener("click", () => rate(button.dataset.rate)));
+document.addEventListener("keydown", (event) => {
+  if (event.target.tagName === "TEXTAREA" || event.ctrlKey || event.metaKey || event.altKey || $("abx").hidden) return;
+  const key = event.key.toLowerCase();
+  if (["a", "b", "x"].includes(key)) play(key, document.querySelector(`#abx [data-play="${key}"]`));
+  else if (key === "1") answer("a");
+  else if (key === "2") answer("b");
+  else if (key === " ") { event.preventDefault(); stop(); }
+});
+</script>
+</body>
+</html>

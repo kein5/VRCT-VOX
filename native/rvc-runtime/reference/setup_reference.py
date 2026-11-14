@@ -7,7 +7,7 @@ override with RVC_REFERENCE_DIR). Nothing here is shipped with the application.
   engine/   the reference implementation at the commit the application already pins
   assets/   HuBERT (Transformers format), RMVPE weights and the published RMVPE graph
   model/    a CC BY 4.0 v2 / 40 kHz / F0 voice model from the application's catalog
-  audio/    a CC BY 4.0 16 kHz speech clip
+  audio/    two CC BY 4.0 16 kHz speech clips
   venv/     CPU PyTorch plus the hash-locked inference dependencies
 
 Every download is pinned by SHA-256. Standard library only; needs `uv` on PATH.
@@ -48,6 +48,9 @@ FILES = (
     # VOiCES corpus sample distributed with the torchaudio tutorials (CC BY 4.0).
     ('https://download.pytorch.org/torchaudio/tutorial-assets/Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav',
      'audio/speech.wav', 108844, 'c65fcd726d6b08c82c1e5dc7558f863cd8d483e3ed2f4a7bcf271dc1865ada14'),
+    # LibriSpeech utterance distributed with the torchaudio tutorials (CC BY 4.0); a second voice for listening.
+    ('https://download.pytorch.org/torchaudio/tutorial-assets/ctc-decoding/1688-142285-0007.wav',
+     'audio/speech2.wav', 451898, '67dfc27041e572bea27936e75eedc542ccf6f3af5cc251a0ab4e1e947d787fc8'),
 )
 TORCH = ('torch==2.11.0', 'torchaudio==2.11.0')
 EXPORT = ('onnx==1.23.2', 'onnxscript==0.7.2', 'onnxruntime==1.32.0')

@@ -83,7 +83,8 @@ What is downloaded, all pinned by SHA-256:
   model in the application's catalogue;
 - a real v2 / 40 kHz / F0 model: the published `pretrained_v2/f0G40k.pth` base generator
   (MIT), saved as an inference model by `dump_reference.py` with its weights unchanged;
-- a 3.4 s speech clip from the VOiCES corpus (CC BY 4.0), 16 kHz mono;
+- a 3.4 s speech clip from the VOiCES corpus (CC BY 4.0), 16 kHz mono, used by the
+  conformance tests, and a 7 s LibriSpeech utterance (CC BY 4.0) for the listening set;
 - random-weight models for v1/v2 × F0/no-F0 × 32/40/48 kHz, generated locally.
 
 The reference is driven as a black box: the scripts call its public entry points and
@@ -129,10 +130,42 @@ The 40 kHz output F0 agreement (95.6 % against 99.1 %) is the one figure that is
 than the reference's own seed-to-seed spread. The model there is the multi-speaker
 pretraining base, whose output is not a clean voice; it has not been examined further.
 
-**Not verified:** listening (spec 13.2's final judgement) has not been done by a person;
-performance against the current external runtime (13.3) has not been measured; fp16 and
-CUDA have not been run; no real v1, 32 kHz or F0-less voice model was available, so those
-variants are verified with random weights and, for v1, the HuBERT v1 features.
+**Not verified:** the listening judgement (spec 13.2) is prepared but has not been made
+by a person yet, see below; performance against the current external runtime (13.3) has
+not been measured; fp16 and CUDA have not been run; no real v1, 32 kHz or F0-less voice
+model was available, so those variants are verified with random weights and, for v1, the
+HuBERT v1 features.
+
+### Listening comparison (spec 13.2)
+
+The numbers above cannot stand in for listening. `reference/make_listening_set.py`
+prepares a blind comparison:
+
+```sh
+$REF/venv/bin/python native/rvc-runtime/reference/make_listening_set.py
+# your own models and recordings (kept local, never uploaded or committed):
+$REF/venv/bin/python native/rvc-runtime/reference/make_listening_set.py \
+  --voice my_v1.pth my_v1.index --voice my_32k.pth --input me.wav --transpose 0 --transpose 12
+```
+
+For every model and input it converts the same 16 kHz audio three times with the same
+settings: the reference with two different noise seeds and this runtime. It then writes
+`$REF/listening/index.html`, an ABX page (Japanese) to open in a browser:
+
+- Each trial plays A, B and X, where X repeats one of the two, and asks which. Which
+  pair is on screen and which side is the reference are hidden and random.
+- Half of the trials are the control "reference against reference with another seed".
+  Synthesis noise makes any two runs differ a little, so the control shows how well
+  that alone can be heard; "reference against Rust" is read against it.
+- After the trials, each model gets the specification's question: do the two sound like
+  the same voice with the same phrasing?
+- The result (correct answers per pair with a binomial p value, and the judgements) can
+  be saved as JSON for the pull request.
+
+Without arguments the set holds the two public models and two public clips (the VOiCES
+clip and a LibriSpeech utterance, both CC BY 4.0): four cases, 48 trials. The
+specification asks for v1/v2, 32/40/48 kHz and with/without F0; the public set covers v2
+with F0 at 40 and 48 kHz only, so the other variants need models passed with `--voice`.
 
 ### Speed and memory (same machine, CPU)
 
