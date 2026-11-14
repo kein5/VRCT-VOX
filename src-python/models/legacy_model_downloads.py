@@ -320,8 +320,15 @@ class LegacyDownloads:
             return job[0].job_id if job is not None and job[1].is_alive() else None
 
     def stop(self, key, timeout=2):
-        deadline = time.monotonic() + max(0, timeout)
-        if not self.lock.acquire(timeout=max(0, deadline - time.monotonic())):
+        timeout = max(0, timeout)
+        deadline = time.monotonic() + timeout
+
+        def remaining():
+            # Never more than asked for: `now + t - now` can exceed t by a rounding step
+            # while Windows' clock has not ticked.
+            return min(timeout, max(0, deadline - time.monotonic()))
+
+        if not self.lock.acquire(timeout=remaining()):
             return False
         try:
             job = self.jobs.get(key)
@@ -330,8 +337,8 @@ class LegacyDownloads:
             control, thread = job
         finally:
             self.lock.release()
-        control.cancel(timeout=max(0, deadline - time.monotonic()))
-        thread.join(max(0, deadline - time.monotonic()))
+        control.cancel(timeout=remaining())
+        thread.join(remaining())
         return not thread.is_alive()
 
     def wait(self, key, timeout=1800):
