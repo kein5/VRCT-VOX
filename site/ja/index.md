@@ -26,15 +26,15 @@ features:
     details: 自分のマイクとほかのプレイヤーの声を、同梱の音声認識（ASR）サーバーで文字にします。
     link: /ja/features/transcription
   - title: 声で届ける
-    details: 送った文章や翻訳をテキスト読み上げ（TTS）で声にして、仮想マイクへ流します。文字の送信とは別にオンとオフを切り替えられます。
+    details: 送った文章や翻訳をテキスト読み上げ（TTS）で声にして、仮想マイクを通してVRChatのマイクに流します。チャットボックスへの送信とは別に、読み上げだけをオンやオフにできます。
     link: /ja/features/tts
   - title: 声を変える
-    details: ボイスチェンジャー（RVC・Seed-VC）でマイクの声を変えて届けます。自分で用意したモデルも使えます。
+    details: ボイスチェンジャー（RVC・Seed-VC）でマイクの声を変えて、VRChatに届けます。自分で用意したモデルも使えます。
     link: /ja/features/voice-conversion
   - title: 相手のチャットを読む
     details: チャット読み取り（OCR）で、画面に出た相手のチャットボックスの文字を読み取って訳します。
     link: /ja/features/chat-reading
   - title: 同意してから取得する
-    details: モデルは同梱していません。提供元、ライセンス、容量を確かめて同意したものだけを取得します。
+    details: 機能に使うモデルはアプリに入っていません。提供元、ライセンス、容量を見て同意したものだけをダウンロードします。
     link: /ja/guide/models
 ---

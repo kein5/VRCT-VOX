@@ -14,16 +14,16 @@ Models are not packaged; you download them after agreeing. Each model has its ow
 - NLLB translation models are non-commercial (CC-BY-NC-4.0).
 - Using Saisho Utane's RVC model (CC BY 4.0) in published work requires credit.
 
-Upstream VRCT's chat-bubble detector may not be shipped in a derivative's release, so VRCT-VOX packages do not include it. VRCT-VOX's own chatbox detector for chat reading was trained separately and is published under MIT; it is not shipped either and is downloaded only after you agree. The Mia2026 test voice is for local testing only and is never distributed.
+Upstream VRCT's chat-bubble detector may not be shipped in a derivative's release, so VRCT-VOX packages do not include it. VRCT-VOX's own chatbox detector for chat reading was trained separately and is published under MIT; it is not shipped either and is downloaded only after you agree. The Mia2026 voice used in development tests is never distributed either.
 
 ## Credits
 
 VRCT-VOX builds on the work of the VRCT team.
 
-- **みしゃ / misyaguziya**: main development
-- **しいな / Shiina_12siy**: UI/UX and localization
-- **レラ / soumt-r**: technical advice
-- **どね / done_vrc**: logo
+- みしゃ / misyaguziya (main development)
+- しいな / Shiina_12siy (UI/UX and localization)
+- レラ / soumt-r (technical advice)
+- どね / done_vrc (logo)
 - and [all VRCT contributors](https://github.com/misyaguziya/VRCT/graphs/contributors)
 
 VRChat and its associated properties are trademarks or registered trademarks of VRChat Inc. VRCT-VOX is not affiliated with VRChat Inc.
