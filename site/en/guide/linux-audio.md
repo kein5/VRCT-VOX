@@ -10,13 +10,13 @@ For VRChat to hear speech or converted voice, VRCT-VOX's audio has to reach VRCh
 2. When it is ready, press "Resume voice". The virtual microphone is created muted.
 3. In VRChat, choose "VRCT Managed Virtual Microphone" as your microphone.
 
-No administrator rights are needed. You need PipeWire and systemd user services.
+You do not need administrator rights. You need PipeWire and systemd user services.
 
 ### What the app does
 
 - Creates and enables three user services, `vrct-managed-source`, `vrct-managed-tts` and `vrct-managed-vc`, in `~/.config/systemd/user/`.
 - Keeps the virtual microphone after VRCT-VOX exits. At your next login it is created again, muted.
-- Reuses a working virtual microphone if one already exists.
+- If a working virtual microphone already exists, it uses that one instead of making a new one.
 
 ### What the app does not do
 

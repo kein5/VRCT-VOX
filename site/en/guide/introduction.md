@@ -12,10 +12,10 @@ VRCT-VOX is not endorsed by the VRCT authors or VRChat. Send questions and bug r
 
 | Feature | What it does |
 |---|---|
-| Speak your translations | Reads your text or its translation with [speech.cpp](https://github.com/nyosegawa/speech.cpp) into a virtual microphone that VRChat uses. Japanese uses Irodori; other languages use Qwen3-TTS. Voice and chatbox text are configured separately. |
-| Hear yourself | Optionally plays the same speech on your own speakers or headphones. |
+| Speak your translations | Reads your text or its translation with [speech.cpp](https://github.com/nyosegawa/speech.cpp) into VRChat's microphone, through a virtual microphone. Japanese uses Irodori; other languages use Qwen3-TTS. Voice and chatbox text are configured separately. |
+| Hear yourself | Optionally plays the speech that goes to VRChat on your own speakers or headphones too. |
 | Voice changer | Changes your microphone's voice with an RVC or Seed-VC runtime. The settings can fetch the runtime for you after you check its license and size and agree. |
-| Realtime captions | Transcribes your microphone and other players with the bundled speech recognition server. |
+| Realtime captions | Turns what you say and other players' voices into text, with the speech recognition server that comes with the app. |
 | Chat reading | Reads the text of chatboxes shown on the VRChat screen. |
 | Model downloads | Models are downloaded only after you check their license and size and agree. |
 | Linux support | Global shortcuts on Wayland, a PipeWire virtual microphone and Japanese input methods (fcitx/Mozc, ibus). The VR UI, chat reading from a shared native Wayland window, and pasting in Voice Typing Mode work too. |

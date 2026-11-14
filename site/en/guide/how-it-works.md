@@ -24,11 +24,11 @@ The bottom lane of the picture.
 - The text in their chatbox becomes text through chat reading (OCR).
 - Both go through translation to the main screen's log and the captions. They can also go to OBS and WebSocket.
 
-What you hear from them is never sent on to your microphone or the chatbox.
+What you hear from them, and the text made from it, is never sent on to your microphone or the chatbox.
 
 ## Why a virtual microphone is needed
 
-VRChat hears only the microphone you choose in VRChat. For the voice VRCT-VOX makes (speech, or your changed voice) to reach VRChat, it has to look like a microphone to VRChat. A virtual microphone is that microphone.
+VRChat hears only the microphone you choose in VRChat. For the voice VRCT-VOX makes (speech, or your changed voice) to reach VRChat, VRChat has to receive it as a microphone. A virtual microphone does that: it passes the sound an app plays to other apps as if it came from a microphone.
 
 - On Linux, VRCT-VOX can prepare a virtual microphone it manages ([Linux audio route](./linux-audio)).
 - On Windows, install a virtual cable such as VB-CABLE separately.

@@ -1,6 +1,6 @@
 # First setup
 
-This page sets up translating text and sending it to the VRChat chatbox. Add speech or captions afterwards with the feature guides.
+This page sets up translating text and sending it to the VRChat chatbox. Set up speech or captions afterwards, following the page for each feature.
 
 ![The VRCT-VOX main screen with Translation on and a conversation in the log](/screenshots/en/main.webp)
 
@@ -24,8 +24,8 @@ By default VRCT-VOX sends to `127.0.0.1` on port `9000`, which is also VRChat's 
 
 In "Language Settings" on the left of the main screen, choose:
 
-- **Your Language**: the language you speak or type.
-- **Target Language**: the language to translate into. You can choose up to three.
+- "Your Language" is the language you speak or type.
+- "Target Language" is the language to translate into. You can choose up to three.
 
 ## 4. Turn on Translation and send
 
@@ -37,16 +37,16 @@ Type in the box at the bottom and send. The original and its translation appear 
 Choose an external translation API under Settings → "Translation". See [Translation](../features/translation).
 :::
 
-Models you have not downloaded yet are also listed under "Before you start" on the main screen while the conversation is empty.
+Models you have not downloaded yet are also listed under "Before you start", which the main screen shows while the conversation log is empty.
 
 ## 5. Choose your microphone and speaker
 
 Do this before you use a voice feature (captions, text to speech, the voice changer). Open the settings with the gear at the bottom left of the main screen, then open "Device".
 
-- **Mic**: the microphone that picks up your voice. On Linux it lists PipeWire inputs.
-- **Speaker**: the output used to listen to other players.
+- "Mic" is the microphone that picks up your voice. On Linux it lists PipeWire inputs.
+- "Speaker" is the output device VRCT-VOX listens to when it turns other players' voices into text.
 
-"Auto Select" uses the system default device.
+"Auto Select" uses the device set as the default in your OS.
 
 ## Next
 

@@ -14,7 +14,7 @@ chmod +x VRCT-VOX-<バージョン>-linux-x64-vulkan-release.AppImage
 ./VRCT-VOX-<バージョン>-linux-x64-vulkan-release.AppImage
 ```
 
-FUSEを使えない環境では、`APPIMAGE_EXTRACT_AND_RUN=1`を付けて起動します。このときは、展開のために一時領域が別に必要です（手元のバージョンでは約1.7 GB）。
+FUSEを使えない環境では、`APPIMAGE_EXTRACT_AND_RUN=1`を付けて起動します。このときは、展開のための一時的な空き容量が別に必要です（確かめたバージョンでは約1.7 GB）。
 
 ### tar.gz
 
@@ -24,7 +24,7 @@ tar -xzf VRCT-VOX-<バージョン>-linux-x64-vulkan-release.tar.gz
 ./VRCT-VOX/vrct-vox
 ```
 
-`VRCT-VOX`フォルダーはまとめて置いたままにしてください。WebKitGTK 4.1、GTK 3、PipeWire、Vulkanなどはシステムのものを使います。どのディストリビューションでも動くことを約束するものではありません。
+展開した`VRCT-VOX`フォルダーの中身はばらさずにそのまま置いておいてください。WebKitGTK 4.1、GTK 3、PipeWire、VulkanなどはOSに入っているものを使います。どのディストリビューションでも動くことを約束するものではありません。
 
 ### 設定とデータの場所（Linux）
 
@@ -44,7 +44,7 @@ AppImageとtar.gzのどちらで起動しても、同じ場所を使います。
 | ZIP（CPU版） | `VRCT-VOX.zip` | インストールせずに、展開したフォルダーから使いたい場合 |
 | ZIP（CUDA版） | `VRCT-VOX_cuda.zip` | 同じくZIPで、NVIDIAのGPUを使う場合 |
 
-CPU版はどのPCでも動きます。GPU版（CUDA版）はNVIDIAのGPUがあるPC向けで、Whisperの音声認識とローカルの翻訳をGPUで動かせます。その分ダウンロードが大きくなります。読み上げとリアルタイム字幕（同梱のspeech.cpp）がGPUを使えるのは、どちらの版でも同じです。
+CPU版はどのPCでも動きます。GPU版（CUDA版）はNVIDIAのGPUがあるPC向けで、Whisperの音声認識とローカルの翻訳をGPUで動かせます。その分ダウンロードが大きくなります。読み上げとリアルタイム字幕（アプリに入っているspeech.cpp）は、どちらの版でもGPUを使えます。
 
 ::: warning 初めて起動するときにSmartScreenの警告が出ます
 Windows版はコード署名をしていません。「WindowsによってPCが保護されました」と出たら、「詳細情報」を押してから「実行」を押します。

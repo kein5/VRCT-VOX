@@ -15,9 +15,9 @@ Inputs are on the left, the steps in the middle and the outputs on the right, jo
 - Each step shows its setting and time (for example, Translation Japanese → English, 212 ms).
 - Text to speech and the voice changer are shared by voice and chat. A line also runs from your microphone straight into the voice changer.
 - Each output shows the latest time from each input, and what it does: what the chatbox gets (the original, the translation or both), and whether the voice VRChat hears is converted.
-- Outputs not used are dashed boxes with no line into them. The reasons are listed under the graph (for example, off in the settings, TTS is off).
+- Outputs not in use are dashed boxes with no line into them. The reasons are listed under the graph (for example, off in the settings, TTS is off).
 - The lines your latest message took are lit. When a new message arrives, a light runs along them once.
-- When VRChat uses your microphone without going through VRCT-VOX, a dotted line runs from the microphone.
+- When VRChat uses your microphone directly, without going through VRCT-VOX, a dotted line runs from the microphone.
 
 Under the graph, a timeline for each of your voice and chat shows the latest message's steps as bars, with recent totals and their median.
 
@@ -45,7 +45,7 @@ Times count from a point that depends on the input. The panel says which.
 
 ## Show it on the desktop
 
-Under Settings → "VR" → "Desktop caption overlay", turn on "Show inputs and outputs on the desktop". The path your latest inputs took, and how long each step took, appear on the left of the caption window: the input, translation and the outputs, joined by arrows. It works with the captions turned off too.
+Under Settings → "VR" → "Desktop caption overlay", turn on "Show inputs and outputs on the desktop". Where your latest inputs went, and how long each step took, appear to the left of the captions: the input, translation and the outputs, joined by arrows. It works with the captions turned off too.
 
 ![Inputs and outputs at the lower left of the screen, with captions on the right](/screenshots/en/flow-on-screen.webp)
 
@@ -53,7 +53,7 @@ The background is a drawing for this page.
 
 - "Inputs shown on the desktop" picks 1 to 3 inputs. It starts at 1.
 - While the voice changer runs, its round trip is shown as well.
-- Like the captions, it lets clicks through and never takes the focus. It works where the desktop caption overlay works.
+- Like the captions, you can click through it to the window underneath, and it never takes keyboard input away from that window. It works where the desktop caption overlay works.
 
 ## In VR
 

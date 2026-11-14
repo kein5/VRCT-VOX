@@ -30,7 +30,7 @@ See [Speech recognition (ASR) and realtime captions](../features/transcription).
 
 You need: a speech recognition (ASR) model, and SteamVR to see them in VR
 
-1. Under Settings → "Speech recognition (ASR)", in "Game audio captions", choose an output that carries only the game's sound.
+1. Under Settings → "Speech recognition (ASR)", in "Game audio captions", choose an output device that plays only VRChat's sound.
 2. Turn on "Listening" on the main screen. Captions appear in the main screen's log.
 3. To lay them over the screen, turn on the desktop caption overlay; to see them in VR, turn on the caption overlay.
 
@@ -51,7 +51,7 @@ See [Chat reading (OCR)](../features/chat-reading).
 You need: a text to speech (TTS) model and a virtual microphone
 
 1. Under Settings → "Text to speech (TTS)", download a model.
-2. Set the output to a virtual microphone and choose that microphone in VRChat. On Linux use the managed virtual microphone; on Windows, a virtual cable you install separately.
+2. Choose a virtual microphone under "Output device", and choose the same one as your microphone in VRChat. On Linux use the managed virtual microphone; on Windows, a virtual cable you install separately.
 3. In "Chat voice", choose whether to speak the original or the translation.
 4. Turn on "Text to speech (TTS)" on the main screen.
 
@@ -62,7 +62,7 @@ See [Text to speech (TTS)](../features/tts) and [Linux audio route](./linux-audi
 You need: the RVC runtime and a model, an NVIDIA GPU, and a virtual microphone
 
 1. Under Settings → "Voice changer (RVC)", download the runtime and a model, or point to files you have.
-2. Prepare a virtual microphone for the changed voice to go out through.
+2. Set up a virtual microphone that carries the changed voice to VRChat.
 3. Turn on "Voice changer (RVC)" on the main screen.
 
 See [Voice changer (RVC, Seed-VC)](../features/voice-conversion).

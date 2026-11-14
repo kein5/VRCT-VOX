@@ -54,13 +54,13 @@ A wrong voice name gives an error with a number when speech plays. For a voice G
 ### What you can use
 
 - A recognition GGUF model that the bundled speech.cpp can load, such as Qwen3-ASR or Haas-ja.
-- A VAD GGUF, which finds where speech starts and ends. It is always needed with the recognition model.
-- A diarization GGUF (optional).
+- A VAD GGUF, which finds where someone is speaking. Always set it together with the recognition model.
+- A diarization GGUF (optional): the model that tells speakers apart.
 
 ### Set it
 
 1. Open "Models and servers" near the bottom of Settings → "Speech recognition (ASR)", and look at "ASR + VAD".
-2. Enter the file locations in "Model GGUF path" and "VAD GGUF path". For diarization, also enter "Diarization GGUF path (optional)".
+2. Enter the file locations in "Model GGUF path" and "VAD GGUF path". To tell speakers apart, also enter "Diarization GGUF path (optional)".
 3. Press "Save changes".
 4. Turn on "Mic input" or "Listening" on the main screen.
 
@@ -92,7 +92,7 @@ Use HTTPS. HTTP works only for this computer (localhost) or an IP address on you
 - An RVC model (`.pth`): v1 or v2, with a sample rate of 32k, 40k or 48k.
 - A retrieval index (`.index`), optional. It is needed when "Retrieval blend" is above 0.
 
-RVC also needs its runtime, which you can download from the settings ([Voice changer](../features/voice-conversion)). It needs an NVIDIA GPU.
+RVC also needs its runtime and an NVIDIA GPU. You can download the runtime from the settings ([Voice changer](../features/voice-conversion)).
 
 ### Set it
 
