@@ -12,6 +12,11 @@ import pytest
 from models import legacy_model_downloads as downloads
 from models.model_downloads.manager import Cancelled
 
+# Upper bounds for things that happen at once on a fast PC. A slow CI runner needs more,
+# and every wait returns as soon as the thing happens, so a generous bound costs nothing.
+# owner.wait() past its bound cancels the job, which turned a slow pass into a failure.
+WAIT = 10
+
 
 @pytest.fixture
 def bundle():
@@ -158,8 +163,8 @@ def test_shutdown_cancels_and_joins_running_download_once(tmp_path, bundle):
         lambda control: downloads.download_directory(tmp_path, "model", "owner/model", pin, control,
                                                       transport=lambda _: body),
         lambda *result: results.append(result))
-    assert body.entered.wait(1)
-    assert owner.close(timeout=1)
+    assert body.entered.wait(WAIT)
+    assert owner.close(timeout=WAIT)
     assert not thread.is_alive()
     assert results == [(False, "cancelled")]
     assert not list(tmp_path.glob(".partial-*"))
@@ -175,14 +180,14 @@ def test_same_weight_request_is_rejected_while_owned_and_retry_joins(tmp_path, b
     owner.start("base", lambda control: downloads.download_directory(
         tmp_path, "model", "owner/model", pin, control, transport=lambda _: body),
         lambda *result: results.append(result))
-    assert body.entered.wait(1)
+    assert body.entered.wait(WAIT)
     with pytest.raises(ValueError, match="download_busy"):
         owner.start("base", lambda _: pytest.fail("duplicate started"), lambda *_: None)
-    assert owner.stop("base", timeout=1)
+    assert owner.stop("base", timeout=WAIT)
     owner.start("base", lambda control: downloads.download_directory(
         tmp_path, "model", "owner/model", pin, control, transport=fake_transport(bodies)),
         lambda *result: results.append(result))
-    assert owner.wait("base", timeout=1)
+    assert owner.wait("base", timeout=WAIT)
     assert results == [(False, "cancelled"), (True, None)]
     assert (tmp_path / "model/model.bin").read_bytes() == bodies["model.bin"]
 
@@ -207,7 +212,7 @@ def test_two_independent_downloaders_cannot_touch_each_others_staging(tmp_path, 
     thread = Thread(target=first)
     thread.start()
     try:
-        assert entered.wait(1)
+        assert entered.wait(WAIT)
         staging = list(tmp_path.glob(".partial-*"))
         with pytest.raises(ValueError, match="download_busy"):
             downloads.download_directory(tmp_path, "model", "owner/model", pin,
@@ -267,7 +272,7 @@ def test_owner_always_delivers_one_terminal_result(outcome):
         return outcome
 
     owner.start("weight", operation, lambda *result: results.append(result))
-    assert owner.wait("weight", timeout=1)
+    assert owner.wait("weight", timeout=WAIT)
     assert results == [(True, None) if outcome is True else
                        (False, "verification_failed" if outcome is False else "download_failed")]
 
@@ -286,7 +291,7 @@ def test_uninterruptible_open_is_reported_pending_then_cannot_publish(tmp_path, 
         tmp_path, "model", "owner/model", pin, control, transport=opening),
         lambda *result: results.append(result))
     try:
-        assert entered.wait(1)
+        assert entered.wait(WAIT)
         assert owner.close(timeout=0.01) is False
         assert owner.closed
         assert not (tmp_path / "model").exists()
@@ -354,7 +359,7 @@ def test_first_admission_hashes_once_under_concurrent_checks(tmp_path, bundle, m
                for _ in range(2)]
     threads[0].start()
     try:
-        assert entered.wait(1)
+        assert entered.wait(WAIT)
         threads[1].start()
     finally:
         release.set()
@@ -378,14 +383,14 @@ def test_close_signals_before_bounded_lock_wait(held_lock):
 
     thread = owner.start("weight", operation, lambda *result: results.append(result))
     try:
-        assert entered.wait(1)
+        assert entered.wait(WAIT)
         assert not owner.close(timeout=0)
         control = owner.jobs["weight"][0]
         assert control.event.is_set() and owner.closing.is_set()
     finally:
         release.set()
         thread.join(2)
-        assert owner.close(timeout=1)
+        assert owner.close(timeout=WAIT)
     assert not thread.is_alive()
     assert results == [(False, "cancelled")]
 
@@ -413,12 +418,12 @@ def test_close_during_registration_cancels_before_operation(monkeypatch):
     starter = Thread(target=start)
     starter.start()
     try:
-        assert entered.wait(1)
+        assert entered.wait(WAIT)
         assert not owner.close(timeout=0)
     finally:
         release.set()
         starter.join(2)
-        assert owner.close(timeout=1)
+        assert owner.close(timeout=WAIT)
     assert not starter.is_alive() and not errors
     assert results == [(False, "cancelled")]
     with pytest.raises(ValueError, match="downloads_closed"):
