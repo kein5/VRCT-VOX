@@ -23,12 +23,12 @@ test("a notice raised before the saved language is applied is drawn in that lang
     const s = await setup();
     const notice = s.runtime.api.createElement(s.translated.TranslatedNotice, { k: "common_warning.osc_query_remote_mic_stopped",
         labels: { sync: "config_page.others.vrc_mic_mute_sync.label", microphone: "main_page.transcription_send" } });
-    assert.match(s.draw(notice), /^Messages go to another machine.*VRC Mic Mute Sync.*Voice2Chatbox/);
+    assert.match(s.draw(notice), /^Messages go to another machine.*VRC Mic Mute Sync.*Mic input/);
     await s.i18n.changeLanguage("ja");
     const text = s.draw(notice);
     assert.equal(text, resources.ja.translation.common_warning.osc_query_remote_mic_stopped
         .replaceAll("{{sync}}", "VRCマイクミュート同期").replaceAll("{{microphone}}", "マイク入力"));
-    assert.doesNotMatch(text, /\{\{|Voice2Chatbox/);
+    assert.doesNotMatch(text, /\{\{|Mic input/);
 });
 
 test("the save notice is translated when drawn", async () => {

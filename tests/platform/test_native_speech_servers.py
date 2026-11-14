@@ -36,7 +36,7 @@ def open_servers(ui, profile):
     if ui.evaluate(shown):
         return  # already there: a timed Stop must not wait for a page change
     if profile == 'ASR + VAD':
-        ui.open_voice_page('Transcription', 'section[aria-label="Realtime captions"] select')
+        ui.open_voice_page('Speech recognition (ASR)', 'section[aria-label="Realtime captions"] select')
     else:
         ui.open_voice_settings()
     ui.wait("return [...document.querySelectorAll('fieldset')].some(e => e.querySelector('legend')?.textContent === " + json.dumps(profile) + ");")
@@ -158,7 +158,7 @@ def test_gui_owned_tts_asr_stop_and_restart_off(tmp_path):
                 wait_for(lambda: not gate.inspect()['muted'])
                 ui.close_settings()
                 # Text is spoken only while the main TTS switch is on.
-                ui.set_switch('TTS')
+                ui.set_switch('Text to speech (TTS)')
 
                 def send(text):
                     element = ui.command('POST', '/element', {'using': 'css selector', 'value': 'textarea[class*=message_box_input_area]'})

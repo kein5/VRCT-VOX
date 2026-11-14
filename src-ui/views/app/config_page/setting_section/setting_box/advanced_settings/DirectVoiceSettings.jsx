@@ -86,8 +86,8 @@ export const DirectVoiceSettings = ({ variant = "all" }) => {
     ].join(" · ");
     const tone = status === "voice.input_failed" ? "failed" : status === "voice.input_pending" ? "pending" :
         ["voice.input_active", "voice.vc_idle", "voice.vc_active", "voice.vc_ready"].includes(status) ? "active" : "idle";
-    return <section className={styles.container} aria-label={variant === "rvc" ? "RVC" : t("voice.input_title")} data-setting-id={variant === "rvc" ? "rvc_settings" : "direct_voice_settings"}>
-        <SectionLabelComponent label={variant === "rvc" ? "RVC" : t("voice.input_title")} />
+    return <section className={styles.container} aria-label={variant === "rvc" ? t("config_page.rvc.rvc_settings.label") : t("voice.input_title")} data-setting-id={variant === "rvc" ? "rvc_settings" : "direct_voice_settings"}>
+        <SectionLabelComponent label={variant === "rvc" ? t("config_page.rvc.rvc_settings.label") : t("voice.input_title")} />
         <StatusLine tone={tone}>{t(status)}</StatusLine>
         <VoiceRouteSummary />
         <Description text={t(variant === "rvc" ? "voice.vc_rvc_hint" : "voice.input_description")} />

@@ -124,7 +124,7 @@ def test_native_text_to_virtual_microphone_and_recovery(tmp_path):
                 def positive(name):
                     # Text is spoken only while the main TTS switch is on; a mute,
                     # a failed server or "off" turns it off again.
-                    ui.set_switch("TTS")
+                    ui.set_switch("Text to speech (TTS)")
                     settled(capture, time.monotonic_ns(), "before_send_not_silent", silent=True)
                     path = tmp_path / f"{name}.pcm"
                     recording = Capture("vrct.managed.source", path)
@@ -150,7 +150,7 @@ def test_native_text_to_virtual_microphone_and_recovery(tmp_path):
                 positive("normal_exactly_once")
 
                 for name, button in [("stop", "Stop playback and clear queue"), ("mute", "Mute until resumed")]:
-                    ui.set_switch("TTS")
+                    ui.set_switch("Text to speech (TTS)")
                     start = send(LONG)
                     first_audio(start)
                     (ui.open_voice_settings if name == "stop" else ui.open_route_settings)()

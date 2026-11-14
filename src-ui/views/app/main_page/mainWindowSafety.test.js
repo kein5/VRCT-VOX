@@ -5,6 +5,7 @@ import { loadBridgeStore } from "../../../logics/test/bridgeHarness.js";
 import { chunkArray } from "../../../logics/utils.js";
 import * as routeState from "../../../logics/voice/routeState.js";
 import { voiceActions } from "../../../logics/voice/voiceActions.js";
+import * as featureLabel from "../../../logics/common/featureLabel.js";
 
 const icon = () => null;
 const keydown = (control, key, repeat = false) => {
@@ -25,6 +26,7 @@ const loadSwitches = async (b, voice = {}) => {
         "../../../../../logics/voice/useVoice": { useVoice: () => voice },
         "../../../../../logics/voice/voiceActions.js": { voiceActions },
         "../../../../../logics/voice/routeState": routeState,
+        "../../../../../logics/common/featureLabel.js": featureLabel,
         "@logics_main": { ...main, useIsMainPageCompactMode: () => ({ currentIsMainPageCompactMode: { data: false } }) },
         "../../../../common_components/toggle_switch/ToggleSwitch": { ToggleSwitch: icon },
     });

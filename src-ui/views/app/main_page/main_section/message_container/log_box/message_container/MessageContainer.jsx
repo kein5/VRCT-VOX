@@ -57,7 +57,7 @@ export const MessageContainer = memo(function MessageContainer({ id, messages, s
         : is_system_message
         ? t("main_page.message_log.system")
         : is_ocr_message
-        ? t("main_page.message_log.received_ocr", { ocr: t("main_page.ocr") })
+        ? t("main_page.message_log.received_ocr")
         : t("main_page.message_log.received");
     // Who spoke, where the server told the voices apart: "A", or "A・B" when two share a caption.
     const speakers_text = !is_sent_message && speakers?.length
