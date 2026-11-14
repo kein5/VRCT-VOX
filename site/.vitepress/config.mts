@@ -24,6 +24,7 @@ function sidebarJa(): DefaultTheme.SidebarItem[] {
       items: [
         { text: 'VRCT-VOXとは', link: '/ja/guide/introduction' },
         { text: 'インストール', link: '/ja/guide/install' },
+        { text: '動作環境と推奨スペック', link: '/ja/guide/requirements' },
         { text: '最初の設定', link: '/ja/guide/first-setup' },
         { text: '声と文字の流れ', link: '/ja/guide/how-it-works' },
       ],
@@ -69,6 +70,7 @@ function sidebarEn(): DefaultTheme.SidebarItem[] {
       items: [
         { text: 'What is VRCT-VOX', link: '/en/guide/introduction' },
         { text: 'Install', link: '/en/guide/install' },
+        { text: 'System requirements', link: '/en/guide/requirements' },
         { text: 'First setup', link: '/en/guide/first-setup' },
         { text: 'How voice and text flow', link: '/en/guide/how-it-works' },
       ],
