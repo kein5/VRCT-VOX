@@ -125,7 +125,7 @@ Release commits (`chore(release): ...`) and merge commits are left out. The same
 
 ### GitHub Releases
 
-The CHANGELOG section is the full list; the GitHub release helps users decide whether to update. Its draft starts with Highlights, Breaking Changes (copied from the section), Upgrade Notes and Known Issues, then the user-facing changes. Internal changes are counted and linked to `CHANGELOG.md`. Keep the two consistent: change the CHANGELOG first, then the release text.
+The CHANGELOG section is the full list; the GitHub release helps users decide whether to update. Its draft starts with Highlights, Breaking Changes (copied from the section), Upgrade Notes and Known Issues, then the user-facing changes. Internal changes are counted and linked to `CHANGELOG.md`. A stable release's draft also lists the user-facing changes of the pre-releases it includes, since its users may come straight from the previous stable release. Keep the two consistent: change the CHANGELOG first, then the release text.
 
 ### Troubleshooting
 

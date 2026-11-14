@@ -176,6 +176,23 @@ class ReleaseNotesTest(unittest.TestCase):
         self.assertIn(f"{REPO}/blob/v0.2.0-beta.1/CHANGELOG.md", notes)
         self.assertIn("<!--\n- check the hashes\n-->", notes)
 
+    def test_stable_notes_gather_what_its_pre_releases_changed(self):
+        text = ""
+        for version, previous, item in (
+                ("0.2.0-beta.1", "v0.1.0", commit("feat", "add a page", id_="1" * 40)),
+                ("0.2.0-beta.2", "v0.2.0-beta.1", commit("fix", "change the reply", breaking=True, id_="2" * 40)),
+                ("0.2.0", "v0.2.0-beta.2", commit("chore", "version 0.2.0", scope="release"))):
+            extra = [commit("test", "cover " + version, id_=version[-1] * 40)] if "beta" in version else []
+            section = cl.render_section(version, "2026-11-14", previous, [item, *extra],
+                                        repo_url=REPO, included=cl.pre_releases(text, version))
+            text = cl.update_changelog(text, version, section)
+        notes = cl.release_notes(text, "0.2.0", repo_url=REPO, checklist="")
+        self.assertIn("Change the reply", notes.split("## Breaking Changes")[1].split("## Upgrade Notes")[0])
+        self.assertIn("### Features", notes)
+        self.assertIn("Add a page", notes)
+        self.assertNotIn("No user-facing changes.", notes)
+        self.assertIn("Internal changes: 2 (Tests 2).", notes)
+
     def test_no_notes_without_a_changelog_section(self):
         with self.assertRaises(cl.ChangelogError):
             cl.release_notes("# Changelog\n", "0.2.0-beta.1", repo_url=REPO, checklist="")

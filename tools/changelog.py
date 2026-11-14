@@ -229,14 +229,21 @@ def pre_releases(text, version):
 
 
 def release_notes(text, version, *, repo_url=REPO_URL, checklist=""):
-    """GitHub release notes: what users weigh first, then the user-facing list, internals counted."""
-    body = section_text(text, version)
-    user = _between(body, "### User-facing Changes", "### Internal Changes")
-    internal = _between(body, "### Internal Changes", None)
-    breaking = _between(user, "#### Breaking Changes", "#### ") if user else ""
-    rest = re.sub(r"#### Breaking Changes\n.*?(?=#### |\Z)", "", user, flags=re.S).strip() if user else ""
-    counts = [(heading, len(re.findall(r"^- ", part, re.M)))
-              for heading, part in re.findall(r"^#### ([^\n]+)\n(.*?)(?=^#### |\Z)", internal, re.M | re.S)]
+    """GitHub release notes: what users weigh first, then the user-facing list, internals counted.
+
+    A stable release also carries the user-facing changes of the pre-releases it includes, since
+    its users may come straight from the previous stable release."""
+    user, internal = {}, {}
+    for name in [version, *reversed(pre_releases(text, version))]:
+        body = section_text(text, name)
+        for target, part in ((user, _between(body, "### User-facing Changes", "### Internal Changes")),
+                             (internal, _between(body, "### Internal Changes", None))):
+            for heading, entries in _headed(part):
+                target.setdefault(heading, []).append(entries.strip("\n"))
+    breaking = "\n".join(user.pop("Breaking Changes", []))
+    rest = "\n\n".join(f"### {heading}\n\n" + "\n".join(user[heading]) for heading in USER_HEADINGS if heading in user)
+    counts = [(heading, sum(len(re.findall(r"^- ", part, re.M)) for part in internal[heading]))
+              for heading in INTERNAL_HEADINGS if heading in internal]
     lines = []
     if checklist.strip():
         lines += ["<!--", checklist.strip(), "-->", ""]
@@ -245,13 +252,18 @@ def release_notes(text, version, *, repo_url=REPO_URL, checklist=""):
               "## Upgrade Notes", "", "_Write what users must do when they update, or remove this heading._", "",
               "## Known Issues", "", "_List the limitations and the checks that were not run (docs/voice-stack/release-candidates.md)._", "",
               "## Changes", ""]
-    lines += [rest.replace("#### ", "### ") or "No user-facing changes.", ""]
+    lines += [rest or "No user-facing changes.", ""]
     if counts:
         total = sum(count for _, count in counts)
         detail = ", ".join(f"{heading} {count}" for heading, count in counts)
         lines += [f"Internal changes: {total} ({detail}).", ""]
     lines += [f"The full list is in [CHANGELOG.md]({repo_url}/blob/v{version}/CHANGELOG.md).", ""]
     return "\n".join(lines)
+
+
+def _headed(part):
+    """(heading, entries) for each #### heading of a section's part."""
+    return re.findall(r"^#### ([^\n]+)\n(.*?)(?=^#### |\Z)", part, re.M | re.S)
 
 
 def _between(text, start, stop):
