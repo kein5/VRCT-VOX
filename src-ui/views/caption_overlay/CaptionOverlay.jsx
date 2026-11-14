@@ -81,27 +81,37 @@ export const CaptionOverlay = ({ bridge = captionOverlayBridge, now = Date.now }
     );
 };
 
-// Where the user's latest inputs went and how long each step took, in ms. Every word comes
-// from the main window; this only draws them. It sits in the band's corner away from the
-// captions, so the two never cover each other.
+// Where the user's latest inputs went and how long each step took, in ms, drawn as a path:
+// the input, its steps, then the outputs it reached (dashed when it did not). Every word comes
+// from the main window; this only draws them. It sits beside the captions, never over them.
 const FlowStrip = ({ items, note }) => (
     <div className={styles.flow}>
-        {items.map(item => (
-            <div key={item.id} className={clsx(styles.flow_item, styles[`flow_${item.input}`])}>
-                <p className={styles.flow_text}><span className={styles.flow_label}>{item.label}</span>{item.text}</p>
-                {item.rows.map((row, index) => (
-                    <div key={index} className={clsx(styles.flow_row, { [styles.flow_off]: row.off })}>
-                        <span className={styles.flow_name}>{row.label}</span>
-                        <span className={clsx(styles.flow_track, { [styles.flow_no_track]: row.off })}>
-                            {!row.off && <span className={clsx(styles.flow_bar, styles[`flow_bar_${row.kind}`])}
-                                style={{ left: `${(row.start / item.scale) * 100}%`,
-                                    width: `${Math.max(0.5, ((row.end - row.start) / item.scale) * 100)}%` }} />}
-                        </span>
-                        <span className={styles.flow_value}>{row.value}</span>
-                    </div>
-                ))}
-            </div>
-        ))}
+        {items.map(item => {
+            const stages = item.rows.filter(row => row.kind === "stage");
+            const conversion = item.rows.find(row => row.kind === "conversion");
+            const outputs = item.rows.filter(row => row.kind === "chatbox" || row.kind === "speech");
+            return <div key={item.id} className={clsx(styles.flow_item, styles[`flow_${item.input}`])}>
+                <p className={styles.flow_text}>{item.text}</p>
+                <div className={styles.flow_path}>
+                    <span className={clsx(styles.flow_chip, styles.flow_input)}>{item.label}</span>
+                    {stages.map((row, index) => <span key={index} className={styles.flow_step}>
+                        <span className={styles.flow_arrow} aria-hidden="true" />
+                        <span className={clsx(styles.flow_chip, styles.flow_stage)}>{row.label}<b>{row.value}</b></span>
+                    </span>)}
+                    {outputs.length > 0 && <span className={styles.flow_arrow} aria-hidden="true" />}
+                    {outputs.length > 0 && <span className={styles.flow_outputs}>
+                        {outputs.map((row, index) => <span key={index} className={styles.flow_step}>
+                            <span className={clsx(styles.flow_chip, styles[`flow_out_${row.kind}`], { [styles.flow_off]: row.off })}>
+                                {row.label}<b>{row.value}</b></span>
+                            {row.kind === "speech" && !row.off && conversion && <>
+                                <span className={styles.flow_arrow} aria-hidden="true" />
+                                <span className={clsx(styles.flow_chip, styles.flow_out_conversion)}>{conversion.label}<b>{conversion.value}</b></span>
+                            </>}
+                        </span>)}
+                    </span>}
+                </div>
+            </div>;
+        })}
         {note && <p className={styles.flow_note}>{note}</p>}
     </div>
 );

@@ -3,82 +3,52 @@ import clsx from "clsx";
 import { useI18n } from "@useI18n";
 import { createLanguageNames } from "../../../logics/common/languageNames.js";
 import { formatMs, latestTraces, median, timelineScale, traceTotal } from "../../../logics/flow/ioFlow.js";
-import { flowNote, offGroups, outputDetail, outputTime, timelineRows } from "../../../logics/flow/flowText.js";
+import { flowNote, offGroups, timelineRows } from "../../../logics/flow/flowText.js";
+import { buildFlowGraph } from "../../../logics/flow/flowGraph.js";
+import { FlowGraph } from "./FlowGraph";
 import styles from "./IoFlowView.module.scss";
 
 const HISTORY = 20;
 
-// Where the user's voice and typed chat go with the current settings, and how long the
-// latest of each took to reach each output. Shared by the main window's panel and the VR
+// Where the user's voice and typed chat go with the current settings, drawn as a graph,
+// and how long the latest of each took. Shared by the main window's panel and the VR
 // window; it only reads, and changes nothing. Every duration is in ms.
-// Compact (VR, which cannot scroll): outputs are short labels, and one timeline follows
-// for the newest input of either lane.
+// Compact (VR, which cannot scroll): one timeline, for the newest input of either lane.
 export const IoFlowView = ({ flow, traces, compact = false }) => {
     const { t, i18n } = useI18n();
     const names = useMemo(() => createLanguageNames(i18n.language), [i18n.language]);
-    if (!flow) return <p className={styles.waiting} role="status">{t("io_flow.loading")}</p>;
+    const graph = useMemo(() => buildFlowGraph(flow, traces), [flow, traces]);
+    if (!graph) return <p className={styles.waiting} role="status">{t("io_flow.loading")}</p>;
     const note = flowNote(flow, t);
-    const newest = latestTraces(traces, 1)[0] ?? null;
+    const unused = ["voice", "chat"].flatMap(lane => offGroups(flow[lane].outputs, t)
+        .map(group => ({ lane, ...group })));
     return <div className={clsx(styles.view, { [styles.compact]: compact })}>
-        {["voice", "chat"].map(input => <Lane key={input} input={input} lane={flow[input]} names={names}
-            traces={latestTraces(traces, HISTORY, input)} compact={compact} />)}
-        {compact && <section className={styles.newest} aria-label={t("io_flow.newest")}>
-            <h3 className={styles.lane_title}>{t("io_flow.newest")}
-                {newest && <span className={styles.lane_state}>{t(`io_flow.${newest.input}`)}</span>}</h3>
-            <Latest trace={newest} history={[]} compact />
-        </section>}
+        <div className={styles.graph_scroll}><FlowGraph graph={graph} names={names} compact={compact} /></div>
+        {unused.length > 0 && !compact && <ul className={styles.unused}>
+            {unused.map(group => <li key={`${group.lane}:${group.reason}`}>
+                <span className={clsx(styles.lane_mark, styles[`mark_${group.lane}`])}>{t(`io_flow.lane_short.${group.lane}`)}</span>
+                {t("io_flow.unused", { outputs: group.outputs, reason: group.text })}</li>)}
+        </ul>}
+        {compact
+            ? <Latest trace={latestTraces(traces, 1)[0] ?? null} history={[]} compact />
+            : <div className={styles.latest_pair}>
+                {["voice", "chat"].map(lane => <Latest key={lane} lane={lane}
+                    trace={latestTraces(traces, 1, lane)[0] ?? null} history={latestTraces(traces, HISTORY, lane)} />)}
+            </div>}
         {note && <p className={styles.live}>{note}</p>}
     </div>;
 };
 
-const Lane = ({ input, lane, traces, names, compact }) => {
+const Latest = ({ trace, history, lane = null, compact = false }) => {
     const { t } = useI18n();
-    const latest = traces[0] ?? null;
-    const recognition = lane.recognition;
-    const translation = lane.translation;
-    const used = lane.outputs.filter(row => row.on);
-    return <section className={clsx(styles.lane, { [styles.lane_off]: !lane.on })} aria-label={t(`io_flow.${input}`)}>
-        <h3 className={styles.lane_title}>{t(`io_flow.${input}`)}
-            {input === "voice" && !lane.on && <span className={styles.lane_state}>{t("io_flow.mic_off_lane")}</span>}
-        </h3>
-        <ol className={styles.stages}>
-            {recognition && <li className={styles.stage}>{t("io_flow.stage.recognition")}
-                <span className={styles.stage_detail}>{recognition.realtime ? t("io_flow.recognition_realtime") : recognition.engine}</span></li>}
-            <li className={clsx(styles.stage, { [styles.is_off]: !translation.on })}>{t("io_flow.stage.translate")}
-                <span className={styles.stage_detail}>{translation.on
-                    ? `${names.language(translation.source)} → ${translation.targets.map(name => names.language(name)).join(" / ")}`
-                    : t("io_flow.translation_off")}</span></li>
-        </ol>
-        {compact
-            ? <ul className={styles.pills}>
-                {used.map(row => {
-                    const time = outputTime(row, latest, t);
-                    return <li key={row.id} className={styles.pill}>{t(`io_flow.output.${row.id}`)}
-                        {time && <span className={styles.pill_time}>{time}</span>}</li>;
-                })}
-            </ul>
-            : <ul className={styles.outputs}>
-                {used.map(row => <li key={row.id} className={styles.output}>
-                    <span className={styles.output_name}>{t(`io_flow.output.${row.id}`)}</span>
-                    <span className={styles.output_detail}>{outputDetail(row, t, names)}</span>
-                    <span className={styles.output_time}>{outputTime(row, latest, t) ?? ""}</span>
-                </li>)}
-            </ul>}
-        {/* VR cannot scroll: there the unused outputs share one line. */}
-        {(compact ? [offGroups(lane.outputs, t)] : offGroups(lane.outputs, t).map(group => [group]))
-            .filter(groups => groups.length > 0).map(groups => <p key={groups[0].reason} className={styles.unused}>
-                {groups.map(group => t("io_flow.unused", { outputs: group.outputs, reason: group.text })).join(t("io_flow.group_separator"))}</p>)}
-        {!compact && <Latest trace={latest} history={traces} />}
-    </section>;
-};
-
-const Latest = ({ trace, history, compact = false }) => {
-    const { t } = useI18n();
-    if (!trace) return <p className={styles.no_trace}>{t("io_flow.no_trace")}</p>;
+    const title = lane ? t(`io_flow.${lane}`) : trace ? t(`io_flow.${trace.input}`) : t("io_flow.newest");
+    if (!trace) return <section className={styles.latest}><h3 className={styles.latest_title}>{title}</h3>
+        <p className={styles.no_trace}>{t("io_flow.no_trace")}</p></section>;
     const total = traceTotal(trace);
     const scale = timelineScale(total ?? 0);
     const totals = history.map(traceTotal).filter(Number.isInteger);
-    return <div className={styles.latest}>
+    return <section className={clsx(styles.latest, styles[`latest_${trace.input}`])} aria-label={title}>
+        <h3 className={styles.latest_title}>{title}</h3>
         <p className={styles.latest_head}>
             <span className={styles.latest_text}>{t("io_flow.latest_text", { text: trace.text })}</span>
             <span className={styles.latest_total}>{t("io_flow.total")} {formatMs(total)}</span>
@@ -86,7 +56,7 @@ const Latest = ({ trace, history, compact = false }) => {
         {!compact && <p className={styles.origin}>{t(`io_flow.origin.${trace.origin}`)}</p>}
         <Timeline rows={timelineRows(trace, t)} scale={scale} />
         {!compact && totals.length > 1 && <History totals={totals.slice().reverse()} middle={median(totals)} />}
-    </div>;
+    </section>;
 };
 
 // One row per stage or output. Bars share the axis, rounded up to a readable step.

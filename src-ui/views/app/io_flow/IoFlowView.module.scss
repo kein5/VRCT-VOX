@@ -1,51 +1,26 @@
-// The flow panel: two lanes (voice, chat), each with its route and the latest timeline.
-.view {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(30rem, 1fr)); gap: 1.6rem;
-    font-size: 1.3rem; color: var(--dark_200_color);
-}
-.compact { grid-template-columns: 1fr; gap: 1rem; }
-.compact .lane { gap: .5rem; }
+// The flow panel: the graph, the outputs not in use, and the latest times of each input.
+.view { display: flex; flex-direction: column; gap: 1.2rem; font-size: 1.3rem; color: var(--dark_200_color); }
+.compact { gap: .8rem; }
 .waiting, .no_trace, .origin, .live { color: var(--vox_description_text); font-size: 1.2rem; margin: 0; }
-.live { grid-column: 1 / -1; font-variant-numeric: tabular-nums; }
+.live { font-variant-numeric: tabular-nums; }
+// A narrow window scrolls the graph sideways instead of squeezing its boxes.
+.graph_scroll { overflow-x: auto; }
 
-.lane { display: flex; flex-direction: column; gap: .8rem; min-width: 0; }
-.lane_title { font-size: 1.5rem; font-weight: 600; margin: 0; display: flex; gap: .8rem; align-items: baseline; flex-wrap: wrap; }
-.lane_state { font-size: 1.2rem; font-weight: 400; color: var(--vox_description_text); }
+.unused { display: flex; flex-direction: column; gap: .3rem; margin: 0; padding: 0; list-style: none;
+    font-size: 1.2rem; color: var(--vox_description_text); }
+.unused li { display: flex; gap: .6rem; align-items: baseline; overflow-wrap: anywhere; }
+.lane_mark { flex-shrink: 0; padding: 0 .5rem; border-radius: .3rem; font-weight: 600; color: #0b0f18; }
+.mark_voice { background: #58b0ee; }
+.mark_chat { background: #a58cf0; }
 
-.stages { display: flex; flex-wrap: wrap; gap: .4rem .8rem; margin: 0; padding: 0; list-style: none; }
-// One line per step: its name, then what it does now.
-.stage {
-    display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .6rem; padding: .3rem .8rem;
-    border: .1rem solid var(--vox_border); border-radius: var(--vox_radius); background: var(--vox_surface); font-weight: 500;
-}
-.stage_detail { font-size: 1.2rem; font-weight: 400; color: var(--vox_description_text); overflow-wrap: anywhere; }
-
-// Each output in use is one line: its name, what it does, and the latest message's time.
-.outputs { display: grid; gap: .3rem; margin: 0; padding: 0; list-style: none; }
-.output {
-    display: grid; grid-template-columns: minmax(10rem, max-content) 1fr auto; align-items: baseline; gap: .2rem 1.2rem;
-    padding: .4rem 1rem; border-left: .3rem solid var(--vox_state_active);
-    border-radius: var(--vox_radius); background: var(--vox_surface);
-}
-.output_name { font-weight: 500; overflow-wrap: anywhere; }
-.output_detail { font-size: 1.2rem; color: var(--vox_description_text); overflow-wrap: anywhere; }
-.output_time { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--vox_secondary_text); }
-// Outputs not in use fold into a quiet line per reason.
-.unused { margin: 0; font-size: 1.2rem; color: var(--vox_description_text); overflow-wrap: anywhere; }
-.stage.is_off { border-style: dashed; background: transparent; }
-// VR: outputs as short labels with their time.
-.pills { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0; padding: 0; list-style: none; }
-.pill {
-    display: flex; gap: .6rem; align-items: baseline; padding: .3rem .8rem; border-left: .3rem solid var(--vox_state_active);
-    border-radius: var(--vox_radius); background: var(--vox_surface); font-weight: 500;
-}
-.pill_time { font-weight: 400; font-variant-numeric: tabular-nums; color: var(--vox_secondary_text); }
-.newest { display: flex; flex-direction: column; gap: .6rem; }
-
+.latest_pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(30rem, 1fr)); gap: 1.2rem; }
 .latest {
-    display: flex; flex-direction: column; gap: .4rem; padding: .8rem 1.2rem;
+    display: flex; flex-direction: column; gap: .4rem; padding: .8rem 1.2rem; margin: 0;
     border-left: .3rem solid var(--vox_readout_rule); border-radius: var(--vox_radius); background: var(--vox_surface);
 }
+.latest_voice { border-left-color: #58b0ee; }
+.latest_chat { border-left-color: #a58cf0; }
+.latest_title { font-size: 1.4rem; font-weight: 600; margin: 0; }
 .latest_head { display: flex; justify-content: space-between; gap: 1.2rem; margin: 0; }
 .latest_text { min-width: 0; overflow-wrap: anywhere; }
 .latest_total { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -57,14 +32,12 @@
 .row.is_off .row_value { color: var(--vox_description_text); }
 .track { position: relative; height: 1rem; border-radius: .2rem; background: var(--vox_canvas); }
 .no_track { background: transparent; }
-// The microphone is off: the lane still shows where the voice would go, quieter.
-.lane_off .stages, .lane_off .outputs, .lane_off .pills { opacity: .7; }
 .bar { position: absolute; top: 0; bottom: 0; border-radius: .2rem; background: var(--vox_state_active); }
-// Stages blue, outputs in their own colours, the conversion as a lighter extension of speech.
+// Stages blue, outputs in the colours of their boxes, the conversion as a dashed extension of speech.
 .bar_stage { background: #5b92ff; }
 .bar_chatbox { background: #4fb8a8; }
-.bar_speech { background: #cb944f; }
-.bar_conversion { background: repeating-linear-gradient(90deg, #e07ab0 0 .4rem, transparent .4rem .6rem); }
+.bar_speech { background: #e0a656; }
+.bar_conversion { background: repeating-linear-gradient(90deg, #f08cc2 0 .4rem, transparent .4rem .6rem); }
 .axis { display: flex; justify-content: space-between; font-size: 1.2rem; color: var(--vox_description_text); font-variant-numeric: tabular-nums; }
 .axis_row > span:last-child { min-width: 6.4rem; }
 

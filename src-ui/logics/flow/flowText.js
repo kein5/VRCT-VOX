@@ -78,7 +78,8 @@ export const stripItems = (traces, count, t) => latestTraces(traces, count).map(
         label: t(`io_flow.${trace.input}`),
         text: (trace.translation ? `${trace.text} → ${trace.translation}` : trace.text).slice(0, 200),
         scale: Math.min(timelineScale(total ?? 0), 600000),
-        rows: timelineRows(trace, t).slice(0, 8).map(({ kind, label, value, start, end, off }) => ({
+        rows: timelineRows(trace, t).filter(row => row.kind !== "stage" || ["recognition", "translate"].includes(row.stage))
+            .slice(0, 8).map(({ kind, label, value, start, end, off }) => ({
             kind, label: label.slice(0, 120), value: value.slice(0, 120),
             start: Math.min(start, 600000), end: Math.min(end, 600000), off })),
     };

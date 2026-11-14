@@ -1,6 +1,6 @@
 # Inputs and outputs
 
-See where your voice and your chat go with the current settings. For your latest speech and chat, it also shows how long each step took. Every time is in ms (milliseconds).
+See, as a graph, where your voice and your chat go with the current settings. For your latest speech and chat, it also shows how long each step took. Every time is in ms (milliseconds).
 
 It only shows things. It changes no setting and no audio route.
 
@@ -8,17 +8,20 @@ It only shows things. It changes no setting and no audio route.
 
 Press "Inputs and outputs" in the bar at the top of the main screen. A panel opens above the conversation log. Press the button again, or "Close", to close it.
 
-![The "Inputs and outputs" panel: your voice on the left, chat on the right, each with where it goes and how long it took](/screenshots/en/io-flow.webp)
+![The "Inputs and outputs" panel: lines run from your voice and chat on the left, through translation and speech, to the outputs on the right](/screenshots/en/io-flow.webp)
 
-Your voice is on the left and chat on the right. Each shows:
+Inputs are on the left, the steps in the middle and the outputs on the right, joined by lines. Lines from your voice are blue, lines from chat purple.
 
-- the speech recognition and translation settings (for example, Realtime, Japanese → English);
-- where it goes and what happens there: what the chatbox gets (the original, the translation or both), and for speech, which voice and where it plays;
-- the outputs not used, with the reason (for example, off in the settings, TTS is off);
-- the times of the latest one: a bar for each step and the moment each output was reached, on the same scale;
-- recent totals and their median.
+- Each step shows its setting and time (for example, Translation Japanese → English, 212 ms).
+- Speech and voice conversion are shared by voice and chat. A line also runs from your microphone straight into the voice conversion.
+- Each output shows the latest time from each input, and what it does: what the chatbox gets (the original, the translation or both), and whether the voice VRChat hears is converted.
+- Outputs not used are dashed boxes with no line into them. The reasons are listed under the graph (for example, off in the settings, TTS is off).
+- The lines your latest message took are lit. When a new message arrives, a light runs along them once.
+- When VRChat uses your microphone without going through VRCT-VOX, a dotted line runs from the microphone.
 
-While the microphone is off, the panel still shows where your voice would go once it is on.
+Under the graph, a timeline for each of your voice and chat shows the latest message's steps as bars, with recent totals and their median.
+
+While the microphone is off, the graph still shows where your voice would go once it is on. In a narrow window the graph scrolls sideways.
 
 ### What the times mean
 
@@ -42,7 +45,7 @@ Times count from a point that depends on the input. The panel says which.
 
 ## On the desktop
 
-Under Settings → "VR" → "Desktop caption overlay", turn on "Show inputs and outputs on the desktop". Where your latest inputs went, and how long each took, appear on the left of the caption window. It works with the captions turned off too.
+Under Settings → "VR" → "Desktop caption overlay", turn on "Show inputs and outputs on the desktop". The path your latest inputs took, and how long each step took, appear on the left of the caption window: the input, translation and the outputs, joined by arrows. It works with the captions turned off too.
 
 ![Inputs and outputs at the lower left of the screen, with captions on the right](/screenshots/en/flow-on-screen.webp)
 
@@ -54,7 +57,7 @@ The background is a drawing for this page.
 
 ## In VR
 
-With the VR UI on, press "Inputs and outputs" on the wrist launcher to open its window. It shows where your voice and chat go, and the times of your newest input.
+With the VR UI on, press "Inputs and outputs" on the wrist launcher to open its window. It shows the same graph as the main screen and the times of your newest input. VR cannot scroll, so the boxes show only names and times.
 
 ![The "Inputs and outputs" window in VR](/screenshots/en/vr-io-flow.webp)
 
