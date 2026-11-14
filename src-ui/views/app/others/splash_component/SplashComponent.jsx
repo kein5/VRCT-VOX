@@ -25,7 +25,7 @@ export const SplashComponent = () => {
 const SHOW_MEGAPHONE_TIME = 500;
 
 const AnnouncementsContainer = () => {
-    const { t } = useI18n();
+    const { t, i18n } = useI18n();
     const [is_shown, setIsShown] = useState(0);
     const [is_labels_active, setIsLabelsActive] = useState(false);
 
@@ -51,7 +51,7 @@ const AnnouncementsContainer = () => {
                 [styles.is_shown]: is_shown,
                 [styles.is_labels_active]: is_labels_active,
             })}
-            href={generateLocalizedDocumentUrl().vrct_document_faq_url}
+            href={generateLocalizedDocumentUrl(i18n.language).vrct_document_faq_url}
             target="_blank"
             rel="noreferrer"
         >

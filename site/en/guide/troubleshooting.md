@@ -2,8 +2,8 @@
 
 ## Chat reading says the window was not found
 
-- Start VRChat before turning on Chat Transcribe.
-- Check that "Window name" under Settings → "Chat Transcribe" matches your client's title. The default is `VRChat`.
+- Start VRChat before turning on chat reading.
+- Check that "Window name" under Settings → "Chat reading (OCR)" matches your client's title. The default is `VRChat`.
 - On Linux, VRChat is found by its window name when it runs as an X11/XWayland window (Proton's default). When it runs as a native Wayland window, inside gamescope for example, share the window first (see [Chat reading](../features/chat-reading)).
 
 ## It says models are missing
@@ -24,7 +24,7 @@ This was a bug in the Windows builds up to 0.1.0-beta.6: the download review kep
 ## VRChat does not hear the speech
 
 1. If the button at the top of the main screen reads "Muted", the voice is muted. Press "Resume voice" under Settings → "Device" → "Audio route".
-2. Check that the output under "TTS" and the microphone chosen in VRChat match (see [Linux audio route](./linux-audio)).
+2. Check that the output under "Text to speech (TTS)" and the microphone chosen in VRChat match (see [Linux audio route](./linux-audio)).
 3. Check that the bundled server is running. Servers are stopped again after you restart the app.
 4. VRChat's microphone test records briefly and then plays back. Start the test while the input meter is moving.
 
@@ -43,6 +43,10 @@ If VRCT-VOX closes before that question is answered, Windows refuses from then o
 - It pastes into apps that run as X11/XWayland windows, such as VRChat under Proton's defaults. It cannot paste into a native Wayland window. The text is still copied to the clipboard, so you can paste it yourself.
 - On KDE, the desktop asks once whether VRCT-VOX may control input devices when it first pastes. Allow it.
 - The paste goes to the window of the app that SteamVR is running. When SteamVR is not running, the text is only copied to the clipboard.
+
+## A model you brought does not work
+
+For a file you point to yourself, the app checks only the minimum, such as its extension and format. The messages you may see, and what to check for each feature, are in [Use your own models](./custom-models).
 
 ## Starting it again does not open a new window
 

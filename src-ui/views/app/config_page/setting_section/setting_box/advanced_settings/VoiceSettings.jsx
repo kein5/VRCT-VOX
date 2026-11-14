@@ -50,7 +50,7 @@ export const VoiceSettings = () => {
     // The monitor never offers the virtual microphone's own endpoints or output.
     const monitorList = deviceList.filter(d => !d.id.startsWith("vrct.") && d.id !== (draft.routing === "managed" ? "" : draft.output_device));
     return <section className={styles.container} aria-label={t("voice.title")} data-setting-id="tts_settings">
-        <SectionLabelComponent label="TTS" />
+        <SectionLabelComponent label={t("config_page.tts.tts_settings.label")} />
         <StatusLine tone={status.active ? "active" : "idle"}
             actions={<button type="button" onClick={() => send("/run/stop_voice")}>{t("voice.stop")}</button>}>
             {t(status.active ? "voice.playing" : "voice.idle")} · {t("voice.queued")}: {status.queued ?? 0}

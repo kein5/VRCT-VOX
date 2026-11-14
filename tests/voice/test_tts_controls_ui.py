@@ -30,11 +30,11 @@ def configure(page, peer, reply):
         "/get/data/direct_voice_state",
         dict(peer.direct, observation_id=str(peer.sequence)),
     )
-    page.get_by_role("button", name="RVC", exact=True).click()
+    page.get_by_role("button", name="Voice changer (RVC)", exact=True).click()
     page.get_by_label("Input to forward", exact=True).select_option(
         label="Test microphone"
     )
-    expect(page.get_by_role("switch", name="RVC", exact=True)).to_have_attribute(
+    expect(page.get_by_role("switch", name="Voice changer (RVC)", exact=True)).to_have_attribute(
         "aria-checked", "false"
     )
 
@@ -44,7 +44,7 @@ def test_first_main_render_can_toggle_without_visiting_settings(pages):
     from playwright.sync_api import expect
 
     page, peer, _ = pages
-    tts = page.get_by_role("switch", name="TTS", exact=True)
+    tts = page.get_by_role("switch", name="Text to speech (TTS)", exact=True)
     expect(tts).to_have_attribute("aria-checked", "false")
     expect(tts).to_have_attribute("aria-disabled", "false")
     tts.focus()
@@ -56,7 +56,7 @@ def test_first_main_render_can_toggle_without_visiting_settings(pages):
     assert [ep for ep, _ in calls] == ["/run/enable_tts", "/run/disable_tts"]
     assert calls[0][1] == {"generation": 0}
     assert not any(ep == "/get/data/voice_output_devices" for ep, _ in peer.sent)
-    assert page.get_by_role("switch").all_text_contents()[-2:] == ["TTS", "RVC"]
+    assert [s.get_attribute("aria-label") for s in page.get_by_role("switch").all()][-2:] == ["Text to speech (TTS)", "Voice changer (RVC)"]
 
 
 def test_independent_toggle_combinations_and_pending_cancel(pages):
@@ -64,8 +64,8 @@ def test_independent_toggle_combinations_and_pending_cancel(pages):
 
     page, peer, reply = pages
     configure(page, peer, reply)
-    tts = page.get_by_role("switch", name="TTS", exact=True)
-    rvc = page.get_by_role("switch", name="RVC", exact=True)
+    tts = page.get_by_role("switch", name="Text to speech (TTS)", exact=True)
+    rvc = page.get_by_role("switch", name="Voice changer (RVC)", exact=True)
     tts.click()
     expect(tts).to_have_attribute("aria-checked", "true")
     rvc.click()
@@ -110,7 +110,7 @@ def test_tts_failure_and_delayed_enable_do_not_restore_switch(pages):
     from playwright.sync_api import expect
 
     page, peer, reply = pages
-    tts = page.get_by_role("switch", name="TTS", exact=True)
+    tts = page.get_by_role("switch", name="Text to speech (TTS)", exact=True)
     peer.reject_tts = "speech_server_or_settings_not_ready"
     tts.click()
     expect(
@@ -136,7 +136,7 @@ def test_rvc_does_not_hijack_original_input(pages):
     page, peer, reply = pages
     peer.direct.update(requested=True, active=True, mode="passthrough")
     reply("/get/data/direct_voice_state", dict(peer.direct, observation_id="10000"))
-    rvc = page.get_by_role("switch", name="RVC", exact=True)
+    rvc = page.get_by_role("switch", name="Voice changer (RVC)", exact=True)
     expect(rvc).to_have_attribute("aria-checked", "false")
     rvc.click()
     expect(
@@ -160,7 +160,7 @@ def test_rvc_numbers_preserve_seed_paths_and_lock_during_start(pages):
         "/get/data/direct_voice_state",
         dict(peer.direct, observation_id=str(peer.sequence)),
     )
-    page.get_by_role("button", name="RVC", exact=True).click()
+    page.get_by_role("button", name="Voice changer (RVC)", exact=True).click()
     save = page.get_by_role("button", name="Save changes", exact=True)
     pitch = page.get_by_label("Pitch shift (semitones)", exact=True)
     for invalid in ("25", "-25", "0.5"):
@@ -189,7 +189,7 @@ def test_rvc_numbers_preserve_seed_paths_and_lock_during_start(pages):
     source = page.get_by_label("Input to forward", exact=True)
     source.select_option(label="Test microphone")
     peer.hold_direct = True
-    page.get_by_role("switch", name="RVC", exact=True).click()
+    page.get_by_role("switch", name="Voice changer (RVC)", exact=True).click()
     expect(source).to_be_disabled()
     expect(pitch).to_be_disabled()
 
@@ -215,7 +215,7 @@ def test_rvc_does_not_cancel_other_engine_start_request(pages, mode):
     )
     peer.hold_direct = True
     page.get_by_role("button", name="Start input forwarding", exact=True).click()
-    rvc = page.get_by_role("switch", name="RVC", exact=True)
+    rvc = page.get_by_role("switch", name="Voice changer (RVC)", exact=True)
     rvc.click()
     expect(
         page.get_by_role("alert").filter(has_text="Another direct input engine")
@@ -230,14 +230,14 @@ def test_rvc_page_can_cancel_start_before_response(pages):
     page, peer, reply = pages
     configure(page, peer, reply)
     peer.hold_direct = True
-    page.get_by_role("switch", name="RVC", exact=True).click()
+    page.get_by_role("switch", name="Voice changer (RVC)", exact=True).click()
     expect(
         page.get_by_role("button", name="Start input forwarding", exact=True)
     ).to_be_disabled()
     stop = page.get_by_role("button", name="Stop input forwarding", exact=True)
     expect(stop).to_be_enabled()
     stop.click()
-    expect(page.get_by_role("switch", name="RVC", exact=True)).to_have_attribute(
+    expect(page.get_by_role("switch", name="Voice changer (RVC)", exact=True)).to_have_attribute(
         "aria-busy", "false"
     )
     assert len([ep for ep, _ in peer.sent if ep == "/run/stop_direct_voice"]) == 1
@@ -248,7 +248,7 @@ def test_rvc_stop_timeout_keeps_owner_and_pending_until_drained(pages):
 
     page, peer, reply = pages
     configure(page, peer, reply)
-    rvc = page.get_by_role("switch", name="RVC", exact=True)
+    rvc = page.get_by_role("switch", name="Voice changer (RVC)", exact=True)
     rvc.click()
     expect(rvc).to_have_attribute("aria-checked", "true")
     peer.drain_direct = True
@@ -281,7 +281,7 @@ def test_rvc_worker_failure_is_notified_on_main(pages):
         "/get/data/direct_voice_state",
         dict(peer.direct, observation_id=str(peer.sequence)),
     )
-    expect(page.get_by_role("switch", name="RVC", exact=True)).to_have_attribute(
+    expect(page.get_by_role("switch", name="Voice changer (RVC)", exact=True)).to_have_attribute(
         "aria-busy", "true"
     )
     peer.direct.update(
@@ -304,7 +304,7 @@ def test_rvc_top_requires_saved_form_and_explains_invalid_numbers(pages):
     configure(page, peer, reply)
     pitch = page.get_by_label("Pitch shift (semitones)", exact=True)
     pitch.fill("1")
-    page.get_by_role("switch", name="RVC", exact=True).click()
+    page.get_by_role("switch", name="Voice changer (RVC)", exact=True).click()
     expect(page.get_by_role("alert").filter(has_text="Save or discard")).to_be_visible()
     assert not any(ep == "/run/start_direct_voice" for ep, _ in peer.sent)
     pitch.fill("0.5")
@@ -333,7 +333,7 @@ def test_tts_failure_names_the_next_step(pages):
     from playwright.sync_api import expect
 
     page, peer, _ = pages
-    tts = page.get_by_role("switch", name="TTS", exact=True)
+    tts = page.get_by_role("switch", name="Text to speech (TTS)", exact=True)
     peer.reject_tts = "voice_route_muted"
     tts.click()
     alert = page.get_by_role("alert").filter(has_text="voice_route_muted")
@@ -347,7 +347,7 @@ def test_server_start_shows_starting_and_outlasts_the_confirmation_timer(pages):
     from playwright.sync_api import expect
 
     page, peer, reply = pages
-    tts = page.get_by_role("switch", name="TTS", exact=True)
+    tts = page.get_by_role("switch", name="Text to speech (TTS)", exact=True)
     peer.hold_tts = True
     peer.tts["tts_server_starting"] = True  # Status polls report the model load.
     tts.click()
@@ -369,7 +369,7 @@ def test_off_during_server_start_cancels_without_an_error(pages):
     from playwright.sync_api import expect
 
     page, peer, reply = pages
-    tts = page.get_by_role("switch", name="TTS", exact=True)
+    tts = page.get_by_role("switch", name="Text to speech (TTS)", exact=True)
     peer.hold_tts = True
     peer.tts["tts_server_starting"] = True
     tts.click()

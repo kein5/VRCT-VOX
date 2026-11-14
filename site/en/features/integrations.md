@@ -4,7 +4,7 @@ You can pass translations and captions to streaming software or your own tools. 
 
 ![Settings → Advanced](/screenshots/en/advanced.webp)
 
-## OBS browser source
+## Show captions in a stream (OBS browser source)
 
 "Enable OBS Browser Source" serves a page that shows translations. Each line fades out after a while.
 
@@ -16,7 +16,7 @@ If you already use an OBS browser source, copy the URL from the app again and re
 
 You can change the maximum number of messages, display time, fade-out time, font size and color, and the outline.
 
-## WebSocket
+## Receive them in your own tools (WebSocket)
 
 "Enable WebSocket Server" sends translations and captions over WebSocket. With the default host and port, the URL has the form `ws://127.0.0.1:2231/?token=<key>`; copy it with "WebSocket URL (click to copy)". It uses the same key as the OBS URL.
 

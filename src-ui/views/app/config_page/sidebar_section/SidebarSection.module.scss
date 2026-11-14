@@ -145,7 +145,14 @@
     }
 }
 
-// One line: while the rail is narrow, a wrapping label would stretch the tab.
+// The short name in brackets goes on its own line: 「音声認識」 then 「（ASR）」. Each line stays whole.
+.tab_text_abbr {
+    display: block;
+    font-size: 1.2rem;
+    color: var(--vox_description_text);
+}
+
+// One line per part: while the rail is narrow, a wrapping label would stretch the tab.
 .tab_text {
     font-size: 1.4rem;
     position: relative;

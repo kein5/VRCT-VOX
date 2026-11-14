@@ -11,7 +11,7 @@
 // VR cannot scroll: narrower columns, and the boxes keep their names and times only.
 .compact {
     min-width: 0; gap: .4rem 1.6rem;
-    grid-template-columns: minmax(6rem, .8fr) minmax(7rem, 1fr) minmax(8rem, 1fr) minmax(8rem, 1fr) minmax(13rem, 1.6fr);
+    grid-template-columns: minmax(6rem, .8fr) minmax(7rem, 1fr) minmax(7rem, 1fr) minmax(12.5rem, 1.3fr) minmax(12rem, 1.6fr);
 }
 .compact .node { padding: .3rem .7rem; }
 .compact .kind_input { padding: .6rem .9rem; }
@@ -23,7 +23,9 @@
     padding: .5rem .9rem; border: .1rem solid var(--vox_border); border-radius: var(--vox_radius);
     background: var(--vox_surface); font-size: 1.3rem; min-width: 0;
 }
-.name { font-weight: 600; color: var(--dark_200_color); overflow-wrap: anywhere; }
+// Japanese names stay whole (keep-all) and break only where they must not overflow.
+.name { font-weight: 600; color: var(--dark_200_color); word-break: keep-all; overflow-wrap: anywhere; }
+.abbr { display: block; }
 .detail { font-size: 1.2rem; color: var(--vox_description_text); overflow-wrap: anywhere; }
 .time { font-size: 1.2rem; color: var(--vox_state_active); font-variant-numeric: tabular-nums; }
 

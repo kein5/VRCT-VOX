@@ -17,6 +17,10 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+# Screenshot file names keep the short names.
+SHOT_NAMES = {"テキスト読み上げ（TTS）": "TTS", "ボイスチェンジャー（RVC）": "RVC"}
+
+
 @pytest.fixture
 def studio(ui):
     page, peer, reply, _ = ui
@@ -74,12 +78,12 @@ def test_navigation_keyboard_and_all_settings(studio):
     for label in (
         "デザイン",
         "翻訳",
-        "音声認識",
+        "音声認識（ASR）",
         "VRChat",
         "VR",
         "ホットキー",
-        "TTS",
-        "RVC",
+        "テキスト読み上げ（TTS）",
+        "ボイスチェンジャー（RVC）",
         "高度な設定",
         "アップデート",
         "VRCT-VOXについて",
@@ -88,8 +92,8 @@ def test_navigation_keyboard_and_all_settings(studio):
         tab.focus()
         page.keyboard.press("Enter")
         expect(tab).to_have_attribute("aria-current", "page")
-        if label in ("TTS", "RVC", "ホットキー", "デザイン", "VRCT-VOXについて"):
-            screenshot(page, f"settings-{label}-ja")
+        if label in ("テキスト読み上げ（TTS）", "ボイスチェンジャー（RVC）", "ホットキー", "デザイン", "VRCT-VOXについて"):
+            screenshot(page, f"settings-{SHOT_NAMES.get(label, label)}-ja")
     page.get_by_role("button", name="戻る", exact=True).click()
     expect(settings).to_be_visible()
     expect(settings).to_be_focused()
@@ -109,7 +113,7 @@ def test_small_window_and_reduced_motion(studio):
         assert bounds["x"] >= 0 and bounds["x"] + bounds["width"] <= width + 1
         screenshot(page, f"main-{width}")
     page.get_by_role("button", name="設定を開く", exact=True).click()
-    page.get_by_role("button", name="TTS", exact=True).click()
+    page.get_by_role("button", name="テキスト読み上げ（TTS）", exact=True).click()
     page.mouse.move(399, 290)
     screenshot(page, "tts-400")
     expect(page.get_by_role("button", name="戻る", exact=True)).to_be_in_viewport()
@@ -120,7 +124,7 @@ def test_model_warning_in_styled_screen_keeps_explicit_consent(studio):
 
     page, peer = studio
     page.get_by_role("button", name="設定を開く", exact=True).click()
-    page.get_by_role("button", name="TTS", exact=True).click()
+    page.get_by_role("button", name="テキスト読み上げ（TTS）", exact=True).click()
     open_engine_settings(page)
     page.get_by_role("button", name="取得内容を確認", exact=True).first.click()
     dialog = page.get_by_role("dialog")

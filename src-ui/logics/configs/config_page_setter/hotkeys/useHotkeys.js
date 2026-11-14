@@ -398,9 +398,9 @@ const getHotkeyActionLabel = (actionKey, t) => {
         case "toggle_voice_mute":
             return t("config_page.hotkeys.toggle_voice_mute.label");
         case "toggle_tts":
-            return t("config_page.hotkeys.toggle_voice_switch.label", { name: "TTS" });
+            return t("config_page.hotkeys.toggle_voice_switch.label", { name: t("main_page.tts") });
         case "toggle_rvc":
-            return t("config_page.hotkeys.toggle_voice_switch.label", { name: "RVC" });
+            return t("config_page.hotkeys.toggle_voice_switch.label", { name: t("main_page.rvc") });
         default:
             return actionKey;
     }

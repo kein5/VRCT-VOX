@@ -43,6 +43,12 @@ def test_explicit_ready_and_one_correlated_converted_block():
     assert p.require_output(result, converted, source, raw, NOW) == 'converted'
 
 
+def test_a_model_of_a_format_the_engine_cannot_load_is_named():
+    # Someone who brings their own RVC model learns that its version or sample rate is the
+    # reason, instead of being told that the worker could not get ready.
+    assert 'vc_engine_format_invalid' in p.WORKER_FAILURES
+
+
 @pytest.mark.parametrize('code', sorted(p.WORKER_FAILURES))
 def test_a_worker_can_say_why_it_cannot_become_ready(code):
     info, pcm = packet(p.failed_info(SESSION, code), b'')

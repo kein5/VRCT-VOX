@@ -4,7 +4,7 @@ Quick Chat is a small window for sending text without leaving your game, and hot
 
 ![Settings → Hotkeys](/screenshots/en/hotkeys.webp)
 
-## Quick Chat
+## Send text from a small window (Quick Chat)
 
 Send text from a small window without bringing the main window forward. It works even while the main window is minimized. The small window stays on top while it is open.
 
@@ -30,10 +30,10 @@ Under Settings → "Hotkeys" you can assign keys to the actions below. None has 
 |---|---|
 | Open quick chat | Opens the Quick Chat window |
 | Toggle VRCT-VOX visibility | Minimizes the main window; the same key brings it back |
-| Toggle Translation, Voice2Chatbox, Speaker2Log | Flips the switch of the same name on the main screen |
+| Toggle Translation, Mic input, Listening | Flips the switch of the same name on the main screen |
 | Stop speech | The same as "Stop speech" at the top of the main screen |
 | Mute or resume the voice | The same as "Mute" at the top of the main screen |
-| Toggle TTS, RVC | Flips the switch of the same name on the main screen |
+| Toggle Text to speech (TTS), Voice changer (RVC) | Flips the switch of the same name on the main screen |
 
 Hotkeys are paused while the settings are open, so they don't fire by accident.
 

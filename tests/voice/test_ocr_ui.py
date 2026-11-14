@@ -1,4 +1,4 @@
-"""Config → Chat Transcribe in a headless browser with an offline sidecar peer.
+"""Config → Chat reading in a headless browser with an offline sidecar peer.
 
 Opt-in like the other browser tests: VRCT_TEST_OCR_UI=1 and VRCT_TEST_CHROMIUM=<chromium binary>.
 Set VRCT_TEST_OCR_UI_SCREENSHOT=<path.png> to keep a screenshot of the page.

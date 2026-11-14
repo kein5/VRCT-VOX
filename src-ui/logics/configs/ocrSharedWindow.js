@@ -1,4 +1,4 @@
-// Pure helpers for sharing a window with Chat Transcribe (Linux, Wayland).
+// Pure helpers for sharing a window with chat reading (Linux, Wayland).
 //
 // The desktop's ScreenCast portal lets the user pick a window; the Tauri side
 // (`screencast_start`) asks it and the backend reads the frames. The page calls

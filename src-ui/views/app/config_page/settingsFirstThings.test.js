@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import yaml from "js-yaml";
 import { hooks, loadModule, find } from "../../../logics/test/hookHarness.js";
+import * as featureLabel from "../../../logics/common/featureLabel.js";
 
 const all = (tree, predicate, found = []) => { find(tree, node => { if (predicate(node)) found.push(node); return false; }); return found; };
 const icon = name => Object.assign(() => null, { icon: name });
@@ -38,6 +39,7 @@ test("the side menu lists chat reading after VRChat, with an icon of its own and
             useStore_IsBreakPoint: () => ({ currentIsBreakPoint: { data: false } }) },
         ...Object.fromEntries(images.map(name => [`@images/${name}.svg?react`, svg(`${name}.svg?react`)])),
         "@images/brand/icon-small.svg": "brand", "../version_label/VersionLabel.jsx": { VersionLabel: "version" },
+        "../../../../logics/common/featureLabel.js": featureLabel,
     });
     const tabs = all(runtime.render(sidebar.SidebarSection), node => typeof node.props?.tab_id === "string").map(node => node.props.tab_id);
     assert.deepEqual(tabs.slice(tabs.indexOf("vrchat"), tabs.indexOf("vrchat") + 3), ["vrchat", "ocr", "vr"]);
@@ -49,6 +51,27 @@ test("the side menu lists chat reading after VRChat, with an icon of its own and
         assert.equal(typeof strings.config_page.side_menu_labels.ocr, "string");
         for (const key of ["provider_in_use", "provider_ready", "provider_not_set"]) assert.equal(typeof strings.config_page.translation[key], "string");
     }
+});
+
+test("a long settings menu name breaks before its bracket and keeps its whole name for screen readers", async () => {
+    const runtime = hooks();
+    const names = { "config_page.side_menu_labels.transcription": "Speech recognition (ASR)" };
+    const svg = name => icon(name);
+    const images = ["mic", "tts_speaker", "voice_conversion", "mui_palette", "translation", "mui_graphic_eq", "mui_head_mounted_device",
+        "mui_keyboard_alt", "mui_code_blocks", "refresh", "chat_transcribe", "mui_document_scanner"];
+    const sidebar = await loadModule(new URL("./sidebar_section/SidebarSection.jsx", import.meta.url), runtime, {
+        "@useI18n": { useI18n: () => ({ t: key => names[key] ?? key }) },
+        "@store": { useStore_SelectedConfigTabId: () => ({ currentSelectedConfigTabId: { data: "device" }, updateSelectedConfigTabId() {} }),
+            useStore_IsBreakPoint: () => ({ currentIsBreakPoint: { data: false } }) },
+        ...Object.fromEntries(images.map(name => [`@images/${name}.svg?react`, svg(`${name}.svg?react`)])),
+        "@images/brand/icon-small.svg": "brand", "../version_label/VersionLabel.jsx": { VersionLabel: "version" },
+        "../../../../logics/common/featureLabel.js": featureLabel,
+    });
+    const [tab] = all(runtime.render(sidebar.SidebarSection), node => node.props?.tab_id === "transcription");
+    const tree = runtime.render(tab.type, tab.props);
+    assert.ok(find(tree, node => node.props?.["aria-label"] === "Speech recognition (ASR)"));
+    assert.ok(find(tree, node => node.type === "span" && node.props?.children === "(ASR)"));
+    assert.ok(find(tree, node => Array.isArray(node.props?.children) && node.props.children[0] === "Speech recognition"));
 });
 
 test("speech recognition opens on the engine choice; the timing numbers follow, folded under a line that shows them", async () => {

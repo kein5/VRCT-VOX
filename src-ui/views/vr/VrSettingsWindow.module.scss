@@ -159,11 +159,17 @@
     font-size: 17px;
     text-align: left;
     line-height: 1.2;
+    word-break: keep-all;
     overflow-wrap: anywhere;
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     overflow: hidden;
+}
+// The short name in brackets, on its own line under the name.
+.category_abbr {
+    display: block;
+    font-size: 14px;
 }
 
 // ---- 右の一覧の行 ----

@@ -4,7 +4,7 @@ See, as a graph, where your voice and your chat go with the current settings. Fo
 
 It only shows things. It changes no setting and no audio route.
 
-## The panel on the main screen
+## See it on the main screen
 
 Press "Inputs and outputs" in the bar at the top of the main screen. A panel opens above the conversation log. Press the button again, or "Close", to close it.
 
@@ -13,7 +13,7 @@ Press "Inputs and outputs" in the bar at the top of the main screen. A panel ope
 Inputs are on the left, the steps in the middle and the outputs on the right, joined by lines. Lines from your voice are blue, lines from chat purple.
 
 - Each step shows its setting and time (for example, Translation Japanese → English, 212 ms).
-- Speech and voice conversion are shared by voice and chat. A line also runs from your microphone straight into the voice conversion.
+- Text to speech and the voice changer are shared by voice and chat. A line also runs from your microphone straight into the voice changer.
 - Each output shows the latest time from each input, and what it does: what the chatbox gets (the original, the translation or both), and whether the voice VRChat hears is converted.
 - Outputs not used are dashed boxes with no line into them. The reasons are listed under the graph (for example, off in the settings, TTS is off).
 - The lines your latest message took are lit. When a new message arrives, a light runs along them once.
@@ -32,8 +32,8 @@ While the microphone is off, the graph still shows where your voice would go onc
 | Translation | How long translation took |
 | Handing to outputs | From the end of translation until the message was handed to the chatbox, captions and the rest |
 | Chatbox | When the message was sent to VRChat |
-| Speech | When the first sound of speech was played. Through voice conversion, when it began going to the conversion. |
-| Voice conversion (guide) | The conversion's round trip: the recent median, not this message's own time |
+| Text to speech | When the first sound of speech was played. Through the voice changer, when it began going to the voice changer. |
+| Voice changer (guide) | The voice changer's round trip: the recent median, not this message's own time |
 
 ### Where the count starts
 
@@ -43,7 +43,7 @@ Times count from a point that depends on the input. The panel says which.
 - Realtime speech recognition counts from its final result. The app does not know when you stopped speaking, so the time from then to the final result is not included.
 - Other speech recognition counts from the start of recognition.
 
-## On the desktop
+## Show it on the desktop
 
 Under Settings → "VR" → "Desktop caption overlay", turn on "Show inputs and outputs on the desktop". The path your latest inputs took, and how long each step took, appear on the left of the caption window: the input, translation and the outputs, joined by arrows. It works with the captions turned off too.
 
@@ -52,7 +52,7 @@ Under Settings → "VR" → "Desktop caption overlay", turn on "Show inputs and 
 The background is a drawing for this page.
 
 - "Inputs shown on the desktop" picks 1 to 3 inputs. It starts at 1.
-- While voice conversion runs, its round trip is shown as well.
+- While the voice changer runs, its round trip is shown as well.
 - Like the captions, it lets clicks through and never takes the focus. It works where the desktop caption overlay works.
 
 ## In VR
@@ -65,8 +65,8 @@ With the VR UI on, press "Inputs and outputs" on the wrist launcher to open its 
 
 The times are used only inside the app. They are not written to a file or sent anywhere. Only the recent ones are kept, and they are gone when the app closes.
 
-## What has been checked
-
+::: details What has been checked
 - On Windows 11, with a development build, sending a chat showed its times in the panel and on the desktop. Translation and sending to VRChat were off.
 - That the time of speech is added to its message was checked by an automated test with a test speech server.
-- Microphone speech, voice conversion and the view in VR have not been checked on real hardware yet. The VR window was checked on a test page of the same size.
+- Microphone speech, the voice changer and the view in VR have not been checked on real hardware yet. The VR window was checked on a test page of the same size.
+:::

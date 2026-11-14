@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { useI18n } from "@useI18n";
 import { formatMs } from "../../../logics/flow/ioFlow.js";
 import { outputDetail } from "../../../logics/flow/flowText.js";
+import { splitFeatureLabel } from "../../../logics/common/featureLabel.js";
 import styles from "./FlowGraph.module.scss";
 
 const ENGINE_NAMES = { rvc: "RVC", "seed-vc": "Seed-VC" };
@@ -89,6 +90,12 @@ export const FlowGraph = ({ graph, names, compact = false }) => {
     </div>;
 };
 
+// A feature's name breaks before its short name in brackets, never inside a word.
+const FeatureName = ({ text }) => {
+    const { name, abbr } = splitFeatureLabel(text);
+    return <span className={styles.name}>{name}{abbr && <span className={styles.abbr}>{abbr}</span>}</span>;
+};
+
 const NodeText = ({ row, names, t }) => {
     const ms = value => Number.isInteger(value) ? formatMs(value) : null;
     if (row.kind === "input") return <>
@@ -113,8 +120,8 @@ const NodeText = ({ row, names, t }) => {
             ? t("io_flow.speech_language", { language: names.language(row.language) }) : t("io_flow.speech_off_short")}</span>
     </>;
     if (row.kind === "conversion") return <>
-        <span className={styles.name}>{ENGINE_NAMES[row.engine]
-            ? t("io_flow.conversion_with", { engine: ENGINE_NAMES[row.engine] }) : t("io_flow.conversion")}</span>
+        <FeatureName text={ENGINE_NAMES[row.engine]
+            ? t("io_flow.conversion_with", { engine: ENGINE_NAMES[row.engine] }) : t("io_flow.conversion")} />
         {ms(row.ms) && <span className={styles.time}>{t("io_flow.round_trip", { ms: row.ms })}</span>}
     </>;
     // An output: its name, then the latest time from each input, or what it does or why it is off.

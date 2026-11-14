@@ -219,13 +219,13 @@ class NativeWebDriver:
         self.wait(f"return document.querySelector({json.dumps(selector)}) !== null")
 
     def open_voice_settings(self):
-        self.open_voice_page("TTS", '[data-setting-id="tts_settings"] select')
+        self.open_voice_page("Text to speech (TTS)", '[data-setting-id="tts_settings"] select')
 
     def open_route_settings(self):
         self.open_voice_page("Device", '[data-setting-id="voice_route"] select')
 
     def open_rvc_settings(self):
-        self.open_voice_page("RVC", '[data-setting-id="rvc_settings"] input')
+        self.open_voice_page("Voice changer (RVC)", '[data-setting-id="rvc_settings"] input')
 
     def open_original_voice_settings(self):
         self.open_voice_page("Advanced", '[data-setting-id="direct_voice_settings"] select')

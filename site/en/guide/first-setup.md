@@ -41,7 +41,7 @@ Models you have not downloaded yet are also listed under "Before you start" on t
 
 ## 5. Choose your microphone and speaker
 
-Do this before you use a voice feature (captions, speech, voice conversion). Open the settings with the gear at the bottom left of the main screen, then open "Device".
+Do this before you use a voice feature (captions, text to speech, the voice changer). Open the settings with the gear at the bottom left of the main screen, then open "Device".
 
 - **Mic**: the microphone that picks up your voice. On Linux it lists PipeWire inputs.
 - **Speaker**: the output used to listen to other players.
@@ -50,6 +50,7 @@ Do this before you use a voice feature (captions, speech, voice conversion). Ope
 
 ## Next
 
+- For everything else it can do: [Find what you want to do](./tasks)
 - To speak your translations: [Text to speech (TTS)](../features/tts)
-- To turn speech into text: [Speech recognition and realtime captions](../features/transcription)
-- To read other people's chatboxes: [Chat reading](../features/chat-reading)
+- To turn speech into text: [Speech recognition (ASR) and realtime captions](../features/transcription)
+- To read other people's chatboxes: [Chat reading (OCR)](../features/chat-reading)

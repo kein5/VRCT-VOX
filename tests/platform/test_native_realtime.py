@@ -134,7 +134,7 @@ def open_captions(ui):
         ui.element_command(notice, "click")
     ui.open_settings()
     if not ui.evaluate("return !!document.querySelector('section[aria-label=\"Realtime captions\"]')"):
-        tab = ui.evaluate("return [...document.querySelectorAll('p')].find(e => e.textContent === 'Transcription')?.parentElement")
+        tab = ui.evaluate("return [...document.querySelectorAll('p')].find(e => e.textContent === 'Speech recognition (ASR)')?.parentElement")
         ui.element_command(tab, "click")
     ui.wait("return !!document.querySelector('section[aria-label=\"Realtime captions\"] select')")
 

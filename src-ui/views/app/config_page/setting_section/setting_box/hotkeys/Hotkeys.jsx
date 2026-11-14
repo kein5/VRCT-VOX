@@ -26,8 +26,8 @@ const VoiceHotkeysContainer = () => {
     const rows = [
         ["stop_voice", t("config_page.hotkeys.stop_voice.label")],
         ["toggle_voice_mute", t("config_page.hotkeys.toggle_voice_mute.label")],
-        ["toggle_tts", t("config_page.hotkeys.toggle_voice_switch.label", { name: "TTS" })],
-        ["toggle_rvc", t("config_page.hotkeys.toggle_voice_switch.label", { name: "RVC" })],
+        ["toggle_tts", t("config_page.hotkeys.toggle_voice_switch.label", { name: t("main_page.tts") })],
+        ["toggle_rvc", t("config_page.hotkeys.toggle_voice_switch.label", { name: t("main_page.rvc") })],
     ];
     return (
         <div className={styles.container}>

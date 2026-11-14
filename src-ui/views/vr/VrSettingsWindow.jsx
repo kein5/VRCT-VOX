@@ -24,6 +24,7 @@ import { buildComputeDeviceOptions } from "../app/config_page/setting_section/se
 import { CLOUD_TRANSCRIPTION_ENGINES } from "../../logics/configs/cloudTranscription";
 import { isNonCommercialWeight } from "../../logics/configs/ctranslate2License";
 import styles from "./VrSettingsWindow.module.scss";
+import { splitFeatureLabel } from "../../logics/common/featureLabel.js";
 
 // 左のカテゴリはデスクトップの設定画面と同じ順序・名前・アイコン。VRでは文字入力が要る項目
 // (APIキー、URL、単語フィルターなど) と、モデルのダウンロードは載せない
@@ -113,7 +114,7 @@ export const VrSettingsWindow = ({ onClose }) => {
                                 onClick={() => { savedScroll.current = 0; triggerRef.current = null; setCategory(id); setPicker(null); }}
                             >
                                 <Icon className={styles.category_icon} aria-hidden="true" />
-                                <span className={styles.category_label}>{category_label(id)}</span>
+                                <CategoryName text={category_label(id)} />
                             </button>
                         ))}
                     </div>
@@ -420,4 +421,10 @@ const OcrSettings = ({ t, openPicker }) => {
                 setValue={ocr.setOcrBubbleMinTextLength} min={1} max={50} step={1} />
         </>
     );
+};
+
+// A long name breaks before its short name in brackets, never inside a word.
+const CategoryName = ({ text }) => {
+    const { name, abbr } = splitFeatureLabel(text);
+    return <span className={styles.category_label}>{name}{abbr && <span className={styles.category_abbr}>{abbr}</span>}</span>;
 };

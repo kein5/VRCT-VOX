@@ -122,6 +122,8 @@ export const openrouter_auth_key_url = "https://openrouter.ai/keys";
 export const vrct_document_home_url = "https://kein5.github.io/VRCT-VOX";
 export const vrct_document_url_chunk_faq = "guide/troubleshooting";
 export const vrct_document_url_chunk_ui_guide = "guide/first-setup";
+// Each model setting links to its own section: #tts, #asr, #whisper-server, #rvc, #seed-vc, #translation.
+export const vrct_document_url_chunk_custom_models = "guide/custom-models";
 
 // The upstream VRCT documentation, linked from the credits for the original VRCT on About.
 export const upstream_vrct_document_url = (lang_code = "en") =>
@@ -140,5 +142,6 @@ export const generateLocalizedDocumentUrl = (lang_code = "en") => {
         vrct_document_home_url: `${vrct_document_home_url}/${lang_path}`,
         vrct_document_faq_url: `${vrct_document_home_url}/${lang_path}/${vrct_document_url_chunk_faq}`,
         vrct_document_ui_guide_url: `${vrct_document_home_url}/${lang_path}/${vrct_document_url_chunk_ui_guide}`,
+        vrct_document_custom_models_url: `${vrct_document_home_url}/${lang_path}/${vrct_document_url_chunk_custom_models}`,
     };
 };

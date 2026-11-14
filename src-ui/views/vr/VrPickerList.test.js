@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as featureLabel from "../../logics/common/featureLabel.js";
 import { test } from "node:test";
 import React from "react";
 import { hooks, loadModule, find, stubGlobals, eventTarget } from "../../logics/test/hookHarness.js";
@@ -456,6 +457,7 @@ test("font selection reaches the existing appearance setter and closes the setti
     });
     const { VrSettingsWindow } = await loadModule(new URL("./VrSettingsWindow.jsx", import.meta.url), runtime, {
         "../../logics/common/languageNames.js": languageNames,
+        "../../logics/common/featureLabel.js": featureLabel,
         "@useI18n": { useI18n: () => ({ t: key => key, i18n: { language: "en" } }) },
         "@logics_common": { useIsOpenedConfigPage: () => ({ currentIsOpenedConfigPage: { data: true } }) },
         "@logics_configs": { useAppearance: () => ({ currentUiLanguage: { data: "en" },
@@ -474,7 +476,7 @@ test("font selection reaches the existing appearance setter and closes the setti
         if (picker) picker.ref.current = h.scroll;
     });
     let tree = render();
-    find(tree, node => node.type === "button" && find(node, child => child.props?.children === "config_page.side_menu_labels.appearance")).props.onClick();
+    find(tree, node => node.type === "button" && find(node, child => child.props?.text === "config_page.side_menu_labels.appearance")).props.onClick();
     tree = render();
     const category = find(tree, node => node.type?.name === "Category");
     const appearance = category.type(category.props);

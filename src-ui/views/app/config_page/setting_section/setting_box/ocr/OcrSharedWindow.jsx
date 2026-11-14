@@ -5,7 +5,7 @@ import { sharedWindowView } from "../../../../../../logics/configs/ocrSharedWind
 import { EnvReadout } from "../_components/env_readout/EnvReadout";
 import styles from "./Ocr.module.scss";
 
-// Linux on Wayland: share one window with Chat Transcribe through the desktop's own dialog.
+// Linux on Wayland: share one window with chat reading through the desktop's own dialog.
 // For a VRChat window that cannot be found by its name (native Wayland). Shown nowhere else.
 export const OcrSharedWindow = () => {
     const { t } = useI18n();

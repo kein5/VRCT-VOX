@@ -44,7 +44,7 @@ def squeeze(text):
 def read_rows(ui):
     """Chat reading results on screen. The log keeps only the rows in view, so callers collect while they wait."""
     rows = [row.strip() for row in ui.evaluate("return document.querySelector('#log_container')?.innerText || '';").split("\n") if row.strip()]
-    return [rows[i + 1] for i, row in enumerate(rows[:-1]) if row.startswith("Received (Chat Transcribe)")]
+    return [rows[i + 1] for i, row in enumerate(rows[:-1]) if row.startswith("Received (Chat reading)")]
 
 
 def test_typed_message_is_shown_by_vrchat_and_read_back(tmp_path):
@@ -62,7 +62,7 @@ def test_typed_message_is_shown_by_vrchat_and_read_back(tmp_path):
     try:
         with lab.OnlyCameraNamedVRChat(), NativeWebDriver(tmp_path / "ui", {"VRCT_CONFIG_DIR": str(state)}) as ui:
             ui.wait("return document.querySelector('textarea[class*=message_box_input_area]') !== null")
-            ui.set_switch("Chat Transcribe")
+            ui.set_switch("Chat reading (OCR)")
             for index, base in enumerate(MESSAGES):
                 text = f"{base} {stamp}{index}"
                 seen = set(read_rows(ui))
@@ -83,7 +83,7 @@ def test_typed_message_is_shown_by_vrchat_and_read_back(tmp_path):
                 report["messages"].append({"sent": text, "read_after_s": read_at and round(read_at, 1), "results": heard[:8]})
                 # VRChat limits how often a chatbox may change; leave the bubble time to be replaced.
                 time.sleep(max(0, 4 - (time.monotonic() - sent)))
-            ui.set_switch("Chat Transcribe", on=False)
+            ui.set_switch("Chat reading (OCR)", on=False)
             ui.assert_rendered()
             ui.close_app()
         missed = [row["sent"] for row in report["messages"] if row["read_after_s"] is None]

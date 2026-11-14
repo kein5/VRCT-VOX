@@ -57,7 +57,7 @@ def input_info(session, sequence, start_ns):
 # of reporting a worker that ended. Nothing the worker writes is shown beyond these codes.
 WORKER_FAILURES = frozenset((
     'vc_gpu_unavailable', 'vc_model_missing', 'vc_runtime_version_unsupported',
-    'vc_checkpoint_incomplete', 'vc_index_failed'))
+    'vc_checkpoint_incomplete', 'vc_index_failed', 'vc_engine_format_invalid'))
 
 
 def failed_info(session, code):

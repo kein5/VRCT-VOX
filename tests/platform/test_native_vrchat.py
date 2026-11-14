@@ -170,7 +170,7 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
                         # Text is spoken only while the main TTS switch is on; a mute,
                         # a failed server or "off" turns it off again.
                         native()
-                        ui.set_switch("TTS")
+                        ui.set_switch("Text to speech (TTS)")
                     settled(capture, time.monotonic_ns(), "before_send_not_silent", silent=True)
                     output = tmp_path / name
                     output.mkdir()
@@ -215,7 +215,7 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
 
                 for name, button in [("stop", "Stop playback and clear queue"), ("mute", "Mute until resumed")]:
                     native()
-                    ui.set_switch("TTS")
+                    ui.set_switch("Text to speech (TTS)")
                     start = send(LONG)
                     first_audio(start)
                     (voice_settings if name == "stop" else route_settings)()
@@ -240,7 +240,7 @@ def test_native_voice_through_vrchat_local_replay(tmp_path):
                 replay_case("off_to_original_exactly_once")
 
                 native()
-                ui.set_switch("TTS")
+                ui.set_switch("Text to speech (TTS)")
                 start = send(LONG)
                 first_audio(start)
                 crashed = time.monotonic_ns()
