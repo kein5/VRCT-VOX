@@ -25,6 +25,7 @@ recordings can be added with --voice and --input; everything is written under
 Open <out>/index.html in a browser to listen.
 """
 import argparse
+import base64
 import datetime
 import json
 import shutil
@@ -69,6 +70,23 @@ def reference_convert(reference, checkpoint, net, audio, *, index, index_rate, p
     return np.asarray(output), rate
 
 
+def write_page(out, manifest):
+    """The ABX page with the audio inside it.
+
+    Carrying the audio makes the page work wherever it is opened (a file viewer that
+    cannot load neighbouring files, or file:// in a browser). The WAV files stay next to
+    it for other players.
+    """
+    audio = {}
+    for case in manifest['cases']:
+        for key in ('input', 'reference_a', 'reference_b', 'ours'):
+            audio[case[key]] = base64.b64encode((out / case[key]).read_bytes()).decode('ascii')
+    page = (HERE / 'listening_page.html').read_text(encoding='utf-8')
+    start, end = page.index('/*MANIFEST*/'), page.index('/*END*/') + len('/*END*/')
+    embedded = json.dumps({**manifest, 'audio': audio}, ensure_ascii=False).replace('</', '<\\/')
+    (out / 'index.html').write_text(page[:start] + embedded + page[end:], encoding='utf-8')
+
+
 def runtime_binary():
     subprocess.run(['cargo', 'build', '--release', '--locked', '--bin', 'rvc-infer'], cwd=CRATE, check=True)
     return CRATE / 'target' / 'release' / 'rvc-infer'
@@ -87,7 +105,13 @@ def main():
     parser.add_argument('--trials', type=int, default=6, help='ABX trials per pair (default 6)')
     parser.add_argument('--chunk', default='3,10,60,65', help='split settings in seconds: pad,query,center,max')
     parser.add_argument('--out', type=Path, default=root / 'listening')
+    parser.add_argument('--page-only', action='store_true', help='rebuild index.html from an existing set without converting again')
     arguments = parser.parse_args()
+    if arguments.page_only:
+        manifest = json.loads((arguments.out / 'manifest.json').read_text(encoding='utf-8'))
+        write_page(arguments.out.resolve(), manifest)
+        print(f'Rebuilt {arguments.out.resolve() / "index.html"}.')
+        return
 
     voices = [(Path(parts[0]), Path(parts[1]) if len(parts) > 1 else None) for parts in arguments.voice or []]
     if not voices:
@@ -148,11 +172,8 @@ def main():
                 })
                 print(f'{name}: model {voice_number + 1}, input {input_number + 1}, transpose {transpose}', flush=True)
     manifest = {'created': datetime.datetime.now().astimezone().isoformat(timespec='seconds'), 'trials': arguments.trials, 'cases': cases}
-    page = (HERE / 'listening_page.html').read_text(encoding='utf-8')
-    start, end = page.index('/*MANIFEST*/'), page.index('/*END*/') + len('/*END*/')
-    embedded = json.dumps(manifest, ensure_ascii=False).replace('</', '<\\/')
-    (out / 'index.html').write_text(page[:start] + embedded + page[end:], encoding='utf-8')
     (out / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    write_page(out, manifest)
     print(f'{len(cases)} case(s) written. Open {out / "index.html"} in a browser.')
 
 

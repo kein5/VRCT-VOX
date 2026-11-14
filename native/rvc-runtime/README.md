@@ -150,7 +150,9 @@ $REF/venv/bin/python native/rvc-runtime/reference/make_listening_set.py \
 
 For every model and input it converts the same 16 kHz audio three times with the same
 settings: the reference with two different noise seeds and this runtime. It then writes
-`$REF/listening/index.html`, an ABX page (Japanese) to open in a browser:
+`$REF/listening/index.html`, an ABX page (Japanese) with the audio embedded in it. Open
+it in a web browser; an editor's built-in preview may show the page without playing
+sound. `--page-only` rebuilds the page from an existing set without converting again.
 
 - Each trial plays A, B and X, where X repeats one of the two, and asks which. Which
   pair is on screen and which side is the reference are hidden and random.

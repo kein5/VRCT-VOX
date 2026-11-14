@@ -51,7 +51,7 @@
     <p>1 回の試行では A・B・X の 3 つを聴きます。X は A か B のどちらかと同じ音声です。X がどちらと同じかを答えてください。聴き直しは何度でもできます。</p>
     <p>合成にはランダムなノイズが入るため、<strong>本家どうしでも毎回わずかに違う音になります</strong>。そこで「本家と Rust」の組に加えて、「本家と本家（乱数だけ違う）」の組も対照として混ぜてあります。どの組かは表示しません。</p>
     <p>ABX のあと、モデルごとに「同じ声・同じ言い回しに聞こえるか」を答えます（仕様書 13.2 の判定）。</p>
-    <p class="muted">ヘッドホンを推奨します。キー操作：<kbd>A</kbd> <kbd>B</kbd> <kbd>X</kbd> で再生、<kbd>1</kbd> で「X は A」、<kbd>2</kbd> で「X は B」、<kbd>Space</kbd> で停止。</p>
+    <p class="muted">ボタンを押すと音が出ます（音量に注意してください）。ヘッドホンを推奨します。キー操作：<kbd>A</kbd> <kbd>B</kbd> <kbd>X</kbd> で再生、<kbd>1</kbd> で「X は A」、<kbd>2</kbd> で「X は B」、<kbd>Space</kbd> で停止。</p>
     <p id="summary" class="muted"></p>
     <div class="row"><button id="start" class="primary">始める</button><button id="resume" hidden>続きから再開</button></div>
   </section>
@@ -64,6 +64,7 @@
       <button data-play="a">▶ A</button><button data-play="b">▶ B</button><button data-play="x">▶ X</button>
       <button data-play="input">▶ 変換前</button><button id="abx-stop">■ 停止</button>
     </div>
+    <p id="abx-error" class="warn" role="alert" hidden></p>
     <p>X はどちらと同じですか。</p>
     <div class="row" role="group" aria-label="回答">
       <button id="answer-a" class="primary">X は A</button><button id="answer-b" class="primary">X は B</button>
@@ -78,6 +79,7 @@
       <button data-play="one">▶ 音声 1</button><button data-play="two">▶ 音声 2</button>
       <button data-play="input">▶ 変換前</button><button id="rating-stop">■ 停止</button>
     </div>
+    <p id="rating-error" class="warn" role="alert" hidden></p>
     <p>音声 1 と音声 2 は、同じ声・同じ言い回しに聞こえますか。</p>
     <div class="row" role="group" aria-label="回答">
       <button data-rate="same" class="primary">同じに聞こえる</button>
@@ -136,6 +138,27 @@ function store() {
   try { sessionStorage.setItem(KEY, JSON.stringify(state)); } catch (error) { /* not available: keep going */ }
 }
 
+// Audio is embedded in the page (base64 WAV) so it plays from any viewer and from
+// file:// without loading neighbouring files; each clip becomes a Blob URL on first use.
+const urls = {};
+function source(path) {
+  const embedded = MANIFEST.audio && MANIFEST.audio[path];
+  if (!embedded) return path;
+  if (!urls[path]) {
+    const bytes = Uint8Array.from(atob(embedded), (c) => c.charCodeAt(0));
+    urls[path] = URL.createObjectURL(new Blob([bytes], { type: "audio/wav" }));
+  }
+  return urls[path];
+}
+
+function report(message) {
+  for (const id of ["abx-error", "rating-error"]) {
+    const element = $(id);
+    element.textContent = message;
+    element.hidden = !message;
+  }
+}
+
 function stop() {
   player.pause();
   document.querySelectorAll("button.playing").forEach((button) => button.classList.remove("playing"));
@@ -144,12 +167,24 @@ function stop() {
 function play(name, button) {
   stop();
   if (!current[name]) return;
-  player.src = current[name];
+  report("");
+  try {
+    player.src = source(current[name]);
+  } catch (error) {
+    report(`音声を読み込めませんでした（${error.name}）。`);
+    return;
+  }
   player.currentTime = 0;
-  player.play().catch(() => {});
-  if (button) button.classList.add("playing");
+  player.play().then(
+    () => { if (button) button.classList.add("playing"); },
+    (error) => report(`再生できませんでした（${error.name}: ${error.message}）。別のブラウザで開くと再生できることがあります。`),
+  );
 }
 player.addEventListener("ended", stop);
+player.addEventListener("error", () => {
+  const code = player.error ? player.error.code : "?";
+  report(`音声を読み込めませんでした（MediaError ${code}）。`);
+});
 
 function show(id) {
   for (const section of ["intro", "abx", "rating", "result"]) $(section).hidden = section !== id;
