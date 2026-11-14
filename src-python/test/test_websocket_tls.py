@@ -17,7 +17,7 @@ from websockets.sync.client import connect
 from models.obs.obs_browser_source_server import ObsBrowserSourceServer
 from models.websocket import tls
 from models.websocket.websocket_server import WebSocketServer
-from tls_certs import Relay, client_context, make_certificate
+from tls_certs import Relay, client_context, make_certificate, wss_open, wss_receive
 
 TOKEN = "tok-AbCdEf0123456789_secret"
 SPOKEN = "kaigi-no-naiyou-0042"
@@ -58,10 +58,16 @@ def _wait_for_clients(server, count):
     assert len(server.clients) == count
 
 
+def _deliver(server):
+    """Once the client is in, send it one line of conversation."""
+    return lambda: (_wait_for_clients(server, 1), server.send(SPOKEN))
+
+
 def _receive_one(uri, *, ssl_context=None, server):
-    with connect(uri, ssl=ssl_context, open_timeout=5) as client:
-        _wait_for_clients(server, 1)
-        server.send(SPOKEN)
+    if ssl_context is not None:
+        return wss_receive(uri, ssl_context, _deliver(server))
+    with connect(uri, open_timeout=5) as client:
+        _deliver(server)()
         return client.recv(timeout=5)
 
 
@@ -165,9 +171,7 @@ def test_websocket_over_tls_refuses_a_plain_client_and_a_wrong_token(certificate
             with connect(f"ws://127.0.0.1:{server.port}/?token={TOKEN}", open_timeout=3):
                 pass
         with pytest.raises(InvalidStatus) as refused:
-            with connect(f"wss://127.0.0.1:{server.port}/?token=wrong",
-                         ssl=client_context(certificate[0]), open_timeout=5):
-                pass
+            wss_open(f"wss://127.0.0.1:{server.port}/?token=wrong", client_context(certificate[0]))
         assert refused.value.response.status_code == 403
         assert server.clients == set()
     finally:
@@ -178,9 +182,7 @@ def test_websocket_refuses_a_client_that_does_not_trust_the_certificate(certific
     server = _websocket(tls.server_context(*certificate))
     try:
         with pytest.raises(ssl.SSLError):
-            with connect(f"wss://127.0.0.1:{server.port}/?token={TOKEN}",
-                         ssl=ssl.create_default_context(), open_timeout=5):
-                pass
+            wss_open(f"wss://127.0.0.1:{server.port}/?token={TOKEN}", ssl.create_default_context())
     finally:
         server.stop()
 

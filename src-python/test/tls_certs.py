@@ -1,5 +1,6 @@
 """Helpers for the TLS tests: self-signed certificates made at test time (no key is
 committed) and a relay that stands for someone watching the network path."""
+import asyncio
 import datetime
 import ipaddress
 import socket
@@ -39,6 +40,32 @@ def make_certificate(folder, *, ip="127.0.0.1", passphrase=None, name="server"):
 def client_context(cert_file):
     """A client that trusts only this test certificate and checks the address in it."""
     return ssl.create_default_context(cafile=cert_file)
+
+
+# wss:// in the tests goes through websockets' asyncio client. The sync client reads in a
+# thread while the caller writes, both on one TLS connection; on Windows that loses data (the
+# opening request never reached the server about one time in seven, and the process once
+# died with an access violation). The server was not involved: raw ssl sockets and the asyncio
+# client got every answer, 300 times in a row.
+def wss_open(uri, context):
+    """Open and close a wss:// connection. Raises what connecting raises (InvalidStatus, SSLError…)."""
+    from websockets.asyncio.client import connect
+
+    async def run():
+        async with connect(uri, ssl=context, open_timeout=5):
+            pass
+    asyncio.run(run())
+
+
+def wss_receive(uri, context, on_open):
+    """Open a wss:// connection, run on_open() in a worker thread, and return the first message."""
+    from websockets.asyncio.client import connect
+
+    async def run():
+        async with connect(uri, ssl=context, open_timeout=5) as client:
+            await asyncio.to_thread(on_open)
+            return await asyncio.wait_for(client.recv(), 5)
+    return asyncio.run(run())
 
 
 class Relay:

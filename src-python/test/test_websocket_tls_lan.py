@@ -21,7 +21,7 @@ import pytest
 from websockets.sync.client import connect
 
 import model as model_module
-from tls_certs import Relay, client_context, make_certificate
+from tls_certs import Relay, client_context, make_certificate, wss_receive
 
 pytestmark = pytest.mark.skipif(
     os.name == "nt" and os.environ.get("VRCT_TEST_LAN_BIND") != "1",
@@ -108,12 +108,12 @@ def test_on_the_lan_address_only_tls_carries_the_token_and_the_text(owner, lan, 
         # WebSocket through the observer: the client checks the certificate for the LAN address.
         context = client_context(cert_file)
         context.check_hostname = False  # The relay is reached as 127.0.0.1; the certificate names the LAN address.
-        with connect(f"wss://127.0.0.1:{relays[0].port}/?token={TOKEN}", ssl=context, open_timeout=5) as client:
+        def deliver():
             end = time.monotonic() + 5
             while not owner.websocket_server.clients and time.monotonic() < end:
                 time.sleep(0.01)
             owner.websocket_server.send(SPOKEN)
-            assert client.recv(timeout=5) == SPOKEN
+        assert wss_receive(f"wss://127.0.0.1:{relays[0].port}/?token={TOKEN}", context, deliver) == SPOKEN
 
         connection = HTTPSConnection("127.0.0.1", relays[1].port, timeout=5, context=context)
         connection.request("GET", f"/obs?token={TOKEN}", headers={"Host": f"{lan}:{obs_port}"})
