@@ -171,6 +171,8 @@ spawnの拒否、子プロセスができる前のコマンドのerror、初期�
 
 起動失敗の後にspawnが完了した子プロセスを終了できるよう、`main`ウィンドウだけに`shell:allow-kill`を許可する。対象はshellプラグイン自身が起動した子プロセスに限られる。
 
+shellプラグインの権限は`main`ウィンドウの起動・入力・終了の3つだけにする（`shell:allow-spawn`、`shell:allow-stdin-write`、`shell:allow-kill`）。spawnできるのはサイドカーだけで、範囲は`args: false`にする。この範囲では、ウィンドウが引数の配列を渡しても捨てて、サイドカーは引数なしで起動する（1つの文字列を渡すと拒否する）。そのため、ウィンドウからサイドカーを`--voice-router-worker`や`--self-check`の動作で起動することはできない。`execute`と`open`は許可しない。shellプラグインの`open`は、範囲を設定しないと任意のhttp(s)のURLを開けるので、リンクはopenerプラグインの一覧だけで開く。UIはファイルの読み書きとHTTPの要求を自分でしないので、fsとhttpのプラグインはアプリに入れない（セキュリティ監査SEC-05）。`src-ui/logics/common/appPermissions.test.js`が、権限の一覧とUIの呼び出し方を照合する。
+
 これらは`src-ui/logics/useReceiveRoutes.test.js`、`src-ui/logics/common/sidecarSession.test.js`、`useStdoutToPython.test.js`で、spawnと子プロセスのイベントを模擬して検証する。
 
 ## 並行性とロック
