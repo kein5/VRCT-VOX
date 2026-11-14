@@ -153,6 +153,7 @@ The guide is a reading surface in the same Dark Studio, chosen on 2026-11-15 aft
 - Callouts, "what you need" lines (`{.needs}`) and folds sit on the raised surface with a hairline all round. State color lives in the title and a tint of the border, amber for warnings and red for danger; no thick side stripe.
 - A short list of features is `{.feature-rows}`: the name, which is the link, in its own column and one line of what it does.
 - The product name on the home page is solid text at the largest size; buttons use the control radius (8px), not pills.
+- Under it, each feature sits beside a short loop of its route (`showcase` in the home page's front matter). The loops are rendered with Remotion from `site/motion` into `site/public/motion/<lang>/`: one worked example per feature, the diagram growing one part at a time as the signal reaches it, held long enough to read, then leaving so the loop starts empty. A loop plays only while it is on screen; with reduced motion the page shows the finished scene as a still. The text beside a loop carries the meaning; the loop never says anything the text does not.
 
 ## Do's and Don'ts
 

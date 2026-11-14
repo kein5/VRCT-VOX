@@ -128,6 +128,8 @@ export default defineConfig({
   // Only the / language picker uses this; each locale sets its own lang.
   lang: 'en',
   cleanUrls: true,
+  // The Remotion project that renders the home page's loops is not part of the site.
+  srcExclude: ['motion/**'],
   lastUpdated: false,
   // Dark Studio (DESIGN.md) only; no light theme to keep in sync.
   appearance: 'force-dark',
