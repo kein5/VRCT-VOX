@@ -735,7 +735,17 @@ def test_the_environment_can_turn_it_off_for_good_and_then_nothing_is_asked_eith
     assert controller_module.model.telemetryInit.called is (not forced)
 
 
-def test_the_switch_in_the_settings_is_an_answer_of_its_own(controller_module):
+@pytest.mark.parametrize("enabled", [True, False])
+def test_turning_the_setting_on_is_not_consent_while_the_notice_is_pending(controller_module, enabled):
+    # SEC-07: /set/enable/telemetry from any caller starts nothing before the notice is answered.
+    c = configured(controller_module, enabled, 0)
+    assert c.setEnableTelemetry() == {"status": 200, "result": True}
+    assert c.getTelemetryNotice()["result"] == {"pending": True, "enabled": True}
+    assert c._telemetryAllowed() is False
+    controller_module.model.telemetryInit.assert_not_called()
+
+
+def test_turning_it_off_answers_the_notice_and_afterwards_the_switch_works(controller_module):
     c = configured(controller_module, True, 0)
     assert c.setDisableTelemetry() == {"status": 200, "result": False}
     assert c.getTelemetryNotice()["result"] == {"pending": False, "enabled": False}

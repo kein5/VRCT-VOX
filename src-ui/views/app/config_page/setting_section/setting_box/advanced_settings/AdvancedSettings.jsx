@@ -12,6 +12,7 @@ import { parsePortInput, PORT_INPUT_LIMITS } from "../../../../../../logics/conf
 import { buildObsBrowserSourceUrl, buildWebsocketUrl } from "../../../../../../logics/configs/obsBrowserSourceUrl";
 import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
 import { useConsentDialog } from "../../../../../../logics/common/useConsentDialog";
+import { toggleTelemetryOrAnswer } from "../../../../../../logics/configs/telemetryToggle";
 
 import { useCopyToClipboard, useOpenFolder, useNotificationStatus } from "@logics_common";
 import {
@@ -131,10 +132,10 @@ const OpenConfigFolderContainer = () => {
 };
 
 // Usage events (the app started; an error by its code) are sent unless this is off.
-// Turning it on or off here also answers the one-time notice.
+// Turning it on or off here also answers the one-time notice (telemetryToggle.js, SEC-07).
 const TelemetryContainer = () => {
     const { t } = useI18n();
-    const { currentTelemetry, toggleTelemetry } = useOthers();
+    const others = useOthers();
 
     return (
         <>
@@ -142,8 +143,8 @@ const TelemetryContainer = () => {
                 setting_id="telemetry"
                 label={t("config_page.advanced_settings.telemetry.label")}
                 desc={t("config_page.advanced_settings.telemetry.desc")}
-                variable={currentTelemetry}
-                toggleFunction={toggleTelemetry}
+                variable={others.currentTelemetry}
+                toggleFunction={() => toggleTelemetryOrAnswer(others)}
             />
             {/* The event itself as this PC would send it, and what was sent before. */}
             <div className={styles.telemetry_contents}>
