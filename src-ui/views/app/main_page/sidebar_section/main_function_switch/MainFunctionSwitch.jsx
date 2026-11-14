@@ -4,6 +4,7 @@ import { directRouteReady, usesOutputDevice } from "../../../../../logics/voice/
 import { useNotificationStatus } from "../../../../../logics/common/useNotificationStatus";
 import { voiceActions } from "../../../../../logics/voice/voiceActions.js";
 import { splitFeatureLabel } from "../../../../../logics/common/featureLabel.js";
+import { voiceErrorText } from "../../../../../logics/voice/voiceErrorText.js";
 import { useI18n } from "@useI18n";
 import { useIsBackendReady } from "@logics_common";
 import { store } from "@store";
@@ -39,9 +40,7 @@ export const MainFunctionSwitch = () => {
     const notify = (code, page) => {
         // After the engine stops, its own notice already says so.
         if (code === "backend_unavailable" && !store.backend_subprocess) return;
-        const key = `voice_ui.errors.${code}`;
-        showNotification_Error(/^[a-z0-9_]+$/.test(code) && i18n.exists(key)
-            ? `${t(key)} (${code})` : `${code} · ${t("voice_ui.check_settings", { page })}`);
+        showNotification_Error(voiceErrorText(code, page, t, key => i18n.exists(key)));
     };
     const ttsName = t("main_page.tts"), rvcName = t("main_page.rvc");
     useEffect(() => { if (voice.ttsError) notify(voice.ttsError, ttsName); }, [voice.ttsError]);

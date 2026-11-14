@@ -6,6 +6,7 @@ import React from "react";
 import * as jsx from "react/jsx-runtime";
 import clsx from "clsx";
 import * as chatboxLength from "./chatboxLength.js";
+import * as voiceErrorText from "../voice/voiceErrorText.js";
 import * as featureLabel from "./featureLabel.js";
 import { nextLogView, rowsBetween } from "./messageLogView.js";
 
@@ -231,6 +232,7 @@ test("main switches block pending repeats but TTS/RVC cancellation remains avail
         "../../../../../logics/voice/useVoice": {}, "../../../../../logics/voice/voiceActions.js": { voiceActions: {} },
         "../../../../../logics/voice/routeState": {},
         "../../../../../logics/common/featureLabel.js": featureLabel,
+        "../../../../../logics/voice/voiceErrorText.js": voiceErrorText,
         "@logics_main": { useIsMainPageCompactMode: () => ({ currentIsMainPageCompactMode: { data: false } }) },
         "../../../../common_components/toggle_switch/ToggleSwitch": { ToggleSwitch: icon },
     });

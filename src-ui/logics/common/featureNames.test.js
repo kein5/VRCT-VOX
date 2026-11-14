@@ -36,7 +36,7 @@ const STALE = {
         "「チャット読み取り」のページ", "チャット読み取りをオン", "音声認識の設定", "または「音声認識」"],
     en: ["Chat Transcribe", "Voice2Chatbox", "Speaker2Log", "Settings → Transcription", "Settings → TTS",
         "TTS settings", "the TTS page", "turn on TTS", "turn TTS on", "Turn on TTS", "Turn TTS on",
-        "the RVC page", "RVC switch", "Transcription settings"],
+        "the RVC page", "RVC switch", "Transcription settings", "or Transcription", "Settings > Transcription"],
 };
 
 for (const language of LANGUAGES) {
