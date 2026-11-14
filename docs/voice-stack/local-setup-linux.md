@@ -96,7 +96,7 @@ Linux（x86-64）でも、RVCとSeed-VCの実行環境をアプリから取得�
 
 1. 固定版の`uv`を取得します。公式リリースの`uv-x86_64-unknown-linux-gnu.tar.gz`で、サイズとSHA-256を照合します。
 2. Pythonと、ハッシュを固定した依存を入れます。RVCは`integrations/rvc/requirements-cuda.lock`と`requirements.lock`、Seed-VCは`integrations/seed_vc/requirements.lock`を使います。
-3. エンジン本体を取得して、内容を検証します。Seed-VCには同梱のパッチを当てます。
+3. エンジン本体（GitHubのアーカイブ）を取得して、内容を検証します。展開する前に、項目の数と展開後の容量、圧縮率、パス、種類（通常のファイルとフォルダーだけ）を確かめます。展開して、Seed-VCには同梱のパッチを当てたあと、全ファイルの名前と中身から作ったダイジェストを固定値と照合します。合わなければ、展開したものを消してインストールしません（セキュリティ監査 SEC-04）。
 4. 基礎モデルを取得して、ハッシュを検証します。
 5. 実行環境のPythonで`torch.cuda.is_available()`を確かめます。
 

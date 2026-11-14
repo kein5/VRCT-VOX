@@ -15,6 +15,7 @@ import platform
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tarfile
@@ -61,6 +62,12 @@ UV = {'win32': Tool(UV_RELEASE + 'uv-x86_64-pc-windows-msvc.zip', 15236317,
 SOURCE_HOSTS = HOSTS | {'github.com', 'codeload.github.com', 'objects.githubusercontent.com',
                         'release-assets.githubusercontent.com'}
 SOURCE_LIMIT = 64 * 1024 * 1024
+# What an engine archive may hold before anything is unpacked (security audit SEC-04). The
+# pinned archives are far below: RVC has 335 entries and 2.6 MB unpacked, Seed-VC 111 entries
+# and 27 MB, and no file compresses more than 21 times.
+SOURCE_MAX_ENTRIES = 4096
+SOURCE_MAX_BYTES = 256 * 1024 * 1024
+SOURCE_MAX_RATIO = 200
 CUDA_INDEX = 'https://download.pytorch.org/whl/cu128'
 CUDA_CHECK = 'import sys, torch; sys.exit(0 if torch.cuda.is_available() else 3)'
 RVC_REPO, RVC_REVISION = 'lj1995/VoiceConversionWebUI', 'e6d0c1a17da07c33557852f9dfa2bd44cc75737d'
@@ -68,6 +75,17 @@ RVC_COMMIT = '81eed5e8f68b6bed1789f682fe78cdd324495afc'
 SEED_COMMIT = '58d0ca372cc76f60a798d9f84611f053f9029f3a'
 SEED_DIGEST = '106613138abf328fd382ba211709675399f11e76f720abfd4ab54eb2bac2b755'  # After the patch.
 SEED_MANIFEST = 'docs/voice-stack/seed-vc-poc-artifacts.json'
+RVC_SOURCE = f'https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/archive/{RVC_COMMIT}.zip'
+SEED_SOURCE = f'https://github.com/jiaheguo521/seed-vc-realtime/archive/{SEED_COMMIT}.zip'
+# tree_digest of every unpacked file (after the patch), per archive (SEC-04). source_digest
+# covers only the .py files the worker checks again at start. GitHub does not promise that an
+# archive keeps the same bytes, so the files are pinned rather than the archive: it is unpacked
+# into staging within the limits above and installed only if every file matches. Kept out of
+# Runtime so that an installed runtime keeps its version.
+SOURCE_TREE_DIGESTS = {
+    RVC_SOURCE: 'bb4a032388eaa7aff9148bb2ba94724c4ab5c2c410c719b7251dc84dd4001ec5',
+    SEED_SOURCE: '7f1e4b14885d607135c7203408d339d6d4cb2f97ab8935b3af07895f74cd9b1e',
+}
 HUNK = re.compile(r'@@ -(\d+)(?:,\d+)? \+\d+(?:,\d+)? @@')
 # The NVIDIA kernel driver publishes this while it is loaded; nouveau does not.
 LINUX_DRIVER = Path('/proc/driver/nvidia/version')
@@ -140,8 +158,7 @@ SEED_PLATFORM = {
 def rvc_runtime():
     locks, download, disk = RVC_PLATFORM[target()]
     return Runtime(
-        'rvc', 'RVC', '3.12', locks,
-        f'https://github.com/RVC-Project/Retrieval-based-Voice-Conversion-WebUI/archive/{RVC_COMMIT}.zip',
+        'rvc', 'RVC', '3.12', locks, RVC_SOURCE,
         '9778a961cda108fd3145f36ae14d7ba9401308e610920157903bc219231f93fd', '',
         (Asset(hf_url(RVC_REPO, RVC_REVISION, 'hubert_base/config.json'), 'hubert_base/config.json', 1492,
                '0346950779dfb7f9316fa74ed846e2b8a22a08eedfdc5387b73f327cb1a4a7cf'),
@@ -173,8 +190,7 @@ def seed_runtime():
     manifest = json.loads(worker_file(SEED_MANIFEST).read_text(encoding='utf-8'))
     locks, download, disk = SEED_PLATFORM[target()]
     return Runtime(
-        'seed-vc', 'Seed-VC', '3.11', locks,
-        f'https://github.com/jiaheguo521/seed-vc-realtime/archive/{SEED_COMMIT}.zip', SEED_DIGEST,
+        'seed-vc', 'Seed-VC', '3.11', locks, SEED_SOURCE, SEED_DIGEST,
         'integrations/seed_vc/offline-loader.patch', seed_assets(manifest),
         'GPL-3.0, Apache-2.0, BSD-3-Clause, NVIDIA CUDA EULA',
         (f'https://github.com/jiaheguo521/seed-vc-realtime/blob/{SEED_COMMIT}/LICENSE',
@@ -197,6 +213,15 @@ def source_digest(root):
     root = Path(root)
     digest = hashlib.sha256()
     for name in sorted(file.relative_to(root).as_posix() for file in root.rglob('*.py')):
+        digest.update(name.encode() + b'\0' + hashlib.sha256((root / name).read_bytes()).digest())
+    return digest.hexdigest()
+
+
+def tree_digest(root):
+    """source_digest over every file, not only the .py files (SEC-04)."""
+    root = Path(root)
+    digest = hashlib.sha256()
+    for name in sorted(file.relative_to(root).as_posix() for file in root.rglob('*') if file.is_file()):
         digest.update(name.encode() + b'\0' + hashlib.sha256((root / name).read_bytes()).digest())
     return digest.hexdigest()
 
@@ -252,17 +277,51 @@ def launch(args, **options):
     return (launch_owned if target() == 'win32' else launch_group)(args, **options)
 
 
+def source_entries(source):
+    """The files of a GitHub archive, checked before anything is written (SEC-04).
+
+    One top folder; relative paths without '..', drive letters, backslashes or control
+    characters; no two names that differ only in case (they collide on Windows); regular
+    files and folders only; no encryption; and the count, unpacked size and compression ratio
+    within SOURCE_MAX_*. Returns (entry, path parts under the top folder) for each file.
+    """
+    entries = source.infolist()
+    if len(entries) > SOURCE_MAX_ENTRIES:
+        raise ValueError('source_too_large')
+    files, names, top, total = [], set(), None, 0
+    for entry in entries:
+        name = entry.filename
+        parts = PurePosixPath(name).parts
+        if (not parts or name.startswith('/') or '..' in parts
+                or re.search(r'[:\\\x00-\x1f\x7f]', name)):
+            raise ValueError('source_path_unsafe')
+        if top is None:
+            top = parts[0]
+        if parts[0] != top:
+            raise ValueError('source_path_unsafe')
+        key = '/'.join(parts).casefold()
+        if key in names:
+            raise ValueError('source_path_unsafe')
+        names.add(key)
+        kind = (entry.external_attr >> 16) & 0o170000
+        if kind not in (0, stat.S_IFREG, stat.S_IFDIR) or entry.flag_bits & 0x1:
+            raise ValueError('source_entry_type')
+        if entry.is_dir() or len(parts) == 1:
+            continue
+        total += entry.file_size
+        if total > SOURCE_MAX_BYTES or entry.file_size > SOURCE_MAX_RATIO * max(entry.compress_size, 1):
+            raise ValueError('source_too_large')
+        files.append((entry, parts[1:]))
+    return files
+
+
 def unpack_source(archive, target):
-    """A GitHub archive without its one top folder."""
+    """A GitHub archive without its one top folder, after source_entries accepts all of it."""
     with zipfile.ZipFile(archive) as source:
-        for entry in source.infolist():
-            parts = PurePosixPath(entry.filename).parts[1:]
-            if entry.is_dir() or not parts:
-                continue
-            if '..' in parts or re.search(r'[:\\]', entry.filename):
-                raise ValueError('source_path_unsafe')
+        for entry, parts in source_entries(source):
             path = target.joinpath(*parts)
             path.parent.mkdir(parents=True, exist_ok=True)
+            # zipfile reads no more than the entry's size and checks its CRC.
             with source.open(entry) as reader, path.open('wb') as writer:
                 shutil.copyfileobj(reader, writer)
 
@@ -493,13 +552,23 @@ class RuntimeSetup:
     def _engine(self, runtime, event, job):
         folder = self.folder(runtime)
         archive, staging, target = folder / 'engine.zip', folder / 'engine.part', folder / 'engine'
+        expected = SOURCE_TREE_DIGESTS.get(runtime.source_url)
+        if not expected:
+            raise ValueError('source_unpinned')
         shutil.rmtree(staging, ignore_errors=True)
         self._fetch(runtime.source_url, archive, event, limit=SOURCE_LIMIT)
-        unpack_source(archive, staging)
-        if runtime.patch:
-            apply_patch(staging, worker_file(runtime.patch).read_text(encoding='utf-8'))
-        if source_digest(staging) != runtime.source_digest:
-            raise ValueError('hash_mismatch')
+        try:
+            unpack_source(archive, staging)
+            if runtime.patch:
+                apply_patch(staging, worker_file(runtime.patch).read_text(encoding='utf-8'))
+            # Every file, then the .py files the worker checks again (SEC-04).
+            if tree_digest(staging) != expected or source_digest(staging) != runtime.source_digest:
+                raise ValueError('hash_mismatch')
+        except Exception:
+            # Nothing of a refused archive stays on disk.
+            shutil.rmtree(staging, ignore_errors=True)
+            archive.unlink(missing_ok=True)
+            raise
         shutil.rmtree(target, ignore_errors=True)
         os.replace(staging, target)
         archive.unlink()
