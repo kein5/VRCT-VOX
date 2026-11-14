@@ -39,6 +39,7 @@ PAGES = {
 SECTIONS = {
     "asr-models": ("transcription", {"ja": "ASR + VAD", "en": "ASR + VAD"}, True),
     "desktop-captions": ("vr", {"ja": "デスクトップの字幕オーバーレイ", "en": "Desktop caption overlay"}, False),
+    "websocket": ("advanced", {"ja": "WebSocket", "en": "WebSocket"}, False),
 }
 TITLE = {"ja": "ここから会話を始めましょう", "en": "Your conversation starts here"}
 OPEN_SETTINGS = {"ja": "設定を開く", "en": "Open settings"}
@@ -162,6 +163,9 @@ def test_docs_screenshots(studio, tmp_path, lang):  # noqa: F811
     page.evaluate(
         "window.__TAURI_INTERNALS__ = { invoke: async command => command === 'caption_overlay_supported' ? true : null }"
     )
+    # The WebSocket rows show the app's default port and a key, masked like a real one.
+    push(peer, "/get/data/websocket_port", 2231)
+    push(peer, "/get/data/websocket_auth_token", "docs-sample-key")
     page.get_by_role("button", name=OPEN_SETTINGS[lang], exact=True).click()
     for name, labels in PAGES.items():
         page.get_by_role("button", name=labels[lang], exact=True).click()

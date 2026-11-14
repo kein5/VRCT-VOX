@@ -22,6 +22,26 @@ You can change the maximum number of messages, display time, fade-out time, font
 
 While the OBS browser source is on, the WebSocket settings cannot be changed. Turn the OBS browser source off first.
 
+## Use it from other PCs
+
+From OBS or tools on other PCs, the connection is encrypted. For that you need a certificate and private key (PEM) for this PC's LAN IP address. Without a certificate, nothing listens on an address other than `127.0.0.1`.
+
+![The WebSocket rows under Advanced](/screenshots/en/websocket.webp)
+
+1. Enter the paths under "Certificate file" and "Private key file" and save. A pair that does not work is not saved, and the reason is shown.
+2. Enter this PC's LAN IP address (for example `192.168.1.10`) under "WebSocket Host (IPv4)" and save.
+3. Copy the WebSocket and OBS URLs again. They now start with `wss://` and `https://`.
+
+The PCs and OBS that connect must trust the certificate. If you made the certificate yourself, add its issuer's certificate on the PCs that connect. A private key with a passphrase cannot be used.
+
+With the host set back to `127.0.0.1`, it works on this PC only, without a certificate. If an earlier version had a LAN address set, the host goes back to `127.0.0.1` at startup and the app tells you.
+
 ::: warning Exposing it to other devices
-Setting Host to anything other than `127.0.0.1` lets other devices on your network connect. Change it only when you need to.
+Other devices on your network can then connect too. Change it only when you need to.
 :::
+
+## Make a new key
+
+If someone else may have seen a copied URL, press "Make a new connection key". After you confirm, the key changes and the old URLs stop working at once. Open WebSocket connections are closed too.
+
+Afterwards, copy the WebSocket and OBS URLs again and set them in OBS and your tools.
