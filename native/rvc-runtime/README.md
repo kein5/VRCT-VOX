@@ -126,9 +126,9 @@ by 0.02 cents drops its SNR against itself to 10 – 15 dB. With the reference's
 and our own features the output agrees to 86 – 91 dB. So the remaining sample-level
 difference is that pitch difference, not the synthesizer.
 
-The 40 kHz output F0 agreement (95.6 % against 99.1 %) is the one figure that is worse
-than the reference's own seed-to-seed spread. The model there is the multi-speaker
-pretraining base, whose output is not a clean voice; it has not been examined further.
+The 40 kHz output F0 agreement (95.6 % against 99.1 %) looked worse than the reference's
+own seed-to-seed spread with a single seed. Measured over four seeds in the objective
+comparison below, it is within that spread.
 
 **Listening (spec 13.2), 2026-11-15:** the maintainer listened to the four public cases
 below in a browser and could not tell the Rust output from the reference; all four were
