@@ -3,10 +3,10 @@ import { test } from "node:test";
 import { hooks, loadModule } from "../../../logics/test/hookHarness.js";
 import * as wire from "../../../logics/common/vrPanelWire.js";
 
-async function setup(context) {
+async function setup(context, { registry = {}, values = {}, settings = [] } = {}) {
     const runtime = hooks(), lifecycle = hooks(), listeners = new Map();
     const state = { enabled: true, configOpen: false, mic: true };
-    const actions = [], requests = [], windows = [];
+    const actions = [], requests = [], windows = [], pushes = [], emitted = [];
     let memory = { translation: false, transcription_send: false, transcription_receive: false };
     const common = {
         useIsOpenedConfigPage: () => ({ currentIsOpenedConfigPage: { data: state.configOpen },
@@ -14,12 +14,18 @@ async function setup(context) {
         useVolume: () => ({ currentMicThresholdCheckStatus: { data: false }, currentSpeakerThresholdCheckStatus: { data: false } }),
     };
     const { VrPanelSyncController } = await loadModule(new URL("./VrPanelSyncController.jsx", import.meta.url), runtime, {
-        "@tauri-apps/api/core": { invoke: async (name, args) => windows.push(args.open) },
-        "@tauri-apps/api/event": { emit: async () => {}, listen: (name, handler) => {
+        "@tauri-apps/api/core": { invoke: async (name, args) => {
+            if (name === "set_vr_panel_window") windows.push(args.open);
+            else pushes.push([name, args]);
+            return true;
+        } },
+        "@tauri-apps/api/event": { emit: async (...args) => emitted.push(args), listen: (name, handler) => {
             listeners.set(name, handler);
             return Promise.resolve(() => { if (listeners.get(name) === handler) listeners.delete(name); });
         } },
-        jotai: { getDefaultStore: () => ({}) }, "@store": { dynamicStoreRegistry: {} },
+        jotai: { getDefaultStore: () => ({ get: atom => values[atom], sub: () => () => {} }) },
+        "@store": { dynamicStoreRegistry: registry },
+        "../../../logics/configs/config_page_setter/ui_config_setter": { SETTINGS_ARRAY: settings },
         "@logics_common": common,
         "@logics_configs": { useVr: () => ({ currentIsEnabledOverlayVrPanel: { data: state.enabled } }) },
         "@useStdoutToPython": { useStdoutToPython: () => ({ asyncStdoutToPython: async (...args) => requests.push(args) }) },
@@ -41,8 +47,28 @@ async function setup(context) {
     const render = () => { runtime.render(VrPanelSyncController); lifecycle.render(ConfigPageCloseTriggerController); };
     const config = value => { listeners.get("vr-panel-config-page")({ payload: value }); render(); };
     render();
-    return { state, actions, requests, windows, listeners, runtime, render, config };
+    return { state, actions, requests, windows, pushes, emitted, listeners, runtime, render, config };
 }
+
+// SEC-03: only the listed state goes to the VR panel, through its channel.
+test("the VR panel gets the listed state through invoke, and nothing else", async context => {
+    const registry = {
+        Atom_TranslationStatus: "translation", Atom_VrPanelLayout: "layout", Atom_WebsocketHost: "host",
+        Atom_DeepLAuthKey: "key", Atom_Hotkeys: "hotkeys", useStore_TranslationStatus: () => {},
+    };
+    const values = { translation: { data: true }, layout: { data: {} }, host: { data: "192.168.1.5" },
+        key: { data: "secret" }, hotkeys: { data: {} } };
+    const settings = [{ Category: "Vr", Base_Name: "VrPanelLayout" }, { Category: "AdvancedSettings", Base_Name: "WebsocketHost" },
+        { Category: "Translation", Base_Name: "DeepLAuthKey" }];
+    const view = await setup(context, { registry, values, settings });
+    assert.equal(view.pushes.length, 1);
+    const [name, { payload }] = view.pushes[0];
+    assert.equal(name, "vr_panel_state_push");
+    assert.deepEqual(Object.keys(payload).sort(), ["TranslationStatus", "VrPanelLayout"]);
+    assert.deepEqual(view.emitted, []); // nothing goes out as an event any more
+    view.listeners.get("vr-panel-ready")();
+    assert.equal(view.pushes.length, 2);
+});
 
 test("recreating the VR panel leaves settings open and microphone paused", async context => {
     const view = await setup(context);

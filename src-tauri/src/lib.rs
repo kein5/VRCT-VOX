@@ -8,6 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 mod caption_overlay;
 mod quick_chat;
 mod single_instance;
+mod vr_panel_state;
 #[cfg(target_os = "linux")]
 mod portal_shortcuts;
 #[cfg(target_os = "linux")]
@@ -196,6 +197,7 @@ pub fn run() {
         .manage(caption_overlay::CaptionOverlayState::default())
         .manage(portal_shortcuts::PortalShortcuts::default())
         .manage(portal_screencast::Screencast::default())
+        .manage(vr_panel_state::VrPanelState::default())
         .invoke_handler(tauri::generate_handler![get_font_list, set_vr_panel_window, main_window_restore,
             quick_chat::quick_chat_context, quick_chat::quick_chat_configure, quick_chat::quick_chat_submit,
             quick_chat::quick_chat_take, quick_chat::quick_chat_finish, quick_chat::quick_chat_hide,
@@ -204,7 +206,8 @@ pub fn run() {
             caption_overlay::caption_overlay_update, caption_overlay::caption_overlay_snapshot,
             portal_shortcuts::portal_shortcuts_bind,
             portal_screencast::screencast_support, portal_screencast::screencast_start,
-            portal_screencast::screencast_stop])
+            portal_screencast::screencast_stop,
+            vr_panel_state::vr_panel_state_subscribe, vr_panel_state::vr_panel_state_push])
         .build(context)
         .map(|app| app.run(|app, event| {
             // A shared window must not stay shared after the app is gone.
@@ -276,6 +279,8 @@ async fn set_vr_panel_window(window: tauri::WebviewWindow, app: tauri::AppHandle
             Ok(())
         }
         (false, Some(window)) => {
+            // The closed panel's channel must not keep receiving the state.
+            app.state::<vr_panel_state::VrPanelState>().clear();
             #[cfg(target_os = "linux")]
             vr_panel_surface::detach(&app).await;
             window.destroy().map_err(|error| error.to_string())?;

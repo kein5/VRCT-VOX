@@ -1,17 +1,19 @@
 import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { emit, listen } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { getDefaultStore } from "jotai";
 
 import { dynamicStoreRegistry } from "@store";
 import { useStdoutToPython } from "@useStdoutToPython";
 import { useIsOpenedConfigPage } from "@logics_common";
 import { useVr } from "@logics_configs";
-import { encodeLogUpdate, encodeOrdered, isRelayAllowed, isSecretAtomName } from "../../../logics/common/vrPanelWire";
+import { SETTINGS_ARRAY } from "../../../logics/configs/config_page_setter/ui_config_setter";
+import { encodeLogUpdate, encodeOrdered, isRelayAllowed, vrPanelStateNames } from "../../../logics/common/vrPanelWire";
 import { isLanguageMutation, rejectLanguageMutation } from "../../../logics/main/languageMutations";
 
-// VRパネル (vr_panel ウィンドウ) をこのウィンドウの完全なミラーにする。
-// - 全atomの値をVRパネルへ一方向に同期する (機能が増えても個別の同期コードは不要)
+// VRパネル (vr_panel ウィンドウ) にこのウィンドウの状態を写す。
+// - VRパネルが読むatomの値だけを一方向に同期する (vrPanelWire.vrPanelStateNames。SEC-03)。
+//   VRパネルが開いたチャンネルへ送り、ほかのウィンドウには届かない (src-tauri/src/vr_panel_state.rs)
 // - VRパネルからのバックエンド送信を代わりに行う。設定画面を開いている間は
 //   メイン機能を一時停止しているため (ConfigPageCloseTriggerController)、拒否する
 // - VRのVR設定ウィンドウを開いている間は、デスクトップで設定画面を開いたのと同じ扱いにする
@@ -31,10 +33,14 @@ const WINDOW_REQUEST_PATHS = [
     "/run/vr_panel_tooltip",
 ];
 
-const atomEntries = () => Object.entries(dynamicStoreRegistry)
-    .filter(([key]) => key.startsWith("Atom_"))
-    .map(([key, atom]) => [key.slice("Atom_".length), atom])
-    .filter(([name]) => !isSecretAtomName(name));
+let allowedNames = null;
+const atomEntries = () => {
+    allowedNames ??= vrPanelStateNames(SETTINGS_ARRAY);
+    return Object.entries(dynamicStoreRegistry)
+        .filter(([key]) => key.startsWith("Atom_"))
+        .map(([key, atom]) => [key.slice("Atom_".length), atom])
+        .filter(([name]) => allowedNames.has(name));
+};
 
 // VRパネルへ最後に送った会話ログ。会話ログだけは、これとの差分を送る (vrPanelWire.encodeLogUpdate)
 let sentLog = null;
@@ -57,7 +63,10 @@ const emitState = (entries, full = false) => {
             // DOM参照など、ウィンドウをまたいで送れない値は同期しない
         }
     }
-    emit("vr-panel-state", payload);
+    invoke("vr_panel_state_push", { payload }).then(delivered => {
+        // No panel received it: the next log update goes in full, not as a difference.
+        if (delivered === false) sentLog = null;
+    }).catch(console.error);
 };
 
 export const VrPanelSyncController = () => {

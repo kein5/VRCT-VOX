@@ -713,8 +713,8 @@ Python (src-python/models/overlay/)
 
 ### 通信と安全
 
-- メイン → VR: 全 atom を `vr-panel-state` で同期する。Tauri の `emit` はオブジェクトのキーを辞書順に並べ替えるため、順序に意味のある値は順序つきの形 (`encodeOrdered`) で送り、VR とメインの比較に `JSON.stringify` を使わない。
-- VR → バックエンド: VR 画面から直接は送らず、メインウィンドウが代理で送る。送れるのは `/get|set|run/` だけで、`/run/shutdown`、更新、設定ファイル・ログを開く、モデルのダウンロード、認証キー系は拒否する (`isRelayAllowed`)。設定画面を開いている間は、ウィンドウの開閉などを除いて拒否する。
+- メイン → VR: VR 画面が読む atom だけ (`vrPanelStateNames`) を、VR 画面が開いたチャンネルへ送る (`vr_panel_state_subscribe` と `vr_panel_state_push`、SEC-03)。イベントでは送らない。ほかのウィンドウに会話ログが届かないようにするため。Rust の `serde_json::Value` を通るとオブジェクトのキーが辞書順に並ぶので、順序に意味のある値は順序つきの形 (`encodeOrdered`) で送り、VR とメインの比較に `JSON.stringify` を使わない。詳しくは `docs/spec/external-interfaces.md` の「VRパネルへ写す状態」。
+- VR → バックエンド: VR 画面から直接は送らず、メインウィンドウが代理で送る。送れるのは一覧 (`VR_PANEL_RELAY_PATHS`) に載せた要求だけで、バックエンドも同じ一覧で確かめる (SEC-02)。設定画面を開いている間は、ウィンドウの開閉などを除いて拒否する。
 
 ### ランチャー
 

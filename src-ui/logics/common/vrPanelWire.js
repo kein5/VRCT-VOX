@@ -95,7 +95,40 @@ export const VR_PANEL_RELAY_PATHS = new Set([
 ]);
 export const isRelayAllowed = (path) => typeof path === "string" && VR_PANEL_RELAY_PATHS.has(path);
 
-// VR画面へ写さない atom。VR画面は認証キーとトークンを表示しない。写すと、VR画面や、
-// 同じイベントを聞けるほかのウィンドウからキーを読めてしまう。ウィンドウ共有を確認なしで
-// 再開するトークン (RestoreToken) も、VR画面では使わないので写さない
+// VR画面へ写さない atom。VR画面は認証キーとトークンを表示しない。写すと、VR画面からキーを
+// 読めてしまう。ウィンドウ共有を確認なしで再開するトークン (RestoreToken) も、VR画面では
+// 使わないので写さない
 export const isSecretAtomName = (name) => /(Auth(Key|Token)|RestoreToken)$/.test(name);
+
+// VR画面へ写してよい状態 (SEC-03)。VR画面が読む設定のカテゴリ (useVr、useDevice などで丸ごと読む)
+// と、VR画面がそのほかに読む atom だけを送る。高度な設定 (WebSocket、OSC、テレメトリ)、更新、
+// ホットキーなどは送らない。VR画面のコードが新しい atom を読むようになったら、ここに足すまでは
+// テストが失敗する (vrPanelStateScan.js がVR画面のソースから読んでいる atom を集める)
+export const VR_PANEL_STATE_CATEGORIES = Object.freeze([
+    "Appearance", "Device", "Ocr", "Others", "Transcription", "Translation", "Vr",
+]);
+export const VR_PANEL_STATE_ATOMS = Object.freeze([
+    // The log, the launcher and its switches.
+    "MessageLogs", "MessageInputValue", "TranslationStatus", "TranscriptionSendStatus", "TranscriptionReceiveStatus",
+    "OcrCaptureStatus", "ForegroundStatus", "IsBackendReady", "IsOpenedConfigPage", "NotificationStatus",
+    "IsOscAvailable", "OscUnavailableReason", "VrPanelLauncherIntro", "VrPanelLogOutOfView",
+    // The language window.
+    "LanguageMutation", "SelectableLanguageList", "SelectedPresetTabNumber", "SelectedYourLanguages",
+    "SelectedTargetLanguages", "SelectedTranslationEngines", "TranslationEngines",
+    // The settings window: meters, threshold checks and fonts.
+    "MicVolume", "SpeakerVolume", "MicThresholdCheckStatus", "SpeakerThresholdCheckStatus", "SelectableFontFamilyList",
+    // The input and output view.
+    "IoFlow", "IoTraces", "IsOpenedIoFlowPanel",
+]);
+
+// settingsArray は SETTINGS_ARRAY (src-ui/logics/configs/config_page_setter/ui_config_setter.js)
+export const vrPanelStateNames = (settingsArray) => {
+    const names = new Set(VR_PANEL_STATE_ATOMS);
+    for (const setting of settingsArray) {
+        if (VR_PANEL_STATE_CATEGORIES.includes(setting.Category)) names.add(setting.Base_Name);
+    }
+    for (const name of names) {
+        if (isSecretAtomName(name)) names.delete(name);
+    }
+    return names;
+};

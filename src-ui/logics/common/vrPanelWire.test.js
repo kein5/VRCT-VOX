@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { decodeLogUpdate, decodeOrdered, diffLogRows, encodeLogUpdate, encodeOrdered, isLogUpdate, isRelayAllowed, isSecretAtomName,
-    VR_PANEL_RELAY_PATHS } from "./vrPanelWire.js";
+    VR_PANEL_RELAY_PATHS, VR_PANEL_STATE_ATOMS, VR_PANEL_STATE_CATEGORIES, vrPanelStateNames } from "./vrPanelWire.js";
+import { scanVrPanelState, settingsByCategory } from "../test/vrPanelStateScan.js";
 
 // Tauri の emit を通ったときの変化を模す: キーを辞書順にし、undefined を落とし、NaN を null にする
 const sortKeysDeep = value => Array.isArray(value) ? value.map(sortKeysDeep)
@@ -116,6 +117,48 @@ test("credentials are not mirrored to the VR panel", () => {
     for (const name of ["DeepLAuthKey", "OpenAICompatibleAuthKey", "DeepgramAuthKey", "WebsocketAuthToken",
         "OcrPortalRestoreToken"]) assert.equal(isSecretAtomName(name), true, name);
     for (const name of ["SelectedFontFamily", "MessageLogs", "OpenAICompatibleUrl", "SelectedTranslationEngines"]) assert.equal(isSecretAtomName(name), false, name);
+});
+
+// SEC-03: the VR panel gets only the state its views read. The scan reads the VR views' source
+// and the hooks they use; a new atom the VR panel reads fails here until it is listed on purpose.
+const settingsArray = () => Object.entries(settingsByCategory())
+    .flatMap(([Category, bases]) => bases.map(Base_Name => ({ Category, Base_Name })));
+
+test("the VR panel is sent every atom its views read", () => {
+    const { atoms, categories, files } = scanVrPanelState();
+    assert.ok(files.length > 20 && atoms.size > 10, `the scan found ${files.length} files and ${atoms.size} atoms`);
+    const allowed = vrPanelStateNames(settingsArray());
+    for (const category of categories) assert.ok(VR_PANEL_STATE_CATEGORIES.includes(category), `the VR panel reads the ${category} settings`);
+    for (const name of atoms) assert.ok(allowed.has(name) || isSecretAtomName(name), `the VR panel reads ${name}`);
+    // And nothing is listed that the VR views never read.
+    for (const category of VR_PANEL_STATE_CATEGORIES) assert.ok(categories.has(category), `${category} is listed but no VR view reads it`);
+    for (const name of VR_PANEL_STATE_ATOMS) assert.ok(atoms.has(name), `${name} is listed but no VR view reads it`);
+});
+
+test("the VR panel is not sent credentials, advanced settings, updates or hotkeys", () => {
+    const settings = settingsArray();
+    const allowed = vrPanelStateNames(settings);
+    const advanced = settings.filter(setting => ["AdvancedSettings", "Updater"].includes(setting.Category)).map(setting => setting.Base_Name);
+    assert.ok(advanced.length > 5, "the advanced settings were not found");
+    for (const name of [...advanced, "WebsocketAuthToken", "DeepLAuthKey", "OcrPortalRestoreToken", "Hotkeys",
+        "AvailableReleases", "LatestSoftwareVersionInfo", "SoftwareVersion", "ComputeMode"]) {
+        assert.equal(allowed.has(name), false, name);
+    }
+    for (const name of allowed) assert.equal(isSecretAtomName(name), false, name);
+    for (const name of ["MessageLogs", "VrPanelLayout", "SelectedYourLanguages", "MicVolume"]) assert.ok(allowed.has(name), name);
+});
+
+// SEC-03: the state goes through the VR panel's own channel, never an event other windows hear.
+test("the state is pushed to the VR panel's channel, not emitted as an event", () => {
+    const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
+    const sender = read("../../views/app/_app_controllers/VrPanelSyncController.jsx");
+    const receiver = read("../../views/vr/VrApp.jsx");
+    assert.match(sender, /invoke\("vr_panel_state_push"/);
+    assert.match(receiver, /invoke\("vr_panel_state_subscribe"/);
+    for (const source of [sender, receiver]) assert.doesNotMatch(source, /["']vr-panel-state["']/);
+    const rust = read("../../../src-tauri/src/vr_panel_state.rs");
+    assert.match(rust, /sender != VR_PANEL/);
+    assert.match(rust, /sender != MAIN/);
 });
 
 const row = (id, text = id) => ({ id, category: "sent", status: "ok", messages: { original: { message: text, transliteration: [] }, translations: [] } });
