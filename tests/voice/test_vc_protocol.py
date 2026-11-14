@@ -43,6 +43,37 @@ def test_explicit_ready_and_one_correlated_converted_block():
     assert p.require_output(result, converted, source, raw, NOW) == 'converted'
 
 
+def test_a_model_of_a_format_the_engine_cannot_load_is_named():
+    # Someone who brings their own RVC model learns that its version or sample rate is the
+    # reason, instead of being told that the worker could not get ready.
+    assert 'vc_engine_format_invalid' in p.WORKER_FAILURES
+
+
+@pytest.mark.parametrize('code', sorted(p.WORKER_FAILURES))
+def test_a_worker_can_say_why_it_cannot_become_ready(code):
+    info, pcm = packet(p.failed_info(SESSION, code), b'')
+    with pytest.raises(p.ProtocolError) as raised:
+        p.require_ready(info, pcm, SESSION)
+    assert str(raised.value) == code
+
+
+@pytest.mark.parametrize('change', [
+    lambda info: info.update(code='Traceback: C:\\Users\\name\\model.pth'),
+    lambda info: info.update(code='vc_worker_eof'),
+    lambda info: info.update(session='b' * 32),
+    lambda info: info.update(extra='unexpected'),
+    lambda info: info.update(protocol=2),
+])
+def test_only_a_listed_reason_for_this_session_is_passed_on(change):
+    # Free text from a worker (a traceback, a path) never reaches the status or the notice.
+    info, pcm = packet(p.failed_info(SESSION, 'vc_gpu_unavailable'), b'')
+    change(info)
+    with pytest.raises(p.ProtocolError, match='^vc_ready_invalid$'):
+        p.require_ready(info, pcm, SESSION)
+    with pytest.raises(p.ProtocolError, match='^vc_ready_invalid$'):
+        p.failed_info(SESSION, 'not_listed')
+
+
 @pytest.mark.parametrize('key,value', [('session', 'b' * 32), ('rate', 16000),
     ('channels', 2), ('engine', 'unverified'), ('profile', 'baseline'), ('protocol', True)])
 def test_ready_must_match_fixed_contract(key, value):

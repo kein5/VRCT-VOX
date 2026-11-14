@@ -151,24 +151,13 @@ Function PageChooseLanguage
     Pop $DropListLanguages
     ${NSD_CB_AddString} $DropListLanguages "English"
     ${NSD_CB_AddString} $DropListLanguages "日本語"
-    ${NSD_CB_AddString} $DropListLanguages "한국어"
-    ${NSD_CB_AddString} $DropListLanguages "繁體中文"
-    ${NSD_CB_AddString} $DropListLanguages "简体中文"
 
     ; Preselect based on /UILANG= (passed from the app when launched from
-    ; within VRCT). Falls back to English on first-time installs.
+    ; within VRCT). Falls back to English on first-time installs, and for
+    ; Korean and Chinese, which were UI languages until 0.1.0.
     ${If} $UILang == "ja"
         ${NSD_CB_SelectString} $DropListLanguages "日本語"
         StrCpy $SelectedLangage "ja"
-    ${ElseIf} $UILang == "ko"
-        ${NSD_CB_SelectString} $DropListLanguages "한국어"
-        StrCpy $SelectedLangage "ko"
-    ${ElseIf} $UILang == "zh-Hant"
-        ${NSD_CB_SelectString} $DropListLanguages "繁體中文"
-        StrCpy $SelectedLangage "zh-Hant"
-    ${ElseIf} $UILang == "zh-Hans"
-        ${NSD_CB_SelectString} $DropListLanguages "简体中文"
-        StrCpy $SelectedLangage "zh-Hans"
     ${Else}
         ${NSD_CB_SelectString} $DropListLanguages "English"
         StrCpy $SelectedLangage "en"
@@ -188,15 +177,6 @@ Function PageLeaveChooseLanguage
     ${ElseIf} "日本語" == $0
         StrCpy $SelectedLangage "ja"
         StrCpy $LANGUAGE ${LANG_JAPANESE}
-    ${ElseIf} "한국어" == $0
-        StrCpy $SelectedLangage "ko"
-        StrCpy $LANGUAGE ${LANG_KOREAN}
-    ${ElseIf} "繁體中文" == $0
-        StrCpy $SelectedLangage "zh-Hant"
-        StrCpy $LANGUAGE ${LANG_TRADCHINESE}
-    ${ElseIf} "简体中文" == $0
-        StrCpy $SelectedLangage "zh-Hans"
-        StrCpy $LANGUAGE ${LANG_SIMPCHINESE}
     ${EndIf}
 FunctionEnd
 

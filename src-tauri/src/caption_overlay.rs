@@ -18,6 +18,13 @@ const MAX_LINES: usize = 8;
 const MAX_TEXT: usize = 2000;
 const MAX_TRANSLATIONS: usize = 3;
 const MAX_SPEAKERS: usize = 4;
+/// The flow strip: at most three recent inputs, each with a few rows.
+const MAX_FLOW: usize = 3;
+const MAX_FLOW_ROWS: usize = 8;
+const MAX_FLOW_LABEL: usize = 120;
+const MAX_FLOW_TEXT: usize = 200;
+/// The longest axis a strip draws, in ms (ten minutes).
+const MAX_FLOW_SCALE: u32 = 600_000;
 /// The band the captions are drawn in, as parts of the monitor's work area.
 const BAND_WIDTH: f64 = 0.8;
 const BAND_HEIGHT: f64 = 0.34;
@@ -47,6 +54,58 @@ fn valid_speaker(label: &str) -> bool {
     (1..=3).contains(&label.len()) && label.bytes().all(|byte| byte.is_ascii_uppercase())
 }
 
+/// One row of a flow item: a stage or an output, drawn as a bar from `start` to `end` ms.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct FlowRow {
+    /// "stage", "chatbox", "speech" or "conversion": only the bar's colour depends on it.
+    kind: String,
+    label: String,
+    /// The duration as the main window writes it, such as "230 ms", or why the output was not used.
+    value: String,
+    #[serde(default)]
+    start: u32,
+    #[serde(default)]
+    end: u32,
+    /// The output was not used; the row says why and draws no bar.
+    #[serde(default)]
+    off: bool,
+}
+
+/// One of the user's own recent inputs: where it went and how long each step took.
+/// The main window words every label; the overlay page only draws them.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct FlowItem {
+    id: String,
+    /// "voice" or "chat".
+    input: String,
+    label: String,
+    text: String,
+    /// The axis of the bars, in ms.
+    scale: u32,
+    rows: Vec<FlowRow>,
+}
+
+fn valid_label(value: &str, limit: usize) -> bool {
+    value.chars().count() <= limit && !value.chars().any(char::is_control)
+}
+
+fn valid_flow(item: &FlowItem) -> bool {
+    !item.id.is_empty()
+        && item.id.len() <= 512
+        && matches!(item.input.as_str(), "voice" | "chat")
+        && valid_label(&item.label, MAX_FLOW_LABEL)
+        && valid_label(&item.text, MAX_FLOW_TEXT)
+        && (1..=MAX_FLOW_SCALE).contains(&item.scale)
+        && item.rows.len() <= MAX_FLOW_ROWS
+        && item.rows.iter().all(|row| {
+            matches!(row.kind.as_str(), "stage" | "chatbox" | "speech" | "conversion")
+                && valid_label(&row.label, MAX_FLOW_LABEL)
+                && valid_label(&row.value, MAX_FLOW_LABEL)
+                && row.start <= row.end
+                && row.end <= item.scale
+        })
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct Snapshot {
     lines: Vec<Line>,
@@ -56,6 +115,12 @@ pub struct Snapshot {
     /// How dark the plate behind the words is, 0 to 1.
     opacity: f32,
     font_family: String,
+    /// The flow strip, newest first; empty while it is off.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    flow: Vec<FlowItem>,
+    /// A live reading under the strip, such as the conversion's round trip.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    flow_note: String,
 }
 
 impl Default for Snapshot {
@@ -66,6 +131,8 @@ impl Default for Snapshot {
             font_size: 28,
             opacity: 0.6,
             font_family: "Yu Gothic UI".into(),
+            flow: Vec::new(),
+            flow_note: String::new(),
         }
     }
 }
@@ -98,6 +165,9 @@ fn validate(snapshot: &Snapshot) -> Result<(), String> {
         || snapshot.font_family.chars().count() > 256
         || snapshot.font_family.chars().any(char::is_control)
         || snapshot.lines.len() > MAX_LINES
+        || snapshot.flow.len() > MAX_FLOW
+        || !snapshot.flow.iter().all(valid_flow)
+        || !valid_label(&snapshot.flow_note, MAX_FLOW_LABEL)
     {
         return invalid();
     }
@@ -152,17 +222,103 @@ fn show_without_focus(overlay: &WebviewWindow) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(not(windows))]
+/// Linux, on X11 or XWayland: the window is mapped as an unmanaged (override-redirect)
+/// window. A window manager stacks a focused full-screen game above "keep above"
+/// windows (KWin's active layer), so a managed window would vanish under VRChat in
+/// full screen. An unmanaged window is never focused, decorated or listed, and
+/// KWin keeps it above managed windows, as it does tooltips and menus.
+#[cfg(target_os = "linux")]
+async fn on_gtk<F>(overlay: &WebviewWindow, work: F) -> Result<(), String>
+where
+    F: FnOnce(&gtk::ApplicationWindow) -> Result<(), String> + Send + 'static,
+{
+    let (tx, mut rx) = tauri::async_runtime::channel(1);
+    let target = overlay.clone();
+    overlay
+        .run_on_main_thread(move || {
+            let result = target.gtk_window().map_err(|error| error.to_string()).and_then(|window| work(&window));
+            let _ = tx.try_send(result);
+        })
+        .map_err(|error| error.to_string())?;
+    rx.recv().await.ok_or("caption_overlay_unavailable")?
+}
+
+/// Before any setting that needs the native window: tao's click-through request
+/// unwraps the GdkWindow and panics while the window is not realized (seen on the
+/// first open in CI). Realizing does not map it, so override-redirect still applies.
+#[cfg(target_os = "linux")]
+async fn prepare(overlay: &WebviewWindow) -> Result<(), String> {
+    use gtk::prelude::*;
+
+    on_gtk(overlay, |window| {
+        window.realize();
+        let native = window.window().ok_or("caption_overlay_unavailable")?;
+        if !native.is_visible() {
+            // X11 takes this attribute only while the window is unmapped.
+            native.set_override_redirect(true);
+        }
+        window.set_accept_focus(false);
+        window.set_focus_on_map(false);
+        Ok(())
+    })
+    .await
+}
+
+#[cfg(target_os = "linux")]
+async fn show_without_focus(overlay: &WebviewWindow) -> Result<(), String> {
+    use gtk::prelude::*;
+
+    on_gtk(overlay, |window| {
+        window.show_all();
+        if let Some(native) = window.window() {
+            native.raise();
+        }
+        Ok(())
+    })
+    .await
+}
+
+/// Keeps the unmanaged window on top. Under a plain X11 window manager a game raised
+/// later can cover it; KWin needs nothing here. Raising never takes the focus.
+#[cfg(target_os = "linux")]
+fn raise(overlay: &WebviewWindow) {
+    use gtk::prelude::*;
+
+    let target = overlay.clone();
+    let _ = overlay.run_on_main_thread(move || {
+        if let Ok(window) = target.gtk_window() {
+            if let Some(native) = window.window() {
+                native.raise();
+            }
+            // A transparent X11 surface may stay unpainted until it is drawn again.
+            window.queue_draw();
+        }
+    });
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn show_without_focus(overlay: &WebviewWindow) -> Result<(), String> {
     overlay.show().map_err(|error| error.to_string())
 }
 
-/// Windows only for now: a window that stays above a game and passes clicks
-/// through has not been tried on the Linux desktops (Wayland has no such role).
+/// Windows, and Linux where GTK draws on X11 (the AppImage, which uses XWayland on
+/// a Wayland desktop). Native Wayland gives a client no window that stays above a
+/// full-screen game; the layer-shell protocol would, and is not used yet.
+fn platform_supported() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        !crate::quick_chat::native_wayland()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        cfg!(windows)
+    }
+}
+
 #[tauri::command]
 pub fn caption_overlay_supported(window: WebviewWindow) -> Result<bool, String> {
     sender(window.label(), "main")?;
-    Ok(cfg!(windows))
+    Ok(platform_supported())
 }
 
 // One open or close at a time: a close that has not finished must not look
@@ -197,7 +353,7 @@ pub async fn caption_overlay_set(
         }
         return Ok(());
     }
-    if !cfg!(windows) {
+    if !platform_supported() {
         return Err("caption_overlay_unsupported".into());
     }
     let monitor = window
@@ -227,11 +383,20 @@ pub async fn caption_overlay_set(
             .build()
             .map_err(|error| error.to_string())?,
     };
+    #[cfg(target_os = "linux")]
+    prepare(&overlay).await?;
     overlay.set_ignore_cursor_events(true).map_err(|error| error.to_string())?;
     overlay.set_position(PhysicalPosition::new(x, y)).map_err(|error| error.to_string())?;
     overlay.set_size(PhysicalSize::new(width, height)).map_err(|error| error.to_string())?;
     overlay.set_always_on_top(true).map_err(|error| error.to_string())?;
-    show_without_focus(&overlay)
+    #[cfg(target_os = "linux")]
+    {
+        show_without_focus(&overlay).await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        show_without_focus(&overlay)
+    }
 }
 
 /// The main window hands over what to draw.
@@ -246,6 +411,10 @@ pub fn caption_overlay_update(
     *state.0.lock().map_err(|_| "caption_overlay_unavailable")? = snapshot;
     // No overlay window yet is not an error: it reads the snapshot when it opens.
     let _ = window.app_handle().emit_to(LABEL, "caption-overlay-changed", ());
+    #[cfg(target_os = "linux")]
+    if let Some(overlay) = window.app_handle().get_webview_window(LABEL) {
+        raise(&overlay);
+    }
     Ok(())
 }
 
@@ -355,6 +524,60 @@ mod tests {
         let mut long = snapshot();
         long.lines[0].text = "あ".repeat(MAX_TEXT);
         assert!(validate(&long).is_ok());
+    }
+
+    fn flow() -> FlowItem {
+        FlowItem {
+            id: "realtime:mic:1:session:item".into(),
+            input: "voice".into(),
+            label: "声".into(),
+            text: "こんにちは".into(),
+            scale: 1000,
+            rows: vec![
+                FlowRow { kind: "stage".into(), label: "翻訳".into(), value: "210 ms".into(), start: 12, end: 222, off: false },
+                FlowRow { kind: "speech".into(), label: "読み上げ".into(), value: "820 ms".into(), start: 0, end: 820, off: false },
+                FlowRow { kind: "chatbox".into(), label: "チャットボックス".into(), value: "送らない".into(), start: 0, end: 0, off: true },
+            ],
+        }
+    }
+
+    #[test]
+    fn the_flow_strip_roundtrips_and_is_left_out_while_off() {
+        let mut value = snapshot();
+        value.flow = vec![flow(), FlowItem { input: "chat".into(), ..flow() }];
+        value.flow_note = "声の変換の往復 31 ms".into();
+        assert!(validate(&value).is_ok());
+        let copy: Snapshot = serde_json::from_value(serde_json::to_value(&value).unwrap()).unwrap();
+        assert_eq!(copy, value);
+        // Off, the snapshot is written as before, and an older main window's snapshot still reads.
+        let plain = serde_json::to_value(snapshot()).unwrap();
+        assert!(plain.get("flow").is_none() && plain.get("flow_note").is_none());
+        let read: Snapshot = serde_json::from_value(plain).unwrap();
+        assert!(read.flow.is_empty() && read.flow_note.is_empty());
+    }
+
+    #[test]
+    fn a_flow_strip_out_of_bounds_is_refused() {
+        let cases: Vec<Box<dyn Fn(&mut Snapshot)>> = vec![
+            Box::new(|s| s.flow = vec![flow(); MAX_FLOW + 1]),
+            Box::new(|s| s.flow[0].id.clear()),
+            Box::new(|s| s.flow[0].input = "speaker".into()),
+            Box::new(|s| s.flow[0].scale = 0),
+            Box::new(|s| s.flow[0].scale = MAX_FLOW_SCALE + 1),
+            Box::new(|s| s.flow[0].text = "あ".repeat(MAX_FLOW_TEXT + 1)),
+            Box::new(|s| s.flow[0].label = "a\nb".into()),
+            Box::new(|s| s.flow[0].rows = vec![s.flow[0].rows[0].clone(); MAX_FLOW_ROWS + 1]),
+            Box::new(|s| s.flow[0].rows[0].kind = "image".into()),
+            Box::new(|s| s.flow[0].rows[0].start = 300),
+            Box::new(|s| s.flow[0].rows[1].end = 1001),
+            Box::new(|s| s.flow_note = "x".repeat(MAX_FLOW_LABEL + 1)),
+        ];
+        for change in cases {
+            let mut value = snapshot();
+            value.flow = vec![flow()];
+            change(&mut value);
+            assert_eq!(validate(&value), Err("caption_overlay_invalid".into()));
+        }
     }
 
     #[test]

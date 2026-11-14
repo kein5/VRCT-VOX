@@ -79,9 +79,6 @@ const ExampleComponent = ({ format, format_id }) => {
             case "ja":
                 example_text_order = ["ja", "en", "ko", "fr"];
                 break;
-            case "ko":
-                example_text_order = ["ko", "ja", "en", "fr"];
-                break;
             default: // en
                 example_text_order = ["en", "ja", "ko", "fr"];
                 break;

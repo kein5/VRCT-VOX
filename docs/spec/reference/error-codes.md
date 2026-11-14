@@ -7,7 +7,7 @@
 - 既定メッセージ: サイドカーが返す英語の`message`。UIは多くの場合`locales/`の文言に置き換えて表示する。
 - UIの個別処理: `_useBackendErrorHandling.js`に専用の分岐（値の巻き戻しや翻訳した文言の表示）がある。空欄のコードは、音声やモデル取得など別の経路で処理されるか、汎用の通知になる。
 
-## コード（107件）
+## コード（110件）
 
 | コード | 分類 | 既定メッセージ | 重大度 | 利用者の対処 | UIの個別処理 |
 |---|---|---|---|---|---|
@@ -97,6 +97,9 @@
 | `WEBSOCKET_PORT_UNAVAILABLE` | websocket | WebSocket server port is not available | error | 要 | あり |
 | `WEBSOCKET_PORT_INVALID` | websocket | WebSocket server port must be a number | warning | 要 | あり |
 | `WEBSOCKET_SERVER_UNAVAILABLE` | websocket | WebSocket server host or port is not available | error | 要 | あり |
+| `WEBSOCKET_HOST_NEEDS_TLS` | websocket | Listening beyond this PC needs a TLS certificate and key | error | 要 | あり |
+| `WEBSOCKET_HOST_RESET_WITHOUT_TLS` | websocket | The WebSocket host went back to 127.0.0.1: listening beyond this PC needs a TLS certificate and key | warning | 要 | あり |
+| `WEBSOCKET_TLS_INVALID` | websocket | The TLS certificate or key cannot be used | error | 要 | あり |
 | `OBS_BROWSER_SOURCE_HOST_UNAVAILABLE` | obs_browser_source | OBS Browser Source server host is not available | error | 要 | あり |
 | `OBS_BROWSER_SOURCE_PORT_UNAVAILABLE` | obs_browser_source | OBS Browser Source server port is not available | error | 要 | あり |
 | `OBS_BROWSER_SOURCE_PORT_INVALID` | obs_browser_source | OBS Browser Source port must be a number | warning | 要 | あり |

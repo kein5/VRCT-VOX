@@ -3,6 +3,8 @@ import { useVoice, sourceKey } from "../../../../../logics/voice/useVoice";
 import { directRouteReady, usesOutputDevice } from "../../../../../logics/voice/routeState";
 import { useNotificationStatus } from "../../../../../logics/common/useNotificationStatus";
 import { voiceActions } from "../../../../../logics/voice/voiceActions.js";
+import { splitFeatureLabel } from "../../../../../logics/common/featureLabel.js";
+import { voiceErrorText } from "../../../../../logics/voice/voiceErrorText.js";
 import { useI18n } from "@useI18n";
 import { useIsBackendReady } from "@logics_common";
 import { store } from "@store";
@@ -38,21 +40,20 @@ export const MainFunctionSwitch = () => {
     const notify = (code, page) => {
         // After the engine stops, its own notice already says so.
         if (code === "backend_unavailable" && !store.backend_subprocess) return;
-        const key = `voice_ui.errors.${code}`;
-        showNotification_Error(/^[a-z0-9_]+$/.test(code) && i18n.exists(key)
-            ? `${t(key)} (${code})` : `${code} · ${t("voice_ui.check_settings", { page })}`);
+        showNotification_Error(voiceErrorText(code, page, t, key => i18n.exists(key)));
     };
-    useEffect(() => { if (voice.ttsError) notify(voice.ttsError, "TTS"); }, [voice.ttsError]);
-    useEffect(() => { if (voice.directError) notify(voice.directError, "RVC"); }, [voice.directError]);
+    const ttsName = t("main_page.tts"), rvcName = t("main_page.rvc");
+    useEffect(() => { if (voice.ttsError) notify(voice.ttsError, ttsName); }, [voice.ttsError]);
+    useEffect(() => { if (voice.directError) notify(voice.directError, rvcName); }, [voice.directError]);
     const rvcOwnsInput = voice.directOwner === "rvc";
     useEffect(() => {
-        if (rvcOwnsInput && voice.directState.error) notify(voice.directState.error, "RVC");
+        if (rvcOwnsInput && voice.directState.error) notify(voice.directState.error, rvcName);
     }, [rvcOwnsInput, voice.directState.error]);
     const toggleTts = () => {
         if (!store.backend_subprocess || store.backend_stopped) return;
         if (voice.ttsPending?.intent === false) return;
         if (voice.status.tts_enabled || voice.ttsPending?.intent) return voice.send("/run/disable_tts");
-        if (!Number.isSafeInteger(voice.status.tts_generation)) return notify(t("voice_ui.state_unknown"), "TTS");
+        if (!Number.isSafeInteger(voice.status.tts_generation)) return notify(t("voice_ui.state_unknown"), ttsName);
         voice.send("/run/enable_tts", { generation: voice.status.tts_generation });
     };
     const toggleRvc = () => {
@@ -61,14 +62,14 @@ export const MainFunctionSwitch = () => {
         if (rvcOwnsInput && (voice.directState.requested || voice.directState.pending || voice.directPending?.intent))
             return voice.send("/run/stop_direct_voice");
         if (voice.directPending || voice.directState.requested || voice.directState.pending || voice.directState.stopping)
-            return notify(t("voice_ui.input_conflict"), "RVC");
-        if (voice.directDraftBlocked) return notify(t("voice_ui.save_direct_first"), "RVC");
+            return notify(t("voice_ui.input_conflict"), rvcName);
+        if (voice.directDraftBlocked) return notify(t("voice_ui.save_direct_first"), rvcName);
         const cfg = voice.directState.settings;
         const source = voice.directSources.sources?.find(item => sourceKey(item.id) === voice.selectedSource);
         if (!directRouteReady(voice.settings, voice.directState) || !voice.directState.observation_id ||
             voice.directSources.error || !source || cfg?.mode !== "converted" || cfg?.engine !== "rvc" ||
             !cfg.rvc_runtime || !cfg.rvc_model)
-            return notify(t(usesOutputDevice(voice.directState) ? "voice_ui.rvc_not_ready_device" : "voice_ui.rvc_not_ready"), "RVC");
+            return notify(t(usesOutputDevice(voice.directState) ? "voice_ui.rvc_not_ready_device" : "voice_ui.rvc_not_ready"), rvcName);
         voice.send("/run/start_direct_voice", { source: source.id, mode: "converted", options: {
             engine: "rvc", runtime: cfg.rvc_runtime, model: cfg.rvc_model, index: cfg.rvc_index,
             pitch: cfg.rvc_pitch, index_rate: cfg.rvc_index_rate,
@@ -105,10 +106,10 @@ export const MainFunctionSwitch = () => {
             currentState: currentOcrCaptureStatus,
             toggleFunction: toggleOcrCapture,
         },
-        { switch_id: "tts", label: "TTS", SvgComponent: TtsSpeakerSvg, toggleFunction: toggleTts, cancellable: true, disabled: !Number.isSafeInteger(voice.status.tts_generation),
+        { switch_id: "tts", label: ttsName, SvgComponent: TtsSpeakerSvg, toggleFunction: toggleTts, cancellable: true, disabled: !Number.isSafeInteger(voice.status.tts_generation),
           statusText: voice.ttsPending?.intent && voice.status.tts_server_starting === true ? t("voice_ui.tts_server_starting") : null,
           currentState: { data: voice.status.tts_enabled === true, state: voice.ttsPending || voice.status.tts_stopping ? "pending" : "ok" } },
-        { switch_id: "rvc", label: "RVC", SvgComponent: VoiceConversionSvg, toggleFunction: toggleRvc, cancellable: true, disabled: !voice.directState.observation_id,
+        { switch_id: "rvc", label: rvcName, SvgComponent: VoiceConversionSvg, toggleFunction: toggleRvc, cancellable: true, disabled: !voice.directState.observation_id,
           currentState: { data: rvcOwnsInput && !!voice.directState.requested,
             state: rvcOwnsInput && (voice.directPending || voice.directState.pending || voice.directState.stopping) ? "pending" : "ok" } },
     ];
@@ -136,6 +137,8 @@ export const MainFunctionSwitch = () => {
 
 export const SwitchContainer = ({ switchLabel, switch_id, children, currentState, toggleFunction, SvgComponent, cancellable = false, disabled = false, unavailable = false, statusText = null }) => {
     const { currentIsMainPageCompactMode } = useIsMainPageCompactMode();
+    // A long name breaks before its short name in brackets, never in the middle of a word.
+    const label = splitFeatureLabel(switchLabel);
     const active = !unavailable && currentState.data === true;
     const pending = !unavailable && currentState.state === "pending";
     const blocked = unavailable || disabled || (!cancellable && pending);
@@ -164,7 +167,10 @@ export const SwitchContainer = ({ switchLabel, switch_id, children, currentState
         >
             <div className={styles.label_wrapper}>
                 <SvgComponent className={getClassNames(styles.switch_svg)} />
-                <p className={getClassNames(styles.switch_label)}>{switchLabel}</p>
+                <p className={getClassNames(styles.switch_label)}>
+                    {label.name}
+                    {label.abbr && <span className={getClassNames(styles.switch_label_abbr)}>{label.abbr}</span>}
+                </p>
                 {statusText && <span className={getClassNames(styles.switch_status)} role="status">{statusText}</span>}
                 {children}
             </div>

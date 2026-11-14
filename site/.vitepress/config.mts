@@ -1,4 +1,6 @@
 import { defineConfig, type DefaultTheme } from 'vitepress'
+import { tokenize } from './searchTokenize.mjs'
+import { slugify } from './slugify.mjs'
 
 const repo = 'https://github.com/kein5/VRCT-VOX'
 const site = 'https://kein5.github.io/VRCT-VOX/'
@@ -13,6 +15,8 @@ function alternates(relativePath: string): [string, Record<string, string>][] {
   return [link('ja', `${site}ja/${rest}`), link('en', `${site}en/${rest}`), link('x-default', site)]
 }
 
+// Pages are grouped by what a reader comes to do: start, find a task, look a feature up, fix
+// something. The feature pages keep the order of the app's settings menu.
 function sidebarJa(): DefaultTheme.SidebarItem[] {
   return [
     {
@@ -21,17 +25,26 @@ function sidebarJa(): DefaultTheme.SidebarItem[] {
         { text: 'VRCT-VOXとは', link: '/ja/guide/introduction' },
         { text: 'インストール', link: '/ja/guide/install' },
         { text: '最初の設定', link: '/ja/guide/first-setup' },
+        { text: '声と文字の流れ', link: '/ja/guide/how-it-works' },
       ],
     },
     {
-      text: '機能ガイド',
+      text: 'やりたいこと',
+      items: [
+        { text: 'やりたいことから探す', link: '/ja/guide/tasks' },
+        { text: '自分のモデルを使う', link: '/ja/guide/custom-models' },
+      ],
+    },
+    {
+      text: '機能の詳細',
       items: [
         { text: '翻訳', link: '/ja/features/translation' },
-        { text: '音声認識とリアルタイム字幕', link: '/ja/features/transcription' },
-        { text: '読み上げ（TTS）', link: '/ja/features/tts' },
-        { text: '声の変換（RVC・Seed-VC）', link: '/ja/features/voice-conversion' },
+        { text: '音声認識（ASR）とリアルタイム字幕', link: '/ja/features/transcription' },
+        { text: 'テキスト読み上げ（TTS）', link: '/ja/features/tts' },
+        { text: 'ボイスチェンジャー（RVC・Seed-VC）', link: '/ja/features/voice-conversion' },
         { text: 'チャット読み取り（OCR）', link: '/ja/features/chat-reading' },
         { text: 'VRとオーバーレイ', link: '/ja/features/vr' },
+        { text: '入力と出力', link: '/ja/features/io-flow' },
         { text: '入力の小窓とホットキー', link: '/ja/features/quick-chat' },
         { text: 'OBSとWebSocket', link: '/ja/features/integrations' },
       ],
@@ -57,17 +70,26 @@ function sidebarEn(): DefaultTheme.SidebarItem[] {
         { text: 'What is VRCT-VOX', link: '/en/guide/introduction' },
         { text: 'Install', link: '/en/guide/install' },
         { text: 'First setup', link: '/en/guide/first-setup' },
+        { text: 'How voice and text flow', link: '/en/guide/how-it-works' },
+      ],
+    },
+    {
+      text: 'What you want to do',
+      items: [
+        { text: 'Find what you want to do', link: '/en/guide/tasks' },
+        { text: 'Use your own models', link: '/en/guide/custom-models' },
       ],
     },
     {
       text: 'Features',
       items: [
         { text: 'Translation', link: '/en/features/translation' },
-        { text: 'Speech recognition and realtime captions', link: '/en/features/transcription' },
+        { text: 'Speech recognition (ASR) and realtime captions', link: '/en/features/transcription' },
         { text: 'Text to speech (TTS)', link: '/en/features/tts' },
-        { text: 'Voice conversion (RVC, Seed-VC)', link: '/en/features/voice-conversion' },
+        { text: 'Voice changer (RVC, Seed-VC)', link: '/en/features/voice-conversion' },
         { text: 'Chat reading (OCR)', link: '/en/features/chat-reading' },
         { text: 'VR and overlay', link: '/en/features/vr' },
+        { text: 'Inputs and outputs', link: '/en/features/io-flow' },
         { text: 'Quick Chat and hotkeys', link: '/en/features/quick-chat' },
         { text: 'OBS and WebSocket', link: '/en/features/integrations' },
       ],
@@ -96,6 +118,24 @@ export default defineConfig({
   appearance: 'force-dark',
   head: [['meta', { name: 'theme-color', content: '#111b2c' }]],
   transformHead: ({ pageData }) => alternates(pageData.relativePath),
+  markdown: {
+    image: { lazyLoading: true },
+    // Japanese ids stay composed, so links to headings with voiced marks find them (slugify.mjs).
+    anchor: { slugify },
+    toc: { slugify },
+    config(md) {
+      // Every picture in a page is a screenshot: it can take focus and opens larger (theme/index.ts).
+      const image = md.renderer.rules.image!
+      md.renderer.rules.image = (tokens, index, options, env, self) => {
+        const token = tokens[index]
+        token.attrSet('data-zoom', '')
+        token.attrSet('tabindex', '0')
+        token.attrSet('role', 'button')
+        token.attrSet('aria-haspopup', 'dialog')
+        return image(tokens, index, options, env, self)
+      }
+    },
+  },
   locales: {
     // Both languages live under their own path; / picks one (see index.md).
     ja: {
@@ -148,6 +188,8 @@ export default defineConfig({
     search: {
       provider: 'local',
       options: {
+        // The same words when the index is built and when a query is typed (searchTokenize.mjs).
+        miniSearch: { options: { tokenize } },
         locales: {
           ja: {
             translations: {

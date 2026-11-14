@@ -284,4 +284,8 @@ export const { atomInstance: Atom_Hotkeys, useHook: useStore_Hotkeys } = createA
     toggle_rvc: null,
 }, "Hotkeys");
 
-
+// The flow panel (logics/flow): where the user's voice and chat go now, and the stage times (ms)
+// of the user's own recent messages. Registered, so the VR window mirrors them.
+export const { atomInstance: Atom_IoFlow, useHook: useStore_IoFlow } = createAtomWithHook(null, "IoFlow");
+export const { atomInstance: Atom_IoTraces, useHook: useStore_IoTraces } = createAtomWithHook([], "IoTraces", { is_state_ok: true });
+export const { atomInstance: Atom_IsOpenedIoFlowPanel, useHook: useStore_IsOpenedIoFlowPanel } = createAtomWithHook(false, "IsOpenedIoFlowPanel", { is_state_ok: true });

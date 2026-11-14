@@ -10,7 +10,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - UIの受信先: 200の応答を処理するUIのフック（`useReceiveRoutes.js`の静的ルートと`ui_config_setter.js`の定義から生成）。「—」は受信先がない。
 - ログで伏せる: `process.log`で値を`***MASKED***`に置き換える（`SENSITIVE_ENDPOINT_MARKERS`）。stdoutのIPCそのものは伏せない。
 
-## 要求（411件: 削除 11、取得 184、実行 37、有効化 39、無効化 39、設定 101）
+## 要求（417件: 削除 11、取得 187、実行 38、有効化 39、無効化 39、設定 103）
 
 | エンドポイント | 種別 | 処理（controller） | 初期化前 | UIの受信先 | 備考 |
 |---|---|---|---|---|---|
@@ -294,6 +294,8 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/set/disable/overlay_desktop` | 無効化 | `setDisableOverlayDesktop` | 可 | useVr.setSuccessIsEnabledOverlayDesktop |  |
 | `/get/data/overlay_desktop_settings` | 取得 | `getOverlayDesktopSettings` | 可 | useVr.updateFromBackendOverlayDesktopSettings |  |
 | `/set/data/overlay_desktop_settings` | 設定 | `setOverlayDesktopSettings` | 可 | useVr.setSuccessOverlayDesktopSettings |  |
+| `/get/data/io_flow_overlay_settings` | 取得 | `getIoFlowOverlaySettings` | 可 | useVr.updateFromBackendIoFlowOverlaySettings |  |
+| `/set/data/io_flow_overlay_settings` | 設定 | `setIoFlowOverlaySettings` | 可 | useVr.setSuccessIoFlowOverlaySettings |  |
 | `/get/data/overlay_show_only_translated_messages` | 取得 | `getOverlayShowOnlyTranslatedMessages` | 可 | useVr.updateFromBackendOverlayShowOnlyTranslatedMessages |  |
 | `/set/enable/overlay_show_only_translated_messages` | 有効化 | `setEnableOverlayShowOnlyTranslatedMessages` | 可 | useVr.setSuccessOverlayShowOnlyTranslatedMessages |  |
 | `/set/disable/overlay_show_only_translated_messages` | 無効化 | `setDisableOverlayShowOnlyTranslatedMessages` | 可 | useVr.setSuccessOverlayShowOnlyTranslatedMessages |  |
@@ -358,6 +360,7 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/get/data/direct_voice_sources` | 取得 | `getDirectVoiceSources` | 可 | useVoice.updateDirectSources |  |
 | `/set/data/direct_voice_settings` | 設定 | `setDirectVoiceSettings` | 可 | useVoice.updateDirectState | ログで伏せる |
 | `/get/data/direct_voice_state` | 取得 | `getDirectVoiceState` | 可 | useVoice.updateDirectState |  |
+| `/get/data/io_flow` | 取得 | `getIoFlow` | 可 | useIoFlow.updateIoFlow |  |
 | `/run/start_direct_voice` | 実行 | `startDirectVoice` | 可 | useVoice.updateDirectState |  |
 | `/run/stop_direct_voice` | 実行 | `stopDirectVoice` | 可 | useVoice.updateDirectState | 即時（キューを通らない） |
 | `/get/data/websocket_host` | 取得 | `getWebSocketHost` | 可 | useAdvancedSettings.updateFromBackendWebsocketHost |  |
@@ -365,6 +368,9 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 | `/get/data/websocket_port` | 取得 | `getWebSocketPort` | 可 | useAdvancedSettings.updateFromBackendWebsocketPort |  |
 | `/set/data/websocket_port` | 設定 | `setWebSocketPort` | 可 | useAdvancedSettings.setSuccessWebsocketPort |  |
 | `/get/data/websocket_auth_token` | 取得 | `getWebSocketAuthToken` | 可 | useAdvancedSettings.updateFromBackendWebsocketAuthToken | ログで伏せる |
+| `/run/regenerate_websocket_auth_token` | 実行 | `regenerateWebSocketAuthToken` | 可 | useAdvancedSettings.updateFromBackendWebsocketAuthToken | ログで伏せる |
+| `/get/data/websocket_tls` | 取得 | `getWebSocketTls` | 可 | useAdvancedSettings.updateFromBackendWebsocketTls |  |
+| `/set/data/websocket_tls` | 設定 | `setWebSocketTls` | 可 | useAdvancedSettings.setSuccessWebsocketTls |  |
 | `/get/data/websocket_server` | 取得 | `getWebSocketServer` | 可 | useAdvancedSettings.updateFromBackendEnableWebsocket |  |
 | `/set/enable/websocket_server` | 有効化 | `setEnableWebSocketServer` | 可 | useAdvancedSettings.setSuccessEnableWebsocket |  |
 | `/set/disable/websocket_server` | 無効化 | `setDisableWebSocketServer` | 可 | useAdvancedSettings.setSuccessEnableWebsocket |  |
@@ -552,13 +558,14 @@ UIからサイドカーへの要求（`mapping`）と、サイドカーからUI�
 - `/run/translation_language_unsupported`
 
 
-## UIだけにあるルート（60件）
+## UIだけにあるルート（61件）
 
 UIに受信先が定義されているが、サイドカーの`mapping`と`run_mapping`にはないもの。多くは`ui_config_setter.js`の定義が機械的に作るルートで、使われない。
 
 - `/get/data/ctranslate2_weight`
 - `/get/data/ollama_url`
 - `/get/data/whisper_weight`
+- `/run/io_trace`
 - `/run/pending_ctranslate2_weight`
 - `/run/pending_whisper_weight`
 - `/run/realtime_caption`

@@ -9,6 +9,7 @@ import * as voice from "./voice/useVoice";
 import * as speech from "./voice/useSpeechServers";
 import * as downloads from "./voice/useModelDownloads";
 import * as vcRuntimes from "./voice/useVcRuntimes";
+import * as flow from "./flow/useIoFlow";
 import { _useBackendErrorHandling } from "./_useBackendErrorHandling";
 import { SETTINGS_ARRAY } from "./configs/config_page_setter/ui_config_setter";
 import { useStdoutToPython } from "@useStdoutToPython";
@@ -48,6 +49,8 @@ export const STATIC_ROUTE_META_LIST = [
     { endpoint: "/run/start_realtime_asr", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateState" },
     { endpoint: "/run/stop_realtime_asr", ns: realtime, hook_name: "useRealtimeASR", method_name: "updateState" },
     { endpoint: "/run/realtime_caption", ns: common, hook_name: "useMessage", method_name: "updateRealtimeCaption" },
+    { endpoint: "/get/data/io_flow", ns: flow, hook_name: "useIoFlow", method_name: "updateIoFlow" },
+    { endpoint: "/run/io_trace", ns: flow, hook_name: "useIoFlow", method_name: "addIoTrace" },
     { endpoint: "/get/data/tts_model_options", ns: voice, hook_name: "useVoice", method_name: "updateModelOptions" },
     { endpoint: "/get/data/voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateSettings" },
     { endpoint: "/set/data/voice_settings", ns: voice, hook_name: "useVoice", method_name: "updateSettings" },
@@ -193,6 +196,8 @@ export const STATIC_ROUTE_META_LIST = [
     // Saved after sharing a window, not from a settings control: no "saved" notice.
     { endpoint: "/set/data/ocr_portal_restore_token", ns: configs, hook_name: "useOcr", method_name: "updateFromBackendOcrPortalRestoreToken" },
     { endpoint: "/get/data/hotkeys", ns: configs, hook_name: "useHotkeys", method_name: "updateHotkeys" },
+    // A new WebSocket and OBS token; the settings page says so where the button is.
+    { endpoint: "/run/regenerate_websocket_auth_token", ns: configs, hook_name: "useAdvancedSettings", method_name: "updateFromBackendWebsocketAuthToken" },
     { endpoint: "/set/data/hotkeys", ns: configs, hook_name: "useHotkeys", method_name: "setSuccessHotkeys" },
 
     // // Not Implemented.
@@ -459,6 +464,12 @@ export const useReceiveRoutes = () => {
 
             case 348:
                 // console.log(`from backend: %c ${JSON.stringify(parsed_data)}`, style_348);
+                break;
+
+            case 403:
+                // The backend refused a request relayed for the VR panel (vrPanelWire.js lists what
+                // is relayed; the backend keeps the same list). The pending value was restored above.
+                console.warn("The backend refused a request relayed for the VR panel", endpoint);
                 break;
 
             case 404:

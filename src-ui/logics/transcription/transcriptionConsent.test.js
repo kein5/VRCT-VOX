@@ -178,7 +178,7 @@ test("settings keep the selected engine and Google notice inside the radio row's
         "../../../../../../logics/configs/cloudTranscription": { CLOUD_TRANSCRIPTION_ENGINES: [] },
         "../../../../../../logics/common/endpointPrivacy": endpointPrivacy,
         "../_templates/Templates": { RadioButtonContainer: "radio-options" }, "../_components": {},
-        "../_components/compute_device/ComputeDevice": {}, "../_components/description/Description": {},
+        "../_components/compute_device/ComputeDevice": {}, "../_components/description/Description": {}, "../_components/custom_model_link/CustomModelLink": {},
         "../_components/setup_section/SetupSection": {},
         "../_components/download_models/LegacyModelDownloadDialog": {}, "../shared_items/SharedItems": {},
     });

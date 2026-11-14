@@ -1,18 +1,20 @@
 # Model downloads
 
-VRCT-VOX packages contain no models for speech, speech recognition, voice conversion or text recognition. Download the models you use from the settings, or point to files you already have.
+VRCT-VOX packages contain no models for text to speech, speech recognition, the voice changer or text recognition. Download the models you use from the settings, or point to files you already have. How to use files of your own is in [Use your own models](./custom-models).
 
 ## How a download works
 
-1. Under "Download a default model" on a page, press "Review download".
+1. Under "Download a default model" on a page, press "Review download". On "Text to speech (TTS)" and "Speech recognition (ASR)" it is inside "Models and servers".
 2. Check the provider, model name, exact size, links to the terms and where it will be saved.
 3. Tick the agreement and press "Agree and download". You can cancel while it downloads.
-4. When the download and check finish, press "Apply model path". Stop the server or input it belongs to first.
+4. When the download and check finish, press "Apply model path". First stop the server or feature that uses the model.
+
+![The review of a model download and its terms](/screenshots/en/model-consent.webp)
 
 Downloading or applying does not start a server, speech or the microphone.
 
 ::: info File checks
-Downloaded files are checked by size and SHA-256 before use. They come only from pinned Hugging Face repositories and revisions.
+Downloaded files are checked by size and SHA-256 before use. They come only from Hugging Face repositories chosen in advance, at a fixed version of each.
 :::
 
 ## Available models
@@ -25,22 +27,35 @@ Downloaded files are checked by size and SHA-256 before use. They come only from
 | Other languages' speech (lighter) | Qwen3-TTS 12Hz 0.6B CustomVoice · Q5_K | 0.81 GiB | Apache-2.0 |
 | Speech recognition (Japanese) | Haas-ja v1.0 · Q8_0 | 0.61 GiB | Apache-2.0 |
 | Speech recognition (30 languages) | Qwen3-ASR 0.6B · Q8_0 | 0.78 GiB | Apache-2.0 |
-| Speech detection | Silero VAD v6.2 · F32 | 1.2 MB | MIT |
-| Speaker labels (optional) | Nemotron 3 Diarization · Q8_0 | 101 MB | OpenMDW-1.1 |
-| Voice conversion (RVC) | Saisho Utane · RVC v2 | 0.31 GiB | CC BY 4.0 (credit required) |
+| Finding where someone speaks | Silero VAD v6.2 · F32 | 1.2 MB | MIT |
+| Telling speakers apart (optional) | Nemotron 3 Diarization · Q8_0 | about 106 MB | OpenMDW-1.1 |
+| Voice changer (RVC) | Saisho Utane · RVC v2 | 0.31 GiB | CC BY 4.0 (credit required) |
 | Text recognition | PP-OCRv6 small (Japanese, English, Chinese, Latin) | about 30 MB | Apache-2.0 |
 | Text recognition | PP-OCRv5 mobile (Korean, Cyrillic, Thai, Arabic, Devanagari) | 8–14 MB each | Apache-2.0 |
 
-Translation models are downloaded under Settings → "Translation", and Whisper models under Settings → "Transcription" (see [Translation](../features/translation)). In both places "Download" opens a screen showing the source, license and size. Nothing is downloaded until you tick the consent box.
+Translation models are downloaded under Settings → "Translation", and Whisper models under Settings → "Speech recognition (ASR)" (see [Translation](../features/translation)). In both places "Download" opens a screen showing the source, license and size. Nothing is downloaded until you tick the consent box.
 
 ## GPU and memory guidance
 
-The TTS page shows your GPU's name and its total and free memory, and suggests the standard or the lighter model for that free memory. This is guidance only; it does not reserve memory or guarantee that it runs. Leave more headroom when you use VRChat at the same time.
+The "Text to speech (TTS)" page shows your GPU's name and its total and free memory, and suggests the standard or the lighter model for that free memory. This is guidance only; it does not reserve memory or guarantee that it runs. Leave more headroom when you use VRChat at the same time.
+
+## Which GPUs are used
+
+| Feature | GPU |
+|---|---|
+| Speech, realtime captions and telling speakers apart (speech.cpp, which comes with the app) | AMD, Intel and NVIDIA (Vulkan) |
+| Local translation and Whisper speech recognition | NVIDIA (the Windows GPU version). Other GPUs run them on the CPU |
+| Voice changer (RVC, Seed-VC) | NVIDIA |
+| Chat reading | Runs on the CPU |
+
+With the inference device set to Automatic or GPU, the speech.cpp servers that come with the app use a dedicated GPU (a graphics card) before integrated graphics, and of several dedicated GPUs the one with the most memory. You can also pick one under "Inference device" in "Models and servers".
+
+To translate on an AMD or Intel GPU, use a [local LLM](../features/translation#use-local-llms-and-compatible-servers): Ollama and LM Studio support those GPUs too. To turn speech into text, use realtime captions (the bundled speech.cpp), which run on any GPU.
 
 ## Where models are saved
 
-Downloaded models go to `downloaded_models` in the same folder as the settings file (`config.json`). On Linux that is `~/.config/vrct-vox/downloaded_models`.
+Downloaded models go to `downloaded_models` in the same folder as the settings file (`config.json`). On Linux that is `~/.config/vrct-vox/downloaded_models`; on Windows it is `downloaded_models` in the folder the app is in. Translation and Whisper models are kept elsewhere: in `weights` in the app's folder on Windows, and under `~/.local/share/vrct-vox` on Linux.
 
 ## Downloading at startup
 
-"Download translation and transcription models at startup" under Settings → "Translation" or "Transcription" downloads missing built-in translation and transcription models at the next start. It only downloads models whose version you have agreed to before; for the others it shows a notice and downloads nothing. It is off by default. Models you already have work either way.
+"Download translation and transcription models at startup" under Settings → "Translation" or "Speech recognition (ASR)" downloads, at the next start, the standard translation and transcription models you have not downloaded yet. It only downloads models whose version you have agreed to before; for the others it shows a notice and downloads nothing. It is off by default. Models you already have work either way.

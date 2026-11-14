@@ -93,3 +93,45 @@
 .translation:first-child { color: var(--caption_ink); }
 // Still being recognized or sent.
 .is_pending .text { font-style: italic; }
+
+// The flow strip sits beside the captions, at the band's left, on the edge the captions
+// stack from; the captions keep the rest of the width, so neither covers the other.
+.with_flow { display: flex; align-items: flex-end; gap: 0.6em; width: 100%; height: 100%; box-sizing: border-box; }
+.with_flow.is_top { align-items: flex-start; }
+.with_flow > .container { flex: 1; min-width: 0; }
+.flow {
+    flex: 0 0 auto; width: min(18em, 44%); max-height: 100%; overflow: hidden; padding: 0.2em 0;
+    display: flex; flex-direction: column; gap: 0.15em;
+    font-size: 1em; line-height: 1.35; font-variant-numeric: tabular-nums;
+}
+.flow > * { font-size: 0.5em; }
+.flow_item {
+    padding: 0.4em 0.6em; border-radius: 0.3em; color: #e6eefc;
+    background: rgba(8, 12, 22, max(0.55, var(--caption_plate, 0.6)));
+    text-shadow: 0 0 0.12em #000, 0 0 0.12em #000;
+}
+.flow_voice { border-left: 0.25em solid #58b0ee; }
+.flow_chat { border-left: 0.25em solid #a58cf0; }
+.flow_text { margin: 0 0 0.35em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+// The path: input → steps → outputs; outputs stack, each with its own arrow from the last step.
+.flow_path { display: flex; align-items: center; flex-wrap: wrap; row-gap: 0.25em; }
+.flow_step { display: flex; align-items: center; }
+.flow_outputs { display: flex; flex-direction: column; gap: 0.25em; padding-left: 0.4em; border-left: 0.12em solid #7f93b3; }
+.flow_chip {
+    display: inline-flex; gap: 0.4em; align-items: baseline; white-space: nowrap; padding: 0.15em 0.5em;
+    border: 0.1em solid #3d4e6b; border-radius: 0.35em; background: rgba(24, 37, 59, 0.92); font-variant-numeric: tabular-nums;
+}
+.flow_chip b { font-weight: 600; color: #a9ccff; }
+.flow_input { font-weight: 700; }
+.flow_voice .flow_input { border-color: #58b0ee; }
+.flow_chat .flow_input { border-color: #a58cf0; }
+.flow_out_chatbox { border-color: #4fb8a8; }
+.flow_out_speech { border-color: #e0a656; }
+.flow_out_conversion { border-color: #f08cc2; }
+.flow_off { border-style: dashed; border-color: #6b7a93; background: transparent; color: #a8b4c8; }
+.flow_off b { color: #a8b4c8; font-weight: 400; }
+.flow_arrow { position: relative; width: 1.1em; height: 0.12em; margin: 0 0.15em; background: #7f93b3; flex-shrink: 0; }
+.flow_arrow::after {
+    content: ""; position: absolute; right: -0.1em; top: -0.22em;
+    border-left: 0.35em solid #7f93b3; border-top: 0.28em solid transparent; border-bottom: 0.28em solid transparent;
+}.flow_note { margin: 0; padding: 0.2em 0.6em; border-radius: 0.3em; background: rgba(8, 12, 22, 0.6); color: #dce7fb; align-self: flex-start; }

@@ -102,9 +102,9 @@ python tools/dev.py check --scope rust --dry-run
 | `tooling` | 標準ライブラリのunittestで `tests/devtools` を検証 |
 | `node` | `src-ui` 以下の `.test.js` / `.test.mjs` を全列挙して `node --test` |
 | `lint` | voice CIと同じRuff対象に開発CLI、配布候補CLI2本、専用試験を追加。自動修正なし |
-| `voice` | `tests/voice/pytest.ini` を使ったモデルなしの契約試験 |
+| `voice` | `tests/voice/pytest.ini` を使ったモデルなしの契約試験と、`tests/platform`にある単体の試験4件 |
 | `ui` | Nodeの試験と `npm run vite-build`。ブラウザの操作は含まない |
-| `backend` | 既存 `pytest.ini` による `src-python/test`。runtime依存が必要 |
+| `backend` | 既存 `pytest.ini` による `src-python/test` と、`tests/platform`の単体の試験1件。runtime依存が必要 |
 | `rust` | `cargo check --locked --offline`。キャッシュやOS依存がなければ失敗 |
 | `quick` | `tooling`、`node`、`lint`。既定値 |
 | `all` | 上記7対象。時間がかかるため統合時に明示実行 |
@@ -148,21 +148,28 @@ python tools/run_with_fake_vr.py --out build/fake-vr -- npx tauri dev
 CocogittoはConventional Commitsを扱うツールで、コマンド名が `cog` です。例えば `feat(dev): add developer checks` は機能追加、`fix(tts): preserve cancellation state` は不具合修正を表します。形式は[Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)に従います。
 
 ```sh
+# この複製にcommit-msgフックを入れる（cog.tomlの[git_hooks.commit-msg]）
+cog install-hook commit-msg
+
 # メッセージだけを検証。コミットは作らない
 cog verify "feat(dev): add developer checks"
 
 # 基点はローカルに存在するrefを明示する
 python tools/dev.py check --scope commits --base origin/develop
 
-# 差分の変更履歴を標準出力で確認する
-cog changelog origin/develop..HEAD
+# 次のリリースの変更を、書き込まずに表示する
+python tools/changelog.py print
 ```
+
+フックは不正な形のメッセージをコミットの前に拒否します。マージのコミットと、`fixup!`・`squash!`・`amend!` のコミットは通します（後者はCIで拒否されます）。種別の選び方、フックの入れ方、困ったときの対処、CHANGELOGの分類とリリースの手順は [CONTRIBUTING.md](../CONTRIBUTING.md) の「Commit messages」と「Changelog and releases」にあります。
 
 CLIは指定refとHEADの共通祖先を求め、その後のコミットだけを `cog check` に渡します。基点がない場合は終了コード2で止まり、自動fetchや全履歴への切替はしません。CIでは対象PRのbase/headを取得した状態で実行します。取得深さが足りず共通祖先が見つからない場合も停止します。
 
-既存履歴を遡って形式を直す必要はありません。引数なしの `cog check` は全履歴を調べるため、通常は上記の範囲指定を使います。merge commitは設定で除外し、fixup commitは除外しません。`cog.toml` のchangelogリンク先は `kein5/VRCT-VOX` です。[履歴検証](https://docs.cocogitto.io/guide/check.html)と[changelog](https://docs.cocogitto.io/guide/changelog.html)の公式手順も参照できます。
+既存履歴を遡って形式を直す必要はありません。引数なしの `cog check` は全履歴を調べるため、通常は上記の範囲指定を使います。merge commitは設定で除外し、fixup commitは除外しません。CIはPRのコミットと、developとmainへpushされたコミットを検査します。[履歴検証](https://docs.cocogitto.io/guide/check.html)、[Gitフック](https://docs.cocogitto.io/guide/git_hooks.html)、[changelog](https://docs.cocogitto.io/guide/changelog.html)の公式手順も参照できます。
 
-ローカルhookの自動登録、履歴を書き換える `cog edit`、版・タグを作る `cog bump`、commit/push、公開hookは開発CLIに含めません。既存のpackage.json・Tauri・Pythonの版更新手順をCocogittoへ置き換えていません。
+`CHANGELOG.md` は正式版のリリースを準備するときに `tools/changelog.py` が書きます。載せるのは正式版だけで、前の正式版からの変更をまとめます。ベータ版のノートは、前のタグからのコミットで作ります。コミットの解析はCocogittoの `cog changelog` に任せ、利用者向けと内部向けの分類と書式をこのスクリプトが決めます。種別ごとの見出しは `cog.toml` の `[commit_types]` にあります。試験は `tests/devtools/test_changelog.py` です。
+
+開発CLIはフックを自動では入れません。フックは開発者が `cog install-hook commit-msg` で入れます。履歴を書き換える `cog edit`、版とタグを作る `cog bump`、commit/push、公開hookも開発CLIに含めません。版は今までどおり `package.json` で決めて `npm run update-version` で反映し、タグはGitHub Releasesの下書きを公開したときにできます。
 
 ## CIでの利用と再現性
 

@@ -516,7 +516,7 @@ class AutomatedEndpointTester:
             data = random.choice(["Arial","Verdana","Times New Roman"]) 
         elif endpoint == "/set/data/ui_language":
             import random
-            data = random.choice(["en","ja","ko","zh-Hant","zh-Hans"]) 
+            data = random.choice(["en","ja"]) 
         elif endpoint == "/set/data/main_window_geometry":
             import random
             data = {

@@ -13,7 +13,7 @@ async function menu(context, values = {}) {
     // Unmount first: the menu's cleanup still needs the document this test provides.
     context.after(() => runtime.unmount());
     stubGlobals(context, { document });
-    const state = { foreground: false, sync: false, small: false, large: false, osc: true, pending: false, ...values };
+    const state = { foreground: false, sync: false, small: false, large: false, osc: true, pending: false, flow: false, ...values };
     const button = await loadModule(new URL("./right_side_components/_buttons/OpenQuickSettingButton.jsx", import.meta.url), runtime, {
         "@useI18n": { useI18n: () => ({ t }) },
     });
@@ -34,8 +34,12 @@ async function menu(context, values = {}) {
         "./_buttons/OpenQuickSettingButton": button,
         "../../../../others/vrchat_presence/VrchatPresence": { VrchatPresence: "vrchat-presence" },
         "@ui_configs": { generateLocalizedDocumentUrl: () => ({ vrct_document_ui_guide_url: "https://example.invalid/guide" }) },
+        "../../../../../../logics/flow/useIoFlow": { useIoFlow: () => ({ isPanelOpen: state.flow,
+            togglePanel: () => { calls.push(["flow"]); state.flow = !state.flow; } }) },
     });
-    const Menu = find(runtime.render(RightSideComponents), node => node.type?.name === "QuickSettingsMenu").type;
+    const right = runtime.render(RightSideComponents);
+    const Menu = find(right, node => node.type?.name === "QuickSettingsMenu").type;
+    const FlowButton = find(right, node => node.type?.name === "IoFlowButton").type;
     const focused = [];
     const draw = () => {
         const tree = runtime.render(Menu, {}, node => {
@@ -49,7 +53,7 @@ async function menu(context, values = {}) {
         return { tree, opener: find(tree, node => node.type === "button"), panel: find(tree, node => node.props?.role === "group"), rows,
             state: find(tree, node => node.props?.className === "menu_state")?.props.children };
     };
-    return { draw, calls, document, focused, state };
+    return { draw, calls, document, focused, state, flowButton: () => runtime.render(FlowButton) };
 }
 
 test("the quick settings button says how many of its toggles are on, and opens them in place", async context => {
@@ -215,4 +219,19 @@ test("the words added to the main page are never smaller than 12px (1.2rem at th
         assert.ok(sizes.length > 0, file);
         assert.ok(sizes.every(size => size >= 1.2), `${file}: ${sizes}`);
     }
+});
+
+test("the inputs and outputs button opens and closes the panel it controls", async context => {
+    const s = await menu(context);
+    let button = s.flowButton();
+    assert.equal(button.type, "button");
+    assert.equal(button.props["aria-expanded"], false);
+    assert.equal(button.props["aria-controls"], "io_flow_panel");
+    assert.equal(button.props.title, "io_flow.open_hint");
+    assert.ok(find(button, node => node.props?.children === "io_flow.open"), "the button names itself");
+    button.props.onClick();
+    button = s.flowButton();
+    assert.equal(button.props["aria-expanded"], true);
+    assert.match(button.props.className, /has_on/);
+    assert.deepEqual(s.calls, [["flow"]]);
 });

@@ -4,7 +4,7 @@ Translates what you type and what speech recognition turns into text. Turn it on
 
 ![Settings → Translation](/screenshots/en/translation.webp)
 
-## Local translation models (CTranslate2)
+## Translate on this PC (CTranslate2)
 
 Translation runs on your PC, so your text is not sent anywhere. Choose a model under "AI Translation (Local)" and press "Download". A screen shows the source, license and size; the download starts after you agree.
 
@@ -24,14 +24,14 @@ Some models cannot translate some languages. For example, M2M100 does not suppor
 
 "Processing device for AI translation" chooses whether translation runs on the CPU or the GPU.
 
-## External translation APIs
+## Use an external translation API
 
 You can use DeepL, Plamo, Gemini, OpenAI, Groq and OpenRouter. Register an API key for each, then choose it under "Translator" on the main screen.
 
 - The text to translate is sent to the service you choose.
 - API keys are stored in the settings file on this PC (`config.json`).
 
-## Local LLMs and compatible servers
+## Use local LLMs and compatible servers
 
 You can use LM Studio, Ollama and OpenAI-compatible endpoints. Check the connection with "Connection Check", then choose a model. If you point the OpenAI-compatible endpoint at a non-official URL, check its pricing, security and compatibility yourself.
 

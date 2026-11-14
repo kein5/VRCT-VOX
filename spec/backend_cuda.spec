@@ -24,9 +24,6 @@ a = Analysis(
         ('./../src-python/models/overlay/fonts', 'fonts/'),
         ('./../src-python/models/translation/translation_settings/prompt', 'translation_settings/prompt/'),
         ('./../src-python/models/translation/translation_settings/languages', 'translation_settings/languages/'),
-        ('./../src-python/models/ocr/onnx/LICENSE.txt', 'ocr_onnx/'),
-        ('./../src-python/models/ocr/onnx/LICENSE.en.txt', 'ocr_onnx/'),
-        ('./../src-python/models/ocr/onnx/NOTICE.txt', 'ocr_onnx/'),
         ('./../.venv_cuda/Lib/site-packages/zeroconf', 'zeroconf/'),
         ('./../.venv_cuda/Lib/site-packages/openvr', 'openvr/'),
         ('./../.venv_cuda/Lib/site-packages/glfw', 'glfw/'),  # glfw3.dll (VR UI overlay texture) is loaded via ctypes, not found by analysis

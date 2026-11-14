@@ -137,7 +137,7 @@ def test_native_same_send_chatbox_and_voice_then_off(tmp_path):
                 ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Voice enabled (confirmed)')")
                 ui.close_settings()
                 # Text is spoken only while the main TTS switch is on.
-                ui.set_switch("TTS")
+                ui.set_switch("Text to speech (TTS)")
 
                 for mode, marker in (("original", "VRCTCHECKA"), ("off", "VRCTCHECKW")):
                     row = {"mode": mode, "marker": marker, "status": "failed"}

@@ -58,6 +58,7 @@ REPORTED_FAILURES = {
     # models/voice_conversion/process.py and models/audio_routing/windows_route.py.
     "voice_conversion": (frozenset((
         "vc_capture_overrun", "vc_capture_invalid", "vc_capture_failed", "vc_worker_eof", "vc_worker_failed",
+        "vc_gpu_unavailable",
         "vc_sink_changed", "vc_output_failed", "source_bridge_output_failed", "source_bridge_capture_failed")),
         "voice_conversion_failed_other"),
     # models/transcription/realtime_session.py: a caption session that ended on its own.
@@ -243,6 +244,9 @@ class ErrorCode(str, Enum):
     WEBSOCKET_PORT_UNAVAILABLE = "WEBSOCKET_PORT_UNAVAILABLE"
     WEBSOCKET_PORT_INVALID = "WEBSOCKET_PORT_INVALID"
     WEBSOCKET_SERVER_UNAVAILABLE = "WEBSOCKET_SERVER_UNAVAILABLE"
+    WEBSOCKET_HOST_NEEDS_TLS = "WEBSOCKET_HOST_NEEDS_TLS"
+    WEBSOCKET_HOST_RESET_WITHOUT_TLS = "WEBSOCKET_HOST_RESET_WITHOUT_TLS"
+    WEBSOCKET_TLS_INVALID = "WEBSOCKET_TLS_INVALID"
 
     # ============================================================================
     # OBS Browser Sourceエラー (OBS_BROWSER_SOURCE_*)
@@ -474,6 +478,9 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "message": "The CTranslate2 model is not downloaded; translation was not enabled",
         "severity": "error",
         "user_action_required": True,
+        # Where every new user starts, not a failure: the UI opens the download review.
+        # Counting it would put one "error" into the usage events of each first run.
+        "reported": False,
     },
     ErrorCode.TRANSLATION_MODEL_LOAD_FAILED: {
         "category": ErrorCategory.TRANSLATION,
@@ -894,6 +901,24 @@ ERROR_METADATA: Dict[ErrorCode, Dict[str, Any]] = {
         "severity": "error",
         "user_action_required": True,
     },
+    ErrorCode.WEBSOCKET_HOST_NEEDS_TLS: {
+        "category": ErrorCategory.WEBSOCKET,
+        "message": "Listening beyond this PC needs a TLS certificate and key",
+        "severity": "error",
+        "user_action_required": True,
+    },
+    ErrorCode.WEBSOCKET_HOST_RESET_WITHOUT_TLS: {
+        "category": ErrorCategory.WEBSOCKET,
+        "message": "The WebSocket host went back to 127.0.0.1: listening beyond this PC needs a TLS certificate and key",
+        "severity": "warning",
+        "user_action_required": True,
+    },
+    ErrorCode.WEBSOCKET_TLS_INVALID: {
+        "category": ErrorCategory.WEBSOCKET,
+        "message": "The TLS certificate or key cannot be used",
+        "severity": "error",
+        "user_action_required": True,
+    },
 
     # OBS Browser Source errors
     ErrorCode.OBS_BROWSER_SOURCE_HOST_UNAVAILABLE: {
@@ -1065,9 +1090,11 @@ class VRCTError:
                 "severity": metadata["severity"],
             }
         }
-        _notify_error_hooks(error_code.value)
+        # "reported": False marks a code that answers an expected state (ERROR_METADATA).
+        if metadata.get("reported", True):
+            _notify_error_hooks(error_code.value)
         return response
-    
+
     @staticmethod
     def create_exception_error_response(
         exception: Exception,

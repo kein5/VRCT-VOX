@@ -86,6 +86,7 @@ for (const [pitch, rate] of [[25, 0.5], [0, -1], [NaN, NaN]]) test(`RVC numeric 
         "../_components/env_readout/EnvReadout": { EnvReadout: "readout" },
         "../_components/description/Description": { Description: "description" },
         "../_components/form_row/FormRow": { FormRow: "row" },
+        "../_components/custom_model_link/CustomModelLink": { CustomModelLink: "custom-model-link" },
     });
     const tree = runtime.render(DirectVoiceSettings, { variant: "rvc" });
     const alert = find(tree, node => node.props?.children === "voice_ui.invalid_rvc_numbers");

@@ -16,6 +16,8 @@ export const DesktopCaptionOverlay = () => {
         toggleIsEnabledOverlayDesktop,
         currentOverlayDesktopSettings,
         setOverlayDesktopSettings,
+        currentIoFlowOverlaySettings,
+        setIoFlowOverlaySettings,
     } = useVr();
     const [supported, setSupported] = useState(false);
     useEffect(() => {
@@ -28,6 +30,10 @@ export const DesktopCaptionOverlay = () => {
     const settings = currentOverlayDesktopSettings.data;
     const state = currentOverlayDesktopSettings.state;
     const change = (key, value) => setOverlayDesktopSettings({ ...settings, [key]: value });
+    // The flow strip shares the caption window; it can be on while captions are off.
+    const flow = currentIoFlowOverlaySettings.data;
+    const flowState = currentIoFlowOverlaySettings.state;
+    const changeFlow = (key, value) => setIoFlowOverlaySettings({ ...flow, [key]: value });
     return (
         <div className={styles.common_container}>
             <SectionLabelComponent label={t("config_page.vr.section_label_desktop_overlay")} />
@@ -85,6 +91,21 @@ export const DesktopCaptionOverlay = () => {
                 max={100}
                 step={5}
                 show_label_values={[0, 20, 40, 60, 80, 100]}
+            />
+            <CheckboxContainer
+                setting_id="io_flow_overlay"
+                label={t("io_flow.settings.desktop")}
+                desc={t("io_flow.settings.desktop_description")}
+                variable={{ data: flow.desktop === true, state: flowState }}
+                toggleFunction={() => changeFlow("desktop", flow.desktop !== true)}
+            />
+            <RadioButtonContainer
+                setting_id="io_flow_overlay_count"
+                label={t("io_flow.settings.count")}
+                selectFunction={value => changeFlow("count", value)}
+                name="io_flow_overlay_count"
+                options={[1, 2, 3].map(count => ({ id: count, label: t("io_flow.settings.count_value", { count }) }))}
+                checked_variable={{ data: flow.count, state: flowState }}
             />
         </div>
     );

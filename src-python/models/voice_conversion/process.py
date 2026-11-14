@@ -36,6 +36,11 @@ except ImportError:
 # of six seconds of blocks late means this PC cannot keep up, and the voice stops.
 LATE_NS = 240_000_000
 LATE_WINDOW = 75
+# Speech spoken through the conversion (ADR-007): what may wait to replace the
+# microphone. The owner sends at most a little ahead of real time; this only
+# bounds a misbehaving sender. 20 ms parts at 48 kHz mono s16le.
+SPEECH_PART = 1920
+SPEECH_LIMIT = p.PCM_BYTES * 25  # two seconds
 
 
 def _summary_ms(values):
@@ -43,6 +48,11 @@ def _summary_ms(values):
         return None
     ordered = sorted(values)
     return dict(median=round(ordered[len(ordered) // 2] / 1e6, 1), max=round(ordered[-1] / 1e6, 1))
+
+
+def _median_ms(values):
+    # The recent conversion round trip, in whole ms, for the live readout.
+    return round(sorted(values)[len(values) // 2] / 1e6) if values else None
 
 
 class _PipeWireRoute:
@@ -133,6 +143,40 @@ class VCProcess:
         self._state = 'off'
         self._session = uuid4().hex
         self._blocks = 0
+        # Speech that replaces the microphone while it lasts, and whether the block
+        # being filled holds any of it. Under self._lock, with the capture.
+        self._speech = bytearray()
+        self._speech_open = False
+        self._speech_part = False
+        # Direct voice suppressed block by block: the microphone's blocks are silent,
+        # converted speech is heard. Only while speech goes through the conversion.
+        self._direct_suppressed = False
+
+    def speech_chunk(self, pcm):
+        """Converted speech to come, 48 kHz mono s16le; False when it would overflow."""
+        if type(pcm) is not bytes or not pcm or len(pcm) % 2 or len(pcm) > p.PCM_BYTES:
+            raise ValueError('vc_speech_invalid')
+        with self._lock:
+            if not self._requested or len(self._speech) + len(pcm) > SPEECH_LIMIT:
+                return False
+            self._speech.extend(pcm)
+            self._speech_open = True
+            return True
+
+    def speech_end(self):
+        """No more of this utterance; what is left still plays, then the microphone returns."""
+        with self._lock:
+            self._speech_open = False
+
+    def speech_cancel(self):
+        """Stop speech now: drop what waits, the microphone returns with the next part."""
+        with self._lock:
+            self._speech.clear()
+            self._speech_open = False
+
+    def set_direct_suppressed(self, suppressed):
+        with self._lock:
+            self._direct_suppressed = bool(suppressed)
 
     def _launch_worker(self):
         raise NotImplementedError
@@ -170,7 +214,7 @@ class VCProcess:
                                                             and not self._requested),
                         conversion_verified=self._verified, error=self._error,
                         state=self._state, converted_blocks=self._blocks,
-                        monitor_error=self._monitor_error)
+                        monitor_error=self._monitor_error, round_trip_ms=_median_ms(tuple(self._rounds)))
 
     def _monitor_failed(self, code):
         # Monitor thread. A notice only: conversion and the managed sink go on.
@@ -211,7 +255,12 @@ class VCProcess:
             if self._monitor is not None:
                 self._monitor.offer(converted, p.RATE, 1)
 
-    def _audible(self, converted):
+    def _audible(self, converted, speech=False):
+        # Direct voice suppressed block by block: only converted speech is heard.
+        with self._lock:
+            suppressed = self._direct_suppressed and not speech
+        if suppressed:
+            return bytes(len(converted))
         if not self._route.gates_output:
             return converted
         with self._monitor_lock:
@@ -258,14 +307,23 @@ class VCProcess:
                 self._last = stamp
                 if not self._partial:
                     self._first = stamp
-                self._partial.extend(audio.pcm)
+                pcm = audio.pcm
+                if self._speech or self._speech_open:
+                    # Speech replaces the microphone part for part, on the microphone's
+                    # clock. Underrun inside an utterance is silence, never the microphone.
+                    part = bytes(self._speech[:SPEECH_PART])
+                    del self._speech[:SPEECH_PART]
+                    pcm = part + bytes(SPEECH_PART - len(part))
+                    self._speech_part = True
+                self._partial.extend(pcm)
                 if len(self._partial) == p.PCM_BYTES:
                     info = dict(p.input_info(self._session, self._sequence, self._first),
                                 pcm_bytes=p.PCM_BYTES)
+                    speech, self._speech_part = self._speech_part, False
                     try:
-                        self._queue.put_nowait((info, bytes(self._partial)))
+                        self._queue.put_nowait((info, bytes(self._partial), speech))
                     except Full:
-                        if not self._route.drops_late_blocks or self._replace_oldest(info):
+                        if not self._route.drops_late_blocks or self._replace_oldest(info, speech):
                             fault = 'vc_capture_overrun'
                     self._sequence += 1
                     self._partial.clear()
@@ -278,13 +336,13 @@ class VCProcess:
         self._late.append(late)
         return sum(self._late) > LATE_WINDOW // 2
 
-    def _replace_oldest(self, info):
+    def _replace_oldest(self, info, speech=False):
         # Capture thread, the only producer, holding the lock.
         try:
             self._queue.get_nowait()
         except Empty:
             pass
-        self._queue.put_nowait((info, bytes(self._partial)))
+        self._queue.put_nowait((info, bytes(self._partial), speech))
         return self._too_late(True)
 
     def _next_block(self, info):
@@ -359,7 +417,7 @@ class VCProcess:
                     raise p.ProtocolError('vc_worker_eof')
                 check_binding()
                 try:
-                    info, pcm = self._queue.get(timeout=.02)
+                    info, pcm, speech = self._queue.get(timeout=.02)
                 except Empty:
                     continue
                 if self._route.drops_late_blocks:
@@ -375,9 +433,10 @@ class VCProcess:
                     self._rounds.append(time.monotonic_ns() - sent_at)
                 state = p.require_output(result, converted, info, pcm, time.monotonic_ns())
                 deadline.check()
-                self._output.write(self._audible(converted), deadline)
+                audible = self._audible(converted, speech)
+                self._output.write(audible, deadline)
                 # Queue only, after the managed write: the same block, no added wait.
-                self._offer_monitor(converted, info['start_ns'])
+                self._offer_monitor(audible, info['start_ns'])
                 deadline.check()
                 with self._lock:
                     self._token.check()

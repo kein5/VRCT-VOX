@@ -11,19 +11,17 @@ import ChatTranscribeSvg from "@images/chat_transcribe.svg?react";
 import CopyThinSvg from "@images/copy_thin.svg?react";
 import ConfigurationSvg from "@images/configuration.svg?react";
 import LanguageSvg from "@images/mui_language.svg?react";
+import FlowSvg from "@images/io_flow.svg?react";
 // The intro shows VRCT-VOX's own mark, like the About page: this is not the official VRCT.
 import intro_icon from "@images/brand/icon-small.svg";
 import logo_en from "@images/brand/logo-en.svg";
 import logo_ja from "@images/brand/logo-ja.svg";
-import logo_ko from "@images/brand/logo-ko.svg";
-import logo_zh_hant from "@images/brand/logo-zh-Hant.svg";
-import logo_zh_hans from "@images/brand/logo-zh-Hans.svg";
 import { VrTooltipButton } from "./VrTooltip";
 import shared from "./VrSettingsWindow.module.scss";
 import styles from "./VrLauncher.module.scss";
 
 const LONG_PRESS_MS = 600;
-const INTRO_LOGOS = { en: logo_en, ja: logo_ja, ko: logo_ko, "zh-Hant": logo_zh_hant, "zh-Hans": logo_zh_hans };
+const INTRO_LOGOS = { en: logo_en, ja: logo_ja };
 export const VrLauncher = ({ windows, toggleLog, openLog, togglePopup }) => {
     const { t, i18n } = useI18n();
     const { currentIsOpenedConfigPage } = useIsOpenedConfigPage();
@@ -59,6 +57,8 @@ export const VrLauncher = ({ windows, toggleLog, openLog, togglePopup }) => {
                     onClick={is_log_lost ? () => asyncStdoutToPython("/run/vr_panel_recall_log") : toggleLog} onLongPress={recallLog} />
                 <WindowButton Svg={LanguageSvg} label={t("vr_panel.window_language")}
                     is_open={windows.popup === "language"} onClick={() => togglePopup("language")} />
+                <WindowButton Svg={FlowSvg} label={t("io_flow.vr_window")}
+                    is_open={windows.popup === "io_flow"} onClick={() => togglePopup("io_flow")} />
                 <WindowButton Svg={ConfigurationSvg} label={t("vr_panel.window_settings")}
                     is_open={windows.popup === "settings"} onClick={() => togglePopup("settings")} />
             </div>

@@ -1,13 +1,20 @@
+import { useMemo, useState } from "react";
 import { useI18n } from "@useI18n";
+import { useStdoutToPython } from "@useStdoutToPython";
 import styles from "./AdvancedSettings.module.scss";
+import voiceStyles from "./VoiceSettings.module.scss";
+import dialogStyles from "../_components/download_models/LegacyModelDownloadDialog.module.scss";
 import { DirectVoiceSettings } from "./DirectVoiceSettings";
 import { AutoExportMessageLogsContainer } from "../shared_items/SharedItems";
 import { Description } from "../_components/description/Description";
 import { TelemetryContents } from "../_components/telemetry/TelemetryContents";
 import { parsePortInput, PORT_INPUT_LIMITS } from "../../../../../../logics/configs/networkPortInput";
-import { buildObsBrowserSourceUrl } from "../../../../../../logics/configs/obsBrowserSourceUrl";
+import { buildObsBrowserSourceUrl, buildWebsocketUrl } from "../../../../../../logics/configs/obsBrowserSourceUrl";
+import { useSettingsDraft } from "../../../../../../logics/voice/useSettingsDraft";
+import { useConsentDialog } from "../../../../../../logics/common/useConsentDialog";
+import { toggleTelemetryOrAnswer } from "../../../../../../logics/configs/telemetryToggle";
 
-import { useCopyToClipboard, useOpenFolder } from "@logics_common";
+import { useCopyToClipboard, useOpenFolder, useNotificationStatus } from "@logics_common";
 import {
     useAdvancedSettings,
     useOthers,
@@ -28,6 +35,7 @@ import {
 import OpenFolderSvg from "@images/open_folder.svg?react";
 import CopyThinSvg from "@images/copy_thin.svg?react";
 import CheckMarkSvg from "@images/check_mark.svg?react";
+import RefreshSvg from "@images/refresh.svg?react";
 
 export const AdvancedSettings = () => {
     const { t } = useI18n();
@@ -124,10 +132,10 @@ const OpenConfigFolderContainer = () => {
 };
 
 // Usage events (the app started; an error by its code) are sent unless this is off.
-// Turning it on or off here also answers the one-time notice.
+// Turning it on or off here also answers the one-time notice (telemetryToggle.js, SEC-07).
 const TelemetryContainer = () => {
     const { t } = useI18n();
-    const { currentTelemetry, toggleTelemetry } = useOthers();
+    const others = useOthers();
 
     return (
         <>
@@ -135,8 +143,8 @@ const TelemetryContainer = () => {
                 setting_id="telemetry"
                 label={t("config_page.advanced_settings.telemetry.label")}
                 desc={t("config_page.advanced_settings.telemetry.desc")}
-                variable={currentTelemetry}
-                toggleFunction={toggleTelemetry}
+                variable={others.currentTelemetry}
+                toggleFunction={() => toggleTelemetryOrAnswer(others)}
             />
             {/* The event itself as this PC would send it, and what was sent before. */}
             <div className={styles.telemetry_contents}>
@@ -153,7 +161,9 @@ const WebsocketContainer = () => {
             <EnableWebsocketContainer />
             <WebsocketHostContainer />
             <WebsocketPortContainer />
+            <WebsocketTlsContainer />
             <WebsocketUrlContainer />
+            <WebsocketTokenContainer />
         </div>
     );
 };
@@ -193,6 +203,7 @@ const WebsocketHostContainer = () => {
     return (
         <EntryWithSaveButtonContainer
             label={t("config_page.advanced_settings.websocket_host.label")}
+            desc={t("config_page.advanced_settings.websocket_host.desc")}
             variable={variable}
             saveFunction={saveFunction}
             onChangeFunction={onChangeFunction}
@@ -200,6 +211,40 @@ const WebsocketHostContainer = () => {
             width="14rem"
         />
     );
+};
+
+// The certificate and key for listening beyond this PC (paths to PEM files). Saved as a pair:
+// the backend loads them first and refuses a pair that does not work.
+const WebsocketTlsContainer = () => {
+    const { t } = useI18n();
+    const { currentWebsocketTls, setWebsocketTls } = useAdvancedSettings();
+    const [error, updateError] = useState(null);
+    const saved = useMemo(() => ({
+        cert_file: currentWebsocketTls.data?.cert_file ?? "", key_file: currentWebsocketTls.data?.key_file ?? "",
+    }), [currentWebsocketTls.data]);
+    const label = name => t(`config_page.advanced_settings.websocket_tls_${name}.label`);
+    const write = async value => {
+        const response = await setWebsocketTls(value);
+        if (response?.status !== 200) updateError(response?.result?.error_code || "save_unconfirmed");
+        return response;
+    };
+    const form = useSettingsDraft(saved, error, updateError, { write, label: ([name]) => label(name) });
+    if (!form.draft) return null;
+    const field = name => ({
+        setting_id: `websocket_tls_${name}`,
+        label: label(name),
+        desc: t(`config_page.advanced_settings.websocket_tls_${name}.desc`),
+        variable: form.draft[name],
+        state: form.saving || currentWebsocketTls.state === "pending" ? "pending" : "ok",
+        onChangeFunction: value => form.setDraft(previous => ({ ...previous, [name]: value })),
+        saveFunction: () => { if (form.dirty) return form.submit(write); },
+        width: "24rem",
+    });
+    return <>
+        <EntryWithSaveButtonContainer {...field("cert_file")} remove_border_bottom={true} />
+        <EntryWithSaveButtonContainer {...field("key_file")} />
+        {form.navigationDialog}
+    </>;
 };
 
 const WebsocketPortContainer = () => {
@@ -237,12 +282,10 @@ const WebsocketUrlContainer = () => {
     const { copyToClipboard } = useCopyToClipboard();
     const { currentWebsocketHost, currentWebsocketPort, currentWebsocketAuthToken } = useAdvancedSettings();
 
-    const host = currentWebsocketHost.data === "0.0.0.0" ? "127.0.0.1" : currentWebsocketHost.data;
-    const token = currentWebsocketAuthToken.data;
-    const base = `ws://${host}:${currentWebsocketPort.data}`;
-    const url = token ? `${base}/?token=${encodeURIComponent(token)}` : base;
     // The token stays off screen (screenshots, streams); the copy has it.
-    const shown = token ? `${base}/?token=••••••••` : base;
+    const { url, shown } = buildWebsocketUrl(
+        currentWebsocketHost.data, currentWebsocketPort.data, currentWebsocketAuthToken.data,
+    );
 
     return (
         <ActionButtonContainer
@@ -254,6 +297,43 @@ const WebsocketUrlContainer = () => {
             onclickFunction={() => copyToClipboard(url)}
         />
     );
+};
+
+// A new token makes a leaked URL useless at once. OBS and other apps then need the URLs copied
+// again, so the button asks first, says what stops working, and leaves a way back.
+const WebsocketTokenContainer = () => {
+    const { t } = useI18n();
+    const key = name => t(`config_page.advanced_settings.websocket_token.${name}`);
+    const { asyncStdoutToPython } = useStdoutToPython();
+    const { showNotification_Success } = useNotificationStatus();
+    const [open, setOpen] = useState(false);
+    const { dialog, close } = useConsentDialog(open);
+    const cancel = () => { close(); setOpen(false); };
+    const regenerate = async () => {
+        close(); setOpen(false);
+        const response = await asyncStdoutToPython("/run/regenerate_websocket_auth_token");
+        if (response?.status === 200) showNotification_Success(key("done"), { category_id: "websocket_token_regenerated" });
+    };
+    return <>
+        <ActionButtonContainer
+            setting_id="websocket_token"
+            label={key("label")}
+            desc={key("desc")}
+            IconComponent={RefreshSvg}
+            onclickFunction={() => setOpen(true)}
+        />
+        {open && <div className={dialogStyles.host}>
+            <dialog ref={dialog} className={dialogStyles.dialog} aria-label={key("confirm_title")}
+                onCancel={event => { event.preventDefault(); cancel(); }}>
+                <h3>{key("confirm_title")}</h3>
+                <p>{key("confirm_body")}</p>
+                <div className={voiceStyles.actions}>
+                    <button type="button" autoFocus onClick={cancel}>{key("confirm_cancel")}</button>
+                    <button type="button" onClick={regenerate}>{key("confirm_ok")}</button>
+                </div>
+            </dialog>
+        </div>}
+    </>;
 };
 
 const ObsBrowserSourceContainer = () => {

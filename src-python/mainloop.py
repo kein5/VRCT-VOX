@@ -67,6 +67,7 @@ for _stage, _module in (("import_audio_devices", "device_manager"), ("import_con
 
 from controller import Controller  # noqa: E402
 from utils import printLog, printResponse, errorLogging, encodeBase64, isQuietPoll, openTraceLog # noqa: E402
+from models.vr_panel_policy import request_allowed  # noqa: E402
 
 startup_timing.mark("import_controller")
 
@@ -604,6 +605,8 @@ mapping = {
     "/set/disable/overlay_desktop": {"status": True, "variable":controller.setDisableOverlayDesktop},
     "/get/data/overlay_desktop_settings": {"status": True, "variable":controller.getOverlayDesktopSettings},
     "/set/data/overlay_desktop_settings": {"status": True, "variable":controller.setOverlayDesktopSettings},
+    "/get/data/io_flow_overlay_settings": {"status": True, "variable":controller.getIoFlowOverlaySettings},
+    "/set/data/io_flow_overlay_settings": {"status": True, "variable":controller.setIoFlowOverlaySettings},
 
     "/get/data/overlay_show_only_translated_messages": {"status": True, "variable":controller.getOverlayShowOnlyTranslatedMessages},
     "/set/enable/overlay_show_only_translated_messages": {"status": True, "variable":controller.setEnableOverlayShowOnlyTranslatedMessages},
@@ -680,6 +683,8 @@ mapping = {
     "/get/data/direct_voice_sources": {"status": True, "variable":controller.getDirectVoiceSources},
     "/set/data/direct_voice_settings": {"status": True, "variable":controller.setDirectVoiceSettings},
     "/get/data/direct_voice_state": {"status": True, "variable":controller.getDirectVoiceState},
+    # The flow panel: where the user's voice and chat go now. Stage times arrive as /run/io_trace.
+    "/get/data/io_flow": {"status": True, "variable":controller.getIoFlow},
     "/run/start_direct_voice": {"status": True, "variable":controller.startDirectVoice},
     "/run/stop_direct_voice": {"status": True, "variable":controller.stopDirectVoice},
 
@@ -688,6 +693,9 @@ mapping = {
     "/get/data/websocket_port": {"status": True, "variable":controller.getWebSocketPort},
     "/set/data/websocket_port": {"status": True, "variable":controller.setWebSocketPort},
     "/get/data/websocket_auth_token": {"status": True, "variable":controller.getWebSocketAuthToken},
+    "/run/regenerate_websocket_auth_token": {"status": True, "variable":controller.regenerateWebSocketAuthToken},
+    "/get/data/websocket_tls": {"status": True, "variable":controller.getWebSocketTls},
+    "/set/data/websocket_tls": {"status": True, "variable":controller.setWebSocketTls},
     "/get/data/websocket_server": {"status": True, "variable":controller.getWebSocketServer},
     "/set/enable/websocket_server": {"status": True, "variable":controller.setEnableWebSocketServer},
     "/set/disable/websocket_server": {"status": True, "variable":controller.setDisableWebSocketServer},
@@ -950,7 +958,8 @@ class Main:
                 "/set/enable/websocket_server", "/set/disable/websocket_server",
                 "/set/enable/obs_browser_source", "/set/disable/obs_browser_source",
                 "/set/data/websocket_host", "/set/data/websocket_port",
-                "/set/data/obs_browser_source_port",
+                "/set/data/obs_browser_source_port", "/set/data/websocket_tls",
+                "/run/regenerate_websocket_auth_token",
             }:
                 return "/lock/obs_websocket_lifecycle"
             if endpoint.startswith("/set/enable/"):
@@ -992,6 +1001,12 @@ class Main:
 
                 if received_data:
                     endpoint = received_data.get("endpoint")
+                    if not request_allowed(received_data.get("origin"), endpoint):
+                        # A request relayed for the VR panel outside its list (SEC-02). It is
+                        # not decoded or queued; the UI's own list should have kept it back.
+                        printLog("Refused a request relayed for the VR panel", {"endpoint": endpoint})
+                        printResponse(403, endpoint, {"error_code": "vr_panel_request_refused"})
+                        continue
                     data = received_data.get("data")
                     data = encodeBase64(data) if data is not None else None
                     if not isQuietPoll(endpoint):

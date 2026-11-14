@@ -50,7 +50,7 @@ export const VoiceSettings = () => {
     // The monitor never offers the virtual microphone's own endpoints or output.
     const monitorList = deviceList.filter(d => !d.id.startsWith("vrct.") && d.id !== (draft.routing === "managed" ? "" : draft.output_device));
     return <section className={styles.container} aria-label={t("voice.title")} data-setting-id="tts_settings">
-        <SectionLabelComponent label="TTS" />
+        <SectionLabelComponent label={t("config_page.tts.tts_settings.label")} />
         <StatusLine tone={status.active ? "active" : "idle"}
             actions={<button type="button" onClick={() => send("/run/stop_voice")}>{t("voice.stop")}</button>}>
             {t(status.active ? "voice.playing" : "voice.idle")} · {t("voice.queued")}: {status.queued ?? 0}
@@ -106,9 +106,19 @@ export const VoiceSettings = () => {
                     </FormRow>
                     <label>{t("voice.direct_policy")}<select aria-label={t("voice.direct_policy")} disabled={draft.mic_mode !== "translated"} value={draft.direct_policy || "suppress"}
                         onChange={e => field("direct_policy", e.target.value)}>
-                        <option value="suppress">{t("voice.direct_suppress")}</option><option value="mix">{t("voice.direct_mix")}</option>
+                        <option value="suppress">{t("voice.direct_suppress")}</option>
+                        {/* Speech through the conversion replaces the voice; the two cannot mix (ADR-007). */}
+                        <option value="mix" disabled={draft.conversion === "on"}>{t("voice.direct_mix")}</option>
                     </select></label>
                 </details>
+                <FormRow label={t("voice.conversion")} description={t("voice.conversion_hint")}>
+                    <select aria-label={t("voice.conversion")} value={draft.conversion || "off"}
+                        onChange={e => setDraft(current => ({ ...current, conversion: e.target.value,
+                            // Mixing cannot go with it; suppressing the voice is the one choice left.
+                            ...(e.target.value === "on" && current.direct_policy === "mix" ? { direct_policy: "suppress" } : {}) }))}>
+                        <option value="off">{t("voice.conversion_off")}</option><option value="on">{t("voice.conversion_on")}</option>
+                    </select>
+                </FormRow>
             </fieldset>
         </form>
         {!validGenerationOptions(draft) && <p id={optionsErrorId} role="alert">{t("voice_ui.invalid_options")}</p>}

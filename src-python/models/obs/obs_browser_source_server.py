@@ -3,6 +3,7 @@ import ipaddress
 import json
 import re
 import socket
+import ssl
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from time import monotonic
@@ -23,11 +24,25 @@ class _ObsHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     block_on_close = False
 
-    def __init__(self, address, handler):
+    def __init__(self, address, handler, ssl_context=None):
         self._stopping = threading.Event()
         self._handlers_lock = threading.Lock()
         self._handlers = {}
+        self._ssl_context = ssl_context
         super().__init__(address, handler)
+
+    def get_request(self):
+        request, client_address = super().get_request()
+        if self._ssl_context is not None:
+            # The handshake runs on the request's worker (finish_request) under its deadline,
+            # so a client that stalls it cannot hold up the accept loop.
+            request = self._ssl_context.wrap_socket(request, server_side=True, do_handshake_on_connect=False)
+        return request, client_address
+
+    def finish_request(self, request, client_address):
+        if isinstance(request, ssl.SSLSocket):
+            request.do_handshake()
+        super().finish_request(request, client_address)
 
     def _prune_handlers(self):
         self._handlers = {request: worker for request, worker in self._handlers.items() if worker[0].is_alive()}
@@ -348,10 +363,13 @@ def _build_overlay_html(ws_token: str = "") -> str:
           reconnectDelayMs = Math.min(reconnectDelayMs * 1.5, 8000);
         }};
 
+        // Served over HTTPS (listening beyond this PC), the page connects back over WSS too.
+        const wsScheme = location.protocol === "https:" ? "wss" : "ws";
+
         const connect = () => {{
           const wsUrl = SETTINGS.wsToken
-            ? `ws://${{location.hostname}}:${{SETTINGS.wsPort}}/?token=${{encodeURIComponent(SETTINGS.wsToken)}}`
-            : `ws://${{location.hostname}}:${{SETTINGS.wsPort}}`;
+            ? `${{wsScheme}}://${{location.hostname}}:${{SETTINGS.wsPort}}/?token=${{encodeURIComponent(SETTINGS.wsToken)}}`
+            : `${{wsScheme}}://${{location.hostname}}:${{SETTINGS.wsPort}}`;
           let ws;
           try {{
             ws = new WebSocket(wsUrl);
@@ -419,12 +437,15 @@ def _is_trusted_host_header(value) -> bool:
 
 
 class ObsBrowserSourceServer:
-    def __init__(self, host: str, port: int, ws_token: str = "") -> None:
+    def __init__(self, host: str, port: int, ws_token: str = "", ssl_context=None) -> None:
         self.host = host
         self.port = port
         # ページの取得とWebSocket接続で同じトークンを使う。
         # 認証できた要求にだけ、トークンを含むページを返す。
+        # 要求ごとにこの値を読むので、set_token() の直後から古いトークンは通らない。
         self.ws_token = ws_token
+        # この PC の外で待ち受けるときは HTTPS (models/websocket/tls.py)。
+        self.ssl_context = ssl_context
         self._server: _ObsHTTPServer | None = None
         self._thread: threading.Thread | None = None
         self._lifecycle_lock = threading.Lock()
@@ -450,7 +471,7 @@ class ObsBrowserSourceServer:
         self._stopping = False
         self._stop_logged = False
 
-        ws_token = self.ws_token
+        owner = self
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, format, *args):  # noqa: A002
@@ -465,6 +486,7 @@ class ObsBrowserSourceServer:
                     return
                 parsed = urlparse(self.path)
                 if parsed.path in ("/", "/obs", "/obs/connection"):
+                    ws_token = owner.ws_token
                     metadata = parsed.path == "/obs/connection"
                     tokens = ([self.headers.get("Authorization", "").removeprefix("Bearer ")]
                               if metadata else parse_qs(parsed.query, keep_blank_values=True).get("token", []))
@@ -509,7 +531,7 @@ class ObsBrowserSourceServer:
                 self.send_response(404)
                 self.end_headers()
 
-        self._server = _ObsHTTPServer((self.host, self.port), Handler)
+        self._server = _ObsHTTPServer((self.host, self.port), Handler, ssl_context=self.ssl_context)
         try:
             self._thread = threading.Thread(
                 target=self._server.serve_forever,
@@ -520,6 +542,12 @@ class ObsBrowserSourceServer:
         except Exception:
             self._stop()
             raise
+
+    def set_token(self, token: str) -> None:
+        """Serve the page only for `token` from the next request on."""
+        if not isinstance(token, str) or not token.strip():
+            raise ValueError("WebSocket authentication token is required")
+        self.ws_token = token
 
     def stop(self) -> None:
         with self._lifecycle_lock:

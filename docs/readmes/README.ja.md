@@ -53,7 +53,7 @@ RVCには音声モデルのほかに実行環境、HuBERT、RMVPEが必要です
 
 VRCT-VOXはオフにしない限り、2種類の利用状況の通知をVRCT-VOXの受信サーバーへ送ります（「設定」→「高度な設定」の「利用状況を送信する」）。起動したこと（1日に1回）と、エラーの種類を表す固定のコード（同じコードにつき1日に1回）です。どちらにもアプリのバージョン、OSの種類とバージョン、表示言語、PCの構成（CPU、メモリ、GPUとそのドライバのバージョン）が付きます。送られる内容はアプリの「送信される内容を見る」でそのまま確かめられます。会話の文字や音声、マイクやスピーカーの名前、ユーザー名は送りません。最初に出るお知らせに答えるまでは何も送りません。本家VRCTのAptabaseのテレメトリーは使いません（本家の古いキーファイルが残っていても送信しません）。ユーザーが選んだ翻訳サービスや音声サービスには、送った文字や音声が届きます。利用状況の送信を止めても、すべての機能がオフラインになるわけではありません。
 
-モデルは同梱していません。TTS・音声認識・RVC・Seed-VCのモデルは、ユーザーが求めたときだけ取得するか、ユーザー自身が用意します。配布物にはOCRの重みを一切入れていません。本家のチャット欄検出モデルはforkの配布物に含めることが許されていないためです。リポジトリには、その[利用条件](/src-python/models/ocr/onnx/LICENSE.txt)が認める開発用途のためだけに残しているので、ソース一式をそのまま配布しないでください。検証用の音声Mia2026は配布しません。同梱のspeech.cpp本体にはそれぞれの表記があり、モデルのライセンスはモデルごとに異なります。
+モデルは同梱していません。TTS・音声認識・RVC・Seed-VCのモデルは、ユーザーが求めたときだけ取得するか、ユーザー自身が用意します。配布物にはOCRの重みを一切入れていません。本家のチャット欄検出モデルはforkの配布物に含めることが許されていないため、0.2.0でリポジトリからも消しました。0.1.0までのコミットには、その[利用条件](https://github.com/kein5/VRCT-VOX/blob/250cec9681752c2f897d9a15a38e647c38561842/src-python/models/ocr/onnx/LICENSE.txt)のもとでモデルが残っているので、古いソース一式をそのまま配布しないでください。検証用の音声Mia2026は配布しません。同梱のspeech.cpp本体にはそれぞれの表記があり、モデルのライセンスはモデルごとに異なります。
 
 ## ライセンスと謝辞
 
@@ -65,7 +65,9 @@ VRChatおよび関連する名称はVRChat Inc.の商標または登録商標で
 
 ## 開発
 
-Pythonの環境には`uv`を使います。`npm run doctor`で開発環境を確認し、検査用の依存を`npm run setup:headless`、UIの依存を`python tools/dev.py setup --scope ui`で入れます。`npm run check`で開発ツール・Nodeのテスト・lintを実行します。音声・バックエンド・Rustの検査、ブラウザでのテスト、Cocogittoは[開発ガイド](/docs/development.md)を、ブランチとPRの決まりは[CONTRIBUTING.md](/CONTRIBUTING.md)を参照してください。
+Pythonの環境には`uv`を使います。`npm run doctor`で開発環境を確認し、検査用の依存を`npm run setup:headless`、UIの依存を`python tools/dev.py setup --scope ui`で入れます。`npm run check`で開発ツール・Nodeのテスト・lintを実行します。音声・バックエンド・Rustの検査、ブラウザでのテスト、Cocogittoは[開発ガイド](/docs/development.md)を、ブランチ、コミットメッセージ、PRの決まりは[CONTRIBUTING.md](/CONTRIBUTING.md)を参照してください。
+
+正式版ごとの変更は[CHANGELOG.md](/CHANGELOG.md)にあります（0.2.0から）。ベータ版と、それより前のリリースは[GitHub Releases](https://github.com/kein5/VRCT-VOX/releases)にあります。
 
 - [ビルドとCIのガイド](/docs/readme_build.md)
 - [Linuxのビルドパイプライン](/docs/voice-stack/linux-build-pipeline.md)と[AppImage](/docs/voice-stack/appimage.md)

@@ -62,6 +62,20 @@ test("recreating the VR panel leaves settings open and microphone paused", async
     assert.deepEqual(view.requests, []); // The old panel no longer owns the pause.
 });
 
+// SEC-02 and SEC-07: only listed requests are relayed, and each is marked for the backend's own check.
+test("the VR panel's requests are relayed marked as its own, and unlisted ones are dropped", async context => {
+    const view = await setup(context);
+    const relay = view.listeners.get("vr-panel-stdout");
+    relay({ payload: { path: "/set/enable/translation" } });
+    relay({ payload: { path: "/set/data/overlay_vr_panel_opacity", value: 0.8 } });
+    for (const path of ["/set/enable/telemetry", "/set/data/telemetry_notice", "/set/data/deepl_auth_key",
+        "/run/shutdown", "/set/data/a_setting_added_later"]) relay({ payload: { path, value: { send: true } } });
+    assert.deepEqual(view.requests, [
+        ["/set/enable/translation", undefined, undefined, "vr_panel"],
+        ["/set/data/overlay_vr_panel_opacity", 0.8, undefined, "vr_panel"],
+    ]);
+});
+
 for (const dispose of ["disable", "unmount"]) {
     test(`late callbacks after ${dispose} cannot reacquire settings ownership`, async context => {
         const view = await setup(context);

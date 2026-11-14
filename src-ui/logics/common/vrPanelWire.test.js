@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
-import { decodeLogUpdate, decodeOrdered, diffLogRows, encodeLogUpdate, encodeOrdered, isLogUpdate, isRelayAllowed, isSecretAtomName } from "./vrPanelWire.js";
+import { decodeLogUpdate, decodeOrdered, diffLogRows, encodeLogUpdate, encodeOrdered, isLogUpdate, isRelayAllowed, isSecretAtomName,
+    VR_PANEL_RELAY_PATHS } from "./vrPanelWire.js";
 
 // Tauri の emit を通ったときの変化を模す: キーを辞書順にし、undefined を落とし、NaN を null にする
 const sortKeysDeep = value => Array.isArray(value) ? value.map(sortKeysDeep)
@@ -35,11 +37,79 @@ test("the VR panel can ask for settings and the main features, but not for dange
 
 test("the VR panel cannot change where saved keys are sent or what runs", () => {
     for (const path of ["/set/data/openai_compatible_url", "/set/data/lmstudio_url", "/set/data/ollama_url", "/set/data/custom_whisper_url",
-        "/set/data/websocket_host", "/set/data/websocket_port", "/set/data/obs_browser_source_port", "/set/data/osc_ip_address",
-        "/set/data/osc_port", "/set/data/voice_settings", "/set/data/direct_voice_settings", "/set/data/speech_server_settings",
-        "/set/data/realtime_asr_settings", "/set/data/ocr_portal_restore_token",
-        "/get/data/ocr_portal_restore_token"]) assert.equal(isRelayAllowed(path), false, path);
-    for (const path of ["/get/data/openai_compatible_url", "/set/data/selected_font_family"]) assert.equal(isRelayAllowed(path), true, path);
+        "/set/data/websocket_host", "/set/data/websocket_port", "/set/data/websocket_tls", "/set/data/obs_browser_source_port",
+        "/set/data/osc_ip_address", "/set/data/osc_port", "/set/data/voice_settings", "/set/data/direct_voice_settings",
+        "/set/data/speech_server_settings", "/set/data/realtime_asr_settings", "/set/data/ocr_portal_restore_token",
+        "/get/data/ocr_portal_restore_token", "/get/data/openai_compatible_url", "/get/data/deepl_auth_key",
+        "/run/regenerate_websocket_auth_token"]) assert.equal(isRelayAllowed(path), false, path);
+});
+
+// SEC-02: the main window relays "vr-panel-stdout" events. Only windows allowed to emit events
+// can send one, and those must be the main window and the VR panel.
+test("only the main window and the VR panel may emit the relayed events", () => {
+    const dir = new URL("../../../src-tauri/capabilities/", import.meta.url);
+    const emitting = ["core:default", "core:event:default", "core:event:allow-emit", "core:event:allow-emit-to"];
+    for (const file of readdirSync(dir).filter(name => name.endsWith(".json"))) {
+        const capability = JSON.parse(readFileSync(new URL(file, dir), "utf8"));
+        const permissions = (capability.permissions ?? []).map(item => typeof item === "string" ? item : item.identifier);
+        if (!permissions.some(permission => emitting.includes(permission))) continue;
+        for (const window of capability.windows ?? []) assert.ok(["main", "vr_panel"].includes(window), `${file}: ${window} may emit events`);
+    }
+});
+
+// SEC-07: consent to usage data is the user's answer in the main window, never a relayed request.
+test("the VR panel cannot turn usage data on or answer its notice", () => {
+    for (const path of ["/set/enable/telemetry", "/set/disable/telemetry", "/set/data/telemetry_notice",
+        "/get/data/telemetry_preview"]) assert.equal(isRelayAllowed(path), false, path);
+});
+
+// SEC-02: a list of what is relayed, so that nothing else is, new endpoints included.
+test("an endpoint the list does not name is not relayed", () => {
+    for (const path of ["/set/data/a_setting_added_later", "/set/enable/a_feature_added_later", "/run/a_command_added_later",
+        "/get/data/a_value_added_later", "/set/data/font_family/", "/SET/DATA/FONT_FAMILY", " /set/data/font_family"])
+        assert.equal(isRelayAllowed(path), false, path);
+});
+
+// What the VR windows send, read from their source: every generated setter they call, the
+// launcher's switches, the language window and the meters. If a VR window starts sending
+// something new, this fails until the path is added to VR_PANEL_RELAY_PATHS on purpose.
+test("everything the VR windows send is relayed", () => {
+    const read = path => readFileSync(new URL(path, import.meta.url), "utf8");
+    const settings = new Map([...read("../configs/config_page_setter/ui_config_setter.js")
+        .matchAll(/\{[^{}]*?Base_Name:\s*"(\w+)"[^{}]*?logics_template_id:\s*"(\w+)"[^{}]*?base_endpoint_name:\s*"(\w+)"[^{}]*?\}/gs)]
+        .map(([, base, template, endpoint]) => [base, { template, endpoint }]));
+    const handWritten = {
+        toggleTranslation: ["translation"], toggleTranscriptionSend: ["transcription_send"],
+        toggleTranscriptionReceive: ["transcription_receive"], toggleOcrCapture: ["ocr_capture"],
+        setSelectedPresetTabNumber: "/set/data/selected_tab_no", setSelectedYourLanguages: "/set/data/selected_your_languages",
+        setTargetLanguagesInOrder: "/set/data/selected_target_languages",
+        setSelectedTranslationEngines: "/set/data/selected_translation_engines",
+        swapSelectedLanguages: "/run/swap_your_language_and_target_language",
+        refreshLanguageSettings: ["/get/data/selected_tab_no", "/get/data/selected_your_languages", "/get/data/selected_target_languages",
+            "/get/data/selected_translation_engines", "/get/data/selectable_translation_engines"],
+        volumeCheckStart_Mic: "/set/enable/check_mic_threshold", volumeCheckStop_Mic: "/set/disable/check_mic_threshold",
+        volumeCheckStart_Speaker: "/set/enable/check_speaker_threshold", volumeCheckStop_Speaker: "/set/disable/check_speaker_threshold",
+    };
+    const endpointsOf = name => {
+        const known = handWritten[name];
+        if (Array.isArray(known)) return known.flatMap(item => item.startsWith("/") ? [item] : [`/set/enable/${item}`, `/set/disable/${item}`]);
+        if (known) return [known];
+        const [, verb, base] = name.match(/^(set|toggle)(\w+)$/) ?? [];
+        const setting = settings.get(base);
+        if (!setting) return [];
+        return verb === "toggle" ? [`/set/enable/${setting.endpoint}`, `/set/disable/${setting.endpoint}`] : [`/set/data/${setting.endpoint}`];
+    };
+    const sent = new Set(), names = new Set();
+    for (const file of readdirSync(new URL("../../views/vr/", import.meta.url)).filter(name => /\.jsx?$/.test(name) && !name.includes(".test."))) {
+        const source = read(`../../views/vr/${file}`);
+        for (const [path] of source.matchAll(/"\/(?:get|set|run)\/[a-z0-9_/]+"/g)) sent.add(JSON.parse(path));
+        for (const [name] of source.matchAll(/\b(?:set|toggle)[A-Z]\w*|\bvolumeCheck\w+|\brefreshLanguageSettings\b|\bswapSelectedLanguages\b/g)) names.add(name);
+    }
+    for (const name of names) for (const path of endpointsOf(name)) sent.add(path);
+    assert.ok(sent.size > 40, `found ${sent.size} paths: the source scan no longer matches the VR windows`);
+    for (const path of sent) assert.equal(isRelayAllowed(path), true, `the VR panel sends ${path}`);
+    // And nothing is listed that the VR windows never send.
+    for (const path of VR_PANEL_RELAY_PATHS) assert.ok(sent.has(path), `${path} is listed but no VR window sends it`);
 });
 
 test("credentials are not mirrored to the VR panel", () => {

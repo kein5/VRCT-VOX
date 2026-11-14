@@ -6,7 +6,7 @@
 
 チャット読み取りの`OCR_CAPTURE_REGION`はデスクトップウィンドウ用、`OCR_VR_CAPTURE_REGION`はSteamVRの左目側の映像用。旧版の単一範囲はウィンドウ用に保持し、未保存のVR側には全体を補う。[範囲の形と移行](../data-and-persistence.md#チャット読み取りの範囲)を参照。
 
-## config.jsonに保存するキー（127件）
+## config.jsonに保存するキー（130件）
 
 | キー | 型・検証 | 既定値 | 保存 |
 |---|---|---|---|
@@ -51,6 +51,7 @@
 | `OVERLAY_SMALL_LOG_SETTINGS` | 検証 _overlay_small_validator | `{'x_pos': 0.0, 'y_pos': 0.0, 'z_pos': 0.0, 'x_rotation': 0.0, 'y_rotation': 0.0, 'z_rot…` | 2秒後にまとめて |
 | `OVERLAY_LARGE_LOG_SETTINGS` | 検証 _overlay_large_validator | `{'x_pos': 0.0, 'y_pos': 0.0, 'z_pos': 0.0, 'x_rotation': 0.0, 'y_rotation': 0.0, 'z_rot…` | 2秒後にまとめて |
 | `OVERLAY_DESKTOP_SETTINGS` | 検証 _overlay_desktop_validator | `{'position': 'bottom', 'font_size': 28, 'display_duration': 6, 'opacity': 0.6}` | 2秒後にまとめて |
+| `IO_FLOW_OVERLAY_SETTINGS` | 検証 _io_flow_overlay_validator | `{'desktop': False, 'count': 1}` | 2秒後にまとめて |
 | `OVERLAY_VR_PANEL_SETTINGS` | 検証 _make_overlay_vr_window_validator('OVERLAY_VR_PANEL_SETTINGS') | `{'width': 900, 'height': 700, 'x_pos': 0.5209, 'y_pos': 0.6442, 'z_pos': -0.9509, 'x_ro…` | 2秒後にまとめて |
 | `OVERLAY_VR_LAUNCHER_SETTINGS` | 検証 _make_overlay_vr_window_validator('OVERLAY_VR_LAUNCHER_SETTINGS') | `dict(DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS)` | 2秒後にまとめて |
 | `SEND_MESSAGE_FORMAT_PARTS` | 検証 _format_validator_send | `{'message': {'prefix': '', 'suffix': ''}, 'separator': '\n', 'translation': {'prefix': …` | 2秒後にまとめて |
@@ -81,6 +82,8 @@
 | `WEBSOCKET_HOST` | str、許可値 lambda v, inst: isValidWebSocketHost(v) | `'127.0.0.1'` | 2秒後にまとめて |
 | `WEBSOCKET_PORT` | int、許可値 lambda v, inst: isValidPort(v) | `2231` | 2秒後にまとめて |
 | `WEBSOCKET_AUTH_TOKEN` | str、許可値 lambda v, inst: isinstance(v, str) and bool(v.strip()) | `secrets_token_urlsafe(32)` | 2秒後にまとめて |
+| `WEBSOCKET_TLS_CERT_FILE` | str | `''` | 2秒後にまとめて |
+| `WEBSOCKET_TLS_KEY_FILE` | str | `''` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE` | bool | `False` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_PORT` | int、許可値 lambda v, inst: isValidPort(v) | `2232` | 2秒後にまとめて |
 | `OBS_BROWSER_SOURCE_MAX_MESSAGES` | int、許可値 lambda v, inst: is_valid_numeric_setting('MAX_MESSAGES', v) | `14` | 2秒後にまとめて |
@@ -145,7 +148,7 @@
 
 | キー | 型・検証 | 既定値 | 扱い |
 |---|---|---|---|
-| `VERSION` |  | `'0.1.0'` | 読み取り専用 |
+| `VERSION` |  | `'0.2.0'` | 読み取り専用 |
 | `PATH_LOCAL` |  | `os_path.dirname(sys.executable)` | 読み取り専用 |
 | `PATH_DATA` |  | `str(data_root(self._PATH_LOCAL))` | 読み取り専用 |
 | `PATH_CONFIG` |  | `os_path.join(state_dir, 'config.json')` | 読み取り専用 |
@@ -164,7 +167,7 @@
 | `SELECTABLE_WHISPER_WEIGHT_TYPE_LIST` |  | `getattr(whisper_models, 'keys', lambda: [])()` | 読み取り専用 |
 | `SELECTABLE_TRANSLATION_ENGINE_LIST` |  | `getattr(translation_lang, 'keys', lambda: [])()` | 読み取り専用 |
 | `SELECTABLE_TRANSCRIPTION_ENGINE_LIST` |  | `list(transcription_lang[first_key].values())[0].keys()` | 読み取り専用 |
-| `SELECTABLE_UI_LANGUAGE_LIST` |  | `['en', 'ja', 'ko', 'zh-Hant', 'zh-Hans']` | 読み取り専用 |
+| `SELECTABLE_UI_LANGUAGE_LIST` |  | `['en', 'ja']` | 読み取り専用 |
 | `SELECTABLE_OCR_SOURCE_LANGUAGE_LIST` |  | `list(ocr_selectable_languages)` | 読み取り専用 |
 | `COMPUTE_MODE` |  | `'cuda' if any((device.get('device') == 'cuda' for device in self._SELECTABLE_COMPUTE_DE…` | 読み取り専用 |
 | `SELECTABLE_COMPUTE_DEVICE_LIST` |  | `getComputeDeviceList()` | 読み取り専用 |

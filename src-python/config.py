@@ -20,6 +20,9 @@ from models.transcription.realtime_settings import normalize_settings as normali
 from models.speech_server.settings import normalize_settings as normalize_speech_server_settings
 from typing import Optional, Dict, Any, Callable
 
+# UI languages that 0.1.0 offered and 0.2.0 dropped. Translation to and from them is unchanged.
+RETIRED_UI_LANGUAGES = frozenset(("ko", "zh-Hant", "zh-Hans"))
+
 # Guard optional, potentially heavy or platform-specific imports so importing
 # config.py doesn't raise in environments missing those packages.
 try:
@@ -602,6 +605,15 @@ def _overlay_desktop_validator(val, inst):
         elif key == 'opacity' and isinstance(v, (int, float)) and 0.0 <= v <= 1.0:
             new[key] = float(v)
     return new
+
+def _io_flow_overlay_validator(val, inst):
+    """The flow overlay: the desktop strip on or off, and how many recent inputs it shows (1 to 3)."""
+    base = inst.IO_FLOW_OVERLAY_SETTINGS
+    if not (isinstance(val, dict) and set(val.keys()) == set(base.keys())):
+        return None
+    if type(val["desktop"]) is not bool or type(val["count"]) is not int or not 1 <= val["count"] <= 3:
+        return None
+    return {"desktop": val["desktop"], "count": val["count"]}
 
 def _make_overlay_vr_window_validator(name):
     """VR UIのウィンドウ (ログ・ランチャー) の位置設定用。VR内で掴んで動かした結果だけが保存される。"""
@@ -1250,6 +1262,7 @@ class Config:
     OVERLAY_LARGE_LOG_SETTINGS = ValidatedProperty('OVERLAY_LARGE_LOG_SETTINGS', _overlay_large_validator)
     # Captions over the desktop, for VRChat without a headset. The UI draws them in its own window.
     OVERLAY_DESKTOP_SETTINGS = ValidatedProperty('OVERLAY_DESKTOP_SETTINGS', _overlay_desktop_validator)
+    IO_FLOW_OVERLAY_SETTINGS = ValidatedProperty('IO_FLOW_OVERLAY_SETTINGS', _io_flow_overlay_validator)
     # VRパネルの位置。UIからは設定せず、VR内で掴んで動かした位置だけが保存される。
     OVERLAY_VR_PANEL_SETTINGS = ValidatedProperty('OVERLAY_VR_PANEL_SETTINGS', _make_overlay_vr_window_validator('OVERLAY_VR_PANEL_SETTINGS'))
     # VR UIのランチャー (手首の帯) の位置。OVERLAY_VR_PANEL_SETTINGS はログウィンドウの位置。
@@ -1310,6 +1323,11 @@ class Config:
         'WEBSOCKET_AUTH_TOKEN', type_=str,
         allowed=lambda v, inst: isinstance(v, str) and bool(v.strip()),
     )
+    # この PC の外 (127.0.0.0/8 以外) で WebSocket と OBS を待ち受けるときの証明書と秘密鍵
+    # (PEM のファイルのパス)。どちらも空なら未設定。使うのは WEBSOCKET_HOST がループバックで
+    # ないときだけで、そのときは使える証明書がなければ待ち受けない (models/websocket/tls.py)。
+    WEBSOCKET_TLS_CERT_FILE = ManagedProperty('WEBSOCKET_TLS_CERT_FILE', type_=str)
+    WEBSOCKET_TLS_KEY_FILE = ManagedProperty('WEBSOCKET_TLS_KEY_FILE', type_=str)
 
     # --- OBS Browser Source (overlay for OBS) ---
     OBS_BROWSER_SOURCE = ManagedProperty('OBS_BROWSER_SOURCE', type_=bool)
@@ -1409,7 +1427,7 @@ class Config:
         self._SELECTED_MIC_DEVICE_ID = ''
         self._SELECTED_SPEAKER_DEVICE_ID = ''
         # Read Only
-        self._VERSION = "0.1.0"
+        self._VERSION = "0.2.0"
         if getattr(sys, 'frozen', False):
             self._PATH_LOCAL = os_path.dirname(sys.executable)
         else:
@@ -1447,7 +1465,7 @@ class Config:
             self._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = list(transcription_lang[first_key].values())[0].keys()
         except Exception:
             self._SELECTABLE_TRANSCRIPTION_ENGINE_LIST = []
-        self._SELECTABLE_UI_LANGUAGE_LIST = ["en", "ja", "ko", "zh-Hant", "zh-Hans"]
+        self._SELECTABLE_UI_LANGUAGE_LIST = ["en", "ja"]
         # OCRエンジンが読める言語だけ (VRCTが翻訳できる言語の全てではない)。
         self._SELECTABLE_OCR_SOURCE_LANGUAGE_LIST = list(ocr_selectable_languages)
         self._SELECTABLE_COMPUTE_DEVICE_LIST = getComputeDeviceList()
@@ -1669,6 +1687,8 @@ class Config:
             "display_duration": 6,
             "opacity": 0.6,
         }
+        # Where the user's voice and chat go, with stage times, over the desktop (one input by default).
+        self._IO_FLOW_OVERLAY_SETTINGS = {"desktop": False, "count": 1}
         self._OVERLAY_VR_LAUNCHER_SETTINGS = dict(DEFAULT_OVERLAY_VR_LAUNCHER_SETTINGS)
         self._OVERLAY_VR_PANEL = False
         self._OVERLAY_VR_PANEL_LOCKED = False
@@ -1736,6 +1756,8 @@ class Config:
         # load_config() の setattr() でその値に上書きされる (=以降は
         # 再起動しても同じトークンが使われる)。
         self._WEBSOCKET_AUTH_TOKEN = secrets_token_urlsafe(32)
+        self._WEBSOCKET_TLS_CERT_FILE = ""
+        self._WEBSOCKET_TLS_KEY_FILE = ""
         self._OBS_BROWSER_SOURCE = False
         self._OBS_BROWSER_SOURCE_PORT = 2232
         self._OBS_BROWSER_SOURCE_MAX_MESSAGES = 14
@@ -1853,6 +1875,10 @@ class Config:
                 # Empty disables discovery; never move a saved key to a fallback host.
                 setattr(self, "_" + key, "")
                 self.INVALID_SAVED_API_URLS.append(key)
+                continue
+            # Korean and Chinese were UI languages until 0.1.0. A setting that names one
+            # falls back to English quietly: it is not a broken file.
+            if key == "UI_LANGUAGE" and value in RETIRED_UI_LANGUAGES:
                 continue
             # 読み込み時: serialize=True かつ readonlyでない Descriptor のみ反映。
             # 未知キー（Descriptorなし）は無視して注入を防止。

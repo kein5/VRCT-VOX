@@ -15,6 +15,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # A stable release pull request carries its version's CHANGELOG.md section (tools/changelog.py write).
+  changelog:
+    name: CHANGELOG has this version
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - run: python tools/changelog.py check
+
   # The CPU and CUDA packages build in parallel; the candidate job below
   # inspects both together and records the candidate.
   build:

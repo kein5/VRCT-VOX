@@ -1,5 +1,6 @@
 """Saved values and IPC transactions, with no real listeners or devices."""
 
+import ipaddress
 import json
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -239,8 +240,14 @@ def test_host_load_and_setter_use_the_same_ipv4_contract(settings, host, valid):
     services = controller_module.model
     services.checkWebSocketServerAlive.return_value = False
     response = Controller.setWebSocketHost(host)
-    assert response["status"] == (200 if valid else 400)
+    # Load and setter share the address format. A LAN address also needs a certificate
+    # (SEC-01); without one the setter refuses it and keeps the services as they are.
+    needs_tls = valid and not ipaddress.IPv4Address(host).is_loopback
+    assert response["status"] == (200 if valid and not needs_tls else 400)
     assert settings.WEBSOCKET_HOST == expected
+    if needs_tls:
+        assert response["result"]["error_code"] == "WEBSOCKET_HOST_NEEDS_TLS"
+        assert services.mock_calls == []
     if not valid:
         assert response["result"]["error_code"] == "VALIDATION_INVALID_IP"
         assert services.mock_calls == []

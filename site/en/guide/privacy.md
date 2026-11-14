@@ -20,7 +20,7 @@ The PC's hardware means:
 You can read what is sent in the app itself. The notice shown before anything is sent (above) and Settings → "Advanced" both have "See what is sent", which lists what this PC sends field by field and also shows the data itself. Under "Advanced" you can also read what has been sent so far.
 
 - The text and audio of conversations, the names of microphones and speakers, user names, the PC's name and file locations are never sent.
-- The receiver does not keep the sender's IP address or anything that tells one PC from another. It runs on Cloudflare, which handles the sender's address as the other end of the connection.
+- The receiver does not keep the sender's IP address or anything that tells one PC from another. The receiver runs on Cloudflare, though, and Cloudflare receives the sender's IP address as the other end of the connection.
 - The receiver records when each event arrived and the country the connection came from, which Cloudflare derives from the sender's address.
 - No number that identifies a PC is sent, but an unusual combination of hardware can suggest that two events came from the same PC.
 - Before anything is sent, a dialog explains what is sent. Nothing is sent until you choose "Send" or "Don't send". "Decide later" puts the dialog away, and it comes back the next time the app starts.
@@ -54,6 +54,6 @@ When you change the URL of an OpenAI-compatible endpoint or Custom Whisper, you 
 
 For the locations, see [Install](./install) and [Troubleshooting](./troubleshooting).
 
-## Servers that listen
+## Servers that run on this PC
 
-The OBS browser source and WebSocket run only when you turn them on, and by default listen only on this PC (`127.0.0.1`). Connecting needs the key in the URL (see [OBS and WebSocket](../features/integrations)).
+The OBS browser source and WebSocket run only when you turn them on, and by default can be reached only from this PC (`127.0.0.1`). Connecting needs the key in the URL (see [OBS and WebSocket](../features/integrations)).

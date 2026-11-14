@@ -23,6 +23,7 @@ import DocumentScannerSvg from "@images/mui_document_scanner.svg?react";
 import vrct_vox_icon from "@images/brand/icon-small.svg";
 
 import { VersionLabel } from "../version_label/VersionLabel.jsx";
+import { splitFeatureLabel } from "../../../../logics/common/featureLabel.js";
 
 // Keyboard focus expands the rail; focus from a click or from opening the page does
 // not, or the rail would stay over the page after the pointer left. A focus counts as
@@ -124,6 +125,8 @@ const Tab = (props) => {
         if (props.tab_id === "vr") return "VR";
         return t(`config_page.side_menu_labels.${props.tab_id}`);
     };
+    // A long name breaks before its short name in brackets, never inside a word.
+    const label = splitFeatureLabel(getLabel());
 
     return (
         <button type="button" className={tab_container_class_names} aria-label={getLabel()} aria-current={is_selected ? "page" : undefined}
@@ -133,7 +136,7 @@ const Tab = (props) => {
             </div>
             <p className={clsx(styles.tab_text, {
                 [styles.hide]: props.isSmall && !props.isHovered
-            })}>{getLabel()}</p>
+            })}>{label.name}{label.abbr && <span className={styles.tab_text_abbr}>{label.abbr}</span>}</p>
             <div className={switch_indicator_class_names}></div>
         </button>
     );

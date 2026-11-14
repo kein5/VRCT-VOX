@@ -56,6 +56,7 @@ from models.overlay.overlay import LAUNCHER, PANEL, POPUP, Overlay, launcherNear
 from models.overlay.overlay_image import OverlayImage
 from models.watchdog.watchdog import Watchdog
 from models.websocket.websocket_server import WebSocketServer
+from models.websocket import tls as websocket_tls
 from models.obs.obs_browser_source_server import ObsBrowserSourceServer
 from models.clipboard.clipboard import Clipboard
 from models.ocr import OcrPipeline
@@ -2772,16 +2773,8 @@ class Model:
 
     def createOverlayImageSmallMessage(self, message):
         self.ensure_initialized()
-        ui_language = config.UI_LANGUAGE
-        convert_languages = {
-            "en": "Default",
-            "jp": "Japanese",
-            "ko":"Korean",
-            "zh-Hans":"Chinese Simplified",
-            "zh-Hant":"Chinese Traditional",
-        }
-        language = convert_languages.get(ui_language, "Default")
-        return self.overlay_image.createOverlayImageSmallLog(message, language)
+        # The sample text is in the UI language; English and Japanese share the default font.
+        return self.overlay_image.createOverlayImageSmallLog(message, "Default")
 
     def clearOverlayImageSmallLog(self):
         self.ensure_initialized()
@@ -2838,15 +2831,8 @@ class Model:
 
     def createOverlayImageLargeMessage(self, message):
         self.ensure_initialized()
-        ui_language = config.UI_LANGUAGE
-        convert_languages = {
-            "en": "Default",
-            "jp": "Japanese",
-            "ko":"Korean",
-            "zh-Hans":"Chinese Simplified",
-            "zh-Hant":"Chinese Traditional",
-        }
-        language = convert_languages.get(ui_language, "Default")
+        # The sample text is in the UI language; English and Japanese share the default font.
+        language = "Default"
         overlay_image = OverlayImage(config.PATH_LOCAL)
 
         for _ in range(2):
@@ -3155,13 +3141,32 @@ class Model:
         """WebSocketメッセージ受信時の処理"""
         pass
 
-    def startWebSocketServer(self, host, port) -> bool:
+    @staticmethod
+    def _listenerTlsContext(host, tls_files=None):
+        """None on loopback; beyond this PC the user's certificate, or None plus False to refuse.
+
+        Every listener goes through here, so neither a saved setting nor a caller can open a
+        plain server on a LAN address (SEC-01). `tls_files` tries certificate files before
+        they are saved.
+        """
+        cert_file, key_file = tls_files or (config.WEBSOCKET_TLS_CERT_FILE, config.WEBSOCKET_TLS_KEY_FILE)
+        try:
+            return websocket_tls.listener_context(host, cert_file, key_file), True
+        except websocket_tls.TlsSettingsError as error:
+            printLog(f"Network listener refused: no usable TLS certificate for a non-loopback address ({error})")
+            return None, False
+
+    def startWebSocketServer(self, host, port, tls_files=None) -> bool:
         """Wait up to six seconds for listening; cancel and reap a failed attempt."""
         self.ensure_initialized()
+        context, allowed = self._listenerTlsContext(host, tls_files)
+        if not allowed:
+            return False
         with self._websocket_lifecycle_lock:
             server = self.websocket_server
             if server is None or server.is_stopped:
-                server = WebSocketServer(host=host, port=port, token=config.WEBSOCKET_AUTH_TOKEN)
+                server = WebSocketServer(host=host, port=port, token=config.WEBSOCKET_AUTH_TOKEN,
+                                         ssl_context=context)
                 server.set_message_handler(self.message_handler)
                 self.websocket_server = server
             try:
@@ -3203,9 +3208,12 @@ class Model:
         with self._websocket_lifecycle_lock:
             return self.websocket_server is not None and self.websocket_server.is_running
 
-    def startObsBrowserSourceServer(self, host: str, port: int) -> bool:
+    def startObsBrowserSourceServer(self, host: str, port: int, tls_files=None) -> bool:
         """Return true only when OBS is listening on the requested address."""
         self.ensure_initialized()
+        context, allowed = self._listenerTlsContext(host, tls_files)
+        if not allowed:
+            return False
         with self._obs_lifecycle_lock:
             server = self.obs_browser_source_server
             if (server is not None and server.is_running
@@ -3215,7 +3223,8 @@ class Model:
             if self.obs_browser_source_server is not None:
                 return False  # The previous worker still owns its server.
             try:
-                server = ObsBrowserSourceServer(host=host, port=port, ws_token=config.WEBSOCKET_AUTH_TOKEN)
+                server = ObsBrowserSourceServer(host=host, port=port, ws_token=config.WEBSOCKET_AUTH_TOKEN,
+                                                ssl_context=context)
                 self.obs_browser_source_server = server
                 server.start()
                 return server.is_running
@@ -3237,6 +3246,16 @@ class Model:
                 return
             if server.is_stopped:
                 self.obs_browser_source_server = None
+
+    def setWebSocketAuthToken(self, token: str) -> None:
+        """Make both servers accept only `token`; WebSocket connections made with the old one close."""
+        self.ensure_initialized()
+        with self._websocket_lifecycle_lock:
+            if self.websocket_server is not None:
+                self.websocket_server.set_token(token)
+        with self._obs_lifecycle_lock:
+            if self.obs_browser_source_server is not None:
+                self.obs_browser_source_server.set_token(token)
 
     def checkObsBrowserSourceServerAlive(self) -> bool:
         self.ensure_initialized()

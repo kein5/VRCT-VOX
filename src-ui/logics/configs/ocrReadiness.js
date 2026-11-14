@@ -1,4 +1,4 @@
-// Pure helpers for Config → Chat Transcribe: the reading region and the readiness summary.
+// Pure helpers for Config → Chat reading: the reading region and the readiness summary.
 // The backend validates the region again (config.py); these keep the sliders consistent.
 
 export const FULL_REGION = Object.freeze({ x: 0, y: 0, width: 1, height: 1 });
@@ -36,7 +36,7 @@ export const isFullRegion = region => {
     return r.x === 0 && r.y === 0 && r.width === 1 && r.height === 1;
 };
 
-// The first thing still blocking Chat Transcribe, as an i18n key and params.
+// The first thing still blocking chat reading, as an i18n key and params.
 export const readinessSummary = readiness => {
     if (!readiness) return { key: "config_page.ocr.readiness.checking", params: {}, ok: false };
     if (readiness.engine === false) return { key: "config_page.ocr.readiness.engine_unavailable", params: {}, ok: false };

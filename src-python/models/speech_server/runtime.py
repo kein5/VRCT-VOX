@@ -21,6 +21,12 @@ from models.owned_child import launch_owned, wait_readable
 from models.tts.listener_monitor import listener_monitors
 from models.tts.speechcpp_tts import CancelToken
 
+try:
+    from utils import printLog
+except ImportError:  # The helper tools import this module without the app's utils.
+    def printLog(log, data=None):
+        pass
+
 ROOT=resource_root()
 BUNDLE=ROOT/'build/speechcpp'
 HELPER=ROOT/'build/vrct-vc-worker'
@@ -37,6 +43,7 @@ ANSI=re.compile(rb'\x1b\[[0-9;]*m')
 ENGINE_FAILURE=re.compile(rb'speech: (out_of_memory|device)(?::| \()')
 ENGINE_FAILURES={b'out_of_memory':'speech_server_out_of_memory',b'device':'speech_server_device_failed'}
 DEVICE_LINE=re.compile(r'(Vulkan[0-9]{1,2})\s+(igpu|gpu)\s+(.+?),\s+[0-9.]+ GB,')
+NAMED_DEVICE=re.compile(r'Vulkan[0-9]{1,2}')
 EXECUTABLE='speech.exe' if sys.platform=='win32' else 'speech'
 # The loader reports a missing import as this NTSTATUS. Only vulkan-1.dll can be
 # missing: the executable's other imports are all part of Windows.
@@ -78,6 +85,57 @@ def list_gpus():
         return []
     if done.returncode: return []
     return parse_devices((done.stdout+done.stderr).decode('utf-8','replace'))
+
+
+# Vulkan devices that are not a GPU of this PC to compute on: a software rasterizer, and
+# Microsoft's mapping of Vulkan onto Direct3D 12, on which models load and the first
+# compute fails (seen with the RTX and the Iris Xe hidden, 2026-11-13).
+NOT_A_COMPUTE_GPU=re.compile(r'llvmpipe|lavapipe|SwiftShader|Direct3D ?12|Microsoft Basic',re.IGNORECASE)
+
+
+def preferred_gpu(devices):
+    """The Vulkan device "auto" and "gpu" mean, from `speech devices --json` rows, or None.
+
+    speech.cpp takes the first GPU it lists, and lists an integrated GPU first on a PC
+    with both (Iris Xe before an RTX 3060 Ti here). A separate GPU is faster for every
+    vendor, so it comes first, then the one with the most memory. AMD, Intel and NVIDIA
+    are treated alike.
+    """
+    candidates=[row for row in devices if isinstance(row,dict) and row.get('kind') in ('gpu','igpu')
+                and isinstance(row.get('name'),str) and NAMED_DEVICE.fullmatch(row['name'])
+                and not NOT_A_COMPUTE_GPU.search(str(row.get('description','')))]
+    if not candidates: return None
+    def rank(row):
+        memory=row.get('memory_total')
+        return (row['kind']=='gpu',memory if type(memory) is int and memory>0 else 0)
+    return max(candidates,key=rank)['name']
+
+
+def resolve_device(device,list_devices=None):
+    """What to pass to `--device`: a chosen Vulkan device for "auto" and "gpu", else unchanged.
+
+    "auto" stays "auto" when the PC shows no GPU, so speech.cpp uses the CPU as before. When
+    it shows only devices that cannot compute (the Direct3D 12 mapping layer), "auto" means
+    the CPU: speech.cpp would take one of them and fail on the first request. "gpu" stays
+    "gpu" without a usable GPU, so that choice still fails with the device notice.
+    """
+    if device not in ('auto','gpu'): return device
+    try:
+        devices=(list_devices or _device_rows)()
+    except Exception:
+        return device
+    chosen=preferred_gpu(devices)
+    if chosen: return chosen
+    shown=any(isinstance(row,dict) and row.get('kind') in ('gpu','igpu') for row in devices)
+    return 'cpu' if device=='auto' and shown else device
+
+
+def _device_rows():
+    done=subprocess.run([str(bundled_binary()),'devices','--json'],stdin=subprocess.DEVNULL,capture_output=True,
+        timeout=15,env=dict(external_process_env(),NO_COLOR='1'),creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+    if done.returncode: return []
+    rows=json.loads(done.stdout.decode('utf-8','replace')).get('devices')
+    return rows if isinstance(rows,list) else []
 
 
 class _Failure(Exception):
@@ -230,6 +288,13 @@ class SpeechServer:
         try:
             deadline=time.monotonic()+START_TIMEOUT
             binary=Path(self.binary) if self.binary else bundled_binary()
+            if self._stop.is_set(): return
+            # Asked here, at each start: an external GPU may have been plugged in or out.
+            device=resolve_device(self.options.get('device','auto'),
+                                  None if self.binary is None else lambda: [])
+            if device!=self.options.get('device'):
+                self.options=dict(self.options,device=device)
+                printLog('speech server device',{'profile':self.profile,'device':device})
             if self._stop.is_set(): return
             self._child=self._launch(binary)
             if sys.platform!='win32': os.set_blocking(self._child.stderr.fileno(),False)

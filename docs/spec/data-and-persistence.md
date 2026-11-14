@@ -58,9 +58,11 @@ IPCでやり取りする主なデータの形と、ディスクに残すファ�
 
 変更要求が不正なら、設定の保存や稼働中サービスの停止に進まず、元の値を`data`に入れて400を返す。エラーコードは順に`VALIDATION_OSC_PORT_INVALID`、`WEBSOCKET_PORT_INVALID`、`OBS_BROWSER_SOURCE_PORT_INVALID`。WebSocketとOBSは新しいポートで起動できてから値を保存し、失敗時は元のポートで復旧を試みる。
 
-`WEBSOCKET_HOST`はIPv4アドレスの文字列だけを受け付け、`0.0.0.0`、IPv6、ホスト名、文字列以外は拒否する。不正な保存値は既定の`127.0.0.1`へ戻す。変更要求は`VALIDATION_INVALID_IP`で拒否し、元のホストとサービスを保つ。OBSもこのホストを使う。
+`WEBSOCKET_HOST`はIPv4アドレスの文字列だけを受け付け、`0.0.0.0`、IPv6、ホスト名、文字列以外は拒否する。不正な保存値は既定の`127.0.0.1`へ戻す。変更要求は`VALIDATION_INVALID_IP`で拒否し、元のホストとサービスを保つ。OBSもこのホストを使う。ループバック（127.0.0.0/8）以外のアドレスには、読み込める証明書と秘密鍵（`WEBSOCKET_TLS_CERT_FILE`、`WEBSOCKET_TLS_KEY_FILE`）が要る。ない場合、変更要求は`WEBSOCKET_HOST_NEEDS_TLS`で拒否し、保存値は起動時に`127.0.0.1`へ戻して`WEBSOCKET_HOST_RESET_WITHOUT_TLS`で知らせる（[この PC の外での待ち受け](external-interfaces.md#この-pc-の外での待ち受け)）。
 
-`WEBSOCKET_AUTH_TOKEN`は空でない文字列を保存する。null、空文字列、空白だけの文字列、文字列以外の保存値は読み込まず、起動時に生成した新しい秘密値を通常の既定値と同じ処理で保存する。正常な保存値は変えない。設定画面がコピーするWebSocket・OBSのURL、OBSのHTML、WebSocketの認証には同じ設定値を使う。修復された場合は外部アプリのURLをコピーし直す必要がある。設定キー名とIPCエンドポイント名は変えず、別キーへの移行は行わない。
+`WEBSOCKET_TLS_CERT_FILE`と`WEBSOCKET_TLS_KEY_FILE`はPEMのファイルのパスの文字列で、既定は空（未設定）。`/set/data/websocket_tls`で2つを一緒に保存し、両方を読み込めたときだけ保存する。
+
+`WEBSOCKET_AUTH_TOKEN`は空でない文字列を保存する。null、空文字列、空白だけの文字列、文字列以外の保存値は読み込まず、起動時に生成した新しい秘密値を通常の既定値と同じ処理で保存する。正常な保存値は変えない。設定画面がコピーするWebSocket・OBSのURL、OBSのHTML、WebSocketの認証には同じ設定値を使う。修復された場合は外部アプリのURLをコピーし直す必要がある。設定キー名とIPCエンドポイント名は変えず、別キーへの移行は行わない。利用者は`/run/regenerate_websocket_auth_token`で新しい値に作り直せる。新しい値は`secrets.token_urlsafe(32)`で作って保存し、古い値での接続はすぐに切る。応答のトークンはログで伏せる。
 
 `LMSTUDIO_URL`、`OPENAI_COMPATIBLE_URL`、`TRANSCRIPTION_CUSTOM_URL`は、保存値の読み込み時と変更要求の受付時に同じ規則で検証する。HTTPSは任意のホストを受け付ける。HTTPは`localhost`、127.0.0.0/8、::1、10/8、172.16/12、192.168/16、fc00::/7、IPv4・IPv6のリンクローカルに限る。LANのホスト名をDNSで解決してHTTPを許可することはない。URLのユーザー情報、キー・トークン・パスワード・認証情報・署名などを表すクエリ名、フラグメント、不正なポートは拒否する。
 

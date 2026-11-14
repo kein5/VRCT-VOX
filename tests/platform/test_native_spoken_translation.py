@@ -180,7 +180,7 @@ def test_native_mic_translation_to_qwen_once_and_source_stop(tmp_path, direct_po
                     settled(capture, time.monotonic_ns(), 'direct_input_policy_mismatch', **direct)
                 ui.close_settings()
                 # Translated speech is spoken only while the main TTS switch is on.
-                ui.set_switch('TTS')
+                ui.set_switch('Text to speech (TTS)')
                 open_captions(ui)
                 ui.click_text('button', 'Start microphone captions')
                 ui.wait("return [...document.querySelectorAll('[role=status], [role=status] p')].some(e => e.textContent === 'Captions running')")

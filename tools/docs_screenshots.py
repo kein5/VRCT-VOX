@@ -5,10 +5,21 @@
 
 Renders the production main screen and settings pages in Japanese and English
 through tests/voice/studio-entry with an offline sidecar peer (no models, no
-audio), and writes WebP images to site/public/screenshots/{ja,en}/. Needs the
-browser test environment (`python tools/dev.py setup --scope browser`), a
-Chromium executable and the UI's node_modules. Run it after UI changes and
-commit the images with the change.
+audio), and writes WebP images to site/public/screenshots/{ja,en}/. The peer
+answers with sample data: a short conversation, a VRChat that was found and a
+model catalogue. The desktop captions are drawn over a stand-in scene
+(tests/voice/caption-overlay-entry). Nothing in the pictures comes from the PC
+that made them.
+Needs the browser test environment (`python tools/dev.py setup --scope
+browser`), a Chromium executable and the UI's node_modules. Run it after UI
+changes and commit the images with the change.
+
+telemetry-notice.webp is not made here. It is a capture of the running app
+(the notice is not part of studio-entry), taken with the list of what is sent
+folded so that no hardware names show.
+
+On Windows, a cold Vite can take longer than the first page load allows; run
+it again.
 """
 import argparse
 import os

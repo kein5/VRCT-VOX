@@ -9,6 +9,8 @@ import copy
 import functools
 import re
 from models.obs.settings import parse_numeric_setting
+from models.websocket import tls as websocket_tls
+from secrets import token_urlsafe
 import time
 import sys
 from os import environ as os_environ
@@ -40,6 +42,9 @@ from models.transcription.asr_vocabulary import merged_terms
 from models.transcription.transcription_languages import transcription_lang
 from models.tts.settings import VoiceSettings
 from models.tts.tts_scheduler import VoiceEventBus
+from models.tts.converted_router import ConvertedSpeechRouter
+from models.io_flow import describe as describe_io_flow
+from models.io_trace import IoTraces
 from models.tts.speechcpp_tts import SpeechError, SpeechCppTTS
 from models.speech_server.runtime import START_TIMEOUT as SPEECH_START_TIMEOUT, SpeechServers, list_gpus
 from models.model_downloads.manager import Downloads
@@ -314,6 +319,7 @@ _SIMPLE_CONFIG_GETTERS = {
     "getOverlayLargeLogSettings": "OVERLAY_LARGE_LOG_SETTINGS",
     "getOverlayDesktop": "OVERLAY_DESKTOP",
     "getOverlayDesktopSettings": "OVERLAY_DESKTOP_SETTINGS",
+    "getIoFlowOverlaySettings": "IO_FLOW_OVERLAY_SETTINGS",
     "getOverlayShowOnlyTranslatedMessages": "OVERLAY_SHOW_ONLY_TRANSLATED_MESSAGES",
     "getSendMessageToVrc": "SEND_MESSAGE_TO_VRC",
     "getSendReceivedMessageToVrc": "SEND_RECEIVED_MESSAGE_TO_VRC",
@@ -450,12 +456,16 @@ class Controller:
         self.legacy_downloads = LegacyDownloads()
         self.model_hardware = HardwareProbe()
         self.direct_voice = DirectVoice(converted_factory=create_converted_process)
+        self.voice_events.converted_router = ConvertedSpeechRouter(self.direct_voice)
+        # The flow panel: stage times of the user's own messages, and the engine converting the voice.
+        self.io_traces = IoTraces(self._ioTraceEmit)
+        self.voice_events.on_first_audio = self._ioSpeechStarted
+        self._direct_engine = None
         self.voice_route = VoiceRoute(self.voice_events, gate=PipeWireGate(),
                                      store=MuteState(Path(config_path).with_name('voice_mute_state.json')),
                                      on_muted=self.direct_voice.set_monitor_muted)
         self.voice_route.configure(self.voice_events.settings.routing == 'managed',
-            suppress_direct=(self.voice_events.settings.mic_mode == 'translated'
-                             and self.voice_events.settings.direct_policy == 'suppress'))
+            suppress_direct=self._gateSuppressesDirect(self.voice_events.settings))
         self._applyDirectPolicy(self.voice_events.settings)
         self._voice_settings_lock = Lock()
         self._language_settings_lock = RLock()
@@ -2126,6 +2136,8 @@ class Controller:
         failures = []
 
         def sink(output, action):
+            if trace is not None and output in ("osc", "tts"):
+                action = self._tracedSink(trace, output, action)
             self._runMessageSink(output, (lambda: output_progress(action)) if output_progress else action,
                                  current, failures, spec, msg_id)
 
@@ -2150,6 +2162,7 @@ class Controller:
         # Realtime mic intent is stamped before entering the session mailbox.
         # Typed chat carries the receiver's generation through translation.
         voice_started_ns = time.monotonic_ns()
+        trace = self._beginIoTrace(spec, message, msg_id, voice_started_ns, asr_ms, speech_update)
 
         # Original speech has no dependency on the translator or text delivery.
         # The receiver's generation also invalidates chat waiting in Main.queue.
@@ -2376,10 +2389,100 @@ class Controller:
 
         pipeline_elapsed_ms = round((time.perf_counter() - pipeline_started_at) * 1000)
         self._recordMessageLatency(spec, asr_ms, translate_elapsed_ms, pipeline_elapsed_ms)
+        if trace is not None:
+            self._publishIoTrace(trace, translation if snapshot.translation_enabled is not False else None,
+                                 translate_elapsed_ms, pipeline_elapsed_ms - translate_elapsed_ms, failures)
 
         if spec.delivery == "return":
             return {"id": msg_id, **payload}
         return None
+
+    # --- The flow panel: where the user's own messages go, and how long each step took (ms).
+
+    def _ioTraceEmit(self, payload):
+        # A readout never stops the message it describes, nor the speech that follows.
+        try:
+            self.run(200, "/run/io_trace", payload)
+        except Exception:
+            try:
+                errorLogging()
+            except Exception:
+                pass
+
+    def _beginIoTrace(self, spec, message, msg_id, started_ns, asr_ms, speech_update):
+        traces = getattr(self, "io_traces", None)
+        if traces is None or spec not in (MIC_MESSAGE_SPEC, REALTIME_MIC_SPEC, CHAT_MESSAGE_SPEC):
+            return None
+        trace_id = msg_id if msg_id is not None else uuid4()
+        if spec is CHAT_MESSAGE_SPEC:
+            return traces.begin(trace_id, "chat", message, "send", started_ns)
+        received = getattr(speech_update, "received_ns", None)
+        if type(received) is int and 0 < received <= started_ns:
+            trace = traces.begin(trace_id, "voice", message, "final", received)
+            trace.stage("wait", (started_ns - received) / 1e6)
+            return trace
+        if isinstance(asr_ms, (int, float)) and not isinstance(asr_ms, bool) and asr_ms >= 0:
+            trace = traces.begin(trace_id, "voice", message, "recognition", started_ns - int(asr_ms * 1e6))
+            trace.stage("recognition", asr_ms)
+            return trace
+        return traces.begin(trace_id, "voice", message, "received", started_ns)
+
+    @staticmethod
+    def _tracedSink(trace, output, action):
+        def traced():
+            result = action()
+            if output == "osc":
+                state = {True: "sent", False: "superseded"}.get(result, "off")
+                trace.output("chatbox", state, time.monotonic_ns() if state == "sent" else None)
+            else:
+                trace.speech_queued(result is True)
+            return result
+        return traced
+
+    def _publishIoTrace(self, trace, translation, translate_ms, deliver_ms, failures):
+        if translation is not None:
+            trace.stage("translate", translate_ms)
+            trace.translation = next((text for text in translation if isinstance(text, str) and text), "")
+        trace.stage("deliver", deliver_ms)
+        for failure in failures:
+            name = {"osc": "chatbox", "tts": "speech"}.get(failure.get("output"))
+            if name is not None:
+                trace.output(name, "failed")
+        self.io_traces.publish(trace)
+
+    def _ioSpeechStarted(self, event, timestamp_ns, converted):
+        # TTS worker thread. The conversion's round trip is its recent median, a guide only.
+        conversion_ms = self.direct_voice.health().get("round_trip_ms") if converted else None
+        self.io_traces.speech_started(event.event_id, timestamp_ns, converted=converted, conversion_ms=conversion_ms)
+
+    def getIoFlow(self, *args, **kwargs) -> dict:
+        tab = config.SELECTED_TAB_NO
+        targets = config.SELECTED_TARGET_LANGUAGES.get(tab, {})
+        enabled = [row.get("language") for _, row in sorted(targets.items()) if row.get("enable") is True]
+        voice = self.voice_events.settings
+        selected = targets.get(voice.target_slot, {})
+        status = self.voice_events.status()
+        direct = self.direct_voice.health()
+        with self._realtime_lock:
+            realtime_requested = self._realtime_requested["mic"]
+        state = dict(
+            mic_on=config.ENABLE_TRANSCRIPTION_SEND is True or realtime_requested,
+            realtime=self._realtimeToggles(), engine=config.SELECTED_TRANSCRIPTION_ENGINE,
+            translation=config.ENABLE_TRANSLATION is True,
+            source_language=config.SELECTED_YOUR_LANGUAGES.get(tab, {}).get("1", {}).get("language"),
+            targets=enabled,
+            speech_language=selected.get("language") if selected.get("enable") is True else None,
+            send_to_vrc=config.SEND_MESSAGE_TO_VRC is True,
+            only_translated=config.SEND_ONLY_TRANSLATED_MESSAGES is True,
+            desktop=config.OVERLAY_DESKTOP is True, large_log=config.OVERLAY_LARGE_LOG is True,
+            clipboard=config.ENABLE_CLIPBOARD is True,
+            websocket=model.checkWebSocketServerAlive() is True,
+            voice=voice.to_dict(), tts_enabled=status["tts_enabled"] is True, muted=status["muted"] is True,
+            direct=dict(mode=direct["mode"], active=direct["active"] is True,
+                        engine=self._direct_engine if direct["mode"] == "converted" else None),
+            round_trip_ms=direct.get("round_trip_ms"),
+        )
+        return {"status": 200, "result": describe_io_flow(state)}
 
     @staticmethod
     def _recordMessageLatency(spec, asr_ms, translate_elapsed_ms, pipeline_elapsed_ms, *, aborted=False):
@@ -2575,7 +2678,7 @@ class Controller:
                     targets=snapshot.target_languages, target_slots=snapshot.target_slots,
                     selected_slot=voice_settings.target_slot)
                 if voice_settings.mode == "original" or event.translated_text is not None:
-                    self.voice_events.publish(event, expected_generation=generation)
+                    return self.voice_events.publish(event, expected_generation=generation)
 
     def _publishMicVoice(self, voice_snapshot, snapshot, update, translations, success, provenance, current):
         settings, generation, source_generation = voice_snapshot
@@ -2620,7 +2723,7 @@ class Controller:
                 if settings.routing != 'managed' and not device_route:
                     self.direct_voice.stop()
                 self.voice_route.configure(settings.routing == 'managed',
-                    suppress_direct=(settings.mic_mode == 'translated' and settings.direct_policy == 'suppress'))
+                    suppress_direct=self._gateSuppressesDirect(settings))
                 self._applyDirectPolicy(settings)
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
@@ -2836,10 +2939,22 @@ class Controller:
     def _directUsesOutputDevice():
         return sys.platform == 'win32'
 
+    @staticmethod
+    def _suppressesDirect(settings):
+        return settings.mic_mode == 'translated' and settings.direct_policy == 'suppress'
+
+    @classmethod
+    def _gateSuppressesDirect(cls, settings):
+        # Speech through the conversion leaves by the conversion's sink, so the OS gate
+        # cannot silence that sink; the conversion silences the microphone's blocks itself.
+        return cls._suppressesDirect(settings) and settings.conversion != 'on'
+
     def _applyDirectPolicy(self, settings):
         # The managed route does this with an OS gate; a device route has none.
-        self.direct_voice.set_suppressed(self._directUsesOutputDevice() and settings.mic_mode == 'translated'
-                                         and settings.direct_policy == 'suppress')
+        suppress, through = self._suppressesDirect(settings), settings.conversion == 'on'
+        self.direct_voice.set_suppressed(self._directUsesOutputDevice() and suppress and not through)
+        # Block by block, on either route, while speech goes through the conversion (ADR-007).
+        self.direct_voice.set_direct_suppressed(suppress and through)
 
     def _directOutput(self, mode, options):
         """Device for a Windows Start; None on Linux, where the managed route decides."""
@@ -2929,6 +3044,7 @@ class Controller:
                 extra = {} if output is None else {'output': output}
                 self.direct_voice.start(source=source, expected_generation=data['_direct_generation'],
                                         mode=mode, options=options, monitor=monitor, **extra)
+                self._direct_engine = options.get('engine') if mode == 'converted' else None
             except RuntimeError as exc:
                 return {'status': 409, 'result': {'error_code': str(exc)}}
         return self.getDirectVoiceState()
@@ -3072,10 +3188,13 @@ class Controller:
                         model.changeTranslatorCTranslate2Model()
                         model.setChangedTranslatorParameters(False)
                     else:
-                        errorLogging()
                         # 理由を返す。False だけを返すと、画面ではスイッチが戻るだけで何も分からない
                         missing = (isinstance(e, MissingCTranslate2Tokenizer) or
                                    not model.hasTranslatorCTranslate2ModelWeightFile(config.CTRANSLATE2_WEIGHT_TYPE))
+                        if not missing:
+                            # A model that was never downloaded is where every new user starts, and the
+                            # UI answers it with the download review. Only a load that failed is logged.
+                            errorLogging()
                         return VRCTError.create_error_response(
                             ErrorCode.TRANSLATION_MODEL_MISSING if missing else ErrorCode.TRANSLATION_MODEL_LOAD_FAILED,
                             data=False,
@@ -4787,6 +4906,12 @@ class Controller:
 
     @staticmethod
     @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
+    def setIoFlowOverlaySettings(data, *args, **kwargs) -> dict:
+        config.IO_FLOW_OVERLAY_SETTINGS = data
+        return {"status":200, "result":config.IO_FLOW_OVERLAY_SETTINGS}
+
+    @staticmethod
+    @_configValidationErrorResponse(ErrorCode.VALIDATION_CONFIG_VALUE_INVALID)
     def setOverlaySmallLogSettings(data, *args, **kwargs) -> dict:
         config.OVERLAY_SMALL_LOG_SETTINGS = data
         model.updateOverlaySmallLogSettings()
@@ -5107,8 +5232,10 @@ class Controller:
 
     @staticmethod
     def setEnableTelemetry(*args, **kwargs) -> dict:
-        # Turning the setting on or off is an answer of its own: the notice is not asked again.
-        config.TELEMETRY_NOTICE = Controller.TELEMETRY_NOTICE_VERSION
+        """Turn the setting on. This is not consent (SEC-07): while the notice is unanswered,
+        nothing is sent and the notice stays pending. Only the notice's answer
+        (setTelemetryNotice) can start sending for the first time; the settings page sends that
+        answer itself when the notice is still pending."""
         config.ENABLE_TELEMETRY = True
         if Controller._telemetryAllowed():
             model.telemetryInit(enabled=True, app_version=config.VERSION)
@@ -5116,6 +5243,7 @@ class Controller:
 
     @staticmethod
     def setDisableTelemetry(*args, **kwargs) -> dict:
+        # Turning it off answers the notice too: an answer that sends nothing is safe from any caller.
         config.TELEMETRY_NOTICE = Controller.TELEMETRY_NOTICE_VERSION
         if config.ENABLE_TELEMETRY is True:
             config.ENABLE_TELEMETRY = False
@@ -5888,6 +6016,12 @@ class Controller:
                     ErrorCode.VALIDATION_INVALID_IP,
                     data=config.WEBSOCKET_HOST
                 )
+            elif not Controller._tlsReadyFor(data):
+                # Beyond this PC only over TLS (SEC-01): set the certificate first.
+                response = VRCTError.create_error_response(
+                    ErrorCode.WEBSOCKET_HOST_NEEDS_TLS,
+                    data=config.WEBSOCKET_HOST
+                )
             else:
                 if model.checkWebSocketServerAlive() is False:
                     # Also cancel an attempt still binding the previous address.
@@ -5991,6 +6125,95 @@ class Controller:
         公開する。
         """
         return {"status":200, "result":config.WEBSOCKET_AUTH_TOKEN}
+
+    @staticmethod
+    def regenerateWebSocketAuthToken(*args, **kwargs) -> dict:
+        """Replace the token (SEC-01): a leaked URL stops working at once.
+
+        WebSocket connections made with the old token are closed and the OBS page refuses it.
+        OBS and other apps need the newly copied URL. The response is masked in the log.
+        """
+        token = token_urlsafe(32)
+        config.WEBSOCKET_AUTH_TOKEN = token
+        model.setWebSocketAuthToken(token)
+        printLog("WebSocket token replaced; connections with the old token were closed")
+        return {"status":200, "result":config.WEBSOCKET_AUTH_TOKEN}
+
+    @staticmethod
+    def _webSocketTlsFiles() -> dict:
+        return {"cert_file": config.WEBSOCKET_TLS_CERT_FILE, "key_file": config.WEBSOCKET_TLS_KEY_FILE}
+
+    @staticmethod
+    def _tlsReadyFor(host, tls_files=None) -> bool:
+        """True when the servers may listen on `host`: loopback, or a usable certificate is set."""
+        cert_file, key_file = tls_files or (config.WEBSOCKET_TLS_CERT_FILE, config.WEBSOCKET_TLS_KEY_FILE)
+        try:
+            websocket_tls.listener_context(host, cert_file, key_file)
+        except websocket_tls.TlsSettingsError:
+            return False
+        return True
+
+    @staticmethod
+    def _resetWebSocketHostWithoutTls() -> bool:
+        """At startup, bring a host beyond this PC back to 127.0.0.1 if it has no usable certificate.
+
+        A LAN host saved by an older version, or one whose certificate can no longer be used,
+        would otherwise open nothing (or, before SEC-01, a plain listener on the LAN). The UI
+        is told why after initialization. Returns True when the host was changed.
+        """
+        if Controller._tlsReadyFor(config.WEBSOCKET_HOST):
+            return False
+        config.WEBSOCKET_HOST = "127.0.0.1"
+        printLog("WebSocket host moved back to 127.0.0.1: listening beyond this PC needs a TLS certificate")
+        return True
+
+    @staticmethod
+    def getWebSocketTls(*args, **kwargs) -> dict:
+        return {"status":200, "result":Controller._webSocketTlsFiles()}
+
+    @staticmethod
+    def setWebSocketTls(data, *args, **kwargs) -> dict:
+        """Save the certificate and key used beyond this PC: {"cert_file", "key_file"}.
+
+        Both paths, or both empty to clear them. The pair must load before it is saved, and it
+        cannot be cleared while the host is beyond this PC. When the servers already listen
+        there, they restart with the new pair first, and go back to the old one on failure.
+        """
+        current = Controller._webSocketTlsFiles()
+        fields = ("cert_file", "key_file")
+        if (not isinstance(data, dict) or set(data) != set(fields)
+                or not all(isinstance(data[name], str) for name in fields)):
+            return VRCTError.create_error_response(ErrorCode.WEBSOCKET_TLS_INVALID, data=current)
+        files = tuple(data[name].strip() for name in fields)
+        if files == ("", ""):
+            if websocket_tls.requires_tls(config.WEBSOCKET_HOST):
+                return VRCTError.create_error_response(ErrorCode.WEBSOCKET_HOST_NEEDS_TLS, data=current)
+        else:
+            try:
+                websocket_tls.server_context(*files)
+            except websocket_tls.TlsSettingsError as error:
+                printLog(f"WebSocket TLS certificate refused ({error})")
+                return VRCTError.create_error_response(ErrorCode.WEBSOCKET_TLS_INVALID, data=current)
+        if dict(zip(fields, files)) == current:
+            return {"status":200, "result":current}
+
+        if websocket_tls.requires_tls(config.WEBSOCKET_HOST) and model.checkWebSocketServerAlive():
+            restart_obs = config.OBS_BROWSER_SOURCE is True
+            if restart_obs:
+                model.stopObsBrowserSourceServer()
+            model.stopWebSocketServer()
+            started = model.startWebSocketServer(config.WEBSOCKET_HOST, config.WEBSOCKET_PORT, tls_files=files)
+            if started and restart_obs:
+                started = model.startObsBrowserSourceServer(
+                    config.WEBSOCKET_HOST, int(config.OBS_BROWSER_SOURCE_PORT), tls_files=files)
+            if not started:
+                model.stopObsBrowserSourceServer()
+                model.stopWebSocketServer()
+                Controller._restoreWebSocketServer(restore_obs=restart_obs)
+                return VRCTError.create_error_response(ErrorCode.WEBSOCKET_SERVER_UNAVAILABLE, data=current)
+
+        config.WEBSOCKET_TLS_CERT_FILE, config.WEBSOCKET_TLS_KEY_FILE = files
+        return {"status":200, "result":Controller._webSocketTlsFiles()}
 
 
     @staticmethod
@@ -7252,6 +7475,7 @@ class Controller:
 
         # Init WebSocket Server
         printLog("Init WebSocket Server")
+        websocket_host_reset = Controller._resetWebSocketHostWithoutTls()
         # OBS Browser Source depends on WebSocket Server to receive messages.
         if config.OBS_BROWSER_SOURCE is True and config.WEBSOCKET_SERVER is False:
             config.WEBSOCKET_SERVER = True
@@ -7304,6 +7528,9 @@ class Controller:
         if obs_startup_error is not None:
             response = VRCTError.create_error_response(obs_startup_error, data=False)
             self.run(response["status"], "/set/enable/obs_browser_source", response["result"])
+        if websocket_host_reset:
+            response = VRCTError.create_error_response(ErrorCode.WEBSOCKET_HOST_RESET_WITHOUT_TLS, data=config.WEBSOCKET_HOST)
+            self.run(response["status"], "/set/data/websocket_host", response["result"])
         # After initialization_complete so the UI is ready to show it.
         self.notifyNonCommercialCTranslate2Weight()
         for key in getattr(config, "INVALID_SAVED_API_URLS", []):

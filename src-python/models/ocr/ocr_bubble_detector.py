@@ -1,12 +1,10 @@
 """Detect VRChat chat-bubble regions with a fine-tuned YOLOX-Tiny (ONNX).
 
-VRCT-VOX never runs the upstream model (onnx/chatbox_yolox_tiny.onnx): it may
-not ship in fork builds or be downloaded for fork users, and its outputs may
-not train a replacement (onnx/NOTICE.txt). This class runs VRCT-VOX's own
-detector instead, which has the same layout. ocr_chatbox_detector.py is the
-only place that constructs it, always with the hash-verified download's path,
-because model_path=None falls back to findModelPath() (the upstream file).
-Without that download OcrPipeline reads without a detector (ocr_detection.py).
+This class runs VRCT-VOX's own detector, a model with the upstream layout.
+ocr_chatbox_detector.py constructs it with the hash-verified download's path;
+without that download OcrPipeline reads without a detector (ocr_detection.py).
+The upstream model (chatbox_yolox_tiny.onnx, licensed for VRCT only) was
+removed from this repository in 0.2.0, together with the lookup that found it.
 
 色/輪郭のヒューリスティックは実機で反証された(ワールドのUIパネル文字や
 岩・木目を吹き出しと誤認する)ため、収集したVRChatのスクリーンショットで
@@ -14,7 +12,7 @@ Without that download OcrPipeline reads without a detector (ocr_detection.py).
 
 基盤は Megvii の YOLOX (Apache-2.0)。以前は Ultralytics の YOLOv8n を使って
 いたが、事前学習重みが AGPL-3.0 で成果物もその派生になるため載せ替えた。
-経緯は docs/ocr_model_license.md、表記は onnx/NOTICE.txt。
+経緯は docs/ocr_model_license.md。
 
 推論は onnxruntime だけで動く。faster-whisper が Silero VAD 用にすでに
 依存しているので、配布物に追加される依存はモデルファイル1つだけ。
@@ -28,7 +26,6 @@ Without that download OcrPipeline reads without a detector (ocr_detection.py).
 from __future__ import annotations
 
 from os import path as os_path
-import sys
 from threading import Lock
 from typing import List, Optional, Tuple
 
@@ -74,19 +71,6 @@ class OcrDetectorError(RuntimeError):
     """Detector inference failed, rather than finding no candidates."""
 
 
-def findModelPath() -> Optional[str]:
-    """同梱されたONNXモデルのパス。見つからなければ None。"""
-    candidates = []
-    if getattr(sys, "frozen", False):
-        # PyInstallerのdatasは実行ファイルの隣の _internal/ 配下に展開される。
-        candidates.append(os_path.join(os_path.dirname(sys.executable), "_internal", "ocr_onnx", MODEL_FILE_NAME))
-    candidates.append(os_path.join(os_path.dirname(__file__), "onnx", MODEL_FILE_NAME))
-    for candidate in candidates:
-        if os_path.isfile(candidate):
-            return candidate
-    return None
-
-
 def nonMaxSuppression(boxes: np.ndarray, scores: np.ndarray, threshold: float) -> List[int]:
     """信頼度の高い順に、重なりすぎた箱を落とす。残った添字を強い順で返す。
 
@@ -122,7 +106,7 @@ class BubbleDetector:
         crop_padding: int = 4,
         nms_iou: float = DEFAULT_NMS_IOU,
     ) -> None:
-        self.model_path = model_path or findModelPath()
+        self.model_path = model_path
         self.image_size = int(image_size)
         # 実機のワールドや距離によって当たり方が変わるので調整できるようにしておく。
         # 既定0.7 (固定val80枚で 68/70・余分0、0.5 だと 69/70・余分1)。実機では

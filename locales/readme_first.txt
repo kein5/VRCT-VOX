@@ -6,8 +6,8 @@ If you want to edit a language:
 Languages currently supported:
 - en: English
 - ja: 日本語
-- ko: 한국어
-- zh-Hant: 繁體中文
-- zh-Hans: 简体中文
 
-Last updated: 2025/12
+Korean and Chinese (ko, zh-Hant, zh-Hans) were removed in 0.2.0: they had fallen behind
+and many lines showed in English. Translation to and from those languages is unchanged.
+
+Last updated: 2026/11

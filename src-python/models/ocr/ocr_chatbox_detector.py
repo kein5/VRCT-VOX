@@ -13,7 +13,7 @@ path, so this module is the only place that constructs one, and only:
 - when the file name is `vrct_vox_chatbox_yolox_tiny.onnx` (never the
   upstream name) and the file is not inside the bundled onnx directory.
 
-findModelPath() is never called here.
+There is no fallback lookup: without a path there is no detector.
 
 With a detector, every detected chatbox is read on its own (one crop per
 bubble). OcrPipeline still applies the reading area (detections whose centre

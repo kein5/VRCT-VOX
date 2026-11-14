@@ -1,0 +1,21 @@
+/* A stand-in for a game: an evening sky, hills and a lit floor, drawn with gradients only.
+   It is there to show the captions over a bright and a dark area, not to look like any game. */
+#scene {
+    position: fixed;
+    inset: 0;
+    background:
+        radial-gradient(circle at 78% 26%, rgba(255, 226, 170, 0.95) 0 3.2%, rgba(255, 196, 120, 0.35) 3.6% 9%, transparent 16%),
+        radial-gradient(120% 60% at 20% 78%, #2c4a5e 0 46%, transparent 46.4%),
+        radial-gradient(110% 70% at 85% 86%, #223a4d 0 48%, transparent 48.4%),
+        linear-gradient(180deg, #2a2f63 0%, #6b4f8a 34%, #d98a6c 58%, #f0c58f 66%, #3b5a4a 66.2%, #1f3327 100%);
+}
+
+/* The overlay window covers a band across the bottom of the monitor; the rest is the game. */
+#root {
+    position: absolute;
+    left: 10%;
+    bottom: 5%;
+    width: 80%;
+    height: 44%;
+    background: transparent;
+}

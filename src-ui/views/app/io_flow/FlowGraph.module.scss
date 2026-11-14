@@ -1,0 +1,68 @@
+// Inputs on the left, steps in the middle, outputs on the right. Your voice is blue and chat
+// purple, the colours of the message log; speech and its conversion share amber and rose.
+// Unused arrows are dashed and grey; colour never carries the meaning alone.
+.graph {
+    --lane_voice: #58b0ee; --lane_chat: #a58cf0; --lane_speech: #e0a656; --conversion: #f08cc2;
+    --output: #4fb8a8; --unused: #4a5a75;
+    position: relative; display: grid; min-width: 60rem;
+    grid-template-columns: minmax(8rem, 1fr) minmax(9rem, 1.1fr) minmax(10rem, 1.2fr) minmax(10rem, 1.2fr) minmax(16rem, 1.8fr);
+    grid-template-rows: repeat(6, auto); gap: .6rem 3.2rem; padding: .4rem 0;
+}
+// VR cannot scroll: narrower columns, and the boxes keep their names and times only.
+.compact {
+    min-width: 0; gap: .4rem 1.6rem;
+    grid-template-columns: minmax(6rem, .8fr) minmax(7rem, 1fr) minmax(7rem, 1fr) minmax(12.5rem, 1.3fr) minmax(12rem, 1.6fr);
+}
+.compact .node { padding: .3rem .7rem; }
+.compact .kind_input { padding: .6rem .9rem; }
+.compact .detail { display: none; }
+.edges { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 0; }
+
+.node {
+    position: relative; z-index: 1; align-self: center; display: flex; flex-direction: column; gap: .1rem;
+    padding: .5rem .9rem; border: .1rem solid var(--vox_border); border-radius: var(--vox_radius);
+    background: var(--vox_surface); font-size: 1.3rem; min-width: 0;
+}
+// Japanese names stay whole (keep-all) and break only where they must not overflow.
+.name { font-weight: 600; color: var(--dark_200_color); word-break: keep-all; overflow-wrap: anywhere; }
+.abbr { display: block; }
+.detail { font-size: 1.2rem; color: var(--vox_description_text); overflow-wrap: anywhere; }
+.time { font-size: 1.2rem; color: var(--vox_state_active); font-variant-numeric: tabular-nums; }
+
+.kind_input { border-width: .2rem; padding: .9rem 1.2rem; }
+.kind_input.lane_voice { border-color: var(--lane_voice); }
+.kind_input.lane_chat { border-color: var(--lane_chat); }
+.kind_speech { border-color: var(--lane_speech); }
+.kind_conversion { border-color: var(--conversion); }
+.kind_output { border-color: var(--output); border-width: .2rem; padding: .4rem .9rem; }
+// Not in use: dashed and quiet; its words say why.
+.node.off { border-style: dashed; border-color: var(--unused); border-width: .1rem; background: transparent; }
+.node.off .name { color: var(--vox_description_text); }
+
+.edge { fill: none; stroke-width: 2.2; opacity: .55; }
+.edge.lane_voice { stroke: var(--lane_voice); }
+.edge.lane_chat { stroke: var(--lane_chat); }
+.edge.lane_speech { stroke: var(--lane_speech); }
+.edge.off { stroke: var(--unused); stroke-dasharray: 5 5; opacity: 1; stroke-width: 1.6; }
+// VRChat reads the microphone itself: drawn dotted, not as an unused route.
+.edge.direct { stroke: var(--unused); stroke-dasharray: 1 5; stroke-linecap: round; opacity: 1; }
+.edge.lit { opacity: 1; stroke-width: 3; filter: drop-shadow(0 0 3px currentColor); }
+.edge.lit.lane_voice { color: var(--lane_voice); }
+.edge.lit.lane_chat { color: var(--lane_chat); }
+.edge.lit.lane_speech { color: var(--lane_speech); }
+.head_on { fill: var(--vox_secondary_text); }
+.head_off { fill: var(--unused); }
+.head_lit { fill: var(--dark_200_color); }
+
+// A new message: a light runs once along its path.
+.pulse { fill: none; stroke-width: 3.4; stroke-linecap: round; stroke-dasharray: 18 1200; stroke-dashoffset: 18; opacity: 0; }
+.pulse.lane_voice { stroke: #c7e6ff; }
+.pulse.lane_chat { stroke: #e2d6ff; }
+.pulse.lane_speech { stroke: #ffe1b0; }
+@media (prefers-reduced-motion: no-preference) {
+    .pulse { animation: flow_pulse 900ms ease-out 1; }
+}
+@keyframes flow_pulse {
+    0% { stroke-dashoffset: 18; opacity: 1; }
+    100% { stroke-dashoffset: -600; opacity: 0; }
+}

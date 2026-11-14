@@ -59,6 +59,9 @@ class VoiceSettings:
     monitor: str = "off"  # off | on
     monitor_device: str = ""
     monitor_volume: str = "100"  # 0-100 percent, attenuation only
+    # Speak through the running voice conversion (RVC, Seed-VC) in place of the
+    # microphone, so speech has the converted voice (ADR-007). Off by default.
+    conversion: str = "off"  # off | on
 
     @property
     def playback_device(self):
@@ -89,6 +92,9 @@ class VoiceSettings:
             raise ValueError("Invalid microphone speech mode or direct voice policy")
         if settings.routing not in ("external", "managed"):
             raise ValueError("Invalid routing mode")
+        # The conversion has one input: speech replaces the microphone, it cannot mix with it.
+        if settings.conversion not in ("off", "on") or (settings.conversion == "on" and settings.direct_policy == "mix"):
+            raise ValueError("Invalid speech-through-conversion choice")
         if any(value not in ("external", "bundled") for value in (settings.japanese_server, settings.multilingual_server)):
             raise ValueError("Invalid speech server selection")
         local_url(settings.japanese_url)

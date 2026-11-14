@@ -104,7 +104,8 @@ export function createPendingRequestRecovery() {
         return reading.version === reading.control.version;
     };
     const receive = ({ endpoint, status, result }, send) => {
-        if (![404, 423, 500].includes(status)) return;
+        // 403: the backend refused a request relayed for the VR panel (models/vr_panel_policy.py).
+        if (![403, 404, 423, 500].includes(status)) return;
         const control = controls.get(endpoint);
         if (!control) return;
         control.restore(result?.data, false, true);

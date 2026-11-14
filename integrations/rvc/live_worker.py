@@ -49,7 +49,14 @@ def main():
     with redirect_stdout(sys.stderr):
         from .loader import create_engine
         import numpy as np
-        engine = create_engine(args.engine, args.assets, args.model, args.index, args.pitch, args.index_rate)
+        try:
+            engine = create_engine(args.engine, args.assets, args.model, args.index, args.pitch, args.index_rate)
+        except (ValueError, RuntimeError) as exc:
+            if str(exc) not in p.WORKER_FAILURES:
+                raise
+            # Say why before exiting; the owner shows the code instead of "the worker ended".
+            _write(output, p.failed_info(args.session, str(exc)))
+            return 1
         from .blocks import BlockSession
         vc = BlockSession(engine)
         tone = (.1 * np.sin(np.arange(p.FRAMES) * (2*np.pi*220/p.RATE))).astype(np.float32)
@@ -66,4 +73,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

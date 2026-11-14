@@ -8,6 +8,7 @@ import { EnvReadout } from "../_components/env_readout/EnvReadout";
 import { SetupSection } from "../_components/setup_section/SetupSection";
 import { Description } from "../_components/description/Description";
 import { FormRow } from "../_components/form_row/FormRow";
+import { CustomModelLink } from "../_components/custom_model_link/CustomModelLink";
 
 // Readout tone for a server state; the state text itself always says it.
 const serverTone = (owner, pending) => pending || ["preparing", "stopping"].includes(owner?.state) ? "warning" :
@@ -51,6 +52,8 @@ export const SpeechServers = ({ profiles = ["japanese", "multilingual", "asr"] }
     return <section className={styles.container} aria-label={t("speech_servers.title")}>
         <SetupSection title={t("speech_servers.setup_title")} status={summary} attention={attention}>
         <Description text={t("speech_servers.help")} />
+        {/* How to use a model file of your own instead of the default one. */}
+        <CustomModelLink section={tts ? "tts" : "asr"} />
         {tts && <HardwareReadout reserve={reserve} setReserve={setReserve} />}
         {draft && <form onSubmit={event => {
             event.preventDefault(); if (dirty) form.submit(value => send("/set/data/speech_server_settings", value));

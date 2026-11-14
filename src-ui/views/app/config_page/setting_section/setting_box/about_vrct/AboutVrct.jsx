@@ -1,9 +1,6 @@
 import styles from "./AboutVrct.module.scss";
 import logo_en from "@images/brand/logo-en.svg";
 import logo_ja from "@images/brand/logo-ja.svg";
-import logo_ko from "@images/brand/logo-ko.svg";
-import logo_zh_hant from "@images/brand/logo-zh-Hant.svg";
-import logo_zh_hans from "@images/brand/logo-zh-Hans.svg";
 
 import dev_section_title from "@images/about_vrct/dev_section_title.png";
 import dev_misya from "@images/about_vrct/dev_misya.png";
@@ -30,7 +27,7 @@ import { useSoftwareVersion } from "@logics_common";
 
 import { upstream_vrct_document_url } from "@ui_configs";
 
-const logos = { en: logo_en, ja: logo_ja, ko: logo_ko, "zh-Hant": logo_zh_hant, "zh-Hans": logo_zh_hans };
+const logos = { en: logo_en, ja: logo_ja };
 
 const vrct_vox_url = "https://github.com/kein5/VRCT-VOX";
 const vrct_vox_links = [
