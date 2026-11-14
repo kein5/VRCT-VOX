@@ -9,6 +9,8 @@ mod caption_overlay;
 mod quick_chat;
 mod single_instance;
 mod vr_panel_state;
+#[cfg(test)]
+mod opener_scope_tests;
 #[cfg(target_os = "linux")]
 mod portal_shortcuts;
 #[cfg(target_os = "linux")]
