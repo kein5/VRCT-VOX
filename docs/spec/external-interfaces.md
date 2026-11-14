@@ -179,6 +179,20 @@ TTSのスイッチをオフにしたときは、そのスイッチが起動し�
 
 設計の経緯は`docs/voice-stack/`（`current-architecture-2026-10-28.md`、`owned-speech-servers-report.md`、ADR）にある。
 
+### 利用者が入れた合成音声エンジン
+
+日本語の読み上げには、利用者が入れて起動したエンジンも使える（[ADR-008](../voice-stack/adr-008-external-speech-engines.md)）。アプリはエンジンを同梱せず、入れることも起動することもしない。接続先はループバックの`http`だけで、`local_url()`で確かめる。日本語以外は今までどおりspeech.cppで読む。
+
+| エンジン | 既定のURL | 使うAPI |
+|---|---|---|
+| VOICEVOX、SHAREVOX、AivisSpeech | `127.0.0.1`の50021、50025、10101 | `GET /version`、`GET /speakers`、`POST /audio_query`、`POST /synthesis`（`src-python/models/tts/voicevox_tts.py`） |
+| COEIROINK v2 | `127.0.0.1:50032` | `GET /v1/engine_info`、`GET /v1/speakers_path_variant`、`POST /v1/synthesis`（`coeiroink_tts.py`） |
+
+- 読み上げる文は文末（`。`、`！`、`？`など）と改行で分け、40文字を超える文は読点でも分ける。1つずつ合成し、読み上げている間に次の文を合成する（`external_engine.py`）。エンジンは文ごとにWAVをまとめて返すので、分けないとマイクの読み上げが5秒の開始期限に間に合わない。
+- VOICEVOX系では`/audio_query`の応答を書き換えずに`/synthesis`へ渡す。AivisSpeechは書き換えた問い合わせを受け付けないことがあるため。COEIROINKの話者の一覧には画像を含まない`/v1/speakers_path_variant`を使う。`/v1/speakers`は画像をbase64で含み、話者1人で約1 MBになる。
+- 選んだ声はエンジンのID（COEIROINKは`speakerUuid:styleId`）と話者名、スタイル名で保存する。IDが見つからないか、IDの声の名前が変わっていれば名前で探し直す。見つからなければ`tts_engine_voice_missing`、声を選んでいなければ`tts_engine_voice_unset`、エンジンに接続できなければ`tts_engine_not_ready`で失敗する。歌うためのスタイルは一覧に出さない。
+- WAVは16ビットのPCMだけを受け付け、約0.2秒ずつに分けて流す。1件の読み上げは60秒まで。エラーには安全なコードだけを使い、読み上げる文、音声、応答の本文を含めない。
+
 ## デスクトップとの統合
 
 ### ウィンドウ
