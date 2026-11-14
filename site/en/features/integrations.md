@@ -24,7 +24,7 @@ While the OBS browser source is on, the WebSocket settings cannot be changed. Tu
 
 ## Use it from other PCs
 
-From OBS or tools on other PCs, the connection is encrypted. For that you need a certificate and private key (PEM) for this PC's LAN IP address. Without a certificate, nothing listens on an address other than `127.0.0.1`.
+From OBS or tools on other PCs, the connection is encrypted. For that you need a certificate and private key (PEM) for this PC's LAN IP address. Without a certificate, other PCs cannot connect.
 
 ![The WebSocket rows under Advanced](/screenshots/en/websocket.webp)
 
